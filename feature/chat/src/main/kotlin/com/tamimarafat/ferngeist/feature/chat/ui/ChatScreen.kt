@@ -1,4 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
+
 import android.os.SystemClock
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -87,6 +88,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -125,6 +127,7 @@ import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.UsageState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -146,6 +149,8 @@ private const val FOLLOW_TOLERANCE_PX = 24
 private const val RESUME_TOLERANCE_PX = 48
 private const val FOLLOW_CORRECTION_PASSES = 4
 private const val FOLLOW_CORRECTION_DELAY_MS = 16L
+private const val SEND_FOLLOW_PASSES = 3
+private const val SEND_FOLLOW_DELAY_MS = 32L
 
 private data class ContentAnchor(
     val messageCount: Int,
@@ -156,6 +161,184 @@ private data class ContentAnchor(
     val isStreaming: Boolean,
 )
 
+private class ChatScrollState(
+    val listState: LazyListState,
+) {
+    private var autoScrollMode by mutableStateOf(AutoScrollMode.FOLLOWING)
+    private var programmaticScrollDepth by mutableStateOf(0)
+    private var lastUserScrollUptimeMs by mutableStateOf(0L)
+    private var initialFollowSettled by mutableStateOf(false)
+
+    val isFollowing: Boolean
+        get() = autoScrollMode == AutoScrollMode.FOLLOWING
+
+    val userScrollDetector: NestedScrollConnection = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if (source == NestedScrollSource.UserInput && kotlin.math.abs(available.y) > 0.5f) {
+                lastUserScrollUptimeMs = SystemClock.uptimeMillis()
+                if (programmaticScrollDepth == 0) {
+                    autoScrollMode = AutoScrollMode.PAUSED_BY_USER
+                }
+            }
+            return Offset.Zero
+        }
+    }
+
+    fun resumeFollowing() {
+        autoScrollMode = AutoScrollMode.FOLLOWING
+    }
+
+    suspend fun scrollToBottomForSend() {
+        repeat(SEND_FOLLOW_PASSES) {
+            scrollToBottom(smooth = true)
+            delay(SEND_FOLLOW_DELAY_MS)
+        }
+    }
+
+    suspend fun observeIdleResume() {
+        snapshotFlow { listState.isScrollInProgress to (programmaticScrollDepth > 0) }
+            .distinctUntilChanged()
+            .collect { (inProgress, isProgrammaticScroll) ->
+                val now = SystemClock.uptimeMillis()
+                val recentlyUserScrolled = (now - lastUserScrollUptimeMs) <= USER_SCROLL_SIGNAL_WINDOW_MS
+
+                if (!inProgress &&
+                    !isProgrammaticScroll &&
+                    autoScrollMode == AutoScrollMode.PAUSED_BY_USER &&
+                    !recentlyUserScrolled &&
+                    (now - lastUserScrollUptimeMs) >= USER_RESUME_IDLE_MS &&
+                    listState.isAtBottom(RESUME_TOLERANCE_PX)
+                ) {
+                    autoScrollMode = AutoScrollMode.FOLLOWING
+                }
+            }
+    }
+
+    suspend fun observeManualBottomResume(activelyStreaming: Boolean) {
+        snapshotFlow { listState.isAtBottom(RESUME_TOLERANCE_PX) }
+            .distinctUntilChanged()
+            .collect { isBottom ->
+                if (isBottom &&
+                    activelyStreaming &&
+                    autoScrollMode == AutoScrollMode.PAUSED_BY_USER
+                ) {
+                    autoScrollMode = AutoScrollMode.FOLLOWING
+                    scrollToBottom()
+                }
+            }
+    }
+
+    suspend fun onContentAnchorChanged(contentAnchor: ContentAnchor) {
+        if (!isFollowing || contentAnchor.messageCount == 0) return
+        if (!initialFollowSettled) {
+            initialFollowSettled = true
+            delay(INITIAL_FOLLOW_SETTLE_MS)
+        }
+        scrollToBottom()
+    }
+
+    suspend fun onComposerInsetsChanged(messageCount: Int) {
+        if (!isFollowing || messageCount == 0) return
+        delay(COMPOSER_FOLLOW_SETTLE_MS)
+        scrollToBottom(smooth = true)
+    }
+
+    suspend fun followWhileStreaming(activelyStreaming: Boolean) {
+        if (!activelyStreaming || !isFollowing) return
+        while (true) {
+            scrollToBottom()
+            delay(STREAM_FOLLOW_TICK_MS)
+        }
+    }
+
+    suspend fun scrollToBottom(smooth: Boolean = false) {
+        if (!isFollowing) return
+        programmaticScrollDepth += 1
+        try {
+            var pass = 0
+            while (pass < FOLLOW_CORRECTION_PASSES) {
+                val info = listState.layoutInfo
+                val lastIndex = info.totalItemsCount - 1
+                if (lastIndex < 0) break
+
+                val lastVisible = info.visibleItemsInfo.lastOrNull { it.index == lastIndex }
+                if (lastVisible == null) {
+                    if (smooth) listState.animateScrollToItem(lastIndex) else listState.scrollToItem(lastIndex)
+                } else {
+                    val overflow = (lastVisible.offset + lastVisible.size) - info.viewportEndOffset
+                    if (overflow <= FOLLOW_TOLERANCE_PX) {
+                        break
+                    }
+                    val delta = overflow.coerceAtMost(MAX_SCROLL_BY_PX)
+                    if (smooth) listState.animateScrollBy(delta.toFloat()) else listState.scrollBy(delta.toFloat())
+                }
+
+                pass += 1
+                if (pass < FOLLOW_CORRECTION_PASSES) {
+                    delay(FOLLOW_CORRECTION_DELAY_MS)
+                }
+            }
+
+            val finalInfo = listState.layoutInfo
+            val finalLastIndex = finalInfo.totalItemsCount - 1
+            if (finalLastIndex >= 0 && !listState.isAtBottom(FOLLOW_TOLERANCE_PX)) {
+                val finalLastVisible = finalInfo.visibleItemsInfo.lastOrNull { it.index == finalLastIndex }
+                if (finalLastVisible == null) {
+                    if (smooth) listState.animateScrollToItem(finalLastIndex) else listState.scrollToItem(finalLastIndex)
+                } else {
+                    val overflow = (finalLastVisible.offset + finalLastVisible.size) - finalInfo.viewportEndOffset
+                    if (overflow > FOLLOW_TOLERANCE_PX) {
+                        if (smooth) listState.animateScrollBy(overflow.toFloat()) else listState.scrollBy(overflow.toFloat())
+                    }
+                }
+            }
+        } finally {
+            programmaticScrollDepth = (programmaticScrollDepth - 1).coerceAtLeast(0)
+        }
+    }
+}
+
+@Composable
+private fun rememberChatScrollState(
+    contentAnchor: ContentAnchor,
+    composerContentHeightPx: Int,
+    imeBottomPx: Int,
+    activelyStreaming: Boolean,
+    renderedLastMessageId: String?,
+): ChatScrollState {
+    val listState = rememberLazyListState()
+    val chatScrollState = remember(listState) {
+        ChatScrollState(listState = listState)
+    }
+
+    LaunchedEffect(chatScrollState) {
+        chatScrollState.observeIdleResume()
+    }
+
+    LaunchedEffect(contentAnchor, chatScrollState.isFollowing) {
+        chatScrollState.onContentAnchorChanged(contentAnchor)
+    }
+
+    LaunchedEffect(
+        composerContentHeightPx,
+        imeBottomPx,
+        contentAnchor.messageCount,
+        chatScrollState.isFollowing,
+    ) {
+        chatScrollState.onComposerInsetsChanged(contentAnchor.messageCount)
+    }
+
+    LaunchedEffect(activelyStreaming, chatScrollState.isFollowing, renderedLastMessageId) {
+        chatScrollState.followWhileStreaming(activelyStreaming)
+    }
+
+    LaunchedEffect(chatScrollState, activelyStreaming) {
+        chatScrollState.observeManualBottomResume(activelyStreaming)
+    }
+
+    return chatScrollState
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChatScreen(
@@ -164,7 +347,6 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
@@ -174,11 +356,11 @@ fun ChatScreen(
     var showCommandsDialog by remember { mutableStateOf(false) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
     var composerContentHeightPx by remember { mutableStateOf(0) }
-    var sendFollowNonce by remember { mutableStateOf(0) }
     var messageText by remember { mutableStateOf("") }
     var composerExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
@@ -192,9 +374,9 @@ fun ChatScreen(
             0.dp
         } else {
             composerContentHeightDp +
-                systemBottomInsetDp +
-                FloatingToolbarDefaults.ScreenOffset +
-                36.dp
+                    systemBottomInsetDp +
+                    FloatingToolbarDefaults.ScreenOffset +
+                    36.dp
         }
     }
     val snackbarBottomPadding = with(density) {
@@ -202,9 +384,9 @@ fun ChatScreen(
             0.dp
         } else {
             composerContentHeightDp +
-                systemBottomInsetDp +
-                FloatingToolbarDefaults.ScreenOffset +
-                16.dp
+                    systemBottomInsetDp +
+                    FloatingToolbarDefaults.ScreenOffset +
+                    16.dp
         }
     }
     val modelOption = remember(state.configOptions) {
@@ -228,11 +410,6 @@ fun ChatScreen(
             ?: state.currentModeId?.uppercase(Locale.getDefault())
             ?: "MODE"
     }
-    var autoScrollMode by remember { mutableStateOf(AutoScrollMode.FOLLOWING) }
-    var programmaticScrollDepth by remember { mutableStateOf(0) }
-    var lastProgrammaticScrollUptimeMs by remember { mutableStateOf(0L) }
-    var lastUserScrollUptimeMs by remember { mutableStateOf(0L) }
-    var initialFollowSettled by remember { mutableStateOf(false) }
     val renderedMessages = state.messages
     val markdownStates = state.markdownStates
     val renderedLastMessageId = renderedMessages.lastOrNull()?.id
@@ -252,19 +429,14 @@ fun ChatScreen(
             isStreaming = state.isStreaming,
         )
     }
-    val userScrollDetector = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput && kotlin.math.abs(available.y) > 0.5f) {
-                    lastUserScrollUptimeMs = SystemClock.uptimeMillis()
-                    if (programmaticScrollDepth == 0) {
-                        autoScrollMode = AutoScrollMode.PAUSED_BY_USER
-                    }
-                }
-                return Offset.Zero
-            }
-        }
-    }
+    val scrollState = rememberChatScrollState(
+        contentAnchor = contentAnchor,
+        composerContentHeightPx = composerContentHeightPx,
+        imeBottomPx = imeBottomPx,
+        activelyStreaming = activelyStreaming,
+        renderedLastMessageId = renderedLastMessageId,
+    )
+    val listState = scrollState.listState
 
     // --- Composer spring animations ---
     val fadeSpring = spring<Float>(
@@ -285,8 +457,10 @@ fun ChatScreen(
     val sendMessage: () -> Unit = {
         if (messageText.isNotBlank()) {
             viewModel.dispatch(ChatIntent.SendMessage(messageText))
-            autoScrollMode = AutoScrollMode.FOLLOWING
-            sendFollowNonce += 1
+            scrollState.resumeFollowing()
+            coroutineScope.launch {
+                scrollState.scrollToBottomForSend()
+            }
             messageText = ""
             composerExpanded = false
             focusManager.clearFocus()
@@ -315,131 +489,6 @@ fun ChatScreen(
         if (composerExpanded) {
             focusRequester.requestFocus()
         }
-    }
-
-    // Track user-driven scroll intent.
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress to (programmaticScrollDepth > 0) }
-            .distinctUntilChanged()
-            .collect { (inProgress, isProgrammaticScroll) ->
-                val recentlyUserScrolled =
-                    (SystemClock.uptimeMillis() - lastUserScrollUptimeMs) <= USER_SCROLL_SIGNAL_WINDOW_MS
-
-                if (!inProgress &&
-                    !isProgrammaticScroll &&
-                    autoScrollMode == AutoScrollMode.PAUSED_BY_USER &&
-                    !recentlyUserScrolled &&
-                    (SystemClock.uptimeMillis() - lastUserScrollUptimeMs) >= USER_RESUME_IDLE_MS &&
-                    listState.isAtBottom(RESUME_TOLERANCE_PX)
-                ) {
-                    autoScrollMode = AutoScrollMode.FOLLOWING
-                }
-            }
-    }
-
-    suspend fun followToBottom(reason: String, smooth: Boolean = false) {
-        if (autoScrollMode != AutoScrollMode.FOLLOWING) return
-        programmaticScrollDepth += 1
-        lastProgrammaticScrollUptimeMs = SystemClock.uptimeMillis()
-        try {
-            var pass = 0
-            while (pass < FOLLOW_CORRECTION_PASSES) {
-                val info = listState.layoutInfo
-                val lastIndex = info.totalItemsCount - 1
-                if (lastIndex < 0) break
-
-                val lastVisible = info.visibleItemsInfo.lastOrNull { it.index == lastIndex }
-                if (lastVisible == null) {
-                    if (smooth) listState.animateScrollToItem(lastIndex) else listState.scrollToItem(lastIndex)
-                } else {
-                    val overflow = (lastVisible.offset + lastVisible.size) - info.viewportEndOffset
-                    if (overflow <= FOLLOW_TOLERANCE_PX) {
-                        break
-                    }
-                    val delta = overflow.coerceAtMost(MAX_SCROLL_BY_PX)
-                    if (smooth) listState.animateScrollBy(delta.toFloat()) else listState.scrollBy(delta.toFloat())
-                }
-
-                pass += 1
-                if (pass < FOLLOW_CORRECTION_PASSES) {
-                    delay(FOLLOW_CORRECTION_DELAY_MS)
-                }
-            }
-
-            // Final bounded correction to avoid stopping at the top of a very tall last item.
-            val finalInfo = listState.layoutInfo
-            val finalLastIndex = finalInfo.totalItemsCount - 1
-            if (finalLastIndex >= 0 && !listState.isAtBottom(FOLLOW_TOLERANCE_PX)) {
-                val finalLastVisible = finalInfo.visibleItemsInfo.lastOrNull { it.index == finalLastIndex }
-                if (finalLastVisible == null) {
-                    if (smooth) listState.animateScrollToItem(finalLastIndex) else listState.scrollToItem(finalLastIndex)
-                } else {
-                    val overflow = (finalLastVisible.offset + finalLastVisible.size) - finalInfo.viewportEndOffset
-                    if (overflow > FOLLOW_TOLERANCE_PX) {
-                        if (smooth) listState.animateScrollBy(overflow.toFloat()) else listState.scrollBy(overflow.toFloat())
-                    }
-                }
-            }
-        } finally {
-            lastProgrammaticScrollUptimeMs = SystemClock.uptimeMillis()
-            programmaticScrollDepth = (programmaticScrollDepth - 1).coerceAtLeast(0)
-        }
-    }
-
-    LaunchedEffect(sendFollowNonce) {
-        if (sendFollowNonce <= 0) return@LaunchedEffect
-        repeat(3) {
-            followToBottom("send-message", smooth = true)
-            delay(32L)
-        }
-    }
-
-    // Content-driven one-shot follow: trigger only when transcript anchor changes.
-    LaunchedEffect(contentAnchor, autoScrollMode) {
-        if (autoScrollMode != AutoScrollMode.FOLLOWING) return@LaunchedEffect
-        if (contentAnchor.messageCount == 0) return@LaunchedEffect
-
-        if (!initialFollowSettled) {
-            initialFollowSettled = true
-            delay(INITIAL_FOLLOW_SETTLE_MS)
-        }
-        followToBottom("content-anchor")
-    }
-
-    // Insets/composer adjustment follow (debounced by key restart delay).
-    LaunchedEffect(composerContentHeightPx, imeBottomPx, autoScrollMode, contentAnchor.messageCount) {
-        if (autoScrollMode != AutoScrollMode.FOLLOWING) return@LaunchedEffect
-        if (contentAnchor.messageCount == 0) return@LaunchedEffect
-        delay(COMPOSER_FOLLOW_SETTLE_MS)
-        followToBottom("composer-height", smooth = true)
-    }
-
-    // Keep following while streaming because markdown/image/layout growth can happen
-    // after content chunks arrive, which doesn't always change the anchor immediately.
-    LaunchedEffect(activelyStreaming, autoScrollMode, renderedLastMessageId) {
-        if (!activelyStreaming || autoScrollMode != AutoScrollMode.FOLLOWING) {
-            return@LaunchedEffect
-        }
-        while (true) {
-            followToBottom("streaming-tick")
-            delay(STREAM_FOLLOW_TICK_MS)
-        }
-    }
-
-    // If user manually scrolls back to the bottom while a response is streaming,
-    // immediately resume follow mode.
-    LaunchedEffect(listState, activelyStreaming) {
-        snapshotFlow { listState.isAtBottom(RESUME_TOLERANCE_PX) }
-            .distinctUntilChanged()
-            .collect { isBottom ->
-                if (isBottom &&
-                    activelyStreaming &&
-                    autoScrollMode == AutoScrollMode.PAUSED_BY_USER
-                ) {
-                    autoScrollMode = AutoScrollMode.FOLLOWING
-                    followToBottom("manual-bottom-resume")
-                }
-            }
     }
 
     Scaffold(topBar = {
@@ -539,7 +588,7 @@ fun ChatScreen(
                         state = listState,
                         modifier = Modifier
                             .fillMaxSize()
-                            .nestedScroll(userScrollDetector)
+                            .nestedScroll(scrollState.userScrollDetector)
                             .weight(1f),
                         contentPadding = PaddingValues(
                             start = 16.dp, top = 8.dp, end = 16.dp, bottom = 0.dp
@@ -593,126 +642,226 @@ fun ChatScreen(
                         .offset(y = -FloatingToolbarDefaults.ScreenOffset)
                         .zIndex(1f)
                 ) {
-                val animatedHeight by animateDpAsState(
-                    targetValue = if (composerExpanded) 128.dp else 48.dp,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    ),
-                    label = "ComposerHeight"
-                )
-                val expandedToolbarWidth = configuration.screenWidthDp.dp * 0.97f
-                val collapsedMaxToolbarWidth = configuration.screenWidthDp.dp * 0.92f
+                    val animatedHeight by animateDpAsState(
+                        targetValue = if (composerExpanded) 128.dp else 48.dp,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "ComposerHeight"
+                    )
+                    val expandedToolbarWidth = configuration.screenWidthDp.dp * 0.97f
+                    val collapsedMaxToolbarWidth = configuration.screenWidthDp.dp * 0.92f
 
-                Surface(
-                    shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shadowElevation = 6.dp,
-                    modifier = Modifier
-                        .height(animatedHeight)
-                        .widthIn(max = if (composerExpanded) expandedToolbarWidth else collapsedMaxToolbarWidth)
-                        .onSizeChanged { composerContentHeightPx = it.height }
-                ) {
-                    Row(
+                    Surface(
+                        shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shadowElevation = 6.dp,
                         modifier = Modifier
-                            .then(
-                                if (composerExpanded) {
-                                    Modifier.fillMaxSize()
-                                } else {
-                                    Modifier
-                                        .fillMaxHeight()
-                                        .wrapContentWidth()
-                                }
-                            )
-                            .animateContentSize(
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            )
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                            .height(animatedHeight)
+                            .widthIn(max = if (composerExpanded) expandedToolbarWidth else collapsedMaxToolbarWidth)
+                            .onSizeChanged { composerContentHeightPx = it.height }
                     ) {
-                        if (composerExpanded) {
-                            // --- Expanded: top text field + bottom action row ---
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth()
-                                    .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp)
-                                    .alpha(inputAlpha)
-                            ) {
-                                val selectionColors = TextSelectionColors(
-                                    handleColor = MaterialTheme.colorScheme.onPrimary,
-                                    backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f)
+                        Row(
+                            modifier = Modifier
+                                .then(
+                                    if (composerExpanded) {
+                                        Modifier.fillMaxSize()
+                                    } else {
+                                        Modifier
+                                            .fillMaxHeight()
+                                            .wrapContentWidth()
+                                    }
                                 )
-                                CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
-                                    BasicTextField(
-                                        value = messageText,
-                                        onValueChange = { messageText = it },
-                                        singleLine = false,
-                                        minLines = 3,
-                                        maxLines = 8,
-                                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                            color = MaterialTheme.colorScheme.onPrimary
-                                        ),
-                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                        keyboardActions = KeyboardActions(onSend = { sendMessage() }),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f)
-                                            .focusRequester(focusRequester),
-                                        decorationBox = { innerTextField ->
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                                                contentAlignment = Alignment.TopStart
-                                            ) {
-                                                if (messageText.isEmpty()) {
-                                                    Text(
-                                                        text = "Type a message\u2026",
-                                                        style = MaterialTheme.typography.bodyLarge,
-                                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f)
-                                                    )
-                                                }
-                                                innerTextField()
-                                            }
-                                        }
+                                .animateContentSize(
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
                                     )
-                                }
-
-                                Row(
+                                )
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (composerExpanded) {
+                                // --- Expanded: top text field + bottom action row ---
+                                Column(
                                     modifier = Modifier
+                                        .fillMaxHeight()
                                         .fillMaxWidth()
-                                        .padding(top = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Bottom
+                                        .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp)
+                                        .alpha(inputAlpha)
                                 ) {
-                                    IconButton(
-                                        onClick = {
-                                            composerExpanded = false
-                                            focusManager.clearFocus()
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Close composer"
+                                    val selectionColors = TextSelectionColors(
+                                        handleColor = MaterialTheme.colorScheme.onPrimary,
+                                        backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f)
+                                    )
+                                    CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
+                                        BasicTextField(
+                                            value = messageText,
+                                            onValueChange = { messageText = it },
+                                            singleLine = false,
+                                            minLines = 3,
+                                            maxLines = 8,
+                                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            ),
+                                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+                                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                            keyboardActions = KeyboardActions(onSend = { sendMessage() }),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .focusRequester(focusRequester),
+                                            decorationBox = { innerTextField ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                                    contentAlignment = Alignment.TopStart
+                                                ) {
+                                                    if (messageText.isEmpty()) {
+                                                        Text(
+                                                            text = "Type a message\u2026",
+                                                            style = MaterialTheme.typography.bodyLarge,
+                                                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f)
+                                                        )
+                                                    }
+                                                    innerTextField()
+                                                }
+                                            }
                                         )
                                     }
 
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.Bottom
+                                    ) {
+                                        IconButton(
+                                            onClick = {
+                                                composerExpanded = false
+                                                focusManager.clearFocus()
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Close composer"
+                                            )
+                                        }
+
+                                        FilledIconButton(
+                                            onClick = {
+                                                if (showStopAction && canCancelStreaming) {
+                                                    viewModel.dispatch(ChatIntent.CancelStreaming)
+                                                } else if (!showStopAction) {
+                                                    sendMessage()
+                                                }
+                                            },
+                                            enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
+                                            colors = IconButtonDefaults.filledIconButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.onPrimary,
+                                                contentColor = MaterialTheme.colorScheme.primary
+                                            ),
+                                            shapes = IconButtonDefaults.shapes()
+                                        ) {
+                                            Icon(
+                                                imageVector = if (showStopAction && canCancelStreaming) {
+                                                    Icons.Default.Stop
+                                                } else {
+                                                    Icons.Default.ArrowUpward
+                                                },
+                                                contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Send"
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                // --- Collapsed: mode + chat + model buttons ---
+                                if (showModeButton) {
+                                    Box(modifier = Modifier.alpha(buttonsAlpha)) {
+                                        TooltipBox(
+                                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                                TooltipAnchorPosition.Above
+                                            ),
+                                            tooltip = { PlainTooltip { Text("Mode") } },
+                                            state = rememberTooltipState()
+                                        ) {
+                                            Button(
+                                                onClick = { showModeMenu = true },
+                                                modifier = Modifier.widthIn(max = collapsedMaxToolbarWidth * 0.45f)
+                                            ) {
+                                                Text(
+                                                    text = currentModeLabel,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        DropdownMenuPopup(
+                                            expanded = showModeMenu,
+                                            onDismissRequest = { showModeMenu = false }
+                                        ) {
+                                            DropdownMenuGroup(
+                                                shapes = MenuDefaults.groupShape(0, 1),
+                                                interactionSource = modeMenuInteractionSource,
+                                            ) {
+                                                val modeCount = state.availableModes.size
+                                                if (modeCount == 0) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("No modes available") },
+                                                        onClick = { showModeMenu = false },
+                                                        enabled = false
+                                                    )
+                                                } else {
+                                                    state.availableModes.forEachIndexed { index, mode ->
+                                                        DropdownMenuItem(
+                                                            text = { Text(mode.name.uppercase()) },
+                                                            shapes = MenuDefaults.itemShape(index, modeCount),
+                                                            checked = mode.id == state.currentModeId,
+                                                            onCheckedChange = { checked ->
+                                                                if (checked && mode.id != state.currentModeId) {
+                                                                    showModeMenu = false
+                                                                    viewModel.dispatch(ChatIntent.SetMode(mode.id))
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                TooltipBox(
+                                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                        TooltipAnchorPosition.Above
+                                    ),
+                                    tooltip = {
+                                        PlainTooltip {
+                                            Text(
+                                                when {
+                                                    showStopAction && canCancelStreaming -> "Stop"
+                                                    showStopAction && !canCancelStreaming -> "Cancel unavailable"
+                                                    else -> "Chat"
+                                                }
+                                            )
+                                        }
+                                    },
+                                    state = rememberTooltipState()
+                                ) {
                                     FilledIconButton(
                                         onClick = {
                                             if (showStopAction && canCancelStreaming) {
                                                 viewModel.dispatch(ChatIntent.CancelStreaming)
                                             } else if (!showStopAction) {
-                                                sendMessage()
+                                                composerExpanded = true
                                             }
                                         },
-                                        enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
+                                        enabled = !showStopAction || canCancelStreaming,
                                         colors = IconButtonDefaults.filledIconButtonColors(
                                             containerColor = MaterialTheme.colorScheme.onPrimary,
                                             contentColor = MaterialTheme.colorScheme.primary
@@ -723,162 +872,63 @@ fun ChatScreen(
                                             imageVector = if (showStopAction && canCancelStreaming) {
                                                 Icons.Default.Stop
                                             } else {
-                                                Icons.Default.ArrowUpward
+                                                Icons.Default.Edit
                                             },
-                                            contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Send"
+                                            contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Chat"
                                         )
                                     }
                                 }
-                            }
-                        } else {
-                            // --- Collapsed: mode + chat + model buttons ---
-                            if (showModeButton) {
-                                Box(modifier = Modifier.alpha(buttonsAlpha)) {
+
+                                if (hasToolbarOptions) {
                                     TooltipBox(
                                         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                                             TooltipAnchorPosition.Above
                                         ),
-                                        tooltip = { PlainTooltip { Text("Mode") } },
-                                    state = rememberTooltipState()
+                                        tooltip = { PlainTooltip { Text("Options") } },
+                                        state = rememberTooltipState()
                                     ) {
-                                        Button(
-                                            onClick = { showModeMenu = true },
-                                            modifier = Modifier.widthIn(max = collapsedMaxToolbarWidth * 0.45f)
-                                        ) {
-                                        Text(
-                                            text = currentModeLabel,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                    DropdownMenuPopup(
-                                        expanded = showModeMenu,
-                                        onDismissRequest = { showModeMenu = false }
-                                    ) {
-                                        DropdownMenuGroup(
-                                            shapes = MenuDefaults.groupShape(0, 1),
-                                            interactionSource = modeMenuInteractionSource,
-                                        ) {
-                                            val modeCount = state.availableModes.size
-                                            if (modeCount == 0) {
-                                                DropdownMenuItem(
-                                                    text = { Text("No modes available") },
-                                                    onClick = { showModeMenu = false },
-                                                    enabled = false
-                                                )
-                                            } else {
-                                                state.availableModes.forEachIndexed { index, mode ->
-                                                    DropdownMenuItem(
-                                                        text = { Text(mode.name.uppercase()) },
-                                                        shapes = MenuDefaults.itemShape(index, modeCount),
-                                                        checked = mode.id == state.currentModeId,
-                                                        onCheckedChange = { checked ->
-                                                            if (checked && mode.id != state.currentModeId) {
-                                                                showModeMenu = false
-                                                                viewModel.dispatch(ChatIntent.SetMode(mode.id))
-                                                            }
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            TooltipBox(
-                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                    TooltipAnchorPosition.Above
-                                ),
-                                tooltip = {
-                                    PlainTooltip {
-                                        Text(
-                                            when {
-                                                showStopAction && canCancelStreaming -> "Stop"
-                                                showStopAction && !canCancelStreaming -> "Cancel unavailable"
-                                                else -> "Chat"
-                                            }
-                                        )
-                                    }
-                                },
-                                state = rememberTooltipState()
-                            ) {
-                                FilledIconButton(
-                                    onClick = {
-                                        if (showStopAction && canCancelStreaming) {
-                                            viewModel.dispatch(ChatIntent.CancelStreaming)
-                                        } else if (!showStopAction) {
-                                            composerExpanded = true
-                                        }
-                                    },
-                                    enabled = !showStopAction || canCancelStreaming,
-                                    colors = IconButtonDefaults.filledIconButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.onPrimary,
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    shapes = IconButtonDefaults.shapes()
-                                ) {
-                                    Icon(
-                                        imageVector = if (showStopAction && canCancelStreaming) {
-                                            Icons.Default.Stop
-                                        } else {
-                                            Icons.Default.Edit
-                                        },
-                                        contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Chat"
-                                    )
-                                }
-                            }
-
-                            if (hasToolbarOptions) {
-                                TooltipBox(
-                                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                        TooltipAnchorPosition.Above
-                                    ),
-                                    tooltip = { PlainTooltip { Text("Options") } },
-                                    state = rememberTooltipState()
-                                ) {
-                                    Box {
-                                        IconButton(
-                                            onClick = { showModelMenu = true },
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.MoreVert,
-                                                contentDescription = "Model"
-                                            )
-                                        }
-                                        DropdownMenuPopup(
-                                            expanded = showModelMenu,
-                                            onDismissRequest = { showModelMenu = false }
-                                        ) {
-                                            DropdownMenuGroup(
-                                                shapes = MenuDefaults.groupShape(0, 1),
-                                                interactionSource = optionsMenuInteractionSource,
+                                        Box {
+                                            IconButton(
+                                                onClick = { showModelMenu = true },
                                             ) {
-                                                if (state.commandsAdvertised) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("Commands") },
-                                                        onClick = {
-                                                            showModelMenu = false
-                                                            showCommandsDialog = true
-                                                        }
-                                                    )
-                                                }
+                                                Icon(
+                                                    imageVector = Icons.Default.MoreVert,
+                                                    contentDescription = "Model"
+                                                )
+                                            }
+                                            DropdownMenuPopup(
+                                                expanded = showModelMenu,
+                                                onDismissRequest = { showModelMenu = false }
+                                            ) {
+                                                DropdownMenuGroup(
+                                                    shapes = MenuDefaults.groupShape(0, 1),
+                                                    interactionSource = optionsMenuInteractionSource,
+                                                ) {
+                                                    if (state.commandsAdvertised) {
+                                                        DropdownMenuItem(
+                                                            text = { Text("Commands") },
+                                                            onClick = {
+                                                                showModelMenu = false
+                                                                showCommandsDialog = true
+                                                            }
+                                                        )
+                                                    }
 
-                                                if (modelOption != null) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("Change model") },
-                                                        onClick = {
-                                                            showModelMenu = false
-                                                            showModelPicker = true
-                                                        }
-                                                    )
-                                                } else if (!state.commandsAdvertised) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("No options available") },
-                                                        onClick = { showModelMenu = false },
-                                                        enabled = false
-                                                    )
+                                                    if (modelOption != null) {
+                                                        DropdownMenuItem(
+                                                            text = { Text("Change model") },
+                                                            onClick = {
+                                                                showModelMenu = false
+                                                                showModelPicker = true
+                                                            }
+                                                        )
+                                                    } else if (!state.commandsAdvertised) {
+                                                        DropdownMenuItem(
+                                                            text = { Text("No options available") },
+                                                            onClick = { showModelMenu = false },
+                                                            enabled = false
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -888,7 +938,6 @@ fun ChatScreen(
                         }
                     }
                 }
-            }
             }
         }
     }
