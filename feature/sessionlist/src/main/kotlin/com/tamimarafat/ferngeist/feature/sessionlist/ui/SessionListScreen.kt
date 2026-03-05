@@ -1,5 +1,8 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,7 +28,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +67,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
@@ -79,7 +86,7 @@ import java.time.ZoneId
 import java.text.NumberFormat
 import kotlin.math.max
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SessionListScreen(
     serverId: String,
@@ -106,6 +113,7 @@ fun SessionListScreen(
                 is SessionListEvent.NavigateToChat -> {
                     onNavigateToChat(event.sessionId, event.cwd, event.updatedAt, event.title)
                 }
+
                 is SessionListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }
@@ -237,7 +245,11 @@ fun SessionListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (isLoading && sessions.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = isLoading && sessions.isNotEmpty(),
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
@@ -247,9 +259,12 @@ fun SessionListScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        CircularWavyProgressIndicator(
+                            modifier = Modifier.size(64.dp)
+                        )
                     }
                 }
+
                 sessions.isEmpty() -> {
                     EmptySessionList(
                         modifier = Modifier.fillMaxSize(),
@@ -259,6 +274,7 @@ fun SessionListScreen(
                         }
                     )
                 }
+
                 else -> {
                     val zoneId = ZoneId.systemDefault()
                     val today = LocalDate.now(zoneId)
@@ -267,10 +283,11 @@ fun SessionListScreen(
                             .thenByDescending { it.id }
                     )
                     val groupedSessions = linkedMapOf<String, List<SessionSummary>>()
-                    val withDate = sortedSessions.filter { it.updatedAt != null }.groupBy { session ->
-                        val updatedAt = session.updatedAt ?: 0L
-                        Instant.ofEpochMilli(updatedAt).atZone(zoneId).toLocalDate()
-                    }
+                    val withDate =
+                        sortedSessions.filter { it.updatedAt != null }.groupBy { session ->
+                            val updatedAt = session.updatedAt ?: 0L
+                            Instant.ofEpochMilli(updatedAt).atZone(zoneId).toLocalDate()
+                        }
                     withDate.entries
                         .sortedByDescending { it.key }
                         .forEach { (sessionDate, groupSessions) ->
@@ -382,6 +399,8 @@ private fun EmptySessionList(
                 text = "Sessions from the server will appear here",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(240.dp),
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
             TextButton(onClick = onCreateSession) {
@@ -477,11 +496,13 @@ private fun ConnectionStatusDialog(
                 Text("Server info: $agentName ($agentVersion)")
                 Text("Pending RPC requests: ${diagnostics.pendingRequestCount}")
                 Text(
-                    "Cancel support: ${when (diagnostics.supportsSessionCancel) {
-                        true -> "Supported"
-                        false -> "Unsupported"
-                        null -> "Unknown"
-                    }}"
+                    "Cancel support: ${
+                        when (diagnostics.supportsSessionCancel) {
+                            true -> "Supported"
+                            false -> "Unsupported"
+                            null -> "Unknown"
+                        }
+                    }"
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text("Total tokens used: $totalTokensText")
@@ -500,7 +521,11 @@ private fun ConnectionStatusDialog(
                         val rpcIdText = entry.rpcId?.let { " #$it" } ?: ""
                         val summaryText = entry.summary?.let { " - $it" } ?: ""
                         Text(
-                            text = "${formatDiagnosticsTime(entry.timestampMs)}  ${directionLabel(entry.direction)} ${entry.method}$rpcIdText$summaryText",
+                            text = "${formatDiagnosticsTime(entry.timestampMs)}  ${
+                                directionLabel(
+                                    entry.direction
+                                )
+                            } ${entry.method}$rpcIdText$summaryText",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -573,14 +598,17 @@ private fun formatCompactTokens(tokens: Int, locale: Locale): String {
             val value = kotlin.math.round(tokens / 1_000_000_000.0).toInt()
             "${NumberFormat.getIntegerInstance(locale).format(value)}B"
         }
+
         absolute >= 1_000_000L -> {
             val value = kotlin.math.round(tokens / 1_000_000.0).toInt()
             "${NumberFormat.getIntegerInstance(locale).format(value)}M"
         }
+
         absolute >= 1_000L -> {
             val value = kotlin.math.round(tokens / 1_000.0).toInt()
             "${NumberFormat.getIntegerInstance(locale).format(value)}k"
         }
+
         else -> NumberFormat.getIntegerInstance(locale).format(tokens)
     }
 }
