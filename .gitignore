@@ -1,0 +1,21 @@
+## Android/Gradle
+.gradle/
+.gradle-user-home/
+**/build/
+/build/
+local.properties
+/captures/
+.externalNativeBuild/
+.cxx/
+.transforms/
+
+## IDE
+.idea/
+*.iml
+
+## Kotlin/Compose tooling
+.kotlin/
+
+## OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1261 @@
+package com.tamimarafat.ferngeist.feature.chat.ui
+import android.os.SystemClock
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.DropdownMenuGroup
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuPopup
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
+import com.tamimarafat.ferngeist.acp.bridge.connection.RpcDirection
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.feature.chat.ChatIntent
+import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
+import com.tamimarafat.ferngeist.feature.chat.UsageState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
+
+private enum class AutoScrollMode {
+    FOLLOWING,
+    PAUSED_BY_USER,
+}
+
+private const val INITIAL_FOLLOW_SETTLE_MS = 420L
+private const val COMPOSER_FOLLOW_SETTLE_MS = 120L
+private const val STREAM_FOLLOW_TICK_MS = 96L
+private const val USER_SCROLL_SIGNAL_WINDOW_MS = 220L
+private const val USER_RESUME_IDLE_MS = 320L
+private const val MAX_SCROLL_BY_PX = 1200
+private const val FOLLOW_TOLERANCE_PX = 24
+private const val RESUME_TOLERANCE_PX = 48
+private const val FOLLOW_CORRECTION_PASSES = 4
+private const val FOLLOW_CORRECTION_DELAY_MS = 16L
+
+private data class ContentAnchor(
+    val messageCount: Int,
+    val lastMessageId: String?,
+    val lastMessageContentLength: Int,
+    val lastMessageSegmentCount: Int,
+    val lastToolOutputLength: Int,
+    val isStreaming: Boolean,
+)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ChatScreen(
+    sessionTitle: String,
+    onNavigateBack: () -> Unit,
+    viewModel: ChatViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val modeMenuInteractionSource = remember { MutableInteractionSource() }
+    val optionsMenuInteractionSource = remember { MutableInteractionSource() }
+    var showModeMenu by remember { mutableStateOf(false) }
+    var showModelMenu by remember { mutableStateOf(false) }
+    var showModelPicker by remember { mutableStateOf(false) }
+    var showCommandsDialog by remember { mutableStateOf(false) }
+    var showConnectionStatusDialog by remember { mutableStateOf(false) }
+    var composerContentHeightPx by remember { mutableStateOf(0) }
+    var sendFollowNonce by remember { mutableStateOf(0) }
+    var messageText by remember { mutableStateOf("") }
+    var composerExpanded by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
+    val configuration = LocalConfiguration.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
+    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
+    val systemBottomInsetPx = if (imeBottomPx > navBottomPx) imeBottomPx else navBottomPx
+    val showComposerToolbar = !state.isLoading && !(state.error != null && state.messages.isEmpty())
+    val composerContentHeightDp = with(density) { composerContentHeightPx.toDp() }
+    val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
+    val listBottomPadding = with(density) {
+        if (!showComposerToolbar) {
+            0.dp
+        } else {
+            composerContentHeightDp +
+                systemBottomInsetDp +
+                FloatingToolbarDefaults.ScreenOffset +
+                36.dp
+        }
+    }
+    val snackbarBottomPadding = with(density) {
+        if (!showComposerToolbar) {
+            0.dp
+        } else {
+            composerContentHeightDp +
+                systemBottomInsetDp +
+                FloatingToolbarDefaults.ScreenOffset +
+                16.dp
+        }
+    }
+    val modelOption = remember(state.configOptions) {
+        state.configOptions.firstOrNull { it.id == "model" && it.options.isNotEmpty() }
+    }
+    val activeModel = remember(state.configOptions) {
+        val currentModelOption = state.configOptions.firstOrNull { it.id == "model" }
+        currentModelOption?.let { option ->
+            option.options.firstOrNull { it.value == option.currentValue }?.label
+                ?: option.currentValue
+        }
+    }
+    val canCancelStreaming = state.canCancelStreaming
+    val hasStreamingBubble = state.messages.lastOrNull()?.isStreaming == true
+    val activelyStreaming = state.isStreaming || hasStreamingBubble
+    val showStopAction = state.isStreaming && hasStreamingBubble
+    val hasToolbarOptions = true
+    val showModeButton = state.availableModes.isNotEmpty() || !state.currentModeId.isNullOrBlank()
+    val currentModeLabel = remember(state.availableModes, state.currentModeId) {
+        state.availableModes.firstOrNull { it.id == state.currentModeId }?.name?.uppercase(Locale.getDefault())
+            ?: state.currentModeId?.uppercase(Locale.getDefault())
+            ?: "MODE"
+    }
+    var autoScrollMode by remember { mutableStateOf(AutoScrollMode.FOLLOWING) }
+    var programmaticScrollDepth by remember { mutableStateOf(0) }
+    var lastProgrammaticScrollUptimeMs by remember { mutableStateOf(0L) }
+    var lastUserScrollUptimeMs by remember { mutableStateOf(0L) }
+    var initialFollowSettled by remember { mutableStateOf(false) }
+    val renderedMessages = state.messages
+    val markdownStates = state.markdownStates
+    val renderedLastMessageId = renderedMessages.lastOrNull()?.id
+    val contentAnchor = remember(renderedMessages, state.isStreaming) {
+        val last = renderedMessages.lastOrNull()
+        val lastToolOutputLength = last?.segments
+            ?.lastOrNull { it.toolCall != null }
+            ?.toolCall
+            ?.output
+            ?.length ?: 0
+        ContentAnchor(
+            messageCount = renderedMessages.size,
+            lastMessageId = last?.id,
+            lastMessageContentLength = last?.content?.length ?: 0,
+            lastMessageSegmentCount = last?.segments?.size ?: 0,
+            lastToolOutputLength = lastToolOutputLength,
+            isStreaming = state.isStreaming,
+        )
+    }
+    val userScrollDetector = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && kotlin.math.abs(available.y) > 0.5f) {
+                    lastUserScrollUptimeMs = SystemClock.uptimeMillis()
+                    if (programmaticScrollDepth == 0) {
+                        autoScrollMode = AutoScrollMode.PAUSED_BY_USER
+                    }
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    // --- Composer spring animations ---
+    val fadeSpring = spring<Float>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMedium
+    )
+    val buttonsAlpha by animateFloatAsState(
+        targetValue = if (composerExpanded) 0f else 1f,
+        animationSpec = fadeSpring,
+        label = "ButtonsAlpha"
+    )
+    val inputAlpha by animateFloatAsState(
+        targetValue = if (composerExpanded) 1f else 0f,
+        animationSpec = fadeSpring,
+        label = "InputAlpha"
+    )
+
+    val sendMessage: () -> Unit = {
+        if (messageText.isNotBlank()) {
+            viewModel.dispatch(ChatIntent.SendMessage(messageText))
+            autoScrollMode = AutoScrollMode.FOLLOWING
+            sendFollowNonce += 1
+            messageText = ""
+            composerExpanded = false
+            focusManager.clearFocus()
+        }
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+            when (effect) {
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ShowError -> {
+                    android.util.Log.e("ChatScreen", "Chat effect error: ${effect.message}")
+                    snackbarHostState.showSnackbar(effect.message)
+                }
+
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ShowMessage -> {
+                    snackbarHostState.showSnackbar(effect.message)
+                }
+
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.NavigateBack -> onNavigateBack()
+            }
+        }
+    }
+
+    // Auto-focus the text field when the composer expands.
+    LaunchedEffect(composerExpanded) {
+        if (composerExpanded) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    // Track user-driven scroll intent.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress to (programmaticScrollDepth > 0) }
+            .distinctUntilChanged()
+            .collect { (inProgress, isProgrammaticScroll) ->
+                val recentlyUserScrolled =
+                    (SystemClock.uptimeMillis() - lastUserScrollUptimeMs) <= USER_SCROLL_SIGNAL_WINDOW_MS
+
+                if (!inProgress &&
+                    !isProgrammaticScroll &&
+                    autoScrollMode == AutoScrollMode.PAUSED_BY_USER &&
+                    !recentlyUserScrolled &&
+                    (SystemClock.uptimeMillis() - lastUserScrollUptimeMs) >= USER_RESUME_IDLE_MS &&
+                    listState.isAtBottom(RESUME_TOLERANCE_PX)
+                ) {
+                    autoScrollMode = AutoScrollMode.FOLLOWING
+                }
+            }
+    }
+
+    suspend fun followToBottom(reason: String, smooth: Boolean = false) {
+        if (autoScrollMode != AutoScrollMode.FOLLOWING) return
+        programmaticScrollDepth += 1
+        lastProgrammaticScrollUptimeMs = SystemClock.uptimeMillis()
+        try {
+            var pass = 0
+            while (pass < FOLLOW_CORRECTION_PASSES) {
+                val info = listState.layoutInfo
+                val lastIndex = info.totalItemsCount - 1
+                if (lastIndex < 0) break
+
+                val lastVisible = info.visibleItemsInfo.lastOrNull { it.index == lastIndex }
+                if (lastVisible == null) {
+                    if (smooth) listState.animateScrollToItem(lastIndex) else listState.scrollToItem(lastIndex)
+                } else {
+                    val overflow = (lastVisible.offset + lastVisible.size) - info.viewportEndOffset
+                    if (overflow <= FOLLOW_TOLERANCE_PX) {
+                        break
+                    }
+                    val delta = overflow.coerceAtMost(MAX_SCROLL_BY_PX)
+                    if (smooth) listState.animateScrollBy(delta.toFloat()) else listState.scrollBy(delta.toFloat())
+                }
+
+                pass += 1
+                if (pass < FOLLOW_CORRECTION_PASSES) {
+                    delay(FOLLOW_CORRECTION_DELAY_MS)
+                }
+            }
+
+            // Final bounded correction to avoid stopping at the top of a very tall last item.
+            val finalInfo = listState.layoutInfo
+            val finalLastIndex = finalInfo.totalItemsCount - 1
+            if (finalLastIndex >= 0 && !listState.isAtBottom(FOLLOW_TOLERANCE_PX)) {
+                val finalLastVisible = finalInfo.visibleItemsInfo.lastOrNull { it.index == finalLastIndex }
+                if (finalLastVisible == null) {
+                    if (smooth) listState.animateScrollToItem(finalLastIndex) else listState.scrollToItem(finalLastIndex)
+                } else {
+                    val overflow = (finalLastVisible.offset + finalLastVisible.size) - finalInfo.viewportEndOffset
+                    if (overflow > FOLLOW_TOLERANCE_PX) {
+                        if (smooth) listState.animateScrollBy(overflow.toFloat()) else listState.scrollBy(overflow.toFloat())
+                    }
+                }
+            }
+        } finally {
+            lastProgrammaticScrollUptimeMs = SystemClock.uptimeMillis()
+            programmaticScrollDepth = (programmaticScrollDepth - 1).coerceAtLeast(0)
+        }
+    }
+
+    LaunchedEffect(sendFollowNonce) {
+        if (sendFollowNonce <= 0) return@LaunchedEffect
+        repeat(3) {
+            followToBottom("send-message", smooth = true)
+            delay(32L)
+        }
+    }
+
+    // Content-driven one-shot follow: trigger only when transcript anchor changes.
+    LaunchedEffect(contentAnchor, autoScrollMode) {
+        if (autoScrollMode != AutoScrollMode.FOLLOWING) return@LaunchedEffect
+        if (contentAnchor.messageCount == 0) return@LaunchedEffect
+
+        if (!initialFollowSettled) {
+            initialFollowSettled = true
+            delay(INITIAL_FOLLOW_SETTLE_MS)
+        }
+        followToBottom("content-anchor")
+    }
+
+    // Insets/composer adjustment follow (debounced by key restart delay).
+    LaunchedEffect(composerContentHeightPx, imeBottomPx, autoScrollMode, contentAnchor.messageCount) {
+        if (autoScrollMode != AutoScrollMode.FOLLOWING) return@LaunchedEffect
+        if (contentAnchor.messageCount == 0) return@LaunchedEffect
+        delay(COMPOSER_FOLLOW_SETTLE_MS)
+        followToBottom("composer-height", smooth = true)
+    }
+
+    // Keep following while streaming because markdown/image/layout growth can happen
+    // after content chunks arrive, which doesn't always change the anchor immediately.
+    LaunchedEffect(activelyStreaming, autoScrollMode, renderedLastMessageId) {
+        if (!activelyStreaming || autoScrollMode != AutoScrollMode.FOLLOWING) {
+            return@LaunchedEffect
+        }
+        while (true) {
+            followToBottom("streaming-tick")
+            delay(STREAM_FOLLOW_TICK_MS)
+        }
+    }
+
+    // If user manually scrolls back to the bottom while a response is streaming,
+    // immediately resume follow mode.
+    LaunchedEffect(listState, activelyStreaming) {
+        snapshotFlow { listState.isAtBottom(RESUME_TOLERANCE_PX) }
+            .distinctUntilChanged()
+            .collect { isBottom ->
+                if (isBottom &&
+                    activelyStreaming &&
+                    autoScrollMode == AutoScrollMode.PAUSED_BY_USER
+                ) {
+                    autoScrollMode = AutoScrollMode.FOLLOWING
+                    followToBottom("manual-bottom-resume")
+                }
+            }
+    }
+
+    Scaffold(topBar = {
+        ChatTopBar(
+            sessionTitle = sessionTitle,
+            activeModel = activeModel,
+            usage = state.usage,
+            connectionState = state.connectionState,
+            onNavigateBack = onNavigateBack,
+            onConnectionStatusClick = { showConnectionStatusDialog = true }
+        )
+    }) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .then(
+                    if (composerExpanded) {
+                        Modifier.clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) {
+                            if (messageText.isBlank()) {
+                                composerExpanded = false
+                                focusManager.clearFocus()
+                            }
+                        }
+                    } else Modifier
+                )
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (showModelPicker) {
+                    ModelPicker(modelOption = modelOption, onModelSelected = { value ->
+                        viewModel.dispatch(ChatIntent.SetConfigOption("model", value))
+                        showModelPicker = false
+                    }, onDismiss = { showModelPicker = false })
+                }
+
+                if (showConnectionStatusDialog) {
+                    ConnectionStatusDialog(
+                        connectionState = state.connectionState,
+                        diagnostics = state.connectionDiagnostics,
+                        usage = state.usage,
+                        onDismiss = { showConnectionStatusDialog = false }
+                    )
+                }
+
+                if (showCommandsDialog) {
+                    CommandsDialog(
+                        commands = state.availableCommands,
+                        onDismiss = { showCommandsDialog = false },
+                        onCommandClick = { command ->
+                            showCommandsDialog = false
+                            val normalized = command.trim()
+                            val slashCommand = if (normalized.startsWith("/")) normalized else "/$normalized"
+                            viewModel.dispatch(ChatIntent.SendMessage(slashCommand))
+                        }
+                    )
+                }
+
+                if (state.isLoading && state.messages.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularWavyProgressIndicator(
+                            modifier = Modifier.size(64.dp)
+                        )
+                    }
+                } else if (state.error != null && state.messages.isEmpty()) {
+                    val errorMessage = state.error ?: "Failed to load session."
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f)
+                            .padding(horizontal = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = errorMessage,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedButton(onClick = { viewModel.dispatch(ChatIntent.RetryLoad) }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(userScrollDetector)
+                            .weight(1f),
+                        contentPadding = PaddingValues(
+                            start = 16.dp, top = 8.dp, end = 16.dp, bottom = 0.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(
+                            items = renderedMessages, key = { it.id }) { message ->
+                            MessageBubble(
+                                message = message,
+                                markdownStates = markdownStates,
+                                showStreamingIndicator = state.isStreaming && message.id == renderedLastMessageId,
+                                expandedToolCalls = state.expandedToolCalls,
+                                onToolCallToggle = { toolCallId ->
+                                    viewModel.dispatch(ChatIntent.ToggleToolCallExpansion(toolCallId))
+                                },
+                                onPermissionGrant = { toolCallId, optionId ->
+                                    viewModel.dispatch(
+                                        ChatIntent.GrantPermission(
+                                            toolCallId,
+                                            optionId
+                                        )
+                                    )
+                                },
+                                onPermissionDeny = { toolCallId ->
+                                    viewModel.dispatch(ChatIntent.DenyPermission(toolCallId))
+                                })
+                        }
+                        item(key = "__chat_bottom_spacer") {
+                            Spacer(modifier = Modifier.height(listBottomPadding))
+                        }
+                    }
+                }
+            }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = snackbarBottomPadding)
+                    .zIndex(2f)
+            )
+
+            if (showComposerToolbar) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = 1.dp)
+                        .offset(y = -FloatingToolbarDefaults.ScreenOffset)
+                        .zIndex(1f)
+                ) {
+                val animatedHeight by animateDpAsState(
+                    targetValue = if (composerExpanded) 128.dp else 48.dp,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "ComposerHeight"
+                )
+                val expandedToolbarWidth = configuration.screenWidthDp.dp * 0.97f
+                val collapsedMaxToolbarWidth = configuration.screenWidthDp.dp * 0.92f
+
+                Surface(
+                    shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .height(animatedHeight)
+                        .widthIn(max = if (composerExpanded) expandedToolbarWidth else collapsedMaxToolbarWidth)
+                        .onSizeChanged { composerContentHeightPx = it.height }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .then(
+                                if (composerExpanded) {
+                                    Modifier.fillMaxSize()
+                                } else {
+                                    Modifier
+                                        .fillMaxHeight()
+                                        .wrapContentWidth()
+                                }
+                            )
+                            .animateContentSize(
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (composerExpanded) {
+                            // --- Expanded: top text field + bottom action row ---
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth()
+                                    .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp)
+                                    .alpha(inputAlpha)
+                            ) {
+                                val selectionColors = TextSelectionColors(
+                                    handleColor = MaterialTheme.colorScheme.onPrimary,
+                                    backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f)
+                                )
+                                CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
+                                    BasicTextField(
+                                        value = messageText,
+                                        onValueChange = { messageText = it },
+                                        singleLine = false,
+                                        minLines = 3,
+                                        maxLines = 8,
+                                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        ),
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                        keyboardActions = KeyboardActions(onSend = { sendMessage() }),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                            .focusRequester(focusRequester),
+                                        decorationBox = { innerTextField ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                                                contentAlignment = Alignment.TopStart
+                                            ) {
+                                                if (messageText.isEmpty()) {
+                                                    Text(
+                                                        text = "Type a message\u2026",
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f)
+                                                    )
+                                                }
+                                                innerTextField()
+                                            }
+                                        }
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Bottom
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            composerExpanded = false
+                                            focusManager.clearFocus()
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Close composer"
+                                        )
+                                    }
+
+                                    FilledIconButton(
+                                        onClick = {
+                                            if (showStopAction && canCancelStreaming) {
+                                                viewModel.dispatch(ChatIntent.CancelStreaming)
+                                            } else if (!showStopAction) {
+                                                sendMessage()
+                                            }
+                                        },
+                                        enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
+                                        colors = IconButtonDefaults.filledIconButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.onPrimary,
+                                            contentColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        shapes = IconButtonDefaults.shapes()
+                                    ) {
+                                        Icon(
+                                            imageVector = if (showStopAction && canCancelStreaming) {
+                                                Icons.Default.Stop
+                                            } else {
+                                                Icons.Default.ArrowUpward
+                                            },
+                                            contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Send"
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            // --- Collapsed: mode + chat + model buttons ---
+                            if (showModeButton) {
+                                Box(modifier = Modifier.alpha(buttonsAlpha)) {
+                                    TooltipBox(
+                                        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                            TooltipAnchorPosition.Above
+                                        ),
+                                        tooltip = { PlainTooltip { Text("Mode") } },
+                                    state = rememberTooltipState()
+                                    ) {
+                                        Button(
+                                            onClick = { showModeMenu = true },
+                                            modifier = Modifier.widthIn(max = collapsedMaxToolbarWidth * 0.45f)
+                                        ) {
+                                        Text(
+                                            text = currentModeLabel,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    DropdownMenuPopup(
+                                        expanded = showModeMenu,
+                                        onDismissRequest = { showModeMenu = false }
+                                    ) {
+                                        DropdownMenuGroup(
+                                            shapes = MenuDefaults.groupShape(0, 1),
+                                            interactionSource = modeMenuInteractionSource,
+                                        ) {
+                                            val modeCount = state.availableModes.size
+                                            if (modeCount == 0) {
+                                                DropdownMenuItem(
+                                                    text = { Text("No modes available") },
+                                                    onClick = { showModeMenu = false },
+                                                    enabled = false
+                                                )
+                                            } else {
+                                                state.availableModes.forEachIndexed { index, mode ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(mode.name.uppercase()) },
+                                                        shapes = MenuDefaults.itemShape(index, modeCount),
+                                                        checked = mode.id == state.currentModeId,
+                                                        onCheckedChange = { checked ->
+                                                            if (checked && mode.id != state.currentModeId) {
+                                                                showModeMenu = false
+                                                                viewModel.dispatch(ChatIntent.SetMode(mode.id))
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            TooltipBox(
+                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                    TooltipAnchorPosition.Above
+                                ),
+                                tooltip = {
+                                    PlainTooltip {
+                                        Text(
+                                            when {
+                                                showStopAction && canCancelStreaming -> "Stop"
+                                                showStopAction && !canCancelStreaming -> "Cancel unavailable"
+                                                else -> "Chat"
+                                            }
+                                        )
+                                    }
+                                },
+                                state = rememberTooltipState()
+                            ) {
+                                FilledIconButton(
+                                    onClick = {
+                                        if (showStopAction && canCancelStreaming) {
+                                            viewModel.dispatch(ChatIntent.CancelStreaming)
+                                        } else if (!showStopAction) {
+                                            composerExpanded = true
+                                        }
+                                    },
+                                    enabled = !showStopAction || canCancelStreaming,
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.onPrimary,
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    shapes = IconButtonDefaults.shapes()
+                                ) {
+                                    Icon(
+                                        imageVector = if (showStopAction && canCancelStreaming) {
+                                            Icons.Default.Stop
+                                        } else {
+                                            Icons.Default.Edit
+                                        },
+                                        contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Chat"
+                                    )
+                                }
+                            }
+
+                            if (hasToolbarOptions) {
+                                TooltipBox(
+                                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                        TooltipAnchorPosition.Above
+                                    ),
+                                    tooltip = { PlainTooltip { Text("Options") } },
+                                    state = rememberTooltipState()
+                                ) {
+                                    Box {
+                                        IconButton(
+                                            onClick = { showModelMenu = true },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = "Model"
+                                            )
+                                        }
+                                        DropdownMenuPopup(
+                                            expanded = showModelMenu,
+                                            onDismissRequest = { showModelMenu = false }
+                                        ) {
+                                            DropdownMenuGroup(
+                                                shapes = MenuDefaults.groupShape(0, 1),
+                                                interactionSource = optionsMenuInteractionSource,
+                                            ) {
+                                                if (state.commandsAdvertised) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Commands") },
+                                                        onClick = {
+                                                            showModelMenu = false
+                                                            showCommandsDialog = true
+                                                        }
+                                                    )
+                                                }
+
+                                                if (modelOption != null) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Change model") },
+                                                        onClick = {
+                                                            showModelMenu = false
+                                                            showModelPicker = true
+                                                        }
+                                                    )
+                                                } else if (!state.commandsAdvertised) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("No options available") },
+                                                        onClick = { showModelMenu = false },
+                                                        enabled = false
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ChatTopBar(
+    sessionTitle: String,
+    activeModel: String?,
+    usage: UsageState?,
+    connectionState: AcpConnectionState,
+    onNavigateBack: () -> Unit,
+    onConnectionStatusClick: () -> Unit,
+) {
+    TopAppBar(title = {
+        Column {
+            Text(
+                text = sessionTitle, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            activeModel?.takeIf { it.isNotBlank() }?.let { model ->
+                Text(
+                    text = model,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }, navigationIcon = {
+        IconButton(onClick = onNavigateBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back"
+            )
+        }
+    }, actions = {
+        val connectionLabel = connectionStateLabel(connectionState)
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+            tooltip = { PlainTooltip { Text("Connection: $connectionLabel") } },
+            state = rememberTooltipState()
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "Connection status"
+                        stateDescription = connectionLabel
+                    }
+                    .clickable(onClick = onConnectionStatusClick),
+                contentAlignment = Alignment.Center
+            ) {
+                when (connectionState) {
+                    is AcpConnectionState.Connecting -> {
+                        LoadingIndicator(
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    is AcpConnectionState.Connected -> {
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = Color(0xFF2E7D32),
+                            modifier = Modifier.size(12.dp)
+                        ) {}
+                    }
+
+                    is AcpConnectionState.Failed -> {
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(12.dp)
+                        ) {}
+                    }
+
+                    is AcpConnectionState.Disconnected -> {
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            modifier = Modifier.size(12.dp)
+                        ) {}
+                    }
+                }
+            }
+        }
+
+    })
+}
+
+@Composable
+private fun ConnectionStatusDialog(
+    connectionState: AcpConnectionState,
+    diagnostics: ConnectionDiagnostics,
+    usage: UsageState?,
+    onDismiss: () -> Unit,
+) {
+    val scrollState = rememberScrollState()
+    val total = usage?.totalTokens ?: diagnostics.lastTotalTokens
+    val contextWindow = usage?.contextWindowTokens ?: diagnostics.lastContextWindowTokens
+    val costAmount = usage?.costUsd ?: diagnostics.lastCostAmount
+    val costCurrency = if (usage?.costUsd != null) "USD" else diagnostics.lastCostCurrency
+
+    val totalTokensText = total?.let { formatCompactTokens(it, Locale.getDefault()) } ?: "N/A"
+    val contextUsagePct = percentString(total, contextWindow, Locale.getDefault()) ?: "N/A"
+    val costText = costAmount?.let {
+        formatCurrency(costAmount, costCurrency, LocalLocale.current.platformLocale)
+    }
+
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Connection Diagnostics") }, text = {
+        Column(
+            modifier = Modifier.verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Connection: ${connectionStateLabel(connectionState)}")
+            Text("WebSocket: ${diagnostics.websocketState.name.lowercase().replace('_', ' ')}")
+            Text("Server: ${diagnostics.serverUrl ?: "Unknown"}")
+            val agentName = diagnostics.agentInfo?.name ?: "Unknown"
+            val agentVersion = diagnostics.agentInfo?.version ?: "Unknown"
+            Text("Server info: $agentName ($agentVersion)")
+            Text("Pending RPC requests: ${diagnostics.pendingRequestCount}")
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Text("$totalTokensText tokens")
+            Text("$contextUsagePct used")
+            if (costText != null) Text("$costText spent")
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Text("Recent RPC Activity", style = MaterialTheme.typography.titleSmall)
+            if (diagnostics.recentRpc.isEmpty()) {
+                Text(
+                    "No recent RPC activity",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                diagnostics.recentRpc.takeLast(12).reversed().forEach { entry ->
+                    val rpcIdText = entry.rpcId?.let { " #$it" } ?: ""
+                    val summaryText = entry.summary?.let { " - $it" } ?: ""
+                    Text(
+                        text = "${formatDiagnosticsTime(entry.timestampMs)}  ${directionLabel(entry.direction)} ${entry.method}$rpcIdText$summaryText",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Text("Recent Errors", style = MaterialTheme.typography.titleSmall)
+            if (diagnostics.recentErrors.isEmpty()) {
+                Text(
+                    "No recent errors",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                diagnostics.recentErrors.takeLast(8).reversed().forEach { entry ->
+                    Text(
+                        text = "${formatDiagnosticsTime(entry.timestampMs)}  ${entry.source}: ${entry.message}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+    }, confirmButton = {
+        TextButton(onClick = onDismiss) {
+            Text("Close")
+        }
+    })
+}
+
+@Composable
+private fun CommandsDialog(
+    commands: List<String>,
+    onDismiss: () -> Unit,
+    onCommandClick: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Commands") },
+        text = {
+            if (commands.isEmpty()) {
+                Text(
+                    text = "No commands advertised by the server.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    commands.forEach { command ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onCommandClick(command) }
+                        ) {
+                            Text(
+                                text = command,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+private fun percentString(part: Int?, total: Int?, locale: Locale): String? {
+    if (part == null || total == null || total <= 0) return null
+    val percent = part.toDouble() / total.toDouble()
+    return NumberFormat.getPercentInstance(locale).apply {
+        maximumFractionDigits = 0
+    }.format(percent)
+}
+
+private fun connectionStateLabel(state: AcpConnectionState): String = when (state) {
+    is AcpConnectionState.Connecting -> "Connecting"
+    is AcpConnectionState.Connected -> "Connected"
+    is AcpConnectionState.Failed -> "Failed"
+    is AcpConnectionState.Disconnected -> "Disconnected"
+}
+
+private fun directionLabel(direction: RpcDirection): String = when (direction) {
+    RpcDirection.OutboundRequest -> "REQ"
+    RpcDirection.InboundResult -> "RES"
+    RpcDirection.InboundError -> "ERR"
+    RpcDirection.InboundNotification -> "NTF"
+}
+
+private fun formatDiagnosticsTime(timestampMs: Long): String {
+    return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestampMs))
+}
+
+private fun formatCurrency(amount: Double, currencyCode: String?, locale: Locale): String {
+    return NumberFormat.getCurrencyInstance(locale).apply {
+        currencyCode?.let {
+            runCatching { currency = java.util.Currency.getInstance(it) }
+        }
+        maximumFractionDigits = 2
+    }.format(amount)
+}
+
+private fun formatCompactTokens(tokens: Int, locale: Locale): String {
+    val absolute = kotlin.math.abs(tokens.toLong())
+    return when {
+        absolute >= 1_000_000_000L -> {
+            val value = (tokens / 1_000_000_000.0).roundToInt()
+            "${NumberFormat.getIntegerInstance(locale).format(value)}B"
+        }
+
+        absolute >= 1_000_000L -> {
+            val value = (tokens / 1_000_000.0).roundToInt()
+            "${NumberFormat.getIntegerInstance(locale).format(value)}M"
+        }
+
+        absolute >= 1_000L -> {
+            val value = (tokens / 1_000.0).roundToInt()
+            "${NumberFormat.getIntegerInstance(locale).format(value)}k"
+        }
+
+        else -> NumberFormat.getIntegerInstance(locale).format(tokens)
+    }
+}
+
+private fun LazyListState.isAtBottom(tolerancePx: Int = 2): Boolean {
+    val layoutInfo = this.layoutInfo
+    val total = layoutInfo.totalItemsCount
+    if (total == 0) return true
+    val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull() ?: return false
+    if (lastVisible.index != total - 1) return false
+    val itemBottom = lastVisible.offset + lastVisible.size
+    return itemBottom <= layoutInfo.viewportEndOffset + tolerancePx
+}
+
+@Composable
+private fun ModelPicker(
+    modelOption: SessionConfigOption?,
+    onModelSelected: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember(modelOption) { mutableStateOf("") }
+    val filteredOptions = remember(modelOption, query) {
+        val options = modelOption?.options.orEmpty()
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) {
+            options
+        } else {
+            options.filter { choice ->
+                choice.label.contains(trimmedQuery, ignoreCase = true) || choice.value.contains(
+                    trimmedQuery, ignoreCase = true
+                ) || (choice.description?.contains(trimmedQuery, ignoreCase = true) == true)
+            }
+        }
+    }
+
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Select Model") }, text = {
+        if (modelOption == null || modelOption.options.isEmpty()) {
+            Text(
+                text = "No models available from agent.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Search models") },
+                    placeholder = { Text("Type model name") })
+
+                if (filteredOptions.isEmpty()) {
+                    Text(
+                        text = "No matching models.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(
+                            items = filteredOptions, key = { it.id }) { choice ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onModelSelected(choice.value) }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = choice.value == modelOption.currentValue,
+                                    onClick = { onModelSelected(choice.value) })
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = choice.label,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    choice.description?.let { description ->
+                                        Text(
+                                            text = description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }, confirmButton = {
+        TextButton(onClick = onDismiss) {
+            Text("Close")
+        }
+    })
+}
