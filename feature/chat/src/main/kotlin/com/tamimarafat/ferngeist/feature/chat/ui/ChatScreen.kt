@@ -106,7 +106,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -119,20 +118,16 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
-import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
-import com.tamimarafat.ferngeist.acp.bridge.connection.RpcDirection
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
+import com.tamimarafat.ferngeist.core.common.ui.connectionStateLabel
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.UsageState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
-import kotlin.math.roundToInt
 
 private enum class AutoScrollMode {
     FOLLOWING,
@@ -528,10 +523,18 @@ fun ChatScreen(
                 }
 
                 if (showConnectionStatusDialog) {
-                    ConnectionStatusDialog(
+                    ConnectionDiagnosticsDialog(
                         connectionState = state.connectionState,
                         diagnostics = state.connectionDiagnostics,
-                        usage = state.usage,
+                        totalTokens = state.usage?.totalTokens ?: state.connectionDiagnostics.lastTotalTokens,
+                        contextWindowTokens = state.usage?.contextWindowTokens
+                            ?: state.connectionDiagnostics.lastContextWindowTokens,
+                        costAmount = state.usage?.costUsd ?: state.connectionDiagnostics.lastCostAmount,
+                        costCurrency = if (state.usage?.costUsd != null) {
+                            "USD"
+                        } else {
+                            state.connectionDiagnostics.lastCostCurrency
+                        },
                         onDismiss = { showConnectionStatusDialog = false }
                     )
                 }
@@ -1030,83 +1033,6 @@ private fun ChatTopBar(
 }
 
 @Composable
-private fun ConnectionStatusDialog(
-    connectionState: AcpConnectionState,
-    diagnostics: ConnectionDiagnostics,
-    usage: UsageState?,
-    onDismiss: () -> Unit,
-) {
-    val scrollState = rememberScrollState()
-    val total = usage?.totalTokens ?: diagnostics.lastTotalTokens
-    val contextWindow = usage?.contextWindowTokens ?: diagnostics.lastContextWindowTokens
-    val costAmount = usage?.costUsd ?: diagnostics.lastCostAmount
-    val costCurrency = if (usage?.costUsd != null) "USD" else diagnostics.lastCostCurrency
-
-    val totalTokensText = total?.let { formatCompactTokens(it, Locale.getDefault()) } ?: "N/A"
-    val contextUsagePct = percentString(total, contextWindow, Locale.getDefault()) ?: "N/A"
-    val costText = costAmount?.let {
-        formatCurrency(costAmount, costCurrency, LocalLocale.current.platformLocale)
-    }
-
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Connection Diagnostics") }, text = {
-        Column(
-            modifier = Modifier.verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Connection: ${connectionStateLabel(connectionState)}")
-            Text("WebSocket: ${diagnostics.websocketState.name.lowercase().replace('_', ' ')}")
-            Text("Server: ${diagnostics.serverUrl ?: "Unknown"}")
-            val agentName = diagnostics.agentInfo?.name ?: "Unknown"
-            val agentVersion = diagnostics.agentInfo?.version ?: "Unknown"
-            Text("Server info: $agentName ($agentVersion)")
-            Text("Pending RPC requests: ${diagnostics.pendingRequestCount}")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            Text("$totalTokensText tokens")
-            Text("$contextUsagePct used")
-            if (costText != null) Text("$costText spent")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            Text("Recent RPC Activity", style = MaterialTheme.typography.titleSmall)
-            if (diagnostics.recentRpc.isEmpty()) {
-                Text(
-                    "No recent RPC activity",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                diagnostics.recentRpc.takeLast(12).reversed().forEach { entry ->
-                    val rpcIdText = entry.rpcId?.let { " #$it" } ?: ""
-                    val summaryText = entry.summary?.let { " - $it" } ?: ""
-                    Text(
-                        text = "${formatDiagnosticsTime(entry.timestampMs)}  ${directionLabel(entry.direction)} ${entry.method}$rpcIdText$summaryText",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            Text("Recent Errors", style = MaterialTheme.typography.titleSmall)
-            if (diagnostics.recentErrors.isEmpty()) {
-                Text(
-                    "No recent errors",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                diagnostics.recentErrors.takeLast(8).reversed().forEach { entry ->
-                    Text(
-                        text = "${formatDiagnosticsTime(entry.timestampMs)}  ${entry.source}: ${entry.message}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        }
-    }, confirmButton = {
-        TextButton(onClick = onDismiss) {
-            Text("Close")
-        }
-    })
-}
-
-@Composable
 private fun CommandsDialog(
     commands: List<String>,
     onDismiss: () -> Unit,
@@ -1152,63 +1078,6 @@ private fun CommandsDialog(
             }
         }
     )
-}
-
-private fun percentString(part: Int?, total: Int?, locale: Locale): String? {
-    if (part == null || total == null || total <= 0) return null
-    val percent = part.toDouble() / total.toDouble()
-    return NumberFormat.getPercentInstance(locale).apply {
-        maximumFractionDigits = 0
-    }.format(percent)
-}
-
-private fun connectionStateLabel(state: AcpConnectionState): String = when (state) {
-    is AcpConnectionState.Connecting -> "Connecting"
-    is AcpConnectionState.Connected -> "Connected"
-    is AcpConnectionState.Failed -> "Failed"
-    is AcpConnectionState.Disconnected -> "Disconnected"
-}
-
-private fun directionLabel(direction: RpcDirection): String = when (direction) {
-    RpcDirection.OutboundRequest -> "REQ"
-    RpcDirection.InboundResult -> "RES"
-    RpcDirection.InboundError -> "ERR"
-    RpcDirection.InboundNotification -> "NTF"
-}
-
-private fun formatDiagnosticsTime(timestampMs: Long): String {
-    return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestampMs))
-}
-
-private fun formatCurrency(amount: Double, currencyCode: String?, locale: Locale): String {
-    return NumberFormat.getCurrencyInstance(locale).apply {
-        currencyCode?.let {
-            runCatching { currency = java.util.Currency.getInstance(it) }
-        }
-        maximumFractionDigits = 2
-    }.format(amount)
-}
-
-private fun formatCompactTokens(tokens: Int, locale: Locale): String {
-    val absolute = kotlin.math.abs(tokens.toLong())
-    return when {
-        absolute >= 1_000_000_000L -> {
-            val value = (tokens / 1_000_000_000.0).roundToInt()
-            "${NumberFormat.getIntegerInstance(locale).format(value)}B"
-        }
-
-        absolute >= 1_000_000L -> {
-            val value = (tokens / 1_000_000.0).roundToInt()
-            "${NumberFormat.getIntegerInstance(locale).format(value)}M"
-        }
-
-        absolute >= 1_000L -> {
-            val value = (tokens / 1_000.0).roundToInt()
-            "${NumberFormat.getIntegerInstance(locale).format(value)}k"
-        }
-
-        else -> NumberFormat.getIntegerInstance(locale).format(tokens)
-    }
 }
 
 private fun LazyListState.isAtBottom(tolerancePx: Int = 2): Boolean {
