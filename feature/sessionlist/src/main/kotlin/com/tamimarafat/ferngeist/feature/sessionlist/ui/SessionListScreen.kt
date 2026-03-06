@@ -62,6 +62,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -157,6 +159,14 @@ fun SessionListScreen(
         )
     }
 
+
+    val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
+    val titleStyle = lerp(
+        MaterialTheme.typography.headlineMedium, // expanded
+        MaterialTheme.typography.titleLarge,    // collapsed
+        collapse
+    )
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -165,11 +175,11 @@ fun SessionListScreen(
                     Column {
                         Text(
                             text = serverName,
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = titleStyle
                         )
                         Text(
                             text = "${sessions.size} session${if (sessions.size != 1) "s" else ""}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
