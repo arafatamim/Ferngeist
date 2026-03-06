@@ -599,7 +599,6 @@ private val STREAMING_VERBS = listOf(
 private val LOADING_SHAPES = listOf(
     MaterialShapes.Triangle,
     MaterialShapes.Oval,
-    MaterialShapes.Gem,
     MaterialShapes.ClamShell,
     MaterialShapes.Diamond,
     MaterialShapes.VerySunny,
@@ -612,4 +611,4 @@ private val LOADING_SHAPES = listOf(
 )
 
 private fun pickLoadingPolygons(seedKey: String) =
-    LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(4)
+    LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(6)
