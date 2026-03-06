@@ -3,9 +3,12 @@ package com.tamimarafat.ferngeist.acp.bridge
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.agentclientprotocol.model.RequestPermissionOutcome
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -118,6 +122,132 @@ class AcpConnectionManagerTest {
 
         assertFalse(manager.isConnected)
     }
+
+    @Test
+    fun `connect failure does not emit synthetic disconnected event`() = runTest {
+        val manager = AcpConnectionManager(
+            connectivityObserver = ConnectivityObserverStub(initialState = true),
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        manager.events.test {
+            val connected = manager.connect(
+                AcpConnectionConfig(
+                    host = "127.0.0.1:1",
+                    authToken = "",
+                )
+            )
+
+            assertFalse(connected)
+            assertTrue(manager.connectionState.value is AcpConnectionState.Failed)
+            expectNoEvents()
+
+            manager.disconnect()
+            assertEquals(AcpManagerEvent.Disconnected, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `removeSession clears pending permission requests for that session`() = runTest {
+        val manager = AcpConnectionManager(
+            connectivityObserver = ConnectivityObserverStub(initialState = true),
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+        val deferred = CompletableDeferred<RequestPermissionOutcome>()
+
+        manager.privateRegistryMap<SessionBridge>("sessionBridges")["session-1"] =
+            SessionBridge("session-1", null, CoroutineScope(Dispatchers.Unconfined))
+        manager.privateRegistryMap<Any>("pendingPermissionRequests")["tool-1"] =
+            createPendingPermissionRequest(sessionId = "session-1", deferred = deferred)
+        manager.privateRegistryMap<Any>("pendingPermissionRequests")["tool-2"] =
+            createPendingPermissionRequest(
+                sessionId = "session-2",
+                deferred = CompletableDeferred<RequestPermissionOutcome>(),
+            )
+
+        manager.removeSession("session-1")
+
+        assertNull(manager.getSession("session-1"))
+        assertTrue(deferred.isCancelled)
+        assertFalse(manager.privateRegistryMap<Any>("pendingPermissionRequests").containsKey("tool-1"))
+        assertTrue(manager.privateRegistryMap<Any>("pendingPermissionRequests").containsKey("tool-2"))
+    }
+
+    @Test
+    fun `unsupported session cancel failure downgrades diagnostics`() = runTest {
+        val manager = AcpConnectionManager(
+            connectivityObserver = ConnectivityObserverStub(initialState = true),
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        manager.invokePrivate(
+            methodName = "handleSessionCancelFailure",
+            parameterTypes = arrayOf(Throwable::class.java),
+            args = arrayOf(IllegalStateException("Method not found: session/cancel")),
+        )
+
+        assertEquals(false, manager.diagnostics.value.supportsSessionCancel)
+        assertTrue(
+            manager.diagnostics.value.recentErrors.any { error ->
+                error.source == "session/cancel"
+            }
+        )
+    }
+
+    @Test
+    fun `awaitConnectivityForReconnect waits until observer reports online`() = runTest {
+        val connectivityObserver = ConnectivityObserverStub(initialState = false)
+        val manager = AcpConnectionManager(
+            connectivityObserver = connectivityObserver,
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        val waitJob = launch {
+            manager.awaitConnectivityForReconnect()
+        }
+
+        assertFalse(waitJob.isCompleted)
+        connectivityObserver.setConnected(true)
+        waitJob.join()
+        assertTrue(waitJob.isCompleted)
+    }
+}
+
+private fun createPendingPermissionRequest(
+    sessionId: String,
+    deferred: CompletableDeferred<RequestPermissionOutcome>,
+): Any {
+    val clazz = Class.forName("com.tamimarafat.ferngeist.acp.bridge.connection.PendingPermissionRequest")
+    val constructor = clazz.getDeclaredConstructor(String::class.java, CompletableDeferred::class.java)
+    constructor.isAccessible = true
+    return constructor.newInstance(sessionId, deferred)
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun <T> AcpConnectionManager.privateRegistryMap(fieldName: String): MutableMap<String, T> {
+    val registry = readPrivateField<Any>("sessionRegistry")
+        ?: error("sessionRegistry not found")
+    val field = registry.javaClass.getDeclaredField(fieldName)
+    field.isAccessible = true
+    return field.get(registry) as MutableMap<String, T>
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun <T> Any.readPrivateField(fieldName: String): T? {
+    val field = javaClass.getDeclaredField(fieldName)
+    field.isAccessible = true
+    return field.get(this) as T?
+}
+
+private fun AcpConnectionManager.invokePrivate(
+    methodName: String,
+    parameterTypes: Array<Class<*>>,
+    args: Array<Any>,
+): Any? {
+    val method = AcpConnectionManager::class.java.getDeclaredMethod(methodName, *parameterTypes)
+    method.isAccessible = true
+    return method.invoke(this, *args)
 }
 
 class AuthHeaderBuilderTest {

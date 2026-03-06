@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
-import android.util.Log
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -30,7 +29,7 @@ class SessionBridge(
     private val traceTag = "TSBridge"
 
     suspend fun emitEvent(event: AppSessionEvent) {
-        Log.d(traceTag, "[$sessionId] emitEvent type=${event::class.simpleName}")
+        debug("emitEvent type=${event::class.simpleName}")
         when (event) {
             is AppSessionEvent.ModeChanged -> _currentModeId.emit(event.modeId)
             is AppSessionEvent.ModesUpdated -> {
@@ -119,6 +118,10 @@ class SessionBridge(
 
     fun close() {
         // Clean up
+    }
+
+    private fun debug(message: String) {
+        runCatching { android.util.Log.d(traceTag, "[$sessionId] $message") }
     }
 }
 

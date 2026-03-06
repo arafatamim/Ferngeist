@@ -58,7 +58,6 @@ internal class ChatSessionCoordinator(
                 connectionManager.loadSession(
                     sessionId = initialSessionId,
                     cwd = cwd,
-                    fallbackHistoryTimestampMs = sessionUpdatedAt,
                 )
             }
         } catch (_: TimeoutCancellationException) {

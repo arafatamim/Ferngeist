@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
-import android.util.Log
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -281,6 +280,6 @@ class SessionRuntime(
     }
 
     private fun debug(message: String) {
-        Log.d(TAG, "[$sessionId] $message")
+        runCatching { android.util.Log.d(TAG, "[$sessionId] $message") }
     }
 }
