@@ -49,7 +49,7 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -64,6 +64,7 @@ import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -201,7 +202,8 @@ private class ChatScrollState(
             .distinctUntilChanged()
             .collect { (inProgress, isProgrammaticScroll) ->
                 val now = SystemClock.uptimeMillis()
-                val recentlyUserScrolled = (now - lastUserScrollUptimeMs) <= USER_SCROLL_SIGNAL_WINDOW_MS
+                val recentlyUserScrolled =
+                    (now - lastUserScrollUptimeMs) <= USER_SCROLL_SIGNAL_WINDOW_MS
 
                 if (!inProgress &&
                     !isProgrammaticScroll &&
@@ -264,14 +266,18 @@ private class ChatScrollState(
 
                 val lastVisible = info.visibleItemsInfo.lastOrNull { it.index == lastIndex }
                 if (lastVisible == null) {
-                    if (smooth) listState.animateScrollToItem(lastIndex) else listState.scrollToItem(lastIndex)
+                    if (smooth) listState.animateScrollToItem(lastIndex) else listState.scrollToItem(
+                        lastIndex
+                    )
                 } else {
                     val overflow = (lastVisible.offset + lastVisible.size) - info.viewportEndOffset
                     if (overflow <= FOLLOW_TOLERANCE_PX) {
                         break
                     }
                     val delta = overflow.coerceAtMost(MAX_SCROLL_BY_PX)
-                    if (smooth) listState.animateScrollBy(delta.toFloat()) else listState.scrollBy(delta.toFloat())
+                    if (smooth) listState.animateScrollBy(delta.toFloat()) else listState.scrollBy(
+                        delta.toFloat()
+                    )
                 }
 
                 pass += 1
@@ -283,13 +289,19 @@ private class ChatScrollState(
             val finalInfo = listState.layoutInfo
             val finalLastIndex = finalInfo.totalItemsCount - 1
             if (finalLastIndex >= 0 && !listState.isAtBottom(FOLLOW_TOLERANCE_PX)) {
-                val finalLastVisible = finalInfo.visibleItemsInfo.lastOrNull { it.index == finalLastIndex }
+                val finalLastVisible =
+                    finalInfo.visibleItemsInfo.lastOrNull { it.index == finalLastIndex }
                 if (finalLastVisible == null) {
-                    if (smooth) listState.animateScrollToItem(finalLastIndex) else listState.scrollToItem(finalLastIndex)
+                    if (smooth) listState.animateScrollToItem(finalLastIndex) else listState.scrollToItem(
+                        finalLastIndex
+                    )
                 } else {
-                    val overflow = (finalLastVisible.offset + finalLastVisible.size) - finalInfo.viewportEndOffset
+                    val overflow =
+                        (finalLastVisible.offset + finalLastVisible.size) - finalInfo.viewportEndOffset
                     if (overflow > FOLLOW_TOLERANCE_PX) {
-                        if (smooth) listState.animateScrollBy(overflow.toFloat()) else listState.scrollBy(overflow.toFloat())
+                        if (smooth) listState.animateScrollBy(overflow.toFloat()) else listState.scrollBy(
+                            overflow.toFloat()
+                        )
                     }
                 }
             }
@@ -543,423 +555,453 @@ fun ChatScreen(
                             } else Modifier
                         )
                 ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (showModelPicker) {
-                    ModelPicker(modelOption = modelOption, onModelSelected = { value ->
-                        viewModel.dispatch(ChatIntent.SetConfigOption("model", value))
-                        showModelPicker = false
-                    }, onDismiss = { showModelPicker = false })
-                }
-
-                if (showConnectionStatusDialog) {
-                    ConnectionDiagnosticsDialog(
-                        connectionState = state.connectionState,
-                        diagnostics = state.connectionDiagnostics,
-                        totalTokens = state.usage?.totalTokens ?: state.connectionDiagnostics.lastTotalTokens,
-                        contextWindowTokens = state.usage?.contextWindowTokens
-                            ?: state.connectionDiagnostics.lastContextWindowTokens,
-                        costAmount = state.usage?.costUsd ?: state.connectionDiagnostics.lastCostAmount,
-                        costCurrency = if (state.usage?.costUsd != null) {
-                            "USD"
-                        } else {
-                            state.connectionDiagnostics.lastCostCurrency
-                        },
-                        onDismiss = { showConnectionStatusDialog = false }
-                    )
-                }
-
-                if (showCommandsDialog) {
-                    CommandsDialog(
-                        commands = state.availableCommands,
-                        onDismiss = { showCommandsDialog = false },
-                        onCommandClick = { command ->
-                            showCommandsDialog = false
-                            val normalized = command.trim()
-                            val slashCommand = if (normalized.startsWith("/")) normalized else "/$normalized"
-                            viewModel.dispatch(ChatIntent.SendMessage(slashCommand))
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (showModelPicker) {
+                            ModelPicker(modelOption = modelOption, onModelSelected = { value ->
+                                viewModel.dispatch(ChatIntent.SetConfigOption("model", value))
+                                showModelPicker = false
+                            }, onDismiss = { showModelPicker = false })
                         }
-                    )
-                }
 
-                if (state.isLoading && state.messages.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularWavyProgressIndicator(
-                            modifier = Modifier.size(64.dp)
-                        )
-                    }
-                } else if (state.error != null && state.messages.isEmpty()) {
-                    val errorMessage = state.error ?: "Failed to load session."
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f)
-                            .padding(horizontal = 24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = errorMessage,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        if (showConnectionStatusDialog) {
+                            ConnectionDiagnosticsDialog(
+                                connectionState = state.connectionState,
+                                diagnostics = state.connectionDiagnostics,
+                                totalTokens = state.usage?.totalTokens
+                                    ?: state.connectionDiagnostics.lastTotalTokens,
+                                contextWindowTokens = state.usage?.contextWindowTokens
+                                    ?: state.connectionDiagnostics.lastContextWindowTokens,
+                                costAmount = state.usage?.costUsd
+                                    ?: state.connectionDiagnostics.lastCostAmount,
+                                costCurrency = if (state.usage?.costUsd != null) {
+                                    "USD"
+                                } else {
+                                    state.connectionDiagnostics.lastCostCurrency
+                                },
+                                onDismiss = { showConnectionStatusDialog = false }
                             )
-                            OutlinedButton(onClick = { viewModel.dispatch(ChatIntent.RetryLoad) }) {
-                                Text("Retry")
+                        }
+
+                        if (showCommandsDialog) {
+                            CommandsDialog(
+                                commands = state.availableCommands,
+                                onDismiss = { showCommandsDialog = false },
+                                onCommandClick = { command ->
+                                    showCommandsDialog = false
+                                    val normalized = command.trim()
+                                    val slashCommand =
+                                        if (normalized.startsWith("/")) normalized else "/$normalized"
+                                    viewModel.dispatch(ChatIntent.SendMessage(slashCommand))
+                                }
+                            )
+                        }
+
+                        if (state.isLoading && state.messages.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularWavyProgressIndicator(
+                                    modifier = Modifier.size(64.dp)
+                                )
+                            }
+                        } else if (state.error != null && state.messages.isEmpty()) {
+                            val errorMessage = state.error ?: "Failed to load session."
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .weight(1f)
+                                    .padding(horizontal = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Text(
+                                        text = errorMessage,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    OutlinedButton(onClick = { viewModel.dispatch(ChatIntent.RetryLoad) }) {
+                                        Text("Retry")
+                                    }
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .nestedScroll(scrollState.userScrollDetector)
+                                    .weight(1f),
+                                contentPadding = PaddingValues(
+                                    start = 16.dp, top = 8.dp, end = 16.dp, bottom = 0.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(
+                                    items = renderedMessages, key = { it.id }) { message ->
+                                    MessageBubble(
+                                        message = message,
+                                        markdownStates = markdownStates,
+                                        showStreamingIndicator = state.isStreaming && message.id == renderedLastMessageId,
+                                        expandedToolCalls = state.expandedToolCalls,
+                                        onToolCallToggle = { toolCallId ->
+                                            viewModel.dispatch(
+                                                ChatIntent.ToggleToolCallExpansion(
+                                                    toolCallId
+                                                )
+                                            )
+                                        },
+                                        onPermissionGrant = { toolCallId, optionId ->
+                                            viewModel.dispatch(
+                                                ChatIntent.GrantPermission(
+                                                    toolCallId,
+                                                    optionId
+                                                )
+                                            )
+                                        },
+                                        onPermissionDeny = { toolCallId ->
+                                            viewModel.dispatch(ChatIntent.DenyPermission(toolCallId))
+                                        })
+                                }
+                                item(key = "__chat_bottom_spacer") {
+                                    Spacer(modifier = Modifier.height(listBottomPadding))
+                                }
                             }
                         }
                     }
-                } else {
-                    LazyColumn(
-                        state = listState,
+
+                    SnackbarHost(
+                        hostState = snackbarHostState,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .nestedScroll(scrollState.userScrollDetector)
-                            .weight(1f),
-                        contentPadding = PaddingValues(
-                            start = 16.dp, top = 8.dp, end = 16.dp, bottom = 0.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(
-                            items = renderedMessages, key = { it.id }) { message ->
-                            MessageBubble(
-                                message = message,
-                                markdownStates = markdownStates,
-                                showStreamingIndicator = state.isStreaming && message.id == renderedLastMessageId,
-                                expandedToolCalls = state.expandedToolCalls,
-                                onToolCallToggle = { toolCallId ->
-                                    viewModel.dispatch(ChatIntent.ToggleToolCallExpansion(toolCallId))
-                                },
-                                onPermissionGrant = { toolCallId, optionId ->
-                                    viewModel.dispatch(
-                                        ChatIntent.GrantPermission(
-                                            toolCallId,
-                                            optionId
-                                        )
-                                    )
-                                },
-                                onPermissionDeny = { toolCallId ->
-                                    viewModel.dispatch(ChatIntent.DenyPermission(toolCallId))
-                                })
-                        }
-                        item(key = "__chat_bottom_spacer") {
-                            Spacer(modifier = Modifier.height(listBottomPadding))
-                        }
-                    }
-                }
-            }
-
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = snackbarBottomPadding)
-                    .zIndex(2f)
-            )
-
-            if (showComposerToolbar) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .imePadding()
-                        .padding(horizontal = 1.dp)
-                        .offset(y = -FloatingToolbarDefaults.ScreenOffset)
-                        .zIndex(1f)
-                ) {
-                    val animatedHeight by animateDpAsState(
-                        targetValue = if (composerExpanded) 128.dp else 48.dp,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "ComposerHeight"
+                            .align(Alignment.BottomCenter)
+                            .padding(start = 16.dp, end = 16.dp, bottom = snackbarBottomPadding)
+                            .zIndex(2f)
                     )
-                    val expandedToolbarWidth = configuration.screenWidthDp.dp * 0.97f
-                    val collapsedMaxToolbarWidth = configuration.screenWidthDp.dp * 0.92f
 
-                    Surface(
-                        shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shadowElevation = 6.dp,
-                        modifier = Modifier
-                            .height(animatedHeight)
-                            .widthIn(max = if (composerExpanded) expandedToolbarWidth else collapsedMaxToolbarWidth)
-                            .onSizeChanged { composerContentHeightPx = it.height }
-                    ) {
-                        Row(
+                    if (showComposerToolbar) {
+                        Box(
                             modifier = Modifier
-                                .then(
-                                    if (composerExpanded) {
-                                        Modifier.fillMaxSize()
-                                    } else {
-                                        Modifier
-                                            .fillMaxHeight()
-                                            .wrapContentWidth()
-                                    }
-                                )
-                                .animateContentSize(
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
-                                )
-                                .padding(horizontal = 4.dp),
-                            verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding()
+                                .imePadding()
+                                .padding(horizontal = 1.dp)
+                                .offset(y = -FloatingToolbarDefaults.ScreenOffset)
+                                .zIndex(1f)
                         ) {
-                            if (composerExpanded) {
-                                // --- Expanded: top text field + bottom action row ---
-                                Column(
+                            val animatedHeight by animateDpAsState(
+                                targetValue = if (composerExpanded) 128.dp else 48.dp,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium
+                                ),
+                                label = "ComposerHeight"
+                            )
+                            val expandedToolbarWidth = configuration.screenWidthDp.dp * 0.97f
+                            val collapsedMaxToolbarWidth = configuration.screenWidthDp.dp * 0.92f
+
+                            Surface(
+                                shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                shadowElevation = 6.dp,
+                                modifier = Modifier
+                                    .height(animatedHeight)
+                                    .widthIn(max = if (composerExpanded) expandedToolbarWidth else collapsedMaxToolbarWidth)
+                                    .onSizeChanged { composerContentHeightPx = it.height }
+                            ) {
+                                Row(
                                     modifier = Modifier
-                                        .fillMaxHeight()
-                                        .fillMaxWidth()
-                                        .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp)
-                                        .alpha(inputAlpha)
+                                        .then(
+                                            if (composerExpanded) {
+                                                Modifier.fillMaxSize()
+                                            } else {
+                                                Modifier
+                                                    .fillMaxHeight()
+                                                    .wrapContentWidth()
+                                            }
+                                        )
+                                        .animateContentSize(
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                stiffness = Spring.StiffnessMediumLow
+                                            )
+                                        )
+                                        .padding(horizontal = 4.dp),
+                                    verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    val selectionColors = TextSelectionColors(
-                                        handleColor = MaterialTheme.colorScheme.onPrimary,
-                                        backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f)
-                                    )
-                                    CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
-                                        BasicTextField(
-                                            value = messageText,
-                                            onValueChange = { messageText = it },
-                                            singleLine = false,
-                                            minLines = 3,
-                                            maxLines = 8,
-                                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                                color = MaterialTheme.colorScheme.onPrimary
-                                            ),
-                                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
-                                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                            keyboardActions = KeyboardActions(onSend = { sendMessage() }),
+                                    if (composerExpanded) {
+                                        // --- Expanded: top text field + bottom action row ---
+                                        Column(
                                             modifier = Modifier
+                                                .fillMaxHeight()
                                                 .fillMaxWidth()
-                                                .weight(1f)
-                                                .focusRequester(focusRequester),
-                                            decorationBox = { innerTextField ->
-                                                Box(
+                                                .padding(
+                                                    start = 4.dp,
+                                                    end = 4.dp,
+                                                    top = 10.dp,
+                                                    bottom = 4.dp
+                                                )
+                                                .alpha(inputAlpha)
+                                        ) {
+                                            val selectionColors = TextSelectionColors(
+                                                handleColor = MaterialTheme.colorScheme.onPrimary,
+                                                backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(
+                                                    alpha = 0.35f
+                                                )
+                                            )
+                                            CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
+                                                BasicTextField(
+                                                    value = messageText,
+                                                    onValueChange = { messageText = it },
+                                                    singleLine = false,
+                                                    minLines = 3,
+                                                    maxLines = 8,
+                                                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                        color = MaterialTheme.colorScheme.onPrimary
+                                                    ),
+                                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+                                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                                    keyboardActions = KeyboardActions(onSend = { sendMessage() }),
                                                     modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                                                    contentAlignment = Alignment.TopStart
+                                                        .fillMaxWidth()
+                                                        .weight(1f)
+                                                        .focusRequester(focusRequester),
+                                                    decorationBox = { innerTextField ->
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .padding(
+                                                                    horizontal = 8.dp,
+                                                                    vertical = 2.dp
+                                                                ),
+                                                            contentAlignment = Alignment.TopStart
+                                                        ) {
+                                                            if (messageText.isEmpty()) {
+                                                                Text(
+                                                                    text = "Type a message\u2026",
+                                                                    style = MaterialTheme.typography.bodyLarge,
+                                                                    color = MaterialTheme.colorScheme.onPrimary.copy(
+                                                                        alpha = 0.55f
+                                                                    )
+                                                                )
+                                                            }
+                                                            innerTextField()
+                                                        }
+                                                    }
+                                                )
+                                            }
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.Bottom
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        composerExpanded = false
+                                                        focusManager.clearFocus()
+                                                    }
                                                 ) {
-                                                    if (messageText.isEmpty()) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Close composer"
+                                                    )
+                                                }
+
+                                                FilledIconButton(
+                                                    onClick = {
+                                                        if (showStopAction && canCancelStreaming) {
+                                                            viewModel.dispatch(ChatIntent.CancelStreaming)
+                                                        } else if (!showStopAction) {
+                                                            sendMessage()
+                                                        }
+                                                    },
+                                                    enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
+                                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                                        containerColor = MaterialTheme.colorScheme.onPrimary,
+                                                        contentColor = MaterialTheme.colorScheme.primary
+                                                    ),
+                                                    shapes = IconButtonDefaults.shapes()
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (showStopAction && canCancelStreaming) {
+                                                            Icons.Default.Stop
+                                                        } else {
+                                                            Icons.Default.ArrowUpward
+                                                        },
+                                                        contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Send"
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // --- Collapsed: mode + chat + model buttons ---
+                                        if (showModeButton) {
+                                            Box(modifier = Modifier.alpha(buttonsAlpha)) {
+                                                TooltipBox(
+                                                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                                        TooltipAnchorPosition.Above
+                                                    ),
+                                                    tooltip = { PlainTooltip { Text("Mode") } },
+                                                    state = rememberTooltipState()
+                                                ) {
+                                                    Button(
+                                                        onClick = { showModeMenu = true },
+                                                        modifier = Modifier.widthIn(max = collapsedMaxToolbarWidth * 0.45f)
+                                                    ) {
                                                         Text(
-                                                            text = "Type a message\u2026",
-                                                            style = MaterialTheme.typography.bodyLarge,
-                                                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f)
+                                                            text = currentModeLabel,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
                                                         )
                                                     }
-                                                    innerTextField()
+                                                }
+                                                DropdownMenuPopup(
+                                                    expanded = showModeMenu,
+                                                    onDismissRequest = { showModeMenu = false }
+                                                ) {
+                                                    DropdownMenuGroup(
+                                                        shapes = MenuDefaults.groupShape(0, 1),
+                                                        interactionSource = modeMenuInteractionSource,
+                                                    ) {
+                                                        val modeCount = state.availableModes.size
+                                                        if (modeCount == 0) {
+                                                            DropdownMenuItem(
+                                                                text = { Text("No modes available") },
+                                                                onClick = { showModeMenu = false },
+                                                                enabled = false
+                                                            )
+                                                        } else {
+                                                            state.availableModes.forEachIndexed { index, mode ->
+                                                                DropdownMenuItem(
+                                                                    text = { Text(mode.name.uppercase()) },
+                                                                    shapes = MenuDefaults.itemShape(
+                                                                        index,
+                                                                        modeCount
+                                                                    ),
+                                                                    checked = mode.id == state.currentModeId,
+                                                                    onCheckedChange = { checked ->
+                                                                        if (checked && mode.id != state.currentModeId) {
+                                                                            showModeMenu = false
+                                                                            viewModel.dispatch(
+                                                                                ChatIntent.SetMode(
+                                                                                    mode.id
+                                                                                )
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
-                                        )
-                                    }
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.Bottom
-                                    ) {
-                                        IconButton(
-                                            onClick = {
-                                                composerExpanded = false
-                                                focusManager.clearFocus()
-                                            }
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Close composer"
-                                            )
                                         }
 
-                                        FilledIconButton(
-                                            onClick = {
-                                                if (showStopAction && canCancelStreaming) {
-                                                    viewModel.dispatch(ChatIntent.CancelStreaming)
-                                                } else if (!showStopAction) {
-                                                    sendMessage()
-                                                }
-                                            },
-                                            enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
-                                            colors = IconButtonDefaults.filledIconButtonColors(
-                                                containerColor = MaterialTheme.colorScheme.onPrimary,
-                                                contentColor = MaterialTheme.colorScheme.primary
-                                            ),
-                                            shapes = IconButtonDefaults.shapes()
-                                        ) {
-                                            Icon(
-                                                imageVector = if (showStopAction && canCancelStreaming) {
-                                                    Icons.Default.Stop
-                                                } else {
-                                                    Icons.Default.ArrowUpward
-                                                },
-                                                contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Send"
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                // --- Collapsed: mode + chat + model buttons ---
-                                if (showModeButton) {
-                                    Box(modifier = Modifier.alpha(buttonsAlpha)) {
                                         TooltipBox(
                                             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                                                 TooltipAnchorPosition.Above
                                             ),
-                                            tooltip = { PlainTooltip { Text("Mode") } },
+                                            tooltip = {
+                                                PlainTooltip {
+                                                    Text(
+                                                        when {
+                                                            showStopAction && canCancelStreaming -> "Stop"
+                                                            showStopAction && !canCancelStreaming -> "Cancel unavailable"
+                                                            else -> "Chat"
+                                                        }
+                                                    )
+                                                }
+                                            },
                                             state = rememberTooltipState()
                                         ) {
-                                            Button(
-                                                onClick = { showModeMenu = true },
-                                                modifier = Modifier.widthIn(max = collapsedMaxToolbarWidth * 0.45f)
-                                            ) {
-                                                Text(
-                                                    text = currentModeLabel,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        }
-                                        DropdownMenuPopup(
-                                            expanded = showModeMenu,
-                                            onDismissRequest = { showModeMenu = false }
-                                        ) {
-                                            DropdownMenuGroup(
-                                                shapes = MenuDefaults.groupShape(0, 1),
-                                                interactionSource = modeMenuInteractionSource,
-                                            ) {
-                                                val modeCount = state.availableModes.size
-                                                if (modeCount == 0) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("No modes available") },
-                                                        onClick = { showModeMenu = false },
-                                                        enabled = false
-                                                    )
-                                                } else {
-                                                    state.availableModes.forEachIndexed { index, mode ->
-                                                        DropdownMenuItem(
-                                                            text = { Text(mode.name.uppercase()) },
-                                                            shapes = MenuDefaults.itemShape(index, modeCount),
-                                                            checked = mode.id == state.currentModeId,
-                                                            onCheckedChange = { checked ->
-                                                                if (checked && mode.id != state.currentModeId) {
-                                                                    showModeMenu = false
-                                                                    viewModel.dispatch(ChatIntent.SetMode(mode.id))
-                                                                }
-                                                            }
-                                                        )
+                                            FilledIconButton(
+                                                onClick = {
+                                                    if (showStopAction && canCancelStreaming) {
+                                                        viewModel.dispatch(ChatIntent.CancelStreaming)
+                                                    } else if (!showStopAction) {
+                                                        composerExpanded = true
                                                     }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                TooltipBox(
-                                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                        TooltipAnchorPosition.Above
-                                    ),
-                                    tooltip = {
-                                        PlainTooltip {
-                                            Text(
-                                                when {
-                                                    showStopAction && canCancelStreaming -> "Stop"
-                                                    showStopAction && !canCancelStreaming -> "Cancel unavailable"
-                                                    else -> "Chat"
-                                                }
-                                            )
-                                        }
-                                    },
-                                    state = rememberTooltipState()
-                                ) {
-                                    FilledIconButton(
-                                        onClick = {
-                                            if (showStopAction && canCancelStreaming) {
-                                                viewModel.dispatch(ChatIntent.CancelStreaming)
-                                            } else if (!showStopAction) {
-                                                composerExpanded = true
-                                            }
-                                        },
-                                        enabled = !showStopAction || canCancelStreaming,
-                                        colors = IconButtonDefaults.filledIconButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.onPrimary,
-                                            contentColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                        shapes = IconButtonDefaults.shapes()
-                                    ) {
-                                        Icon(
-                                            imageVector = if (showStopAction && canCancelStreaming) {
-                                                Icons.Default.Stop
-                                            } else {
-                                                Icons.Default.Edit
-                                            },
-                                            contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Chat"
-                                        )
-                                    }
-                                }
-
-                                if (hasToolbarOptions) {
-                                    TooltipBox(
-                                        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                            TooltipAnchorPosition.Above
-                                        ),
-                                        tooltip = { PlainTooltip { Text("Options") } },
-                                        state = rememberTooltipState()
-                                    ) {
-                                        Box {
-                                            IconButton(
-                                                onClick = { showModelMenu = true },
+                                                },
+                                                enabled = !showStopAction || canCancelStreaming,
+                                                colors = IconButtonDefaults.filledIconButtonColors(
+                                                    containerColor = MaterialTheme.colorScheme.onPrimary,
+                                                    contentColor = MaterialTheme.colorScheme.primary
+                                                ),
+                                                shapes = IconButtonDefaults.shapes()
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.MoreVert,
-                                                    contentDescription = "Model"
+                                                    imageVector = if (showStopAction && canCancelStreaming) {
+                                                        Icons.Default.Stop
+                                                    } else {
+                                                        Icons.Default.Edit
+                                                    },
+                                                    contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Chat"
                                                 )
                                             }
-                                            DropdownMenuPopup(
-                                                expanded = showModelMenu,
-                                                onDismissRequest = { showModelMenu = false }
+                                        }
+
+                                        if (hasToolbarOptions) {
+                                            TooltipBox(
+                                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                                    TooltipAnchorPosition.Above
+                                                ),
+                                                tooltip = { PlainTooltip { Text("Options") } },
+                                                state = rememberTooltipState()
                                             ) {
-                                                DropdownMenuGroup(
-                                                    shapes = MenuDefaults.groupShape(0, 1),
-                                                    interactionSource = optionsMenuInteractionSource,
-                                                ) {
-                                                    if (state.commandsAdvertised) {
-                                                        DropdownMenuItem(
-                                                            text = { Text("Commands") },
-                                                            onClick = {
-                                                                showModelMenu = false
-                                                                showCommandsDialog = true
-                                                            }
+                                                Box {
+                                                    IconButton(
+                                                        onClick = { showModelMenu = true },
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.MoreVert,
+                                                            contentDescription = "Model"
                                                         )
                                                     }
-
-                                                    if (modelOption != null) {
-                                                        DropdownMenuItem(
-                                                            text = { Text("Change model") },
-                                                            onClick = {
-                                                                showModelMenu = false
-                                                                showModelPicker = true
+                                                    DropdownMenuPopup(
+                                                        expanded = showModelMenu,
+                                                        onDismissRequest = { showModelMenu = false }
+                                                    ) {
+                                                        DropdownMenuGroup(
+                                                            shapes = MenuDefaults.groupShape(0, 1),
+                                                            interactionSource = optionsMenuInteractionSource,
+                                                        ) {
+                                                            if (state.commandsAdvertised) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text("Commands") },
+                                                                    onClick = {
+                                                                        showModelMenu = false
+                                                                        showCommandsDialog = true
+                                                                    }
+                                                                )
                                                             }
-                                                        )
-                                                    } else if (!state.commandsAdvertised) {
-                                                        DropdownMenuItem(
-                                                            text = { Text("No options available") },
-                                                            onClick = { showModelMenu = false },
-                                                            enabled = false
-                                                        )
+
+                                                            if (modelOption != null) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text("Change model") },
+                                                                    onClick = {
+                                                                        showModelMenu = false
+                                                                        showModelPicker = true
+                                                                    }
+                                                                )
+                                                            } else if (!state.commandsAdvertised) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text("No options available") },
+                                                                    onClick = {
+                                                                        showModelMenu = false
+                                                                    },
+                                                                    enabled = false
+                                                                )
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -973,8 +1015,6 @@ fun ChatScreen(
             }
         }
     }
-}
-}
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -994,7 +1034,7 @@ private fun ChatTopBar(
             with(sharedTransitionScope) {
                 Text(
                     text = sessionTitle,
-                    style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
+                    style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.sharedBounds(
@@ -1019,9 +1059,9 @@ private fun ChatTopBar(
             }
         }
     }, navigationIcon = {
-        IconButton(onClick = onNavigateBack) {
+        FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.width()) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back"
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back"
             )
         }
     }, actions = {
