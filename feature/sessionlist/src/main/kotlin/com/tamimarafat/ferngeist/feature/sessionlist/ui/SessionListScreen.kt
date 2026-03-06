@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,10 +36,12 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -72,6 +73,7 @@ import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.statusBarsPadding
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
@@ -113,6 +115,8 @@ fun SessionListScreen(
     var showCreateSessionDialog by remember { mutableStateOf(false) }
     var createSessionCwd by remember(defaultCwd) { mutableStateOf(defaultCwd) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
+    val showRefreshingIndicator = isLoading && sessions.isNotEmpty()
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -183,101 +187,91 @@ fun SessionListScreen(
         collapse
     )
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = serverName,
-                            style = titleStyle
-                        )
-                        Text(
-                            text = "${sessions.size} session${if (sessions.size != 1) "s" else ""}",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                        )
-                    }
-                },
-                actions = {
-                    val connectionLabel = connectionStateLabel(connectionState)
-                    TooltipBox(
-                        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                            TooltipAnchorPosition.Above
-                        ),
-                        tooltip = { PlainTooltip { Text("Connection: $connectionLabel") } },
-                        state = rememberTooltipState()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp)
-                                .semantics {
-                                    role = Role.Button
-                                    contentDescription = "Connection status"
-                                    stateDescription = connectionLabel
-                                }
-                                .clickable(onClick = { showConnectionStatusDialog = true }),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            ConnectionStatusDot(connectionState = connectionState)
-                        }
-                    }
-                    IconButton(
-                        onClick = { viewModel.refreshSessions() },
-                        enabled = !isLoading
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh sessions"
-                        )
-                    }
-                },
-                scrollBehavior = scrollBehavior,
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection)
+            .pullToRefresh(
+                state = pullToRefreshState,
+                isRefreshing = showRefreshingIndicator,
+                onRefresh = viewModel::refreshSessions,
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    createSessionCwd = defaultCwd
-                    showCreateSessionDialog = true
-                },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "New session"
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                LargeTopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                text = serverName,
+                                style = titleStyle
+                            )
+                            Text(
+                                text = "${sessions.size} session${if (sessions.size != 1) "s" else ""}",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                            )
+                        }
+                    },
+                    actions = {
+                        val connectionLabel = connectionStateLabel(connectionState)
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                TooltipAnchorPosition.Above
+                            ),
+                            tooltip = { PlainTooltip { Text("Connection: $connectionLabel") } },
+                            state = rememberTooltipState()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp)
+                                    .semantics {
+                                        role = Role.Button
+                                        contentDescription = "Connection status"
+                                        stateDescription = connectionLabel
+                                    }
+                                    .clickable(onClick = { showConnectionStatusDialog = true }),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                ConnectionStatusDot(connectionState = connectionState)
+                            }
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
                 )
-            }
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            AnimatedVisibility(
-                visible = isLoading && sessions.isNotEmpty(),
-                enter = expandVertically(),
-                exit = shrinkVertically()
-            ) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        createSessionCwd = defaultCwd
+                        showCreateSessionDialog = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "New session"
+                    )
+                }
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { padding ->
             when {
                 isLoading && sessions.isEmpty() -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularWavyProgressIndicator(
@@ -288,7 +282,9 @@ fun SessionListScreen(
 
                 sessions.isEmpty() -> {
                     EmptySessionList(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
                         onCreateSession = {
                             createSessionCwd = defaultCwd
                             showCreateSessionDialog = true
@@ -333,7 +329,12 @@ fun SessionListScreen(
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            top = padding.calculateTopPadding() + 16.dp,
+                            end = 16.dp,
+                            bottom = padding.calculateBottomPadding() + 16.dp,
+                        ),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         groupedSessions.forEach { (group, groupSessions) ->
@@ -365,6 +366,14 @@ fun SessionListScreen(
                 }
             }
         }
+
+        PullToRefreshDefaults.LoadingIndicator(
+            state = pullToRefreshState,
+            isRefreshing = showRefreshingIndicator,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+        )
     }
 }
 

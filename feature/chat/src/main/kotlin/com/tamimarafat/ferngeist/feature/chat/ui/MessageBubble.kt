@@ -1,5 +1,4 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -597,7 +596,6 @@ private val STREAMING_VERBS = listOf(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private val LOADING_SHAPES = listOf(
-    MaterialShapes.Triangle,
     MaterialShapes.Oval,
     MaterialShapes.ClamShell,
     MaterialShapes.Diamond,
