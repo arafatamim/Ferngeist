@@ -1,11 +1,16 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.os.SystemClock
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
@@ -60,7 +65,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FloatingToolbarDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -121,10 +125,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
+import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.connectionStateLabel
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
-import com.tamimarafat.ferngeist.feature.chat.UsageState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -335,11 +340,18 @@ private fun rememberChatScrollState(
     return chatScrollState
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
 @Composable
 fun ChatScreen(
+    sessionId: String,
     sessionTitle: String,
     onNavigateBack: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -375,15 +387,13 @@ fun ChatScreen(
                     36.dp
         }
     }
-    val snackbarBottomPadding = with(density) {
-        if (!showComposerToolbar) {
-            0.dp
-        } else {
-            composerContentHeightDp +
-                    systemBottomInsetDp +
-                    FloatingToolbarDefaults.ScreenOffset +
-                    16.dp
-        }
+    val snackbarBottomPadding = if (!showComposerToolbar) {
+        0.dp
+    } else {
+        composerContentHeightDp +
+                systemBottomInsetDp +
+                FloatingToolbarDefaults.ScreenOffset +
+                16.dp
     }
     val modelOption = remember(state.configOptions) {
         state.configOptions.firstOrNull { it.id == "model" && it.options.isNotEmpty() }
@@ -486,35 +496,53 @@ fun ChatScreen(
             focusRequester.requestFocus()
         }
     }
-
-    Scaffold(topBar = {
-        ChatTopBar(
-            sessionTitle = sessionTitle,
-            activeModel = activeModel,
-            usage = state.usage,
-            connectionState = state.connectionState,
-            onNavigateBack = onNavigateBack,
-            onConnectionStatusClick = { showConnectionStatusDialog = true }
-        )
-    }) { innerPadding ->
+    with(sharedTransitionScope) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .then(
-                    if (composerExpanded) {
-                        Modifier.clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) {
-                            if (messageText.isBlank()) {
-                                composerExpanded = false
-                                focusManager.clearFocus()
-                            }
-                        }
-                    } else Modifier
+                .sharedBounds(
+                    sharedContentState = rememberSharedContentState(
+                        key = SessionSharedBoundsKey(sessionId),
+                    ),
+                    animatedVisibilityScope = animatedContentScope,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                 )
+                .fillMaxSize()
         ) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                topBar = {
+                    ChatTopBar(
+                        sessionId = sessionId,
+                        sessionTitle = sessionTitle,
+                        activeModel = activeModel,
+                        connectionState = state.connectionState,
+                        onNavigateBack = onNavigateBack,
+                        onConnectionStatusClick = { showConnectionStatusDialog = true },
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                    )
+                }
+            ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .then(
+                            if (composerExpanded) {
+                                Modifier.clickable(
+                                    indication = null,
+                                    interactionSource = remember { MutableInteractionSource() }
+                                ) {
+                                    if (messageText.isBlank()) {
+                                        composerExpanded = false
+                                        focusManager.clearFocus()
+                                    }
+                                }
+                            } else Modifier
+                        )
+                ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 if (showModelPicker) {
                     ModelPicker(modelOption = modelOption, onModelSelected = { value ->
@@ -946,25 +974,40 @@ fun ChatScreen(
         }
     }
 }
+}
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ChatTopBar(
+    sessionId: String,
     sessionTitle: String,
     activeModel: String?,
-    usage: UsageState?,
     connectionState: AcpConnectionState,
     onNavigateBack: () -> Unit,
     onConnectionStatusClick: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
 ) {
     TopAppBar(title = {
         Column {
-            Text(
-                text = sessionTitle,
-                style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            with(sharedTransitionScope) {
+                Text(
+                    text = sessionTitle,
+                    style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.sharedBounds(
+                        sharedContentState = rememberSharedContentState(
+                            key = SessionTitleSharedBoundsKey(sessionId),
+                        ),
+                        animatedVisibilityScope = animatedContentScope,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                    ),
+                )
+            }
             activeModel?.takeIf { it.isNotBlank() }?.let { model ->
                 Text(
                     text = model,

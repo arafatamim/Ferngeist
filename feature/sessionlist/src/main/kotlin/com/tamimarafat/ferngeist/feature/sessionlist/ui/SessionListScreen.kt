@@ -1,7 +1,12 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -69,11 +74,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
+import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.connectionStateLabel
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -82,14 +88,19 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
 @Composable
 fun SessionListScreen(
-    serverId: String,
     serverName: String,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     viewModel: SessionListViewModel,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
 ) {
     val sessions by viewModel.sessions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -107,7 +118,12 @@ fun SessionListScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is SessionListEvent.NavigateToChat -> {
-                    onNavigateToChat(event.sessionId, event.cwd, event.updatedAt, event.title)
+                    onNavigateToChat(
+                        event.sessionId,
+                        event.cwd,
+                        event.updatedAt,
+                        event.title,
+                    )
                 }
 
                 is SessionListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
@@ -332,7 +348,16 @@ fun SessionListScreen(
                             items(groupSessions, key = { it.id }) { session ->
                                 SessionCard(
                                     session = session,
-                                    onClick = { viewModel.onSessionClick(session) },
+                                    onClick = {
+                                        onNavigateToChat(
+                                            session.id,
+                                            session.cwd ?: "/",
+                                            session.updatedAt,
+                                            session.title,
+                                        )
+                                    },
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedContentScope = animatedContentScope,
                                 )
                             }
                         }
@@ -343,41 +368,64 @@ fun SessionListScreen(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun SessionCard(
     session: SessionSummary,
     onClick: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-    ) {
-        Row(
+    with(sharedTransitionScope) {
+        Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = session.title ?: "Untitled Session",
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                .sharedBounds(
+                    sharedContentState = rememberSharedContentState(
+                        key = SessionSharedBoundsKey(session.id),
+                    ),
+                    animatedVisibilityScope = animatedContentScope,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                 )
-                session.cwd?.let { cwd ->
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = cwd,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = session.title ?: "Untitled Session",
+                        style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.sharedBounds(
+                            sharedContentState = rememberSharedContentState(
+                                key = SessionTitleSharedBoundsKey(session.id),
+                            ),
+                            animatedVisibilityScope = animatedContentScope,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                        ),
                     )
+                    session.cwd?.let { cwd ->
+                        Text(
+                            text = cwd,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }

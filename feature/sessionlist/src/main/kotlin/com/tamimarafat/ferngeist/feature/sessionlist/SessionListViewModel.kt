@@ -24,8 +24,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SessionListViewModel @Inject constructor(
-    private val savedStateHandle: SavedStateHandle,
-    private val serverRepository: ServerRepository,
+    savedStateHandle: SavedStateHandle,
+    serverRepository: ServerRepository,
     private val sessionRepository: SessionRepository,
     private val connectionManager: AcpConnectionManager,
 ) : ViewModel() {
@@ -110,20 +110,6 @@ class SessionListViewModel @Inject constructor(
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
             sessionRepository.deleteSession(serverId, sessionId)
-        }
-    }
-
-    fun onSessionClick(session: SessionSummary) {
-        viewModelScope.launch {
-            _events.emit(
-                SessionListEvent.NavigateToChat(
-                    serverId = serverId,
-                    sessionId = session.id,
-                    cwd = session.cwd ?: "/",
-                    updatedAt = session.updatedAt,
-                    title = session.title,
-                )
-            )
         }
     }
 
