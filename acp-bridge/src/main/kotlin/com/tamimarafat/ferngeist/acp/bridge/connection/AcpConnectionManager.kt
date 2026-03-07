@@ -67,8 +67,12 @@ class AcpConnectionManager(
         return transportClient.connect(config, resetState = ::resetConnectionState)
     }
 
-    suspend fun initialize(): Boolean {
+    suspend fun initialize(): AcpInitializeResult? {
         return transportClient.initialize()
+    }
+
+    suspend fun authenticate(methodId: String): AcpAuthenticateResult {
+        return transportClient.authenticate(methodId)
     }
 
     suspend fun disconnect() {
@@ -88,7 +92,7 @@ class AcpConnectionManager(
                 )
             }
         }.getOrElse {
-            diagnosticsStore.appendError("session/list", it.message ?: "Failed to list sessions")
+            diagnosticsStore.appendError("session/list", formatAcpErrorMessage(it, "Failed to list sessions"))
             emptyList()
         }
     }
@@ -103,7 +107,7 @@ class AcpConnectionManager(
             )
             registerSession(session)
         }.getOrElse {
-            diagnosticsStore.appendError("session/new", it.message ?: "Failed to create session")
+            diagnosticsStore.appendError("session/new", formatAcpErrorMessage(it, "Failed to create session"))
             null
         }
     }
@@ -132,9 +136,10 @@ class AcpConnectionManager(
             registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
             registeredBridge
         }.getOrElse { error ->
-            sessionRegistry.getBridge(sessionId)?.failHydration(error.message ?: "Failed to load session")
+            val message = formatAcpErrorMessage(error, "Failed to load session")
+            sessionRegistry.getBridge(sessionId)?.failHydration(message)
             clearSessionState(sessionId, closeBridge = true)
-            diagnosticsStore.appendError("session/load", error.message ?: "Failed to load session")
+            diagnosticsStore.appendError("session/load", message)
             null
         }
     }
@@ -198,7 +203,7 @@ class AcpConnectionManager(
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_mode")
             session.setMode(SessionModeId(modeId))
         }.onFailure {
-            diagnosticsStore.appendError("session/set_mode", it.message ?: "Set mode failed")
+            diagnosticsStore.appendError("session/set_mode", formatAcpErrorMessage(it, "Set mode failed"))
         }
     }
 
@@ -209,7 +214,7 @@ class AcpConnectionManager(
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_model")
             session.setModel(com.agentclientprotocol.model.ModelId(modelId))
         }.onFailure {
-            diagnosticsStore.appendError("session/set_model", it.message ?: "Set model failed")
+            diagnosticsStore.appendError("session/set_model", formatAcpErrorMessage(it, "Set model failed"))
         }
     }
 
@@ -220,7 +225,7 @@ class AcpConnectionManager(
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_config_option")
             session.setConfigOption(SessionConfigId(optionId), SessionConfigOptionValue.of(value))
         }.onFailure {
-            diagnosticsStore.appendError("session/set_config_option", it.message ?: "Set config option failed")
+            diagnosticsStore.appendError("session/set_config_option", formatAcpErrorMessage(it, "Set config option failed"))
         }
     }
 
@@ -389,7 +394,7 @@ class AcpConnectionManager(
         if (isUnsupportedSessionCancel(error)) {
             updateSessionCancelSupport(isSupported = false)
         }
-        diagnosticsStore.appendError("session/cancel", error.message ?: "Cancel failed")
+        diagnosticsStore.appendError("session/cancel", formatAcpErrorMessage(error, "Cancel failed"))
     }
 
     private fun isUnsupportedSessionCancel(error: Throwable): Boolean {
@@ -416,6 +421,7 @@ data class AgentInfo(
 sealed interface AcpManagerEvent {
     data object Connected : AcpManagerEvent
     data object Disconnected : AcpManagerEvent
-    data class Initialized(val agentInfo: AgentInfo) : AcpManagerEvent
+    data class Initialized(val result: AcpInitializeResult) : AcpManagerEvent
+    data class Authenticated(val methodId: String) : AcpManagerEvent
     data class Error(val throwable: Throwable) : AcpManagerEvent
 }

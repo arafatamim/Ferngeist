@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
+import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
@@ -67,7 +68,7 @@ class SessionListViewModel @Inject constructor(
             }.onSuccess { remoteSessions ->
                 replaceSessions(remoteSessions)
             }.onFailure {
-                _events.emit(SessionListEvent.ShowError(it.message ?: "Failed to load sessions"))
+                _events.emit(SessionListEvent.ShowError(formatAcpErrorMessage(it, "Failed to load sessions")))
             }
             _isLoading.value = false
         }
@@ -101,7 +102,7 @@ class SessionListViewModel @Inject constructor(
                     )
                 }
             }.onFailure {
-                _events.emit(SessionListEvent.ShowError(it.message ?: "Failed to create a new session"))
+                _events.emit(SessionListEvent.ShowError(formatAcpErrorMessage(it, "Failed to create a new session")))
             }
             _isLoading.value = false
         }

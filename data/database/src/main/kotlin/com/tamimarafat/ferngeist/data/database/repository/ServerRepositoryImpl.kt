@@ -46,6 +46,7 @@ private fun ServerEntity.toDomain(): ServerConfig {
         host = host,
         token = token,
         workingDirectory = workingDirectory,
+        preferredAuthMethodId = preferredAuthMethodId,
     )
 }
 
@@ -57,5 +58,6 @@ private fun ServerConfig.toEntity(): ServerEntity {
         host = host,
         token = token,
         workingDirectory = workingDirectory,
+        preferredAuthMethodId = preferredAuthMethodId,
     )
 }

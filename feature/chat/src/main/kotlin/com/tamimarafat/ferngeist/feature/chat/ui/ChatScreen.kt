@@ -1059,7 +1059,7 @@ private fun ChatTopBar(
             }
         }
     }, navigationIcon = {
-        FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.width()) {
+        FilledTonalIconButton(onClick = onNavigateBack) {
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back"
             )

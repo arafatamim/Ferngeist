@@ -32,7 +32,7 @@ object AppModule {
             context,
             FerngeistDatabase::class.java,
             FerngeistDatabase.DATABASE_NAME,
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
     }
     
     @Provides
@@ -85,5 +85,16 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
 private val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("DROP TABLE IF EXISTS `messages`")
+    }
+}
+
+private val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `preferredAuthMethodId` TEXT
+            """.trimIndent()
+        )
     }
 }

@@ -12,7 +12,7 @@ import com.tamimarafat.ferngeist.data.database.entity.SessionEntity
         ServerEntity::class,
         SessionEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class FerngeistDatabase : RoomDatabase() {

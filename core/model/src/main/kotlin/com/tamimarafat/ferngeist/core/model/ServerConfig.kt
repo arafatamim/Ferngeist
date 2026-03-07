@@ -11,6 +11,7 @@ data class ServerConfig(
     val host: String,
     val token: String = "",
     val workingDirectory: String = "/",
+    val preferredAuthMethodId: String? = null,
 ) {
     val endpoint: String
         get() = "$scheme://$host"

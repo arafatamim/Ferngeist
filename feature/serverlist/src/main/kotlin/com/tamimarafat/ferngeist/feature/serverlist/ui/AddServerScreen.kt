@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -58,7 +58,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
@@ -72,8 +71,8 @@ fun AddServerScreen(
     val name by viewModel.name.collectAsState()
     val scheme by viewModel.scheme.collectAsState()
     val host by viewModel.host.collectAsState()
-    val token by viewModel.token.collectAsState()
     val workingDirectory by viewModel.workingDirectory.collectAsState()
+    val preferredAuthMethodId by viewModel.preferredAuthMethodId.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -186,44 +185,45 @@ fun AddServerScreen(
             // ── Authentication Section ──────────────────────────────────
             SectionCard(
                 title = "Authentication",
-                subtitle = "Optional",
+                subtitle = "ACP",
                 icon = Icons.Default.Key,
             ) {
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = viewModel::updateToken,
-                    label = { Text("Bearer Token") },
-                    placeholder = { Text("sk-...") },
-                    leadingIcon = {
-                        Icon(
-                            if (token.isNotBlank()) Icons.Default.Lock else Icons.Default.LockOpen,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = if (token.isNotBlank()) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = sectionTextFieldColors(),
+                Text(
+                    text = "Ferngeist negotiates ACP authentication after connect using the auth methods advertised by the agent.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                AnimatedVisibility(
-                    visible = token.isNotBlank(),
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut(),
-                ) {
-                    Text(
-                        text = "Token will be sent as a Bearer authorization header.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
+                preferredAuthMethodId?.takeIf { it.isNotBlank() }?.let { methodId ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = "Stored authentication method",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = methodId,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            if (viewModel.isEditMode) {
+                                OutlinedButton(onClick = viewModel::clearPreferredAuthMethod) {
+                                    Text("Clear stored method")
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

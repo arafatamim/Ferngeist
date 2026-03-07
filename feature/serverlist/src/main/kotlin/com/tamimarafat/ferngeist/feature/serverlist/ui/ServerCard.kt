@@ -179,7 +179,7 @@ internal fun ServerCard(
                     }
                 }
 
-                if (server.token.isNotBlank()) {
+                server.preferredAuthMethodId?.takeIf { it.isNotBlank() }?.let { authMethodId ->
                     AssistChip(
                         onClick = {},
                         enabled = false,
@@ -190,7 +190,7 @@ internal fun ServerCard(
                                 modifier = Modifier.size(14.dp),
                             )
                         },
-                        label = { Text("Auth") },
+                        label = { Text("ACP: $authMethodId") },
                         shape = RoundedCornerShape(10.dp),
                     )
                 }

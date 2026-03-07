@@ -3,9 +3,13 @@ package com.tamimarafat.ferngeist.feature.serverlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
@@ -41,6 +45,15 @@ data class ServerListUiState(
     val connectingServerId: String? = null,
     val connectedServerState: ConnectedServerState? = null,
     val showConnectionError: String? = null,
+    val pendingAuthentication: PendingAuthentication? = null,
+)
+
+data class PendingAuthentication(
+    val serverId: String,
+    val serverName: String,
+    val agentName: String,
+    val authMethods: List<AcpAuthMethodInfo>,
+    val authErrorMessage: String? = null,
 )
 
 @HiltViewModel
@@ -86,6 +99,7 @@ class ServerListViewModel @Inject constructor(
                     connectingServerId = server.id,
                     connectionState = AcpConnectionState.Connecting,
                     showConnectionError = null,
+                    pendingAuthentication = null,
                     connectedServerState = ConnectedServerState(
                         serverId = server.id,
                         isInitializing = true,
@@ -97,7 +111,7 @@ class ServerListViewModel @Inject constructor(
             val config = AcpConnectionConfig(
                 scheme = server.scheme,
                 host = server.host,
-                authToken = server.token.takeIf { it.isNotBlank() },
+                preferredAuthMethodId = server.preferredAuthMethodId,
             )
 
             val connected = connectionManager.connect(config)
@@ -114,8 +128,8 @@ class ServerListViewModel @Inject constructor(
             }
 
             // Step 2: Initialize and get agent info
-            val initialized = connectionManager.initialize()
-            if (!initialized) {
+            val initializeResult = connectionManager.initialize()
+            if (initializeResult == null) {
                 _uiState.update {
                     it.copy(
                         connectingServerId = null,
@@ -126,29 +140,93 @@ class ServerListViewModel @Inject constructor(
                 return@launch
             }
 
-            // Step 3: Update connected state and navigate
-            _uiState.update {
-                it.copy(
-                    connectingServerId = null,
-                    connectedServerState = it.connectedServerState?.copy(
-                        isInitializing = false,
-                    ),
-                )
-            }
+            when (initializeResult) {
+                is AcpInitializeResult.Ready -> {
+                    initializeResult.authenticatedMethodId?.let { authenticatedMethodId ->
+                        savePreferredAuthMethod(server, authenticatedMethodId)
+                    }
+                    _uiState.update {
+                        it.copy(
+                            connectingServerId = null,
+                            pendingAuthentication = null,
+                            connectedServerState = it.connectedServerState?.copy(
+                                agentName = initializeResult.agentInfo.name,
+                                isInitializing = false,
+                            ),
+                        )
+                    }
+                    _events.emit(ServerListEvent.NavigateToSessions(server.id))
+                }
 
-            // Navigate to sessions
-            _events.emit(ServerListEvent.NavigateToSessions(server.id))
+                is AcpInitializeResult.AuthenticationRequired -> {
+                    _uiState.update {
+                        it.copy(
+                            connectingServerId = null,
+                            pendingAuthentication = PendingAuthentication(
+                                serverId = server.id,
+                                serverName = server.name,
+                                agentName = initializeResult.agentInfo.name,
+                                authMethods = initializeResult.authMethods,
+                                authErrorMessage = initializeResult.authErrorMessage,
+                            ),
+                            connectedServerState = it.connectedServerState?.copy(
+                                agentName = initializeResult.agentInfo.name,
+                                isInitializing = false,
+                            ),
+                        )
+                    }
+                }
+            }
         }
     }
 
-    /**
-     * Quick select without connecting — just navigate to sessions.
-     * Useful if already connected.
-     */
-    fun selectServer(serverId: String) {
+    fun authenticate(serverId: String, methodId: String) {
         viewModelScope.launch {
+            val pending = _uiState.value.pendingAuthentication
+            if (pending == null || pending.serverId != serverId) return@launch
+
+            _uiState.update {
+                it.copy(
+                    connectingServerId = serverId,
+                    showConnectionError = null,
+                    pendingAuthentication = pending.copy(authErrorMessage = null),
+                )
+            }
+
+            when (val result = connectionManager.authenticate(methodId)) {
+                is AcpAuthenticateResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            connectingServerId = null,
+                            pendingAuthentication = pending.copy(
+                                authErrorMessage = result.message,
+                            ),
+                        )
+                    }
+                    return@launch
+                }
+
+                AcpAuthenticateResult.Success -> Unit
+            }
+
+            val server = serverRepository.getServer(serverId)
+            if (server != null) {
+                savePreferredAuthMethod(server, methodId)
+            }
+
+            _uiState.update {
+                it.copy(
+                    connectingServerId = null,
+                    pendingAuthentication = null,
+                    connectedServerState = it.connectedServerState?.copy(isInitializing = false),
+                )
+            }
             _events.emit(ServerListEvent.NavigateToSessions(serverId))
         }
+    }
+
+    fun dismissAuthenticationPrompt() {
+        _uiState.update { it.copy(pendingAuthentication = null, connectingServerId = null) }
     }
 
     fun disconnect() {
@@ -184,29 +262,45 @@ class ServerListViewModel @Inject constructor(
                 _uiState.update { current ->
                     current.copy(
                         connectedServerState = current.connectedServerState?.copy(
-                            agentName = event.agentInfo.name,
+                            agentName = event.result.agentInfo.name,
                             isInitializing = false,
                         ),
                     )
                 }
             }
+            is AcpManagerEvent.Authenticated -> Unit
             is AcpManagerEvent.Error -> {
-                _uiState.update {
-                    it.copy(
-                        showConnectionError = event.throwable.message ?: "Unknown error",
-                        connectedServerState = it.connectedServerState?.copy(
-                            isInitializing = false,
-                        ),
-                    )
+                val message = formatAcpErrorMessage(event.throwable, "Unknown error")
+                _uiState.update { current ->
+                    val pendingAuthentication = current.pendingAuthentication
+                    if (pendingAuthentication != null && current.connectingServerId == pendingAuthentication.serverId) {
+                        current.copy(
+                            connectingServerId = null,
+                            pendingAuthentication = pendingAuthentication.copy(authErrorMessage = message),
+                            connectedServerState = current.connectedServerState?.copy(isInitializing = false),
+                        )
+                    } else {
+                        current.copy(
+                            showConnectionError = message,
+                            connectedServerState = current.connectedServerState?.copy(
+                                isInitializing = false,
+                            ),
+                        )
+                    }
                 }
             }
             is AcpManagerEvent.Connected -> { /* Handled by connection state */ }
             is AcpManagerEvent.Disconnected -> { /* Handled by connection state */ }
         }
     }
+
+    private suspend fun savePreferredAuthMethod(server: ServerConfig, methodId: String) {
+        if (server.preferredAuthMethodId == methodId) return
+        serverRepository.updateServer(server.copy(preferredAuthMethodId = methodId))
+    }
 }
 
-    sealed interface ServerListEvent {
-        data class NavigateToSessions(val serverId: String, val sessions: List<SessionSummary> = emptyList()) : ServerListEvent
-        data class ShowError(val message: String) : ServerListEvent
-    }
+sealed interface ServerListEvent {
+    data class NavigateToSessions(val serverId: String, val sessions: List<SessionSummary> = emptyList()) : ServerListEvent
+    data class ShowError(val message: String) : ServerListEvent
+}

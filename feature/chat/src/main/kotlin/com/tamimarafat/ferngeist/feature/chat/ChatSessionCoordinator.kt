@@ -2,6 +2,8 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
+import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
@@ -182,11 +184,21 @@ internal class ChatSessionCoordinator(
             AcpConnectionConfig(
                 scheme = server.scheme,
                 host = server.host,
-                authToken = server.token.takeIf { it.isNotBlank() },
+                preferredAuthMethodId = server.preferredAuthMethodId,
             )
         )
         if (!connected) return false
-        return connectionManager.initialize()
+        return when (val initializeResult = connectionManager.initialize()) {
+            is AcpInitializeResult.Ready -> true
+            is AcpInitializeResult.AuthenticationRequired -> {
+                callbacks.onLoadFailed(
+                    "ACP authentication is required for this server. Reconnect from the server list and choose an auth method.",
+                )
+                false
+            }
+
+            null -> false
+        }
     }
 
     private fun bindSessionBridge(bridge: SessionBridge) {
@@ -282,14 +294,15 @@ internal class ChatSessionCoordinator(
     }
 
     private fun userFacingSendError(error: Throwable): String {
+        val detailedMessage = formatAcpErrorMessage(error, "Send failed")
         val raw = error.message.orEmpty()
         return when {
             raw.contains("Request timeout", ignoreCase = true) ->
                 "Request timed out. Please try again."
             raw.contains("Invalid params", ignoreCase = true) ->
                 "Send failed due to an invalid request format."
-            raw.isNotBlank() ->
-                "Send failed. Please try again."
+            detailedMessage != "Send failed" ->
+                detailedMessage
             else ->
                 "Send failed due to an unknown error."
         }

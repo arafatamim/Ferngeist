@@ -2,6 +2,8 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientInfo
+import com.agentclientprotocol.model.AuthMethod
+import com.agentclientprotocol.model.AuthMethodId
 import com.agentclientprotocol.model.ClientCapabilities
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.protocol.ProtocolOptions
@@ -42,8 +44,8 @@ internal class AcpTransportClient(
         )
     }
 
-    suspend fun initialize(): Boolean {
-        val client = sdkClient ?: return false
+    suspend fun initialize(): AcpInitializeResult? {
+        val client = sdkClient ?: return null
         return runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "initialize")
             val info = client.initialize(
@@ -57,13 +59,55 @@ internal class AcpTransportClient(
                 name = info.implementation?.name?.takeIf { it.isNotBlank() } ?: "Agent",
                 version = info.implementation?.version?.takeIf { it.isNotBlank() } ?: "unknown",
             )
+            val authMethods = info.authMethods.map(::mapAuthMethod)
+            val preferredMethodId = currentConfig
+                ?.preferredAuthMethodId
+                ?.takeIf { preferredId -> authMethods.any { it.id == preferredId } }
+            val autoSelectedMethodId = preferredMethodId ?: authMethods.singleOrNull()?.id
+
+            val result = if (authMethods.isEmpty()) {
+                AcpInitializeResult.Ready(
+                    agentInfo = mapped,
+                    authMethods = authMethods,
+                )
+            } else if (autoSelectedMethodId != null) {
+                diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "authenticate")
+                client.authenticate(AuthMethodId(autoSelectedMethodId))
+                AcpInitializeResult.Ready(
+                    agentInfo = mapped,
+                    authMethods = authMethods,
+                    authenticatedMethodId = autoSelectedMethodId,
+                )
+            } else {
+                AcpInitializeResult.AuthenticationRequired(
+                    agentInfo = mapped,
+                    authMethods = authMethods,
+                )
+            }
+
             diagnosticsStore.recordInitialization(mapped)
-            scope.launch { emitManagerEvent(AcpManagerEvent.Initialized(mapped)) }
-            true
+            scope.launch { emitManagerEvent(AcpManagerEvent.Initialized(result)) }
+            result
         }.getOrElse { error ->
-            diagnosticsStore.appendError("initialize", error.message ?: "Initialization failed")
+            diagnosticsStore.appendError("initialize", formatAcpErrorMessage(error, "Initialization failed"))
             scope.launch { emitManagerEvent(AcpManagerEvent.Error(error)) }
-            false
+            null
+        }
+    }
+
+    suspend fun authenticate(methodId: String): AcpAuthenticateResult {
+        val client = sdkClient ?: return AcpAuthenticateResult.Failure("Authentication is unavailable because the server connection is closed.")
+        return runCatching {
+            diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "authenticate")
+            client.authenticate(AuthMethodId(methodId))
+            currentConfig = currentConfig?.copy(preferredAuthMethodId = methodId)
+            scope.launch { emitManagerEvent(AcpManagerEvent.Authenticated(methodId)) }
+            AcpAuthenticateResult.Success
+        }.getOrElse { error ->
+            val message = formatAcpErrorMessage(error, "Authentication failed")
+            diagnosticsStore.appendError("authenticate", message)
+            scope.launch { emitManagerEvent(AcpManagerEvent.Error(error)) }
+            AcpAuthenticateResult.Failure(message)
         }
     }
 
@@ -113,11 +157,7 @@ internal class AcpTransportClient(
             val wsProtocol = client.acpProtocolOnClientWebSocket(
                 url = url,
                 protocolOptions = protocolOptions,
-            ) {
-                config.authToken?.takeIf { it.isNotBlank() }?.let {
-                    headers.append("Authorization", "Bearer $it")
-                }
-            }
+            ) { }
             wsProtocol.start()
 
             httpClient = client
@@ -131,7 +171,7 @@ internal class AcpTransportClient(
         } catch (error: Exception) {
             updateConnectionState(AcpConnectionState.Failed(error))
             diagnosticsStore.setWebSocketState(WebSocketState.FAILED)
-            diagnosticsStore.appendError("connect", error.message ?: "Unknown connection failure")
+            diagnosticsStore.appendError("connect", formatAcpErrorMessage(error, "Unknown connection failure"))
             if (scheduleReconnectOnFailure) {
                 scheduleReconnect(resetState)
             }
@@ -162,5 +202,41 @@ internal class AcpTransportClient(
 
         runCatching { httpClient?.close() }
         httpClient = null
+    }
+
+    private fun mapAuthMethod(method: AuthMethod): AcpAuthMethodInfo {
+        return when (method) {
+            is AuthMethod.AgentAuth -> AcpAuthMethodInfo(
+                id = method.id.toString(),
+                name = method.name,
+                description = method.description,
+                type = "agent",
+            )
+
+            is AuthMethod.EnvVarAuth -> AcpAuthMethodInfo(
+                id = method.id.toString(),
+                name = method.name,
+                description = method.description,
+                type = "env",
+                envVarName = method.varName,
+                link = method.link,
+            )
+
+            is AuthMethod.TerminalAuth -> AcpAuthMethodInfo(
+                id = method.id.toString(),
+                name = method.name,
+                description = method.description,
+                type = "terminal",
+                args = method.args ?: emptyList(),
+                env = method.env ?: emptyMap(),
+            )
+
+            is AuthMethod.UnknownAuthMethod -> AcpAuthMethodInfo(
+                id = method.id.toString(),
+                name = method.name,
+                description = method.description,
+                type = method.type,
+            )
+        }
     }
 }

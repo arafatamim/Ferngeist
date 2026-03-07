@@ -21,6 +21,7 @@ class AddServerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val initialServerId: String? = savedStateHandle.get<String>("serverId")
+    private var persistedPreferredAuthMethodId: String? = null
 
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
@@ -39,6 +40,9 @@ class AddServerViewModel @Inject constructor(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _preferredAuthMethodId = MutableStateFlow<String?>(null)
+    val preferredAuthMethodId: StateFlow<String?> = _preferredAuthMethodId.asStateFlow()
 
     private val _events = MutableSharedFlow<AddServerEvent>()
     val events = _events.asSharedFlow()
@@ -61,6 +65,8 @@ class AddServerViewModel @Inject constructor(
                 _host.value = server.host
                 _token.value = server.token
                 _workingDirectory.value = server.workingDirectory
+                persistedPreferredAuthMethodId = server.preferredAuthMethodId
+                _preferredAuthMethodId.value = server.preferredAuthMethodId
             }
             _isLoading.value = false
         }
@@ -86,6 +92,11 @@ class AddServerViewModel @Inject constructor(
         _workingDirectory.value = value
     }
 
+    fun clearPreferredAuthMethod() {
+        persistedPreferredAuthMethodId = null
+        _preferredAuthMethodId.value = null
+    }
+
     fun saveServer() {
         viewModelScope.launch {
             if (_name.value.isBlank()) {
@@ -104,6 +115,7 @@ class AddServerViewModel @Inject constructor(
                 host = _host.value.trim(),
                 token = _token.value,
                 workingDirectory = _workingDirectory.value.ifBlank { "/" },
+                preferredAuthMethodId = persistedPreferredAuthMethodId,
             )
 
             if (isEditMode) {

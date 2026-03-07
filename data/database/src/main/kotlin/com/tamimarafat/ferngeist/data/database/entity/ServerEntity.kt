@@ -11,4 +11,5 @@ data class ServerEntity(
     val host: String,
     val token: String,
     val workingDirectory: String,
+    val preferredAuthMethodId: String?,
 )

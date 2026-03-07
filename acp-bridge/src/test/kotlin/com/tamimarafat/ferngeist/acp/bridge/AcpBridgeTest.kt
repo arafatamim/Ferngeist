@@ -6,8 +6,10 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.agentclientprotocol.model.RequestPermissionOutcome
+import com.agentclientprotocol.protocol.JsonRpcException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +22,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class SessionBridgeTest {
 
@@ -134,7 +138,6 @@ class AcpConnectionManagerTest {
             val connected = manager.connect(
                 AcpConnectionConfig(
                     host = "127.0.0.1:1",
-                    authToken = "",
                 )
             )
 
@@ -250,29 +253,57 @@ private fun AcpConnectionManager.invokePrivate(
     return method.invoke(this, *args)
 }
 
-class AuthHeaderBuilderTest {
+class AcpConnectionConfigTest {
 
     @Test
-    fun `should build auth header with token`() {
+    fun `should carry preferred auth method id`() {
         val config = AcpConnectionConfig(
             host = "localhost:8080",
-            authToken = "test_token",
+            preferredAuthMethodId = "env:github_token",
         )
 
-        val headers = com.tamimarafat.ferngeist.acp.bridge.connection.AuthHeaderBuilder.build(config)
-
-        assertEquals("Bearer test_token", headers["Authorization"])
+        assertEquals("env:github_token", config.preferredAuthMethodId)
     }
 
     @Test
-    fun `should not include empty headers`() {
+    fun `should default preferred auth method id to null`() {
         val config = AcpConnectionConfig(
             host = "localhost:8080",
-            authToken = "",
         )
 
-        val headers = com.tamimarafat.ferngeist.acp.bridge.connection.AuthHeaderBuilder.build(config)
+        assertNull(config.preferredAuthMethodId)
+    }
+}
 
-        assertFalse(headers.containsKey("Authorization"))
+class AcpErrorFormattingTest {
+
+    @Test
+    fun `formats json rpc string data into user facing message`() {
+        val error = JsonRpcException(
+            code = -32603,
+            message = "Internal error",
+            data = kotlinx.serialization.json.JsonPrimitive("CODEX_API_KEY is not set"),
+        )
+
+        val formatted = formatAcpErrorMessage(error, "Request failed")
+
+        assertEquals("Internal error: CODEX_API_KEY is not set", formatted)
+    }
+
+    @Test
+    fun `formats json rpc object data by stringifying it`() {
+        val error = JsonRpcException(
+            code = -32603,
+            message = "Internal error",
+            data = buildJsonObject {
+                put("missing", "CODEX_API_KEY")
+                put("kind", "env")
+            },
+        )
+
+        val formatted = formatAcpErrorMessage(error, "Request failed")
+
+        assertTrue(formatted.startsWith("Internal error: "))
+        assertTrue(formatted.contains("\"missing\":\"CODEX_API_KEY\""))
     }
 }

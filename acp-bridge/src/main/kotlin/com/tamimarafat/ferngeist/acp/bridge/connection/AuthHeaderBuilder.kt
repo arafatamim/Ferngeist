@@ -1,13 +1,9 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-
 data class AcpConnectionConfig(
     val scheme: String = "ws",
     val host: String,
-    val authToken: String? = null,
+    val preferredAuthMethodId: String? = null,
 )
 
 sealed interface AcpConnectionState {
@@ -17,10 +13,34 @@ sealed interface AcpConnectionState {
     data class Failed(val error: Throwable) : AcpConnectionState
 }
 
-object AuthHeaderBuilder {
-    fun build(config: AcpConnectionConfig): Map<String, String> = buildMap {
-        config.authToken?.takeIf { it.isNotBlank() }?.let {
-            put("Authorization", "Bearer $it")
-        }
-    }
+data class AcpAuthMethodInfo(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val type: String,
+    val envVarName: String? = null,
+    val link: String? = null,
+    val args: List<String> = emptyList(),
+    val env: Map<String, String> = emptyMap(),
+)
+sealed interface AcpInitializeResult {
+    val agentInfo: AgentInfo
+    val authMethods: List<AcpAuthMethodInfo>
+
+    data class Ready(
+        override val agentInfo: AgentInfo,
+        override val authMethods: List<AcpAuthMethodInfo>,
+        val authenticatedMethodId: String? = null,
+    ) : AcpInitializeResult
+
+    data class AuthenticationRequired(
+        override val agentInfo: AgentInfo,
+        override val authMethods: List<AcpAuthMethodInfo>,
+        val authErrorMessage: String? = null,
+    ) : AcpInitializeResult
+}
+
+sealed interface AcpAuthenticateResult {
+    data object Success : AcpAuthenticateResult
+    data class Failure(val message: String) : AcpAuthenticateResult
 }
