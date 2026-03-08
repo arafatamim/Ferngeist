@@ -1,6 +1,6 @@
 # Ferngeist
 
-Ferngeist is an Android client for ACP-compatible coding agents. It lets you save server endpoints, browse or create sessions, and continue streamed conversations from a native Jetpack Compose UI.
+Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compatible coding agents. It lets you save server endpoints, browse or create sessions, and continue streamed conversations from a native Jetpack Compose UI.
 
 ## What It Does
 
@@ -9,6 +9,15 @@ Ferngeist is an Android client for ACP-compatible coding agents. It lets you sav
 - Opens live chat sessions with streaming assistant output, tool activity, and cancel support
 - Persists server and session metadata locally with Room
 - Exposes connection diagnostics to help debug transport or RPC issues
+
+## Screenshots
+<img src="https://github.com/user-attachments/assets/a076834d-1973-4e2e-858f-8ac477e37177" alt="Server list" height="500">
+
+<img src="https://github.com/user-attachments/assets/a806a4f7-3455-44ac-a6d4-1d4d3f8462e9" alt="Active session" height="500">
+
+## Supported Agents
+Any agent that implements the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), including Codex CLI, Claude Code, Gemini CLI, GitHub Copilot CLI, and OpenCode. 
+[List of agents that support ACP (non-exhaustive)](https://agentclientprotocol.com/get-started/agents).
 
 ## Tech Stack
 
