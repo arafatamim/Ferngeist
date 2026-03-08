@@ -7,3 +7,10 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
 }
+
+val sqliteTmpDir = layout.projectDirectory.dir(".gradle/sqlite-tmp").asFile
+if (sqliteTmpDir.exists() && !sqliteTmpDir.isDirectory) {
+    sqliteTmpDir.delete()
+}
+sqliteTmpDir.mkdirs()
+System.setProperty("org.sqlite.tmpdir", sqliteTmpDir.absolutePath)
