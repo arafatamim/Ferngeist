@@ -6,6 +6,7 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.AuthMethod
 import com.agentclientprotocol.model.AuthMethodId
 import com.agentclientprotocol.model.ClientCapabilities
+import com.agentclientprotocol.model.FileSystemCapability
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.model.McpCapabilities
 import com.agentclientprotocol.model.PromptCapabilities
@@ -54,7 +55,12 @@ internal class AcpTransportClient(
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "initialize")
             val info = client.initialize(
                 clientInfo = ClientInfo(
-                    capabilities = ClientCapabilities(),
+                    capabilities = ClientCapabilities(
+                        fs = FileSystemCapability(
+                            readTextFile = false,
+                            writeTextFile = false,
+                        )
+                    ),
                     implementation = Implementation(name = "Ferngeist", version = "1.0.0"),
                 )
             )
