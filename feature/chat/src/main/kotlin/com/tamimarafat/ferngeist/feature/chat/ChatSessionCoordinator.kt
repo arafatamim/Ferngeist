@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
@@ -38,6 +39,7 @@ internal class ChatSessionCoordinator(
         suspend fun onStreamingCancelled()
         suspend fun onCancelUnsupported()
         suspend fun onModelUpdated()
+        suspend fun onCapabilitiesChanged(capabilities: AcpAgentCapabilities)
     }
 
     private var activeSessionId: String = initialSessionId
@@ -51,6 +53,22 @@ internal class ChatSessionCoordinator(
 
         if (!ensureConnectedAndInitialized()) {
             callbacks.onLoadFailed("Disconnected. Reconnect to refresh this session.")
+            return
+        }
+
+        publishCapabilities()
+
+        connectionManager.getSession(initialSessionId)?.let { existing ->
+            trace("loadSession:reusingExisting sessionId=$initialSessionId")
+            bindSessionBridge(existing)
+            observeSessionBridge(existing)
+            callbacks.onSessionReady()
+            return
+        }
+
+        val capabilities = connectionManager.agentCapabilities.value
+        if (capabilities != null && !capabilities.loadSession) {
+            callbacks.onLoadFailed("This agent does not advertise session/load support.")
             return
         }
 
@@ -109,6 +127,15 @@ internal class ChatSessionCoordinator(
             trace("sendMessage: bridge missing activeSessionId=$activeSessionId")
             callbacks.onOperationError(
                 message = SESSION_NOT_READY_MESSAGE,
+                stopStreaming = false,
+            )
+            return
+        }
+
+        val capabilities = connectionManager.agentCapabilities.value
+        if (images.isNotEmpty() && capabilities != null && !capabilities.prompt.image) {
+            callbacks.onOperationError(
+                message = "This agent does not advertise image prompt support.",
                 stopStreaming = false,
             )
             return
@@ -175,7 +202,10 @@ internal class ChatSessionCoordinator(
     }
 
     private suspend fun ensureConnectedAndInitialized(): Boolean {
-        if (connectionManager.isConnected) return true
+        if (connectionManager.isConnected) {
+            publishCapabilities()
+            return true
+        }
         val server = serverRepository.getServer(serverId) ?: run {
             logError("ensureConnectedAndInitialized: server not found for serverId=$serverId", null)
             return false
@@ -189,7 +219,10 @@ internal class ChatSessionCoordinator(
         )
         if (!connected) return false
         return when (val initializeResult = connectionManager.initialize()) {
-            is AcpInitializeResult.Ready -> true
+            is AcpInitializeResult.Ready -> {
+                callbacks.onCapabilitiesChanged(initializeResult.agentCapabilities)
+                true
+            }
             is AcpInitializeResult.AuthenticationRequired -> {
                 callbacks.onLoadFailed(
                     "ACP authentication is required for this server. Reconnect from the server list and choose an auth method.",
@@ -312,6 +345,12 @@ internal class ChatSessionCoordinator(
         val raw = error.message.orEmpty()
         return raw.contains("Method not found", ignoreCase = true) &&
             raw.contains("session/cancel", ignoreCase = true)
+    }
+
+    private suspend fun publishCapabilities() {
+        connectionManager.agentCapabilities.value?.let { capabilities ->
+            callbacks.onCapabilitiesChanged(capabilities)
+        }
     }
 
     private companion object {

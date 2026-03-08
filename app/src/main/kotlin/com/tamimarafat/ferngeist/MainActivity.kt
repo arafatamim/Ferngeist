@@ -113,8 +113,8 @@ fun FerngeistNavHost() {
                 ServerListScreen(
                     onNavigateToAddServer = { navController.navigate("add_server") },
                     onNavigateToEditServer = { serverId -> navController.navigate("edit_server/$serverId") },
-                    onNavigateToSessions = { serverId, _ ->
-                        navController.navigate("sessions/$serverId")
+                    onNavigateToSessions = { serverId, _, openCreateSessionDialog ->
+                        navController.navigate("sessions/$serverId?create=$openCreateSessionDialog")
                     },
                     viewModel = viewModel,
                 )
@@ -140,17 +140,23 @@ fun FerngeistNavHost() {
             }
 
             composable(
-                route = "sessions/{serverId}",
+                route = "sessions/{serverId}?create={create}",
                 arguments = listOf(
                     navArgument("serverId") { type = NavType.StringType },
+                    navArgument("create") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    },
                 ),
             ) { backStackEntry ->
                 val serverId = backStackEntry.arguments?.getString("serverId") ?: return@composable
+                val openCreateSessionDialog = backStackEntry.arguments?.getBoolean("create") == true
                 val viewModel: SessionListViewModel = hiltViewModel()
 
                 val server by viewModel.server.collectAsState()
                 SessionListScreen(
                     serverName = server?.name ?: "Sessions",
+                    openCreateSessionDialogOnLaunch = openCreateSessionDialog,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChat = { sessionId, cwd, updatedAt, title ->
                         val encodedCwd = Uri.encode(cwd)

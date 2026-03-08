@@ -145,20 +145,23 @@ class ServerListViewModel @Inject constructor(
                     initializeResult.authenticatedMethodId?.let { authenticatedMethodId ->
                         savePreferredAuthMethod(server, authenticatedMethodId)
                     }
+                    val capabilityLabels = initializeResult.agentCapabilities.displayLabels()
                     _uiState.update {
                         it.copy(
                             connectingServerId = null,
                             pendingAuthentication = null,
                             connectedServerState = it.connectedServerState?.copy(
                                 agentName = initializeResult.agentInfo.name,
+                                capabilities = capabilityLabels,
                                 isInitializing = false,
                             ),
                         )
                     }
-                    _events.emit(ServerListEvent.NavigateToSessions(server.id))
+                    openConnectedServer(server.id, initializeResult.agentCapabilities.session.list)
                 }
 
                 is AcpInitializeResult.AuthenticationRequired -> {
+                    val capabilityLabels = initializeResult.agentCapabilities.displayLabels()
                     _uiState.update {
                         it.copy(
                             connectingServerId = null,
@@ -171,6 +174,7 @@ class ServerListViewModel @Inject constructor(
                             ),
                             connectedServerState = it.connectedServerState?.copy(
                                 agentName = initializeResult.agentInfo.name,
+                                capabilities = capabilityLabels,
                                 isInitializing = false,
                             ),
                         )
@@ -221,7 +225,7 @@ class ServerListViewModel @Inject constructor(
                     connectedServerState = it.connectedServerState?.copy(isInitializing = false),
                 )
             }
-            _events.emit(ServerListEvent.NavigateToSessions(serverId))
+            openConnectedServer(serverId, connectionManager.agentCapabilities.value?.session?.list == true)
         }
     }
 
@@ -259,6 +263,7 @@ class ServerListViewModel @Inject constructor(
     private fun handleManagerEvent(event: AcpManagerEvent) {
         when (event) {
             is AcpManagerEvent.Initialized -> {
+                val capabilityLabels = event.result.agentCapabilities.displayLabels()
                 _uiState.update { current ->
                     current.copy(
                         connectedServerState = current.connectedServerState?.copy(
@@ -298,9 +303,22 @@ class ServerListViewModel @Inject constructor(
         if (server.preferredAuthMethodId == methodId) return
         serverRepository.updateServer(server.copy(preferredAuthMethodId = methodId))
     }
+
+    private suspend fun openConnectedServer(serverId: String, supportsSessionList: Boolean) {
+        _events.emit(
+            ServerListEvent.NavigateToSessions(
+                serverId = serverId,
+                openCreateSessionDialog = !supportsSessionList,
+            )
+        )
+    }
 }
 
 sealed interface ServerListEvent {
-    data class NavigateToSessions(val serverId: String, val sessions: List<SessionSummary> = emptyList()) : ServerListEvent
+    data class NavigateToSessions(
+        val serverId: String,
+        val sessions: List<SessionSummary> = emptyList(),
+        val openCreateSessionDialog: Boolean = false,
+    ) : ServerListEvent
     data class ShowError(val message: String) : ServerListEvent
 }

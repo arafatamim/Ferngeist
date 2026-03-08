@@ -2,10 +2,14 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientInfo
+import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.AuthMethod
 import com.agentclientprotocol.model.AuthMethodId
 import com.agentclientprotocol.model.ClientCapabilities
 import com.agentclientprotocol.model.Implementation
+import com.agentclientprotocol.model.McpCapabilities
+import com.agentclientprotocol.model.PromptCapabilities
+import com.agentclientprotocol.model.SessionCapabilities
 import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.transport.acpProtocolOnClientWebSocket
 import io.ktor.client.HttpClient
@@ -59,15 +63,21 @@ internal class AcpTransportClient(
                 name = info.implementation?.name?.takeIf { it.isNotBlank() } ?: "Agent",
                 version = info.implementation?.version?.takeIf { it.isNotBlank() } ?: "unknown",
             )
+            val agentCapabilities = mapAgentCapabilities(info.capabilities)
             val authMethods = info.authMethods.map(::mapAuthMethod)
+            // OpenCode currently advertises auth methods but can return
+            // "Authentication not implemented" for authenticate. Bypass auth
+            // for that agent specifically instead of weakening the general ACP flow.
+            val bypassAdvertisedAuth = mapped.name == "OpenCode"
             val preferredMethodId = currentConfig
                 ?.preferredAuthMethodId
                 ?.takeIf { preferredId -> authMethods.any { it.id == preferredId } }
             val autoSelectedMethodId = preferredMethodId ?: authMethods.singleOrNull()?.id
 
-            val result = if (authMethods.isEmpty()) {
+            val result = if (authMethods.isEmpty() || bypassAdvertisedAuth) {
                 AcpInitializeResult.Ready(
                     agentInfo = mapped,
+                    agentCapabilities = agentCapabilities,
                     authMethods = authMethods,
                 )
             } else if (autoSelectedMethodId != null) {
@@ -75,12 +85,14 @@ internal class AcpTransportClient(
                 client.authenticate(AuthMethodId(autoSelectedMethodId))
                 AcpInitializeResult.Ready(
                     agentInfo = mapped,
+                    agentCapabilities = agentCapabilities,
                     authMethods = authMethods,
                     authenticatedMethodId = autoSelectedMethodId,
                 )
             } else {
                 AcpInitializeResult.AuthenticationRequired(
                     agentInfo = mapped,
+                    agentCapabilities = agentCapabilities,
                     authMethods = authMethods,
                 )
             }
@@ -238,5 +250,37 @@ internal class AcpTransportClient(
                 type = method.type,
             )
         }
+    }
+
+    private fun mapAgentCapabilities(capabilities: AgentCapabilities): AcpAgentCapabilities {
+        return AcpAgentCapabilities(
+            loadSession = capabilities.loadSession,
+            prompt = mapPromptCapabilities(capabilities.promptCapabilities),
+            mcp = mapMcpCapabilities(capabilities.mcpCapabilities),
+            session = mapSessionCapabilities(capabilities.sessionCapabilities),
+        )
+    }
+
+    private fun mapPromptCapabilities(capabilities: PromptCapabilities): AcpPromptCapabilities {
+        return AcpPromptCapabilities(
+            audio = capabilities.audio,
+            embeddedContext = capabilities.embeddedContext,
+            image = capabilities.image,
+        )
+    }
+
+    private fun mapMcpCapabilities(capabilities: McpCapabilities): AcpMcpCapabilities {
+        return AcpMcpCapabilities(
+            http = capabilities.http,
+            sse = capabilities.sse,
+        )
+    }
+
+    private fun mapSessionCapabilities(capabilities: SessionCapabilities): AcpSessionCapabilities {
+        return AcpSessionCapabilities(
+            fork = capabilities.fork != null,
+            list = capabilities.list != null,
+            resume = capabilities.resume != null,
+        )
     }
 }

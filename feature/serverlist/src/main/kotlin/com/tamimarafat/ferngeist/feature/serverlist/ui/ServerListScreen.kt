@@ -60,7 +60,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 fun ServerListScreen(
     onNavigateToAddServer: () -> Unit,
     onNavigateToEditServer: (String) -> Unit,
-    onNavigateToSessions: (String, List<SessionSummary>) -> Unit,
+    onNavigateToSessions: (String, List<SessionSummary>, Boolean) -> Unit,
     viewModel: ServerListViewModel,
 ) {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
@@ -74,7 +74,11 @@ fun ServerListScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is ServerListEvent.NavigateToSessions -> onNavigateToSessions(event.serverId, event.sessions)
+                is ServerListEvent.NavigateToSessions -> onNavigateToSessions(
+                    event.serverId,
+                    event.sessions,
+                    event.openCreateSessionDialog,
+                )
                 is ServerListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }

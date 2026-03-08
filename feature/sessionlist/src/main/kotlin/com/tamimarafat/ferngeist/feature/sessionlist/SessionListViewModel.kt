@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.core.model.ServerConfig
@@ -44,6 +45,8 @@ class SessionListViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val connectionState: StateFlow<AcpConnectionState> = connectionManager.connectionState
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AcpConnectionState.Disconnected)
+    val agentCapabilities: StateFlow<AcpAgentCapabilities?> = connectionManager.agentCapabilities
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val connectionDiagnostics: StateFlow<ConnectionDiagnostics> = connectionManager.diagnostics
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionDiagnostics())
 
@@ -62,6 +65,12 @@ class SessionListViewModel @Inject constructor(
 
     fun refreshSessions() {
         viewModelScope.launch {
+            val capabilities = agentCapabilities.value
+            if (capabilities != null && !capabilities.session.list) {
+                _isLoading.value = false
+                return@launch
+            }
+
             _isLoading.value = true
             runCatching {
                 connectionManager.listSessions()

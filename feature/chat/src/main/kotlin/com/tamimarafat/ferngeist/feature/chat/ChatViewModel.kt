@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.mikepenz.markdown.model.State as MarkdownRenderState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
@@ -120,6 +121,15 @@ class ChatViewModel @Inject constructor(
 
             override suspend fun onModelUpdated() {
                 emitEffect(ChatEffect.ShowMessage("Model updated"))
+            }
+
+            override suspend fun onCapabilitiesChanged(capabilities: AcpAgentCapabilities) {
+                updateState {
+                    copy(
+                        canSendImages = capabilities.prompt.image,
+                        supportsEmbeddedContext = capabilities.prompt.embeddedContext,
+                    )
+                }
             }
         },
     )
@@ -244,6 +254,8 @@ data class ChatState(
     val availableCommands: List<String> = emptyList(),
     val commandsAdvertised: Boolean = false,
     val expandedToolCalls: Set<String> = emptySet(),
+    val canSendImages: Boolean = false,
+    val supportsEmbeddedContext: Boolean = false,
     val error: String? = null,
 )
 

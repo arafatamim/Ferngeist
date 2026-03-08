@@ -24,6 +24,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.agentclientprotocol.protocol.JsonRpcException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -48,6 +49,9 @@ class AcpConnectionManager(
     private val _events = MutableSharedFlow<AcpManagerEvent>(extraBufferCapacity = 64)
     val events: SharedFlow<AcpManagerEvent> = _events.asSharedFlow()
 
+    private val _agentCapabilities = MutableStateFlow<AcpAgentCapabilities?>(null)
+    val agentCapabilities: StateFlow<AcpAgentCapabilities?> = _agentCapabilities.asStateFlow()
+
     private val diagnosticsStore = AcpDiagnosticsStore()
     val diagnostics: StateFlow<ConnectionDiagnostics> = diagnosticsStore.diagnostics
 
@@ -68,7 +72,9 @@ class AcpConnectionManager(
     }
 
     suspend fun initialize(): AcpInitializeResult? {
-        return transportClient.initialize()
+        val result = transportClient.initialize()
+        _agentCapabilities.value = result?.agentCapabilities
+        return result
     }
 
     suspend fun authenticate(methodId: String): AcpAuthenticateResult {
@@ -116,6 +122,10 @@ class AcpConnectionManager(
         sessionId: String,
         cwd: String,
     ): SessionBridge? {
+        getLoadedSession(sessionId)?.let { existing ->
+            return existing
+        }
+
         val client = transportClient.sdkClient ?: run {
             logError("loadSession: sdkClient is NULL, returning null")
             return null
@@ -136,6 +146,19 @@ class AcpConnectionManager(
             registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
             registeredBridge
         }.getOrElse { error ->
+            if (isSessionAlreadyLoadedError(error)) {
+                getLoadedSession(sessionId)?.let { existing ->
+                    diagnosticsStore.appendError("session/load", "Session is already loaded locally. Reusing the active session.")
+                    return existing
+                }
+
+                val message = "This session is already active elsewhere. Reconnect or open a new session instead."
+                sessionRegistry.getBridge(sessionId)?.failHydration(message)
+                clearSessionState(sessionId, closeBridge = true)
+                diagnosticsStore.appendError("session/load", message)
+                return null
+            }
+
             val message = formatAcpErrorMessage(error, "Failed to load session")
             sessionRegistry.getBridge(sessionId)?.failHydration(message)
             clearSessionState(sessionId, closeBridge = true)
@@ -386,6 +409,17 @@ class AcpConnectionManager(
         sessionRegistry.clearSession(sessionId, closeBridge = closeBridge)
     }
 
+    private fun getLoadedSession(sessionId: String): SessionBridge? {
+        if (!sessionRegistry.hasSdkSession(sessionId)) return null
+        return sessionRegistry.getBridge(sessionId)
+    }
+
+    private fun isSessionAlreadyLoadedError(error: Throwable): Boolean {
+        val rpcError = error as? JsonRpcException
+        if (rpcError?.code != -32602) return false
+        return rpcError.message.contains("already loaded", ignoreCase = true)
+    }
+
     private fun updateSessionCancelSupport(isSupported: Boolean) {
         diagnosticsStore.setSessionCancelSupport(isSupported)
     }
@@ -408,6 +442,7 @@ class AcpConnectionManager(
     }
 
     private fun resetConnectionState() {
+        _agentCapabilities.value = null
         clearAllSessionState(closeBridges = true)
     }
 

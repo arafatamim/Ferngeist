@@ -3,8 +3,12 @@ package com.tamimarafat.ferngeist.acp.bridge
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpMcpCapabilities
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpPromptCapabilities
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpSessionCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
@@ -305,5 +309,28 @@ class AcpErrorFormattingTest {
 
         assertTrue(formatted.startsWith("Internal error: "))
         assertTrue(formatted.contains("\"missing\":\"CODEX_API_KEY\""))
+    }
+}
+
+class AcpAgentCapabilitiesTest {
+
+    @Test
+    fun `display labels include advertised capabilities`() {
+        val capabilities = AcpAgentCapabilities(
+            loadSession = true,
+            prompt = AcpPromptCapabilities(image = true, embeddedContext = true),
+            mcp = AcpMcpCapabilities(http = true),
+            session = AcpSessionCapabilities(list = true, resume = true),
+        )
+
+        assertEquals(
+            listOf("Load", "Images", "Context", "MCP HTTP", "List", "Resume"),
+            capabilities.displayLabels(),
+        )
+    }
+
+    @Test
+    fun `display labels are empty when nothing is advertised`() {
+        assertTrue(AcpAgentCapabilities().displayLabels().isEmpty())
     }
 }

@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -56,6 +58,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,7 +89,9 @@ import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 import kotlin.math.max
+import androidx.compose.ui.platform.LocalLocale
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
@@ -95,6 +100,7 @@ import kotlin.math.max
 @Composable
 fun SessionListScreen(
     serverName: String,
+    openCreateSessionDialogOnLaunch: Boolean = false,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     viewModel: SessionListViewModel,
@@ -105,6 +111,7 @@ fun SessionListScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val server by viewModel.server.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
+    val agentCapabilities by viewModel.agentCapabilities.collectAsState()
     val connectionDiagnostics by viewModel.connectionDiagnostics.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -112,8 +119,10 @@ fun SessionListScreen(
     var showCreateSessionDialog by remember { mutableStateOf(false) }
     var createSessionCwd by remember(defaultCwd) { mutableStateOf(defaultCwd) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
+    var hasConsumedLaunchCreate by rememberSaveable { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
     val showRefreshingIndicator = isLoading && sessions.isNotEmpty()
+    val supportsSessionList = agentCapabilities?.session?.list != false
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -129,6 +138,14 @@ fun SessionListScreen(
 
                 is SessionListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
+        }
+    }
+
+    LaunchedEffect(openCreateSessionDialogOnLaunch) {
+        if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate) {
+            hasConsumedLaunchCreate = true
+            createSessionCwd = defaultCwd
+            showCreateSessionDialog = true
         }
     }
 
@@ -184,8 +201,8 @@ fun SessionListScreen(
         collapse
     )
 
-    Box(
-        modifier = Modifier
+    val containerModifier = if (supportsSessionList) {
+        Modifier
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .pullToRefresh(
@@ -193,6 +210,14 @@ fun SessionListScreen(
                 isRefreshing = showRefreshingIndicator,
                 onRefresh = viewModel::refreshSessions,
             )
+    } else {
+        Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection)
+    }
+
+    Box(
+        modifier = containerModifier
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -313,7 +338,7 @@ fun SessionListScreen(
                                         groupSessions.firstOrNull()?.updatedAt ?: 0L,
                                         0L
                                     )
-                                    SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
+                                    SimpleDateFormat("MMMM d, yyyy", LocalLocale.current.platformLocale)
                                         .format(Date(epoch))
                                 }
                             }
@@ -364,13 +389,15 @@ fun SessionListScreen(
             }
         }
 
-        PullToRefreshDefaults.LoadingIndicator(
-            state = pullToRefreshState,
-            isRefreshing = showRefreshingIndicator,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-        )
+        if (supportsSessionList) {
+            PullToRefreshDefaults.LoadingIndicator(
+                state = pullToRefreshState,
+                isRefreshing = showRefreshingIndicator,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+            )
+        }
     }
 }
 
