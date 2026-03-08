@@ -21,21 +21,25 @@ class AddServerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val initialServerId: String? = savedStateHandle.get<String>("serverId")
+    private val prefillName: String? = savedStateHandle.get<String>("name")
+    private val prefillScheme: String? = savedStateHandle.get<String>("scheme")
+    private val prefillHost: String? = savedStateHandle.get<String>("host")
+    private val prefillWorkingDirectory: String? = savedStateHandle.get<String>("cwd")
     private var persistedPreferredAuthMethodId: String? = null
 
-    private val _name = MutableStateFlow("")
+    private val _name = MutableStateFlow(prefillName.orEmpty())
     val name: StateFlow<String> = _name.asStateFlow()
 
-    private val _scheme = MutableStateFlow("ws")
+    private val _scheme = MutableStateFlow(prefillScheme?.ifBlank { "ws" } ?: "ws")
     val scheme: StateFlow<String> = _scheme.asStateFlow()
 
-    private val _host = MutableStateFlow("")
+    private val _host = MutableStateFlow(prefillHost.orEmpty())
     val host: StateFlow<String> = _host.asStateFlow()
 
     private val _token = MutableStateFlow("")
     val token: StateFlow<String> = _token.asStateFlow()
 
-    private val _workingDirectory = MutableStateFlow("/")
+    private val _workingDirectory = MutableStateFlow(prefillWorkingDirectory?.ifBlank { "/" } ?: "/")
     val workingDirectory: StateFlow<String> = _workingDirectory.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)

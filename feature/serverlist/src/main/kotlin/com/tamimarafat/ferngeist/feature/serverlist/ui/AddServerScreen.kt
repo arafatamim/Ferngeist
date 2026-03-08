@@ -161,6 +161,22 @@ fun AddServerScreen(
                     colors = sectionTextFieldColors(),
                 )
 
+                if (host.isLoopbackHost()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "Use your PC's local network IP here, not localhost. Example: 192.168.1.42:6000",
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
@@ -432,3 +448,8 @@ private fun sectionTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = MaterialTheme.colorScheme.surface,
     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
 )
+
+private fun String.isLoopbackHost(): Boolean {
+    val normalized = trim().lowercase()
+    return normalized.startsWith("localhost") || normalized.startsWith("127.0.0.1")
+}

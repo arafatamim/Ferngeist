@@ -29,6 +29,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
+import com.tamimarafat.ferngeist.onboarding.FirstLaunchOnboardingScreen
+import com.tamimarafat.ferngeist.onboarding.OnboardingViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
@@ -110,17 +112,69 @@ fun FerngeistNavHost() {
         ) {
             composable("server_list") {
                 val viewModel: ServerListViewModel = hiltViewModel()
-                ServerListScreen(
-                    onNavigateToAddServer = { navController.navigate("add_server") },
-                    onNavigateToEditServer = { serverId -> navController.navigate("edit_server/$serverId") },
-                    onNavigateToSessions = { serverId, _, openCreateSessionDialog ->
-                        navController.navigate("sessions/$serverId?create=$openCreateSessionDialog")
-                    },
-                    viewModel = viewModel,
-                )
+                val onboardingViewModel: OnboardingViewModel = hiltViewModel()
+                val servers by viewModel.servers.collectAsState()
+                val onboardingCompleted by onboardingViewModel.isCompleted.collectAsState()
+                val onboardingUiState by onboardingViewModel.uiState.collectAsState()
+
+                if (!onboardingCompleted && servers.isEmpty()) {
+                    FirstLaunchOnboardingScreen(
+                        uiState = onboardingUiState,
+                        onSkip = { onboardingViewModel.completeOnboarding() },
+                        onStartSetup = {
+                            onboardingViewModel.completeOnboarding()
+                            navController.navigate(
+                                buildAddServerRoute(
+                                    name = onboardingUiState.selectedAgent?.name ?: "My Agent",
+                                    scheme = "ws",
+                                    host = "",
+                                    cwd = "/",
+                                )
+                            )
+                        },
+                        onLoadRegistry = onboardingViewModel::ensureRegistryLoaded,
+                        onSelectAgent = onboardingViewModel::selectAgent,
+                        onSelectPlatform = onboardingViewModel::selectPlatform,
+                        onUpdatePort = onboardingViewModel::updatePort,
+                        onRetryLoad = onboardingViewModel::retryRegistryLoad,
+                    )
+                } else {
+                    ServerListScreen(
+                        onNavigateToAddServer = { navController.navigate("add_server") },
+                        onNavigateToEditServer = { serverId -> navController.navigate("edit_server/$serverId") },
+                        onNavigateToSessions = { serverId, _, openCreateSessionDialog ->
+                            navController.navigate("sessions/$serverId?create=$openCreateSessionDialog")
+                        },
+                        viewModel = viewModel,
+                    )
+                }
             }
 
-            composable("add_server") {
+            composable(
+                route = "add_server?name={name}&scheme={scheme}&host={host}&cwd={cwd}",
+                arguments = listOf(
+                    navArgument("name") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("scheme") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("host") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("cwd") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
                 val viewModel: AddServerViewModel = hiltViewModel()
                 AddServerScreen(
                     onNavigateBack = { navController.popBackStack() },
@@ -210,4 +264,13 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.isSessionChatTrans
     val toRoute = targetState.destination.route ?: return false
     return (fromRoute.startsWith("sessions/") && toRoute.startsWith("chat/")) ||
         (fromRoute.startsWith("chat/") && toRoute.startsWith("sessions/"))
+}
+
+private fun buildAddServerRoute(
+    name: String,
+    scheme: String,
+    host: String,
+    cwd: String,
+): String {
+    return "add_server?name=${Uri.encode(name)}&scheme=${Uri.encode(scheme)}&host=${Uri.encode(host)}&cwd=${Uri.encode(cwd)}"
 }
