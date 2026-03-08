@@ -71,10 +71,10 @@ internal class AcpTransportClient(
             )
             val agentCapabilities = mapAgentCapabilities(info.capabilities)
             val authMethods = info.authMethods.map(::mapAuthMethod)
-            // OpenCode currently advertises auth methods but can return
+            // OpenCode and Claude Agent ACP currently advertises auth methods but can return
             // "Authentication not implemented" for authenticate. Bypass auth
             // for that agent specifically instead of weakening the general ACP flow.
-            val bypassAdvertisedAuth = mapped.name == "OpenCode"
+            val bypassAdvertisedAuth = mapped.name == "OpenCode" || mapped.name == "@zed-industries/claude-agent-acp"
             val preferredMethodId = currentConfig
                 ?.preferredAuthMethodId
                 ?.takeIf { preferredId -> authMethods.any { it.id == preferredId } }
