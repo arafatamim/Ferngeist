@@ -1,0 +1,29 @@
+change-template: "- $TITLE (#$NUMBER)"
+no-changes-template: "- No user-facing changes in this release."
+
+categories:
+  - title: Features
+    labels:
+      - feature
+      - enhancement
+  - title: Fixes
+    labels:
+      - fix
+      - bug
+      - bugfix
+  - title: Maintenance
+    labels:
+      - chore
+      - refactor
+      - build
+      - ci
+      - docs
+      - test
+
+exclude-labels:
+  - skip-changelog
+
+template: |
+  ## What Changed
+
+  $CHANGES
