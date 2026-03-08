@@ -10,6 +10,11 @@ Ferngeist is an Android client for ACP-compatible coding agents. It lets you sav
 - Persists server and session metadata locally with Room
 - Exposes connection diagnostics to help debug transport or RPC issues
 
+## Screenshots
+<img src="https://github.com/user-attachments/assets/a076834d-1973-4e2e-858f-8ac477e37177" alt="Server list" height="500">
+
+<img src="https://github.com/user-attachments/assets/a806a4f7-3455-44ac-a6d4-1d4d3f8462e9" alt="Active session" height="500">
+
 ## Tech Stack
 
 - Kotlin 2.3
