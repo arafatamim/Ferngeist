@@ -939,7 +939,12 @@ fun ChatScreen(
                                                     containerColor = MaterialTheme.colorScheme.onPrimary,
                                                     contentColor = MaterialTheme.colorScheme.primary
                                                 ),
-                                                shapes = IconButtonDefaults.shapes()
+                                                shapes = IconButtonDefaults.shapes(),
+                                                modifier = Modifier.size(
+                                                    IconButtonDefaults.smallContainerSize(
+                                                        IconButtonDefaults.IconButtonWidthOption.Wide
+                                                    )
+                                                ),
                                             ) {
                                                 Icon(
                                                     imageVector = if (showStopAction && canCancelStreaming) {
