@@ -57,7 +57,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -487,7 +486,7 @@ private fun StartOnComputerCard(
                 )
             }
 
-            if (launchInstructions != null && !launchInstructions.environment.isNullOrEmpty()) {
+            if (launchInstructions != null && launchInstructions.environment.isNotEmpty()) {
                 Text(
                     text = "Set these environment variables before running the command:",
                     style = MaterialTheme.typography.bodyMedium,
