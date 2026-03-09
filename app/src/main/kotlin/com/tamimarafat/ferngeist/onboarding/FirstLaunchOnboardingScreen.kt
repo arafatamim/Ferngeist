@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.onboarding
 
+import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,11 +55,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 @Composable
 fun FirstLaunchOnboardingScreen(
@@ -71,7 +74,8 @@ fun FirstLaunchOnboardingScreen(
     onUpdatePort: (String) -> Unit,
     onRetryLoad: () -> Unit,
 ) {
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var stepIndex by rememberSaveable { mutableIntStateOf(0) }
     val steps = remember { onboardingSteps() }
@@ -183,7 +187,9 @@ fun FirstLaunchOnboardingScreen(
                             onUpdatePort = onUpdatePort,
                             onCopy = {
                                 launchInstructions?.command?.let { command ->
-                                    clipboardManager.setText(AnnotatedString(command))
+                                    scope.launch {
+                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("ACP Command", command)))
+                                    }
                                 }
                             },
                         )
@@ -239,7 +245,9 @@ fun FirstLaunchOnboardingScreen(
                         } else {
                             if (step.kind == OnboardingStepKind.StartOnComputer) {
                                 launchInstructions?.command?.let { command ->
-                                    clipboardManager.setText(AnnotatedString(command))
+                                    scope.launch {
+                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("ACP Command", command)))
+                                    }
                                 }
                             }
                             stepIndex += 1
@@ -479,13 +487,13 @@ private fun StartOnComputerCard(
                 )
             }
 
-            if (!launchInstructions?.environment.isNullOrEmpty()) {
+            if (launchInstructions != null && !launchInstructions.environment.isNullOrEmpty()) {
                 Text(
                     text = "Set these environment variables before running the command:",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                 )
-                launchInstructions?.environment?.entries?.forEach { (key, value) ->
+                launchInstructions.environment.entries.forEach { (key, value) ->
                     SelectionContainer {
                         Surface(
                             shape = RoundedCornerShape(12.dp),

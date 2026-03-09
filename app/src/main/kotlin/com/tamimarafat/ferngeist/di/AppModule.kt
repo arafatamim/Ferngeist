@@ -74,8 +74,8 @@ object AppModule {
 }
 
 private val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL(
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS `servers_new` (
               `id` TEXT NOT NULL,
@@ -88,26 +88,26 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
             )
             """.trimIndent()
         )
-        database.execSQL(
+        db.execSQL(
             """
             INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `workingDirectory`)
             SELECT `id`, `name`, `scheme`, `host`, `token`, `workingDirectory` FROM `servers`
             """.trimIndent()
         )
-        database.execSQL("DROP TABLE `servers`")
-        database.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
+        db.execSQL("DROP TABLE `servers`")
+        db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
     }
 }
 
 private val MIGRATION_2_3 = object : Migration(2, 3) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL("DROP TABLE IF EXISTS `messages`")
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS `messages`")
     }
 }
 
 private val MIGRATION_3_4 = object : Migration(3, 4) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL(
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
             """
             ALTER TABLE `servers`
             ADD COLUMN `preferredAuthMethodId` TEXT
