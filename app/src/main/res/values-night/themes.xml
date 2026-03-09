@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#FFFFFF</item>
+        <item name="windowSplashScreenBackground">#1E1E1E</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <item name="postSplashScreenTheme">@style/Theme.Ferngeist</item>
     </style>
 
-     <style name="Theme.Ferngeist" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Ferngeist" parent="android:Theme.Material.NoActionBar" />
 </resources>

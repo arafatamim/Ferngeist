@@ -81,6 +81,7 @@ dependencies {
     implementation(projects.feature.sessionlist)
     implementation(projects.feature.chat)
 
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
