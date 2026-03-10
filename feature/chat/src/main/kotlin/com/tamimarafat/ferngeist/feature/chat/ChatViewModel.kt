@@ -15,7 +15,9 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,6 +26,7 @@ import javax.inject.Inject
 class ChatViewModel @Inject constructor(
     private val connectionManager: AcpConnectionManager,
     private val serverRepository: ServerRepository,
+    private val sessionRepository: SessionRepository,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(ChatState()) {
     companion object {
@@ -52,7 +55,6 @@ class ChatViewModel @Inject constructor(
         serverId = serverId,
         initialSessionId = sessionId,
         cwd = cwd,
-        sessionUpdatedAt = sessionUpdatedAt,
         trace = { message -> trace(message) },
         logError = { message, error -> logError(message, error) },
         callbacks = object : ChatSessionCoordinator.Callbacks {
@@ -84,6 +86,17 @@ class ChatViewModel @Inject constructor(
                         error = null
                     )
                 }
+            }
+
+            override suspend fun onSessionStored(sessionId: String, cwd: String, updatedAt: Long) {
+                sessionRepository.upsertSession(
+                    serverId = serverId,
+                    summary = SessionSummary(
+                        id = sessionId,
+                        cwd = cwd,
+                        updatedAt = updatedAt,
+                    ),
+                )
             }
 
             override suspend fun onLoadFailed(message: String) {

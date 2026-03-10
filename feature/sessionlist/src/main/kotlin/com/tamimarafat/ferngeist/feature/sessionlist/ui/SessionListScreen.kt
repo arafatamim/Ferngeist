@@ -87,7 +87,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Date
-import java.util.Locale
 import kotlin.math.max
 import androidx.compose.ui.platform.LocalLocale
 
@@ -307,6 +306,7 @@ fun SessionListScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(padding),
+                        supportsSessionList = supportsSessionList,
                         onCreateSession = {
                             createSessionCwd = defaultCwd
                             showCreateSessionDialog = true
@@ -468,6 +468,7 @@ private fun SessionCard(
 @Composable
 private fun EmptySessionList(
     modifier: Modifier = Modifier,
+    supportsSessionList: Boolean,
     onCreateSession: () -> Unit,
 ) {
     Box(
@@ -482,7 +483,11 @@ private fun EmptySessionList(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Sessions from the server will appear here",
+                text = if (supportsSessionList) {
+                    "Sessions from the server will appear here"
+                } else {
+                    "Sessions you create on this device will appear here"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.width(240.dp),

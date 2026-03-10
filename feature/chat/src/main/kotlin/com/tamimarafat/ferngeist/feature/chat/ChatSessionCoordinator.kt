@@ -13,7 +13,6 @@ import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
@@ -24,7 +23,6 @@ internal class ChatSessionCoordinator(
     private val serverId: String,
     private val initialSessionId: String,
     private val cwd: String,
-    private val sessionUpdatedAt: Long?,
     private val sessionLoadTimeoutMs: Long = 20_000L,
     private val trace: (String) -> Unit,
     private val logError: (String, Throwable?) -> Unit,
@@ -34,6 +32,7 @@ internal class ChatSessionCoordinator(
         suspend fun onLoadStarted()
         suspend fun onSnapshot(snapshot: SessionSnapshot)
         suspend fun onSessionReady()
+        suspend fun onSessionStored(sessionId: String, cwd: String, updatedAt: Long)
         suspend fun onLoadFailed(message: String)
         suspend fun onOperationError(message: String, stopStreaming: Boolean)
         suspend fun onStreamingCancelled()
@@ -46,6 +45,7 @@ internal class ChatSessionCoordinator(
     private var sessionBridge: SessionBridge? = null
     private var bridgeObserverJobs: List<Job> = emptyList()
     private var pendingModelSelectionId: String? = null
+    private var currentCapabilities: AcpAgentCapabilities? = null
 
     suspend fun loadSession() {
         trace("loadSession:start sessionId=$initialSessionId cwd=$cwd")
@@ -60,13 +60,12 @@ internal class ChatSessionCoordinator(
 
         connectionManager.getSession(initialSessionId)?.let { existing ->
             trace("loadSession:reusingExisting sessionId=$initialSessionId")
-            bindSessionBridge(existing)
-            observeSessionBridge(existing)
+            attachSessionBridge(existing)
             callbacks.onSessionReady()
             return
         }
 
-        val capabilities = connectionManager.agentCapabilities.value
+        val capabilities = currentCapabilities ?: connectionManager.agentCapabilities.value
         if (capabilities != null && !capabilities.loadSession) {
             callbacks.onLoadFailed("This agent does not advertise session/load support.")
             return
@@ -87,8 +86,7 @@ internal class ChatSessionCoordinator(
 
         if (bridge != null) {
             trace("loadSession:bridgeReady requested=$initialSessionId active=${bridge.sessionId}")
-            bindSessionBridge(bridge)
-            observeSessionBridge(bridge)
+            attachSessionBridge(bridge)
             return
         }
 
@@ -98,8 +96,7 @@ internal class ChatSessionCoordinator(
             }.getOrNull()
             if (fallbackBridge != null) {
                 trace("loadSession:fallbackCreated active=${fallbackBridge.sessionId}")
-                bindSessionBridge(fallbackBridge)
-                observeSessionBridge(fallbackBridge)
+                attachSessionBridge(fallbackBridge)
                 callbacks.onSessionReady()
                 callbacks.onOperationError(
                     message = "Server did not acknowledge session/load. Opened a new live session.",
@@ -220,6 +217,7 @@ internal class ChatSessionCoordinator(
         if (!connected) return false
         return when (val initializeResult = connectionManager.initialize()) {
             is AcpInitializeResult.Ready -> {
+                currentCapabilities = initializeResult.agentCapabilities
                 callbacks.onCapabilitiesChanged(initializeResult.agentCapabilities)
                 true
             }
@@ -238,6 +236,12 @@ internal class ChatSessionCoordinator(
         activeSessionId = bridge.sessionId
         sessionBridge = bridge
         pendingModelSelectionId = null
+    }
+
+    private suspend fun attachSessionBridge(bridge: SessionBridge) {
+        bindSessionBridge(bridge)
+        persistSessionIfNeeded(bridge)
+        observeSessionBridge(bridge)
     }
 
     private fun observeSessionBridge(bridge: SessionBridge) {
@@ -302,15 +306,13 @@ internal class ChatSessionCoordinator(
         if (!ensureConnectedAndInitialized()) return null
 
         connectionManager.getSession(activeSessionId)?.let { existing ->
-            bindSessionBridge(existing)
-            observeSessionBridge(existing)
+            attachSessionBridge(existing)
             callbacks.onSessionReady()
             return existing
         }
 
         val created = runCatching { connectionManager.createSession(cwd) }.getOrNull() ?: return null
-        bindSessionBridge(created)
-        observeSessionBridge(created)
+        attachSessionBridge(created)
         callbacks.onSessionReady()
         return created
     }
@@ -349,8 +351,18 @@ internal class ChatSessionCoordinator(
 
     private suspend fun publishCapabilities() {
         connectionManager.agentCapabilities.value?.let { capabilities ->
+            currentCapabilities = capabilities
             callbacks.onCapabilitiesChanged(capabilities)
         }
+    }
+
+    private suspend fun persistSessionIfNeeded(bridge: SessionBridge) {
+        if (currentCapabilities?.session?.list != false) return
+        callbacks.onSessionStored(
+            sessionId = bridge.sessionId,
+            cwd = cwd,
+            updatedAt = System.currentTimeMillis(),
+        )
     }
 
     private companion object {

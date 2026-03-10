@@ -5,7 +5,9 @@ import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -108,6 +110,7 @@ class ChatViewModelTest {
             scope = CoroutineScope(Dispatchers.Main),
         )
         val serverRepository = FakeServerRepository()
+        val sessionRepository = FakeSessionRepository()
         val handle = SavedStateHandle(
             mapOf(
                 "serverId" to "server_1",
@@ -119,6 +122,7 @@ class ChatViewModelTest {
         return ChatViewModel(
             connectionManager = manager,
             serverRepository = serverRepository,
+            sessionRepository = sessionRepository,
             savedStateHandle = handle,
         )
     }
@@ -150,4 +154,11 @@ private class FakeServerRepository : ServerRepository {
     override suspend fun updateServer(config: ServerConfig) = Unit
     override suspend fun deleteServer(id: String) = Unit
     override suspend fun getServer(id: String): ServerConfig? = null
+}
+
+private class FakeSessionRepository : SessionRepository {
+    override fun getSessions(serverId: String): Flow<List<SessionSummary>> = emptyFlow()
+    override suspend fun upsertSession(serverId: String, summary: SessionSummary) = Unit
+    override suspend fun deleteSession(serverId: String, sessionId: String) = Unit
+    override suspend fun clearSessions(serverId: String) = Unit
 }
