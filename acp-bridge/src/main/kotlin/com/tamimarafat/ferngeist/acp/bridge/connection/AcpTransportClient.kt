@@ -10,12 +10,14 @@ import com.agentclientprotocol.model.FileSystemCapability
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.model.McpCapabilities
 import com.agentclientprotocol.model.PromptCapabilities
+import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.model.SessionCapabilities
 import com.agentclientprotocol.protocol.ProtocolOptions
-import com.agentclientprotocol.transport.acpProtocolOnClientWebSocket
+import com.agentclientprotocol.transport.WebSocketTransport
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocketSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,6 +36,8 @@ internal class AcpTransportClient(
     private var currentConfig: AcpConnectionConfig? = null
 
     private var httpClient: HttpClient? = null
+    private var activeTransportGeneration: Long = 0L
+    private var ignoreTransportCallbacks = false
     var sdkClient: Client? = null
         private set
 
@@ -171,15 +175,40 @@ internal class AcpTransportClient(
             val client = HttpClient(CIO) {
                 install(WebSockets)
             }
-            val protocolOptions = ProtocolOptions(protocolDebugName = "FerngeistACP")
-            val wsProtocol = client.acpProtocolOnClientWebSocket(
-                url = url,
-                protocolOptions = protocolOptions,
-            ) { }
-            wsProtocol.start()
+            val webSocketSession = client.webSocketSession(urlString = url)
+            val transport = WebSocketTransport(
+                parentScope = webSocketSession,
+                wss = webSocketSession,
+            )
+            val protocol = Protocol(
+                parentScope = webSocketSession,
+                transport = transport,
+                options = ProtocolOptions(protocolDebugName = "FerngeistACP"),
+            )
+            val generation = activeTransportGeneration + 1L
+            activeTransportGeneration = generation
+            ignoreTransportCallbacks = false
+            transport.onError { error ->
+                scope.launch {
+                    handleUnexpectedTransportTermination(
+                        generation = generation,
+                        resetState = resetState,
+                        error = error,
+                    )
+                }
+            }
+            transport.onClose {
+                scope.launch {
+                    handleUnexpectedTransportTermination(
+                        generation = generation,
+                        resetState = resetState,
+                    )
+                }
+            }
+            protocol.start()
 
             httpClient = client
-            sdkClient = Client(wsProtocol)
+            sdkClient = Client(protocol)
 
             updateConnectionState(AcpConnectionState.Connected)
             diagnosticsStore.setWebSocketState(WebSocketState.OPEN)
@@ -214,12 +243,44 @@ internal class AcpTransportClient(
         }
     }
 
+    private suspend fun handleUnexpectedTransportTermination(
+        generation: Long,
+        resetState: () -> Unit,
+        error: Throwable? = null,
+    ) {
+        if (generation != activeTransportGeneration || ignoreTransportCallbacks) return
+
+        reconnectJob?.cancel()
+        reconnectJob = null
+        ignoreTransportCallbacks = true
+        resetState()
+        runCatching { sdkClient?.protocol?.close() }
+        sdkClient = null
+        runCatching { httpClient?.close() }
+        httpClient = null
+
+        if (error == null) {
+            updateConnectionState(AcpConnectionState.Disconnected)
+            diagnosticsStore.markDisconnected()
+        } else {
+            updateConnectionState(AcpConnectionState.Failed(error))
+            diagnosticsStore.setWebSocketState(WebSocketState.FAILED)
+            diagnosticsStore.appendError("connection", formatAcpErrorMessage(error, "Connection lost"))
+        }
+        emitManagerEvent(AcpManagerEvent.Disconnected)
+        scheduleReconnect(resetState)
+        ignoreTransportCallbacks = false
+    }
+
     private fun closeTransport() {
+        ignoreTransportCallbacks = true
+        activeTransportGeneration++
         runCatching { sdkClient?.protocol?.close() }
         sdkClient = null
 
         runCatching { httpClient?.close() }
         httpClient = null
+        ignoreTransportCallbacks = false
     }
 
     private fun mapAuthMethod(method: AuthMethod): AcpAuthMethodInfo {
