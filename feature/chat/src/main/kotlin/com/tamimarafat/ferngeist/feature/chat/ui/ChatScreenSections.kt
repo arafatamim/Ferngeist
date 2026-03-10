@@ -6,7 +6,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,8 +36,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
@@ -46,8 +45,6 @@ import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FloatingToolbarDefaults
-import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -55,7 +52,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,20 +70,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.UsageState
-import java.util.Locale
 
 @Composable
 internal fun ChatScreenDialogs(
@@ -97,7 +97,7 @@ internal fun ChatScreenDialogs(
     onDismissModelPicker: () -> Unit,
     showConnectionStatusDialog: Boolean,
     connectionState: AcpConnectionState,
-    diagnostics: com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics,
+    diagnostics: ConnectionDiagnostics,
     usage: UsageState?,
     onDismissConnectionStatus: () -> Unit,
     showCommandsDialog: Boolean,
@@ -140,7 +140,7 @@ internal fun ChatScreenBody(
     listState: LazyListState,
     userScrollDetector: NestedScrollConnection,
     renderedLastMessageId: String?,
-    listBottomPadding: androidx.compose.ui.unit.Dp,
+    listBottomPadding: Dp,
     onRetryLoad: () -> Unit,
     onToggleToolCall: (String) -> Unit,
     onGrantPermission: (String, String) -> Unit,
@@ -213,7 +213,7 @@ private fun ChatMessageList(
     listState: LazyListState,
     userScrollDetector: NestedScrollConnection,
     renderedLastMessageId: String?,
-    listBottomPadding: androidx.compose.ui.unit.Dp,
+    listBottomPadding: Dp,
     onToggleToolCall: (String) -> Unit,
     onGrantPermission: (String, String) -> Unit,
     onDenyPermission: (String) -> Unit,
@@ -274,7 +274,7 @@ internal fun ChatComposerBar(
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
     val animatedHeight by animateDpAsState(
-        targetValue = if (composerExpanded) 128.dp else 48.dp,
+        targetValue = if (composerExpanded) 128.dp else 62.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium,
@@ -285,7 +285,7 @@ internal fun ChatComposerBar(
     val collapsedMaxToolbarWidth = screenWidthDp.dp * 0.92f
 
     Surface(
-        shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraLarge,
+        shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         shadowElevation = 6.dp,
@@ -307,11 +307,11 @@ internal fun ChatComposerBar(
                 )
                 .animateContentSize(
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        dampingRatio = Spring.DampingRatioLowBouncy,
                         stiffness = Spring.StiffnessMediumLow,
                     )
                 )
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -457,7 +457,7 @@ private fun CollapsedComposerActions(
     currentModeLabel: String,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
-    collapsedMaxToolbarWidth: androidx.compose.ui.unit.Dp,
+    collapsedMaxToolbarWidth: Dp,
     showModeMenu: Boolean,
     onShowModeMenuChange: (Boolean) -> Unit,
     modeMenuInteractionSource: MutableInteractionSource,
@@ -482,6 +482,7 @@ private fun CollapsedComposerActions(
             interactionSource = modeMenuInteractionSource,
             onSetMode = onSetMode,
         )
+        Spacer(modifier = Modifier.width(6.dp))
     }
 
     TooltipBox(
@@ -535,9 +536,9 @@ private fun CollapsedComposerActions(
 private fun ModeMenuButton(
     modifier: Modifier = Modifier,
     currentModeLabel: String,
-    availableModes: List<com.tamimarafat.ferngeist.acp.bridge.session.SessionMode>,
+    availableModes: List<SessionMode>,
     currentModeId: String?,
-    maxWidth: androidx.compose.ui.unit.Dp,
+    maxWidth: Dp,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     interactionSource: MutableInteractionSource,
@@ -549,9 +550,13 @@ private fun ModeMenuButton(
             tooltip = { PlainTooltip { Text("Mode") } },
             state = rememberTooltipState(),
         ) {
-            Button(
+            TextButton(
                 onClick = { onExpandedChange(true) },
                 modifier = Modifier.widthIn(max = maxWidth),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    containerColor = Color.Transparent
+                )
             ) {
                 Text(
                     text = currentModeLabel,
@@ -664,7 +669,7 @@ private fun PrimaryComposerActionButton(
     enabled: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    chatIcon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.ArrowUpward,
+    chatIcon: ImageVector = Icons.Default.ArrowUpward,
 ) {
     FilledIconButton(
         onClick = onClick,
