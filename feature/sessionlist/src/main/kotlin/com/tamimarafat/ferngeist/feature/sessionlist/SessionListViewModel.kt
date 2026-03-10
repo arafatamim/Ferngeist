@@ -65,7 +65,12 @@ class SessionListViewModel @Inject constructor(
 
     fun refreshSessions() {
         viewModelScope.launch {
-            val capabilities = agentCapabilities.value
+            if (!connectionManager.isConnected) {
+                _isLoading.value = false
+                return@launch
+            }
+
+            val capabilities = connectionManager.agentCapabilities.value
             if (capabilities != null && !capabilities.session.list) {
                 _isLoading.value = false
                 return@launch
