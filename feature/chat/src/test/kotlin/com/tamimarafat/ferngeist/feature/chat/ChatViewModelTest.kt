@@ -103,7 +103,31 @@ class ChatViewModelTest {
         assertFalse("tool_1" in viewModel.state.value.expandedToolCalls)
     }
 
-    private fun createViewModel(): ChatViewModel {
+    @Test
+    fun `restores persisted scroll snapshot into initial state`() = runTest {
+        val chatScrollStateStore = InMemoryChatScrollStateStore().apply {
+            save(
+                serverId = "server_1",
+                sessionId = "session_1",
+                snapshot = ChatScrollSnapshot(
+                    anchorMessageId = "message_7",
+                    firstVisibleItemIndex = 7,
+                    firstVisibleItemScrollOffset = 24,
+                    isFollowing = false,
+                    savedAt = 1234L,
+                ),
+            )
+        }
+
+        val viewModel = createViewModel(chatScrollStateStore = chatScrollStateStore)
+
+        assertTrue(viewModel.state.value.restoredScrollSnapshot != null)
+        assertFalse(viewModel.state.value.restoredScrollSnapshot?.isFollowing ?: true)
+    }
+
+    private fun createViewModel(
+        chatScrollStateStore: ChatScrollStateStore = InMemoryChatScrollStateStore(),
+    ): ChatViewModel {
         val connectivityObserver = ConnectivityObserverStub(initialState = false)
         val manager = AcpConnectionManager(
             connectivityObserver = connectivityObserver,
@@ -123,6 +147,7 @@ class ChatViewModelTest {
             connectionManager = manager,
             serverRepository = serverRepository,
             sessionRepository = sessionRepository,
+            chatScrollStateStore = chatScrollStateStore,
             savedStateHandle = handle,
         )
     }
@@ -161,4 +186,20 @@ private class FakeSessionRepository : SessionRepository {
     override suspend fun upsertSession(serverId: String, summary: SessionSummary) = Unit
     override suspend fun deleteSession(serverId: String, sessionId: String) = Unit
     override suspend fun clearSessions(serverId: String) = Unit
+}
+
+private class InMemoryChatScrollStateStore : ChatScrollStateStore {
+    private val entries = linkedMapOf<Pair<String, String>, ChatScrollSnapshot>()
+
+    override fun restore(serverId: String, sessionId: String): ChatScrollSnapshot? {
+        return entries[serverId to sessionId]
+    }
+
+    override fun save(serverId: String, sessionId: String, snapshot: ChatScrollSnapshot) {
+        entries[serverId to sessionId] = snapshot
+    }
+
+    override fun clear(serverId: String, sessionId: String) {
+        entries.remove(serverId to sessionId)
+    }
 }

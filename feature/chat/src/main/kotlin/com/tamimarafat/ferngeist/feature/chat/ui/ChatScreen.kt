@@ -1,78 +1,53 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import android.os.Build
 import android.os.SystemClock
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
-import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularWavyProgressIndicator
-import androidx.compose.material3.DropdownMenuGroup
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.RadioButton
@@ -88,37 +63,32 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -126,15 +96,16 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
-import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.connectionStateLabel
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
-import com.tamimarafat.ferngeist.feature.chat.ChatState
-import com.tamimarafat.ferngeist.feature.chat.UsageState
+import com.tamimarafat.ferngeist.feature.chat.ChatScrollSnapshot
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -146,10 +117,10 @@ private enum class AutoScrollMode {
 
 private const val INITIAL_FOLLOW_SETTLE_MS = 420L
 private const val COMPOSER_FOLLOW_SETTLE_MS = 120L
-private const val STREAM_FOLLOW_TICK_MS = 96L
+private const val STREAM_FOLLOW_TICK_MS = 140L
 private const val USER_SCROLL_SIGNAL_WINDOW_MS = 220L
 private const val USER_RESUME_IDLE_MS = 320L
-private const val MAX_SCROLL_BY_PX = 1200
+private const val MAX_SCROLL_BY_PX = 720
 private const val FOLLOW_TOLERANCE_PX = 24
 private const val RESUME_TOLERANCE_PX = 48
 private const val FOLLOW_CORRECTION_PASSES = 4
@@ -166,13 +137,25 @@ private data class ContentAnchor(
     val isStreaming: Boolean,
 )
 
+private data class ScrollObservation(
+    val anchorMessageId: String?,
+    val firstVisibleItemIndex: Int,
+    val firstVisibleItemScrollOffset: Int,
+    val isFollowing: Boolean,
+)
+
 private class ChatScrollState(
     val listState: LazyListState,
+    initialFollowing: Boolean,
 ) {
-    private var autoScrollMode by mutableStateOf(AutoScrollMode.FOLLOWING)
-    private var programmaticScrollDepth by mutableStateOf(0)
-    private var lastUserScrollUptimeMs by mutableStateOf(0L)
+    private var autoScrollMode by mutableStateOf(
+        if (initialFollowing) AutoScrollMode.FOLLOWING else AutoScrollMode.PAUSED_BY_USER
+    )
+    private var programmaticScrollDepth by mutableIntStateOf(0)
+    private var lastUserScrollUptimeMs by mutableLongStateOf(0L)
     private var initialFollowSettled by mutableStateOf(false)
+    private var lastHandledContentAnchor: ContentAnchor? = null
+    private var skipNextInsetsFollow by mutableStateOf(false)
 
     val isFollowing: Boolean
         get() = autoScrollMode == AutoScrollMode.FOLLOWING
@@ -235,24 +218,35 @@ private class ChatScrollState(
     }
 
     suspend fun onContentAnchorChanged(contentAnchor: ContentAnchor) {
+        if (lastHandledContentAnchor == contentAnchor) return
+        lastHandledContentAnchor = contentAnchor
         if (!isFollowing || contentAnchor.messageCount == 0) return
         if (!initialFollowSettled) {
             initialFollowSettled = true
             delay(INITIAL_FOLLOW_SETTLE_MS)
         }
-        scrollToBottom()
+        scrollToBottom(smooth = true)
     }
 
     suspend fun onComposerInsetsChanged(messageCount: Int) {
+        if (skipNextInsetsFollow) {
+            skipNextInsetsFollow = false
+            return
+        }
         if (!isFollowing || messageCount == 0) return
         delay(COMPOSER_FOLLOW_SETTLE_MS)
         scrollToBottom(smooth = true)
     }
 
+    fun markRestored(contentAnchor: ContentAnchor) {
+        lastHandledContentAnchor = contentAnchor
+        skipNextInsetsFollow = true
+    }
+
     suspend fun followWhileStreaming(activelyStreaming: Boolean) {
         if (!activelyStreaming || !isFollowing) return
         while (true) {
-            scrollToBottom()
+            scrollToBottom(smooth = true)
             delay(STREAM_FOLLOW_TICK_MS)
         }
     }
@@ -314,25 +308,98 @@ private class ChatScrollState(
     }
 }
 
+@OptIn(FlowPreview::class)
 @Composable
 private fun rememberChatScrollState(
+    sessionId: String,
+    renderedMessages: List<ChatMessage>,
     contentAnchor: ContentAnchor,
     composerContentHeightPx: Int,
     imeBottomPx: Int,
     activelyStreaming: Boolean,
     renderedLastMessageId: String?,
+    restoredScrollSnapshot: ChatScrollSnapshot?,
+    restoreReady: Boolean,
+    onScrollSnapshotChanged: (ChatScrollSnapshot) -> Unit,
 ): ChatScrollState {
     val listState = rememberLazyListState()
-    val chatScrollState = remember(listState) {
-        ChatScrollState(listState = listState)
+    var restorePending by remember(sessionId, restoredScrollSnapshot?.savedAt) {
+        mutableStateOf(restoredScrollSnapshot != null)
+    }
+    val chatScrollState = remember(listState, restoredScrollSnapshot?.savedAt) {
+        ChatScrollState(
+            listState = listState,
+            initialFollowing = restoredScrollSnapshot?.isFollowing ?: true,
+        )
     }
 
     LaunchedEffect(chatScrollState) {
         chatScrollState.observeIdleResume()
     }
 
-    LaunchedEffect(contentAnchor, chatScrollState.isFollowing) {
-        chatScrollState.onContentAnchorChanged(contentAnchor)
+    LaunchedEffect(listState, renderedMessages, chatScrollState, sessionId) {
+        snapshotFlow {
+            if (renderedMessages.isEmpty()) {
+                null
+            } else {
+                val firstVisibleItemIndex = listState.firstVisibleItemIndex
+                ScrollObservation(
+                    anchorMessageId = renderedMessages.getOrNull(firstVisibleItemIndex)?.id,
+                    firstVisibleItemIndex = firstVisibleItemIndex,
+                    firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                    isFollowing = chatScrollState.isFollowing,
+                )
+            }
+        }
+            .distinctUntilChanged()
+            .debounce(250L)
+            .collect { observation ->
+                observation ?: return@collect
+                onScrollSnapshotChanged(
+                    ChatScrollSnapshot(
+                        anchorMessageId = observation.anchorMessageId,
+                        firstVisibleItemIndex = observation.firstVisibleItemIndex,
+                        firstVisibleItemScrollOffset = observation.firstVisibleItemScrollOffset,
+                        isFollowing = observation.isFollowing,
+                        savedAt = System.currentTimeMillis(),
+                    )
+                )
+            }
+    }
+
+    LaunchedEffect(
+        restorePending,
+        restoreReady,
+        renderedMessages,
+        restoredScrollSnapshot?.savedAt,
+        composerContentHeightPx,
+        imeBottomPx,
+    ) {
+        if (!restorePending || !restoreReady || renderedMessages.isEmpty()) return@LaunchedEffect
+        val snapshot = restoredScrollSnapshot ?: run {
+            restorePending = false
+            return@LaunchedEffect
+        }
+        val restoredIndex = snapshot.anchorMessageId
+            ?.let { anchorId -> renderedMessages.indexOfFirst { it.id == anchorId } }
+            ?.takeIf { it >= 0 }
+            ?: snapshot.firstVisibleItemIndex.coerceIn(0, renderedMessages.lastIndex)
+
+        repeat(2) {
+            withFrameNanos { }
+            listState.scrollToItem(
+                index = restoredIndex,
+                scrollOffset = snapshot.firstVisibleItemScrollOffset.coerceAtLeast(0),
+            )
+        }
+        chatScrollState.markRestored(contentAnchor)
+        restorePending = false
+    }
+
+    LaunchedEffect(contentAnchor, chatScrollState.isFollowing, restorePending) {
+        if (!restorePending) {
+            chatScrollState.onContentAnchorChanged(contentAnchor)
+        }
     }
 
     LaunchedEffect(
@@ -340,12 +407,17 @@ private fun rememberChatScrollState(
         imeBottomPx,
         contentAnchor.messageCount,
         chatScrollState.isFollowing,
+        restorePending,
     ) {
-        chatScrollState.onComposerInsetsChanged(contentAnchor.messageCount)
+        if (!restorePending) {
+            chatScrollState.onComposerInsetsChanged(contentAnchor.messageCount)
+        }
     }
 
-    LaunchedEffect(activelyStreaming, chatScrollState.isFollowing, renderedLastMessageId) {
-        chatScrollState.followWhileStreaming(activelyStreaming)
+    LaunchedEffect(activelyStreaming, chatScrollState.isFollowing, renderedLastMessageId, restorePending) {
+        if (!restorePending) {
+            chatScrollState.followWhileStreaming(activelyStreaming)
+        }
     }
 
     LaunchedEffect(chatScrollState, activelyStreaming) {
@@ -355,6 +427,7 @@ private fun rememberChatScrollState(
     return chatScrollState
 }
 
+@RequiresApi(Build.VERSION_CODES.HONEYCOMB_MR2)
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
@@ -374,29 +447,26 @@ fun ChatScreen(
     var showModelPicker by remember { mutableStateOf(false) }
     var showCommandsDialog by remember { mutableStateOf(false) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
-    var composerContentHeightPx by remember { mutableStateOf(0) }
+    var composerContentHeightPx by remember { mutableIntStateOf(0) }
     var messageText by remember { mutableStateOf("") }
     var composerExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     val navBottomPx = WindowInsets.navigationBars.getBottom(density)
     val systemBottomInsetPx = if (imeBottomPx > navBottomPx) imeBottomPx else navBottomPx
     val showComposerToolbar = !state.isLoading && !(state.error != null && state.messages.isEmpty())
     val composerContentHeightDp = with(density) { composerContentHeightPx.toDp() }
     val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
-    val listBottomPadding = with(density) {
-        if (!showComposerToolbar) {
-            0.dp
-        } else {
-            composerContentHeightDp +
-                    systemBottomInsetDp +
-                    FloatingToolbarDefaults.ScreenOffset +
-                    36.dp
-        }
+    val listBottomPadding = if (!showComposerToolbar) {
+        0.dp
+    } else {
+        composerContentHeightDp +
+                systemBottomInsetDp +
+                FloatingToolbarDefaults.ScreenOffset +
+                36.dp
     }
     val snackbarBottomPadding = if (!showComposerToolbar) {
         0.dp
@@ -427,7 +497,6 @@ fun ChatScreen(
             ?: "MODE"
     }
     val renderedMessages = state.messages
-    val markdownStates = state.markdownStates
     val renderedLastMessageId = renderedMessages.lastOrNull()?.id
     val contentAnchor = remember(renderedMessages, state.isStreaming) {
         val last = renderedMessages.lastOrNull()
@@ -446,11 +515,16 @@ fun ChatScreen(
         )
     }
     val scrollState = rememberChatScrollState(
+        sessionId = sessionId,
+        renderedMessages = renderedMessages,
         contentAnchor = contentAnchor,
         composerContentHeightPx = composerContentHeightPx,
         imeBottomPx = imeBottomPx,
         activelyStreaming = activelyStreaming,
         renderedLastMessageId = renderedLastMessageId,
+        restoredScrollSnapshot = state.restoredScrollSnapshot,
+        restoreReady = renderedMessages.isNotEmpty() && !state.isLoading,
+        onScrollSnapshotChanged = viewModel::persistScrollSnapshot,
     )
     val listState = scrollState.listState
 
@@ -625,7 +699,7 @@ fun ChatScreen(
                             currentModeLabel = currentModeLabel,
                             showStopAction = showStopAction,
                             canCancelStreaming = canCancelStreaming,
-                            screenWidthDp = configuration.screenWidthDp,
+                            screenWidthDp = LocalWindowInfo.current.containerSize.width,
                             focusRequester = focusRequester,
                             onFocusCleared = { focusManager.clearFocus() },
                             onHeightChanged = { composerContentHeightPx = it },

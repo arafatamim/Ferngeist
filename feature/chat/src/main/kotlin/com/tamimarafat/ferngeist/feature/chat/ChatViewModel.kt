@@ -27,10 +27,28 @@ class ChatViewModel @Inject constructor(
     private val connectionManager: AcpConnectionManager,
     private val serverRepository: ServerRepository,
     private val sessionRepository: SessionRepository,
+    private val chatScrollStateStore: ChatScrollStateStore,
     savedStateHandle: SavedStateHandle,
-) : MviViewModel<ChatState, ChatIntent, ChatEffect>(ChatState()) {
+) : MviViewModel<ChatState, ChatIntent, ChatEffect>(
+    initialState(savedStateHandle, chatScrollStateStore)
+) {
     companion object {
         private const val TRACE_TAG = "TSChatVM"
+
+        private fun initialState(
+            savedStateHandle: SavedStateHandle,
+            chatScrollStateStore: ChatScrollStateStore,
+        ): ChatState {
+            val serverId = savedStateHandle.get<String>("serverId").orEmpty()
+            val sessionId = savedStateHandle.get<String>("sessionId").orEmpty()
+            return ChatState(
+                restoredScrollSnapshot = if (serverId.isBlank() || sessionId.isBlank()) {
+                    null
+                } else {
+                    chatScrollStateStore.restore(serverId, sessionId)
+                }
+            )
+        }
     }
 
     private val serverId: String = savedStateHandle["serverId"] ?: error("serverId is required")
@@ -223,6 +241,14 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun persistScrollSnapshot(snapshot: ChatScrollSnapshot) {
+        chatScrollStateStore.save(serverId, sessionId, snapshot)
+        updateState {
+            if (restoredScrollSnapshot == snapshot) this
+            else copy(restoredScrollSnapshot = snapshot)
+        }
+    }
+
     private fun trace(message: String) {
         runCatching { Log.d(TRACE_TAG, message) }
     }
@@ -253,6 +279,7 @@ class ChatViewModel @Inject constructor(
 data class ChatState(
     val messages: List<ChatMessage> = emptyList(),
     val markdownStates: Map<String, MarkdownRenderState> = emptyMap(),
+    val restoredScrollSnapshot: ChatScrollSnapshot? = null,
     val isLoading: Boolean = false,
     val isStreaming: Boolean = false,
     val isSessionReady: Boolean = false,
