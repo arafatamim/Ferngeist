@@ -85,16 +85,16 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
+import com.tamimarafat.ferngeist.acp.bridge.session.displayValueLabel
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.UsageState
 
 @Composable
 internal fun ChatScreenDialogs(
-    showModelPicker: Boolean,
-    modelOption: SessionConfigOption.Select?,
-    onModelSelected: (String) -> Unit,
-    onDismissModelPicker: () -> Unit,
+    selectedConfigPickerOption: SessionConfigOption.Select?,
+    onConfigOptionSelected: (String, String) -> Unit,
+    onDismissConfigPicker: () -> Unit,
     showConnectionStatusDialog: Boolean,
     connectionState: AcpConnectionState,
     diagnostics: ConnectionDiagnostics,
@@ -105,11 +105,13 @@ internal fun ChatScreenDialogs(
     onDismissCommands: () -> Unit,
     onCommandClick: (String) -> Unit,
 ) {
-    if (showModelPicker) {
-        ModelPicker(
-            modelOption = modelOption,
-            onModelSelected = onModelSelected,
-            onDismiss = onDismissModelPicker,
+    if (selectedConfigPickerOption != null) {
+        SelectConfigOptionDialog(
+            option = selectedConfigPickerOption,
+            onOptionSelected = { value ->
+                onConfigOptionSelected(selectedConfigPickerOption.id, value)
+            },
+            onDismiss = onDismissConfigPicker,
         )
     }
 
@@ -248,7 +250,7 @@ private fun ChatMessageList(
 internal fun ChatComposerBar(
     modifier: Modifier = Modifier,
     state: ChatState,
-    modelOption: SessionConfigOption.Select?,
+    toolbarConfigOptions: List<SessionConfigOption>,
     composerExpanded: Boolean,
     onComposerExpandedChange: (Boolean) -> Unit,
     messageText: String,
@@ -266,9 +268,10 @@ internal fun ChatComposerBar(
     onHeightChanged: (Int) -> Unit,
     onSend: () -> Unit,
     onCancelStreaming: () -> Unit,
-    onSetConfigOption: (String, String) -> Unit,
+    onSetStringConfigOption: (String, String) -> Unit,
+    onSetBooleanConfigOption: (String, Boolean) -> Unit,
     onShowCommands: () -> Unit,
-    onShowModelPicker: () -> Unit,
+    onShowConfigOptionPicker: (String) -> Unit,
 ) {
     var showModeMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
@@ -345,7 +348,7 @@ internal fun ChatComposerBar(
             } else {
                 CollapsedComposerActions(
                     state = state,
-                    modelOption = modelOption,
+                    toolbarConfigOptions = toolbarConfigOptions,
                     buttonsAlpha = buttonsAlpha,
                     showModeButton = showModeButton,
                     modeOption = modeOption,
@@ -361,9 +364,10 @@ internal fun ChatComposerBar(
                     optionsMenuInteractionSource = optionsMenuInteractionSource,
                     onExpandComposer = { onComposerExpandedChange(true) },
                     onCancelStreaming = onCancelStreaming,
-                    onSetConfigOption = onSetConfigOption,
+                    onSetStringConfigOption = onSetStringConfigOption,
+                    onSetBooleanConfigOption = onSetBooleanConfigOption,
                     onShowCommands = onShowCommands,
-                    onShowModelPicker = onShowModelPicker,
+                    onShowConfigOptionPicker = onShowConfigOptionPicker,
                 )
             }
         }
@@ -458,7 +462,7 @@ private fun ExpandedComposerContent(
 @Composable
 private fun CollapsedComposerActions(
     state: ChatState,
-    modelOption: SessionConfigOption.Select?,
+    toolbarConfigOptions: List<SessionConfigOption>,
     buttonsAlpha: Float,
     showModeButton: Boolean,
     modeOption: SessionConfigOption.Select?,
@@ -474,9 +478,10 @@ private fun CollapsedComposerActions(
     optionsMenuInteractionSource: MutableInteractionSource,
     onExpandComposer: () -> Unit,
     onCancelStreaming: () -> Unit,
-    onSetConfigOption: (String, String) -> Unit,
+    onSetStringConfigOption: (String, String) -> Unit,
+    onSetBooleanConfigOption: (String, Boolean) -> Unit,
     onShowCommands: () -> Unit,
-    onShowModelPicker: () -> Unit,
+    onShowConfigOptionPicker: (String) -> Unit,
 ) {
     if (showModeButton && modeOption != null) {
         ModeMenuButton(
@@ -487,7 +492,7 @@ private fun CollapsedComposerActions(
             expanded = showModeMenu,
             onExpandedChange = onShowModeMenuChange,
             interactionSource = modeMenuInteractionSource,
-            onSetConfigOption = onSetConfigOption,
+            onSetConfigOption = onSetStringConfigOption,
         )
         Spacer(modifier = Modifier.width(6.dp))
     }
@@ -529,12 +534,13 @@ private fun CollapsedComposerActions(
 
     ToolbarOptionsButton(
         commandsAdvertised = state.commandsAdvertised,
-        hasModelPicker = modelOption != null,
+        configOptions = toolbarConfigOptions,
         expanded = showOptionsMenu,
         onExpandedChange = onShowOptionsMenuChange,
         interactionSource = optionsMenuInteractionSource,
+        onSetBooleanConfigOption = onSetBooleanConfigOption,
         onShowCommands = onShowCommands,
-        onShowModelPicker = onShowModelPicker,
+        onShowConfigOptionPicker = onShowConfigOptionPicker,
     )
 }
 
@@ -611,12 +617,13 @@ private fun ModeMenuButton(
 @Composable
 private fun ToolbarOptionsButton(
     commandsAdvertised: Boolean,
-    hasModelPicker: Boolean,
+    configOptions: List<SessionConfigOption>,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     interactionSource: MutableInteractionSource,
+    onSetBooleanConfigOption: (String, Boolean) -> Unit,
     onShowCommands: () -> Unit,
-    onShowModelPicker: () -> Unit,
+    onShowConfigOptionPicker: (String) -> Unit,
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
@@ -638,6 +645,7 @@ private fun ToolbarOptionsButton(
                     shapes = MenuDefaults.groupShape(0, 1),
                     interactionSource = interactionSource,
                 ) {
+                    val hasConfigOptions = configOptions.isNotEmpty()
                     if (commandsAdvertised) {
                         DropdownMenuItem(
                             text = { Text("Commands") },
@@ -648,15 +656,28 @@ private fun ToolbarOptionsButton(
                         )
                     }
 
-                    if (hasModelPicker) {
-                        DropdownMenuItem(
-                            text = { Text("Change model") },
+                    configOptions.forEach { option ->
+                        ConfigOptionMenuItem(
+                            option = option,
                             onClick = {
-                                onExpandedChange(false)
-                                onShowModelPicker()
+                                when (option) {
+                                    is SessionConfigOption.BooleanOption -> {
+                                        onExpandedChange(false)
+                                        onSetBooleanConfigOption(option.id, !option.currentValue)
+                                    }
+
+                                    is SessionConfigOption.Select -> {
+                                        onExpandedChange(false)
+                                        onShowConfigOptionPicker(option.id)
+                                    }
+
+                                    is SessionConfigOption.Unknown -> Unit
+                                }
                             },
                         )
-                    } else if (!commandsAdvertised) {
+                    }
+
+                    if (!commandsAdvertised && !hasConfigOptions) {
                         DropdownMenuItem(
                             text = { Text("No options available") },
                             onClick = { onExpandedChange(false) },
@@ -666,6 +687,36 @@ private fun ToolbarOptionsButton(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ConfigOptionMenuItem(
+    option: SessionConfigOption,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = {
+            Column {
+                Text(option.name)
+                Text(
+                    text = option.dropdownSubtitle(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        onClick = onClick,
+        enabled = option is SessionConfigOption.Select || option is SessionConfigOption.BooleanOption,
+    )
+}
+
+private fun SessionConfigOption.dropdownSubtitle(): String {
+    return when (this) {
+        is SessionConfigOption.BooleanOption -> if (currentValue) "Enabled" else "Disabled"
+        else -> displayValueLabel() ?: "Not selected"
     }
 }
 

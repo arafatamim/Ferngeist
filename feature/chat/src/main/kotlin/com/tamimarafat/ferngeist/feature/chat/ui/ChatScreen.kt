@@ -683,7 +683,7 @@ fun ChatScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showModelPicker by remember { mutableStateOf(false) }
+    var selectedConfigPickerOptionId by remember { mutableStateOf<String?>(null) }
     var showCommandsDialog by remember { mutableStateOf(false) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
     var composerContentHeightPx by remember { mutableIntStateOf(0) }
@@ -728,6 +728,13 @@ fun ChatScreen(
         state.configOptions
             .filterIsInstance<SessionConfigOption.Select>()
             .firstOrNull { it.category is SessionConfigCategory.Mode && it.allChoices().isNotEmpty() }
+    }
+    val toolbarConfigOptions = remember(state.configOptions) {
+        state.configOptions.filterNot { it.category is SessionConfigCategory.Mode }
+    }
+    val selectedConfigPickerOption = remember(state.configOptions, selectedConfigPickerOptionId) {
+        val optionId = selectedConfigPickerOptionId ?: return@remember null
+        state.configOptions.firstOrNull { it.id == optionId } as? SessionConfigOption.Select
     }
     val canCancelStreaming = state.canCancelStreaming
     val hasStreamingBubble = state.messages.lastOrNull()?.isStreaming == true
@@ -854,20 +861,17 @@ fun ChatScreen(
                         .padding(innerPadding)
                 ) {
                     ChatScreenDialogs(
-                        showModelPicker = showModelPicker,
-                        modelOption = modelOption,
-                        onModelSelected = { value ->
-                            modelOption?.let { option ->
-                                viewModel.dispatch(
-                                    ChatIntent.SetConfigOption(
-                                        optionId = option.id,
-                                        value = SessionConfigValue.StringValue(value),
-                                    )
+                        selectedConfigPickerOption = selectedConfigPickerOption,
+                        onConfigOptionSelected = { optionId, value ->
+                            viewModel.dispatch(
+                                ChatIntent.SetConfigOption(
+                                    optionId = optionId,
+                                    value = SessionConfigValue.StringValue(value),
                                 )
-                                showModelPicker = false
-                            }
+                            )
+                            selectedConfigPickerOptionId = null
                         },
-                        onDismissModelPicker = { showModelPicker = false },
+                        onDismissConfigPicker = { selectedConfigPickerOptionId = null },
                         showConnectionStatusDialog = showConnectionStatusDialog,
                         connectionState = state.connectionState,
                         diagnostics = state.connectionDiagnostics,
@@ -921,7 +925,7 @@ fun ChatScreen(
                                 .offset(y = -FloatingToolbarDefaults.ScreenOffset)
                                 .zIndex(1f),
                             state = state,
-                            modelOption = modelOption,
+                            toolbarConfigOptions = toolbarConfigOptions,
                             composerExpanded = composerExpanded,
                             onComposerExpandedChange = { composerExpanded = it },
                             messageText = messageText,
@@ -939,7 +943,7 @@ fun ChatScreen(
                             onHeightChanged = { composerContentHeightPx = it },
                             onSend = sendMessage,
                             onCancelStreaming = { viewModel.dispatch(ChatIntent.CancelStreaming) },
-                            onSetConfigOption = { optionId, value ->
+                            onSetStringConfigOption = { optionId, value ->
                                 viewModel.dispatch(
                                     ChatIntent.SetConfigOption(
                                         optionId = optionId,
@@ -947,8 +951,18 @@ fun ChatScreen(
                                     )
                                 )
                             },
+                            onSetBooleanConfigOption = { optionId, value ->
+                                viewModel.dispatch(
+                                    ChatIntent.SetConfigOption(
+                                        optionId = optionId,
+                                        value = SessionConfigValue.BoolValue(value),
+                                    )
+                                )
+                            },
                             onShowCommands = { showCommandsDialog = true },
-                            onShowModelPicker = { showModelPicker = true },
+                            onShowConfigOptionPicker = { optionId ->
+                                selectedConfigPickerOptionId = optionId
+                            },
                         )
                     }
                 }
@@ -1115,14 +1129,14 @@ internal fun CommandsDialog(
 }
 
 @Composable
-internal fun ModelPicker(
-    modelOption: SessionConfigOption.Select?,
-    onModelSelected: (String) -> Unit,
+internal fun SelectConfigOptionDialog(
+    option: SessionConfigOption.Select,
+    onOptionSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var query by remember(modelOption) { mutableStateOf("") }
-    val filteredOptions = remember(modelOption, query) {
-        val options = modelOption?.allChoices().orEmpty()
+    var query by remember(option) { mutableStateOf("") }
+    val filteredOptions = remember(option, query) {
+        val options = option.allChoices()
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) {
             options
@@ -1135,10 +1149,10 @@ internal fun ModelPicker(
         }
     }
 
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Select Model") }, text = {
-        if (modelOption == null || modelOption.allChoices().isEmpty()) {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(option.name) }, text = {
+        if (option.allChoices().isEmpty()) {
             Text(
-                text = "No models available from agent.",
+                text = "No values available from agent.",
                 style = MaterialTheme.typography.bodyMedium
             )
         } else {
@@ -1148,8 +1162,8 @@ internal fun ModelPicker(
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("Search models") },
-                    placeholder = { Text("Type model name") })
+                    label = { Text("Search ${option.name.lowercase()}") },
+                    placeholder = { Text("Type a value") })
 
                 if (filteredOptions.isEmpty()) {
                     Text(
@@ -1169,12 +1183,12 @@ internal fun ModelPicker(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onModelSelected(choice.value) }
+                                    .clickable { onOptionSelected(choice.value) }
                                     .padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(
-                                    selected = choice.value == modelOption.currentValue,
-                                    onClick = { onModelSelected(choice.value) })
+                                    selected = choice.value == option.currentValue,
+                                    onClick = { onOptionSelected(choice.value) })
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
