@@ -7,6 +7,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatImageData
@@ -50,6 +52,8 @@ internal class ChatSessionCoordinator(
     private var sessionBridge: SessionBridge? = null
     private var bridgeObserverJobs: List<Job> = emptyList()
     private var bridgeRecoveryJob: Job? = null
+    // Legacy model changes are confirmed locally because the current SDK surface does not
+    // expose a dedicated CurrentModelUpdate event on the client side.
     private var pendingModelSelectionId: String? = null
     private var currentCapabilities: AcpAgentCapabilities? = null
     private var shouldRecoverBridge: Boolean = false
@@ -194,18 +198,18 @@ internal class ChatSessionCoordinator(
         callbacks.onStreamingCancelled()
     }
 
-    suspend fun setMode(modeId: String) {
-        requireActiveBridge("setMode")?.setMode(modeId)
-    }
-
-    suspend fun setConfigOption(optionId: String, value: String) {
+    suspend fun setConfigOption(optionId: String, value: SessionConfigValue) {
         val bridge = requireActiveBridge("setConfigOption:$optionId") ?: return
-        if (optionId == "model") {
-            pendingModelSelectionId = value
-            bridge.setModel(value)
+        val option = bridge.snapshot.value.configOptions.firstOrNull { it.id == optionId }
+        val selectedModelId = if (option?.category is SessionConfigCategory.Model) {
+            (value as? SessionConfigValue.StringValue)?.value
         } else {
-            bridge.setConfigOption(optionId, value)
+            null
         }
+        if (!selectedModelId.isNullOrBlank()) {
+            pendingModelSelectionId = selectedModelId
+        }
+        bridge.setConfigOption(optionId, value)
     }
 
     suspend fun grantPermission(toolCallId: String, optionId: String) {
@@ -292,8 +296,8 @@ internal class ChatSessionCoordinator(
                         append(snapshot.messages.lastOrNull()?.content?.length ?: 0)
                         append(" commands=")
                         append(snapshot.availableCommands.size)
-                        append(" modes=")
-                        append(snapshot.availableModes.size)
+                        append(" configOptions=")
+                        append(snapshot.configOptions.size)
                     }
                     if (signature != lastSignature) {
                         trace("snapshot session=${bridge.sessionId} $signature")

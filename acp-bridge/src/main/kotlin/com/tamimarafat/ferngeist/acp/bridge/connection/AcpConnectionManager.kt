@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.ClientOperationsFactory
 import com.agentclientprotocol.client.ClientSession
@@ -20,7 +22,7 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -104,6 +106,7 @@ class AcpConnectionManager(
         transportClient.disconnect(resetState = ::resetConnectionState)
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun listSessions(): List<SessionSummary> {
         val client = transportClient.sdkClient ?: return emptyList()
         return runCatching {
@@ -127,7 +130,7 @@ class AcpConnectionManager(
         return runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/new")
             val session = client.newSession(
-                sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList<McpServer>()),
+                sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
                 operationsFactory = operationsFactory
             )
             registerSession(session)
@@ -152,7 +155,7 @@ class AcpConnectionManager(
         diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/load")
         return runCatching {
             val bridge = sessionRegistry.getBridge(sessionId)
-                ?: SessionBridge(sessionId, this, scope).also { sessionRegistry.storeBridge(sessionId, it) }
+                ?: SessionBridge(sessionId, this).also { sessionRegistry.storeBridge(sessionId, it) }
             bridge.beginHydration()
 
             val session = client.loadSession(
@@ -261,11 +264,11 @@ class AcpConnectionManager(
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun setSessionConfigOption(sessionId: String, optionId: String, value: String) {
+    suspend fun setSessionConfigOption(sessionId: String, optionId: String, value: SessionConfigValue) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_config_option")
-            session.setConfigOption(SessionConfigId(optionId), SessionConfigOptionValue.of(value))
+            session.setConfigOption(SessionConfigId(optionId), value.toSdkValue())
         }.onFailure {
             diagnosticsStore.appendError("session/set_config_option", formatAcpErrorMessage(it, "Set config option failed"))
         }
@@ -345,7 +348,7 @@ class AcpConnectionManager(
         // Reuse the existing bridge if one was pre-created by loadSession so
         // buffered history can be committed into the same runtime.
         val bridge = sessionRegistry.getBridge(session.sessionId.value)
-            ?: SessionBridge(session.sessionId.value, this, scope)
+            ?: SessionBridge(session.sessionId.value, this)
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
 
@@ -377,24 +380,27 @@ class AcpConnectionManager(
                     description = model.description,
                 )
             }
-            if (modelChoices.isNotEmpty()) {
-                emitToBridge(
-                    session.sessionId.value,
-                    AppSessionEvent.ConfigOptionsUpdated(
-                        listOf(
-                            SessionConfigOption(
-                                id = "model",
-                                name = "Model",
-                                description = "Select a model",
-                                kind = "select",
-                                currentValue = current,
-                                options = modelChoices
-                            )
-                        )
-                    )
+            emitToBridge(
+                session.sessionId.value,
+                AppSessionEvent.LegacyModelOptionsUpdated(
+                    choices = modelChoices,
+                    currentModelId = current,
                 )
-            }
+            )
+            // Stand-in for missing SDK client update type: the SDK exposes currentModel on the
+            // session object, but not a corresponding SessionUpdate.CurrentModelUpdate event for
+            // notify() consumers, so Ferngeist mirrors the initial selection into app state.
             emitToBridge(session.sessionId.value, AppSessionEvent.ModelSelectionConfirmed(current))
+        }
+
+        @OptIn(UnstableApi::class)
+        if (session.configOptionsSupported) {
+            emitToBridge(
+                session.sessionId.value,
+                AppSessionEvent.ConfigOptionsUpdated(
+                    options = session.configOptions.value.map(AcpSessionUpdateMapper::mapSdkConfigOption),
+                )
+            )
         }
 
         bridge.markReady()
@@ -458,6 +464,15 @@ class AcpConnectionManager(
 
     internal suspend fun awaitConnectivityForReconnect() {
         transportClient.awaitConnectivityForReconnect()
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun SessionConfigValue.toSdkValue(): SessionConfigOptionValue {
+        return when (this) {
+            is SessionConfigValue.StringValue -> SessionConfigOptionValue.of(value)
+            is SessionConfigValue.BoolValue -> SessionConfigOptionValue.of(value)
+            is SessionConfigValue.UnknownValue -> error("Unsupported config option value: $this")
+        }
     }
 
     private fun resetConnectionState() {

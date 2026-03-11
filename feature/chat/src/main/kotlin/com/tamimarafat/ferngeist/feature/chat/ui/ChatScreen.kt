@@ -91,7 +91,11 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
+import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
+import com.tamimarafat.ferngeist.acp.bridge.session.displayValueLabel
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.connectionStateLabel
@@ -116,7 +120,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 // region: Auto-Scroll Configuration
 /**
@@ -714,24 +717,25 @@ fun ChatScreen(
                 16.dp
     }
     val modelOption = remember(state.configOptions) {
-        state.configOptions.firstOrNull { it.id == "model" && it.options.isNotEmpty() }
+        state.configOptions
+            .filterIsInstance<SessionConfigOption.Select>()
+            .firstOrNull { it.category is SessionConfigCategory.Model && it.allChoices().isNotEmpty() }
     }
     val activeModel = remember(state.configOptions) {
-        val currentModelOption = state.configOptions.firstOrNull { it.id == "model" }
-        currentModelOption?.let { option ->
-            option.options.firstOrNull { it.value == option.currentValue }?.label
-                ?: option.currentValue
-        }
+        state.configOptions.firstOrNull { it.category is SessionConfigCategory.Model }?.displayValueLabel()
+    }
+    val modeOption = remember(state.configOptions) {
+        state.configOptions
+            .filterIsInstance<SessionConfigOption.Select>()
+            .firstOrNull { it.category is SessionConfigCategory.Mode && it.allChoices().isNotEmpty() }
     }
     val canCancelStreaming = state.canCancelStreaming
     val hasStreamingBubble = state.messages.lastOrNull()?.isStreaming == true
     val activelyStreaming = state.isStreaming || hasStreamingBubble
     val showStopAction = state.isStreaming && hasStreamingBubble
-    val showModeButton = state.availableModes.isNotEmpty() || !state.currentModeId.isNullOrBlank()
-    val currentModeLabel = remember(state.availableModes, state.currentModeId) {
-        state.availableModes.firstOrNull { it.id == state.currentModeId }?.name?.uppercase(Locale.getDefault())
-            ?: state.currentModeId?.uppercase(Locale.getDefault())
-            ?: "MODE"
+    val showModeButton = modeOption != null
+    val currentModeLabel = remember(modeOption) {
+        modeOption?.displayValueLabel()?.uppercase() ?: "MODE"
     }
     val renderedMessages = state.messages
     val renderedLastMessageId = renderedMessages.lastOrNull()?.id
@@ -853,8 +857,15 @@ fun ChatScreen(
                         showModelPicker = showModelPicker,
                         modelOption = modelOption,
                         onModelSelected = { value ->
-                            viewModel.dispatch(ChatIntent.SetConfigOption("model", value))
-                            showModelPicker = false
+                            modelOption?.let { option ->
+                                viewModel.dispatch(
+                                    ChatIntent.SetConfigOption(
+                                        optionId = option.id,
+                                        value = SessionConfigValue.StringValue(value),
+                                    )
+                                )
+                                showModelPicker = false
+                            }
                         },
                         onDismissModelPicker = { showModelPicker = false },
                         showConnectionStatusDialog = showConnectionStatusDialog,
@@ -918,6 +929,7 @@ fun ChatScreen(
                             inputAlpha = inputAlpha,
                             buttonsAlpha = buttonsAlpha,
                             showModeButton = showModeButton,
+                            modeOption = modeOption,
                             currentModeLabel = currentModeLabel,
                             showStopAction = showStopAction,
                             canCancelStreaming = canCancelStreaming,
@@ -927,7 +939,14 @@ fun ChatScreen(
                             onHeightChanged = { composerContentHeightPx = it },
                             onSend = sendMessage,
                             onCancelStreaming = { viewModel.dispatch(ChatIntent.CancelStreaming) },
-                            onSetMode = { modeId -> viewModel.dispatch(ChatIntent.SetMode(modeId)) },
+                            onSetConfigOption = { optionId, value ->
+                                viewModel.dispatch(
+                                    ChatIntent.SetConfigOption(
+                                        optionId = optionId,
+                                        value = SessionConfigValue.StringValue(value),
+                                    )
+                                )
+                            },
                             onShowCommands = { showCommandsDialog = true },
                             onShowModelPicker = { showModelPicker = true },
                         )
@@ -1097,13 +1116,13 @@ internal fun CommandsDialog(
 
 @Composable
 internal fun ModelPicker(
-    modelOption: SessionConfigOption?,
+    modelOption: SessionConfigOption.Select?,
     onModelSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var query by remember(modelOption) { mutableStateOf("") }
     val filteredOptions = remember(modelOption, query) {
-        val options = modelOption?.options.orEmpty()
+        val options = modelOption?.allChoices().orEmpty()
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) {
             options
@@ -1117,7 +1136,7 @@ internal fun ModelPicker(
     }
 
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Select Model") }, text = {
-        if (modelOption == null || modelOption.options.isEmpty()) {
+        if (modelOption == null || modelOption.allChoices().isEmpty()) {
             Text(
                 text = "No models available from agent.",
                 style = MaterialTheme.typography.bodyMedium

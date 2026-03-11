@@ -1,12 +1,15 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import android.os.Build
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.StopReason
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoiceGroup
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin
 import java.time.Instant
 import java.time.OffsetDateTime
 
@@ -73,6 +76,7 @@ internal object AcpSessionUpdateMapper {
         }
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.O)
     fun parseIsoOrMillis(value: String?): Long? {
         if (value.isNullOrBlank()) return null
         val raw = value.trim()
@@ -97,51 +101,71 @@ internal object AcpSessionUpdateMapper {
     }
 
     @OptIn(UnstableApi::class)
-    private fun mapSdkConfigOption(
+    internal fun mapSdkConfigOption(
         sdkOption: com.agentclientprotocol.model.SessionConfigOption
     ): SessionConfigOption {
         return when (sdkOption) {
             is com.agentclientprotocol.model.SessionConfigOption.Select -> {
-                val choices = when (val opts = sdkOption.options) {
-                    is com.agentclientprotocol.model.SessionConfigSelectOptions.Flat ->
-                        opts.options.map { selectOpt ->
-                            SessionConfigChoice(
-                                id = selectOpt.value.value,
-                                label = selectOpt.name,
-                                value = selectOpt.value.value,
-                                description = selectOpt.description,
+                val (choices, groups) = when (val opts = sdkOption.options) {
+                    is com.agentclientprotocol.model.SessionConfigSelectOptions.Flat -> {
+                        val mappedChoices = opts.options.map(::mapSdkSelectChoice)
+                        mappedChoices to emptyList()
+                    }
+
+                    is com.agentclientprotocol.model.SessionConfigSelectOptions.Grouped -> {
+                        val mappedGroups = opts.groups.map { group ->
+                            SessionConfigChoiceGroup(
+                                id = group.group.value,
+                                label = group.name,
+                                choices = group.options.map(::mapSdkSelectChoice),
                             )
                         }
-                    is com.agentclientprotocol.model.SessionConfigSelectOptions.Grouped ->
-                        opts.groups.flatMap { group ->
-                            group.options.map { selectOpt ->
-                                SessionConfigChoice(
-                                    id = selectOpt.value.value,
-                                    label = selectOpt.name,
-                                    value = selectOpt.value.value,
-                                    description = selectOpt.description,
-                                )
-                            }
-                        }
+                        mappedGroups.flatMap { it.choices } to mappedGroups
+                    }
                 }
-                SessionConfigOption(
+                SessionConfigOption.Select(
                     id = sdkOption.id.value,
                     name = sdkOption.name,
                     description = sdkOption.description,
-                    kind = "select",
+                    origin = SessionConfigOrigin.NativeConfigOption,
                     currentValue = sdkOption.currentValue.value,
-                    options = choices,
+                    choices = choices,
+                    groups = groups,
                 )
             }
-            else -> {
-                SessionConfigOption(
+
+            is com.agentclientprotocol.model.SessionConfigOption.BooleanOption -> {
+                SessionConfigOption.BooleanOption(
                     id = sdkOption.id.value,
                     name = sdkOption.name,
                     description = sdkOption.description,
-                    kind = "boolean",
+                    origin = SessionConfigOrigin.NativeConfigOption,
+                    currentValue = sdkOption.currentValue,
+                )
+            }
+
+            else -> {
+                SessionConfigOption.Unknown(
+                    id = sdkOption.id.value,
+                    name = sdkOption.name,
+                    description = sdkOption.description,
+                    origin = SessionConfigOrigin.NativeConfigOption,
+                    kind = sdkOption::class.simpleName,
                     currentValue = null,
                 )
             }
         }
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun mapSdkSelectChoice(
+        selectOpt: com.agentclientprotocol.model.SessionConfigSelectOption
+    ): SessionConfigChoice {
+        return SessionConfigChoice(
+            id = selectOpt.value.value,
+            label = selectOpt.name,
+            value = selectOpt.value.value,
+            description = selectOpt.description,
+        )
     }
 }

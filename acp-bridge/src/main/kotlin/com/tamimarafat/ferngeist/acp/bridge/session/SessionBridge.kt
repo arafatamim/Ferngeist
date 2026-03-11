@@ -1,23 +1,17 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 class SessionBridge(
     val sessionId: String,
     private val connectionManager: AcpConnectionManager?,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     private val runtime = SessionRuntime(sessionId = sessionId)
     val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
-
-    private val _currentModeId = MutableSharedFlow<String?>(replay = 1)
-    val currentModeId: SharedFlow<String?> = _currentModeId.asSharedFlow()
-    private val _availableModes = MutableStateFlow<List<SessionMode>>(emptyList())
-    val availableModes: StateFlow<List<SessionMode>> = _availableModes.asStateFlow()
-    private val _configOptions = MutableStateFlow<List<SessionConfigOption>>(emptyList())
-    val configOptions: StateFlow<List<SessionConfigOption>> = _configOptions.asStateFlow()
 
     // Replay must be large because session/load history often arrives as many chunk events
     // before ChatViewModel attaches its collector.
@@ -30,21 +24,6 @@ class SessionBridge(
 
     suspend fun emitEvent(event: AppSessionEvent) {
         debug("emitEvent type=${event::class.simpleName}")
-        when (event) {
-            is AppSessionEvent.ModeChanged -> _currentModeId.emit(event.modeId)
-            is AppSessionEvent.ModesUpdated -> {
-                _availableModes.value = event.modes
-                event.currentModeId?.let { _currentModeId.emit(it) }
-            }
-            is AppSessionEvent.ConfigOptionsUpdated -> {
-                val existingById = _configOptions.value.associateBy { it.id }.toMutableMap()
-                event.options.forEach { option ->
-                    existingById[option.id] = option
-                }
-                _configOptions.value = existingById.values.toList()
-            }
-            else -> Unit
-        }
         runtime.onEvent(event)
         _events.emit(event)
     }
@@ -80,31 +59,35 @@ class SessionBridge(
         runtime.onLocalCancel()
     }
 
-    suspend fun setMode(modeId: String) {
-        connectionManager?.setSessionMode(sessionId, modeId)
-        _currentModeId.emit(modeId)
-        runtime.onEvent(AppSessionEvent.ModeChanged(modeId))
-    }
+    suspend fun setConfigOption(optionId: String, value: SessionConfigValue) {
+        val option = snapshot.value.configOptions.firstOrNull { it.id == optionId }
+        when (option?.origin) {
+            SessionConfigOrigin.LegacyMode -> {
+                val modeId = (value as? SessionConfigValue.StringValue)?.value ?: return
+                connectionManager?.setSessionMode(sessionId, modeId)
+                runtime.onEvent(AppSessionEvent.ModeChanged(modeId))
+            }
 
-    suspend fun setConfigOption(optionId: String, value: String) {
-        connectionManager?.setSessionConfigOption(sessionId, optionId, value)
-        applyConfigValue(optionId, value)
-        runtime.onEvent(
-            AppSessionEvent.ConfigOptionsUpdated(
-                options = _configOptions.value
-            )
-        )
-    }
+            SessionConfigOrigin.LegacyModel -> {
+                val modelId = (value as? SessionConfigValue.StringValue)?.value ?: return
+                // Stand-in for missing SDK client event support: legacy session/set_model does
+                // not surface a first-class CurrentModelUpdate notification to the client, so
+                // Ferngeist confirms the selection optimistically and lets config_option_update
+                // become the source of truth when the agent exposes model via config options.
+                connectionManager?.setSessionModel(sessionId, modelId)
+                runtime.onEvent(AppSessionEvent.ModelSelectionConfirmed(modelId))
+            }
 
-    suspend fun setModel(modelId: String) {
-        connectionManager?.setSessionModel(sessionId, modelId)
-        applyConfigValue("model", modelId)
-        runtime.onEvent(AppSessionEvent.ModelSelectionConfirmed(modelId))
-    }
-
-    private fun applyConfigValue(optionId: String, value: String) {
-        _configOptions.value = _configOptions.value.map { option ->
-            if (option.id == optionId) option.copy(currentValue = value) else option
+            else -> {
+                connectionManager?.setSessionConfigOption(sessionId, optionId, value)
+                runtime.onEvent(
+                    AppSessionEvent.ConfigOptionsUpdated(
+                        options = snapshot.value.configOptions.map { current ->
+                            current.withUpdatedValue(value, optionId)
+                        }
+                    )
+                )
+            }
         }
     }
 
@@ -170,6 +153,10 @@ sealed interface AppSessionEvent {
     data class ConfigOptionsUpdated(
         val options: List<SessionConfigOption>,
     ) : AppSessionEvent
+    data class LegacyModelOptionsUpdated(
+        val choices: List<SessionConfigChoice>,
+        val currentModelId: String? = null,
+    ) : AppSessionEvent
     data class ModelSelectionConfirmed(
         val modelId: String?,
     ) : AppSessionEvent
@@ -208,18 +195,20 @@ data class SessionPermissionOption(
     val kind: String? = null,
 )
 
-data class SessionConfigOption(
-    val id: String,
-    val name: String,
-    val description: String? = null,
-    val kind: String? = null,
-    val currentValue: String? = null,
-    val options: List<SessionConfigChoice> = emptyList(),
-)
+private fun SessionConfigOption.withUpdatedValue(
+    value: SessionConfigValue,
+    optionId: String
+): SessionConfigOption {
+    if (id != optionId) return this
+    return when (this) {
+        is SessionConfigOption.Select -> copy(
+            currentValue = (value as? SessionConfigValue.StringValue)?.value ?: currentValue,
+        )
 
-data class SessionConfigChoice(
-    val id: String,
-    val label: String,
-    val value: String,
-    val description: String? = null,
-)
+        is SessionConfigOption.BooleanOption -> copy(
+            currentValue = (value as? SessionConfigValue.BoolValue)?.value ?: currentValue,
+        )
+
+        is SessionConfigOption.Unknown -> copy(currentValue = value)
+    }
+}

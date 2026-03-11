@@ -84,7 +84,7 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
+import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.UsageState
@@ -92,7 +92,7 @@ import com.tamimarafat.ferngeist.feature.chat.UsageState
 @Composable
 internal fun ChatScreenDialogs(
     showModelPicker: Boolean,
-    modelOption: SessionConfigOption?,
+    modelOption: SessionConfigOption.Select?,
     onModelSelected: (String) -> Unit,
     onDismissModelPicker: () -> Unit,
     showConnectionStatusDialog: Boolean,
@@ -248,7 +248,7 @@ private fun ChatMessageList(
 internal fun ChatComposerBar(
     modifier: Modifier = Modifier,
     state: ChatState,
-    modelOption: SessionConfigOption?,
+    modelOption: SessionConfigOption.Select?,
     composerExpanded: Boolean,
     onComposerExpandedChange: (Boolean) -> Unit,
     messageText: String,
@@ -256,6 +256,7 @@ internal fun ChatComposerBar(
     inputAlpha: Float,
     buttonsAlpha: Float,
     showModeButton: Boolean,
+    modeOption: SessionConfigOption.Select?,
     currentModeLabel: String,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
@@ -265,7 +266,7 @@ internal fun ChatComposerBar(
     onHeightChanged: (Int) -> Unit,
     onSend: () -> Unit,
     onCancelStreaming: () -> Unit,
-    onSetMode: (String) -> Unit,
+    onSetConfigOption: (String, String) -> Unit,
     onShowCommands: () -> Unit,
     onShowModelPicker: () -> Unit,
 ) {
@@ -347,6 +348,7 @@ internal fun ChatComposerBar(
                     modelOption = modelOption,
                     buttonsAlpha = buttonsAlpha,
                     showModeButton = showModeButton,
+                    modeOption = modeOption,
                     currentModeLabel = currentModeLabel,
                     showStopAction = showStopAction,
                     canCancelStreaming = canCancelStreaming,
@@ -359,7 +361,7 @@ internal fun ChatComposerBar(
                     optionsMenuInteractionSource = optionsMenuInteractionSource,
                     onExpandComposer = { onComposerExpandedChange(true) },
                     onCancelStreaming = onCancelStreaming,
-                    onSetMode = onSetMode,
+                    onSetConfigOption = onSetConfigOption,
                     onShowCommands = onShowCommands,
                     onShowModelPicker = onShowModelPicker,
                 )
@@ -456,9 +458,10 @@ private fun ExpandedComposerContent(
 @Composable
 private fun CollapsedComposerActions(
     state: ChatState,
-    modelOption: SessionConfigOption?,
+    modelOption: SessionConfigOption.Select?,
     buttonsAlpha: Float,
     showModeButton: Boolean,
+    modeOption: SessionConfigOption.Select?,
     currentModeLabel: String,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
@@ -471,21 +474,20 @@ private fun CollapsedComposerActions(
     optionsMenuInteractionSource: MutableInteractionSource,
     onExpandComposer: () -> Unit,
     onCancelStreaming: () -> Unit,
-    onSetMode: (String) -> Unit,
+    onSetConfigOption: (String, String) -> Unit,
     onShowCommands: () -> Unit,
     onShowModelPicker: () -> Unit,
 ) {
-    if (showModeButton) {
+    if (showModeButton && modeOption != null) {
         ModeMenuButton(
             modifier = Modifier.alpha(buttonsAlpha),
             currentModeLabel = currentModeLabel,
-            availableModes = state.availableModes,
-            currentModeId = state.currentModeId,
+            modeOption = modeOption,
             maxWidth = collapsedMaxToolbarWidth * 0.45f,
             expanded = showModeMenu,
             onExpandedChange = onShowModeMenuChange,
             interactionSource = modeMenuInteractionSource,
-            onSetMode = onSetMode,
+            onSetConfigOption = onSetConfigOption,
         )
         Spacer(modifier = Modifier.width(6.dp))
     }
@@ -541,13 +543,12 @@ private fun CollapsedComposerActions(
 private fun ModeMenuButton(
     modifier: Modifier = Modifier,
     currentModeLabel: String,
-    availableModes: List<SessionMode>,
-    currentModeId: String?,
+    modeOption: SessionConfigOption.Select,
     maxWidth: Dp,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     interactionSource: MutableInteractionSource,
-    onSetMode: (String) -> Unit,
+    onSetConfigOption: (String, String) -> Unit,
 ) {
     Box(modifier = modifier) {
         TooltipBox(
@@ -578,6 +579,7 @@ private fun ModeMenuButton(
                 shapes = MenuDefaults.groupShape(0, 1),
                 interactionSource = interactionSource,
             ) {
+                val availableModes = modeOption.allChoices()
                 val modeCount = availableModes.size
                 if (modeCount == 0) {
                     DropdownMenuItem(
@@ -588,13 +590,13 @@ private fun ModeMenuButton(
                 } else {
                     availableModes.forEachIndexed { index, mode ->
                         DropdownMenuItem(
-                            text = { Text(mode.name.uppercase()) },
+                            text = { Text(mode.label.uppercase()) },
                             shapes = MenuDefaults.itemShape(index, modeCount),
-                            checked = mode.id == currentModeId,
+                            checked = mode.value == modeOption.currentValue,
                             onCheckedChange = { checked ->
-                                if (checked && mode.id != currentModeId) {
+                                if (checked && mode.value != modeOption.currentValue) {
                                     onExpandedChange(false)
-                                    onSetMode(mode.id)
+                                    onSetConfigOption(modeOption.id, mode.value)
                                 }
                             },
                         )

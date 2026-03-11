@@ -11,7 +11,12 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpPromptCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpSessionCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
+import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.protocol.JsonRpcException
 import kotlinx.coroutines.CompletableDeferred
@@ -34,56 +39,55 @@ class SessionBridgeTest {
     @Test
     fun `SessionBridge should initialize with correct sessionId`() = runTest {
         val sessionId = "test_session_123"
-        val bridge = SessionBridge(sessionId, null, CoroutineScope(Dispatchers.Unconfined))
+        val bridge = SessionBridge(sessionId, null)
 
         assertEquals(sessionId, bridge.sessionId)
     }
 
     @Test
-    fun `SessionBridge should emit mode changes`() = runTest {
-        val bridge = SessionBridge("test_session", null, CoroutineScope(Dispatchers.Unconfined))
+    fun `SessionBridge should surface legacy modes as config options`() = runTest {
+        val bridge = SessionBridge("test_session", null)
 
-        val collectJob = launch {
-            bridge.currentModeId.test {
-                assertEquals("code", awaitItem())
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-        bridge.setMode("code")
-        collectJob.join()
+        bridge.emitEvent(
+            AppSessionEvent.ModesUpdated(
+                modes = listOf(
+                    SessionMode(id = "code", name = "Code"),
+                    SessionMode(id = "ask", name = "Ask"),
+                ),
+                currentModeId = "code",
+            )
+        )
+
+        val option = bridge.snapshot.value.configOptions.first() as SessionConfigOption.Select
+        assertTrue(option.category is SessionConfigCategory.Mode)
+        assertEquals("code", option.currentValue)
+        assertEquals(2, option.allChoices().size)
     }
 
     @Test
-    fun `SessionBridge should expose config options flow`() = runTest {
-        val bridge = SessionBridge("test_session", null, CoroutineScope(Dispatchers.Unconfined))
-
-        val collectJob = launch {
-            bridge.configOptions.test {
-                assertTrue(awaitItem().isEmpty())
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-        collectJob.join()
+    fun `SessionBridge should expose config options in snapshot`() = runTest {
+        val bridge = SessionBridge("test_session", null)
+        assertTrue(bridge.snapshot.value.configOptions.isEmpty())
     }
 
     @Test
     fun `SessionBridge should emit events via emitEvent`() = runTest {
-        val bridge = SessionBridge("test_session", null, CoroutineScope(Dispatchers.Unconfined))
+        val bridge = SessionBridge("test_session", null)
 
         val collectJob = launch {
             bridge.events.test {
                 val event = awaitItem()
-                assertEquals("hello", (event as com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent.AgentMessage).text)
+                assertEquals("hello", (event as AppSessionEvent.AgentMessage).text)
                 cancelAndIgnoreRemainingEvents()
             }
         }
-        bridge.emitEvent(com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent.AgentMessage("hello"))
+        bridge.emitEvent(AppSessionEvent.AgentMessage("hello"))
         collectJob.join()
     }
 
     @Test
     fun `SessionBridge sendPrompt should execute without throwing`() = runTest {
-        val bridge = SessionBridge("test_session", null, CoroutineScope(Dispatchers.Unconfined))
+        val bridge = SessionBridge("test_session", null)
         bridge.sendPrompt("Hello world")
         assertTrue(true)
     }
@@ -164,7 +168,7 @@ class AcpConnectionManagerTest {
         val deferred = CompletableDeferred<RequestPermissionOutcome>()
 
         manager.privateRegistryMap<SessionBridge>("sessionBridges")["session-1"] =
-            SessionBridge("session-1", null, CoroutineScope(Dispatchers.Unconfined))
+            SessionBridge("session-1", null)
         manager.privateRegistryMap<Any>("pendingPermissionRequests")["tool-1"] =
             createPendingPermissionRequest(sessionId = "session-1", deferred = deferred)
         manager.privateRegistryMap<Any>("pendingPermissionRequests")["tool-2"] =

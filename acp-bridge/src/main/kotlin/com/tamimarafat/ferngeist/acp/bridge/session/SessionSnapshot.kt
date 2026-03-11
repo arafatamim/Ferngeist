@@ -26,8 +26,6 @@ data class SessionSnapshot(
     val usage: SessionUsage? = null,
     val availableCommands: List<String> = emptyList(),
     val commandsAdvertised: Boolean = false,
-    val availableModes: List<SessionMode> = emptyList(),
-    val currentModeId: String? = null,
     val configOptions: List<SessionConfigOption> = emptyList(),
     val error: String? = null,
 )

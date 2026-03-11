@@ -10,8 +10,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -213,8 +213,6 @@ class ChatViewModel @Inject constructor(
                 usage = snapshot.toUsageState(),
                 availableCommands = snapshot.availableCommands,
                 commandsAdvertised = snapshot.commandsAdvertised,
-                availableModes = snapshot.availableModes,
-                currentModeId = snapshot.currentModeId,
                 configOptions = snapshot.configOptions,
                 isLoading = snapshot.loadState == SessionLoadState.HYDRATING ||
                     markdownProjection.pendingInitialHydration,
@@ -251,7 +249,6 @@ class ChatViewModel @Inject constructor(
         when (intent) {
             is ChatIntent.SendMessage -> sessionCoordinator.sendMessage(intent.text, intent.images)
             is ChatIntent.CancelStreaming -> sessionCoordinator.cancelStreaming()
-            is ChatIntent.SetMode -> sessionCoordinator.setMode(intent.modeId)
             is ChatIntent.SetConfigOption -> sessionCoordinator.setConfigOption(intent.optionId, intent.value)
             is ChatIntent.GrantPermission -> sessionCoordinator.grantPermission(intent.toolCallId, intent.optionId)
             is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
@@ -305,8 +302,6 @@ data class ChatState(
     val canCancelStreaming: Boolean = true,
     val connectionState: AcpConnectionState = AcpConnectionState.Disconnected,
     val connectionDiagnostics: ConnectionDiagnostics = ConnectionDiagnostics(),
-    val currentModeId: String? = null,
-    val availableModes: List<SessionMode> = emptyList(),
     val configOptions: List<SessionConfigOption> = emptyList(),
     val usage: UsageState? = null,
     val availableCommands: List<String> = emptyList(),
@@ -329,8 +324,7 @@ data class UsageState(
 sealed interface ChatIntent {
     data class SendMessage(val text: String, val images: List<ChatImageData> = emptyList()) : ChatIntent
     data object CancelStreaming : ChatIntent
-    data class SetMode(val modeId: String) : ChatIntent
-    data class SetConfigOption(val optionId: String, val value: String) : ChatIntent
+    data class SetConfigOption(val optionId: String, val value: SessionConfigValue) : ChatIntent
     data class GrantPermission(val toolCallId: String, val optionId: String) : ChatIntent
     data class DenyPermission(val toolCallId: String) : ChatIntent
     data class ToggleToolCallExpansion(val toolCallId: String) : ChatIntent

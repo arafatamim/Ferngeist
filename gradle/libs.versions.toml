@@ -41,6 +41,7 @@ ktor = "3.4.0"
 turbine = "1.2.1"
 material3 = "1.5.0-alpha15"
 markdownRenderer = "0.39.2"
+annotationJvm = "1.9.1"
 
 [libraries]
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashScreen" }
@@ -94,6 +95,7 @@ ktor-client-websockets = { group = "io.ktor", name = "ktor-client-websockets", v
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 multiplatform-markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer", version.ref = "markdownRenderer" }
 multiplatform-markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
+androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

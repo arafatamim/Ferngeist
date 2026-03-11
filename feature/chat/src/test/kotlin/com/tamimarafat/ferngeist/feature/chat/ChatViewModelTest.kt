@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
@@ -34,7 +35,7 @@ class ChatViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `set mode without active session emits session not ready error`() = runTest {
+    fun `set config option without active session emits session not ready error`() = runTest {
         val viewModel = createViewModel()
 
         advanceUntilIdle()
@@ -42,7 +43,12 @@ class ChatViewModelTest {
         viewModel.effects.test {
             assertTrue(awaitItem() is ChatEffect.ShowError)
 
-            viewModel.dispatch(ChatIntent.SetMode("code"))
+            viewModel.dispatch(
+                ChatIntent.SetConfigOption(
+                    optionId = "mode",
+                    value = SessionConfigValue.StringValue("code"),
+                )
+            )
             advanceUntilIdle()
 
             val effect = awaitItem() as ChatEffect.ShowError

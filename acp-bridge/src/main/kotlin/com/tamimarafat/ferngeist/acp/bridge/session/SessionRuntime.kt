@@ -25,9 +25,9 @@ class SessionRuntime(
         val usage: SessionUsage? = null,
         val availableCommands: List<String> = emptyList(),
         val commandsAdvertised: Boolean = false,
-        val availableModes: List<SessionMode> = emptyList(),
-        val currentModeId: String? = null,
-        val configOptions: List<SessionConfigOption> = emptyList(),
+        val nativeConfigOptions: List<SessionConfigOption> = emptyList(),
+        val legacyModes: LegacyModeState? = null,
+        val legacyModel: LegacyModelState? = null,
     )
 
     private val mutex = Mutex()
@@ -167,9 +167,9 @@ class SessionRuntime(
         var usage = current.usage
         var availableCommands = current.availableCommands
         var commandsAdvertised = current.commandsAdvertised
-        var availableModes = current.availableModes
-        var currentModeId = current.currentModeId
-        var configOptions = current.configOptions
+        var nativeConfigOptions = current.nativeConfigOptions
+        var legacyModes = current.legacyModes
+        var legacyModel = current.legacyModel
 
         messages = when (event) {
             is AppSessionEvent.SessionLoadComplete -> SessionMessageReducer.finishStreaming(messages)
@@ -194,25 +194,29 @@ class SessionRuntime(
                 commandsAdvertised = true
             }
             is AppSessionEvent.ModeChanged -> {
-                currentModeId = event.modeId
+                legacyModes = (legacyModes ?: LegacyModeState()).copy(currentModeId = event.modeId)
             }
             is AppSessionEvent.ModesUpdated -> {
-                availableModes = event.modes
-                if (!event.currentModeId.isNullOrBlank()) {
-                    currentModeId = event.currentModeId
-                }
+                legacyModes = LegacyModeState(
+                    modes = event.modes,
+                    currentModeId = event.currentModeId ?: legacyModes?.currentModeId,
+                )
             }
             is AppSessionEvent.ConfigOptionsUpdated -> {
-                val existingById = configOptions.associateBy { it.id }.toMutableMap()
+                val existingById = nativeConfigOptions.associateBy { it.id }.toMutableMap()
                 event.options.forEach { option -> existingById[option.id] = option }
-                configOptions = existingById.values.toList()
+                nativeConfigOptions = existingById.values.toList()
+            }
+            is AppSessionEvent.LegacyModelOptionsUpdated -> {
+                legacyModel = LegacyModelState(
+                    choices = event.choices,
+                    currentModelId = event.currentModelId,
+                )
             }
             is AppSessionEvent.ModelSelectionConfirmed -> {
                 val selectedModel = event.modelId
-                if (!selectedModel.isNullOrBlank()) {
-                    configOptions = configOptions.map { option ->
-                        if (option.id == "model") option.copy(currentValue = selectedModel) else option
-                    }
+                if (!selectedModel.isNullOrBlank() && legacyModel != null) {
+                    legacyModel = legacyModel.copy(currentModelId = selectedModel)
                 }
             }
             else -> Unit
@@ -225,13 +229,18 @@ class SessionRuntime(
             usage = usage,
             availableCommands = availableCommands,
             commandsAdvertised = commandsAdvertised,
-            availableModes = availableModes,
-            currentModeId = currentModeId,
-            configOptions = configOptions,
+            nativeConfigOptions = nativeConfigOptions,
+            legacyModes = legacyModes,
+            legacyModel = legacyModel,
         )
     }
 
     private fun publishLive(loadState: SessionLoadState, error: String?) {
+        val effectiveConfigOptions = SessionConfigCompatibility.resolve(
+            nativeOptions = live.nativeConfigOptions,
+            legacyModes = live.legacyModes,
+            legacyModel = live.legacyModel,
+        )
         val last = live.messages.lastOrNull()
         val lastRole = last?.role?.name ?: "none"
         val lastLen = last?.content?.length ?: 0
@@ -244,15 +253,13 @@ class SessionRuntime(
             usage = live.usage,
             availableCommands = live.availableCommands,
             commandsAdvertised = live.commandsAdvertised,
-            availableModes = live.availableModes,
-            currentModeId = live.currentModeId,
-            configOptions = live.configOptions,
+            configOptions = effectiveConfigOptions,
             error = error,
         )
         debug(
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +
                 "lastRole=$lastRole lastLen=$lastLen lastSegments=$lastSegments " +
-                "commands=${live.availableCommands.size} modes=${live.availableModes.size}"
+                "commands=${live.availableCommands.size} configOptions=${effectiveConfigOptions.size}"
         )
     }
 
@@ -268,6 +275,8 @@ class SessionRuntime(
             is AppSessionEvent.ModeChanged -> "modeId=${event.modeId}"
             is AppSessionEvent.ModesUpdated -> "modes=${event.modes.size} current=${event.currentModeId}"
             is AppSessionEvent.ConfigOptionsUpdated -> "configOptions=${event.options.size}"
+            is AppSessionEvent.LegacyModelOptionsUpdated ->
+                "legacyModels=${event.choices.size} current=${event.currentModelId}"
             is AppSessionEvent.ModelSelectionConfirmed -> "modelId=${event.modelId}"
             is AppSessionEvent.PlanUpdated -> "planLen=${event.content.length}"
             is AppSessionEvent.UsageUpdated -> "usageTotal=${event.totalTokens} context=${event.contextWindowTokens}"

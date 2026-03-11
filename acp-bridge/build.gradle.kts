@@ -44,6 +44,7 @@ dependencies {
 
     // === Internal ===
     implementation(project(":core:model"))
+    implementation(libs.androidx.annotation.jvm)
 
     // === Testing ===
     testImplementation(libs.turbine)
