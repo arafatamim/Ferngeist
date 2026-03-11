@@ -268,7 +268,17 @@ class AcpConnectionManager(
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_config_option")
-            session.setConfigOption(SessionConfigId(optionId), value.toSdkValue())
+            val response = session.setConfigOption(SessionConfigId(optionId), value.toSdkValue())
+            // The SDK updates session.configOptions from the RPC response, but Ferngeist does not
+            // collect that StateFlow directly. Mirror the authoritative response into the bridge so
+            // dependent options (for example model-specific reasoning effort lists) update
+            // immediately even when the server does not emit a separate config_option_update notify.
+            emitToBridge(
+                sessionId,
+                AppSessionEvent.ConfigOptionsUpdated(
+                    options = response.configOptions.map(AcpSessionUpdateMapper::mapSdkConfigOption),
+                )
+            )
         }.onFailure {
             diagnosticsStore.appendError("session/set_config_option", formatAcpErrorMessage(it, "Set config option failed"))
         }

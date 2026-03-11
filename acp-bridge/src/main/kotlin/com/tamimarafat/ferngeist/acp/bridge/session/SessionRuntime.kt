@@ -203,9 +203,15 @@ class SessionRuntime(
                 )
             }
             is AppSessionEvent.ConfigOptionsUpdated -> {
-                val existingById = nativeConfigOptions.associateBy { it.id }.toMutableMap()
-                event.options.forEach { option -> existingById[option.id] = option }
-                nativeConfigOptions = existingById.values.toList()
+                nativeConfigOptions = event.options
+            }
+            is AppSessionEvent.ConfigOptionValueChanged -> {
+                nativeConfigOptions = nativeConfigOptions.map { option ->
+                    option.withUpdatedValue(
+                        optionId = event.optionId,
+                        value = event.value,
+                    )
+                }
             }
             is AppSessionEvent.LegacyModelOptionsUpdated -> {
                 legacyModel = LegacyModelState(
@@ -275,6 +281,7 @@ class SessionRuntime(
             is AppSessionEvent.ModeChanged -> "modeId=${event.modeId}"
             is AppSessionEvent.ModesUpdated -> "modes=${event.modes.size} current=${event.currentModeId}"
             is AppSessionEvent.ConfigOptionsUpdated -> "configOptions=${event.options.size}"
+            is AppSessionEvent.ConfigOptionValueChanged -> "optionId=${event.optionId} value=${event.value}"
             is AppSessionEvent.LegacyModelOptionsUpdated ->
                 "legacyModels=${event.choices.size} current=${event.currentModelId}"
             is AppSessionEvent.ModelSelectionConfirmed -> "modelId=${event.modelId}"
@@ -290,5 +297,21 @@ class SessionRuntime(
 
     private fun debug(message: String) {
         runCatching { android.util.Log.d(TAG, "[$sessionId] $message") }
+    }
+}
+
+private fun SessionConfigOption.withUpdatedValue(
+    optionId: String,
+    value: SessionConfigValue,
+): SessionConfigOption {
+    if (id != optionId) return this
+    return when (this) {
+        is SessionConfigOption.Select -> copy(
+            currentValue = (value as? SessionConfigValue.StringValue)?.value ?: currentValue,
+        )
+        is SessionConfigOption.BooleanOption -> copy(
+            currentValue = (value as? SessionConfigValue.BoolValue)?.value ?: currentValue,
+        )
+        is SessionConfigOption.Unknown -> copy(currentValue = value)
     }
 }

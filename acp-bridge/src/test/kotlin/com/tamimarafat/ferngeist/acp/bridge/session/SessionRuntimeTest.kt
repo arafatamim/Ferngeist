@@ -149,4 +149,87 @@ class SessionRuntimeTest {
         assertEquals("load failed", snapshot.error)
         assertFalse(snapshot.isStreaming)
     }
+
+    @Test
+    fun config_option_updates_replace_native_option_set() = runTest {
+        val runtime = SessionRuntime(sessionId = "ses_test")
+        runtime.onEvent(
+            AppSessionEvent.ConfigOptionsUpdated(
+                listOf(
+                    SessionConfigOption.Select(
+                        id = "model",
+                        name = "Model",
+                        currentValue = "gpt-4",
+                        choices = listOf(
+                            SessionConfigChoice(id = "gpt-4", label = "GPT-4", value = "gpt-4"),
+                        ),
+                    ),
+                    SessionConfigOption.BooleanOption(
+                        id = "safe_mode",
+                        name = "Safe Mode",
+                        currentValue = true,
+                    ),
+                ),
+            )
+        )
+
+        runtime.onEvent(
+            AppSessionEvent.ConfigOptionsUpdated(
+                listOf(
+                    SessionConfigOption.Select(
+                        id = "model",
+                        name = "Model",
+                        currentValue = "gpt-5",
+                        choices = listOf(
+                            SessionConfigChoice(id = "gpt-5", label = "GPT-5", value = "gpt-5"),
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        val snapshot = runtime.snapshot.value
+        assertEquals(1, snapshot.configOptions.size)
+        assertEquals("model", snapshot.configOptions.single().id)
+        assertEquals("GPT-5", snapshot.configOptions.single().displayValueLabel())
+    }
+
+    @Test
+    fun config_option_value_changed_updates_existing_option_without_replacing_set() = runTest {
+        val runtime = SessionRuntime(sessionId = "ses_test")
+        runtime.onEvent(
+            AppSessionEvent.ConfigOptionsUpdated(
+                listOf(
+                    SessionConfigOption.Select(
+                        id = "temperature",
+                        name = "Temperature",
+                        currentValue = "balanced",
+                        choices = listOf(
+                            SessionConfigChoice(id = "balanced", label = "Balanced", value = "balanced"),
+                            SessionConfigChoice(id = "precise", label = "Precise", value = "precise"),
+                        ),
+                    ),
+                    SessionConfigOption.BooleanOption(
+                        id = "safe_mode",
+                        name = "Safe Mode",
+                        currentValue = false,
+                    ),
+                ),
+            )
+        )
+
+        runtime.onEvent(
+            AppSessionEvent.ConfigOptionValueChanged(
+                optionId = "safe_mode",
+                value = SessionConfigValue.BoolValue(true),
+            )
+        )
+
+        val snapshot = runtime.snapshot.value
+        assertEquals(2, snapshot.configOptions.size)
+        val safeMode = snapshot.configOptions
+            .filterIsInstance<SessionConfigOption.BooleanOption>()
+            .first { it.id == "safe_mode" }
+        assertTrue(safeMode.currentValue)
+    }
 }

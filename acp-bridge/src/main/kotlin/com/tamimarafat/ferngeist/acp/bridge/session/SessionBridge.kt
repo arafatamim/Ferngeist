@@ -81,10 +81,9 @@ class SessionBridge(
             else -> {
                 connectionManager?.setSessionConfigOption(sessionId, optionId, value)
                 runtime.onEvent(
-                    AppSessionEvent.ConfigOptionsUpdated(
-                        options = snapshot.value.configOptions.map { current ->
-                            current.withUpdatedValue(value, optionId)
-                        }
+                    AppSessionEvent.ConfigOptionValueChanged(
+                        optionId = optionId,
+                        value = value,
                     )
                 )
             }
@@ -153,6 +152,10 @@ sealed interface AppSessionEvent {
     data class ConfigOptionsUpdated(
         val options: List<SessionConfigOption>,
     ) : AppSessionEvent
+    data class ConfigOptionValueChanged(
+        val optionId: String,
+        val value: SessionConfigValue,
+    ) : AppSessionEvent
     data class LegacyModelOptionsUpdated(
         val choices: List<SessionConfigChoice>,
         val currentModelId: String? = null,
@@ -194,21 +197,3 @@ data class SessionPermissionOption(
     val label: String,
     val kind: String? = null,
 )
-
-private fun SessionConfigOption.withUpdatedValue(
-    value: SessionConfigValue,
-    optionId: String
-): SessionConfigOption {
-    if (id != optionId) return this
-    return when (this) {
-        is SessionConfigOption.Select -> copy(
-            currentValue = (value as? SessionConfigValue.StringValue)?.value ?: currentValue,
-        )
-
-        is SessionConfigOption.BooleanOption -> copy(
-            currentValue = (value as? SessionConfigValue.BoolValue)?.value ?: currentValue,
-        )
-
-        is SessionConfigOption.Unknown -> copy(currentValue = value)
-    }
-}
