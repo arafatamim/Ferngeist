@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
@@ -13,8 +14,11 @@ import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal class ChatSessionCoordinator(
     private val scope: CoroutineScope,
@@ -24,6 +28,7 @@ internal class ChatSessionCoordinator(
     private val initialSessionId: String,
     private val cwd: String,
     private val sessionLoadTimeoutMs: Long = 20_000L,
+    private val bridgeRecoveryRetryDelayMs: Long = 3_000L,
     private val trace: (String) -> Unit,
     private val logError: (String, Throwable?) -> Unit,
     private val callbacks: Callbacks,
@@ -44,76 +49,93 @@ internal class ChatSessionCoordinator(
     private var activeSessionId: String = initialSessionId
     private var sessionBridge: SessionBridge? = null
     private var bridgeObserverJobs: List<Job> = emptyList()
+    private var bridgeRecoveryJob: Job? = null
     private var pendingModelSelectionId: String? = null
     private var currentCapabilities: AcpAgentCapabilities? = null
+    private var shouldRecoverBridge: Boolean = false
+    private val bridgeOperationMutex = Mutex()
 
     suspend fun loadSession() {
-        trace("loadSession:start sessionId=$initialSessionId cwd=$cwd")
-        callbacks.onLoadStarted()
+        bridgeOperationMutex.withLock {
+            shouldRecoverBridge = true
+            cancelBridgeRecovery()
+            trace("loadSession:start sessionId=$initialSessionId cwd=$cwd")
+            callbacks.onLoadStarted()
 
-        if (!ensureConnectedAndInitialized()) {
-            callbacks.onLoadFailed("Disconnected. Reconnect to refresh this session.")
-            return
-        }
-
-        publishCapabilities()
-
-        connectionManager.getSession(initialSessionId)?.let { existing ->
-            trace("loadSession:reusingExisting sessionId=$initialSessionId")
-            attachSessionBridge(existing)
-            callbacks.onSessionReady()
-            return
-        }
-
-        val capabilities = currentCapabilities ?: connectionManager.agentCapabilities.value
-        if (capabilities != null && !capabilities.loadSession) {
-            callbacks.onLoadFailed("This agent does not advertise session/load support.")
-            return
-        }
-
-        var loadTimedOut = false
-        val bridge = try {
-            withTimeout(sessionLoadTimeoutMs) {
-                connectionManager.loadSession(
-                    sessionId = initialSessionId,
-                    cwd = cwd,
-                )
-            }
-        } catch (_: TimeoutCancellationException) {
-            loadTimedOut = true
-            null
-        }
-
-        if (bridge != null) {
-            trace("loadSession:bridgeReady requested=$initialSessionId active=${bridge.sessionId}")
-            attachSessionBridge(bridge)
-            return
-        }
-
-        if (loadTimedOut) {
-            val fallbackBridge = runCatching {
-                connectionManager.createSession(cwd)
-            }.getOrNull()
-            if (fallbackBridge != null) {
-                trace("loadSession:fallbackCreated active=${fallbackBridge.sessionId}")
-                attachSessionBridge(fallbackBridge)
-                callbacks.onSessionReady()
-                callbacks.onOperationError(
-                    message = "Server did not acknowledge session/load. Opened a new live session.",
-                    stopStreaming = false,
-                )
+            if (!ensureConnectedAndInitialized()) {
+                callbacks.onLoadFailed("Disconnected. Reconnect to refresh this session.")
                 return
             }
-        }
 
-        val errorMessage = if (loadTimedOut) {
-            "Session load timed out. Check server connection and retry."
-        } else {
-            "Could not load this session. Check connection and retry."
+            publishCapabilities()
+
+            connectionManager.getSession(initialSessionId)?.let { existing ->
+                trace("loadSession:reusingExisting sessionId=$initialSessionId")
+                attachSessionBridge(existing)
+                callbacks.onSessionReady()
+                return
+            }
+
+            val capabilities = currentCapabilities ?: connectionManager.agentCapabilities.value
+            if (capabilities != null && !capabilities.loadSession) {
+                shouldRecoverBridge = false
+                callbacks.onLoadFailed("This agent does not advertise session/load support.")
+                return
+            }
+
+            var loadTimedOut = false
+            val bridge = try {
+                withTimeout(sessionLoadTimeoutMs) {
+                    connectionManager.loadSession(
+                        sessionId = initialSessionId,
+                        cwd = cwd,
+                    )
+                }
+            } catch (_: TimeoutCancellationException) {
+                loadTimedOut = true
+                null
+            }
+
+            if (bridge != null) {
+                trace("loadSession:bridgeReady requested=$initialSessionId active=${bridge.sessionId}")
+                attachSessionBridge(bridge)
+                return
+            }
+
+            if (loadTimedOut) {
+                val fallbackBridge = runCatching {
+                    connectionManager.createSession(cwd)
+                }.getOrNull()
+                if (fallbackBridge != null) {
+                    trace("loadSession:fallbackCreated active=${fallbackBridge.sessionId}")
+                    attachSessionBridge(fallbackBridge)
+                    callbacks.onSessionReady()
+                    callbacks.onOperationError(
+                        message = "Server did not acknowledge session/load. Opened a new live session.",
+                        stopStreaming = false,
+                    )
+                    return
+                }
+            }
+
+            val errorMessage = if (loadTimedOut) {
+                "Session load timed out. Check server connection and retry."
+            } else {
+                "Could not load this session. Check connection and retry."
+            }
+            trace("loadSession:failed timedOut=$loadTimedOut sessionId=$initialSessionId")
+            logError("loadSession failed: bridge is null for sessionId=$initialSessionId", null)
+            callbacks.onLoadFailed(errorMessage)
         }
-        trace("loadSession:failed timedOut=$loadTimedOut sessionId=$initialSessionId")
-        logError("loadSession failed: bridge is null for sessionId=$initialSessionId", null)
-        callbacks.onLoadFailed(errorMessage)
+    }
+
+    fun onConnectionStateChanged(connectionState: AcpConnectionState) {
+        when (connectionState) {
+            is AcpConnectionState.Connected -> scheduleBridgeRecovery()
+            is AcpConnectionState.Connecting,
+            is AcpConnectionState.Disconnected,
+            is AcpConnectionState.Failed -> invalidateActiveBridge()
+        }
     }
 
     suspend fun sendMessage(text: String, images: List<ChatImageData>) {
@@ -195,6 +217,8 @@ internal class ChatSessionCoordinator(
     }
 
     fun clear() {
+        cancelBridgeRecovery()
+        invalidateActiveBridge()
         clearBridgeObservers()
     }
 
@@ -222,6 +246,7 @@ internal class ChatSessionCoordinator(
                 true
             }
             is AcpInitializeResult.AuthenticationRequired -> {
+                shouldRecoverBridge = false
                 callbacks.onLoadFailed(
                     "ACP authentication is required for this server. Reconnect from the server list and choose an auth method.",
                 )
@@ -236,6 +261,8 @@ internal class ChatSessionCoordinator(
         activeSessionId = bridge.sessionId
         sessionBridge = bridge
         pendingModelSelectionId = null
+        shouldRecoverBridge = true
+        cancelBridgeRecovery()
     }
 
     private suspend fun attachSessionBridge(bridge: SessionBridge) {
@@ -315,6 +342,76 @@ internal class ChatSessionCoordinator(
         attachSessionBridge(created)
         callbacks.onSessionReady()
         return created
+    }
+
+    private fun scheduleBridgeRecovery() {
+        if (!shouldRecoverBridge || sessionBridge != null || bridgeRecoveryJob != null) return
+
+        bridgeRecoveryJob = scope.launch {
+            try {
+                while (shouldRecoverBridge && sessionBridge == null) {
+                    if (!connectionManager.isConnected) break
+
+                    val recoveredBridge = bridgeOperationMutex.withLock {
+                        if (sessionBridge != null) {
+                            sessionBridge
+                        } else {
+                            recoverSessionBridge()
+                        }
+                    }
+                    if (recoveredBridge != null) {
+                        trace("recoverSessionBridge:recovered sessionId=${recoveredBridge.sessionId}")
+                        callbacks.onSessionReady()
+                        break
+                    }
+
+                    delay(bridgeRecoveryRetryDelayMs)
+                }
+            } finally {
+                bridgeRecoveryJob = null
+            }
+        }
+    }
+
+    private fun cancelBridgeRecovery() {
+        bridgeRecoveryJob?.cancel()
+        bridgeRecoveryJob = null
+    }
+
+    private fun invalidateActiveBridge() {
+        sessionBridge = null
+        pendingModelSelectionId = null
+        clearBridgeObservers()
+    }
+
+    private suspend fun recoverSessionBridge(): SessionBridge? {
+        connectionManager.getSession(activeSessionId)?.let { existing ->
+            attachSessionBridge(existing)
+            return existing
+        }
+
+        publishCapabilities()
+        val capabilities = currentCapabilities ?: connectionManager.agentCapabilities.value
+        if (capabilities != null && !capabilities.loadSession) {
+            val created = runCatching { connectionManager.createSession(cwd) }.getOrNull() ?: return null
+            attachSessionBridge(created)
+            return created
+        }
+
+        val recovered = try {
+            withTimeout(sessionLoadTimeoutMs) {
+                connectionManager.loadSession(
+                    sessionId = activeSessionId,
+                    cwd = cwd,
+                )
+            }
+        } catch (_: TimeoutCancellationException) {
+            null
+        }
+        if (recovered != null) {
+            attachSessionBridge(recovered)
+        }
+        return recovered
     }
 
     private suspend fun requireActiveBridge(action: String): SessionBridge? {

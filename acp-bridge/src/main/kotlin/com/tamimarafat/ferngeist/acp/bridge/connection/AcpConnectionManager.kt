@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 
 class AcpConnectionManager(
     private val connectivityObserver: ConnectivityObserver,
@@ -63,6 +64,24 @@ class AcpConnectionManager(
         updateConnectionState = { state -> _connectionState.value = state },
         emitManagerEvent = { event -> _events.emit(event) },
     )
+
+    init {
+        scope.launch {
+            events.collect { event ->
+                when (event) {
+                    is AcpManagerEvent.Initialized -> {
+                        _agentCapabilities.value = event.result.agentCapabilities
+                    }
+
+                    is AcpManagerEvent.Disconnected -> {
+                        _agentCapabilities.value = null
+                    }
+
+                    else -> Unit
+                }
+            }
+        }
+    }
 
     val isConnected: Boolean
         get() = _connectionState.value is AcpConnectionState.Connected

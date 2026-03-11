@@ -170,7 +170,26 @@ class ChatViewModel @Inject constructor(
         }
         viewModelScope.launch {
             connectionManager.connectionState.collect { connectionState ->
-                updateState { copy(connectionState = connectionState) }
+                updateState {
+                    copy(
+                        connectionState = connectionState,
+                        isSessionReady = if (
+                            connectionState is AcpConnectionState.Connected
+                        ) {
+                            isSessionReady
+                        } else {
+                            false
+                        },
+                        isStreaming = if (
+                            connectionState is AcpConnectionState.Connected
+                        ) {
+                            isStreaming
+                        } else {
+                            false
+                        },
+                    )
+                }
+                sessionCoordinator.onConnectionStateChanged(connectionState)
             }
         }
         viewModelScope.launch {
