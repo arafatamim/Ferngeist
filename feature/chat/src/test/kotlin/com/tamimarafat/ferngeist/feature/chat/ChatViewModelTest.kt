@@ -95,21 +95,6 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `toggle tool call expansion adds and removes ids`() = runTest {
-        val viewModel = createViewModel()
-
-        advanceUntilIdle()
-
-        viewModel.dispatch(ChatIntent.ToggleToolCallExpansion("tool_1"))
-        advanceUntilIdle()
-        assertTrue("tool_1" in viewModel.state.value.expandedToolCalls)
-
-        viewModel.dispatch(ChatIntent.ToggleToolCallExpansion("tool_1"))
-        advanceUntilIdle()
-        assertFalse("tool_1" in viewModel.state.value.expandedToolCalls)
-    }
-
-    @Test
     fun `restores persisted scroll snapshot into initial state`() = runTest {
         val chatScrollStateStore = InMemoryChatScrollStateStore().apply {
             save(

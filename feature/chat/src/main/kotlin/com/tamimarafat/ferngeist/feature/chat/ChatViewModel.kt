@@ -252,7 +252,6 @@ class ChatViewModel @Inject constructor(
             is ChatIntent.SetConfigOption -> sessionCoordinator.setConfigOption(intent.optionId, intent.value)
             is ChatIntent.GrantPermission -> sessionCoordinator.grantPermission(intent.toolCallId, intent.optionId)
             is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
-            is ChatIntent.ToggleToolCallExpansion -> toggleToolCallExpansion(intent.toolCallId)
             is ChatIntent.RetryLoad -> sessionCoordinator.loadSession()
         }
     }
@@ -279,18 +278,6 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun toggleToolCallExpansion(toolCallId: String) {
-        updateState {
-            copy(
-                expandedToolCalls = if (expandedToolCalls.contains(toolCallId)) {
-                    expandedToolCalls - toolCallId
-                } else {
-                    expandedToolCalls + toolCallId
-                }
-            )
-        }
-    }
-
 }
 data class ChatState(
     val messages: List<ChatMessage> = emptyList(),
@@ -306,7 +293,6 @@ data class ChatState(
     val usage: UsageState? = null,
     val availableCommands: List<String> = emptyList(),
     val commandsAdvertised: Boolean = false,
-    val expandedToolCalls: Set<String> = emptySet(),
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
     val error: String? = null,
@@ -327,7 +313,6 @@ sealed interface ChatIntent {
     data class SetConfigOption(val optionId: String, val value: SessionConfigValue) : ChatIntent
     data class GrantPermission(val toolCallId: String, val optionId: String) : ChatIntent
     data class DenyPermission(val toolCallId: String) : ChatIntent
-    data class ToggleToolCallExpansion(val toolCallId: String) : ChatIntent
     data object RetryLoad : ChatIntent
 }
 

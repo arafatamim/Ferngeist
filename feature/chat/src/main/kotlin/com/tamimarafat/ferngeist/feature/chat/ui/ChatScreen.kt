@@ -684,6 +684,7 @@ fun ChatScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedConfigPickerOptionId by remember { mutableStateOf<String?>(null) }
+    var selectedToolCallSegmentId by remember { mutableStateOf<String?>(null) }
     var showCommandsDialog by remember { mutableStateOf(false) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
     var composerContentHeightPx by remember { mutableIntStateOf(0) }
@@ -745,6 +746,12 @@ fun ChatScreen(
         modeOption?.displayValueLabel()?.uppercase() ?: "MODE"
     }
     val renderedMessages = state.messages
+    val selectedToolCall = remember(renderedMessages, selectedToolCallSegmentId) {
+        renderedMessages.toolCallForSegment(selectedToolCallSegmentId)
+    }
+    val activePermissionRequest = remember(renderedMessages) {
+        renderedMessages.latestPendingPermissionRequest()
+    }
     val renderedLastMessageId = renderedMessages.lastOrNull()?.id
     val contentAnchor = remember(renderedMessages, state.isStreaming) {
         val last = renderedMessages.lastOrNull()
@@ -872,6 +879,15 @@ fun ChatScreen(
                             selectedConfigPickerOptionId = null
                         },
                         onDismissConfigPicker = { selectedConfigPickerOptionId = null },
+                        selectedToolCall = selectedToolCall,
+                        onDismissToolCall = { selectedToolCallSegmentId = null },
+                        activePermissionRequest = activePermissionRequest,
+                        onPermissionGrant = { toolCallId, optionId ->
+                            viewModel.dispatch(ChatIntent.GrantPermission(toolCallId, optionId))
+                        },
+                        onPermissionDeny = { toolCallId ->
+                            viewModel.dispatch(ChatIntent.DenyPermission(toolCallId))
+                        },
                         showConnectionStatusDialog = showConnectionStatusDialog,
                         connectionState = state.connectionState,
                         diagnostics = state.connectionDiagnostics,
@@ -896,14 +912,8 @@ fun ChatScreen(
                         renderedLastMessageId = renderedLastMessageId,
                         listBottomPadding = listBottomPadding,
                         onRetryLoad = { viewModel.dispatch(ChatIntent.RetryLoad) },
-                        onToggleToolCall = { toolCallId ->
-                            viewModel.dispatch(ChatIntent.ToggleToolCallExpansion(toolCallId))
-                        },
-                        onGrantPermission = { toolCallId, optionId ->
-                            viewModel.dispatch(ChatIntent.GrantPermission(toolCallId, optionId))
-                        },
-                        onDenyPermission = { toolCallId ->
-                            viewModel.dispatch(ChatIntent.DenyPermission(toolCallId))
+                        onToolCallClick = { segmentId ->
+                            selectedToolCallSegmentId = segmentId
                         },
                     )
 

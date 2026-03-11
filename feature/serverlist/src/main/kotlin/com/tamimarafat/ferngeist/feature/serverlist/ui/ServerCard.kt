@@ -140,10 +140,6 @@ internal fun ServerCard(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
         ) {
-//            AnimatedVisibility(visible = connectionState.isConnecting) {
-//                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-//            }
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

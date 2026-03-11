@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -25,13 +24,11 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalContentColor
@@ -39,7 +36,6 @@ import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -49,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
@@ -66,10 +63,7 @@ fun MessageBubble(
     message: ChatMessage,
     markdownStates: Map<String, MarkdownRenderState>,
     showStreamingIndicator: Boolean,
-    expandedToolCalls: Set<String>,
-    onToolCallToggle: (String) -> Unit,
-    onPermissionGrant: (String, String) -> Unit,
-    onPermissionDeny: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
@@ -104,10 +98,7 @@ fun MessageBubble(
                 message = message,
                 markdownStates = markdownStates,
                 showStreamingIndicator = showStreamingIndicator,
-                expandedToolCalls = expandedToolCalls,
-                onToolCallToggle = onToolCallToggle,
-                onPermissionGrant = onPermissionGrant,
-                onPermissionDeny = onPermissionDeny,
+                onToolCallClick = onToolCallClick,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -144,10 +135,7 @@ private fun AssistantMessageContent(
     message: ChatMessage,
     markdownStates: Map<String, MarkdownRenderState>,
     showStreamingIndicator: Boolean,
-    expandedToolCalls: Set<String>,
-    onToolCallToggle: (String) -> Unit,
-    onPermissionGrant: (String, String) -> Unit,
-    onPermissionDeny: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -171,10 +159,7 @@ private fun AssistantMessageContent(
                         segment.toolCall?.let { toolCall ->
                             ToolCallCard(
                                 toolCall = toolCall,
-                                isExpanded = expandedToolCalls.contains(toolCall.toolCallId),
-                                onToggle = { onToolCallToggle(toolCall.toolCallId ?: "") },
-                                onPermissionGrant = onPermissionGrant,
-                                onPermissionDeny = onPermissionDeny
+                                onClick = { onToolCallClick(segment.id) },
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -321,18 +306,15 @@ private fun PlanBubble(
 @Composable
 private fun ToolCallCard(
     toolCall: ToolCallDisplay,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
-    onPermissionGrant: (String, String) -> Unit,
-    onPermissionDeny: (String) -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
         ),
-        shape = AbsoluteRoundedCornerShape(12.dp),
+        shape = CardDefaults.shape,
         modifier = modifier.fillMaxWidth()
     ) {
         Column {
@@ -340,7 +322,7 @@ private fun ToolCallCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggle() }
+                    .clickable { onClick() }
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -369,7 +351,9 @@ private fun ToolCallCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = toolCall.title.ifBlank { "Tool Call" },
-                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                     )
                     toolCall.kind?.let { kind ->
@@ -383,91 +367,20 @@ private fun ToolCallCard(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Show tool call details",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
-
-            // Expanded content
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp)
-                ) {
-                    HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
-                    
-                    // Output
-                    (toolCall.output ?: toolCall.rawOutput)?.let { output ->
-                        SelectionContainer() {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                shape = RoundedCornerShape(4.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = output,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(8.dp),
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-
-                    // Permission options
-                    val permissionOptions = toolCall.permissionOptions
-                    if (!permissionOptions.isNullOrEmpty()) {
-                        val toolCallId = toolCall.toolCallId
-                        Text(
-                            text = "Permission Required:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        permissionOptions.forEach { option ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = option.label,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Row {
-                                    if (toolCallId != null) {
-                                        TextButton(
-                                            onClick = { onPermissionDeny(toolCallId) }
-                                        ) {
-                                            Text("Deny")
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Button(
-                                            onClick = { onPermissionGrant(toolCallId, option.id) }
-                                        ) {
-                                            Text("Grant")
-                                        }
-                                    } else {
-                                        Text(
-                                            text = "Unavailable",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            if (!toolCall.permissionOptions.isNullOrEmpty()) {
+                Text(
+                    text = "Awaiting permission response",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 56.dp, end = 12.dp, bottom = 12.dp),
+                )
             }
         }
     }

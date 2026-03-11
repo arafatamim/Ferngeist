@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
-
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.DropdownMenuGroup
@@ -49,9 +48,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -87,6 +89,9 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.tamimarafat.ferngeist.acp.bridge.session.displayValueLabel
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
+import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
+import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.UsageState
 
@@ -95,6 +100,11 @@ internal fun ChatScreenDialogs(
     selectedConfigPickerOption: SessionConfigOption.Select?,
     onConfigOptionSelected: (String, String) -> Unit,
     onDismissConfigPicker: () -> Unit,
+    selectedToolCall: ToolCallDisplay?,
+    onDismissToolCall: () -> Unit,
+    activePermissionRequest: PendingPermissionRequest?,
+    onPermissionGrant: (String, String) -> Unit,
+    onPermissionDeny: (String) -> Unit,
     showConnectionStatusDialog: Boolean,
     connectionState: AcpConnectionState,
     diagnostics: ConnectionDiagnostics,
@@ -112,6 +122,21 @@ internal fun ChatScreenDialogs(
                 onConfigOptionSelected(selectedConfigPickerOption.id, value)
             },
             onDismiss = onDismissConfigPicker,
+        )
+    }
+
+    selectedToolCall?.let { toolCall ->
+        ToolCallDetailsSheet(
+            toolCall = toolCall,
+            onDismiss = onDismissToolCall,
+        )
+    }
+
+    activePermissionRequest?.let { request ->
+        PermissionRequestSheet(
+            request = request,
+            onGrantPermission = onPermissionGrant,
+            onDenyPermission = onPermissionDeny,
         )
     }
 
@@ -144,9 +169,7 @@ internal fun ChatScreenBody(
     renderedLastMessageId: String?,
     listBottomPadding: Dp,
     onRetryLoad: () -> Unit,
-    onToggleToolCall: (String) -> Unit,
-    onGrantPermission: (String, String) -> Unit,
-    onDenyPermission: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
 ) {
     when {
         state.isLoading && state.messages.isEmpty() -> {
@@ -172,9 +195,7 @@ internal fun ChatScreenBody(
                 userScrollDetector = userScrollDetector,
                 renderedLastMessageId = renderedLastMessageId,
                 listBottomPadding = listBottomPadding,
-                onToggleToolCall = onToggleToolCall,
-                onGrantPermission = onGrantPermission,
-                onDenyPermission = onDenyPermission,
+                onToolCallClick = onToolCallClick,
             )
         }
     }
@@ -216,9 +237,7 @@ private fun ChatMessageList(
     userScrollDetector: NestedScrollConnection,
     renderedLastMessageId: String?,
     listBottomPadding: Dp,
-    onToggleToolCall: (String) -> Unit,
-    onGrantPermission: (String, String) -> Unit,
-    onDenyPermission: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
 ) {
     LazyColumn(
         state = listState,
@@ -233,14 +252,187 @@ private fun ChatMessageList(
                 message = message,
                 markdownStates = state.markdownStates,
                 showStreamingIndicator = state.isStreaming && message.id == renderedLastMessageId,
-                expandedToolCalls = state.expandedToolCalls,
-                onToolCallToggle = onToggleToolCall,
-                onPermissionGrant = onGrantPermission,
-                onPermissionDeny = onDenyPermission,
+                onToolCallClick = onToolCallClick,
             )
         }
         item(key = "__chat_bottom_spacer") {
             Spacer(modifier = Modifier.height(listBottomPadding))
+        }
+    }
+}
+
+internal data class PendingPermissionRequest(
+    val toolCallId: String,
+    val requestId: String?,
+    val title: String,
+    val kind: String?,
+    val options: List<AcpPermissionOption>,
+)
+
+internal fun List<ChatMessage>.latestPendingPermissionRequest(): PendingPermissionRequest? {
+    return asReversed().firstNotNullOfOrNull { message ->
+        message.segments.asReversed().firstNotNullOfOrNull { segment ->
+            val toolCall = segment.toolCall ?: return@firstNotNullOfOrNull null
+            val toolCallId = toolCall.toolCallId ?: return@firstNotNullOfOrNull null
+            val permissionOptions = toolCall.permissionOptions?.takeIf { it.isNotEmpty() }
+                ?: return@firstNotNullOfOrNull null
+            PendingPermissionRequest(
+                toolCallId = toolCallId,
+                requestId = toolCall.permissionRequestId,
+                title = toolCall.title.ifBlank { "Permission Request" },
+                kind = toolCall.kind,
+                options = permissionOptions,
+            )
+        }
+    }
+}
+
+internal fun List<ChatMessage>.toolCallForSegment(segmentId: String?): ToolCallDisplay? {
+    val targetId = segmentId ?: return null
+    return asReversed().firstNotNullOfOrNull { message ->
+        message.segments.asReversed().firstOrNull { it.id == targetId }?.toolCall
+    }
+}
+
+@Composable
+private fun PermissionRequestSheet(
+    request: PendingPermissionRequest,
+    onGrantPermission: (String, String) -> Unit,
+    onDenyPermission: (String) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { value -> value != SheetValue.Hidden },
+    )
+    ModalBottomSheet(
+        onDismissRequest = {},
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = "Permission Required",
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = request.title,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                request.kind?.takeIf { it.isNotBlank() }?.let { kind ->
+                    Text(
+                        text = kind,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = "The agent is waiting for your approval before it can continue.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                request.options.forEach { option ->
+                    OutlinedButton(
+                        onClick = { onGrantPermission(request.toolCallId, option.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = option.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                text = option.kind,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+            TextButton(
+                onClick = { onDenyPermission(request.toolCallId) },
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text("Deny")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolCallDetailsSheet(
+    toolCall: ToolCallDisplay,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = toolCall.title.ifBlank { "Tool Call" },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                toolCall.kind?.takeIf { it.isNotBlank() }?.let { kind ->
+                    Text(
+                        text = kind,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                    )
+                }
+                toolCall.status?.takeIf { it.isNotBlank() }?.let { status ->
+                    Text(
+                        text = status.replace('_', ' '),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (!toolCall.permissionOptions.isNullOrEmpty()) {
+                Text(
+                    text = "Awaiting permission response",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            (toolCall.output ?: toolCall.rawOutput)?.takeIf { it.isNotBlank() }?.let { output ->
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = output,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp),
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    )
+                }
+            } ?: Text(
+                text = "No tool output.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
