@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,9 +26,12 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
@@ -90,6 +94,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.tamimarafat.ferngeist.acp.bridge.session.displayValueLabel
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
+import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatState
@@ -100,6 +105,8 @@ internal fun ChatScreenDialogs(
     selectedConfigPickerOption: SessionConfigOption.Select?,
     onConfigOptionSelected: (String, String) -> Unit,
     onDismissConfigPicker: () -> Unit,
+    selectedThought: String?,
+    onDismissThought: () -> Unit,
     selectedToolCall: ToolCallDisplay?,
     onDismissToolCall: () -> Unit,
     activePermissionRequest: PendingPermissionRequest?,
@@ -122,6 +129,13 @@ internal fun ChatScreenDialogs(
                 onConfigOptionSelected(selectedConfigPickerOption.id, value)
             },
             onDismiss = onDismissConfigPicker,
+        )
+    }
+
+    selectedThought?.let { thought ->
+        ThoughtDetailsSheet(
+            thought = thought,
+            onDismiss = onDismissThought,
         )
     }
 
@@ -169,6 +183,7 @@ internal fun ChatScreenBody(
     renderedLastMessageId: String?,
     listBottomPadding: Dp,
     onRetryLoad: () -> Unit,
+    onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
 ) {
     when {
@@ -195,6 +210,7 @@ internal fun ChatScreenBody(
                 userScrollDetector = userScrollDetector,
                 renderedLastMessageId = renderedLastMessageId,
                 listBottomPadding = listBottomPadding,
+                onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
             )
         }
@@ -237,6 +253,7 @@ private fun ChatMessageList(
     userScrollDetector: NestedScrollConnection,
     renderedLastMessageId: String?,
     listBottomPadding: Dp,
+    onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
 ) {
     LazyColumn(
@@ -252,6 +269,7 @@ private fun ChatMessageList(
                 message = message,
                 markdownStates = state.markdownStates,
                 showStreamingIndicator = state.isStreaming && message.id == renderedLastMessageId,
+                onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
             )
         }
@@ -291,6 +309,17 @@ internal fun List<ChatMessage>.toolCallForSegment(segmentId: String?): ToolCallD
     val targetId = segmentId ?: return null
     return asReversed().firstNotNullOfOrNull { message ->
         message.segments.asReversed().firstOrNull { it.id == targetId }?.toolCall
+    }
+}
+
+internal fun List<ChatMessage>.thoughtForSegment(segmentId: String?): String? {
+    val targetId = segmentId ?: return null
+    return asReversed().firstNotNullOfOrNull { message ->
+        message.segments
+            .asReversed()
+            .firstOrNull { it.id == targetId && it.kind == AssistantSegment.Kind.THOUGHT }
+            ?.text
+            ?.takeIf { it.isNotBlank() }
     }
 }
 
@@ -433,6 +462,52 @@ private fun ToolCallDetailsSheet(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun ThoughtDetailsSheet(
+    thought: String,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Reasoning",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = thought,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(12.dp),
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    )
+                }
+            }
         }
     }
 }

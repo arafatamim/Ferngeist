@@ -1,9 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +18,8 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ContainedLoadingIndicator
@@ -37,11 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -63,6 +56,7 @@ fun MessageBubble(
     message: ChatMessage,
     markdownStates: Map<String, MarkdownRenderState>,
     showStreamingIndicator: Boolean,
+    onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -98,6 +92,7 @@ fun MessageBubble(
                 message = message,
                 markdownStates = markdownStates,
                 showStreamingIndicator = showStreamingIndicator,
+                onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -135,6 +130,7 @@ private fun AssistantMessageContent(
     message: ChatMessage,
     markdownStates: Map<String, MarkdownRenderState>,
     showStreamingIndicator: Boolean,
+    onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -152,7 +148,10 @@ private fun AssistantMessageContent(
                         }
                     }
                     AssistantSegment.Kind.THOUGHT -> {
-                        ThoughtBubble(segment.text)
+                        ThoughtBubble(
+                            isStreaming = message.isStreaming && message.segments.lastOrNull()?.id == segment.id,
+                            onClick = { onThoughtClick(segment.id) },
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     AssistantSegment.Kind.TOOL_CALL -> {
@@ -224,50 +223,30 @@ private fun MarkdownText(
 
 @Composable
 private fun ThoughtBubble(
-    text: String,
+    isStreaming: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-
-    Surface(
-        modifier = modifier.fillMaxWidth()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
-                    contentDescription = if (expanded) "Hide reasoning" else "Show reasoning",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Show reasoning",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        Text(
+            text = if (isStreaming) "Reasoning..." else "Reasoning finished",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 4.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = "Show reasoning",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
 
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-        }
     }
 }
 
@@ -368,7 +347,7 @@ private fun ToolCallCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        imageVector = Icons.Rounded.ChevronRight,
                         contentDescription = "Show tool call details",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

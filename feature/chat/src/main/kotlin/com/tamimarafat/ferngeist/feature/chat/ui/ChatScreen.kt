@@ -684,6 +684,7 @@ fun ChatScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedConfigPickerOptionId by remember { mutableStateOf<String?>(null) }
+    var selectedThoughtSegmentId by remember { mutableStateOf<String?>(null) }
     var selectedToolCallSegmentId by remember { mutableStateOf<String?>(null) }
     var showCommandsDialog by remember { mutableStateOf(false) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
@@ -746,6 +747,9 @@ fun ChatScreen(
         modeOption?.displayValueLabel()?.uppercase() ?: "MODE"
     }
     val renderedMessages = state.messages
+    val selectedThought = remember(renderedMessages, selectedThoughtSegmentId) {
+        renderedMessages.thoughtForSegment(selectedThoughtSegmentId)
+    }
     val selectedToolCall = remember(renderedMessages, selectedToolCallSegmentId) {
         renderedMessages.toolCallForSegment(selectedToolCallSegmentId)
     }
@@ -879,6 +883,8 @@ fun ChatScreen(
                             selectedConfigPickerOptionId = null
                         },
                         onDismissConfigPicker = { selectedConfigPickerOptionId = null },
+                        selectedThought = selectedThought,
+                        onDismissThought = { selectedThoughtSegmentId = null },
                         selectedToolCall = selectedToolCall,
                         onDismissToolCall = { selectedToolCallSegmentId = null },
                         activePermissionRequest = activePermissionRequest,
@@ -912,6 +918,9 @@ fun ChatScreen(
                         renderedLastMessageId = renderedLastMessageId,
                         listBottomPadding = listBottomPadding,
                         onRetryLoad = { viewModel.dispatch(ChatIntent.RetryLoad) },
+                        onThoughtClick = { segmentId ->
+                            selectedThoughtSegmentId = segmentId
+                        },
                         onToolCallClick = { segmentId ->
                             selectedToolCallSegmentId = segmentId
                         },
