@@ -695,6 +695,7 @@ fun ChatScreen(
     val systemBottomInsetPx = if (imeBottomPx > navBottomPx) imeBottomPx else navBottomPx
     val showComposerToolbar = !state.isLoading && !(state.error != null && state.messages.isEmpty())
     val composerContentHeightDp = with(density) { composerContentHeightPx.toDp() }
+    val screenWidthDp = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
     val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
     val listBottomPadding = if (!showComposerToolbar) {
         0.dp
@@ -920,7 +921,7 @@ fun ChatScreen(
                             currentModeLabel = currentModeLabel,
                             showStopAction = showStopAction,
                             canCancelStreaming = canCancelStreaming,
-                            screenWidthDp = LocalWindowInfo.current.containerSize.width,
+                            screenWidth = screenWidthDp,
                             focusRequester = focusRequester,
                             onFocusCleared = { focusManager.clearFocus() },
                             onHeightChanged = { composerContentHeightPx = it },

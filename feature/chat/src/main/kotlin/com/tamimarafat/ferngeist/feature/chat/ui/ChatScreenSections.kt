@@ -259,7 +259,7 @@ internal fun ChatComposerBar(
     currentModeLabel: String,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
-    screenWidthDp: Int,
+    screenWidth: Dp,
     focusRequester: FocusRequester,
     onFocusCleared: () -> Unit,
     onHeightChanged: (Int) -> Unit,
@@ -274,15 +274,14 @@ internal fun ChatComposerBar(
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
     val animatedHeight by animateDpAsState(
-        targetValue = if (composerExpanded) 128.dp else 62.dp,
+        targetValue = if (composerExpanded) 142.dp else 62.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium,
         ),
         label = "ComposerHeight",
     )
-    val expandedToolbarWidth = screenWidthDp.dp * 0.97f
-    val collapsedMaxToolbarWidth = screenWidthDp.dp * 0.92f
+    val collapsedMaxToolbarWidth = screenWidth * 0.92f
 
     Surface(
         shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
@@ -291,7 +290,13 @@ internal fun ChatComposerBar(
         shadowElevation = 6.dp,
         modifier = modifier
             .height(animatedHeight)
-            .widthIn(max = if (composerExpanded) expandedToolbarWidth else collapsedMaxToolbarWidth)
+            .then(
+                if (composerExpanded) {
+                    Modifier.fillMaxWidth(0.92f)
+                } else {
+                    Modifier.widthIn(max = collapsedMaxToolbarWidth)
+                }
+            )
             .onSizeChanged { onHeightChanged(it.height) },
     ) {
         Row(
@@ -379,7 +384,7 @@ private fun ExpandedComposerContent(
         modifier = Modifier
             .fillMaxHeight()
             .fillMaxWidth()
-            .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 4.dp)
+            .padding(top = 12.dp, bottom = 12.dp)
             .alpha(inputAlpha),
     ) {
         val selectionColors = TextSelectionColors(
