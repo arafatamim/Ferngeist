@@ -1,5 +1,11 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +22,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -36,8 +41,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
@@ -227,6 +235,13 @@ private fun ThoughtBubble(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val baseColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val textBrush = rememberShimmerTextBrush(
+        isActive = isStreaming,
+        baseColor = baseColor,
+        labelPrefix = "reasoning"
+    )
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -234,16 +249,17 @@ private fun ThoughtBubble(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (isStreaming) "Reasoning..." else "Reasoning finished",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = if (isStreaming) "Reasoning" else "Show Reasoning",
+            style = MaterialTheme.typography.bodySmall.copy(
+                brush = textBrush
+            ),
             modifier = Modifier.padding(vertical = 4.dp)
         )
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
             imageVector = Icons.Rounded.ChevronRight,
             contentDescription = "Show reasoning",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = baseColor,
             modifier = Modifier.size(16.dp),
         )
 
@@ -410,6 +426,12 @@ private fun StreamingIndicator(
         STREAMING_VERBS[Random.nextInt(STREAMING_VERBS.size)]
     }
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
+    val baseColor = LocalContentColor.current.copy(alpha = 0.8f)
+    val textBrush = rememberShimmerTextBrush(
+        isActive = true,
+        baseColor = baseColor,
+        labelPrefix = "spinnerVerb"
+    )
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
@@ -421,8 +443,9 @@ private fun StreamingIndicator(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "$spinnerVerb...",
-            style = MaterialTheme.typography.bodyMedium,
-            color = LocalContentColor.current.copy(alpha = 0.8f)
+            style = MaterialTheme.typography.bodyMedium.copy(
+                brush = textBrush
+            )
         )
     }
 }
@@ -502,3 +525,39 @@ private val LOADING_SHAPES = listOf(
 
 private fun pickLoadingPolygons(seedKey: String) =
     LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(6)
+
+@Composable
+private fun rememberShimmerTextBrush(
+    isActive: Boolean,
+    baseColor: Color,
+    labelPrefix: String,
+): Brush {
+    val shimmerTransition = rememberInfiniteTransition(label = "${labelPrefix}Shimmer")
+    val shimmerOffset = if (isActive) {
+        shimmerTransition.animateFloat(
+            initialValue = -200f,
+            targetValue = 600f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "${labelPrefix}ShimmerOffset",
+        ).value
+    } else {
+        0f
+    }
+
+    return if (isActive) {
+        Brush.linearGradient(
+            colors = listOf(
+                baseColor.copy(alpha = 0.45f),
+                baseColor.copy(alpha = 0.95f),
+                baseColor.copy(alpha = 0.45f),
+            ),
+            start = Offset(shimmerOffset - 200f, 0f),
+            end = Offset(shimmerOffset, 0f),
+        )
+    } else {
+        SolidColor(baseColor)
+    }
+}
