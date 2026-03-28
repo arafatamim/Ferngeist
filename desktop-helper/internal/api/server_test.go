@@ -81,6 +81,54 @@ func TestStatusIncludesProtocolVersion(t *testing.T) {
 	}
 }
 
+func TestStatusRejectsNonGetMethods(t *testing.T) {
+	server := newTestServer()
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/status", nil)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusMethodNotAllowed)
+	}
+
+	var response errorResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if response.Error != "method not allowed" {
+		t.Fatalf("error = %q, want %q", response.Error, "method not allowed")
+	}
+}
+
+func TestStatusUsesConfiguredHelperName(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := NewServer(
+		config.Config{ListenAddr: "127.0.0.1:0", HelperName: "desk-alpha"},
+		BuildInfo{},
+		logger,
+		catalog.NewWithBaseDir("."),
+		runtime.NewSupervisor(logger),
+		pairing.NewService(logger, nil),
+		gateway.New(logger, nil),
+		discovery.New(logger),
+		nil,
+		nil,
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+
+	var response statusResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if response.Name != "desk-alpha" {
+		t.Fatalf("Name = %q, want %q", response.Name, "desk-alpha")
+	}
+}
+
 func TestStatusIncludesRegistryHealth(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	server := NewServer(
@@ -395,6 +443,20 @@ func TestAgentsEndpointIncludesRuntimeState(t *testing.T) {
 	}
 	if mockAgent.RuntimeStatus != "running" {
 		t.Fatalf("RuntimeStatus = %q, want %q", mockAgent.RuntimeStatus, "running")
+	}
+}
+
+func TestAgentsRejectsNonGetMethods(t *testing.T) {
+	server := newTestServer()
+	token := pairDevice(t, server)
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/agents", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -859,11 +921,11 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	foundStdinPayload := false
 	for _, entry := range logsResponse.Logs {
 		switch {
-		case entry.Stream == "stdout" && strings.Contains(entry.Message, "mock stdio ACP agent connected"):
+		case entry.Stream == "acp.stdout" && strings.Contains(entry.Message, "mock stdio ACP agent connected"):
 			foundStdoutReady = true
-		case entry.Stream == "stdout" && entry.Message == string(payload):
+		case entry.Stream == "acp.stdout" && entry.Message == string(payload):
 			foundStdoutEcho = true
-		case entry.Stream == "stdin" && entry.Message == string(payload):
+		case entry.Stream == "acp.stdin" && entry.Message == string(payload):
 			foundStdinPayload = true
 		}
 	}

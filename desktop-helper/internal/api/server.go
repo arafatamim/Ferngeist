@@ -257,11 +257,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
 	summary := s.runtime.Summary()
 	now := s.now()
 	writeJSON(w, http.StatusOK, statusResponse{
-		Name:              "ferngeist-helper",
+		Name:              s.helperDisplayName(),
 		Version:           s.build.Version,
 		Build:             s.build,
 		ProtocolVersion:   protocolVersion,
@@ -288,6 +293,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 // handleAgents merges static catalog data with live runtime state so clients do
 // not need to reconstruct helper policy from multiple endpoints.
 func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
 	if _, ok := s.requireHelperCredential(w, r); !ok {
 		return
 	}
@@ -350,7 +359,7 @@ func (s *Server) handleDiagnosticsExport(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, diagnosticsExportResponse{
 		GeneratedAt: s.now(),
 		Helper: diagnosticsHelperSnapshot{
-			Name:            "ferngeist-helper",
+			Name:            s.helperDisplayName(),
 			Version:         s.build.Version,
 			Build:           s.build,
 			ProtocolVersion: protocolVersion,
@@ -629,6 +638,13 @@ func absoluteWebSocketURL(r *http.Request, path, token string) string {
 	return fmt.Sprintf("%s://%s", websocketScheme(r), websocketHostWithPath(r, path, token))
 }
 
+func (s *Server) helperDisplayName() string {
+	if name := strings.TrimSpace(s.cfg.HelperName); name != "" {
+		return name
+	}
+	return "ferngeist-helper"
+}
+
 func (s *Server) remoteStatus(includePublicURL bool) remoteStatus {
 	publicBaseURL := strings.TrimSpace(s.cfg.PublicBaseURL)
 	status := remoteStatus{
@@ -698,7 +714,7 @@ func isPrivateHostname(host string) bool {
 
 // proxyWebSocketToStdio adapts ACP-over-WebSocket client messages into the
 // newline-delimited stdio framing used by CLI ACP servers. It also mirrors the
-// raw client payload into the runtime log buffer as `stdin` traffic.
+// raw client payload into the runtime log buffer as `acp.stdin` traffic.
 func proxyWebSocketToStdio(src *websocket.Conn, dst io.WriteCloser, runtimeID string, appendLog func(string, string, string), done chan<- error) {
 	for {
 		messageType, payload, err := src.ReadMessage()
@@ -710,7 +726,7 @@ func proxyWebSocketToStdio(src *websocket.Conn, dst io.WriteCloser, runtimeID st
 			continue
 		}
 		if appendLog != nil {
-			appendLog(runtimeID, "stdin", string(payload))
+			appendLog(runtimeID, "acp.stdin", string(payload))
 		}
 		if _, err := dst.Write(append(payload, '\n')); err != nil {
 			done <- err
@@ -721,7 +737,7 @@ func proxyWebSocketToStdio(src *websocket.Conn, dst io.WriteCloser, runtimeID st
 
 // proxyStdioToWebSocket performs the reverse adaptation by streaming each stdio
 // line as one WebSocket text frame. Each line is also mirrored into the runtime
-// log buffer as `stdout` traffic before being forwarded to the client.
+// log buffer as `acp.stdout` traffic before being forwarded to the client.
 func proxyStdioToWebSocket(src io.Reader, dst *websocket.Conn, runtimeID string, appendLog func(string, string, string), done chan<- error) {
 	scanner := bufio.NewScanner(src)
 	buffer := make([]byte, 0, 64*1024)
@@ -730,7 +746,7 @@ func proxyStdioToWebSocket(src io.Reader, dst *websocket.Conn, runtimeID string,
 	for scanner.Scan() {
 		line := scanner.Text()
 		if appendLog != nil {
-			appendLog(runtimeID, "stdout", line)
+			appendLog(runtimeID, "acp.stdout", line)
 		}
 		if err := dst.WriteMessage(websocket.TextMessage, []byte(line)); err != nil {
 			done <- err
