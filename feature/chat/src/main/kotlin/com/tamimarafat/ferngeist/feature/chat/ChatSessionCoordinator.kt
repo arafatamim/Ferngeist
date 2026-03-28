@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.feature.chat.BuildConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
@@ -281,34 +282,35 @@ internal class ChatSessionCoordinator(
             scope.launch {
                 var lastSignature: String? = null
                 bridge.snapshot.collect { snapshot ->
-                    val signature = buildString {
-                        append("state=")
-                        append(snapshot.loadState)
-                        append(" messages=")
-                        append(snapshot.messages.size)
-                        append(" streaming=")
-                        append(snapshot.isStreaming)
-                        append(" lastId=")
-                        append(snapshot.messages.lastOrNull()?.id)
-                        append(" lastRole=")
-                        append(snapshot.messages.lastOrNull()?.role)
-                        append(" lastLen=")
-                        append(snapshot.messages.lastOrNull()?.content?.length ?: 0)
-                        append(" commands=")
-                        append(snapshot.availableCommands.size)
-                        append(" configOptions=")
-                        append(snapshot.configOptions.size)
-                    }
-                    if (signature != lastSignature) {
-                        trace("snapshot session=${bridge.sessionId} $signature")
-                        lastSignature = signature
+                    if (BuildConfig.DEBUG) {
+                        val signature = buildString {
+                            append("state=")
+                            append(snapshot.loadState)
+                            append(" messages=")
+                            append(snapshot.messages.size)
+                            append(" streaming=")
+                            append(snapshot.isStreaming)
+                            append(" lastId=")
+                            append(snapshot.messages.lastOrNull()?.id)
+                            append(" lastRole=")
+                            append(snapshot.messages.lastOrNull()?.role)
+                            append(" lastLen=")
+                            append(snapshot.messages.lastOrNull()?.content?.length ?: 0)
+                            append(" commands=")
+                            append(snapshot.availableCommands.size)
+                            append(" configOptions=")
+                            append(snapshot.configOptions.size)
+                        }
+                        if (signature != lastSignature) {
+                            trace("snapshot session=${bridge.sessionId} $signature")
+                            lastSignature = signature
+                        }
                     }
                     callbacks.onSnapshot(snapshot)
                 }
             },
             scope.launch {
                 bridge.events.collect { event ->
-                    trace("event session=${bridge.sessionId} type=${event::class.simpleName}")
                     handleBridgeEvent(event)
                 }
             }

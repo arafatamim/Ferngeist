@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import android.util.Log
+import com.tamimarafat.ferngeist.feature.chat.BuildConfig
 import com.mikepenz.markdown.model.State as MarkdownRenderState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
@@ -265,6 +266,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun trace(message: String) {
+        if (!BuildConfig.DEBUG) return
         runCatching { Log.d(TRACE_TAG, message) }
     }
 
