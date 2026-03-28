@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -114,7 +116,9 @@ class ServerListViewModel @Inject constructor(
                 preferredAuthMethodId = server.preferredAuthMethodId,
             )
 
-            val connected = connectionManager.connect(config)
+            val connected = withContext(Dispatchers.IO) {
+                connectionManager.connect(config)
+            }
             if (!connected) {
                 _uiState.update {
                     it.copy(
@@ -128,7 +132,9 @@ class ServerListViewModel @Inject constructor(
             }
 
             // Step 2: Initialize and get agent info
-            val initializeResult = connectionManager.initialize()
+            val initializeResult = withContext(Dispatchers.IO) {
+                connectionManager.initialize()
+            }
             if (initializeResult == null) {
                 _uiState.update {
                     it.copy(
@@ -197,7 +203,9 @@ class ServerListViewModel @Inject constructor(
                 )
             }
 
-            when (val result = connectionManager.authenticate(methodId)) {
+            when (val result = withContext(Dispatchers.IO) {
+                connectionManager.authenticate(methodId)
+            }) {
                 is AcpAuthenticateResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -213,7 +221,9 @@ class ServerListViewModel @Inject constructor(
                 AcpAuthenticateResult.Success -> Unit
             }
 
-            val server = serverRepository.getServer(serverId)
+            val server = withContext(Dispatchers.IO) {
+                serverRepository.getServer(serverId)
+            }
             if (server != null) {
                 savePreferredAuthMethod(server, methodId)
             }
@@ -248,7 +258,9 @@ class ServerListViewModel @Inject constructor(
 
     fun deleteServer(serverId: String) {
         viewModelScope.launch {
-            serverRepository.deleteServer(serverId)
+            withContext(Dispatchers.IO) {
+                serverRepository.deleteServer(serverId)
+            }
             // If we were connected to this server, disconnect
             if (_uiState.value.connectedServerState?.serverId == serverId) {
                 disconnect()
@@ -300,7 +312,9 @@ class ServerListViewModel @Inject constructor(
 
     private suspend fun savePreferredAuthMethod(server: ServerConfig, methodId: String) {
         if (server.preferredAuthMethodId == methodId) return
-        serverRepository.updateServer(server.copy(preferredAuthMethodId = methodId))
+        withContext(Dispatchers.IO) {
+            serverRepository.updateServer(server.copy(preferredAuthMethodId = methodId))
+        }
     }
 
     private suspend fun openConnectedServer(serverId: String) {

@@ -110,15 +110,15 @@ import com.tamimarafat.ferngeist.feature.chat.ui.AutoScrollConfig.RESUME_TOLERAN
 import com.tamimarafat.ferngeist.feature.chat.ui.AutoScrollConfig.STREAM_FOLLOW_TICK_MS
 import com.tamimarafat.ferngeist.feature.chat.ui.AutoScrollConfig.USER_RESUME_IDLE_MS
 import com.tamimarafat.ferngeist.feature.chat.ui.AutoScrollConfig.USER_SCROLL_SIGNAL_WINDOW_MS
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 // region: Auto-Scroll Configuration
@@ -256,10 +256,14 @@ private class AutoScrollManager(
 ) {
     private val _state = MutableStateFlow<AutoScrollState>(AutoScrollState.Following)
 
-    private val _sideEffects = Channel<ScrollSideEffect>(Channel.BUFFERED)
-    val sideEffectFlow: Flow<ScrollSideEffect> = _sideEffects.receiveAsFlow()
+    private val _sideEffects = MutableSharedFlow<ScrollSideEffect>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val sideEffectFlow: Flow<ScrollSideEffect> = _sideEffects
 
     private var lastUserScrollTimeMs = 0L
+    private var lastInsetsFollowTimeMs = 0L
     private var isProgrammaticScrolling = false
     private var hasHandledInitialFollow = false
     private var skipNextInsetsFollow = false
@@ -323,6 +327,10 @@ private class AutoScrollManager(
         }
         if (_state.value !is AutoScrollState.Following || messageCount == 0) return
 
+        val now = currentTimeMs()
+        if (now - lastInsetsFollowTimeMs < COMPOSER_FOLLOW_SETTLE_MS) return
+        lastInsetsFollowTimeMs = now
+
         emitSideEffect(ScrollSideEffect.DelayThenScroll(COMPOSER_FOLLOW_SETTLE_MS))
     }
 
@@ -378,9 +386,7 @@ private class AutoScrollManager(
     }
 
     private fun emitSideEffect(effect: ScrollSideEffect) {
-        kotlinx.coroutines.runBlocking {
-            _sideEffects.send(effect)
-        }
+        _sideEffects.tryEmit(effect)
     }
 
     // region: Scroll Operations
