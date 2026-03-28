@@ -12,6 +12,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
+        minSdk = 30
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        multiDexEnabled = true
         consumerProguardFiles("consumer-rules.pro")
     }
     
@@ -63,4 +66,3 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
 }
-

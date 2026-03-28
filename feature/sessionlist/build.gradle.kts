@@ -10,6 +10,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
+        minSdk = 30
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        multiDexEnabled = true
         consumerProguardFiles("consumer-rules.pro")
     }
     
@@ -55,4 +58,3 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 }
-
