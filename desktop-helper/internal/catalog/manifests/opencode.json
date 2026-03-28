@@ -1,0 +1,36 @@
+{
+  "id": "opencode",
+  "displayName": "OpenCode",
+  "protocol": "acp",
+  "platformSupport": ["windows", "darwin", "linux"],
+  "detection": {
+    "mode": "path_lookup",
+    "command": "opencode"
+  },
+  "launch": {
+    "mode": "external",
+    "command": "opencode",
+    "args": [],
+    "transport": "stdio",
+    "readiness": {
+      "mode": "immediate"
+    },
+    "restart": {
+      "mode": "never"
+    }
+  },
+  "healthCheck": {
+    "mode": "none"
+  },
+  "capabilities": ["acp"],
+  "security": {
+    "curatedLaunch": true,
+    "allowsRemoteStart": true,
+    "userConfigurableFields": []
+  },
+  "registry": {
+    "required": true,
+    "validationStatus": "unavailable"
+  },
+  "hint": "Detected when `opencode` is available on PATH and validated against the ACP registry."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "mock-acp",
+  "displayName": "Mock ACP Agent",
+  "protocol": "acp",
+  "platformSupport": ["windows", "darwin", "linux"],
+  "detection": {
+    "mode": "local_file",
+    "path": "bin/__MOCK_AGENT_EXECUTABLE__"
+  },
+  "launch": {
+    "mode": "process",
+    "command": "bin/__MOCK_AGENT_EXECUTABLE__",
+    "args": [],
+    "transport": "stdio",
+    "readiness": {
+      "mode": "immediate"
+    },
+    "restart": {
+      "mode": "never"
+    }
+  },
+  "healthCheck": {
+    "mode": "none"
+  },
+  "capabilities": ["acp", "diagnostics"],
+  "security": {
+    "curatedLaunch": true,
+    "allowsRemoteStart": true,
+    "userConfigurableFields": []
+  },
+  "registry": {
+    "required": false,
+    "validationStatus": "not_required"
+  },
+  "hint": "Built-in development runtime. Detected when the helper-local mock agent binary exists."
+}
