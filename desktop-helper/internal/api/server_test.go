@@ -860,6 +860,67 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 	}
 }
 
+func TestRuntimeRestartEndpointReturnsFreshConnectDescriptor(t *testing.T) {
+	baseDir := t.TempDir()
+	buildMockAgent(t, baseDir)
+
+	server := newTestServerWithBaseDir(baseDir)
+	token := pairDevice(t, server)
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/start", nil)
+	startRequest.Header.Set("Authorization", "Bearer "+token)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse runtimeStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	restartBody, err := json.Marshal(runtimeRestartRequest{
+		Env: map[string]string{"FERNGEIST_TEST_ENV": "restart-token"},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(restart) error = %v", err)
+	}
+	restartRequest := httptest.NewRequest(http.MethodPost, "/v1/runtimes/"+startResponse.Runtime.ID+"/restart", bytes.NewReader(restartBody))
+	restartRequest.Header.Set("Authorization", "Bearer "+token)
+	restartRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(restartRecorder, restartRequest)
+	if restartRecorder.Code != http.StatusOK {
+		t.Fatalf("restart status code = %d, want %d", restartRecorder.Code, http.StatusOK)
+	}
+
+	var restartResponse runtimeConnectResponse
+	if err := json.Unmarshal(restartRecorder.Body.Bytes(), &restartResponse); err != nil {
+		t.Fatalf("Unmarshal(restart) error = %v", err)
+	}
+	if restartResponse.RuntimeID == startResponse.Runtime.ID {
+		t.Fatal("restart should hand back a new runtime id")
+	}
+
+	socketServer := httptest.NewServer(server.Handler())
+	defer socketServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + restartResponse.WebSocketPath + "?access_token=" + restartResponse.BearerToken
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer conn.Close()
+
+	var ready map[string]string
+	if err := conn.ReadJSON(&ready); err != nil {
+		t.Fatalf("ReadJSON(ready) error = %v", err)
+	}
+	if ready["env"] != "restart-token" {
+		t.Fatalf("ready env = %q, want %q", ready["env"], "restart-token")
+	}
+}
+
 func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	baseDir := t.TempDir()
 	binDir := filepath.Join(baseDir, "bin")

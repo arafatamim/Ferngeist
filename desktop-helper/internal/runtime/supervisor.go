@@ -130,6 +130,7 @@ type processHandle struct {
 	attached       bool
 	stopping       bool
 	agent          catalog.Agent
+	envOverrides   map[string]string
 	restartAttempt int
 }
 
@@ -193,14 +194,14 @@ func (s *Supervisor) Start(agent catalog.Agent) (Runtime, error) {
 		return Runtime{}, ErrRuntimeNotConnectable
 	}
 
-	return s.launchRuntime(agent, nil)
+	return s.launchRuntime(agent, nil, nil)
 }
 
 // launchRuntime is the core transition from a validated catalog agent to a
 // tracked runtime. It resolves the launch target, starts the child process,
 // records it immediately for diagnostics, then performs readiness and health
 // checks before exposing it as running.
-func (s *Supervisor) launchRuntime(agent catalog.Agent, previous *Runtime) (Runtime, error) {
+func (s *Supervisor) launchRuntime(agent catalog.Agent, previous *Runtime, envOverrides map[string]string) (Runtime, error) {
 	commandPath, workingDir, err := s.resolveLaunch(agent.Launch)
 	if err != nil {
 		return Runtime{}, err
@@ -233,6 +234,7 @@ func (s *Supervisor) launchRuntime(agent catalog.Agent, previous *Runtime) (Runt
 
 	cmd := exec.Command(commandPath, agent.Launch.Args...)
 	cmd.Dir = workingDir
+	cmd.Env = mergeProcessEnv(envOverrides)
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return Runtime{}, err
@@ -257,6 +259,7 @@ func (s *Supervisor) launchRuntime(agent catalog.Agent, previous *Runtime) (Runt
 		stdin:          stdinPipe,
 		stdout:         stdoutPipe,
 		agent:          agent,
+		envOverrides:   cloneStringMap(envOverrides),
 		restartAttempt: runtimeInfo.RestartAttempts,
 	}
 	go func() {
@@ -301,6 +304,61 @@ func (s *Supervisor) launchRuntime(agent catalog.Agent, previous *Runtime) (Runt
 	return runtimeInfo, nil
 }
 
+func (s *Supervisor) Restart(runtimeID string, envVars map[string]string) (Runtime, error) {
+	s.mu.Lock()
+	s.pruneStoppedRuntimesLocked(s.now().UTC())
+	runtimeInfo, ok := s.runtimes[runtimeID]
+	if !ok {
+		s.mu.Unlock()
+		return Runtime{}, ErrRuntimeNotFound
+	}
+	if runtimeInfo.Status != StatusRunning {
+		s.mu.Unlock()
+		return Runtime{}, ErrRuntimeNotRunning
+	}
+	handle, ok := s.processes[runtimeID]
+	if !ok || handle == nil {
+		s.mu.Unlock()
+		return Runtime{}, ErrRuntimeNotRunning
+	}
+	agent := handle.agent
+	mergedEnv := mergeEnvOverrides(handle.envOverrides, envVars)
+	handle.stopping = true
+	runtimeInfo.Status = StatusStopping
+	runtimeInfo.StoppedAt = time.Time{}
+	s.runtimes[runtimeID] = runtimeInfo
+	s.deleteRuntimeByAgentIfMatchesLocked(runtimeInfo.AgentID, runtimeID)
+	delete(s.processes, runtimeID)
+	s.mu.Unlock()
+	s.persistRuntime(runtimeInfo)
+
+	if err := s.stopProcess(handle, 2*time.Second); err != nil {
+		s.logger.Warn("runtime restart required forced termination", "runtime_id", runtimeID, "error", err)
+	}
+
+	s.mu.Lock()
+	if existing, exists := s.runtimes[runtimeID]; exists {
+		existing.Status = StatusStopped
+		existing.PID = 0
+		existing.StoppedAt = s.now().UTC()
+		s.runtimes[runtimeID] = existing
+		runtimeInfo = existing
+	}
+	s.mu.Unlock()
+	s.persistRuntime(runtimeInfo)
+
+	restarted, err := s.launchRuntime(agent, nil, mergedEnv)
+	if err != nil {
+		return Runtime{}, err
+	}
+	s.appendLog(restarted.ID, LogEntry{
+		Timestamp: s.now().UTC(),
+		Stream:    "helper",
+		Message:   fmt.Sprintf("runtime restarted from %s with updated environment", runtimeID),
+	})
+	return restarted, nil
+}
+
 // StopByAgentID is the public stop path used by the API. It removes the
 // runtime from the active maps before waiting on process termination so a
 // concurrent reconnect cannot attach to a runtime that is already stopping.
@@ -313,7 +371,7 @@ func (s *Supervisor) StopByAgentID(agentID string) (Runtime, error) {
 	}
 	runtime, ok := s.runtimes[runtimeID]
 	if !ok {
-		delete(s.runtimeByAgent, agentID)
+		s.deleteRuntimeByAgentIfMatchesLocked(agentID, runtimeID)
 		s.mu.Unlock()
 		return Runtime{}, ErrRuntimeNotFound
 	}
@@ -328,7 +386,7 @@ func (s *Supervisor) StopByAgentID(agentID string) (Runtime, error) {
 	runtime.Status = StatusStopping
 	runtime.StoppedAt = time.Time{}
 	s.runtimes[runtimeID] = runtime
-	delete(s.runtimeByAgent, agentID)
+	s.deleteRuntimeByAgentIfMatchesLocked(agentID, runtimeID)
 	delete(s.processes, runtimeID)
 	s.mu.Unlock()
 	s.persistRuntime(runtime)
@@ -367,7 +425,7 @@ func (s *Supervisor) Shutdown(ctx context.Context) error {
 			process: s.processes[runtimeID],
 		})
 		delete(s.processes, runtimeID)
-		delete(s.runtimeByAgent, runtime.AgentID)
+		s.deleteRuntimeByAgentIfMatchesLocked(runtime.AgentID, runtimeID)
 		delete(s.runtimes, runtimeID)
 	}
 	s.mu.Unlock()
@@ -616,7 +674,7 @@ func (s *Supervisor) StopByRuntimeID(runtimeID string) (Runtime, error) {
 	}
 	runtime.Status = StatusStopping
 	s.runtimes[runtimeID] = runtime
-	delete(s.runtimeByAgent, runtime.AgentID)
+	s.deleteRuntimeByAgentIfMatchesLocked(runtime.AgentID, runtimeID)
 	delete(s.processes, runtimeID)
 	s.mu.Unlock()
 	s.persistRuntime(runtime)
@@ -667,11 +725,11 @@ func (s *Supervisor) handleProcessExit(runtimeID, agentID string, handle *proces
 			Stream:    "helper",
 			Message:   fmt.Sprintf("restart scheduled after failure: %s", handle.waitErr.Error()),
 		})
-		go s.restartAfterBackoff(runtime, handle.agent)
+		go s.restartAfterBackoff(runtime, handle.agent, handle.envOverrides)
 		return
 	}
 
-	delete(s.runtimeByAgent, agentID)
+	s.deleteRuntimeByAgentIfMatchesLocked(agentID, runtimeID)
 	if handle.waitErr != nil {
 		runtime.Status = StatusFailed
 		runtime.LastError = handle.waitErr.Error()
@@ -721,10 +779,10 @@ func (s *Supervisor) pruneStoppedRuntimesLocked(now time.Time) {
 
 // restartAfterBackoff preserves the existing runtime identity while retrying
 // the launch. That keeps diagnostics stable across a short crash loop.
-func (s *Supervisor) restartAfterBackoff(runtimeInfo Runtime, agent catalog.Agent) {
+func (s *Supervisor) restartAfterBackoff(runtimeInfo Runtime, agent catalog.Agent, envOverrides map[string]string) {
 	time.Sleep(restartBackoff(agent.Launch.Restart))
 
-	restarted, err := s.launchRuntime(agent, &runtimeInfo)
+	restarted, err := s.launchRuntime(agent, &runtimeInfo, envOverrides)
 	if err == nil {
 		s.appendLog(restarted.ID, LogEntry{
 			Timestamp: s.now().UTC(),
@@ -740,7 +798,7 @@ func (s *Supervisor) restartAfterBackoff(runtimeInfo Runtime, agent catalog.Agen
 		s.mu.Unlock()
 		return
 	}
-	delete(s.runtimeByAgent, runtimeInfo.AgentID)
+	s.deleteRuntimeByAgentIfMatchesLocked(runtimeInfo.AgentID, runtimeInfo.ID)
 	delete(s.processes, runtimeInfo.ID)
 	runtimeInfo.Status = StatusFailed
 	runtimeInfo.LastError = err.Error()
@@ -762,7 +820,7 @@ func (s *Supervisor) cleanupFailedLaunch(runtimeID, agentID string, err error) {
 		return
 	}
 	delete(s.processes, runtimeID)
-	delete(s.runtimeByAgent, agentID)
+	s.deleteRuntimeByAgentIfMatchesLocked(agentID, runtimeID)
 	delete(s.runtimes, runtimeID)
 	s.mu.Unlock()
 
@@ -810,6 +868,59 @@ func (s *Supervisor) appendLog(runtimeID string, entry LogEntry) {
 		entries = entries[len(entries)-maxEntries:]
 	}
 	s.logs[runtimeID] = entries
+}
+
+func (s *Supervisor) deleteRuntimeByAgentIfMatchesLocked(agentID, runtimeID string) {
+	if currentRuntimeID, ok := s.runtimeByAgent[agentID]; ok && currentRuntimeID == runtimeID {
+		delete(s.runtimeByAgent, agentID)
+	}
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func mergeEnvOverrides(current map[string]string, updates map[string]string) map[string]string {
+	if len(current) == 0 && len(updates) == 0 {
+		return nil
+	}
+	merged := cloneStringMap(current)
+	if merged == nil {
+		merged = make(map[string]string, len(updates))
+	}
+	for key, value := range updates {
+		merged[key] = value
+	}
+	return merged
+}
+
+func mergeProcessEnv(overrides map[string]string) []string {
+	base := os.Environ()
+	if len(overrides) == 0 {
+		return base
+	}
+	merged := make(map[string]string, len(base)+len(overrides))
+	for _, entry := range base {
+		if key, value, ok := strings.Cut(entry, "="); ok {
+			merged[key] = value
+		}
+	}
+	for key, value := range overrides {
+		merged[key] = value
+	}
+	out := make([]string, 0, len(merged))
+	for key, value := range merged {
+		out = append(out, key+"="+value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func lastLogEntries(entries []LogEntry, limit int) []LogEntry {

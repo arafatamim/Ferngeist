@@ -54,3 +54,40 @@ func TestValidateRuntimeTokenFromStoreAndRevoke(t *testing.T) {
 		t.Fatalf("Validate() after revoke error = %v, want %v", err, ErrRuntimeTokenInvalid)
 	}
 }
+
+func TestRevokeIfMatchesKeepsNewerRuntimeToken(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("storage.Open() error = %v", err)
+	}
+	defer store.Close()
+
+	service := New(slog.New(slog.NewTextHandler(io.Discard, nil)), store)
+	now := time.Date(2026, 3, 25, 10, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	service.Register(runtime.ConnectDescriptor{
+		RuntimeID:      "runtime-1",
+		BearerToken:    "token-old",
+		TokenExpiresAt: now.Add(time.Minute),
+	})
+	service.Register(runtime.ConnectDescriptor{
+		RuntimeID:      "runtime-1",
+		BearerToken:    "token-new",
+		TokenExpiresAt: now.Add(time.Minute),
+	})
+
+	if revoked := service.RevokeIfMatches("runtime-1", "token-old"); revoked {
+		t.Fatal("RevokeIfMatches() should not revoke a newer runtime token")
+	}
+	if err := service.Validate("runtime-1", "token-new"); err != nil {
+		t.Fatalf("Validate(new token) error = %v", err)
+	}
+
+	if revoked := service.RevokeIfMatches("runtime-1", "token-new"); !revoked {
+		t.Fatal("RevokeIfMatches() should revoke the active runtime token")
+	}
+	if err := service.Validate("runtime-1", "token-new"); err != ErrRuntimeTokenInvalid {
+		t.Fatalf("Validate() after matched revoke error = %v, want %v", err, ErrRuntimeTokenInvalid)
+	}
+}

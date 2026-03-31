@@ -16,6 +16,9 @@ func main() {
 		"type":    "mock.ready",
 		"message": "mock stdio ACP agent connected",
 	}
+	if envValue := os.Getenv("FERNGEIST_TEST_ENV"); envValue != "" {
+		ready["env"] = envValue
+	}
 	if err := json.NewEncoder(os.Stdout).Encode(ready); err != nil {
 		logger.Error("failed to write ready message", slog.String("error", err.Error()))
 		os.Exit(1)

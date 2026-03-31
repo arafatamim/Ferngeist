@@ -3,6 +3,7 @@ package runtime
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -102,6 +103,66 @@ func TestConnectReturnsDescriptorForRunningRuntime(t *testing.T) {
 	}
 
 	_, _ = supervisor.StopByAgentID("mock-acp")
+}
+
+func TestRestartLaunchesNewRuntimeWithMergedEnv(t *testing.T) {
+	baseDir := t.TempDir()
+	buildMockAgent(t, baseDir)
+
+	supervisor := NewSupervisorWithBaseDir(slog.New(slog.NewTextHandler(io.Discard, nil)), baseDir, nil)
+	runtimeInfo, err := supervisor.Start(catalog.Agent{
+		ID:          "mock-acp",
+		DisplayName: "Mock ACP",
+		Detected:    true,
+		Security:    catalog.SecurityConfig{AllowsRemoteStart: true},
+		Launch: catalog.LaunchConfig{
+			Mode:      "process",
+			Command:   filepath.Join("bin", mockAgentBinaryName()),
+			Transport: "stdio",
+			Readiness: catalog.ReadinessConfig{Mode: "immediate"},
+		},
+		HealthCheck: catalog.HealthCheckConfig{Mode: "none"},
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	restarted, err := supervisor.Restart(runtimeInfo.ID, map[string]string{"FERNGEIST_TEST_ENV": "after-restart"})
+	if err != nil {
+		t.Fatalf("Restart() error = %v", err)
+	}
+	if restarted.ID == runtimeInfo.ID {
+		t.Fatal("Restart() should create a new runtime id")
+	}
+
+	stdin, stdout, release, err := supervisor.AttachStdio(restarted.ID)
+	if err != nil {
+		t.Fatalf("AttachStdio() error = %v", err)
+	}
+	defer release()
+	defer stdin.Close()
+
+	var ready map[string]string
+	if err := json.NewDecoder(stdout).Decode(&ready); err != nil {
+		t.Fatalf("Decode(ready) error = %v", err)
+	}
+	if ready["env"] != "after-restart" {
+		t.Fatalf("ready env = %q, want %q", ready["env"], "after-restart")
+	}
+
+	runtimes := supervisor.List()
+	oldStatus := ""
+	for _, listed := range runtimes {
+		if listed.ID == runtimeInfo.ID {
+			oldStatus = listed.Status
+			break
+		}
+	}
+	if oldStatus != StatusStopped {
+		t.Fatalf("old runtime status = %q, want %q", oldStatus, StatusStopped)
+	}
+
+	_, _ = supervisor.StopByRuntimeID(restarted.ID)
 }
 
 func TestStoppedRuntimeRemainsVisibleInListAndSummary(t *testing.T) {

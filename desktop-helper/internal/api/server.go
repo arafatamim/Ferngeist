@@ -134,6 +134,10 @@ type runtimeConnectResponse struct {
 	TokenExpiresAt time.Time `json:"tokenExpiresAt"`
 }
 
+type runtimeRestartRequest struct {
+	Env map[string]string `json:"env"`
+}
+
 type runtimeLogsResponse struct {
 	RuntimeID string             `json:"runtimeId"`
 	Logs      []runtime.LogEntry `json:"logs"`
@@ -230,6 +234,7 @@ func NewServer(
 	mux.HandleFunc("POST /v1/agents/{agentId}/start", server.handleAgentStart)
 	mux.HandleFunc("POST /v1/agents/{agentId}/stop", server.handleAgentStop)
 	mux.HandleFunc("POST /v1/runtimes/{runtimeId}/connect", server.handleRuntimeConnect)
+	mux.HandleFunc("POST /v1/runtimes/{runtimeId}/restart", server.handleRuntimeRestart)
 	mux.HandleFunc("GET /v1/acp/{runtimeId}", server.handleACPWebSocket)
 
 	server.httpServer = &http.Server{
@@ -613,17 +618,48 @@ func (s *Server) handleRuntimeConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.gateway.Register(descriptor)
+	writeJSON(w, http.StatusOK, connectResponseFromDescriptor(r, descriptor))
+}
 
-	writeJSON(w, http.StatusOK, runtimeConnectResponse{
-		RuntimeID:      descriptor.RuntimeID,
-		Protocol:       descriptor.Protocol,
-		Scheme:         websocketScheme(r),
-		Host:           websocketHostWithPath(r, descriptor.WebSocketPath, descriptor.BearerToken),
-		WebSocketURL:   absoluteWebSocketURL(r, descriptor.WebSocketPath, descriptor.BearerToken),
-		WebSocketPath:  descriptor.WebSocketPath,
-		BearerToken:    descriptor.BearerToken,
-		TokenExpiresAt: descriptor.TokenExpiresAt,
-	})
+func (s *Server) handleRuntimeRestart(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireHelperCredential(w, r); !ok {
+		return
+	}
+
+	runtimeID := r.PathValue("runtimeId")
+	var request runtimeRestartRequest
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil && !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+	}
+
+	restarted, err := s.runtime.Restart(runtimeID, request.Env)
+	if err != nil {
+		s.gateway.Revoke(runtimeID)
+		s.runtime.AppendLog(runtimeID, "helper", "runtime restart failed: "+err.Error())
+		switch {
+		case errors.Is(err, runtime.ErrRuntimeNotFound):
+			writeError(w, http.StatusNotFound, err.Error())
+		case errors.Is(err, runtime.ErrRuntimeNotRunning):
+			writeError(w, http.StatusConflict, err.Error())
+		case errors.Is(err, runtime.ErrExecutableNotFound):
+			writeError(w, http.StatusFailedDependency, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to restart runtime")
+		}
+		return
+	}
+
+	s.gateway.Revoke(runtimeID)
+	descriptor, err := s.runtime.Connect(restarted.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "restarted runtime is not connectable")
+		return
+	}
+	s.gateway.Register(descriptor)
+	writeJSON(w, http.StatusOK, connectResponseFromDescriptor(r, descriptor))
 }
 
 // handleACPWebSocket bridges the helper-facing WebSocket contract onto the
@@ -653,8 +689,9 @@ func (s *Server) handleACPWebSocket(w http.ResponseWriter, r *http.Request) {
 	go proxyStdioToWebSocket(stdout, clientConn, runtimeID, s.runtime.AppendLog, proxyDone)
 	<-proxyDone
 
-	s.gateway.Revoke(runtimeID)
-	_, _ = s.runtime.StopByRuntimeID(runtimeID)
+	if s.gateway.RevokeIfMatches(runtimeID, token) {
+		_, _ = s.runtime.StopByRuntimeID(runtimeID)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
@@ -728,6 +765,19 @@ func websocketHostWithPath(r *http.Request, path, token string) string {
 
 func absoluteWebSocketURL(r *http.Request, path, token string) string {
 	return fmt.Sprintf("%s://%s", websocketScheme(r), websocketHostWithPath(r, path, token))
+}
+
+func connectResponseFromDescriptor(r *http.Request, descriptor runtime.ConnectDescriptor) runtimeConnectResponse {
+	return runtimeConnectResponse{
+		RuntimeID:      descriptor.RuntimeID,
+		Protocol:       descriptor.Protocol,
+		Scheme:         websocketScheme(r),
+		Host:           websocketHostWithPath(r, descriptor.WebSocketPath, descriptor.BearerToken),
+		WebSocketURL:   absoluteWebSocketURL(r, descriptor.WebSocketPath, descriptor.BearerToken),
+		WebSocketPath:  descriptor.WebSocketPath,
+		BearerToken:    descriptor.BearerToken,
+		TokenExpiresAt: descriptor.TokenExpiresAt,
+	}
 }
 
 func (s *Server) helperDisplayName() string {

@@ -127,6 +127,39 @@ func (s *Service) Revoke(runtimeID string) {
 	}
 }
 
+func (s *Service) RevokeIfMatches(runtimeID, token string) bool {
+	if token == "" {
+		return false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.store != nil {
+		record, err := s.store.GetRuntimeToken(context.Background(), runtimeID)
+		switch {
+		case err == nil:
+			if record.Token != token {
+				return false
+			}
+			delete(s.registrations, runtimeID)
+			if err := s.store.DeleteRuntimeToken(context.Background(), runtimeID); err != nil {
+				s.logger.Error("delete runtime token failed", "runtime_id", runtimeID, "error", err)
+			}
+			return true
+		case !errors.Is(err, storage.ErrNotFound):
+			s.logger.Error("load runtime token failed", "runtime_id", runtimeID, "error", err)
+		}
+	}
+
+	registration, ok := s.registrations[runtimeID]
+	if !ok || registration.Token != token {
+		return false
+	}
+	delete(s.registrations, runtimeID)
+	return true
+}
+
 func (s *Service) ClearAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
