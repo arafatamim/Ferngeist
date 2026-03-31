@@ -3,9 +3,10 @@ package com.tamimarafat.ferngeist.feature.serverlist
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.tamimarafat.ferngeist.core.model.ServerConfig
-import com.tamimarafat.ferngeist.core.model.ServerSourceKind
-import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
+import com.tamimarafat.ferngeist.core.model.HelperAgentBinding
+import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgent
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +20,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class DesktopHelperAgentsUiState(
-    val companion: ServerConfig? = null,
+    val companion: DesktopHelperSource? = null,
     val agents: List<DesktopHelperAgent> = emptyList(),
     val addedAgentIds: Set<String> = emptySet(),
     val isLoading: Boolean = true,
@@ -33,7 +34,8 @@ data class DesktopHelperAgentsUiState(
 @HiltViewModel
 class DesktopHelperAgentsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val serverRepository: ServerRepository,
+    private val helperSourceRepository: DesktopHelperSourceRepository,
+    private val helperAgentBindingRepository: HelperAgentBindingRepository,
     private val helperRepository: DesktopHelperRepository,
 ) : ViewModel() {
 
@@ -51,8 +53,8 @@ class DesktopHelperAgentsViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            val servers = serverRepository.getServers().first()
-            val companion = servers.firstOrNull { it.id == companionId && it.isDesktopCompanion }
+            val bindings = helperAgentBindingRepository.getBindingsForHelper(companionId)
+            val companion = helperSourceRepository.getHelper(companionId)
             if (companion == null) {
                 _uiState.value = DesktopHelperAgentsUiState(
                     isLoading = false,
@@ -72,9 +74,8 @@ class DesktopHelperAgentsViewModel @Inject constructor(
                 _uiState.value = DesktopHelperAgentsUiState(
                     companion = companion,
                     agents = agents,
-                    addedAgentIds = servers
-                        .filter { it.helperSourceId == companion.id && it.isDesktopHelperAgent }
-                        .mapNotNull { it.selectedAgentId }
+                    addedAgentIds = bindings
+                        .map { it.agentId }
                         .toSet(),
                     isLoading = false,
                     loadError = null,
@@ -95,21 +96,13 @@ class DesktopHelperAgentsViewModel @Inject constructor(
         if (agent.id in state.addedAgentIds) return
 
         viewModelScope.launch {
-            val server = ServerConfig(
+            val binding = HelperAgentBinding(
                 name = agent.displayName,
-                sourceKind = ServerSourceKind.DESKTOP_HELPER,
-                scheme = companion.scheme,
-                host = companion.host,
-                token = "",
-                workingDirectory = "/",
-                helperCredential = companion.helperCredential,
-                helperCredentialExpiresAt = companion.helperCredentialExpiresAt,
-                helperRemoteMode = companion.helperRemoteMode,
                 helperSourceId = companion.id,
-                selectedAgentId = agent.id,
-                selectedAgentName = agent.displayName,
+                agentId = agent.id,
+                workingDirectory = "/",
             )
-            serverRepository.addServer(server)
+            helperAgentBindingRepository.addBinding(binding)
             _uiState.value = state.copy(addedAgentIds = state.addedAgentIds + agent.id)
             _events.emit("Added ${agent.displayName}")
         }

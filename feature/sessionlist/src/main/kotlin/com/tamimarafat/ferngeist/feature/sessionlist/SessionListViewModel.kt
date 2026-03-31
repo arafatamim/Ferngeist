@@ -12,10 +12,10 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.core.model.ServerSourceKind
-import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse
@@ -62,7 +62,7 @@ sealed interface PendingAuthAction {
 @HiltViewModel
 class SessionListViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val serverRepository: ServerRepository,
+    private val launchableTargetRepository: LaunchableTargetRepository,
     private val sessionRepository: SessionRepository,
     private val connectionManager: AcpConnectionManager,
     private val helperRepository: DesktopHelperRepository,
@@ -71,7 +71,7 @@ class SessionListViewModel @Inject constructor(
 
     val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
 
-    val server: StateFlow<ServerConfig?> = serverRepository.getServers()
+    val server: StateFlow<LaunchableTarget?> = launchableTargetRepository.getTargets()
         .map { servers -> servers.find { it.id == serverId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -195,7 +195,7 @@ class SessionListViewModel @Inject constructor(
                 AcpAuthenticateResult.Success -> Unit
             }
 
-            server.value?.let { savePreferredAuthMethod(it, methodId) }
+            savePreferredAuthMethod(serverId, methodId)
             _pendingAuthentication.value = null
             retryPendingAction(pending.pendingAction)
         }
@@ -218,14 +218,19 @@ class SessionListViewModel @Inject constructor(
             }
 
             val connected = withContext(Dispatchers.IO) {
-                connectionManager.connect(
-                    AcpConnectionConfig(
-                        scheme = server.scheme,
-                        host = server.host,
-                        preferredAuthMethodId = server.preferredAuthMethodId,
-                        helperSourceId = server.helperSourceId,
-                    )
-                )
+                when (server) {
+                    is LaunchableTarget.Manual -> {
+                        connectionManager.connect(
+                            AcpConnectionConfig(
+                                scheme = server.server.scheme,
+                                host = server.server.host,
+                                preferredAuthMethodId = server.server.preferredAuthMethodId,
+                            )
+                        )
+                    }
+
+                    is LaunchableTarget.HelperAgent -> false
+                }
             }
             if (!connected) {
                 _pendingAuthentication.update {
@@ -308,13 +313,14 @@ class SessionListViewModel @Inject constructor(
             _isLoading.value = false
             return
         }
-        val helperSource = resolveDesktopHelperSource(currentServer) ?: run {
+        val helperTarget = currentServer as? LaunchableTarget.HelperAgent ?: run {
             _pendingAuthentication.update {
                 it?.copy(authErrorMessage = "Desktop companion was not found for ${currentServer.name}.")
             }
             _isLoading.value = false
             return
         }
+        val helperSource = helperTarget.helperSource
         if (helperSource.helperCredential.isBlank()) {
             _pendingAuthentication.update {
                 it?.copy(authErrorMessage = "Desktop companion is not paired.")
@@ -357,8 +363,8 @@ class SessionListViewModel @Inject constructor(
         val reconnected = withContext(Dispatchers.IO) {
             connectionManager.connect(
                 AcpConnectionConfig(
-                    scheme = currentServer.scheme,
-                    host = currentServer.host,
+                    scheme = helperSource.scheme,
+                    host = helperSource.host,
                     webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
                     preferredAuthMethodId = method.id,
                     helperRuntimeId = handoff.runtimeId,
@@ -397,7 +403,7 @@ class SessionListViewModel @Inject constructor(
             AcpAuthenticateResult.Success -> Unit
         }
 
-        savePreferredAuthMethod(currentServer, method.id)
+        savePreferredAuthMethod(currentServer.id, method.id)
         _pendingAuthentication.value = null
         retryPendingAction(pending.pendingAction)
     }
@@ -453,15 +459,8 @@ class SessionListViewModel @Inject constructor(
         }
     }
 
-    private suspend fun resolveDesktopHelperSource(server: ServerConfig): ServerConfig? {
-        val helperSourceId = server.helperSourceId ?: return server.takeIf { it.sourceKind == ServerSourceKind.DESKTOP_HELPER }
-        return withContext(Dispatchers.IO) {
-            serverRepository.getServer(helperSourceId)
-        }
-    }
-
     private fun resolveDesktopHelperWebSocketUrl(
-        helperSource: ServerConfig,
+        helperSource: DesktopHelperSource,
         handoff: DesktopHelperConnectResponse,
     ): String {
         val advertisedUrl = handoff.webSocketUrl.trim()
@@ -482,10 +481,9 @@ class SessionListViewModel @Inject constructor(
         return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
-    private fun savePreferredAuthMethod(server: ServerConfig, methodId: String) {
-        if (server.preferredAuthMethodId == methodId) return
+    private fun savePreferredAuthMethod(targetId: String, methodId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            serverRepository.updateServer(server.copy(preferredAuthMethodId = methodId))
+            launchableTargetRepository.updatePreferredAuthMethod(targetId, methodId)
         }
     }
 }

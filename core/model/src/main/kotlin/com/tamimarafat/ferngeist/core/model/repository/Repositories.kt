@@ -1,5 +1,8 @@
 package com.tamimarafat.ferngeist.core.model.repository
 
+import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.HelperAgentBinding
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.flow.Flow
@@ -10,6 +13,30 @@ interface ServerRepository {
     suspend fun updateServer(config: ServerConfig)
     suspend fun deleteServer(id: String)
     suspend fun getServer(id: String): ServerConfig?
+}
+
+interface DesktopHelperSourceRepository {
+    fun getHelpers(): Flow<List<DesktopHelperSource>>
+    suspend fun addHelper(helper: DesktopHelperSource)
+    suspend fun updateHelper(helper: DesktopHelperSource)
+    suspend fun deleteHelper(id: String)
+    suspend fun getHelper(id: String): DesktopHelperSource?
+}
+
+interface HelperAgentBindingRepository {
+    fun getBindings(): Flow<List<HelperAgentBinding>>
+    suspend fun addBinding(binding: HelperAgentBinding)
+    suspend fun updateBinding(binding: HelperAgentBinding)
+    suspend fun deleteBinding(id: String)
+    suspend fun getBinding(id: String): HelperAgentBinding?
+    suspend fun getBindingsForHelper(helperId: String): List<HelperAgentBinding>
+}
+
+interface LaunchableTargetRepository {
+    fun getTargets(): Flow<List<LaunchableTarget>>
+    suspend fun getTarget(id: String): LaunchableTarget?
+    suspend fun updatePreferredAuthMethod(targetId: String, methodId: String)
+    suspend fun deleteTarget(id: String)
 }
 
 interface SessionRepository {

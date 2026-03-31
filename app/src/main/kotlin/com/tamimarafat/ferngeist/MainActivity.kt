@@ -42,7 +42,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.DesktopCompanionListScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.DesktopHelperAgentsScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.ServerListScreen
-import com.tamimarafat.ferngeist.core.model.ServerSourceKind
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
@@ -153,9 +153,9 @@ fun FerngeistNavHost() {
                         onNavigateToPairDesktopCompanion = { navController.navigate("add_desktop_helper") },
                         onNavigateToDesktopCompanions = { navController.navigate("desktop_companions") },
                         onNavigateToEditServer = { server ->
-                            when (server.sourceKind) {
-                                ServerSourceKind.DESKTOP_HELPER -> navController.navigate("desktop_companion_agents/${server.helperSourceId ?: server.id}")
-                                ServerSourceKind.MANUAL_ACP -> navController.navigate("edit_server/${server.id}")
+                            when (server) {
+                                is LaunchableTarget.HelperAgent -> navController.navigate("desktop_companion_agents/${server.helperSource.id}")
+                                is LaunchableTarget.Manual -> navController.navigate("edit_server/${server.id}")
                             }
                         },
                         onNavigateToSessions = { serverId, _, openCreateSessionDialog ->

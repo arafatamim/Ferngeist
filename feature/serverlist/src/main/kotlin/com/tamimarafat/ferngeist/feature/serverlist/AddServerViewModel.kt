@@ -4,7 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.core.model.ServerConfig
-import com.tamimarafat.ferngeist.core.model.ServerSourceKind
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -116,7 +115,6 @@ class AddServerViewModel @Inject constructor(
             val server = ServerConfig(
                 id = initialServerId ?: java.util.UUID.randomUUID().toString(),
                 name = _name.value.trim(),
-                sourceKind = ServerSourceKind.MANUAL_ACP,
                 scheme = _scheme.value,
                 host = _host.value.trim(),
                 token = _token.value,

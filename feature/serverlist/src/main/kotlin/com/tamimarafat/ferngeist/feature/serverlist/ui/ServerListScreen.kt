@@ -66,7 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
-import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
 import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
@@ -78,7 +78,7 @@ fun ServerListScreen(
     onNavigateToAddServer: () -> Unit,
     onNavigateToPairDesktopCompanion: () -> Unit,
     onNavigateToDesktopCompanions: () -> Unit,
-    onNavigateToEditServer: (ServerConfig) -> Unit,
+    onNavigateToEditServer: (LaunchableTarget) -> Unit,
     onNavigateToSessions: (String, List<SessionSummary>, Boolean) -> Unit,
     viewModel: ServerListViewModel,
 ) {

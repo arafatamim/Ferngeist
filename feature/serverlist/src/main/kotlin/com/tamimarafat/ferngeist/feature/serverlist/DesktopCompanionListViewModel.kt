@@ -2,14 +2,14 @@ package com.tamimarafat.ferngeist.feature.serverlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.tamimarafat.ferngeist.core.model.ServerConfig
-import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
+import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,25 +20,24 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class DesktopCompanionListViewModel @Inject constructor(
-    private val serverRepository: ServerRepository,
+    private val helperSourceRepository: DesktopHelperSourceRepository,
+    private val helperAgentBindingRepository: HelperAgentBindingRepository,
+    private val sessionRepository: SessionRepository,
     private val authEnvValueStore: AuthEnvValueStore,
 ) : ViewModel() {
 
-    val companions: StateFlow<List<ServerConfig>> = serverRepository.getServers()
-        .map { servers -> servers.filter { it.isDesktopCompanion } }
+    val companions: StateFlow<List<DesktopHelperSource>> = helperSourceRepository.getHelpers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun deleteCompanion(companion: ServerConfig) {
+    fun deleteCompanion(companion: DesktopHelperSource) {
         viewModelScope.launch {
-            val allServers = serverRepository.getServers().first()
-            allServers
-                .filter { it.helperSourceId == companion.id }
-                .forEach { server ->
-                    authEnvValueStore.deleteValues(server.id)
-                    serverRepository.deleteServer(server.id)
-                }
+            helperAgentBindingRepository.getBindingsForHelper(companion.id).forEach { binding ->
+                authEnvValueStore.deleteValues(binding.id)
+                sessionRepository.clearSessions(binding.id)
+                helperAgentBindingRepository.deleteBinding(binding.id)
+            }
             authEnvValueStore.deleteValues(companion.id)
-            serverRepository.deleteServer(companion.id)
+            helperSourceRepository.deleteHelper(companion.id)
         }
     }
 }

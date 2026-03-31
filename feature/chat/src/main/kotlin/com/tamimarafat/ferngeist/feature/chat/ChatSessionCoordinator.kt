@@ -14,7 +14,11 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse
+import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -23,11 +27,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.net.URI
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 internal class ChatSessionCoordinator(
     private val scope: CoroutineScope,
     private val connectionManager: AcpConnectionManager,
-    private val serverRepository: ServerRepository,
+    private val launchableTargetRepository: LaunchableTargetRepository,
+    private val helperRepository: DesktopHelperRepository,
     private val serverId: String,
     private val initialSessionId: String,
     private val cwd: String,
@@ -248,17 +256,26 @@ internal class ChatSessionCoordinator(
             publishCapabilities()
             return true
         }
-        val server = serverRepository.getServer(serverId) ?: run {
-            logError("ensureConnectedAndInitialized: server not found for serverId=$serverId", null)
+        val server = launchableTargetRepository.getTarget(serverId) ?: run {
+            logError("ensureConnectedAndInitialized: target not found for serverId=$serverId", null)
             return false
         }
-        val connected = connectionManager.connect(
-            AcpConnectionConfig(
-                scheme = server.scheme,
-                host = server.host,
-                preferredAuthMethodId = server.preferredAuthMethodId,
-            )
-        )
+        val connected = when (server) {
+            is LaunchableTarget.HelperAgent -> {
+                val config = buildHelperConnectionConfig(server) ?: return false
+                connectionManager.connect(config)
+            }
+
+            is LaunchableTarget.Manual -> {
+                connectionManager.connect(
+                    AcpConnectionConfig(
+                        scheme = server.server.scheme,
+                        host = server.server.host,
+                        preferredAuthMethodId = server.server.preferredAuthMethodId,
+                    )
+                )
+            }
+        }
         if (!connected) return false
         return when (val initializeResult = connectionManager.initialize()) {
             is AcpInitializeResult.Ready -> {
@@ -276,6 +293,61 @@ internal class ChatSessionCoordinator(
 
             null -> false
         }
+    }
+
+    private suspend fun buildHelperConnectionConfig(target: LaunchableTarget.HelperAgent): AcpConnectionConfig? {
+        val helperSource = target.helperSource
+        if (helperSource.helperCredential.isBlank()) {
+            callbacks.onLoadFailed("Desktop companion is not paired for ${target.name}.")
+            return null
+        }
+        return try {
+            val runtime = helperRepository.startAgent(
+                scheme = helperSource.scheme,
+                host = helperSource.host,
+                helperCredential = helperSource.helperCredential,
+                agentId = target.binding.agentId,
+            )
+            val handoff = helperRepository.connectRuntime(
+                scheme = helperSource.scheme,
+                host = helperSource.host,
+                helperCredential = helperSource.helperCredential,
+                runtimeId = runtime.id,
+            )
+            AcpConnectionConfig(
+                scheme = helperSource.scheme,
+                host = helperSource.host,
+                webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                preferredAuthMethodId = target.binding.preferredAuthMethodId,
+                helperRuntimeId = runtime.id,
+                helperSourceId = helperSource.id,
+            )
+        } catch (error: Throwable) {
+            callbacks.onLoadFailed("Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}")
+            null
+        }
+    }
+
+    private fun resolveDesktopHelperWebSocketUrl(
+        helperSource: DesktopHelperSource,
+        handoff: DesktopHelperConnectResponse,
+    ): String {
+        val advertisedUrl = handoff.webSocketUrl.trim()
+        val advertisedHost = runCatching { URI(advertisedUrl).host?.lowercase() }.getOrNull()
+        if (advertisedHost != null && !isUnroutableHelperHost(advertisedHost)) {
+            return advertisedUrl
+        }
+
+        val socketScheme = when (helperSource.scheme.lowercase()) {
+            "https", "wss" -> "wss"
+            else -> "ws"
+        }
+        val encodedToken = URLEncoder.encode(handoff.bearerToken, StandardCharsets.UTF_8.toString())
+        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}?access_token=$encodedToken"
+    }
+
+    private fun isUnroutableHelperHost(host: String): Boolean {
+        return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
     private fun bindSessionBridge(bridge: SessionBridge) {

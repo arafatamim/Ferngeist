@@ -4,9 +4,8 @@ import android.os.Build
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.tamimarafat.ferngeist.core.model.ServerConfig
-import com.tamimarafat.ferngeist.core.model.ServerSourceKind
-import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingChallenge
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayload
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayloadParser
@@ -41,7 +40,7 @@ enum class DesktopHelperPairingInputMode {
  */
 @HiltViewModel
 class AddDesktopHelperViewModel @Inject constructor(
-    private val serverRepository: ServerRepository,
+    private val helperSourceRepository: DesktopHelperSourceRepository,
     private val helperRepository: DesktopHelperRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -206,22 +205,19 @@ class AddDesktopHelperViewModel @Inject constructor(
                 )
             }.onSuccess { pairing ->
                 val helperStatus = _uiState.value.status
-                val server = ServerConfig(
+                val helper = DesktopHelperSource(
                     id = initialServerId ?: java.util.UUID.randomUUID().toString(),
                     name = helperName,
-                    sourceKind = ServerSourceKind.DESKTOP_HELPER,
                     scheme = _scheme.value,
                     host = helperHost,
                     helperCredential = pairing.token,
                     helperCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
                     helperRemoteMode = helperStatus?.remote?.mode,
-                    token = "",
-                    workingDirectory = "/",
                 )
                 if (isEditMode) {
-                    serverRepository.updateServer(server)
+                    helperSourceRepository.updateHelper(helper)
                 } else {
-                    serverRepository.addServer(server)
+                    helperSourceRepository.addHelper(helper)
                 }
                 _uiState.value = _uiState.value.copy(isSaving = false)
                 _events.emit(AddDesktopHelperEvent.HelperSaved)
@@ -234,10 +230,10 @@ class AddDesktopHelperViewModel @Inject constructor(
 
     private fun loadExisting(id: String) {
         viewModelScope.launch {
-            val server = serverRepository.getServer(id) ?: return@launch
-            _name.value = server.name
-            _scheme.value = server.scheme
-            _host.value = server.host
+            val helper = helperSourceRepository.getHelper(id) ?: return@launch
+            _name.value = helper.name
+            _scheme.value = helper.scheme
+            _host.value = helper.host
             _pairingCode.value = ""
         }
     }

@@ -43,7 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
 import com.tamimarafat.ferngeist.feature.serverlist.DesktopCompanionListViewModel
 
 /**
@@ -55,7 +55,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.DesktopCompanionListViewMode
 fun DesktopCompanionListScreen(
     onNavigateBack: () -> Unit,
     onPairAnother: () -> Unit,
-    onEditCompanion: (ServerConfig) -> Unit,
+    onEditCompanion: (DesktopHelperSource) -> Unit,
     onOpenCompanionAgents: (String) -> Unit,
     viewModel: DesktopCompanionListViewModel,
 ) {
@@ -100,7 +100,7 @@ fun DesktopCompanionListScreen(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DesktopCompanionCard(
-    companion: ServerConfig,
+    companion: DesktopHelperSource,
     onOpenCompanionAgents: () -> Unit,
     onEditCompanion: () -> Unit,
     onDeleteCompanion: () -> Unit,

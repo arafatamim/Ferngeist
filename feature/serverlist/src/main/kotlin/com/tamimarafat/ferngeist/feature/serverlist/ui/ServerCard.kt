@@ -62,14 +62,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
-import com.tamimarafat.ferngeist.core.model.ServerConfig
-import com.tamimarafat.ferngeist.core.model.ServerSourceKind
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ServerCard(
-    server: ServerConfig,
+    server: LaunchableTarget,
     uiState: ServerListUiState,
     onClick: () -> Unit,
     onEdit: () -> Unit,
@@ -163,11 +162,7 @@ internal fun ServerCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (server.sourceKind == ServerSourceKind.DESKTOP_HELPER) {
-                                "Helper ${server.scheme}://${server.host}"
-                            } else {
-                                "${server.scheme}://${server.host}"
-                            },
+                            text = server.subtitle(),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -197,7 +192,7 @@ internal fun ServerCard(
                     enabled = false,
                     label = {
                         Text(
-                            if (server.sourceKind == ServerSourceKind.DESKTOP_HELPER) {
+                            if (server is LaunchableTarget.HelperAgent) {
                                 "Desktop Helper"
                             } else {
                                 "Manual ACP"
@@ -239,7 +234,7 @@ internal fun ServerCard(
                 interactionSource = actionsMenuInteractionSource,
             ) {
                 DropdownMenuItem(
-                    text = { Text(if (server.isDesktopHelperAgent) "Manage" else "Edit") },
+                    text = { Text(if (server is LaunchableTarget.HelperAgent) "Manage" else "Edit") },
                     onClick = {
                         showActionsMenu = false
                         onEdit()
@@ -254,6 +249,13 @@ internal fun ServerCard(
                 )
             }
         }
+    }
+}
+
+private fun LaunchableTarget.subtitle(): String {
+    return when (this) {
+        is LaunchableTarget.HelperAgent -> "Helper ${helperSource.scheme}://${helperSource.host}"
+        is LaunchableTarget.Manual -> "${server.scheme}://${server.host}"
     }
 }
 

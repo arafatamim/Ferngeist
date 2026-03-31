@@ -17,8 +17,9 @@ import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,8 +27,9 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val connectionManager: AcpConnectionManager,
-    private val serverRepository: ServerRepository,
+    private val launchableTargetRepository: LaunchableTargetRepository,
     private val sessionRepository: SessionRepository,
+    private val helperRepository: DesktopHelperRepository,
     private val chatScrollStateStore: ChatScrollStateStore,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(
@@ -70,7 +72,8 @@ class ChatViewModel @Inject constructor(
     private val sessionCoordinator = ChatSessionCoordinator(
         scope = viewModelScope,
         connectionManager = connectionManager,
-        serverRepository = serverRepository,
+        launchableTargetRepository = launchableTargetRepository,
+        helperRepository = helperRepository,
         serverId = serverId,
         initialSessionId = sessionId,
         cwd = cwd,
