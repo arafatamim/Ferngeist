@@ -7,9 +7,16 @@ import androidx.room.PrimaryKey
 data class ServerEntity(
     @PrimaryKey val id: String,
     val name: String,
+    val sourceKind: String,
     val scheme: String,
     val host: String,
     val token: String,
     val workingDirectory: String,
     val preferredAuthMethodId: String?,
+    val helperCredential: String,
+    val helperCredentialExpiresAt: Long?,
+    val helperRemoteMode: String?,
+    val helperSourceId: String?,
+    val selectedAgentId: String?,
+    val selectedAgentName: String?,
 )

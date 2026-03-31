@@ -169,7 +169,7 @@ internal class AcpTransportClient(
         diagnosticsStore.setWebSocketState(WebSocketState.CONNECTING)
 
         return try {
-            val url = "${config.scheme}://${config.host}"
+            val url = config.webSocketUrl ?: "${config.scheme}://${config.host}"
             diagnosticsStore.startConnect(url)
 
             val client = HttpClient(CIO) {
@@ -297,7 +297,7 @@ internal class AcpTransportClient(
                 name = method.name,
                 description = method.description,
                 type = "env",
-                envVarName = method.varName,
+                envVarName = method.vars.firstOrNull()?.name,
                 link = method.link,
             )
 

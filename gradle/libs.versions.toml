@@ -30,9 +30,10 @@ hiltNavigationCompose = "1.3.0"
 
 # Navigation
 navigationCompose = "2.9.7"
+playServicesCodeScanner = "16.1.0"
 
 # ACP Kotlin SDK
-acp = "0.17.1"
+acp = "0.18.0"
 
 # Ktor
 ktor = "3.4.2"
@@ -90,6 +91,7 @@ acp-ktor-client = { group = "com.agentclientprotocol", name = "acp-ktor-client",
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
 ktor-client-websockets = { group = "io.ktor", name = "ktor-client-websockets", version.ref = "ktor" }
+play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "playServicesCodeScanner" }
 
 # Turbine
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }

@@ -33,9 +33,16 @@ import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
 import com.tamimarafat.ferngeist.onboarding.FirstLaunchOnboardingScreen
 import com.tamimarafat.ferngeist.onboarding.OnboardingViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.DesktopCompanionListViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.DesktopHelperAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.ui.AddDesktopHelperScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
+import com.tamimarafat.ferngeist.feature.serverlist.ui.DesktopCompanionListScreen
+import com.tamimarafat.ferngeist.feature.serverlist.ui.DesktopHelperAgentsScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.ServerListScreen
+import com.tamimarafat.ferngeist.core.model.ServerSourceKind
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
@@ -143,13 +150,31 @@ fun FerngeistNavHost() {
                 } else {
                     ServerListScreen(
                         onNavigateToAddServer = { navController.navigate("add_server") },
-                        onNavigateToEditServer = { serverId -> navController.navigate("edit_server/$serverId") },
+                        onNavigateToPairDesktopCompanion = { navController.navigate("add_desktop_helper") },
+                        onNavigateToDesktopCompanions = { navController.navigate("desktop_companions") },
+                        onNavigateToEditServer = { server ->
+                            when (server.sourceKind) {
+                                ServerSourceKind.DESKTOP_HELPER -> navController.navigate("desktop_companion_agents/${server.helperSourceId ?: server.id}")
+                                ServerSourceKind.MANUAL_ACP -> navController.navigate("edit_server/${server.id}")
+                            }
+                        },
                         onNavigateToSessions = { serverId, _, openCreateSessionDialog ->
                             navController.navigate("sessions/$serverId?create=$openCreateSessionDialog")
                         },
                         viewModel = viewModel,
                     )
                 }
+            }
+
+            composable("desktop_companions") {
+                val viewModel: DesktopCompanionListViewModel = hiltViewModel()
+                DesktopCompanionListScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onPairAnother = { navController.navigate("add_desktop_helper") },
+                    onEditCompanion = { companion -> navController.navigate("edit_desktop_helper/${companion.id}") },
+                    onOpenCompanionAgents = { companionId -> navController.navigate("desktop_companion_agents/$companionId") },
+                    viewModel = viewModel,
+                )
             }
 
             composable(
@@ -179,6 +204,36 @@ fun FerngeistNavHost() {
             ) {
                 val viewModel: AddServerViewModel = hiltViewModel()
                 AddServerScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    viewModel = viewModel,
+                )
+            }
+
+            composable("add_desktop_helper") {
+                val viewModel: AddDesktopHelperViewModel = hiltViewModel()
+                AddDesktopHelperScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    viewModel = viewModel,
+                )
+            }
+
+            composable(
+                route = "edit_desktop_helper/{serverId}",
+                arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
+            ) {
+                val viewModel: AddDesktopHelperViewModel = hiltViewModel()
+                AddDesktopHelperScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    viewModel = viewModel,
+                )
+            }
+
+            composable(
+                route = "desktop_companion_agents/{serverId}",
+                arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
+            ) {
+                val viewModel: DesktopHelperAgentsViewModel = hiltViewModel()
+                DesktopHelperAgentsScreen(
                     onNavigateBack = { navController.popBackStack() },
                     viewModel = viewModel,
                 )

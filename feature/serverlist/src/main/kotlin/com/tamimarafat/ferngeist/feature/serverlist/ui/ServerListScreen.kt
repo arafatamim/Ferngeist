@@ -16,12 +16,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -34,6 +37,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -51,6 +55,7 @@ import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
@@ -59,14 +64,18 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 @Composable
 fun ServerListScreen(
     onNavigateToAddServer: () -> Unit,
-    onNavigateToEditServer: (String) -> Unit,
+    onNavigateToPairDesktopCompanion: () -> Unit,
+    onNavigateToDesktopCompanions: () -> Unit,
+    onNavigateToEditServer: (ServerConfig) -> Unit,
     onNavigateToSessions: (String, List<SessionSummary>, Boolean) -> Unit,
     viewModel: ServerListViewModel,
 ) {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
+    val hasDesktopCompanions by viewModel.hasDesktopCompanions.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var selectedAuthMethodId by rememberSaveable(uiState.pendingAuthentication?.serverId) {
         mutableStateOf(uiState.pendingAuthentication?.authMethods?.firstOrNull()?.id)
     }
@@ -89,6 +98,10 @@ fun ServerListScreen(
             snackbarHostState.showSnackbar(error)
             viewModel.dismissError()
         }
+    }
+
+    BackHandler(showAddMenu) {
+        showAddMenu = false
     }
 
     uiState.pendingAuthentication?.let { pendingAuthentication ->
@@ -187,14 +200,41 @@ fun ServerListScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = { ServerListTopBar(scrollBehavior = scrollBehavior) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onNavigateToAddServer,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("New Server") },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = MaterialTheme.shapes.extraLarge,
-            )
+            FloatingActionButtonMenu(
+                expanded = showAddMenu,
+                button = {
+                    ToggleFloatingActionButton(
+                        checked = showAddMenu,
+                        onCheckedChange = { showAddMenu = it },
+                    ) {
+                        Icon(
+                            imageVector = if (showAddMenu) Icons.Default.Close else Icons.Default.Add,
+                            contentDescription = null,
+                        )
+                    }
+                },
+            ) {
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        showAddMenu = false
+                        if (hasDesktopCompanions) {
+                            onNavigateToDesktopCompanions()
+                        } else {
+                            onNavigateToPairDesktopCompanion()
+                        }
+                    },
+                    icon = { Icon(Icons.Default.SmartToy, contentDescription = null) },
+                    text = { Text(if (hasDesktopCompanions) "Add from list" else "Pair desktop companion") },
+                )
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        showAddMenu = false
+                        onNavigateToAddServer()
+                    },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Add agent manually") },
+                )
+            }
         },
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
@@ -224,7 +264,7 @@ fun ServerListScreen(
                         server = server,
                         uiState = uiState,
                         onClick = { viewModel.connectAndOpenServer(server) },
-                        onEdit = { onNavigateToEditServer(server.id) },
+                        onEdit = { onNavigateToEditServer(server) },
                         onDelete = { viewModel.deleteServer(server.id) },
                     )
                 }
@@ -286,12 +326,12 @@ private fun EmptyServerList(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "No servers yet",
+                text = "No agents yet",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Add your first ACP endpoint to start chatting with coding agents.",
+                text = "Add an agent manually or pair a desktop companion to build your launch list.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -304,7 +344,7 @@ private fun EmptyServerList(
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Add server")
+                Text("Add agent")
             }
         }
     }

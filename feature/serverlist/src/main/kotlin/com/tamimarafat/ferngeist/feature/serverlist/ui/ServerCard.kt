@@ -63,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.ServerSourceKind
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -162,7 +163,11 @@ internal fun ServerCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "${server.scheme}://${server.host}",
+                            text = if (server.sourceKind == ServerSourceKind.DESKTOP_HELPER) {
+                                "Helper ${server.scheme}://${server.host}"
+                            } else {
+                                "${server.scheme}://${server.host}"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -186,6 +191,21 @@ internal fun ServerCard(
                         shape = RoundedCornerShape(10.dp),
                     )
                 }
+
+                AssistChip(
+                    onClick = {},
+                    enabled = false,
+                    label = {
+                        Text(
+                            if (server.sourceKind == ServerSourceKind.DESKTOP_HELPER) {
+                                "Desktop Helper"
+                            } else {
+                                "Manual ACP"
+                            }
+                        )
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                )
 
                 server.workingDirectory.takeIf { it.isNotBlank() && it != "/" }?.let { wd ->
                     Row(
@@ -219,7 +239,7 @@ internal fun ServerCard(
                 interactionSource = actionsMenuInteractionSource,
             ) {
                 DropdownMenuItem(
-                    text = { Text("Edit") },
+                    text = { Text(if (server.isDesktopHelperAgent) "Manage" else "Edit") },
                     onClick = {
                         showActionsMenu = false
                         onEdit()

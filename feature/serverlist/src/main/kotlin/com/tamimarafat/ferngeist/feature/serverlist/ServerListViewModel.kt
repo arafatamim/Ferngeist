@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
@@ -11,8 +12,10 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.ServerSourceKind
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,10 +24,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URI
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 
 /**
@@ -58,14 +65,28 @@ data class PendingAuthentication(
     val authErrorMessage: String? = null,
 )
 
+private data class DesktopHelperLaunchContext(
+    val config: AcpConnectionConfig,
+    val helperSource: ServerConfig,
+    val runtimeId: String,
+)
+
+private const val LOG_TAG = "ServerListViewModel"
+
 @HiltViewModel
 class ServerListViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val connectionManager: AcpConnectionManager,
+    private val helperRepository: DesktopHelperRepository,
 ) : ViewModel() {
 
     val servers: StateFlow<List<ServerConfig>> = serverRepository.getServers()
+        .map { configs -> configs.filter { it.sourceKind == ServerSourceKind.MANUAL_ACP || it.isDesktopHelperAgent } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val hasDesktopCompanions: StateFlow<Boolean> = serverRepository.getServers()
+        .map { configs -> configs.any { it.isDesktopCompanion } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _uiState = MutableStateFlow(ServerListUiState())
     val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
@@ -109,23 +130,44 @@ class ServerListViewModel @Inject constructor(
                 )
             }
 
-            // Step 1: Connect
-            val config = AcpConnectionConfig(
+            val helperLaunch = if (server.sourceKind == ServerSourceKind.DESKTOP_HELPER) {
+                buildDesktopHelperLaunchContext(server)
+            } else {
+                Result.success<DesktopHelperLaunchContext?>(null)
+            }
+
+            val launchContext = helperLaunch.getOrElse { error ->
+                _uiState.update {
+                    it.copy(
+                        connectingServerId = null,
+                        connectionState = AcpConnectionState.Failed(error),
+                        connectedServerState = null,
+                        showConnectionError = error.message ?: "Failed to launch ${server.name}",
+                    )
+                }
+                return@launch
+            }
+
+            val resolvedConfig = launchContext?.config ?: AcpConnectionConfig(
                 scheme = server.scheme,
                 host = server.host,
                 preferredAuthMethodId = server.preferredAuthMethodId,
             )
 
             val connected = withContext(Dispatchers.IO) {
-                connectionManager.connect(config)
+                connectionManager.connect(resolvedConfig)
             }
             if (!connected) {
+                val connectMessage = connectionManager.diagnostics.value.recentErrors
+                    .lastOrNull { entry -> entry.source == "connect" || entry.source == "connection" }
+                    ?.message
+                    ?: "Failed to connect to ${server.name}"
                 _uiState.update {
                     it.copy(
                         connectingServerId = null,
-                        connectionState = AcpConnectionState.Failed(Exception("Connection failed")),
+                        connectionState = AcpConnectionState.Failed(Exception(connectMessage)),
                         connectedServerState = null,
-                        showConnectionError = "Failed to connect to ${server.name}",
+                        showConnectionError = connectMessage,
                     )
                 }
                 return@launch
@@ -136,10 +178,16 @@ class ServerListViewModel @Inject constructor(
                 connectionManager.initialize()
             }
             if (initializeResult == null) {
+                val initializeDetail = buildInitializeFailureMessage(
+                    server = server,
+                    helperSource = launchContext?.helperSource,
+                    runtimeId = launchContext?.runtimeId,
+                )
+                logConnectionFailure(server, "initialize", initializeDetail)
                 _uiState.update {
                     it.copy(
                         connectingServerId = null,
-                        showConnectionError = "Failed to initialize session with ${server.name}",
+                        showConnectionError = shortInitializeFailureMessage(server),
                         connectedServerState = null,
                     )
                 }
@@ -314,6 +362,137 @@ class ServerListViewModel @Inject constructor(
         if (server.preferredAuthMethodId == methodId) return
         withContext(Dispatchers.IO) {
             serverRepository.updateServer(server.copy(preferredAuthMethodId = methodId))
+        }
+    }
+
+    /**
+     * Desktop helper agents need a two-stage launch: start or reuse the helper
+     * runtime, then request a runtime-scoped ACP WebSocket handoff.
+     */
+    private suspend fun buildDesktopHelperLaunchContext(server: ServerConfig): Result<DesktopHelperLaunchContext> {
+        val agentId = server.selectedAgentId
+            ?: return Result.failure(IllegalStateException("Desktop helper agent is missing an agent id"))
+        val helperSource = resolveDesktopHelperSource(server)
+            ?: return Result.failure(IllegalStateException("Desktop companion not found for ${server.name}"))
+        if (helperSource.helperCredential.isBlank()) {
+            return Result.failure(IllegalStateException("Desktop companion is not paired"))
+        }
+
+        return runCatching {
+            val runtime = withContext(Dispatchers.IO) {
+                helperRepository.startAgent(
+                    scheme = helperSource.scheme,
+                    host = helperSource.host,
+                    helperCredential = helperSource.helperCredential,
+                    agentId = agentId,
+                )
+            }
+            val handoff = withContext(Dispatchers.IO) {
+                helperRepository.connectRuntime(
+                    scheme = helperSource.scheme,
+                    host = helperSource.host,
+                    helperCredential = helperSource.helperCredential,
+                    runtimeId = runtime.id,
+                )
+            }
+            DesktopHelperLaunchContext(
+                config = AcpConnectionConfig(
+                    scheme = server.scheme,
+                    host = server.host,
+                    webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    preferredAuthMethodId = server.preferredAuthMethodId,
+                ),
+                helperSource = helperSource,
+                runtimeId = runtime.id,
+            )
+        }
+    }
+
+    /**
+     * Helper-backed initialize failures can happen after the helper has already
+     * successfully started and handed off the runtime. Surface the recorded ACP
+     * initialization error and, when available, the last helper runtime stderr
+     * or ACP stdout line so the user sees the real agent failure instead of the
+     * generic session initialization message.
+     */
+    private suspend fun buildInitializeFailureMessage(
+        server: ServerConfig,
+        helperSource: ServerConfig?,
+        runtimeId: String?,
+    ): String {
+        val diagnosticMessage = connectionManager.diagnostics.value.recentErrors
+            .lastOrNull { entry -> entry.source == "initialize" || entry.source == "connection" }
+            ?.message
+            ?.takeIf { it.isNotBlank() }
+            ?: "Failed to initialize session with ${server.name}"
+
+        if (helperSource == null || runtimeId.isNullOrBlank() || helperSource.helperCredential.isBlank()) {
+            return diagnosticMessage
+        }
+
+        val runtimeHint = runCatching {
+            helperRepository.fetchRuntimeLogs(
+                scheme = helperSource.scheme,
+                host = helperSource.host,
+                helperCredential = helperSource.helperCredential,
+                runtimeId = runtimeId,
+            )
+        }.getOrNull()
+            ?.asReversed()
+            ?.firstNotNullOfOrNull { entry ->
+                entry.message.trim().takeIf {
+                    it.isNotEmpty() && (entry.stream == "stderr" || entry.stream == "acp.stdout")
+                }
+            }
+
+        if (runtimeHint.isNullOrBlank() || diagnosticMessage.contains(runtimeHint, ignoreCase = true)) {
+            return diagnosticMessage
+        }
+        return "$diagnosticMessage\nHelper runtime: $runtimeHint"
+    }
+
+    private fun shortInitializeFailureMessage(server: ServerConfig): String {
+        return "Failed to initialize session with ${server.name}. See logcat for details."
+    }
+
+    private fun logConnectionFailure(server: ServerConfig, phase: String, message: String) {
+        runCatching {
+            Log.e(LOG_TAG, "${server.name} $phase failed\n$message")
+        }
+    }
+
+    /**
+     * Helper handoff URLs are convenient, but some helper deployments advertise
+     * wildcard or loopback hosts that are not reachable from Android. When that
+     * happens, rebuild the socket URL from the paired helper host plus the
+     * runtime-specific path and bearer token returned by the helper.
+     */
+    private fun resolveDesktopHelperWebSocketUrl(
+        helperSource: ServerConfig,
+        handoff: com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse,
+    ): String {
+        val advertisedUrl = handoff.webSocketUrl.trim()
+        val advertisedHost = runCatching { URI(advertisedUrl).host?.lowercase() }.getOrNull()
+        if (advertisedHost != null && !isUnroutableHelperHost(advertisedHost)) {
+            return advertisedUrl
+        }
+
+        val socketScheme = when (helperSource.scheme.lowercase()) {
+            "https", "wss" -> "wss"
+            else -> "ws"
+        }
+        val encodedToken = URLEncoder.encode(handoff.bearerToken, StandardCharsets.UTF_8.toString())
+        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}?access_token=$encodedToken"
+    }
+
+    private fun isUnroutableHelperHost(host: String): Boolean {
+        return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
+    }
+
+    private suspend fun resolveDesktopHelperSource(server: ServerConfig): ServerConfig? {
+        val helperSourceId = server.helperSourceId ?: return server.takeIf { it.isDesktopCompanion }
+        return withContext(Dispatchers.IO) {
+            serverRepository.getServer(helperSourceId)
         }
     }
 

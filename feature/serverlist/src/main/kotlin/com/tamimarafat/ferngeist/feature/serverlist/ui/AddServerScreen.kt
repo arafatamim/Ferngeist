@@ -91,7 +91,7 @@ fun AddServerScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (viewModel.isEditMode) "Edit Server" else "New Server",
+                        text = if (viewModel.isEditMode) "Edit Manual Server" else "New Manual Server",
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
@@ -117,9 +117,9 @@ fun AddServerScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── Server Details Section ──────────────────────────────────
+            // ── Manual ACP Details Section ──────────────────────────────
             SectionCard(
-                title = "Server Details",
+                title = "Manual ACP Details",
                 icon = Icons.Default.Dns,
             ) {
                 OutlinedTextField(
@@ -290,7 +290,7 @@ fun AddServerScreen(
 // ── Protocol Selector ───────────────────────────────────────────────────────────
 
 @Composable
-private fun ProtocolSelector(
+internal fun ProtocolSelector(
     selected: String,
     onSelect: (String) -> Unit,
 ) {
@@ -381,7 +381,7 @@ private fun ProtocolOption(
 // ── Section Card ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SectionCard(
+internal fun SectionCard(
     title: String,
     subtitle: String? = null,
     icon: ImageVector,

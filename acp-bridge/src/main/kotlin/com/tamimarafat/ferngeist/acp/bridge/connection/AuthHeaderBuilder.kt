@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 data class AcpConnectionConfig(
     val scheme: String = "ws",
     val host: String,
+    val webSocketUrl: String? = null,
     val preferredAuthMethodId: String? = null,
 )
 

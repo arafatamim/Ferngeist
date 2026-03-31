@@ -35,7 +35,7 @@ object AppModule {
             context,
             FerngeistDatabase::class.java,
             FerngeistDatabase.DATABASE_NAME,
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build()
     }
     
     @Provides
@@ -111,6 +111,58 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
             """
             ALTER TABLE `servers`
             ADD COLUMN `preferredAuthMethodId` TEXT
+            """.trimIndent()
+        )
+    }
+}
+
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `sourceKind` TEXT NOT NULL DEFAULT 'MANUAL_ACP'
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `helperCredential` TEXT NOT NULL DEFAULT ''
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `helperCredentialExpiresAt` INTEGER
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `helperRemoteMode` TEXT
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `selectedAgentId` TEXT
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `selectedAgentName` TEXT
+            """.trimIndent()
+        )
+    }
+}
+
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            ALTER TABLE `servers`
+            ADD COLUMN `helperSourceId` TEXT
             """.trimIndent()
         )
     }
