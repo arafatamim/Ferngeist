@@ -5,6 +5,8 @@ data class AcpConnectionConfig(
     val host: String,
     val webSocketUrl: String? = null,
     val preferredAuthMethodId: String? = null,
+    val helperRuntimeId: String? = null,
+    val helperSourceId: String? = null,
 )
 
 sealed interface AcpConnectionState {
@@ -19,11 +21,32 @@ data class AcpAuthMethodInfo(
     val name: String,
     val description: String?,
     val type: String,
-    val envVarName: String? = null,
+    val envVars: List<AuthEnvVarInfo> = emptyList(),
     val link: String? = null,
     val args: List<String> = emptyList(),
     val env: Map<String, String> = emptyMap(),
 )
+
+data class AuthEnvVarInfo(
+    val name: String,
+    val label: String?,
+    val secret: Boolean,
+    val optional: Boolean,
+)
+
+data class AcpAuthChallenge(
+    val agentInfo: AgentInfo,
+    val authMethods: List<AcpAuthMethodInfo>,
+    val message: String,
+)
+
+/**
+ * Raised when a session RPC indicates that the current ACP connection needs
+ * authentication before session/list, session/new, or session/load can proceed.
+ */
+class AcpAuthenticationRequiredException(
+    val challenge: AcpAuthChallenge,
+) : IllegalStateException(challenge.message)
 
 data class AcpAgentCapabilities(
     val loadSession: Boolean = false,

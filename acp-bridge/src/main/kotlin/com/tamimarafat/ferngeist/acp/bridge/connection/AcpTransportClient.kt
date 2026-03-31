@@ -41,6 +41,8 @@ internal class AcpTransportClient(
     var sdkClient: Client? = null
         private set
 
+    fun currentConnectionConfig(): AcpConnectionConfig? = currentConfig
+
     suspend fun connect(
         config: AcpConnectionConfig,
         resetState: () -> Unit,
@@ -75,37 +77,11 @@ internal class AcpTransportClient(
             )
             val agentCapabilities = mapAgentCapabilities(info.capabilities)
             val authMethods = info.authMethods.map(::mapAuthMethod)
-            // OpenCode and Claude Agent ACP currently advertises auth methods but can return
-            // "Authentication not implemented" for authenticate. Bypass auth
-            // for that agent specifically instead of weakening the general ACP flow.
-            val bypassAdvertisedAuth = mapped.name == "OpenCode" || mapped.name == "@zed-industries/claude-agent-acp"
-            val preferredMethodId = currentConfig
-                ?.preferredAuthMethodId
-                ?.takeIf { preferredId -> authMethods.any { it.id == preferredId } }
-            val autoSelectedMethodId = preferredMethodId ?: authMethods.singleOrNull()?.id
-
-            val result = if (authMethods.isEmpty() || bypassAdvertisedAuth) {
-                AcpInitializeResult.Ready(
-                    agentInfo = mapped,
-                    agentCapabilities = agentCapabilities,
-                    authMethods = authMethods,
-                )
-            } else if (autoSelectedMethodId != null) {
-                diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "authenticate")
-                client.authenticate(AuthMethodId(autoSelectedMethodId))
-                AcpInitializeResult.Ready(
-                    agentInfo = mapped,
-                    agentCapabilities = agentCapabilities,
-                    authMethods = authMethods,
-                    authenticatedMethodId = autoSelectedMethodId,
-                )
-            } else {
-                AcpInitializeResult.AuthenticationRequired(
-                    agentInfo = mapped,
-                    agentCapabilities = agentCapabilities,
-                    authMethods = authMethods,
-                )
-            }
+            val result = AcpInitializeResult.Ready(
+                agentInfo = mapped,
+                agentCapabilities = agentCapabilities,
+                authMethods = authMethods,
+            )
 
             diagnosticsStore.recordInitialization(mapped)
             scope.launch { emitManagerEvent(AcpManagerEvent.Initialized(result)) }
@@ -297,7 +273,14 @@ internal class AcpTransportClient(
                 name = method.name,
                 description = method.description,
                 type = "env",
-                envVarName = method.vars.firstOrNull()?.name,
+                envVars = method.vars.map { variable ->
+                    AuthEnvVarInfo(
+                        name = variable.name,
+                        label = variable.label,
+                        secret = variable.secret,
+                        optional = variable.optional,
+                    )
+                },
                 link = method.link,
             )
 

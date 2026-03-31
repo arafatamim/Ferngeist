@@ -19,6 +19,14 @@ interface DesktopHelperRepository {
         runtimeId: String,
     ): DesktopHelperConnectResponse
 
+    suspend fun restartRuntime(
+        scheme: String,
+        host: String,
+        helperCredential: String,
+        runtimeId: String,
+        envVars: Map<String, String>,
+    ): DesktopHelperConnectResponse
+
     suspend fun fetchRuntimeLogs(
         scheme: String,
         host: String,

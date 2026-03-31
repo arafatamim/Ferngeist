@@ -78,6 +78,26 @@ class DesktopHelperRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun restartRuntime(
+        scheme: String,
+        host: String,
+        helperCredential: String,
+        runtimeId: String,
+        envVars: Map<String, String>,
+    ): DesktopHelperConnectResponse {
+        return httpClient.postJson(
+            json = json,
+            scheme = scheme,
+            host = host,
+            bearerToken = helperCredential,
+            "v1",
+            "runtimes",
+            runtimeId,
+            "restart",
+            body = json.encodeToString(DesktopHelperRestartRequest(env = envVars)),
+        )
+    }
+
     override suspend fun fetchRuntimeLogs(
         scheme: String,
         host: String,

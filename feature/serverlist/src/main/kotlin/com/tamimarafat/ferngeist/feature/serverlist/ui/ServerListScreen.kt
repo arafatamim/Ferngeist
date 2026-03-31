@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +17,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -26,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.LargeTopAppBar
@@ -43,6 +48,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,12 +58,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.lerp
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
+import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -76,9 +88,11 @@ fun ServerListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
-    var selectedAuthMethodId by rememberSaveable(uiState.pendingAuthentication?.serverId) {
+    val pendingAuthentication = uiState.pendingAuthentication
+    var selectedAuthMethodId by rememberSaveable(pendingAuthentication?.serverId) {
         mutableStateOf(uiState.pendingAuthentication?.authMethods?.firstOrNull()?.id)
     }
+    val envValues = remember(pendingAuthentication?.serverId) { mutableStateMapOf<String, String>() }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -100,99 +114,26 @@ fun ServerListScreen(
         }
     }
 
+    LaunchedEffect(pendingAuthentication?.serverId, pendingAuthentication?.persistedEnvValues) {
+        envValues.clear()
+        pendingAuthentication?.persistedEnvValues?.forEach { (name, value) ->
+            envValues[name] = value
+        }
+    }
+
     BackHandler(showAddMenu) {
         showAddMenu = false
     }
 
-    uiState.pendingAuthentication?.let { pendingAuthentication ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = viewModel::dismissAuthenticationPrompt,
-            title = { Text("Authenticate ${pendingAuthentication.serverName}") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "The agent \"${pendingAuthentication.agentName}\" requires ACP authentication before sessions can be opened.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    pendingAuthentication.authErrorMessage?.let { message ->
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                    pendingAuthentication.authMethods.forEach { method ->
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.Top,
-                            ) {
-                                RadioButton(
-                                    selected = selectedAuthMethodId == method.id,
-                                    onClick = { selectedAuthMethodId = method.id },
-                                )
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(top = 2.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    Text(text = method.name, fontWeight = FontWeight.SemiBold)
-                                    Text(
-                                        text = method.description ?: "Type: ${method.type}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    method.envVarName?.let { envVarName ->
-                                        Text(
-                                            text = "Environment variable: $envVarName",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    method.link?.let { link ->
-                                        Text(
-                                            text = link,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
-                                    if (method.args.isNotEmpty()) {
-                                        Text(
-                                            text = "Command: ${method.args.joinToString(" ")}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = selectedAuthMethodId != null,
-                    onClick = {
-                        selectedAuthMethodId?.let { methodId ->
-                            viewModel.authenticate(pendingAuthentication.serverId, methodId)
-                        }
-                    },
-                ) {
-                    Text("Authenticate")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = viewModel::dismissAuthenticationPrompt) {
-                    Text("Cancel")
-                }
-            },
+    pendingAuthentication?.let {
+        PendingAuthenticationDialog(
+            pendingAuthentication = it,
+            selectedAuthMethodId = selectedAuthMethodId,
+            onSelectedAuthMethodChange = { methodId -> selectedAuthMethodId = methodId },
+            envValues = envValues,
+            onSubmit = { methodId, values -> viewModel.authenticate(it.serverId, methodId, values) },
+            onReconnect = { viewModel.retryPendingAuthentication(it.serverId) },
+            onDismiss = viewModel::dismissAuthenticationPrompt,
         )
     }
 
@@ -291,6 +232,192 @@ private fun ServerListTopBar(scrollBehavior: TopAppBarScrollBehavior) {
             scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
         ),
     )
+}
+
+@Composable
+private fun PendingAuthenticationDialog(
+    pendingAuthentication: PendingAuthentication,
+    selectedAuthMethodId: String?,
+    onSelectedAuthMethodChange: (String) -> Unit,
+    envValues: MutableMap<String, String>,
+    onSubmit: (String, Map<String, String>) -> Unit,
+    onReconnect: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    val scrollState = rememberScrollState()
+    val selectedMethod = pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
+        ?: pendingAuthentication.authMethods.firstOrNull()
+    val isHelperEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntime != null
+    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntime == null
+    val requiredEnvVarsFilled = selectedMethod
+        ?.envVars
+        ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
+        ?: false
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Authenticate ${pendingAuthentication.serverName}") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "The agent \"${pendingAuthentication.agentName}\" requires ACP authentication before sessions can be opened.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                pendingAuthentication.authErrorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                pendingAuthentication.authMethods.forEach { method ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            RadioButton(
+                                selected = selectedMethod?.id == method.id,
+                                onClick = { onSelectedAuthMethodChange(method.id) },
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(top = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(text = method.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = method.description ?: "Type: ${method.type}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (selectedMethod?.id == method.id) {
+                                    AuthenticationMethodDetails(
+                                        method = method,
+                                        envValues = envValues,
+                                        isHelperBacked = pendingAuthentication.helperRuntime != null,
+                                        onOpenLink = { uriHandler.openUri(it) },
+                                        onEnvValueChange = { name, value -> envValues[name] = value },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = when {
+                    selectedMethod == null -> false
+                    isHelperEnvAuth -> requiredEnvVarsFilled
+                    else -> true
+                },
+                onClick = {
+                    when {
+                        selectedMethod == null -> Unit
+                        isManualEnvAuth -> onReconnect()
+                        else -> onSubmit(selectedMethod.id, envValues)
+                    }
+                },
+            ) {
+                Text(if (isManualEnvAuth) "Reconnect" else "Authenticate")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@Composable
+private fun AuthenticationMethodDetails(
+    method: AcpAuthMethodInfo,
+    envValues: MutableMap<String, String>,
+    isHelperBacked: Boolean,
+    onOpenLink: (String) -> Unit,
+    onEnvValueChange: (String, String) -> Unit,
+) {
+    method.link?.let { link ->
+        TextButton(onClick = { onOpenLink(link) }) {
+            Text(link)
+        }
+    }
+    if (method.args.isNotEmpty()) {
+        Text(
+            text = "Command: ${method.args.joinToString(" ")}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (method.type != "env") {
+        return
+    }
+    if (!isHelperBacked) {
+        Text(
+            text = "Set these environment variables before launching the agent, then reconnect to retry authentication.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        method.envVars.forEach { envVar ->
+            Text(
+                text = buildString {
+                    append(envVar.label ?: envVar.name)
+                    append(" -> ")
+                    append(envVar.name)
+                    if (envVar.optional) {
+                        append(" (optional)")
+                    }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    method.envVars.forEach { envVar ->
+        OutlinedTextField(
+            value = envValues[envVar.name].orEmpty(),
+            onValueChange = { onEnvValueChange(envVar.name, it) },
+            modifier = Modifier.fillMaxWidth(),
+            label = {
+                Text(
+                    buildString {
+                        append(envVar.label ?: envVar.name)
+                        if (envVar.optional) {
+                            append(" (optional)")
+                        }
+                    }
+                )
+            },
+            supportingText = { Text(envVar.name) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
+            ),
+            visualTransformation = if (envVar.secret) {
+                PasswordVisualTransformation()
+            } else {
+                VisualTransformation.None
+            },
+        )
+    }
 }
 
 @Composable

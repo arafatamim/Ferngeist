@@ -55,6 +55,12 @@ class AcpConnectionManager(
     private val _agentCapabilities = MutableStateFlow<AcpAgentCapabilities?>(null)
     val agentCapabilities: StateFlow<AcpAgentCapabilities?> = _agentCapabilities.asStateFlow()
 
+    private val _agentInfo = MutableStateFlow<AgentInfo?>(null)
+    val agentInfo: StateFlow<AgentInfo?> = _agentInfo.asStateFlow()
+
+    private val _authMethods = MutableStateFlow<List<AcpAuthMethodInfo>>(emptyList())
+    val authMethods: StateFlow<List<AcpAuthMethodInfo>> = _authMethods.asStateFlow()
+
     private val diagnosticsStore = AcpDiagnosticsStore()
     val diagnostics: StateFlow<ConnectionDiagnostics> = diagnosticsStore.diagnostics
 
@@ -73,10 +79,14 @@ class AcpConnectionManager(
                 when (event) {
                     is AcpManagerEvent.Initialized -> {
                         _agentCapabilities.value = event.result.agentCapabilities
+                        _agentInfo.value = event.result.agentInfo
+                        _authMethods.value = event.result.authMethods
                     }
 
                     is AcpManagerEvent.Disconnected -> {
                         _agentCapabilities.value = null
+                        _agentInfo.value = null
+                        _authMethods.value = emptyList()
                     }
 
                     else -> Unit
@@ -95,8 +105,12 @@ class AcpConnectionManager(
     suspend fun initialize(): AcpInitializeResult? {
         val result = transportClient.initialize()
         _agentCapabilities.value = result?.agentCapabilities
+        _agentInfo.value = result?.agentInfo
+        _authMethods.value = result?.authMethods ?: emptyList()
         return result
     }
+
+    fun currentConnectionConfig(): AcpConnectionConfig? = transportClient.currentConnectionConfig()
 
     suspend fun authenticate(methodId: String): AcpAuthenticateResult {
         return transportClient.authenticate(methodId)
@@ -120,6 +134,7 @@ class AcpConnectionManager(
                 )
             }
         }.getOrElse {
+            toAuthRequiredException(it)?.let { error -> throw error }
             diagnosticsStore.appendError("session/list", formatAcpErrorMessage(it, "Failed to list sessions"))
             emptyList()
         }
@@ -135,6 +150,7 @@ class AcpConnectionManager(
             )
             registerSession(session)
         }.getOrElse {
+            toAuthRequiredException(it)?.let { error -> throw error }
             diagnosticsStore.appendError("session/new", formatAcpErrorMessage(it, "Failed to create session"))
             null
         }
@@ -168,6 +184,7 @@ class AcpConnectionManager(
             registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
             registeredBridge
         }.getOrElse { error ->
+            toAuthRequiredException(error)?.let { authError -> throw authError }
             if (isSessionAlreadyLoadedError(error)) {
                 getLoadedSession(sessionId)?.let { existing ->
                     diagnosticsStore.appendError("session/load", "Session is already loaded locally. Reusing the active session.")
@@ -185,7 +202,7 @@ class AcpConnectionManager(
             sessionRegistry.getBridge(sessionId)?.failHydration(message)
             clearSessionState(sessionId, closeBridge = true)
             diagnosticsStore.appendError("session/load", message)
-            null
+            throw error
         }
     }
 
@@ -487,7 +504,44 @@ class AcpConnectionManager(
 
     private fun resetConnectionState() {
         _agentCapabilities.value = null
+        _agentInfo.value = null
+        _authMethods.value = emptyList()
         clearAllSessionState(closeBridges = true)
+    }
+
+    private fun toAuthRequiredException(error: Throwable): AcpAuthenticationRequiredException? {
+        if (!isAuthenticationRequiredError(error)) return null
+        val challenge = currentAuthChallenge(message = formatAcpErrorMessage(error, "Authentication required"))
+            ?: return null
+        diagnosticsStore.appendError("authentication", challenge.message)
+        return AcpAuthenticationRequiredException(challenge)
+    }
+
+    private fun currentAuthChallenge(message: String): AcpAuthChallenge? {
+        val agent = _agentInfo.value ?: return null
+        val methods = _authMethods.value
+        return AcpAuthChallenge(
+            agentInfo = agent,
+            authMethods = methods,
+            message = message,
+        )
+    }
+
+    private fun isAuthenticationRequiredError(error: Throwable): Boolean {
+        // ACP documents the auth_required condition, but some servers still emit
+        // only human-readable JSON-RPC messages. Keep the check broad enough to
+        // recognize those failures without hard-coding a vendor name here.
+        val rpcError = error as? JsonRpcException
+        val message = buildString {
+            append(error.message.orEmpty())
+            if (rpcError != null) {
+                append(' ')
+                append(rpcError.data?.toString().orEmpty())
+            }
+        }
+        return message.contains("auth_required", ignoreCase = true) ||
+            message.contains("authentication required", ignoreCase = true) ||
+            message.contains("requires authentication", ignoreCase = true)
     }
 
 }

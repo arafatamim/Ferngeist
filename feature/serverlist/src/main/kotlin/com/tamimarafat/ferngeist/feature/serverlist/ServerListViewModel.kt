@@ -15,6 +15,7 @@ import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.ServerSourceKind
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
+import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,13 @@ data class PendingAuthentication(
     val serverName: String,
     val agentName: String,
     val authMethods: List<AcpAuthMethodInfo>,
+    val persistedEnvValues: Map<String, String> = emptyMap(),
     val authErrorMessage: String? = null,
+    val helperRuntime: PendingHelperRuntime? = null,
+)
+
+data class PendingHelperRuntime(
+    val runtimeId: String,
 )
 
 private data class DesktopHelperLaunchContext(
@@ -78,6 +85,7 @@ class ServerListViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val connectionManager: AcpConnectionManager,
     private val helperRepository: DesktopHelperRepository,
+    private val authEnvValueStore: AuthEnvValueStore,
 ) : ViewModel() {
 
     val servers: StateFlow<List<ServerConfig>> = serverRepository.getServers()
@@ -116,6 +124,16 @@ class ServerListViewModel @Inject constructor(
      */
     fun connectAndOpenServer(server: ServerConfig) {
         viewModelScope.launch {
+            // Helper-backed agents should start from a fresh ACP transport. If we
+            // request a new helper handoff before closing the existing socket,
+            // the old runtime can survive long enough to be reused, which some
+            // stdio agents do not handle correctly on reattach.
+            if (_uiState.value.connectionState !is AcpConnectionState.Disconnected) {
+                withContext(Dispatchers.IO) {
+                    connectionManager.disconnect()
+                }
+            }
+
             // Update UI state
             _uiState.update {
                 it.copy(
@@ -152,6 +170,7 @@ class ServerListViewModel @Inject constructor(
                 scheme = server.scheme,
                 host = server.host,
                 preferredAuthMethodId = server.preferredAuthMethodId,
+                helperSourceId = server.helperSourceId,
             )
 
             val connected = withContext(Dispatchers.IO) {
@@ -216,6 +235,7 @@ class ServerListViewModel @Inject constructor(
 
                 is AcpInitializeResult.AuthenticationRequired -> {
                     val capabilityLabels = initializeResult.agentCapabilities.displayLabels()
+                    val persistedEnvValues = loadPersistedEnvValues(server.id, initializeResult.authMethods)
                     _uiState.update {
                         it.copy(
                             connectingServerId = null,
@@ -224,7 +244,9 @@ class ServerListViewModel @Inject constructor(
                                 serverName = server.name,
                                 agentName = initializeResult.agentInfo.name,
                                 authMethods = initializeResult.authMethods,
+                                persistedEnvValues = persistedEnvValues,
                                 authErrorMessage = initializeResult.authErrorMessage,
+                                helperRuntime = launchContext?.let { PendingHelperRuntime(runtimeId = it.runtimeId) },
                             ),
                             connectedServerState = it.connectedServerState?.copy(
                                 agentName = initializeResult.agentInfo.name,
@@ -238,10 +260,11 @@ class ServerListViewModel @Inject constructor(
         }
     }
 
-    fun authenticate(serverId: String, methodId: String) {
+    fun authenticate(serverId: String, methodId: String, envValues: Map<String, String> = emptyMap()) {
         viewModelScope.launch {
             val pending = _uiState.value.pendingAuthentication
             if (pending == null || pending.serverId != serverId) return@launch
+            val method = pending.authMethods.firstOrNull { it.id == methodId } ?: return@launch
 
             _uiState.update {
                 it.copy(
@@ -249,6 +272,15 @@ class ServerListViewModel @Inject constructor(
                     showConnectionError = null,
                     pendingAuthentication = pending.copy(authErrorMessage = null),
                 )
+            }
+
+            if (method.type == "env" && pending.helperRuntime != null) {
+                authenticateHelperEnvVar(
+                    pending = pending,
+                    method = method,
+                    envValues = envValues,
+                )
+                return@launch
             }
 
             when (val result = withContext(Dispatchers.IO) {
@@ -287,6 +319,19 @@ class ServerListViewModel @Inject constructor(
         }
     }
 
+    fun retryPendingAuthentication(serverId: String) {
+        viewModelScope.launch {
+            val server = withContext(Dispatchers.IO) {
+                serverRepository.getServer(serverId)
+            } ?: return@launch
+
+            withContext(Dispatchers.IO) {
+                connectionManager.disconnect()
+            }
+            connectAndOpenServer(server)
+        }
+    }
+
     fun dismissAuthenticationPrompt() {
         _uiState.update { it.copy(pendingAuthentication = null, connectingServerId = null) }
     }
@@ -307,6 +352,7 @@ class ServerListViewModel @Inject constructor(
     fun deleteServer(serverId: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
+                authEnvValueStore.deleteValues(serverId)
                 serverRepository.deleteServer(serverId)
             }
             // If we were connected to this server, disconnect
@@ -318,6 +364,209 @@ class ServerListViewModel @Inject constructor(
 
     fun dismissError() {
         _uiState.update { it.copy(showConnectionError = null) }
+    }
+
+    private suspend fun authenticateHelperEnvVar(
+        pending: PendingAuthentication,
+        method: AcpAuthMethodInfo,
+        envValues: Map<String, String>,
+    ) {
+        val helperRuntime = pending.helperRuntime ?: return
+        val server = withContext(Dispatchers.IO) {
+            serverRepository.getServer(pending.serverId)
+        } ?: run {
+            _uiState.update {
+                it.copy(
+                    connectingServerId = null,
+                    pendingAuthentication = pending.copy(authErrorMessage = "Server was removed before authentication could complete."),
+                )
+            }
+            return
+        }
+        val helperSource = resolveDesktopHelperSource(server) ?: run {
+            _uiState.update {
+                it.copy(
+                    connectingServerId = null,
+                    pendingAuthentication = pending.copy(authErrorMessage = "Desktop companion was not found for ${server.name}."),
+                )
+            }
+            return
+        }
+        if (helperSource.helperCredential.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    connectingServerId = null,
+                    pendingAuthentication = pending.copy(authErrorMessage = "Desktop companion is not paired."),
+                )
+            }
+            return
+        }
+
+        val envPayload = buildEnvPayload(method, envValues)
+        persistEnvValues(server.id, method, envValues)
+        val handoff = runCatching {
+            withContext(Dispatchers.IO) {
+                helperRepository.restartRuntime(
+                    scheme = helperSource.scheme,
+                    host = helperSource.host,
+                    helperCredential = helperSource.helperCredential,
+                    runtimeId = helperRuntime.runtimeId,
+                    envVars = envPayload,
+                )
+            }
+        }.getOrElse { error ->
+            _uiState.update {
+                it.copy(
+                    connectingServerId = null,
+                    pendingAuthentication = pending.copy(authErrorMessage = error.message ?: "Failed to restart ${server.name}."),
+                )
+            }
+            return
+        }
+
+        val updatedPending = pending.copy(
+            authErrorMessage = null,
+            helperRuntime = PendingHelperRuntime(runtimeId = handoff.runtimeId),
+        )
+        _uiState.update { it.copy(pendingAuthentication = updatedPending) }
+
+        withContext(Dispatchers.IO) {
+            connectionManager.disconnect()
+        }
+
+        val reconnected = withContext(Dispatchers.IO) {
+            connectionManager.connect(
+                AcpConnectionConfig(
+                    scheme = server.scheme,
+                    host = server.host,
+                    webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    preferredAuthMethodId = method.id,
+                    helperRuntimeId = handoff.runtimeId,
+                    helperSourceId = helperSource.id,
+                )
+            )
+        }
+        if (!reconnected) {
+            val message = connectionManager.diagnostics.value.recentErrors
+                .lastOrNull { entry -> entry.source == "connect" || entry.source == "connection" }
+                ?.message
+                ?: "Failed to reconnect to ${server.name}"
+            _uiState.update {
+                it.copy(
+                    connectingServerId = null,
+                    pendingAuthentication = updatedPending.copy(authErrorMessage = message),
+                    showConnectionError = message,
+                )
+            }
+            return
+        }
+
+        val initializeResult = withContext(Dispatchers.IO) {
+            connectionManager.initialize()
+        }
+        if (initializeResult == null) {
+            val message = buildInitializeFailureMessage(
+                server = server,
+                helperSource = helperSource,
+                runtimeId = handoff.runtimeId,
+            )
+            _uiState.update {
+                it.copy(
+                    connectingServerId = null,
+                    pendingAuthentication = updatedPending.copy(authErrorMessage = message),
+                    showConnectionError = shortInitializeFailureMessage(server),
+                )
+            }
+            return
+        }
+
+        val capabilityLabels = initializeResult.agentCapabilities.displayLabels()
+        val persistedEnvValues = loadPersistedEnvValues(server.id, initializeResult.authMethods)
+        _uiState.update {
+            it.copy(
+                pendingAuthentication = updatedPending.copy(
+                    agentName = initializeResult.agentInfo.name,
+                    authMethods = initializeResult.authMethods,
+                    persistedEnvValues = persistedEnvValues,
+                    authErrorMessage = null,
+                ),
+                connectedServerState = it.connectedServerState?.copy(
+                    agentName = initializeResult.agentInfo.name,
+                    capabilities = capabilityLabels,
+                    isInitializing = false,
+                ),
+            )
+        }
+
+        when (val result = withContext(Dispatchers.IO) {
+            connectionManager.authenticate(method.id)
+        }) {
+            is AcpAuthenticateResult.Failure -> {
+                _uiState.update {
+                    it.copy(
+                        connectingServerId = null,
+                        pendingAuthentication = it.pendingAuthentication?.copy(authErrorMessage = result.message),
+                    )
+                }
+                return
+            }
+
+            AcpAuthenticateResult.Success -> Unit
+        }
+
+        savePreferredAuthMethod(server, method.id)
+        _uiState.update {
+            it.copy(
+                connectingServerId = null,
+                pendingAuthentication = null,
+                connectedServerState = it.connectedServerState?.copy(isInitializing = false),
+            )
+        }
+        openConnectedServer(server.id)
+    }
+
+    private fun buildEnvPayload(method: AcpAuthMethodInfo, envValues: Map<String, String>): Map<String, String> {
+        return buildMap {
+            method.envVars.forEach { envVar ->
+                val value = envValues[envVar.name]?.trim().orEmpty()
+                if (value.isNotEmpty() || !envVar.optional) {
+                    put(envVar.name, value)
+                }
+            }
+        }
+    }
+
+    private suspend fun loadPersistedEnvValues(
+        serverId: String,
+        authMethods: List<AcpAuthMethodInfo>,
+    ): Map<String, String> {
+        val allowedNames = authMethods
+            .flatMap { method -> method.envVars }
+            .mapTo(linkedSetOf()) { envVar -> envVar.name }
+        if (allowedNames.isEmpty()) {
+            return emptyMap()
+        }
+        return withContext(Dispatchers.IO) {
+            authEnvValueStore.getValues(serverId)
+                .filterKeys { key -> key in allowedNames }
+        }
+    }
+
+    private suspend fun persistEnvValues(
+        serverId: String,
+        method: AcpAuthMethodInfo,
+        envValues: Map<String, String>,
+    ) {
+        if (method.envVars.isEmpty()) {
+            return
+        }
+        withContext(Dispatchers.IO) {
+            authEnvValueStore.updateValues(
+                serverId = serverId,
+                envVarNames = method.envVars.mapTo(linkedSetOf()) { envVar -> envVar.name },
+                envValues = envValues.filterKeys { key -> method.envVars.any { envVar -> envVar.name == key } },
+            )
+        }
     }
 
     private fun handleManagerEvent(event: AcpManagerEvent) {
@@ -369,6 +618,10 @@ class ServerListViewModel @Inject constructor(
      * Desktop helper agents need a two-stage launch: start or reuse the helper
      * runtime, then request a runtime-scoped ACP WebSocket handoff.
      */
+    /**
+     * Starts the selected helper-backed agent and converts the helper handoff
+     * response into an ACP connection config Ferngeist can reconnect with later.
+     */
     private suspend fun buildDesktopHelperLaunchContext(server: ServerConfig): Result<DesktopHelperLaunchContext> {
         val agentId = server.selectedAgentId
             ?: return Result.failure(IllegalStateException("Desktop helper agent is missing an agent id"))
@@ -401,6 +654,8 @@ class ServerListViewModel @Inject constructor(
                     host = server.host,
                     webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
                     preferredAuthMethodId = server.preferredAuthMethodId,
+                    helperRuntimeId = runtime.id,
+                    helperSourceId = helperSource.id,
                 ),
                 helperSource = helperSource,
                 runtimeId = runtime.id,

@@ -103,6 +103,11 @@ data class DesktopHelperConnectResponse(
 )
 
 @Serializable
+data class DesktopHelperRestartRequest(
+    val env: Map<String, String>,
+)
+
+@Serializable
 data class DesktopHelperRuntimeLogsResponse(
     val runtimeId: String,
     val logs: List<DesktopHelperLogEntry>,

@@ -17,10 +17,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -37,11 +40,14 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
@@ -58,11 +64,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -70,16 +78,24 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.connectionStateLabel
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import java.text.SimpleDateFormat
@@ -112,6 +128,7 @@ fun SessionListScreen(
     val connectionState by viewModel.connectionState.collectAsState()
     val agentCapabilities by viewModel.agentCapabilities.collectAsState()
     val connectionDiagnostics by viewModel.connectionDiagnostics.collectAsState()
+    val pendingAuthentication by viewModel.pendingAuthentication.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
     val defaultCwd = server?.workingDirectory?.takeIf { it.isNotBlank() } ?: "/"
@@ -119,9 +136,22 @@ fun SessionListScreen(
     var createSessionCwd by remember(defaultCwd) { mutableStateOf(defaultCwd) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
     var hasConsumedLaunchCreate by rememberSaveable { mutableStateOf(false) }
+    var selectedAuthMethodId by rememberSaveable(pendingAuthentication?.serverId, pendingAuthentication?.pendingAction) {
+        mutableStateOf(pendingAuthentication?.preferredAuthMethodId ?: pendingAuthentication?.authMethods?.firstOrNull()?.id)
+    }
+    val envValues = remember(pendingAuthentication?.serverId, pendingAuthentication?.pendingAction) { mutableStateMapOf<String, String>() }
     val pullToRefreshState = rememberPullToRefreshState()
     val showRefreshingIndicator = isLoading && sessions.isNotEmpty()
     val supportsSessionList = agentCapabilities?.session?.list != false
+
+    LaunchedEffect(pendingAuthentication?.serverId, pendingAuthentication?.pendingAction, pendingAuthentication?.persistedEnvValues) {
+        envValues.clear()
+        pendingAuthentication?.persistedEnvValues?.forEach { (name, value) ->
+            envValues[name] = value
+        }
+        selectedAuthMethodId = pendingAuthentication?.preferredAuthMethodId
+            ?: pendingAuthentication?.authMethods?.firstOrNull()?.id
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -189,6 +219,18 @@ fun SessionListScreen(
             diagnostics = connectionDiagnostics,
             showCancelSupport = true,
             onDismiss = { showConnectionStatusDialog = false }
+        )
+    }
+
+    pendingAuthentication?.let { pending ->
+        PendingAuthenticationDialog(
+            pendingAuthentication = pending,
+            selectedAuthMethodId = selectedAuthMethodId,
+            onSelectedAuthMethodChange = { selectedAuthMethodId = it },
+            envValues = envValues,
+            onSubmit = { methodId, values -> viewModel.authenticate(methodId, values) },
+            onReconnect = viewModel::reconnectPendingAuthentication,
+            onDismiss = viewModel::dismissAuthenticationPrompt,
         )
     }
 
@@ -398,6 +440,192 @@ fun SessionListScreen(
                     .statusBarsPadding()
             )
         }
+    }
+}
+
+@Composable
+private fun PendingAuthenticationDialog(
+    pendingAuthentication: SessionListPendingAuthentication,
+    selectedAuthMethodId: String?,
+    onSelectedAuthMethodChange: (String) -> Unit,
+    envValues: MutableMap<String, String>,
+    onSubmit: (String, Map<String, String>) -> Unit,
+    onReconnect: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    val scrollState = rememberScrollState()
+    val selectedMethod = pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
+        ?: pendingAuthentication.authMethods.firstOrNull()
+    val isHelperEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntimeId != null
+    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntimeId == null
+    val requiredEnvVarsFilled = selectedMethod
+        ?.envVars
+        ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
+        ?: false
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Authenticate ${pendingAuthentication.serverName}") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "The agent \"${pendingAuthentication.agentName}\" requires ACP authentication before sessions can be opened.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                pendingAuthentication.authErrorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                pendingAuthentication.authMethods.forEach { method ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            RadioButton(
+                                selected = selectedMethod?.id == method.id,
+                                onClick = { onSelectedAuthMethodChange(method.id) },
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(top = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(text = method.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = method.description ?: "Type: ${method.type}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (selectedMethod?.id == method.id) {
+                                    AuthenticationMethodDetails(
+                                        method = method,
+                                        envValues = envValues,
+                                        isHelperBacked = pendingAuthentication.helperRuntimeId != null,
+                                        onOpenLink = { uriHandler.openUri(it) },
+                                        onEnvValueChange = { name, value -> envValues[name] = value },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = when {
+                    selectedMethod == null -> false
+                    isHelperEnvAuth -> requiredEnvVarsFilled
+                    else -> true
+                },
+                onClick = {
+                    when {
+                        selectedMethod == null -> Unit
+                        isManualEnvAuth -> onReconnect()
+                        else -> onSubmit(selectedMethod.id, envValues)
+                    }
+                },
+            ) {
+                Text(if (isManualEnvAuth) "Reconnect" else "Authenticate")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@Composable
+private fun AuthenticationMethodDetails(
+    method: AcpAuthMethodInfo,
+    envValues: MutableMap<String, String>,
+    isHelperBacked: Boolean,
+    onOpenLink: (String) -> Unit,
+    onEnvValueChange: (String, String) -> Unit,
+) {
+    method.link?.let { link ->
+        TextButton(onClick = { onOpenLink(link) }) {
+            Text(link)
+        }
+    }
+    if (method.args.isNotEmpty()) {
+        Text(
+            text = "Command: ${method.args.joinToString(" ")}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (method.type != "env") {
+        return
+    }
+    if (!isHelperBacked) {
+        Text(
+            text = "Set these environment variables before launching the agent, then reconnect to retry authentication.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        method.envVars.forEach { envVar ->
+            Text(
+                text = buildString {
+                    append(envVar.label ?: envVar.name)
+                    append(" -> ")
+                    append(envVar.name)
+                    if (envVar.optional) {
+                        append(" (optional)")
+                    }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    method.envVars.forEach { envVar ->
+        OutlinedTextField(
+            value = envValues[envVar.name].orEmpty(),
+            onValueChange = { onEnvValueChange(envVar.name, it) },
+            modifier = Modifier.fillMaxWidth(),
+            label = {
+                Text(
+                    buildString {
+                        append(envVar.label ?: envVar.name)
+                        if (envVar.optional) {
+                            append(" (optional)")
+                        }
+                    }
+                )
+            },
+            supportingText = { Text(envVar.name) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
+            ),
+            visualTransformation = if (envVar.secret) {
+                PasswordVisualTransformation()
+            } else {
+                VisualTransformation.None
+            },
+        )
     }
 }
 

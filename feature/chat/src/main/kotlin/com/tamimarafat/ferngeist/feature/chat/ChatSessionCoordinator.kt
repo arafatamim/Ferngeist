@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat
 import com.tamimarafat.ferngeist.feature.chat.BuildConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
@@ -60,6 +61,10 @@ internal class ChatSessionCoordinator(
     private var shouldRecoverBridge: Boolean = false
     private val bridgeOperationMutex = Mutex()
 
+    /**
+     * Reattaches chat to an existing ACP session, or falls back to creating a
+     * fresh live session when the server never acknowledges session/load.
+     */
     suspend fun loadSession() {
         bridgeOperationMutex.withLock {
             shouldRecoverBridge = true
@@ -96,9 +101,20 @@ internal class ChatSessionCoordinator(
                         cwd = cwd,
                     )
                 }
+            } catch (error: AcpAuthenticationRequiredException) {
+                callbacks.onLoadFailed(
+                    "ACP authentication is required for this server. Return to the session list and authenticate first.",
+                )
+                return
             } catch (_: TimeoutCancellationException) {
                 loadTimedOut = true
                 null
+            } catch (error: Exception) {
+                // Preserve the original session/load failure so provider-specific
+                // JSON-RPC errors are shown to the user instead of a generic
+                // "Could not load this session" message.
+                callbacks.onLoadFailed(formatAcpErrorMessage(error, "Failed to load session"))
+                return
             }
 
             if (bridge != null) {
@@ -344,7 +360,14 @@ internal class ChatSessionCoordinator(
             return existing
         }
 
-        val created = runCatching { connectionManager.createSession(cwd) }.getOrNull() ?: return null
+        val created = try {
+            connectionManager.createSession(cwd)
+        } catch (_: AcpAuthenticationRequiredException) {
+            callbacks.onLoadFailed(
+                "ACP authentication is required for this server. Return to the session list and authenticate first.",
+            )
+            null
+        } ?: return null
         attachSessionBridge(created)
         callbacks.onSessionReady()
         return created
@@ -411,7 +434,15 @@ internal class ChatSessionCoordinator(
                     cwd = cwd,
                 )
             }
+        } catch (_: AcpAuthenticationRequiredException) {
+            callbacks.onLoadFailed(
+                "ACP authentication is required for this server. Return to the session list and authenticate first.",
+            )
+            null
         } catch (_: TimeoutCancellationException) {
+            null
+        } catch (error: Exception) {
+            callbacks.onLoadFailed(formatAcpErrorMessage(error, "Failed to load session"))
             null
         }
         if (recovered != null) {
