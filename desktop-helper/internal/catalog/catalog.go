@@ -25,9 +25,9 @@ const mockAgentExecutablePlaceholder = "__MOCK_AGENT_EXECUTABLE__"
 //go:embed manifests/*.json
 var embeddedManifestFS embed.FS
 
-// Agent is the helper's curated manifest for one supported ACP runtime. The
-// catalog is intentionally opinionated: Ferngeist can only launch agents that
-// appear here and pass validation.
+// Agent is one helper-visible ACP runtime entry. Entries may come from bundled
+// helper-owned manifests (such as the mock runtime) or be synthesized directly
+// from the ACP registry when the registry provides a supported launch method.
 type Agent struct {
 	ID              string            `json:"id"`
 	DisplayName     string            `json:"displayName"`
@@ -95,6 +95,18 @@ type RegistryInfo struct {
 	CurrentBinaryCommand    string   `json:"currentBinaryCommand,omitempty"`
 	CurrentBinaryArgs       []string `json:"currentBinaryArgs,omitempty"`
 	NpxPackage              string   `json:"npxPackage,omitempty"`
+	NpxArgs                 []string `json:"npxArgs,omitempty"`
+	UvxPackage              string   `json:"uvxPackage,omitempty"`
+	UvxArgs                 []string `json:"uvxArgs,omitempty"`
+}
+
+// registryLaunchPlan is the catalog's single source of truth for how an ACP
+// registry entry should run on the current host. The helper synthesizes this
+// once from the raw registry record and then carries the chosen launch through
+// the rest of the catalog pipeline via Agent.
+type registryLaunchPlan struct {
+	Launch    LaunchConfig
+	Detection DetectionConfig
 }
 
 type RegistrySource interface {
@@ -214,22 +226,20 @@ func (s *Service) Refresh() {
 		ids := sortedRegistryIDs(registrySnapshot.Agents)
 		for _, id := range ids {
 			entry := registrySnapshot.Agents[id]
-			agent := registryEntryToAgent(entry)
+			registryAgent := registryEntryToAgent(entry)
+			agent := registryAgent
 			if adapter, ok := adapterByID[id]; ok {
-				agent = mergeAdapter(agent, adapter)
-				agent, agent.Registry = applyRegistryInfo(agent, agent.Registry, registrySnapshot, nil, true, agent.ID)
 				validationError := validateAgent(adapter)
 				agent.ManifestValid = validationError == nil
 				agent.ValidationError = validationErrorString(validationError)
 				if validationError == nil {
-					agent.Detected = s.detect(agent) || detectViaNpx(agent)
-				} else {
-					agent.Detected = detectRegistryEntry(entry)
+					agent = mergeAdapter(registryAgent, adapter)
+					agent, agent.Registry = applyRegistryInfo(agent, agent.Registry, registrySnapshot, nil, true, agent.ID)
 				}
 			} else {
-				agent.Detected = detectRegistryEntry(entry)
 				agent.ManifestValid = true
 			}
+			agent.Detected = s.detect(agent)
 			visible = append(visible, agent)
 			seen[id] = struct{}{}
 		}
@@ -248,7 +258,7 @@ func (s *Service) Refresh() {
 		}
 		agent.ManifestValid = validationError == nil
 		agent.ValidationError = validationErrorString(validationError)
-		agent.Detected = validationError == nil && (s.detect(agent) || detectViaNpx(agent))
+		agent.Detected = validationError == nil && s.detect(agent)
 		visible = append(visible, agent)
 	}
 
@@ -279,29 +289,19 @@ func (s *Service) detect(agent Agent) bool {
 	}
 }
 
-func detectRegistryEntry(entry acpregistry.AgentEntry) bool {
-	if entry.CurrentBinary == nil || strings.TrimSpace(entry.CurrentBinary.CommandName) == "" {
-		return detectNpxPackage(entry.NpxPackage)
-	}
-	_, err := exec.LookPath(entry.CurrentBinary.CommandName)
-	if err == nil {
-		return true
-	}
-	return detectNpxPackage(entry.NpxPackage)
-}
-
-func detectViaNpx(agent Agent) bool {
-	if agent.Launch.Mode != "external" || normalizeExecutableName(agent.Launch.Command) != "npx" {
-		return false
-	}
-	return detectNpxPackage(agent.Registry.NpxPackage)
-}
-
 func detectNpxPackage(pkg string) bool {
 	if strings.TrimSpace(pkg) == "" {
 		return false
 	}
 	_, err := exec.LookPath("npx")
+	return err == nil
+}
+
+func detectUvxPackage(pkg string) bool {
+	if strings.TrimSpace(pkg) == "" {
+		return false
+	}
+	_, err := exec.LookPath("uvx")
 	return err == nil
 }
 
@@ -578,6 +578,7 @@ func registryEntryToAgent(entry acpregistry.AgentEntry) Agent {
 	if displayName == "" {
 		displayName = entry.ID
 	}
+	launchPlan := buildRegistryLaunchPlan(entry)
 
 	agent := Agent{
 		ID:              entry.ID,
@@ -593,63 +594,12 @@ func registryEntryToAgent(entry acpregistry.AgentEntry) Agent {
 			AllowsRemoteStart:      false,
 			UserConfigurableFields: []string{},
 		},
-		Registry: RegistryInfo{
-			Required:                false,
-			ValidationStatus:        "matched",
-			Name:                    entry.Name,
-			Version:                 entry.Version,
-			Repository:              entry.Repository,
-			Website:                 entry.Website,
-			DistributionKinds:       append([]string(nil), entry.DistributionKinds...),
-			CurrentBinaryCommand:    "",
-			CurrentBinaryPath:       "",
-			CurrentBinaryArchiveURL: "",
-			CurrentBinaryArgs:       nil,
-		},
-		Hint: "Detected from the ACP registry.",
+		Registry: registryInfoFromEntry(entry),
+		Hint:     "Detected from the ACP registry.",
 	}
-
-	if entry.CurrentBinary != nil {
-		agent.Detection = DetectionConfig{
-			Mode:    "path_lookup",
-			Command: entry.CurrentBinary.CommandName,
-		}
-		agent.Launch = LaunchConfig{
-			Mode:      "external",
-			Command:   entry.CurrentBinary.CommandName,
-			Args:      append([]string(nil), entry.CurrentBinary.Args...),
-			Transport: "stdio",
-			Readiness: ReadinessConfig{
-				Mode: "immediate",
-			},
-			Restart: RestartConfig{
-				Mode: "never",
-			},
-		}
-		agent.Security.AllowsRemoteStart = true
-		agent.Registry.CurrentBinaryCommand = entry.CurrentBinary.CommandName
-		agent.Registry.CurrentBinaryPath = entry.CurrentBinary.Command
-		agent.Registry.CurrentBinaryArchiveURL = entry.CurrentBinary.ArchiveURL
-		agent.Registry.CurrentBinaryArgs = append([]string(nil), entry.CurrentBinary.Args...)
-	}
-	agent.Registry.NpxPackage = entry.NpxPackage
-	if agent.Launch.Mode == "" && strings.TrimSpace(entry.NpxPackage) != "" {
-		agent.Detection = DetectionConfig{
-			Mode:    "path_lookup",
-			Command: "npx",
-		}
-		agent.Launch = LaunchConfig{
-			Mode:      "external",
-			Command:   "npx",
-			Args:      []string{"-y", entry.NpxPackage},
-			Transport: "stdio",
-			Readiness: ReadinessConfig{
-				Mode: "immediate",
-			},
-			Restart: RestartConfig{
-				Mode: "never",
-			},
-		}
+	if launchPlan.Launch.Mode != "" {
+		agent.Detection = launchPlan.Detection
+		agent.Launch = launchPlan.Launch
 		agent.Security.AllowsRemoteStart = true
 	}
 	if agent.Security.AllowsRemoteStart {
@@ -660,9 +610,32 @@ func registryEntryToAgent(entry acpregistry.AgentEntry) Agent {
 	return agent
 }
 
-// applyRegistryInfo enriches a local manifest without letting the registry
-// become the launch authority. The helper still relies on curated local adapter
-// definitions and only copies compatible metadata from the official registry.
+func registryInfoFromEntry(entry acpregistry.AgentEntry) RegistryInfo {
+	info := RegistryInfo{
+		Required:          false,
+		ValidationStatus:  "matched",
+		Name:              entry.Name,
+		Version:           entry.Version,
+		Repository:        entry.Repository,
+		Website:           entry.Website,
+		DistributionKinds: append([]string(nil), entry.DistributionKinds...),
+		NpxPackage:        entry.NpxPackage,
+		NpxArgs:           append([]string(nil), entry.NpxArgs...),
+		UvxPackage:        entry.UvxPackage,
+		UvxArgs:           append([]string(nil), entry.UvxArgs...),
+	}
+	if entry.CurrentBinary != nil {
+		info.CurrentBinaryCommand = entry.CurrentBinary.CommandName
+		info.CurrentBinaryPath = entry.CurrentBinary.Command
+		info.CurrentBinaryArchiveURL = entry.CurrentBinary.ArchiveURL
+		info.CurrentBinaryArgs = append([]string(nil), entry.CurrentBinary.Args...)
+	}
+	return info
+}
+
+// applyRegistryInfo enriches an agent with ACP registry metadata. When a local
+// helper-owned manifest exists, the registry augments it. Otherwise, registry
+// entries stand on their own as long as they provide a supported launch method.
 func applyRegistryInfo(agent Agent, base RegistryInfo, snapshot acpregistry.Snapshot, registryErr error, registryEnabled bool, agentID string) (Agent, RegistryInfo) {
 	if !base.Required {
 		base.ValidationStatus = "not_required"
@@ -682,39 +655,78 @@ func applyRegistryInfo(agent Agent, base RegistryInfo, snapshot acpregistry.Snap
 		return agent, base
 	}
 
-	base.ValidationStatus = "matched"
-	base.Name = entry.Name
-	base.Version = entry.Version
-	base.Repository = entry.Repository
-	base.Website = entry.Website
-	base.DistributionKinds = entry.DistributionKinds
-	base.NpxPackage = entry.NpxPackage
-	if entry.CurrentBinary != nil {
-		base.CurrentBinaryPath = entry.CurrentBinary.Command
-		base.CurrentBinaryArchiveURL = entry.CurrentBinary.ArchiveURL
-		base.CurrentBinaryCommand = entry.CurrentBinary.CommandName
-		base.CurrentBinaryArgs = append([]string(nil), entry.CurrentBinary.Args...)
-	}
-	agent = synthesizeRegistryLaunch(agent, entry)
+	registryInfo := registryInfoFromEntry(entry)
+	base.ValidationStatus = registryInfo.ValidationStatus
+	base.Name = registryInfo.Name
+	base.Version = registryInfo.Version
+	base.Repository = registryInfo.Repository
+	base.Website = registryInfo.Website
+	base.DistributionKinds = registryInfo.DistributionKinds
+	base.CurrentBinaryPath = registryInfo.CurrentBinaryPath
+	base.CurrentBinaryArchiveURL = registryInfo.CurrentBinaryArchiveURL
+	base.CurrentBinaryCommand = registryInfo.CurrentBinaryCommand
+	base.CurrentBinaryArgs = registryInfo.CurrentBinaryArgs
+	base.NpxPackage = registryInfo.NpxPackage
+	base.NpxArgs = registryInfo.NpxArgs
+	base.UvxPackage = registryInfo.UvxPackage
+	base.UvxArgs = registryInfo.UvxArgs
+	agent = synthesizeRegistryLaunch(agent, buildRegistryLaunchPlan(entry))
 	return agent, base
 }
 
-// synthesizeRegistryLaunch only applies official binary args when the registry
-// command matches the curated local executable name. That keeps remote metadata
-// from silently changing which binary the helper trusts.
-func synthesizeRegistryLaunch(agent Agent, entry acpregistry.AgentEntry) Agent {
+// synthesizeRegistryLaunch applies an already-chosen registry launch onto a
+// curated adapter. Package runners always win, while binary launches only
+// replace a local adapter when both point at the same executable family.
+func synthesizeRegistryLaunch(agent Agent, plan registryLaunchPlan) Agent {
 	if agent.Launch.Mode != "external" {
 		return agent
 	}
-	if entry.CurrentBinary != nil && sameExecutableName(agent.Launch.Command, entry.CurrentBinary.CommandName) {
-		agent.Launch.Args = append([]string(nil), entry.CurrentBinary.Args...)
+	if plan.Launch.Mode == "" {
 		return agent
 	}
-	if strings.TrimSpace(entry.NpxPackage) != "" {
-		agent.Launch.Command = "npx"
-		agent.Launch.Args = []string{"-y", entry.NpxPackage}
+	if normalizeExecutableName(plan.Launch.Command) == "npx" || normalizeExecutableName(plan.Launch.Command) == "uvx" {
+		agent.Detection = plan.Detection
+		agent.Launch = plan.Launch
+		return agent
+	}
+	if sameExecutableName(agent.Launch.Command, plan.Launch.Command) {
+		agent.Detection = plan.Detection
+		agent.Launch = plan.Launch
 	}
 	return agent
+}
+
+// buildRegistryLaunchPlan picks the helper launch strategy for a registry entry
+// in host-aware order: npx, uvx, PATH binary, then downloadable binary.
+func buildRegistryLaunchPlan(entry acpregistry.AgentEntry) registryLaunchPlan {
+	if detectNpxPackage(entry.NpxPackage) {
+		return registryExternalLaunchPlan("npx", append([]string{"-y", entry.NpxPackage}, entry.NpxArgs...))
+	}
+	if detectUvxPackage(entry.UvxPackage) {
+		return registryExternalLaunchPlan("uvx", append([]string{entry.UvxPackage}, entry.UvxArgs...))
+	}
+	if entry.CurrentBinary != nil && strings.TrimSpace(entry.CurrentBinary.CommandName) != "" {
+		return registryExternalLaunchPlan(entry.CurrentBinary.CommandName, append([]string(nil), entry.CurrentBinary.Args...))
+	}
+	return registryLaunchPlan{}
+}
+
+func registryExternalLaunchPlan(command string, args []string) registryLaunchPlan {
+	launch := LaunchConfig{
+		Mode:      "external",
+		Command:   command,
+		Args:      args,
+		Transport: "stdio",
+		Readiness: ReadinessConfig{Mode: "immediate"},
+		Restart:   RestartConfig{Mode: "never"},
+	}
+	return registryLaunchPlan{
+		Launch: launch,
+		Detection: DetectionConfig{
+			Mode:    "path_lookup",
+			Command: command,
+		},
+	}
 }
 
 func sameExecutableName(left, right string) bool {

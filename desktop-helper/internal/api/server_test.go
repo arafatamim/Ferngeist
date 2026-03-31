@@ -365,6 +365,39 @@ func TestPairingRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPairingRoundTripWithCodeOnlyComplete(t *testing.T) {
+	server := newTestServer()
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse pairStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	body, err := json.Marshal(pairCompleteRequest{
+		Code:       startResponse.Code,
+		DeviceName: "Pixel 9",
+	})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	completeRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(body))
+	completeRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(completeRecorder, completeRequest)
+
+	if completeRecorder.Code != http.StatusOK {
+		t.Fatalf("complete status code = %d, want %d", completeRecorder.Code, http.StatusOK)
+	}
+}
+
 func TestProtectedEndpointRequiresCredential(t *testing.T) {
 	server := newTestServer()
 
@@ -541,7 +574,9 @@ func TestDiagnosticsExportIncludesHelperLogsAndRuntimeLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	defer logSvc.Close()
+	t.Cleanup(func() {
+		_ = logSvc.Close()
+	})
 
 	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(io.Discard, logSvc), nil))
 	logger.Info("diagnostic export ready", slog.String("component", "test"))
@@ -834,7 +869,23 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	buildMockStdioAgent(t, filepath.Join(binDir, namedBinary("codex-acp")))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	server := newTestServerWithBaseDir(baseDir)
+	server := newTestServerWithBaseDirAndRegistry(baseDir, fakeCatalogRegistrySource{
+		snapshot: acpregistry.Snapshot{
+			Version: "1.0.0",
+			Agents: map[string]acpregistry.AgentEntry{
+				"codex-acp": {
+					ID:                "codex-acp",
+					Name:              "Codex CLI",
+					Version:           "0.10.0",
+					DistributionKinds: []string{"binary", "npx"},
+					NpxPackage:        "@zed-industries/codex-acp@0.10.0",
+					CurrentBinary: &acpregistry.BinaryTarget{
+						CommandName: "codex-acp",
+					},
+				},
+			},
+		},
+	})
 	token := pairDevice(t, server)
 
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/codex-acp/start", nil)
@@ -991,6 +1042,22 @@ func newTestServerWithBaseDir(baseDir string) *Server {
 	)
 }
 
+func newTestServerWithBaseDirAndRegistry(baseDir string, registrySource catalog.RegistrySource) *Server {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return NewServer(
+		config.Config{ListenAddr: "127.0.0.1:0"},
+		BuildInfo{},
+		logger,
+		catalog.NewWithBaseDirAndRegistry(baseDir, registrySource),
+		runtime.NewSupervisorWithBaseDir(logger, baseDir, nil),
+		pairing.NewService(logger, nil),
+		gateway.New(logger, nil),
+		discovery.New(logger),
+		nil,
+		nil,
+	)
+}
+
 func newTestServerWithStore(baseDir string, store *storage.SQLiteStore) *Server {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return NewServer(
@@ -1009,6 +1076,15 @@ func newTestServerWithStore(baseDir string, store *storage.SQLiteStore) *Server 
 
 type fakeRegistryStatusProvider struct {
 	status acpregistry.Status
+}
+
+type fakeCatalogRegistrySource struct {
+	snapshot acpregistry.Snapshot
+	err      error
+}
+
+func (f fakeCatalogRegistrySource) Snapshot(context.Context) (acpregistry.Snapshot, error) {
+	return f.snapshot, f.err
 }
 
 func (f fakeRegistryStatusProvider) Status() acpregistry.Status {

@@ -66,4 +66,81 @@ func TestClientFetchesAndNormalizesRegistrySnapshot(t *testing.T) {
 	if entry.NpxPackage != "@zed-industries/codex-acp@0.10.0" {
 		t.Fatalf("NpxPackage = %q, want %q", entry.NpxPackage, "@zed-industries/codex-acp@0.10.0")
 	}
+	if len(entry.NpxArgs) != 0 {
+		t.Fatalf("NpxArgs = %v, want []", entry.NpxArgs)
+	}
+}
+
+func TestClientParsesNpxDistributionArgs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version":"1.0.0",
+			"agents":[
+				{
+					"id":"cline",
+					"name":"Cline",
+					"version":"2.11.0",
+					"distribution":{
+						"npx":{"package":"cline@2.11.0","args":["--acp"]}
+					}
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	client := New(server.URL, time.Hour)
+	snapshot, err := client.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+
+	entry, ok := snapshot.Agents["cline"]
+	if !ok {
+		t.Fatal("expected cline entry")
+	}
+	if entry.NpxPackage != "cline@2.11.0" {
+		t.Fatalf("NpxPackage = %q, want %q", entry.NpxPackage, "cline@2.11.0")
+	}
+	if len(entry.NpxArgs) != 1 || entry.NpxArgs[0] != "--acp" {
+		t.Fatalf("NpxArgs = %v, want [--acp]", entry.NpxArgs)
+	}
+}
+
+func TestClientParsesUvxDistribution(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version":"1.0.0",
+			"agents":[
+				{
+					"id":"fast-agent",
+					"name":"fast-agent",
+					"version":"0.6.9",
+					"distribution":{
+						"uvx":{"package":"fast-agent-acp==0.6.9","args":["-x"]}
+					}
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	client := New(server.URL, time.Hour)
+	snapshot, err := client.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+
+	entry, ok := snapshot.Agents["fast-agent"]
+	if !ok {
+		t.Fatal("expected fast-agent entry")
+	}
+	if entry.UvxPackage != "fast-agent-acp==0.6.9" {
+		t.Fatalf("UvxPackage = %q", entry.UvxPackage)
+	}
+	if len(entry.UvxArgs) != 1 || entry.UvxArgs[0] != "-x" {
+		t.Fatalf("UvxArgs = %v, want [-x]", entry.UvxArgs)
+	}
 }

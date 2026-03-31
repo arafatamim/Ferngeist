@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -233,7 +234,7 @@ func NewServer(
 
 	server.httpServer = &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           mux,
+		Handler:           server.withRequestLogging(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -251,6 +252,97 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) Handler() http.Handler {
 	return s.httpServer.Handler
+}
+
+// withRequestLogging records one structured log entry per HTTP request so the
+// helper can diagnose pairing, launch, and ACP handoff traffic from stdout or
+// the rolling helper log file.
+func (s *Server) withRequestLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startedAt := time.Now()
+		wrapped := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(wrapped, r)
+		s.logger.Info(
+			"http request",
+			slog.String("method", r.Method),
+			slog.String("path", requestPath(r)),
+			slog.Int("status", wrapped.statusCode),
+			slog.Int("bytes", wrapped.bytesWritten),
+			slog.Duration("duration", time.Since(startedAt)),
+			slog.String("remote_addr", r.RemoteAddr),
+		)
+	})
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode   int
+	bytesWritten int
+}
+
+func (w *loggingResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *loggingResponseWriter) Write(p []byte) (int, error) {
+	written, err := w.ResponseWriter.Write(p)
+	w.bytesWritten += written
+	return written, err
+}
+
+func (w *loggingResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (w *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	}
+	return hijacker.Hijack()
+}
+
+func (w *loggingResponseWriter) Push(target string, opts *http.PushOptions) error {
+	pusher, ok := w.ResponseWriter.(http.Pusher)
+	if !ok {
+		return http.ErrNotSupported
+	}
+	return pusher.Push(target, opts)
+}
+
+func requestPath(r *http.Request) string {
+	if r == nil || r.URL == nil {
+		return ""
+	}
+	if r.URL.RawQuery == "" {
+		return r.URL.Path
+	}
+	return r.URL.Path + "?" + sanitizeRawQuery(r.URL.RawQuery)
+}
+
+func sanitizeRawQuery(rawQuery string) string {
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return rawQuery
+	}
+	for key := range values {
+		if isSensitiveQueryKey(key) {
+			values.Set(key, "redacted")
+		}
+	}
+	return values.Encode()
+}
+
+func isSensitiveQueryKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "access_token", "token", "authorization":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

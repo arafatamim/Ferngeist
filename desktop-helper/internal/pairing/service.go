@@ -20,13 +20,14 @@ const (
 )
 
 var (
-	ErrChallengeNotFound = errors.New("pairing challenge not found")
-	ErrChallengeExpired  = errors.New("pairing challenge expired")
-	ErrCodeMismatch      = errors.New("pairing code mismatch")
-	ErrInvalidDeviceName = errors.New("device name is required")
-	ErrCredentialMissing = errors.New("helper credential missing")
-	ErrCredentialInvalid = errors.New("helper credential invalid")
-	ErrCredentialExpired = errors.New("helper credential expired")
+	ErrChallengeNotFound  = errors.New("pairing challenge not found")
+	ErrChallengeExpired   = errors.New("pairing challenge expired")
+	ErrChallengeAmbiguous = errors.New("pairing challenge is ambiguous")
+	ErrCodeMismatch       = errors.New("pairing code mismatch")
+	ErrInvalidDeviceName  = errors.New("device name is required")
+	ErrCredentialMissing  = errors.New("helper credential missing")
+	ErrCredentialInvalid  = errors.New("helper credential invalid")
+	ErrCredentialExpired  = errors.New("helper credential expired")
 )
 
 type Challenge struct {
@@ -83,7 +84,10 @@ func (s *Service) StartPairing() (Challenge, error) {
 }
 
 // CompletePairing exchanges a valid short-lived challenge for a longer-lived
-// device credential. The credential is persisted if storage is configured.
+// device credential. Clients may provide either a challenge ID plus code, or a
+// code alone when the helper has displayed a short code separately from the QR
+// payload. Code-only completion succeeds only when that code resolves to a
+// single active challenge.
 func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credential, error) {
 	if deviceName == "" {
 		return Credential{}, ErrInvalidDeviceName
@@ -95,13 +99,9 @@ func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credent
 	now := s.now().UTC()
 	s.pruneExpiredCredentialsLocked(now)
 
-	challenge, ok := s.challenges[challengeID]
-	if !ok {
-		return Credential{}, ErrChallengeNotFound
-	}
-	if now.After(challenge.ExpiresAt) {
-		delete(s.challenges, challengeID)
-		return Credential{}, ErrChallengeExpired
+	challengeID, challenge, err := s.resolveChallengeLocked(challengeID, code, now)
+	if err != nil {
+		return Credential{}, err
 	}
 	if code != challenge.Code {
 		return Credential{}, ErrCodeMismatch
@@ -127,6 +127,41 @@ func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credent
 		}
 	}
 	return credential, nil
+}
+
+func (s *Service) resolveChallengeLocked(challengeID, code string, now time.Time) (string, Challenge, error) {
+	if challengeID != "" {
+		challenge, ok := s.challenges[challengeID]
+		if !ok {
+			return "", Challenge{}, ErrChallengeNotFound
+		}
+		if now.After(challenge.ExpiresAt) {
+			delete(s.challenges, challengeID)
+			return "", Challenge{}, ErrChallengeExpired
+		}
+		return challengeID, challenge, nil
+	}
+
+	matchedID := ""
+	var matched Challenge
+	for id, challenge := range s.challenges {
+		if now.After(challenge.ExpiresAt) {
+			delete(s.challenges, id)
+			continue
+		}
+		if challenge.Code != code {
+			continue
+		}
+		if matchedID != "" {
+			return "", Challenge{}, ErrChallengeAmbiguous
+		}
+		matchedID = id
+		matched = challenge
+	}
+	if matchedID == "" {
+		return "", Challenge{}, ErrChallengeNotFound
+	}
+	return matchedID, matched, nil
 }
 
 func (s *Service) ActiveDeviceCount() int {

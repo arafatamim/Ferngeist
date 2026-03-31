@@ -27,6 +27,9 @@ type AgentEntry struct {
 	BinaryTargets     map[string]BinaryTarget
 	CurrentBinary     *BinaryTarget
 	NpxPackage        string
+	NpxArgs           []string
+	UvxPackage        string
+	UvxArgs           []string
 }
 
 type BinaryTarget struct {
@@ -183,7 +186,8 @@ func (c *Client) refresh(ctx context.Context) (Snapshot, error) {
 		}
 		sort.Strings(distributionKinds)
 		binaryTargets := parseBinaryTargets(agent.Distribution["binary"])
-		npxPackage := parseNpxPackage(agent.Distribution["npx"])
+		npxPackage, npxArgs := parseNpxPackage(agent.Distribution["npx"])
+		uvxPackage, uvxArgs := parseUvxPackage(agent.Distribution["uvx"])
 
 		snapshot.Agents[agent.ID] = AgentEntry{
 			ID:                agent.ID,
@@ -195,6 +199,9 @@ func (c *Client) refresh(ctx context.Context) (Snapshot, error) {
 			BinaryTargets:     binaryTargets,
 			CurrentBinary:     currentBinaryTarget(binaryTargets),
 			NpxPackage:        npxPackage,
+			NpxArgs:           npxArgs,
+			UvxPackage:        uvxPackage,
+			UvxArgs:           uvxArgs,
 		}
 	}
 
@@ -246,18 +253,34 @@ func parseBinaryTargets(raw json.RawMessage) map[string]BinaryTarget {
 	return targets
 }
 
-func parseNpxPackage(raw json.RawMessage) string {
+func parseNpxPackage(raw json.RawMessage) (string, []string) {
 	if len(raw) == 0 {
-		return ""
+		return "", nil
 	}
 
 	var document struct {
-		Package string `json:"package"`
+		Package string   `json:"package"`
+		Args    []string `json:"args"`
 	}
 	if err := json.Unmarshal(raw, &document); err != nil {
-		return ""
+		return "", nil
 	}
-	return strings.TrimSpace(document.Package)
+	return strings.TrimSpace(document.Package), append([]string(nil), document.Args...)
+}
+
+func parseUvxPackage(raw json.RawMessage) (string, []string) {
+	if len(raw) == 0 {
+		return "", nil
+	}
+
+	var document struct {
+		Package string   `json:"package"`
+		Args    []string `json:"args"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return "", nil
+	}
+	return strings.TrimSpace(document.Package), append([]string(nil), document.Args...)
 }
 
 func currentBinaryTarget(targets map[string]BinaryTarget) *BinaryTarget {

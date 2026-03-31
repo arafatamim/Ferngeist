@@ -70,6 +70,25 @@ func TestCompletePairingRejectsExpiredChallenge(t *testing.T) {
 	}
 }
 
+func TestCompletePairingAllowsCodeOnlyLookup(t *testing.T) {
+	now := time.Date(2026, 3, 25, 10, 0, 0, 0, time.UTC)
+	service := NewService(slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	service.now = func() time.Time { return now }
+
+	challenge, err := service.StartPairing()
+	if err != nil {
+		t.Fatalf("StartPairing() error = %v", err)
+	}
+
+	credential, err := service.CompletePairing("", challenge.Code, "Pixel 9")
+	if err != nil {
+		t.Fatalf("CompletePairing() error = %v", err)
+	}
+	if credential.DeviceName != "Pixel 9" {
+		t.Fatalf("DeviceName = %q, want %q", credential.DeviceName, "Pixel 9")
+	}
+}
+
 func TestValidateCredentialSuccess(t *testing.T) {
 	now := time.Date(2026, 3, 25, 10, 0, 0, 0, time.UTC)
 	service := NewService(slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
