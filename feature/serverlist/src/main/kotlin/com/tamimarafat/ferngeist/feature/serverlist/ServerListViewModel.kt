@@ -16,6 +16,7 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
@@ -90,6 +91,7 @@ class ServerListViewModel @Inject constructor(
     private val connectionManager: AcpConnectionManager,
     private val helperRepository: DesktopHelperRepository,
     private val authEnvValueStore: AuthEnvValueStore,
+    private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
 ) : ViewModel() {
 
     val servers: StateFlow<List<LaunchableTarget>> = launchableTargetRepository.getTargets()
@@ -354,6 +356,7 @@ class ServerListViewModel @Inject constructor(
             withContext(Dispatchers.IO) {
                 authEnvValueStore.deleteValues(serverId)
                 sessionRepository.clearSessions(serverId)
+                sessionSettingsRepository.deleteSettings(serverId)
                 launchableTargetRepository.deleteTarget(serverId)
             }
             // If we were connected to this server, disconnect

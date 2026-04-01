@@ -100,7 +100,6 @@ class DesktopHelperAgentsViewModel @Inject constructor(
                 name = agent.displayName,
                 helperSourceId = companion.id,
                 agentId = agent.id,
-                workingDirectory = "/",
             )
             helperAgentBindingRepository.addBinding(binding)
             _uiState.value = state.copy(addedAgentIds = state.addedAgentIds + agent.id)

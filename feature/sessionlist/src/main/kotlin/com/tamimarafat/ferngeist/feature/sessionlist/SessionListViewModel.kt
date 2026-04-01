@@ -14,8 +14,10 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse
@@ -67,6 +69,7 @@ class SessionListViewModel @Inject constructor(
     private val connectionManager: AcpConnectionManager,
     private val helperRepository: DesktopHelperRepository,
     private val authEnvValueStore: AuthEnvValueStore,
+    private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
 ) : ViewModel() {
 
     val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
@@ -74,6 +77,9 @@ class SessionListViewModel @Inject constructor(
     val server: StateFlow<LaunchableTarget?> = launchableTargetRepository.getTargets()
         .map { servers -> servers.find { it.id == serverId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val sessionSettings: StateFlow<LaunchableTargetSessionSettings> = sessionSettingsRepository.getSettings(serverId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LaunchableTargetSessionSettings(targetId = serverId))
 
     val sessions: StateFlow<List<SessionSummary>> = sessionRepository.getSessions(serverId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -117,8 +123,10 @@ class SessionListViewModel @Inject constructor(
             }
 
             _isLoading.value = true
+            val settings = sessionSettingsRepository.getSettingsBlocking(serverId)
+            val cwd = settings?.cwd?.trim()?.ifBlank { null }
             runCatching {
-                connectionManager.listSessions()
+                connectionManager.listSessions(cwd = cwd)
             }.onSuccess { remoteSessions ->
                 replaceSessions(remoteSessions)
             }.onFailure { error ->
@@ -165,6 +173,18 @@ class SessionListViewModel @Inject constructor(
                 _events.emit(SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to create a new session")))
             }
             _isLoading.value = false
+        }
+    }
+
+    fun createSessionWithCurrentCwd() {
+        val normalizedCwd = sessionSettings.value.cwd?.trim()?.ifBlank { "/" } ?: "/"
+        createSession(normalizedCwd)
+    }
+
+    fun updateCurrentCwd(cwd: String) {
+        viewModelScope.launch {
+            sessionSettingsRepository.updateCwd(serverId, cwd)
+            refreshSessions()
         }
     }
 

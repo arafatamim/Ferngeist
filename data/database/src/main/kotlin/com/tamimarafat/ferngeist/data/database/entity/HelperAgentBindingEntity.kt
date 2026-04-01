@@ -22,6 +22,5 @@ data class HelperAgentBindingEntity(
     val name: String,
     val helperSourceId: String,
     val agentId: String,
-    val workingDirectory: String,
     val preferredAuthMethodId: String?,
 )

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
 import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +25,7 @@ class DesktopCompanionListViewModel @Inject constructor(
     private val helperAgentBindingRepository: HelperAgentBindingRepository,
     private val sessionRepository: SessionRepository,
     private val authEnvValueStore: AuthEnvValueStore,
+    private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
 ) : ViewModel() {
 
     val companions: StateFlow<List<DesktopHelperSource>> = helperSourceRepository.getHelpers()
@@ -34,6 +36,7 @@ class DesktopCompanionListViewModel @Inject constructor(
             helperAgentBindingRepository.getBindingsForHelper(companion.id).forEach { binding ->
                 authEnvValueStore.deleteValues(binding.id)
                 sessionRepository.clearSessions(binding.id)
+                sessionSettingsRepository.deleteSettings(binding.id)
                 helperAgentBindingRepository.deleteBinding(binding.id)
             }
             authEnvValueStore.deleteValues(companion.id)

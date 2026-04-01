@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -125,26 +126,39 @@ fun SessionListScreen(
     val sessions by viewModel.sessions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val server by viewModel.server.collectAsState()
+    val sessionSettings by viewModel.sessionSettings.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val agentCapabilities by viewModel.agentCapabilities.collectAsState()
     val connectionDiagnostics by viewModel.connectionDiagnostics.collectAsState()
     val pendingAuthentication by viewModel.pendingAuthentication.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
-    val defaultCwd = server?.workingDirectory?.takeIf { it.isNotBlank() } ?: "/"
-    var showCreateSessionDialog by remember { mutableStateOf(false) }
-    var createSessionCwd by remember(defaultCwd) { mutableStateOf(defaultCwd) }
+    val currentCwd = sessionSettings.cwd
+    var showCwdDialog by remember { mutableStateOf(false) }
+    var cwdDialogValue by remember(currentCwd) { mutableStateOf(currentCwd.orEmpty()) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
     var hasConsumedLaunchCreate by rememberSaveable { mutableStateOf(false) }
-    var selectedAuthMethodId by rememberSaveable(pendingAuthentication?.serverId, pendingAuthentication?.pendingAction) {
-        mutableStateOf(pendingAuthentication?.preferredAuthMethodId ?: pendingAuthentication?.authMethods?.firstOrNull()?.id)
+    var selectedAuthMethodId by rememberSaveable(
+        pendingAuthentication?.serverId,
+        pendingAuthentication?.pendingAction
+    ) {
+        mutableStateOf(
+            pendingAuthentication?.preferredAuthMethodId ?: pendingAuthentication?.authMethods?.firstOrNull()?.id
+        )
     }
-    val envValues = remember(pendingAuthentication?.serverId, pendingAuthentication?.pendingAction) { mutableStateMapOf<String, String>() }
+    val envValues = remember(
+        pendingAuthentication?.serverId,
+        pendingAuthentication?.pendingAction
+    ) { mutableStateMapOf<String, String>() }
     val pullToRefreshState = rememberPullToRefreshState()
     val showRefreshingIndicator = isLoading && sessions.isNotEmpty()
     val supportsSessionList = agentCapabilities?.session?.list != false
 
-    LaunchedEffect(pendingAuthentication?.serverId, pendingAuthentication?.pendingAction, pendingAuthentication?.persistedEnvValues) {
+    LaunchedEffect(
+        pendingAuthentication?.serverId,
+        pendingAuthentication?.pendingAction,
+        pendingAuthentication?.persistedEnvValues
+    ) {
         envValues.clear()
         pendingAuthentication?.persistedEnvValues?.forEach { (name, value) ->
             envValues[name] = value
@@ -173,40 +187,49 @@ fun SessionListScreen(
     LaunchedEffect(openCreateSessionDialogOnLaunch) {
         if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate) {
             hasConsumedLaunchCreate = true
-            createSessionCwd = defaultCwd
-            showCreateSessionDialog = true
+            viewModel.createSessionWithCurrentCwd()
         }
     }
 
-    if (showCreateSessionDialog) {
+    if (showCwdDialog) {
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showCreateSessionDialog = false },
-            title = { Text("New Session") },
+            onDismissRequest = { showCwdDialog = false },
+            title = { Text("Working Directory") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Working directory (cwd)",
+                        text = "Set the current working directory for this agent. Leave empty to show all sessions.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     OutlinedTextField(
-                        value = createSessionCwd,
-                        onValueChange = { createSessionCwd = it },
+                        value = cwdDialogValue,
+                        onValueChange = { cwdDialogValue = it },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("/") }
+                        placeholder = { Text("Leave empty for no filter") }
                     )
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showCreateSessionDialog = false
-                        viewModel.createSession(createSessionCwd)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showCwdDialog = false
+                            viewModel.updateCurrentCwd(cwdDialogValue)
+                        }
+                    ) { Text("Save") }
+                    if (currentCwd != null) {
+                        TextButton(
+                            onClick = {
+                                showCwdDialog = false
+                                viewModel.updateCurrentCwd("")
+                            }
+                        ) { Text("Clear") }
                     }
-                ) { Text("Create") }
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateSessionDialog = false }) {
+                TextButton(onClick = { showCwdDialog = false }) {
                     Text("Cancel")
                 }
             }
@@ -270,15 +293,30 @@ fun SessionListScreen(
                                 text = serverName,
                                 style = titleStyle
                             )
-                            Text(
-                                text = "${sessions.size} session${if (sessions.size != 1) "s" else ""}",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            currentCwd?.let { cwd ->
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.FolderOpen,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = cwd,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
                     },
                     navigationIcon = {
-                        FilledTonalIconButton (onClick = onNavigateBack) {
+                        FilledTonalIconButton(onClick = onNavigateBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = "Back",
@@ -286,6 +324,25 @@ fun SessionListScreen(
                         }
                     },
                     actions = {
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                TooltipAnchorPosition.Above
+                            ),
+                            tooltip = { PlainTooltip { Text("Change working directory") } },
+                            state = rememberTooltipState()
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = {
+                                    cwdDialogValue = currentCwd.orEmpty()
+                                    showCwdDialog = true
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.FolderOpen,
+                                    contentDescription = "Change working directory",
+                                )
+                            }
+                        }
                         val connectionLabel = connectionStateLabel(connectionState)
                         TooltipBox(
                             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
@@ -315,8 +372,7 @@ fun SessionListScreen(
             floatingActionButton = {
                 FloatingActionButton(
                     onClick = {
-                        createSessionCwd = defaultCwd
-                        showCreateSessionDialog = true
+                        viewModel.createSessionWithCurrentCwd()
                     },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -349,10 +405,7 @@ fun SessionListScreen(
                             .fillMaxSize()
                             .padding(padding),
                         supportsSessionList = supportsSessionList,
-                        onCreateSession = {
-                            createSessionCwd = defaultCwd
-                            showCreateSessionDialog = true
-                        }
+                        onCreateSession = { viewModel.createSessionWithCurrentCwd() }
                     )
                 }
 
@@ -425,6 +478,17 @@ fun SessionListScreen(
                                     animatedContentScope = animatedContentScope,
                                 )
                             }
+                        }
+                        item {
+                            Text(
+                                text = "${sessions.size} session${if (sessions.size != 1) "s" else ""}",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp, bottom = 8.dp),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
                         }
                     }
                 }

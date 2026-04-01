@@ -42,7 +42,6 @@ private fun HelperAgentBindingEntity.toDomain(): HelperAgentBinding {
         name = name,
         helperSourceId = helperSourceId,
         agentId = agentId,
-        workingDirectory = workingDirectory,
         preferredAuthMethodId = preferredAuthMethodId,
     )
 }
@@ -53,7 +52,6 @@ private fun HelperAgentBinding.toEntity(): HelperAgentBindingEntity {
         name = name,
         helperSourceId = helperSourceId,
         agentId = agentId,
-        workingDirectory = workingDirectory,
         preferredAuthMethodId = preferredAuthMethodId,
     )
 }

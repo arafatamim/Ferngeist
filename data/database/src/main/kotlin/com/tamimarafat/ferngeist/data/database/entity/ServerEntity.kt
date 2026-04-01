@@ -10,6 +10,5 @@ data class ServerEntity(
     val scheme: String,
     val host: String,
     val token: String,
-    val workingDirectory: String,
     val preferredAuthMethodId: String?,
 )

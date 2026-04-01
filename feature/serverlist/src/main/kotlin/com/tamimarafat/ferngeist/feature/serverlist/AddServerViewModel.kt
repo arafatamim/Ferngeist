@@ -24,7 +24,6 @@ class AddServerViewModel @Inject constructor(
     private val prefillName: String? = savedStateHandle.get<String>("name")
     private val prefillScheme: String? = savedStateHandle.get<String>("scheme")
     private val prefillHost: String? = savedStateHandle.get<String>("host")
-    private val prefillWorkingDirectory: String? = savedStateHandle.get<String>("cwd")
     private var persistedPreferredAuthMethodId: String? = null
 
     private val _name = MutableStateFlow(prefillName.orEmpty())
@@ -38,9 +37,6 @@ class AddServerViewModel @Inject constructor(
 
     private val _token = MutableStateFlow("")
     val token: StateFlow<String> = _token.asStateFlow()
-
-    private val _workingDirectory = MutableStateFlow(prefillWorkingDirectory?.ifBlank { "/" } ?: "/")
-    val workingDirectory: StateFlow<String> = _workingDirectory.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -68,7 +64,6 @@ class AddServerViewModel @Inject constructor(
                 _scheme.value = server.scheme
                 _host.value = server.host
                 _token.value = server.token
-                _workingDirectory.value = server.workingDirectory
                 persistedPreferredAuthMethodId = server.preferredAuthMethodId
                 _preferredAuthMethodId.value = server.preferredAuthMethodId
             }
@@ -90,10 +85,6 @@ class AddServerViewModel @Inject constructor(
 
     fun updateToken(value: String) {
         _token.value = value
-    }
-
-    fun updateWorkingDirectory(value: String) {
-        _workingDirectory.value = value
     }
 
     fun clearPreferredAuthMethod() {
@@ -118,7 +109,6 @@ class AddServerViewModel @Inject constructor(
                 scheme = _scheme.value,
                 host = _host.value.trim(),
                 token = _token.value,
-                workingDirectory = _workingDirectory.value.ifBlank { "/" },
                 preferredAuthMethodId = persistedPreferredAuthMethodId,
             )
 

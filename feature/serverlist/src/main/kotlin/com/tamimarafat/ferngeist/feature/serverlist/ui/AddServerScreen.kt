@@ -25,7 +25,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Save
@@ -71,7 +70,6 @@ fun AddServerScreen(
     val name by viewModel.name.collectAsState()
     val scheme by viewModel.scheme.collectAsState()
     val host by viewModel.host.collectAsState()
-    val workingDirectory by viewModel.workingDirectory.collectAsState()
     val preferredAuthMethodId by viewModel.preferredAuthMethodId.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
@@ -176,26 +174,6 @@ fun AddServerScreen(
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = workingDirectory,
-                    onValueChange = viewModel::updateWorkingDirectory,
-                    label = { Text("Working Directory") },
-                    placeholder = { Text("/home/user/project") },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.FolderOpen,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = sectionTextFieldColors(),
-                )
             }
 
             // ── Authentication Section ──────────────────────────────────

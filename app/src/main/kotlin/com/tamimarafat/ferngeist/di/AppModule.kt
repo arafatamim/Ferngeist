@@ -9,12 +9,14 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserv
 import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.repository.DesktopHelperSourceRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.HelperAgentBindingRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetRepositoryImpl
+import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetSessionSettingsRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.ServerRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.SessionRepositoryImpl
 import dagger.Module
@@ -41,7 +43,7 @@ object AppModule {
             context,
             FerngeistDatabase::class.java,
             FerngeistDatabase.DATABASE_NAME,
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build()
     }
     
     @Provides
@@ -80,6 +82,12 @@ object AppModule {
     @Singleton
     fun provideSessionRepository(database: FerngeistDatabase): SessionRepository {
         return SessionRepositoryImpl(database.sessionDao())
+    }
+
+    @Provides
+    @Singleton
+    fun provideLaunchableTargetSessionSettingsRepository(database: FerngeistDatabase): LaunchableTargetSessionSettingsRepository {
+        return LaunchableTargetSessionSettingsRepositoryImpl(database.launchableTargetSessionSettingsDao())
     }
     
     @Provides
@@ -331,5 +339,96 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("DROP TABLE `sessions`")
         db.execSQL("ALTER TABLE `sessions_new` RENAME TO `sessions`")
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_sessions_serverId` ON `sessions` (`serverId`)")
+    }
+}
+
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `launchable_target_session_settings` (
+              `targetId` TEXT NOT NULL,
+              `cwd` TEXT,
+              PRIMARY KEY(`targetId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
+            SELECT `id`, `workingDirectory` FROM `servers`
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
+            SELECT `id`, `workingDirectory` FROM `helper_agent_bindings`
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `servers_new` (
+              `id` TEXT NOT NULL,
+              `name` TEXT NOT NULL,
+              `scheme` TEXT NOT NULL,
+              `host` TEXT NOT NULL,
+              `token` TEXT NOT NULL,
+              `preferredAuthMethodId` TEXT,
+              PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId`)
+            SELECT `id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId` FROM `servers`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `servers`")
+        db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `helper_agent_bindings_new` (
+              `id` TEXT NOT NULL,
+              `name` TEXT NOT NULL,
+              `helperSourceId` TEXT NOT NULL,
+              `agentId` TEXT NOT NULL,
+              `preferredAuthMethodId` TEXT,
+              PRIMARY KEY(`id`),
+              FOREIGN KEY(`helperSourceId`) REFERENCES `desktop_helper_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_helper_agent_bindings_new_helperSourceId` ON `helper_agent_bindings_new` (`helperSourceId`)")
+        db.execSQL(
+            """
+            INSERT INTO `helper_agent_bindings_new` (`id`, `name`, `helperSourceId`, `agentId`, `preferredAuthMethodId`)
+            SELECT `id`, `name`, `helperSourceId`, `agentId`, `preferredAuthMethodId` FROM `helper_agent_bindings`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `helper_agent_bindings`")
+        db.execSQL("ALTER TABLE `helper_agent_bindings_new` RENAME TO `helper_agent_bindings`")
+    }
+}
+
+private val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `launchable_target_session_settings_new` (
+              `targetId` TEXT NOT NULL,
+              `cwd` TEXT,
+              PRIMARY KEY(`targetId`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `launchable_target_session_settings_new` (`targetId`, `cwd`)
+            SELECT `targetId`, `cwd` FROM `launchable_target_session_settings`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `launchable_target_session_settings`")
+        db.execSQL("ALTER TABLE `launchable_target_session_settings_new` RENAME TO `launchable_target_session_settings`")
     }
 }

@@ -121,11 +121,11 @@ class AcpConnectionManager(
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    suspend fun listSessions(): List<SessionSummary> {
+    suspend fun listSessions(cwd: String? = null): List<SessionSummary> {
         val client = transportClient.sdkClient ?: return emptyList()
         return runCatching {
             @OptIn(UnstableApi::class)
-            client.listSessions().toList().map { sessionInfo ->
+            client.listSessions(cwd = cwd).toList().map { sessionInfo ->
                 SessionSummary(
                     id = sessionInfo.sessionId.value,
                     title = sessionInfo.title,

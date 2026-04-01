@@ -137,7 +137,6 @@ fun FerngeistNavHost() {
                                     name = onboardingUiState.selectedAgent?.name ?: "My Agent",
                                     scheme = "ws",
                                     host = "",
-                                    cwd = "/",
                                 )
                             )
                         },
@@ -178,7 +177,7 @@ fun FerngeistNavHost() {
             }
 
             composable(
-                route = "add_server?name={name}&scheme={scheme}&host={host}&cwd={cwd}",
+                route = "add_server?name={name}&scheme={scheme}&host={host}",
                 arguments = listOf(
                     navArgument("name") {
                         type = NavType.StringType
@@ -191,11 +190,6 @@ fun FerngeistNavHost() {
                         defaultValue = null
                     },
                     navArgument("host") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("cwd") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
@@ -327,7 +321,6 @@ private fun buildAddServerRoute(
     name: String,
     scheme: String,
     host: String,
-    cwd: String,
 ): String {
-    return "add_server?name=${Uri.encode(name)}&scheme=${Uri.encode(scheme)}&host=${Uri.encode(host)}&cwd=${Uri.encode(cwd)}"
+    return "add_server?name=${Uri.encode(name)}&scheme=${Uri.encode(scheme)}&host=${Uri.encode(host)}"
 }

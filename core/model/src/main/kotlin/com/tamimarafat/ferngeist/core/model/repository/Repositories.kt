@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.core.model.repository
 import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
 import com.tamimarafat.ferngeist.core.model.HelperAgentBinding
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.flow.Flow
@@ -44,4 +45,11 @@ interface SessionRepository {
     suspend fun upsertSession(serverId: String, summary: SessionSummary)
     suspend fun deleteSession(serverId: String, sessionId: String)
     suspend fun clearSessions(serverId: String)
+}
+
+interface LaunchableTargetSessionSettingsRepository {
+    fun getSettings(targetId: String): Flow<LaunchableTargetSessionSettings>
+    suspend fun getSettingsBlocking(targetId: String): LaunchableTargetSessionSettings?
+    suspend fun updateCwd(targetId: String, cwd: String)
+    suspend fun deleteSettings(targetId: String)
 }
