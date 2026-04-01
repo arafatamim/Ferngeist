@@ -48,6 +48,30 @@ func TestSQLiteStorePersistsPairingsAndRuntimes(t *testing.T) {
 		t.Fatalf("pairing token = %q, want %q", pairings[0].Token, "token-1")
 	}
 
+	if err := store.DeletePairing(ctx, "dev-1"); err != nil {
+		t.Fatalf("DeletePairing() error = %v", err)
+	}
+	if err := store.DeletePairing(ctx, "dev-1"); err != ErrNotFound {
+		t.Fatalf("DeletePairing() second error = %v, want %v", err, ErrNotFound)
+	}
+
+	pairings, err = store.ListPairings(ctx)
+	if err != nil {
+		t.Fatalf("ListPairings() after delete error = %v", err)
+	}
+	if len(pairings) != 0 {
+		t.Fatalf("len(pairings) after delete = %d, want 0", len(pairings))
+	}
+
+	if err := store.SavePairing(ctx, PairingRecord{
+		DeviceID:   "dev-1",
+		DeviceName: "Pixel 9",
+		Token:      "token-1",
+		ExpiresAt:  expiresAt,
+	}); err != nil {
+		t.Fatalf("SavePairing() after delete error = %v", err)
+	}
+
 	if err := store.UpdateRuntimeStatus(ctx, "run-1", "stopped", "", 0); err != nil {
 		t.Fatalf("UpdateRuntimeStatus() error = %v", err)
 	}

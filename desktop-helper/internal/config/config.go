@@ -10,6 +10,7 @@ import (
 
 const (
 	defaultListenAddr = "127.0.0.1:5788"
+	defaultAdminAddr  = "127.0.0.1:5789"
 	defaultLogLevel   = "info"
 	defaultLogDir     = "logs"
 	defaultLogMaxSize = int64(1024 * 1024)
@@ -19,17 +20,18 @@ const (
 // Config is the daemon's effective runtime configuration after environment
 // variables and persisted settings have been merged.
 type Config struct {
-	ListenAddr    string
-	LogLevel      string
-	LogDir        string
-	LogMaxSize    int64
-	LogMaxBackups int
-	RegistryURL   string
-	PublicBaseURL string
-	EnableLAN     bool
-	StateDBPath   string
-	HelperName    string
-	ManagedBinDir string
+	ListenAddr      string
+	AdminListenAddr string
+	LogLevel        string
+	LogDir          string
+	LogMaxSize      int64
+	LogMaxBackups   int
+	RegistryURL     string
+	PublicBaseURL   string
+	EnableLAN       bool
+	StateDBPath     string
+	HelperName      string
+	ManagedBinDir   string
 }
 
 type PersistedSettings struct {
@@ -44,17 +46,18 @@ type PersistedSettings struct {
 func Load() Config {
 	helperName := envOrDefault("FERNGEIST_HELPER_NAME", hostnameOrDefault("ferngeist-helper"))
 	return Config{
-		ListenAddr:    envOrDefault("FERNGEIST_HELPER_LISTEN_ADDR", defaultListenAddr),
-		LogLevel:      envOrDefault("FERNGEIST_HELPER_LOG_LEVEL", defaultLogLevel),
-		LogDir:        envOrDefault("FERNGEIST_HELPER_LOG_DIR", defaultLogDir),
-		LogMaxSize:    envInt64OrDefault("FERNGEIST_HELPER_LOG_MAX_BYTES", defaultLogMaxSize),
-		LogMaxBackups: envIntOrDefault("FERNGEIST_HELPER_LOG_MAX_BACKUPS", defaultLogBackups),
-		RegistryURL:   envOrDefault("FERNGEIST_HELPER_REGISTRY_URL", "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"),
-		PublicBaseURL: strings.TrimSpace(os.Getenv("FERNGEIST_HELPER_PUBLIC_BASE_URL")),
-		EnableLAN:     os.Getenv("FERNGEIST_HELPER_ENABLE_LAN") == "1",
-		StateDBPath:   envOrDefault("FERNGEIST_HELPER_STATE_DB", "ferngeist-helper.db"),
-		HelperName:    helperName,
-		ManagedBinDir: envOrDefault("FERNGEIST_HELPER_MANAGED_BIN_DIR", defaultManagedBinDir()),
+		ListenAddr:      envOrDefault("FERNGEIST_HELPER_LISTEN_ADDR", defaultListenAddr),
+		AdminListenAddr: envOrDefault("FERNGEIST_HELPER_ADMIN_ADDR", defaultAdminAddr),
+		LogLevel:        envOrDefault("FERNGEIST_HELPER_LOG_LEVEL", defaultLogLevel),
+		LogDir:          envOrDefault("FERNGEIST_HELPER_LOG_DIR", defaultLogDir),
+		LogMaxSize:      envInt64OrDefault("FERNGEIST_HELPER_LOG_MAX_BYTES", defaultLogMaxSize),
+		LogMaxBackups:   envIntOrDefault("FERNGEIST_HELPER_LOG_MAX_BACKUPS", defaultLogBackups),
+		RegistryURL:     envOrDefault("FERNGEIST_HELPER_REGISTRY_URL", "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"),
+		PublicBaseURL:   strings.TrimSpace(os.Getenv("FERNGEIST_HELPER_PUBLIC_BASE_URL")),
+		EnableLAN:       os.Getenv("FERNGEIST_HELPER_ENABLE_LAN") == "1",
+		StateDBPath:     envOrDefault("FERNGEIST_HELPER_STATE_DB", "ferngeist-helper.db"),
+		HelperName:      helperName,
+		ManagedBinDir:   envOrDefault("FERNGEIST_HELPER_MANAGED_BIN_DIR", defaultManagedBinDir()),
 	}
 }
 

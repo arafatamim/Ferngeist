@@ -26,19 +26,20 @@ import (
 )
 
 type Server struct {
-	httpServer *http.Server
-	logger     *slog.Logger
-	cfg        config.Config
-	build      BuildInfo
-	startedAt  time.Time
-	now        func() time.Time
-	catalog    *catalog.Service
-	runtime    *runtime.Supervisor
-	pairing    *pairing.Service
-	gateway    *gateway.Service
-	discovery  *discovery.Service
-	logs       *logging.Service
-	registry   registryStatusProvider
+	httpServer  *http.Server
+	adminServer *http.Server
+	logger      *slog.Logger
+	cfg         config.Config
+	build       BuildInfo
+	startedAt   time.Time
+	now         func() time.Time
+	catalog     *catalog.Service
+	runtime     *runtime.Supervisor
+	pairing     *pairing.Service
+	gateway     *gateway.Service
+	discovery   *discovery.Service
+	logs        *logging.Service
+	registry    registryStatusProvider
 }
 
 const protocolVersion = "v1alpha1"
@@ -109,6 +110,34 @@ type pairCompleteResponse struct {
 	DeviceName string    `json:"deviceName"`
 	Token      string    `json:"token"`
 	ExpiresAt  time.Time `json:"expiresAt"`
+}
+
+type adminPairingResponse struct {
+	ChallengeID     string    `json:"challengeId"`
+	Code            string    `json:"code"`
+	ExpiresAt       time.Time `json:"expiresAt"`
+	State           string    `json:"state"`
+	Scheme          string    `json:"scheme,omitempty"`
+	Host            string    `json:"host,omitempty"`
+	Payload         string    `json:"payload,omitempty"`
+	CompletedDevice string    `json:"completedDevice,omitempty"`
+	CompletedID     string    `json:"completedDeviceId,omitempty"`
+	CompletedExpiry time.Time `json:"completedDeviceExpiresAt,omitempty"`
+}
+
+type adminDevicesResponse struct {
+	Devices []adminDeviceResponse `json:"devices"`
+}
+
+type adminDeviceResponse struct {
+	DeviceID   string    `json:"deviceId"`
+	DeviceName string    `json:"deviceName"`
+	ExpiresAt  time.Time `json:"expiresAt"`
+}
+
+type pairingTarget struct {
+	Scheme string
+	Host   string
 }
 
 type runtimesResponse struct {
@@ -222,6 +251,7 @@ func NewServer(
 	}
 
 	mux := http.NewServeMux()
+	adminMux := http.NewServeMux()
 	mux.HandleFunc("/healthz", server.handleHealth)
 	mux.HandleFunc("/v1/status", server.handleStatus)
 	mux.HandleFunc("/v1/agents", server.handleAgents)
@@ -236,10 +266,25 @@ func NewServer(
 	mux.HandleFunc("POST /v1/runtimes/{runtimeId}/connect", server.handleRuntimeConnect)
 	mux.HandleFunc("POST /v1/runtimes/{runtimeId}/restart", server.handleRuntimeRestart)
 	mux.HandleFunc("GET /v1/acp/{runtimeId}", server.handleACPWebSocket)
+	adminMux.HandleFunc("POST /admin/v1/pairings/start", server.handleAdminPairingStart)
+	adminMux.HandleFunc("GET /admin/v1/pairings/{challengeId}", server.handleAdminPairingStatus)
+	adminMux.HandleFunc("DELETE /admin/v1/pairings/{challengeId}", server.handleAdminPairingCancel)
+	adminMux.HandleFunc("GET /admin/v1/devices", server.handleAdminDevices)
+	adminMux.HandleFunc("DELETE /admin/v1/devices/{deviceId}", server.handleAdminDeviceRevoke)
+
+	adminAddr := strings.TrimSpace(cfg.AdminListenAddr)
+	if adminAddr == "" {
+		adminAddr = "127.0.0.1:0"
+	}
 
 	server.httpServer = &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           server.withRequestLogging(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	server.adminServer = &http.Server{
+		Addr:              adminAddr,
+		Handler:           server.withRequestLogging(adminMux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -247,16 +292,42 @@ func NewServer(
 }
 
 func (s *Server) ListenAndServe() error {
-	s.logger.Info("api server listening", slog.String("addr", s.cfg.ListenAddr))
-	return s.httpServer.ListenAndServe()
+	errCh := make(chan error, 2)
+	go func() {
+		s.logger.Info("api server listening", slog.String("addr", s.httpServer.Addr))
+		errCh <- s.httpServer.ListenAndServe()
+	}()
+	go func() {
+		s.logger.Info("admin api listening", slog.String("addr", s.adminServer.Addr))
+		errCh <- s.adminServer.ListenAndServe()
+	}()
+
+	var firstErr error
+	for i := 0; i < 2; i++ {
+		err := <-errCh
+		if err == nil || errors.Is(err, http.ErrServerClosed) {
+			continue
+		}
+		if firstErr == nil {
+			firstErr = err
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			_ = s.Shutdown(shutdownCtx)
+			cancel()
+		}
+	}
+	return firstErr
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	return s.httpServer.Shutdown(ctx)
+	return errors.Join(s.httpServer.Shutdown(ctx), s.adminServer.Shutdown(ctx))
 }
 
 func (s *Server) Handler() http.Handler {
 	return s.httpServer.Handler
+}
+
+func (s *Server) AdminHandler() http.Handler {
+	return s.adminServer.Handler
 }
 
 // withRequestLogging records one structured log entry per HTTP request so the
@@ -560,6 +631,79 @@ func (s *Server) handlePairComplete(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleAdminPairingStart(w http.ResponseWriter, r *http.Request) {
+	target, err := s.pairingTarget()
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+
+	challenge, err := s.pairing.StartPairing()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start pairing")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, s.adminPairingResponse(pairing.ChallengeStatus{
+		ID:        challenge.ID,
+		Code:      challenge.Code,
+		ExpiresAt: challenge.ExpiresAt,
+		State:     pairing.ChallengeStateActive,
+	}, target))
+}
+
+func (s *Server) handleAdminPairingStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := s.pairing.GetChallengeStatus(r.PathValue("challengeId"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	target, _ := s.pairingTarget()
+	writeJSON(w, http.StatusOK, s.adminPairingResponse(status, target))
+}
+
+func (s *Server) handleAdminPairingCancel(w http.ResponseWriter, r *http.Request) {
+	status, err := s.pairing.CancelChallenge(r.PathValue("challengeId"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	target, _ := s.pairingTarget()
+	writeJSON(w, http.StatusOK, s.adminPairingResponse(status, target))
+}
+
+func (s *Server) handleAdminDevices(w http.ResponseWriter, _ *http.Request) {
+	devices := s.pairing.ListDevices()
+	response := make([]adminDeviceResponse, 0, len(devices))
+	for _, device := range devices {
+		response = append(response, adminDeviceResponse{
+			DeviceID:   device.DeviceID,
+			DeviceName: device.DeviceName,
+			ExpiresAt:  device.ExpiresAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, adminDevicesResponse{Devices: response})
+}
+
+func (s *Server) handleAdminDeviceRevoke(w http.ResponseWriter, r *http.Request) {
+	device, err := s.pairing.RevokeDevice(r.PathValue("deviceId"))
+	if err != nil {
+		if errors.Is(err, pairing.ErrDeviceNotFound) {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to revoke paired device")
+		return
+	}
+	writeJSON(w, http.StatusOK, adminDeviceResponse{
+		DeviceID:   device.DeviceID,
+		DeviceName: device.DeviceName,
+		ExpiresAt:  device.ExpiresAt,
+	})
+}
+
 func (s *Server) handleAgentStart(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requireHelperCredential(w, r); !ok {
 		return
@@ -778,6 +922,122 @@ func connectResponseFromDescriptor(r *http.Request, descriptor runtime.ConnectDe
 		BearerToken:    descriptor.BearerToken,
 		TokenExpiresAt: descriptor.TokenExpiresAt,
 	}
+}
+
+func (s *Server) adminPairingResponse(status pairing.ChallengeStatus, target pairingTarget) adminPairingResponse {
+	response := adminPairingResponse{
+		ChallengeID: status.ID,
+		Code:        status.Code,
+		ExpiresAt:   status.ExpiresAt,
+		State:       string(status.State),
+	}
+	if target.Scheme != "" && target.Host != "" {
+		response.Scheme = target.Scheme
+		response.Host = target.Host
+		response.Payload = buildPairingPayload(target, status.ID, status.Code)
+	}
+	if status.CompletedDevice != nil {
+		response.CompletedID = status.CompletedDevice.DeviceID
+		response.CompletedDevice = status.CompletedDevice.DeviceName
+		response.CompletedExpiry = status.CompletedDevice.ExpiresAt
+	}
+	return response
+}
+
+func buildPairingPayload(target pairingTarget, challengeID, code string) string {
+	values := url.Values{}
+	values.Set("scheme", target.Scheme)
+	values.Set("host", target.Host)
+	values.Set("challengeId", challengeID)
+	values.Set("code", code)
+	return "ferngeist-helper://pair?" + values.Encode()
+}
+
+func (s *Server) pairingTarget() (pairingTarget, error) {
+	publicBaseURL := strings.TrimSpace(s.cfg.PublicBaseURL)
+	if publicBaseURL != "" {
+		parsed, err := url.Parse(publicBaseURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return pairingTarget{}, fmt.Errorf("configured public base URL is invalid")
+		}
+		return pairingTarget{Scheme: parsed.Scheme, Host: parsed.Host}, nil
+	}
+
+	listenHost, port, err := net.SplitHostPort(s.cfg.ListenAddr)
+	if err != nil || strings.TrimSpace(port) == "" {
+		return pairingTarget{}, fmt.Errorf("helper listen address is invalid")
+	}
+	host := strings.Trim(strings.TrimSpace(listenHost), "[]")
+	if isRoutableHost(host) {
+		return pairingTarget{Scheme: "http", Host: net.JoinHostPort(host, port)}, nil
+	}
+	if !s.cfg.EnableLAN {
+		return pairingTarget{}, fmt.Errorf("helper is running in local-only mode; pairing requires a phone-reachable address. Set FERNGEIST_HELPER_PUBLIC_BASE_URL or run `ferngeist daemon run --lan`")
+	}
+	if host != "" && (strings.EqualFold(host, "localhost") || isLoopbackHost(host)) {
+		return pairingTarget{}, fmt.Errorf("helper LAN pairing requires a non-loopback listen address; run `ferngeist daemon run --lan` or set FERNGEIST_HELPER_LISTEN_ADDR=0.0.0.0:5788")
+	}
+
+	lanHost, err := firstLANHost()
+	if err != nil {
+		return pairingTarget{}, err
+	}
+	return pairingTarget{Scheme: "http", Host: net.JoinHostPort(lanHost, port)}, nil
+}
+
+func isRoutableHost(host string) bool {
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return !ip.IsLoopback() && !ip.IsUnspecified()
+	}
+	return true
+}
+
+func isLoopbackHost(host string) bool {
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func firstLANHost() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect local network interfaces")
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch value := addr.(type) {
+			case *net.IPNet:
+				ip = value.IP
+			case *net.IPAddr:
+				ip = value.IP
+			}
+			if ip == nil || ip.IsLoopback() || ip.IsUnspecified() {
+				continue
+			}
+			if v4 := ip.To4(); v4 != nil {
+				return v4.String(), nil
+			}
+			if ip.IsGlobalUnicast() {
+				return ip.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no LAN address is available for pairing")
 }
 
 func (s *Server) helperDisplayName() string {

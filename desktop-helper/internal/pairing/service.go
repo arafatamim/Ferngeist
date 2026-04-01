@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 const (
 	defaultChallengeTTL = 2 * time.Minute
 	defaultTokenTTL     = 30 * 24 * time.Hour
+	challengeHistoryTTL = 10 * time.Minute
 	codeLength          = 6
 )
 
@@ -25,9 +27,19 @@ var (
 	ErrChallengeAmbiguous = errors.New("pairing challenge is ambiguous")
 	ErrCodeMismatch       = errors.New("pairing code mismatch")
 	ErrInvalidDeviceName  = errors.New("device name is required")
+	ErrDeviceNotFound     = errors.New("paired device not found")
 	ErrCredentialMissing  = errors.New("helper credential missing")
 	ErrCredentialInvalid  = errors.New("helper credential invalid")
 	ErrCredentialExpired  = errors.New("helper credential expired")
+)
+
+type ChallengeState string
+
+const (
+	ChallengeStateActive    ChallengeState = "active"
+	ChallengeStateCompleted ChallengeState = "completed"
+	ChallengeStateCancelled ChallengeState = "cancelled"
+	ChallengeStateExpired   ChallengeState = "expired"
 )
 
 type Challenge struct {
@@ -43,6 +55,27 @@ type Credential struct {
 	ExpiresAt  time.Time `json:"expiresAt"`
 }
 
+type CompletedDevice struct {
+	DeviceID   string    `json:"deviceId"`
+	DeviceName string    `json:"deviceName"`
+	ExpiresAt  time.Time `json:"expiresAt"`
+}
+
+type ChallengeStatus struct {
+	ID              string           `json:"id"`
+	Code            string           `json:"code"`
+	ExpiresAt       time.Time        `json:"expiresAt"`
+	State           ChallengeState   `json:"state"`
+	CompletedDevice *CompletedDevice `json:"completedDevice,omitempty"`
+}
+
+type challengeRecord struct {
+	challenge       Challenge
+	state           ChallengeState
+	completedDevice *CompletedDevice
+	stateChangedAt  time.Time
+}
+
 // Service manages helper-local trust bootstrap. Pairing challenges are
 // short-lived and in-memory; issued device credentials can be reloaded from
 // SQLite so the helper survives restarts.
@@ -50,7 +83,8 @@ type Service struct {
 	logger      *slog.Logger
 	mu          sync.Mutex
 	now         func() time.Time
-	challenges  map[string]Challenge
+	activeID    string
+	challenges  map[string]challengeRecord
 	credentials map[string]Credential
 	store       *storage.SQLiteStore
 }
@@ -59,7 +93,7 @@ func NewService(logger *slog.Logger, store *storage.SQLiteStore) *Service {
 	service := &Service{
 		logger:      logger.With("component", "pairing"),
 		now:         time.Now,
-		challenges:  make(map[string]Challenge),
+		challenges:  make(map[string]challengeRecord),
 		credentials: make(map[string]Credential),
 		store:       store,
 	}
@@ -73,14 +107,75 @@ func (s *Service) StartPairing() (Challenge, error) {
 
 	now := s.now().UTC()
 	s.pruneExpiredLocked(now)
+	if status, ok := s.activeChallengeLocked(); ok {
+		return status.challenge, nil
+	}
 
 	challenge := Challenge{
 		ID:        randomToken(18),
 		Code:      randomCode(codeLength),
 		ExpiresAt: now.Add(defaultChallengeTTL),
 	}
-	s.challenges[challenge.ID] = challenge
+	s.activeID = challenge.ID
+	s.challenges[challenge.ID] = challengeRecord{
+		challenge:      challenge,
+		state:          ChallengeStateActive,
+		stateChangedAt: now,
+	}
 	return challenge, nil
+}
+
+func (s *Service) ActiveChallenge() (ChallengeStatus, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pruneExpiredLocked(s.now().UTC())
+	record, ok := s.activeChallengeLocked()
+	if !ok {
+		return ChallengeStatus{}, false
+	}
+	return record.toStatus(), true
+}
+
+func (s *Service) GetChallengeStatus(challengeID string) (ChallengeStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pruneExpiredLocked(s.now().UTC())
+	record, ok := s.challenges[challengeID]
+	if !ok {
+		return ChallengeStatus{}, ErrChallengeNotFound
+	}
+	return record.toStatus(), nil
+}
+
+func (s *Service) CancelChallenge(challengeID string) (ChallengeStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := s.now().UTC()
+	s.pruneExpiredLocked(now)
+
+	if challengeID == "" {
+		challengeID = s.activeID
+	}
+	if challengeID == "" {
+		return ChallengeStatus{}, ErrChallengeNotFound
+	}
+
+	record, ok := s.challenges[challengeID]
+	if !ok {
+		return ChallengeStatus{}, ErrChallengeNotFound
+	}
+	if record.state == ChallengeStateActive {
+		record.state = ChallengeStateCancelled
+		record.stateChangedAt = now
+		s.challenges[challengeID] = record
+		if s.activeID == challengeID {
+			s.activeID = ""
+		}
+	}
+	return record.toStatus(), nil
 }
 
 // CompletePairing exchanges a valid short-lived challenge for a longer-lived
@@ -103,11 +198,9 @@ func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credent
 	if err != nil {
 		return Credential{}, err
 	}
-	if code != challenge.Code {
+	if code != challenge.challenge.Code {
 		return Credential{}, ErrCodeMismatch
 	}
-
-	delete(s.challenges, challengeID)
 
 	credential := Credential{
 		DeviceID:   randomToken(18),
@@ -126,42 +219,51 @@ func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credent
 			s.logger.Error("persist pairing failed", "error", err)
 		}
 	}
+	challenge.state = ChallengeStateCompleted
+	challenge.stateChangedAt = now
+	challenge.completedDevice = &CompletedDevice{
+		DeviceID:   credential.DeviceID,
+		DeviceName: credential.DeviceName,
+		ExpiresAt:  credential.ExpiresAt,
+	}
+	s.challenges[challengeID] = challenge
+	if s.activeID == challengeID {
+		s.activeID = ""
+	}
 	return credential, nil
 }
 
-func (s *Service) resolveChallengeLocked(challengeID, code string, now time.Time) (string, Challenge, error) {
+func (s *Service) resolveChallengeLocked(challengeID, code string, now time.Time) (string, challengeRecord, error) {
 	if challengeID != "" {
 		challenge, ok := s.challenges[challengeID]
 		if !ok {
-			return "", Challenge{}, ErrChallengeNotFound
+			return "", challengeRecord{}, ErrChallengeNotFound
 		}
-		if now.After(challenge.ExpiresAt) {
-			delete(s.challenges, challengeID)
-			return "", Challenge{}, ErrChallengeExpired
+		if challenge.state != ChallengeStateActive {
+			if challenge.state == ChallengeStateExpired {
+				return "", challengeRecord{}, ErrChallengeExpired
+			}
+			return "", challengeRecord{}, ErrChallengeNotFound
+		}
+		if now.After(challenge.challenge.ExpiresAt) {
+			s.expireChallengeLocked(challengeID, challenge)
+			return "", challengeRecord{}, ErrChallengeExpired
 		}
 		return challengeID, challenge, nil
 	}
 
-	matchedID := ""
-	var matched Challenge
-	for id, challenge := range s.challenges {
-		if now.After(challenge.ExpiresAt) {
-			delete(s.challenges, id)
-			continue
-		}
-		if challenge.Code != code {
-			continue
-		}
-		if matchedID != "" {
-			return "", Challenge{}, ErrChallengeAmbiguous
-		}
-		matchedID = id
-		matched = challenge
+	record, ok := s.activeChallengeLocked()
+	if !ok {
+		return "", challengeRecord{}, ErrChallengeNotFound
 	}
-	if matchedID == "" {
-		return "", Challenge{}, ErrChallengeNotFound
+	if now.After(record.challenge.ExpiresAt) {
+		s.expireChallengeLocked(record.challenge.ID, record)
+		return "", challengeRecord{}, ErrChallengeExpired
 	}
-	return matchedID, matched, nil
+	if record.challenge.Code != code {
+		return record.challenge.ID, record, nil
+	}
+	return record.challenge.ID, record, nil
 }
 
 func (s *Service) ActiveDeviceCount() int {
@@ -187,7 +289,7 @@ func (s *Service) ValidateCredential(token string) (Credential, error) {
 	for id, credential := range s.credentials {
 		if credential.Token == token {
 			if now.After(credential.ExpiresAt) {
-				delete(s.credentials, id)
+				s.deleteCredentialLocked(id)
 				return Credential{}, ErrCredentialExpired
 			}
 			return credential, nil
@@ -198,10 +300,47 @@ func (s *Service) ValidateCredential(token string) (Credential, error) {
 	return Credential{}, ErrCredentialInvalid
 }
 
+func (s *Service) ListDevices() []Credential {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pruneExpiredCredentialsLocked(s.now().UTC())
+	devices := make([]Credential, 0, len(s.credentials))
+	for _, credential := range s.credentials {
+		devices = append(devices, credential)
+	}
+	sort.Slice(devices, func(i, j int) bool {
+		if devices[i].DeviceName == devices[j].DeviceName {
+			return devices[i].DeviceID < devices[j].DeviceID
+		}
+		return devices[i].DeviceName < devices[j].DeviceName
+	})
+	return devices
+}
+
+func (s *Service) RevokeDevice(deviceID string) (Credential, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	credential, ok := s.credentials[deviceID]
+	if !ok {
+		return Credential{}, ErrDeviceNotFound
+	}
+	s.deleteCredentialLocked(deviceID)
+	return credential, nil
+}
+
 func (s *Service) pruneExpiredLocked(now time.Time) {
-	for id, challenge := range s.challenges {
-		if now.After(challenge.ExpiresAt) {
-			delete(s.challenges, id)
+	for id, record := range s.challenges {
+		switch record.state {
+		case ChallengeStateActive:
+			if now.After(record.challenge.ExpiresAt) {
+				s.expireChallengeLocked(id, record)
+			}
+		default:
+			if now.Sub(record.stateChangedAt) > challengeHistoryTTL {
+				delete(s.challenges, id)
+			}
 		}
 	}
 	s.pruneExpiredCredentialsLocked(now)
@@ -210,8 +349,49 @@ func (s *Service) pruneExpiredLocked(now time.Time) {
 func (s *Service) pruneExpiredCredentialsLocked(now time.Time) {
 	for id, credential := range s.credentials {
 		if now.After(credential.ExpiresAt) {
-			delete(s.credentials, id)
+			s.deleteCredentialLocked(id)
 		}
+	}
+}
+
+func (s *Service) deleteCredentialLocked(deviceID string) {
+	delete(s.credentials, deviceID)
+	if s.store == nil {
+		return
+	}
+	if err := s.store.DeletePairing(context.Background(), deviceID); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		s.logger.Error("delete pairing failed", "device_id", deviceID, "error", err)
+	}
+}
+
+func (s *Service) activeChallengeLocked() (challengeRecord, bool) {
+	if s.activeID == "" {
+		return challengeRecord{}, false
+	}
+	record, ok := s.challenges[s.activeID]
+	if !ok || record.state != ChallengeStateActive {
+		s.activeID = ""
+		return challengeRecord{}, false
+	}
+	return record, true
+}
+
+func (s *Service) expireChallengeLocked(challengeID string, record challengeRecord) {
+	record.state = ChallengeStateExpired
+	record.stateChangedAt = record.challenge.ExpiresAt
+	s.challenges[challengeID] = record
+	if s.activeID == challengeID {
+		s.activeID = ""
+	}
+}
+
+func (r challengeRecord) toStatus() ChallengeStatus {
+	return ChallengeStatus{
+		ID:              r.challenge.ID,
+		Code:            r.challenge.Code,
+		ExpiresAt:       r.challenge.ExpiresAt,
+		State:           r.state,
+		CompletedDevice: r.completedDevice,
 	}
 }
 
@@ -231,6 +411,9 @@ func (s *Service) loadPersistedCredentials() {
 	now := s.now().UTC()
 	for _, record := range records {
 		if now.After(record.ExpiresAt) {
+			if err := s.store.DeletePairing(context.Background(), record.DeviceID); err != nil && !errors.Is(err, storage.ErrNotFound) {
+				s.logger.Error("delete expired pairing failed", "device_id", record.DeviceID, "error", err)
+			}
 			continue
 		}
 		s.credentials[record.DeviceID] = Credential{

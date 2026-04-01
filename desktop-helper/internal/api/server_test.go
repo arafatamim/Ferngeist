@@ -288,6 +288,85 @@ func TestStatusClassifiesTailscaleRemoteVisibility(t *testing.T) {
 	}
 }
 
+func TestAdminPairingStartIncludesPayload(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := NewServer(
+		config.Config{ListenAddr: "127.0.0.1:0", PublicBaseURL: "https://helper.example.com"},
+		BuildInfo{},
+		logger,
+		catalog.NewWithBaseDir("."),
+		runtime.NewSupervisor(logger),
+		pairing.NewService(logger, nil),
+		gateway.New(logger, nil),
+		discovery.New(logger),
+		nil,
+		nil,
+	)
+
+	request := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	recorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var response adminPairingResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if response.State != string(pairing.ChallengeStateActive) {
+		t.Fatalf("State = %q, want %q", response.State, pairing.ChallengeStateActive)
+	}
+	if response.Host != "helper.example.com" {
+		t.Fatalf("Host = %q, want %q", response.Host, "helper.example.com")
+	}
+	if response.Scheme != "https" {
+		t.Fatalf("Scheme = %q, want %q", response.Scheme, "https")
+	}
+	if !strings.Contains(response.Payload, "ferngeist-helper://pair?") {
+		t.Fatalf("Payload = %q, want ferngeist-helper URI", response.Payload)
+	}
+}
+
+func TestAdminDevicesListAndRevoke(t *testing.T) {
+	server := newTestServer()
+	token := pairDevice(t, server)
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/admin/v1/devices", nil)
+	listRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(listRecorder, listRequest)
+
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list status code = %d, want %d", listRecorder.Code, http.StatusOK)
+	}
+
+	var listResponse adminDevicesResponse
+	if err := json.Unmarshal(listRecorder.Body.Bytes(), &listResponse); err != nil {
+		t.Fatalf("Unmarshal(list) error = %v", err)
+	}
+	if len(listResponse.Devices) != 1 {
+		t.Fatalf("len(devices) = %d, want 1", len(listResponse.Devices))
+	}
+
+	revokeRequest := httptest.NewRequest(http.MethodDelete, "/admin/v1/devices/"+listResponse.Devices[0].DeviceID, nil)
+	revokeRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(revokeRecorder, revokeRequest)
+
+	if revokeRecorder.Code != http.StatusOK {
+		t.Fatalf("revoke status code = %d, want %d", revokeRecorder.Code, http.StatusOK)
+	}
+
+	agentsRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	agentsRequest.Header.Set("Authorization", "Bearer "+token)
+	agentsRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(agentsRecorder, agentsRequest)
+
+	if agentsRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("agents status code after revoke = %d, want %d", agentsRecorder.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestStatusFlagsInvalidRemoteConfiguration(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	server := NewServer(

@@ -112,3 +112,45 @@ func TestValidateCredentialSuccess(t *testing.T) {
 		t.Fatalf("DeviceID = %q, want %q", validated.DeviceID, credential.DeviceID)
 	}
 }
+
+func TestCancelChallengeMarksChallengeCancelled(t *testing.T) {
+	now := time.Date(2026, 3, 25, 10, 0, 0, 0, time.UTC)
+	service := NewService(slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	service.now = func() time.Time { return now }
+
+	challenge, err := service.StartPairing()
+	if err != nil {
+		t.Fatalf("StartPairing() error = %v", err)
+	}
+
+	status, err := service.CancelChallenge(challenge.ID)
+	if err != nil {
+		t.Fatalf("CancelChallenge() error = %v", err)
+	}
+	if status.State != ChallengeStateCancelled {
+		t.Fatalf("State = %q, want %q", status.State, ChallengeStateCancelled)
+	}
+}
+
+func TestRevokeDeviceRemovesCredential(t *testing.T) {
+	now := time.Date(2026, 3, 25, 10, 0, 0, 0, time.UTC)
+	service := NewService(slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	service.now = func() time.Time { return now }
+
+	challenge, err := service.StartPairing()
+	if err != nil {
+		t.Fatalf("StartPairing() error = %v", err)
+	}
+
+	credential, err := service.CompletePairing(challenge.ID, challenge.Code, "Pixel 9")
+	if err != nil {
+		t.Fatalf("CompletePairing() error = %v", err)
+	}
+
+	if _, err := service.RevokeDevice(credential.DeviceID); err != nil {
+		t.Fatalf("RevokeDevice() error = %v", err)
+	}
+	if _, err := service.ValidateCredential(credential.Token); err != ErrCredentialInvalid {
+		t.Fatalf("ValidateCredential() error = %v, want %v", err, ErrCredentialInvalid)
+	}
+}

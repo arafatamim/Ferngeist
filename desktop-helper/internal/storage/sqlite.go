@@ -132,6 +132,21 @@ func (s *SQLiteStore) ListPairings(ctx context.Context) ([]PairingRecord, error)
 	return records, rows.Err()
 }
 
+func (s *SQLiteStore) DeletePairing(ctx context.Context, deviceID string) error {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM paired_devices WHERE device_id = ?`, deviceID)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // SaveRuntime persists the latest runtime snapshot rather than a full event
 // history. This keeps the store small and restart recovery simple.
 func (s *SQLiteStore) SaveRuntime(ctx context.Context, record RuntimeRecord) error {

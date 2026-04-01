@@ -4,14 +4,9 @@
 
 If this directory starts feeling like a second product, it is going in the wrong direction.
 
-## Read This First
-
-- [ARCHITECTURE.md](/D:/Projects/Programming/Ferngeist/desktop-helper/ARCHITECTURE.md): what the helper is responsible for
-- [DesktopHelperProtocol.md](/D:/Projects/Programming/Ferngeist/docs/DesktopHelperProtocol.md): HTTP and ACP contract
-- [DESKTOP_HELPER_PLAN.md](/D:/Projects/Programming/Ferngeist/DESKTOP_HELPER_PLAN.md): staged plan and boundaries
-
 ## Layout
 
+- `cmd/ferngeist`: user-facing CLI for daemon run, pairing, and paired-device management
 - `cmd/helperd`: daemon entrypoint
 - `cmd/mock-stdio-agent`: local stdio ACP test agent
 - `internal/api`: HTTP API and auth wiring
@@ -61,14 +56,23 @@ From [desktop-helper](/D:/Projects/Programming/Ferngeist/desktop-helper):
 
 ```powershell
 go build -o .\bin\mock-stdio-agent.exe .\cmd\mock-stdio-agent
-go run .\cmd\helperd
+go run .\cmd\ferngeist daemon run
+```
+
+Expose the helper to your phone over LAN during development:
+
+```powershell
+go run .\cmd\ferngeist daemon run --lan
+go run .\cmd\ferngeist pair
 ```
 
 Default listen address: `127.0.0.1:5788`
+Default local admin address: `127.0.0.1:5789`
 
 Useful env vars:
 
 - `FERNGEIST_HELPER_LISTEN_ADDR`
+- `FERNGEIST_HELPER_ADMIN_ADDR`
 - `FERNGEIST_HELPER_ENABLE_LAN`
 - `FERNGEIST_HELPER_STATE_DB`
 - `FERNGEIST_HELPER_LOG_DIR`
@@ -81,6 +85,13 @@ Optional real-agent smoke tests:
 ```powershell
 $env:FERNGEIST_RUN_REAL_AGENT_TESTS="1"
 go test ./internal/runtime -run TestOptionalInstalledOpenCodeACPSmoke -v
+```
+
+Pair a device from the machine hosting the daemon:
+
+```powershell
+go run .\cmd\ferngeist pair
+go run .\cmd\ferngeist devices list
 ```
 
 ## Maintenance Rule
