@@ -24,6 +24,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -102,6 +103,7 @@ fun ServerListScreen(
                     event.sessions,
                     event.openCreateSessionDialog,
                 )
+
                 is ServerListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }
@@ -164,8 +166,8 @@ fun ServerListScreen(
                             onNavigateToPairDesktopCompanion()
                         }
                     },
-                    icon = { Icon(Icons.Default.SmartToy, contentDescription = null) },
-                    text = { Text(if (hasDesktopCompanions) "Add from list" else "Pair desktop companion") },
+                    icon = { Icon(Icons.Default.Devices, contentDescription = null) },
+                    text = { Text(if (hasDesktopCompanions) "Add using paired companion" else "Pair desktop companion") },
                 )
                 FloatingActionButtonMenuItem(
                     onClick = {
