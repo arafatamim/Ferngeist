@@ -4,9 +4,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -180,22 +182,23 @@ fun DesktopHelperAgentsScreen(
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(agent.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(agent.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         agent.hint?.let {
                             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            AssistChip(onClick = {}, enabled = false, label = { Text(if (agent.detected) "Detected" else "Not detected") })
-                            AssistChip(onClick = {}, enabled = false, label = { Text(if (agent.manifestValid) "Valid" else "Invalid") })
-                            agent.runtimeStatus?.let { AssistChip(onClick = {}, enabled = false, label = { Text(it) }) }
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            CompactAgentChip(label = if (agent.detected) "Detected" else "Not detected")
+                            CompactAgentChip(label = if (agent.manifestValid) "Valid" else "Invalid")
+                            agent.runtimeStatus?.let { CompactAgentChip(label = it) }
                             if (alreadyAdded) {
-                                AssistChip(
-                                    onClick = {},
-                                    enabled = false,
-                                    label = { Text("Added") },
+                                CompactAgentChip(
+                                    label = "Added",
                                     leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) },
                                 )
                             }
@@ -212,4 +215,25 @@ fun DesktopHelperAgentsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun CompactAgentChip(
+    label: String,
+    leadingIcon: @Composable (() -> Unit)? = null,
+) {
+    AssistChip(
+        onClick = {},
+        enabled = false,
+        modifier = Modifier.height(28.dp),
+        leadingIcon = leadingIcon,
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+            )
+        },
+        shape = RoundedCornerShape(8.dp),
+    )
 }
