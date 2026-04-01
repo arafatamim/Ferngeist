@@ -126,7 +126,7 @@ class AddDesktopHelperViewModel @Inject constructor(
         viewModelScope.launch {
             val helperHost = normalizedHost()
             if (helperHost == null) {
-                emitError("Helper host is required")
+                emitError("Desktop companion host is required")
                 return@launch
             }
             _uiState.value = _uiState.value.copy(isCheckingStatus = true)
@@ -139,7 +139,7 @@ class AddDesktopHelperViewModel @Inject constructor(
                 }
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(isCheckingStatus = false)
-                emitError("Could not reach helper: ${error.message ?: "unknown error"}")
+                emitError("Could not reach desktop companion: ${error.message ?: "unknown error"}")
             }
         }
     }
@@ -148,7 +148,7 @@ class AddDesktopHelperViewModel @Inject constructor(
         viewModelScope.launch {
             val helperHost = normalizedHost()
             if (helperHost == null) {
-                emitError("Helper host is required")
+                emitError("Desktop companion host is required")
                 return@launch
             }
             _uiState.value = _uiState.value.copy(isPairing = true)
@@ -172,7 +172,7 @@ class AddDesktopHelperViewModel @Inject constructor(
         viewModelScope.launch {
             val helperHost = normalizedHost()
             if (helperHost == null) {
-                emitError("Helper host is required")
+                emitError("Desktop companion host is required")
                 return@launch
             }
             val helperName = _name.value.trim()

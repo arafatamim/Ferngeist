@@ -99,7 +99,7 @@ fun AddDesktopHelperScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            SectionCard(title = "Helper Details", icon = Icons.Default.Computer) {
+            SectionCard(title = "Desktop Companion Details", icon = Icons.Default.Computer) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = viewModel::updateName,
@@ -114,7 +114,7 @@ fun AddDesktopHelperScreen(
                 OutlinedTextField(
                     value = host,
                     onValueChange = viewModel::updateHost,
-                    label = { Text("Helper host") },
+                    label = { Text("Desktop companion host") },
                     placeholder = { Text("192.168.1.42:5788") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -125,7 +125,7 @@ fun AddDesktopHelperScreen(
                     if (uiState.isCheckingStatus) {
                         CircularProgressIndicator(modifier = Modifier.height(18.dp))
                     } else {
-                        Text("Check helper")
+                        Text("Check desktop companion")
                     }
                 }
                 uiState.status?.let { status ->
@@ -160,7 +160,7 @@ fun AddDesktopHelperScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "You can scan or paste a QR pairing payload, or enter a code manually with the helper host.",
+                    "You can scan or paste a QR pairing payload, or enter a code manually with the desktop companion host.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -168,13 +168,13 @@ fun AddDesktopHelperScreen(
                 PairingModeOption(
                     selected = pairingInputMode == DesktopHelperPairingInputMode.QR_PAYLOAD,
                     title = "QR payload",
-                    description = "Use the helper QR code when it includes host details and the pairing code.",
+                    description = "Use the desktop companion QR code when it includes host details and the pairing code.",
                     onClick = { viewModel.updatePairingInputMode(DesktopHelperPairingInputMode.QR_PAYLOAD) },
                 )
                 PairingModeOption(
                     selected = pairingInputMode == DesktopHelperPairingInputMode.MANUAL_CODE,
                     title = "Manual code",
-                    description = "Type the host yourself and enter the code shown by the helper.",
+                    description = "Type the host yourself and enter the code shown by the desktop companion.",
                     onClick = { viewModel.updatePairingInputMode(DesktopHelperPairingInputMode.MANUAL_CODE) },
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -253,7 +253,7 @@ fun AddDesktopHelperScreen(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(onClick = viewModel::completePairingAndSave, enabled = !uiState.isSaving) {
-                        Text(if (viewModel.isEditMode) "Save helper" else "Pair and save")
+                        Text(if (viewModel.isEditMode) "Save desktop companion" else "Pair and save")
                     }
                 }
             }

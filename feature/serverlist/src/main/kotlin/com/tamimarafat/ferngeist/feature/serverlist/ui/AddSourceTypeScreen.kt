@@ -58,7 +58,7 @@ fun AddSourceTypeScreen(
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Manual ACP keeps today's direct endpoint flow. Desktop Helper lets one saved device manage many local agents.",
+                text = "Manual ACP keeps today's direct endpoint flow. Desktop Companion lets one saved device manage many local agents.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -72,10 +72,10 @@ fun AddSourceTypeScreen(
             )
 
             SourceTypeCard(
-                title = "Desktop Helper",
-                description = "Pair with a helper daemon on a desktop device and use its managed ACP agents.",
+                title = "Desktop Companion",
+                description = "Pair with a desktop companion on a desktop device and use its managed ACP agents.",
                 icon = Icons.Default.Computer,
-                actionLabel = "Add desktop helper",
+                actionLabel = "Add desktop companion",
                 onClick = onDesktopHelperSelected,
             )
         }

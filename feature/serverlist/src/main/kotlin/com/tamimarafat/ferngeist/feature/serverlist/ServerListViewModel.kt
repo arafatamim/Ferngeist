@@ -704,7 +704,7 @@ class ServerListViewModel @Inject constructor(
         if (runtimeHint.isNullOrBlank() || diagnosticMessage.contains(runtimeHint, ignoreCase = true)) {
             return diagnosticMessage
         }
-        return "$diagnosticMessage\nHelper runtime: $runtimeHint"
+        return "$diagnosticMessage\nDesktop companion runtime: $runtimeHint"
     }
 
     private fun shortInitializeFailureMessage(server: LaunchableTarget): String {

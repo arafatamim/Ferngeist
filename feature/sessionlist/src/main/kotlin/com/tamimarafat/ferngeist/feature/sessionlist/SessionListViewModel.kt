@@ -351,7 +351,7 @@ class SessionListViewModel @Inject constructor(
 
         val runtimeId = pending.helperRuntimeId ?: run {
             _pendingAuthentication.update {
-                it?.copy(authErrorMessage = "Helper runtime context is missing for ${currentServer.name}.")
+                it?.copy(authErrorMessage = "Desktop companion runtime context is missing for ${currentServer.name}.")
             }
             _isLoading.value = false
             return
