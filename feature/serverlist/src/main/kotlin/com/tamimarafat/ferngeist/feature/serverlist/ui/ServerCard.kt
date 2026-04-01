@@ -30,9 +30,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuGroup
@@ -82,6 +82,7 @@ internal fun ServerCard(
         ServerConnectionUiState.from(server.id, uiState)
     }
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
+    val hasSavedAuthMethod = server.preferredAuthMethodId?.isNotBlank() == true
 
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showActionsMenu by rememberSaveable { mutableStateOf(false) }
@@ -160,46 +161,12 @@ internal fun ServerCard(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = server.subtitle(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        ServerSubtitle(
+                            server = server,
+                            hasSavedAuthMethod = hasSavedAuthMethod,
                         )
                     }
                 }
-
-                server.preferredAuthMethodId?.takeIf { it.isNotBlank() }?.let { authMethodId ->
-                    AssistChip(
-                        onClick = {},
-                        enabled = false,
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Lock,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                            )
-                        },
-                        label = { Text("Auth: $authMethodId") },
-                        shape = RoundedCornerShape(10.dp),
-                    )
-                }
-
-                AssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = {
-                        Text(
-                            if (server is LaunchableTarget.HelperAgent) {
-                                "Desktop Helper"
-                            } else {
-                                "Manual ACP"
-                            }
-                        )
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                )
             }
         }
 
@@ -230,10 +197,51 @@ internal fun ServerCard(
     }
 }
 
-private fun LaunchableTarget.subtitle(): String {
-    return when (this) {
-        is LaunchableTarget.HelperAgent -> "Helper ${helperSource.scheme}://${helperSource.host}"
-        is LaunchableTarget.Manual -> "${server.scheme}://${server.host}"
+@Composable
+private fun ServerSubtitle(
+    server: LaunchableTarget,
+    hasSavedAuthMethod: Boolean,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (hasSavedAuthMethod) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        when (server) {
+            is LaunchableTarget.HelperAgent -> {
+                Icon(
+                    imageVector = Icons.Default.Devices,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = server.helperSource.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            is LaunchableTarget.Manual -> {
+                Text(
+                    text = "${server.server.scheme}://${server.server.host}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
