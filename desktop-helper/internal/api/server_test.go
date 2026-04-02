@@ -329,6 +329,51 @@ func TestAdminPairingStartIncludesPayload(t *testing.T) {
 	}
 }
 
+func TestAdminStatusIncludesPairingReachability(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := NewServer(
+		config.Config{
+			ListenAddr:      "127.0.0.1:0",
+			AdminListenAddr: "127.0.0.1:5789",
+			PublicBaseURL:   "https://helper.example.com",
+		},
+		BuildInfo{},
+		logger,
+		catalog.NewWithBaseDir("."),
+		runtime.NewSupervisor(logger),
+		pairing.NewService(logger, nil),
+		gateway.New(logger, nil),
+		discovery.New(logger),
+		nil,
+		nil,
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/v1/status", nil)
+	recorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var response adminStatusResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if response.AdminListenAddr != "127.0.0.1:5789" {
+		t.Fatalf("AdminListenAddr = %q", response.AdminListenAddr)
+	}
+	if !response.PairingTarget.Reachable {
+		t.Fatal("PairingTarget.Reachable should be true")
+	}
+	if response.PairingTarget.Scheme != "https" {
+		t.Fatalf("PairingTarget.Scheme = %q", response.PairingTarget.Scheme)
+	}
+	if response.PairingTarget.Host != "helper.example.com" {
+		t.Fatalf("PairingTarget.Host = %q", response.PairingTarget.Host)
+	}
+}
+
 func TestAdminDevicesListAndRevoke(t *testing.T) {
 	server := newTestServer()
 	token := pairDevice(t, server)

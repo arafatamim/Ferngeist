@@ -129,6 +129,32 @@ type adminDevicesResponse struct {
 	Devices []adminDeviceResponse `json:"devices"`
 }
 
+type adminStatusResponse struct {
+	Name              string                 `json:"name"`
+	Version           string                 `json:"version"`
+	Build             BuildInfo              `json:"build"`
+	ProtocolVersion   string                 `json:"protocolVersion"`
+	StartedAt         time.Time              `json:"startedAt"`
+	UptimeSeconds     int64                  `json:"uptimeSeconds"`
+	ListenAddr        string                 `json:"listenAddr"`
+	AdminListenAddr   string                 `json:"adminListenAddr"`
+	LANEnabled        bool                   `json:"lanEnabled"`
+	PairedDeviceCount int                    `json:"pairedDeviceCount"`
+	Discovery         discovery.Snapshot     `json:"discovery"`
+	Remote            remoteStatus           `json:"remote"`
+	Registry          acpregistry.Status     `json:"registry"`
+	RuntimeCounts     runtimeCounts          `json:"runtimeCounts"`
+	PairingTarget     adminPairingTargetInfo `json:"pairingTarget"`
+	ActivePairing     *adminPairingResponse  `json:"activePairing,omitempty"`
+}
+
+type adminPairingTargetInfo struct {
+	Reachable bool   `json:"reachable"`
+	Scheme    string `json:"scheme,omitempty"`
+	Host      string `json:"host,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
 type adminDeviceResponse struct {
 	DeviceID   string    `json:"deviceId"`
 	DeviceName string    `json:"deviceName"`
@@ -266,6 +292,7 @@ func NewServer(
 	mux.HandleFunc("POST /v1/runtimes/{runtimeId}/connect", server.handleRuntimeConnect)
 	mux.HandleFunc("POST /v1/runtimes/{runtimeId}/restart", server.handleRuntimeRestart)
 	mux.HandleFunc("GET /v1/acp/{runtimeId}", server.handleACPWebSocket)
+	adminMux.HandleFunc("GET /admin/v1/status", server.handleAdminStatus)
 	adminMux.HandleFunc("POST /admin/v1/pairings/start", server.handleAdminPairingStart)
 	adminMux.HandleFunc("GET /admin/v1/pairings/{challengeId}", server.handleAdminPairingStatus)
 	adminMux.HandleFunc("DELETE /admin/v1/pairings/{challengeId}", server.handleAdminPairingCancel)
@@ -430,32 +457,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-
-	summary := s.runtime.Summary()
-	now := s.now()
-	writeJSON(w, http.StatusOK, statusResponse{
-		Name:              s.helperDisplayName(),
-		Version:           s.build.Version,
-		Build:             s.build,
-		ProtocolVersion:   protocolVersion,
-		StartedAt:         s.startedAt,
-		UptimeSeconds:     uptimeSeconds(s.startedAt, now),
-		ListenAddr:        s.cfg.ListenAddr,
-		LANEnabled:        s.cfg.EnableLAN,
-		PairedDeviceCount: s.pairing.ActiveDeviceCount(),
-		Discovery:         s.discovery.Snapshot(),
-		Remote:            s.remoteStatus(false),
-		Registry:          s.registryStatus(),
-		RuntimeCounts: runtimeCounts{
-			Starting:    summary.Starting,
-			Total:       summary.Total,
-			Running:     summary.Running,
-			Stopping:    summary.Stopping,
-			Stopped:     summary.Stopped,
-			Failed:      summary.Failed,
-			CircuitOpen: summary.CircuitOpen,
-		},
-	})
+	writeJSON(w, http.StatusOK, s.statusSnapshot(false))
 }
 
 // handleAgents merges static catalog data with live runtime state so clients do
@@ -650,6 +652,41 @@ func (s *Server) handleAdminPairingStart(w http.ResponseWriter, r *http.Request)
 		ExpiresAt: challenge.ExpiresAt,
 		State:     pairing.ChallengeStateActive,
 	}, target))
+}
+
+func (s *Server) handleAdminStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	status := s.statusSnapshot(true)
+	response := adminStatusResponse{
+		Name:              status.Name,
+		Version:           status.Version,
+		Build:             status.Build,
+		ProtocolVersion:   status.ProtocolVersion,
+		StartedAt:         status.StartedAt,
+		UptimeSeconds:     status.UptimeSeconds,
+		ListenAddr:        status.ListenAddr,
+		AdminListenAddr:   s.cfg.AdminListenAddr,
+		LANEnabled:        status.LANEnabled,
+		PairedDeviceCount: status.PairedDeviceCount,
+		Discovery:         status.Discovery,
+		Remote:            status.Remote,
+		Registry:          status.Registry,
+		RuntimeCounts:     status.RuntimeCounts,
+	}
+	if target, err := s.pairingTarget(); err != nil {
+		response.PairingTarget = adminPairingTargetInfo{Reachable: false, Error: err.Error()}
+	} else {
+		response.PairingTarget = adminPairingTargetInfo{Reachable: true, Scheme: target.Scheme, Host: target.Host}
+	}
+	if challenge, ok := s.pairing.ActiveChallenge(); ok {
+		activePairing := s.adminPairingResponse(challenge, pairingTarget{})
+		response.ActivePairing = &activePairing
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *Server) handleAdminPairingStatus(w http.ResponseWriter, r *http.Request) {
@@ -921,6 +958,34 @@ func connectResponseFromDescriptor(r *http.Request, descriptor runtime.ConnectDe
 		WebSocketPath:  descriptor.WebSocketPath,
 		BearerToken:    descriptor.BearerToken,
 		TokenExpiresAt: descriptor.TokenExpiresAt,
+	}
+}
+
+func (s *Server) statusSnapshot(includePublicURL bool) statusResponse {
+	summary := s.runtime.Summary()
+	now := s.now()
+	return statusResponse{
+		Name:              s.helperDisplayName(),
+		Version:           s.build.Version,
+		Build:             s.build,
+		ProtocolVersion:   protocolVersion,
+		StartedAt:         s.startedAt,
+		UptimeSeconds:     uptimeSeconds(s.startedAt, now),
+		ListenAddr:        s.cfg.ListenAddr,
+		LANEnabled:        s.cfg.EnableLAN,
+		PairedDeviceCount: s.pairing.ActiveDeviceCount(),
+		Discovery:         s.discovery.Snapshot(),
+		Remote:            s.remoteStatus(includePublicURL),
+		Registry:          s.registryStatus(),
+		RuntimeCounts: runtimeCounts{
+			Starting:    summary.Starting,
+			Total:       summary.Total,
+			Running:     summary.Running,
+			Stopping:    summary.Stopping,
+			Stopped:     summary.Stopped,
+			Failed:      summary.Failed,
+			CircuitOpen: summary.CircuitOpen,
+		},
 	}
 }
 

@@ -31,6 +31,35 @@ type PairingStatus struct {
 	CompletedDeviceExpiresAt time.Time `json:"completedDeviceExpiresAt,omitempty"`
 }
 
+type DaemonStatus struct {
+	Name              string            `json:"name"`
+	Version           string            `json:"version"`
+	ListenAddr        string            `json:"listenAddr"`
+	AdminListenAddr   string            `json:"adminListenAddr"`
+	LANEnabled        bool              `json:"lanEnabled"`
+	PairedDeviceCount int               `json:"pairedDeviceCount"`
+	Remote            RemoteStatus      `json:"remote"`
+	PairingTarget     PairingTargetInfo `json:"pairingTarget"`
+	ActivePairing     *PairingStatus    `json:"activePairing,omitempty"`
+	UptimeSeconds     int64             `json:"uptimeSeconds"`
+}
+
+type RemoteStatus struct {
+	Configured bool   `json:"configured"`
+	Mode       string `json:"mode,omitempty"`
+	Scope      string `json:"scope,omitempty"`
+	Healthy    bool   `json:"healthy"`
+	Warning    string `json:"warning,omitempty"`
+	PublicURL  string `json:"publicUrl,omitempty"`
+}
+
+type PairingTargetInfo struct {
+	Reachable bool   `json:"reachable"`
+	Scheme    string `json:"scheme,omitempty"`
+	Host      string `json:"host,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
 type Device struct {
 	DeviceID   string    `json:"deviceId"`
 	DeviceName string    `json:"deviceName"`
@@ -56,6 +85,10 @@ func New(cfg config.Config) *Client {
 
 func (c *Client) StartPairing(ctx context.Context) (PairingStatus, error) {
 	return doJSON[PairingStatus](c, ctx, http.MethodPost, "/admin/v1/pairings/start", nil)
+}
+
+func (c *Client) Status(ctx context.Context) (DaemonStatus, error) {
+	return doJSON[DaemonStatus](c, ctx, http.MethodGet, "/admin/v1/status", nil)
 }
 
 func (c *Client) GetPairing(ctx context.Context, challengeID string) (PairingStatus, error) {

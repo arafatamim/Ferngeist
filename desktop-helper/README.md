@@ -63,6 +63,7 @@ Expose the helper to your phone over LAN during development:
 
 ```powershell
 go run .\cmd\ferngeist daemon run --lan
+go run .\cmd\ferngeist daemon status
 go run .\cmd\ferngeist pair
 ```
 
