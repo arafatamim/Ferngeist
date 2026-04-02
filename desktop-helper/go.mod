@@ -3,7 +3,7 @@ module github.com/tamimarafat/ferngeist/desktop-helper
 go 1.26.0
 
 require (
-	github.com/gorilla/websocket v1.5.3
+	github.com/coder/websocket v1.8.14
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/urfave/cli/v3 v3.8.0

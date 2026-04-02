@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/catalog"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/config"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/discovery"
@@ -43,6 +43,11 @@ type Server struct {
 }
 
 const protocolVersion = "v1alpha1"
+
+const (
+	acpWebSocketReadLimit = 1024 * 1024
+	acpWebSocketIOTimeout = 30 * time.Second
+)
 
 // BuildInfo is injected from the build so status and diagnostics can describe
 // the exact helper binary that produced a failure report.
@@ -240,10 +245,6 @@ type diagnosticsHelperSnapshot struct {
 
 type registryStatusProvider interface {
 	Status() acpregistry.Status
-}
-
-var wsUpgrader = websocket.Upgrader{
-	CheckOrigin: func(*http.Request) bool { return true },
 }
 
 // NewServer wires the helper's control plane and ACP bridge into one HTTP
@@ -862,12 +863,13 @@ func (s *Server) handleACPWebSocket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer clientConn.Close()
 	defer release()
 
 	proxyDone := make(chan error, 2)
 	go proxyWebSocketToStdio(clientConn, stdin, runtimeID, s.runtime.AppendLog, proxyDone)
 	go proxyStdioToWebSocket(stdout, clientConn, runtimeID, s.runtime.AppendLog, proxyDone)
+	<-proxyDone
+	clientConn.CloseNow()
 	<-proxyDone
 
 	if s.gateway.RevokeIfMatches(runtimeID, token) {
@@ -1179,23 +1181,38 @@ func isPrivateHostname(host string) bool {
 	return false
 }
 
+func websocketReadContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), acpWebSocketIOTimeout)
+}
+
+func websocketWriteContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), acpWebSocketIOTimeout)
+}
+
 // proxyWebSocketToStdio adapts ACP-over-WebSocket client messages into the
 // newline-delimited stdio framing used by CLI ACP servers. It also mirrors the
 // raw client payload into the runtime log buffer as `acp.stdin` traffic.
-func proxyWebSocketToStdio(src *websocket.Conn, dst io.WriteCloser, runtimeID string, appendLog func(string, string, string), done chan<- error) {
+func proxyWebSocketToStdio(src *websocket.Conn, stdin io.WriteCloser, runtimeID string, appendLog func(string, string, string), done chan<- error) {
+	defer stdin.Close()
 	for {
-		messageType, payload, err := src.ReadMessage()
+		ctx, cancel := websocketReadContext()
+		messageType, payload, err := src.Read(ctx)
+		cancel()
 		if err != nil {
+			if closeStatus := websocket.CloseStatus(err); closeStatus == websocket.StatusNormalClosure || closeStatus == websocket.StatusGoingAway {
+				done <- io.EOF
+				return
+			}
 			done <- err
 			return
 		}
-		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+		if messageType != websocket.MessageText && messageType != websocket.MessageBinary {
 			continue
 		}
 		if appendLog != nil {
 			appendLog(runtimeID, "acp.stdin", string(payload))
 		}
-		if _, err := dst.Write(append(payload, '\n')); err != nil {
+		if _, err := stdin.Write(append(payload, '\n')); err != nil {
 			done <- err
 			return
 		}
@@ -1215,7 +1232,14 @@ func proxyStdioToWebSocket(src io.Reader, dst *websocket.Conn, runtimeID string,
 		if appendLog != nil {
 			appendLog(runtimeID, "acp.stdout", line)
 		}
-		if err := dst.WriteMessage(websocket.TextMessage, []byte(line)); err != nil {
+		ctx, cancel := websocketWriteContext()
+		err := dst.Write(ctx, websocket.MessageText, []byte(line))
+		cancel()
+		if err != nil {
+			if closeStatus := websocket.CloseStatus(err); closeStatus == websocket.StatusNormalClosure || closeStatus == websocket.StatusGoingAway {
+				done <- io.EOF
+				return
+			}
 			done <- err
 			return
 		}
@@ -1234,12 +1258,13 @@ func (s *Server) attachStdioRuntime(w http.ResponseWriter, r *http.Request, runt
 		return nil, nil, nil, nil, err
 	}
 
-	clientConn, err := wsUpgrader.Upgrade(w, r, nil)
+	clientConn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 	if err != nil {
 		release()
 		s.logger.Error("websocket upgrade failed", slog.String("error", err.Error()))
 		return nil, nil, nil, nil, err
 	}
+	clientConn.SetReadLimit(acpWebSocketReadLimit)
 	return clientConn, stdin, stdout, release, nil
 }
 

@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/catalog"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/config"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/discovery"
@@ -907,31 +907,29 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 	defer socketServer.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath + "?access_token=" + connectResponse.BearerToken
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("Dial() error = %v", err)
-	}
-	defer conn.Close()
+	conn := dialTestWebSocket(t, wsURL)
+	defer conn.CloseNow()
 
 	var ready map[string]any
-	if err := conn.ReadJSON(&ready); err != nil {
-		t.Fatalf("ReadJSON(ready) error = %v", err)
+	msgType, data := readTestWebSocketMessage(t, conn)
+	if msgType != websocket.MessageText {
+		t.Fatalf("message type = %v, want %v", msgType, websocket.MessageText)
+	}
+	if err := json.Unmarshal(data, &ready); err != nil {
+		t.Fatalf("Unmarshal(ready) error = %v", err)
 	}
 	if ready["type"] != "mock.ready" {
 		t.Fatalf("ready type = %v, want %q", ready["type"], "mock.ready")
 	}
 
 	payload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize"}`)
-	if err := conn.WriteMessage(websocket.TextMessage, payload); err != nil {
-		t.Fatalf("WriteMessage() error = %v", err)
+	if err := writeTestWebSocketMessage(conn, websocket.MessageText, payload); err != nil {
+		t.Fatalf("Write() error = %v", err)
 	}
 
-	messageType, echoed, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("ReadMessage() error = %v", err)
-	}
-	if messageType != websocket.TextMessage {
-		t.Fatalf("message type = %d, want %d", messageType, websocket.TextMessage)
+	messageType, echoed := readTestWebSocketMessage(t, conn)
+	if messageType != websocket.MessageText {
+		t.Fatalf("message type = %v, want %v", messageType, websocket.MessageText)
 	}
 	if string(echoed) != string(payload) {
 		t.Fatalf("echoed payload = %q, want %q", string(echoed), string(payload))
@@ -977,9 +975,9 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 		t.Fatalf("Runtime.Stopped = %d, want 1", diagnostics.Runtime.Stopped)
 	}
 
-	reconnect, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	reconnect, _, err := dialTestWebSocketConn(wsURL)
 	if err == nil {
-		_ = reconnect.Close()
+		reconnect.CloseNow()
 		t.Fatal("expected websocket dial to fail after runtime token revocation")
 	}
 }
@@ -1030,15 +1028,16 @@ func TestRuntimeRestartEndpointReturnsFreshConnectDescriptor(t *testing.T) {
 	defer socketServer.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + restartResponse.WebSocketPath + "?access_token=" + restartResponse.BearerToken
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("Dial() error = %v", err)
-	}
-	defer conn.Close()
+	conn := dialTestWebSocket(t, wsURL)
+	defer conn.CloseNow()
 
 	var ready map[string]string
-	if err := conn.ReadJSON(&ready); err != nil {
-		t.Fatalf("ReadJSON(ready) error = %v", err)
+	msgType, data := readTestWebSocketMessage(t, conn)
+	if msgType != websocket.MessageText {
+		t.Fatalf("message type = %v, want %v", msgType, websocket.MessageText)
+	}
+	if err := json.Unmarshal(data, &ready); err != nil {
+		t.Fatalf("Unmarshal(ready) error = %v", err)
 	}
 	if ready["env"] != "restart-token" {
 		t.Fatalf("ready env = %q, want %q", ready["env"], "restart-token")
@@ -1107,37 +1106,35 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	defer socketServer.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath + "?access_token=" + connectResponse.BearerToken
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("Dial() error = %v", err)
-	}
-	defer conn.Close()
+	conn := dialTestWebSocket(t, wsURL)
+	defer conn.CloseNow()
 
 	var ready map[string]any
-	if err := conn.ReadJSON(&ready); err != nil {
-		t.Fatalf("ReadJSON(ready) error = %v", err)
+	msgType, data := readTestWebSocketMessage(t, conn)
+	if msgType != websocket.MessageText {
+		t.Fatalf("message type = %v, want %v", msgType, websocket.MessageText)
+	}
+	if err := json.Unmarshal(data, &ready); err != nil {
+		t.Fatalf("Unmarshal(ready) error = %v", err)
 	}
 	if ready["type"] != "mock.ready" {
 		t.Fatalf("ready type = %v, want %q", ready["type"], "mock.ready")
 	}
 
 	payload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize"}`)
-	if err := conn.WriteMessage(websocket.TextMessage, payload); err != nil {
-		t.Fatalf("WriteMessage() error = %v", err)
+	if err := writeTestWebSocketMessage(conn, websocket.MessageText, payload); err != nil {
+		t.Fatalf("Write() error = %v", err)
 	}
 
-	messageType, echoed, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("ReadMessage() error = %v", err)
-	}
-	if messageType != websocket.TextMessage {
-		t.Fatalf("message type = %d, want %d", messageType, websocket.TextMessage)
+	messageType, echoed := readTestWebSocketMessage(t, conn)
+	if messageType != websocket.MessageText {
+		t.Fatalf("message type = %v, want %v", messageType, websocket.MessageText)
 	}
 	if string(echoed) != string(payload) {
 		t.Fatalf("echoed payload = %q, want %q", string(echoed), string(payload))
 	}
 
-	_ = conn.Close()
+	conn.CloseNow()
 	time.Sleep(150 * time.Millisecond)
 
 	logsRequest := httptest.NewRequest(http.MethodGet, "/v1/runtimes/"+startResponse.Runtime.ID+"/logs", nil)
@@ -1193,6 +1190,41 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	if listResponse.Runtimes[0].Status != runtime.StatusStopped {
 		t.Fatalf("runtime status = %q, want %q after stdio session cleanup", listResponse.Runtimes[0].Status, runtime.StatusStopped)
 	}
+}
+
+func dialTestWebSocket(t *testing.T, wsURL string) *websocket.Conn {
+	t.Helper()
+
+	conn, _, err := dialTestWebSocketConn(wsURL)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	return conn
+}
+
+func dialTestWebSocketConn(wsURL string) (*websocket.Conn, *http.Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return websocket.Dial(ctx, wsURL, nil)
+}
+
+func readTestWebSocketMessage(t *testing.T, conn *websocket.Conn) (websocket.MessageType, []byte) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	messageType, payload, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("Read() error = %v", err)
+	}
+	return messageType, payload
+}
+
+func writeTestWebSocketMessage(conn *websocket.Conn, messageType websocket.MessageType, payload []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return conn.Write(ctx, messageType, payload)
 }
 
 func newTestServer() *Server {
