@@ -134,7 +134,7 @@ func doJSON[T any](c *Client, ctx context.Context, method, path string, body any
 
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return zero, err
+		return zero, annotateDaemonConnectionError(err)
 	}
 	defer response.Body.Close()
 
@@ -150,4 +150,12 @@ func doJSON[T any](c *Client, ctx context.Context, method, path string, body any
 		return zero, err
 	}
 	return zero, nil
+}
+
+func annotateDaemonConnectionError(err error) error {
+	lower := strings.ToLower(err.Error())
+	if strings.Contains(lower, "connection refused") || strings.Contains(lower, "actively refused") {
+		return fmt.Errorf("%w\nIs the daemon running?", err)
+	}
+	return err
 }
