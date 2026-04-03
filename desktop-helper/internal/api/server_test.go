@@ -1192,6 +1192,82 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	}
 }
 
+func TestWebSocketDisconnectStopsRuntimeAndAllowsReconnect(t *testing.T) {
+	baseDir := t.TempDir()
+	buildMockAgent(t, baseDir)
+
+	server := newTestServerWithBaseDir(baseDir)
+	token := pairDevice(t, server)
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/start", nil)
+	startRequest.Header.Set("Authorization", "Bearer "+token)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse runtimeStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	connectRequest := httptest.NewRequest(http.MethodPost, "/v1/runtimes/"+startResponse.Runtime.ID+"/connect", nil)
+	connectRequest.Header.Set("Authorization", "Bearer "+token)
+	connectRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(connectRecorder, connectRequest)
+	if connectRecorder.Code != http.StatusOK {
+		t.Fatalf("connect status code = %d, want %d", connectRecorder.Code, http.StatusOK)
+	}
+
+	var connectResponse runtimeConnectResponse
+	if err := json.Unmarshal(connectRecorder.Body.Bytes(), &connectResponse); err != nil {
+		t.Fatalf("Unmarshal(connect) error = %v", err)
+	}
+
+	socketServer := httptest.NewServer(server.Handler())
+	defer socketServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath + "?access_token=" + connectResponse.BearerToken
+	conn := dialTestWebSocket(t, wsURL)
+	_, _ = readTestWebSocketMessage(t, conn)
+	conn.CloseNow()
+
+	time.Sleep(150 * time.Millisecond)
+
+	restartStartRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/start", nil)
+	restartStartRequest.Header.Set("Authorization", "Bearer "+token)
+	restartStartRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(restartStartRecorder, restartStartRequest)
+	if restartStartRecorder.Code != http.StatusOK {
+		t.Fatalf("restart start status code = %d, want %d", restartStartRecorder.Code, http.StatusOK)
+	}
+
+	var restartStartResponse runtimeStartResponse
+	if err := json.Unmarshal(restartStartRecorder.Body.Bytes(), &restartStartResponse); err != nil {
+		t.Fatalf("Unmarshal(restart start) error = %v", err)
+	}
+	if restartStartResponse.Runtime.ID == startResponse.Runtime.ID {
+		t.Fatal("expected a fresh runtime id after websocket disconnect cleanup")
+	}
+
+	reconnectRequest := httptest.NewRequest(http.MethodPost, "/v1/runtimes/"+restartStartResponse.Runtime.ID+"/connect", nil)
+	reconnectRequest.Header.Set("Authorization", "Bearer "+token)
+	reconnectRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(reconnectRecorder, reconnectRequest)
+	if reconnectRecorder.Code != http.StatusOK {
+		t.Fatalf("reconnect status code = %d, want %d", reconnectRecorder.Code, http.StatusOK)
+	}
+
+	stopRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/stop", nil)
+	stopRequest.Header.Set("Authorization", "Bearer "+token)
+	stopRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(stopRecorder, stopRequest)
+	if stopRecorder.Code != http.StatusOK {
+		t.Fatalf("stop status code = %d, want %d", stopRecorder.Code, http.StatusOK)
+	}
+}
+
 func dialTestWebSocket(t *testing.T, wsURL string) *websocket.Conn {
 	t.Helper()
 

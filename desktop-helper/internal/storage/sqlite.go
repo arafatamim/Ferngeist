@@ -74,6 +74,8 @@ func Open(path string) (*SQLiteStore, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	store := &SQLiteStore{db: db}
 	if err := store.migrate(context.Background()); err != nil {

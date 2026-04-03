@@ -62,6 +62,53 @@ func TestStartIsIdempotentPerAgent(t *testing.T) {
 	_, _ = supervisor.StopByAgentID(agent.ID)
 }
 
+func TestStartReplacesAttachedRuntimeForReconnect(t *testing.T) {
+	baseDir := t.TempDir()
+	buildMockAgent(t, baseDir)
+
+	supervisor := NewSupervisorWithBaseDir(slog.New(slog.NewTextHandler(io.Discard, nil)), baseDir, nil)
+	supervisor.now = func() time.Time { return time.Date(2026, 3, 25, 10, 0, 0, 0, time.UTC) }
+
+	agent := catalog.Agent{
+		ID:          "mock-acp",
+		DisplayName: "Mock ACP",
+		Detected:    true,
+		Security:    catalog.SecurityConfig{AllowsRemoteStart: true},
+		Launch: catalog.LaunchConfig{
+			Mode:      "process",
+			Command:   filepath.Join("bin", mockAgentBinaryName()),
+			Transport: "stdio",
+			Readiness: catalog.ReadinessConfig{
+				Mode: "immediate",
+			},
+		},
+		HealthCheck: catalog.HealthCheckConfig{
+			Mode: "none",
+		},
+	}
+
+	first, err := supervisor.Start(agent)
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	_, _, release, err := supervisor.AttachStdio(first.ID)
+	if err != nil {
+		t.Fatalf("AttachStdio() error = %v", err)
+	}
+	defer release()
+
+	second, err := supervisor.Start(agent)
+	if err != nil {
+		t.Fatalf("Start() reconnect error = %v", err)
+	}
+	if first.ID == second.ID {
+		t.Fatalf("runtime IDs match after reconnect: %q", first.ID)
+	}
+
+	_, _ = supervisor.StopByAgentID(agent.ID)
+}
+
 func TestConnectReturnsDescriptorForRunningRuntime(t *testing.T) {
 	baseDir := t.TempDir()
 	buildMockAgent(t, baseDir)
