@@ -3,11 +3,13 @@ package pairing
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +18,8 @@ import (
 
 const (
 	defaultChallengeTTL = 2 * time.Minute
-	defaultTokenTTL     = 30 * 24 * time.Hour
+	defaultArmTTL       = 2 * time.Minute
+	defaultTokenTTL     = 7 * 24 * time.Hour
 	challengeHistoryTTL = 10 * time.Minute
 	codeLength          = 6
 )
@@ -31,6 +34,15 @@ var (
 	ErrCredentialMissing  = errors.New("helper credential missing")
 	ErrCredentialInvalid  = errors.New("helper credential invalid")
 	ErrCredentialExpired  = errors.New("helper credential expired")
+	ErrCredentialScope    = errors.New("helper credential does not allow this operation")
+	ErrPairingNotArmed    = errors.New("pairing requires local approval")
+)
+
+const (
+	ScopeRead              = "helper.read"
+	ScopeControl           = "helper.control"
+	ScopeDiagnosticsExport = "helper.diagnostics.export"
+	ScopeRuntimeRestartEnv = "helper.runtime.restart_env"
 )
 
 type ChallengeState string
@@ -49,10 +61,13 @@ type Challenge struct {
 }
 
 type Credential struct {
-	DeviceID   string    `json:"deviceId"`
-	DeviceName string    `json:"deviceName"`
-	Token      string    `json:"token"`
-	ExpiresAt  time.Time `json:"expiresAt"`
+	DeviceID       string    `json:"deviceId"`
+	DeviceName     string    `json:"deviceName"`
+	Token          string    `json:"token"`
+	TokenHash      string    `json:"-"`
+	ExpiresAt      time.Time `json:"expiresAt"`
+	Scopes         []string  `json:"scopes,omitempty"`
+	ProofPublicKey string    `json:"proofPublicKey,omitempty"`
 }
 
 type CompletedDevice struct {
@@ -83,16 +98,42 @@ type Service struct {
 	logger      *slog.Logger
 	mu          sync.Mutex
 	now         func() time.Time
+	armTTL      time.Duration
+	tokenTTL    time.Duration
+	baseScopes  []string
 	activeID    string
+	armedUntil  time.Time
 	challenges  map[string]challengeRecord
 	credentials map[string]Credential
 	store       *storage.SQLiteStore
 }
 
+type Options struct {
+	ArmTTL                 time.Duration
+	CredentialTTL          time.Duration
+	AllowDiagnosticsExport bool
+	AllowRuntimeRestartEnv bool
+}
+
 func NewService(logger *slog.Logger, store *storage.SQLiteStore) *Service {
+	return NewServiceWithOptions(logger, store, Options{})
+}
+
+func NewServiceWithOptions(logger *slog.Logger, store *storage.SQLiteStore, options Options) *Service {
+	armTTL := options.ArmTTL
+	if armTTL <= 0 {
+		armTTL = defaultArmTTL
+	}
+	tokenTTL := options.CredentialTTL
+	if tokenTTL <= 0 {
+		tokenTTL = defaultTokenTTL
+	}
 	service := &Service{
 		logger:      logger.With("component", "pairing"),
 		now:         time.Now,
+		armTTL:      armTTL,
+		tokenTTL:    tokenTTL,
+		baseScopes:  defaultCredentialScopes(options.AllowDiagnosticsExport, options.AllowRuntimeRestartEnv),
 		challenges:  make(map[string]challengeRecord),
 		credentials: make(map[string]Credential),
 		store:       store,
@@ -110,6 +151,9 @@ func (s *Service) StartPairing() (Challenge, error) {
 	if status, ok := s.activeChallengeLocked(); ok {
 		return status.challenge, nil
 	}
+	if !s.isArmedLocked(now) {
+		return Challenge{}, ErrPairingNotArmed
+	}
 
 	challenge := Challenge{
 		ID:        randomToken(18),
@@ -123,6 +167,16 @@ func (s *Service) StartPairing() (Challenge, error) {
 		stateChangedAt: now,
 	}
 	return challenge, nil
+}
+
+// StartPairingWithLocalApproval opens a short pairing window and then starts
+// (or returns) the active challenge. Intended for trusted local control paths.
+func (s *Service) StartPairingWithLocalApproval() (Challenge, error) {
+	s.mu.Lock()
+	now := s.now().UTC()
+	s.armedUntil = now.Add(s.armTTL)
+	s.mu.Unlock()
+	return s.StartPairing()
 }
 
 func (s *Service) ActiveChallenge() (ChallengeStatus, bool) {
@@ -184,6 +238,10 @@ func (s *Service) CancelChallenge(challengeID string) (ChallengeStatus, error) {
 // payload. Code-only completion succeeds only when that code resolves to a
 // single active challenge.
 func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credential, error) {
+	return s.CompletePairingWithProofKey(challengeID, code, deviceName, "")
+}
+
+func (s *Service) CompletePairingWithProofKey(challengeID, code, deviceName, proofPublicKey string) (Credential, error) {
 	if deviceName == "" {
 		return Credential{}, ErrInvalidDeviceName
 	}
@@ -203,18 +261,23 @@ func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credent
 	}
 
 	credential := Credential{
-		DeviceID:   randomToken(18),
-		DeviceName: deviceName,
-		Token:      randomToken(32),
-		ExpiresAt:  now.Add(defaultTokenTTL),
+		DeviceID:       randomToken(18),
+		DeviceName:     deviceName,
+		Token:          randomToken(32),
+		ExpiresAt:      now.Add(s.tokenTTL),
+		Scopes:         append([]string(nil), s.baseScopes...),
+		ProofPublicKey: proofPublicKey,
 	}
+	credential.TokenHash = hashCredentialToken(credential.Token)
 	s.credentials[credential.DeviceID] = credential
 	if s.store != nil {
 		if err := s.store.SavePairing(context.Background(), storage.PairingRecord{
-			DeviceID:   credential.DeviceID,
-			DeviceName: credential.DeviceName,
-			Token:      credential.Token,
-			ExpiresAt:  credential.ExpiresAt,
+			DeviceID:       credential.DeviceID,
+			DeviceName:     credential.DeviceName,
+			Token:          credential.TokenHash,
+			ExpiresAt:      credential.ExpiresAt,
+			Scopes:         credential.Scopes,
+			ProofPublicKey: credential.ProofPublicKey,
 		}); err != nil {
 			s.logger.Error("persist pairing failed", "error", err)
 		}
@@ -230,6 +293,7 @@ func (s *Service) CompletePairing(challengeID, code, deviceName string) (Credent
 	if s.activeID == challengeID {
 		s.activeID = ""
 	}
+	s.armedUntil = time.Time{}
 	return credential, nil
 }
 
@@ -287,7 +351,7 @@ func (s *Service) ValidateCredential(token string) (Credential, error) {
 	now := s.now().UTC()
 
 	for id, credential := range s.credentials {
-		if credential.Token == token {
+		if credentialMatchesToken(credential, token) {
 			if now.After(credential.ExpiresAt) {
 				s.deleteCredentialLocked(id)
 				return Credential{}, ErrCredentialExpired
@@ -298,6 +362,62 @@ func (s *Service) ValidateCredential(token string) (Credential, error) {
 
 	s.pruneExpiredCredentialsLocked(now)
 	return Credential{}, ErrCredentialInvalid
+}
+
+func (s *Service) RefreshCredential(token string) (Credential, error) {
+	if token == "" {
+		return Credential{}, ErrCredentialMissing
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := s.now().UTC()
+	for id, credential := range s.credentials {
+		if !credentialMatchesToken(credential, token) {
+			continue
+		}
+		if now.After(credential.ExpiresAt) {
+			s.deleteCredentialLocked(id)
+			return Credential{}, ErrCredentialExpired
+		}
+		credential.Token = randomToken(32)
+		credential.TokenHash = hashCredentialToken(credential.Token)
+		credential.ExpiresAt = now.Add(s.tokenTTL)
+		s.credentials[id] = credential
+		if s.store != nil {
+			if err := s.store.SavePairing(context.Background(), storage.PairingRecord{
+				DeviceID:       credential.DeviceID,
+				DeviceName:     credential.DeviceName,
+				Token:          credential.TokenHash,
+				ExpiresAt:      credential.ExpiresAt,
+				Scopes:         credential.Scopes,
+				ProofPublicKey: credential.ProofPublicKey,
+			}); err != nil {
+				s.logger.Error("persist refreshed pairing failed", "error", err)
+			}
+		}
+		return credential, nil
+	}
+
+	s.pruneExpiredCredentialsLocked(now)
+	return Credential{}, ErrCredentialInvalid
+}
+
+func (c Credential) HasScope(scope string) bool {
+	for _, existing := range c.Scopes {
+		if existing == scope {
+			return true
+		}
+	}
+	return false
+}
+
+func (c Credential) RequireScope(scope string) error {
+	if c.HasScope(scope) {
+		return nil
+	}
+	return ErrCredentialScope
 }
 
 func (s *Service) ListDevices() []Credential {
@@ -376,6 +496,17 @@ func (s *Service) activeChallengeLocked() (challengeRecord, bool) {
 	return record, true
 }
 
+func (s *Service) isArmedLocked(now time.Time) bool {
+	if s.armedUntil.IsZero() {
+		return false
+	}
+	if now.After(s.armedUntil) {
+		s.armedUntil = time.Time{}
+		return false
+	}
+	return true
+}
+
 func (s *Service) expireChallengeLocked(challengeID string, record challengeRecord) {
 	record.state = ChallengeStateExpired
 	record.stateChangedAt = record.challenge.ExpiresAt
@@ -417,12 +548,72 @@ func (s *Service) loadPersistedCredentials() {
 			continue
 		}
 		s.credentials[record.DeviceID] = Credential{
-			DeviceID:   record.DeviceID,
-			DeviceName: record.DeviceName,
-			Token:      record.Token,
-			ExpiresAt:  record.ExpiresAt,
+			DeviceID:       record.DeviceID,
+			DeviceName:     record.DeviceName,
+			TokenHash:      storedCredentialHash(record.Token),
+			ExpiresAt:      record.ExpiresAt,
+			Scopes:         fallbackScopes(record.Scopes, s.baseScopes),
+			ProofPublicKey: record.ProofPublicKey,
+		}
+		if !isHashedCredentialToken(record.Token) && s.store != nil {
+			if err := s.store.SavePairing(context.Background(), storage.PairingRecord{
+				DeviceID:       record.DeviceID,
+				DeviceName:     record.DeviceName,
+				Token:          storedCredentialHash(record.Token),
+				ExpiresAt:      record.ExpiresAt,
+				Scopes:         fallbackScopes(record.Scopes, s.baseScopes),
+				ProofPublicKey: record.ProofPublicKey,
+			}); err != nil {
+				s.logger.Error("upgrade pairing token hash failed", "device_id", record.DeviceID, "error", err)
+			}
 		}
 	}
+}
+
+func defaultCredentialScopes(allowDiagnosticsExport, allowRuntimeRestartEnv bool) []string {
+	scopes := []string{ScopeRead, ScopeControl}
+	if allowDiagnosticsExport {
+		scopes = append(scopes, ScopeDiagnosticsExport)
+	}
+	if allowRuntimeRestartEnv {
+		scopes = append(scopes, ScopeRuntimeRestartEnv)
+	}
+	return scopes
+}
+
+func fallbackScopes(scopes []string, fallback []string) []string {
+	if len(scopes) > 0 {
+		return append([]string(nil), scopes...)
+	}
+	return append([]string(nil), fallback...)
+}
+
+const credentialHashPrefix = "sha256:"
+
+func credentialMatchesToken(credential Credential, token string) bool {
+	if token == "" {
+		return false
+	}
+	if credential.TokenHash != "" {
+		return credential.TokenHash == hashCredentialToken(token)
+	}
+	return credential.Token == token
+}
+
+func hashCredentialToken(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return credentialHashPrefix + base64.RawURLEncoding.EncodeToString(digest[:])
+}
+
+func isHashedCredentialToken(value string) bool {
+	return strings.HasPrefix(strings.TrimSpace(value), credentialHashPrefix)
+}
+
+func storedCredentialHash(stored string) string {
+	if isHashedCredentialToken(stored) {
+		return strings.TrimSpace(stored)
+	}
+	return hashCredentialToken(stored)
 }
 
 func randomToken(byteLen int) string {

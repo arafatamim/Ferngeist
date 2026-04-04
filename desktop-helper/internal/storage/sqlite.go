@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -12,10 +13,12 @@ import (
 var ErrNotFound = errors.New("record not found")
 
 type PairingRecord struct {
-	DeviceID   string
-	DeviceName string
-	Token      string
-	ExpiresAt  time.Time
+	DeviceID       string
+	DeviceName     string
+	Token          string
+	ExpiresAt      time.Time
+	Scopes         []string
+	ProofPublicKey string
 }
 
 type RuntimeRecord struct {
@@ -93,7 +96,16 @@ func (s *SQLiteStore) Close() error {
 }
 
 func (s *SQLiteStore) SavePairing(ctx context.Context, record PairingRecord) error {
-	_, err := s.db.ExecContext(
+	scopesJSON, err := json.Marshal(record.Scopes)
+	if err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO paired_devices(device_id, device_name, token, expires_at)
 		 VALUES (?, ?, ?, ?)
@@ -105,12 +117,34 @@ func (s *SQLiteStore) SavePairing(ctx context.Context, record PairingRecord) err
 		record.DeviceName,
 		record.Token,
 		record.ExpiresAt.UTC().Format(time.RFC3339Nano),
-	)
-	return err
+	); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO paired_device_scopes(device_id, scopes)
+		 VALUES (?, ?)
+		 ON CONFLICT(device_id) DO UPDATE SET scopes = excluded.scopes`,
+		record.DeviceID,
+		string(scopesJSON),
+	); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO paired_device_proofs(device_id, public_key)
+		 VALUES (?, ?)
+		 ON CONFLICT(device_id) DO UPDATE SET public_key = excluded.public_key`,
+		record.DeviceID,
+		record.ProofPublicKey,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) ListPairings(ctx context.Context) ([]PairingRecord, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT device_id, device_name, token, expires_at FROM paired_devices`)
+	rows, err := s.db.QueryContext(ctx, `SELECT p.device_id, p.device_name, p.token, p.expires_at, COALESCE(s.scopes, ''), COALESCE(k.public_key, '') FROM paired_devices p LEFT JOIN paired_device_scopes s ON s.device_id = p.device_id LEFT JOIN paired_device_proofs k ON k.device_id = p.device_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -119,23 +153,44 @@ func (s *SQLiteStore) ListPairings(ctx context.Context) ([]PairingRecord, error)
 	var records []PairingRecord
 	for rows.Next() {
 		var (
-			record     PairingRecord
-			expiresRaw string
+			record      PairingRecord
+			expiresRaw  string
+			scopesRaw   string
+			proofKeyRaw string
 		)
-		if err := rows.Scan(&record.DeviceID, &record.DeviceName, &record.Token, &expiresRaw); err != nil {
+		if err := rows.Scan(&record.DeviceID, &record.DeviceName, &record.Token, &expiresRaw, &scopesRaw, &proofKeyRaw); err != nil {
 			return nil, err
 		}
 		record.ExpiresAt, err = time.Parse(time.RFC3339Nano, expiresRaw)
 		if err != nil {
 			return nil, err
 		}
+		if scopesRaw != "" {
+			if err := json.Unmarshal([]byte(scopesRaw), &record.Scopes); err != nil {
+				return nil, err
+			}
+		}
+		record.ProofPublicKey = proofKeyRaw
 		records = append(records, record)
 	}
 	return records, rows.Err()
 }
 
 func (s *SQLiteStore) DeletePairing(ctx context.Context, deviceID string) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM paired_devices WHERE device_id = ?`, deviceID)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `DELETE FROM paired_device_scopes WHERE device_id = ?`, deviceID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `DELETE FROM paired_device_proofs WHERE device_id = ?`, deviceID)
+	if err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM paired_devices WHERE device_id = ?`, deviceID)
 	if err != nil {
 		return err
 	}
@@ -146,7 +201,7 @@ func (s *SQLiteStore) DeletePairing(ctx context.Context, deviceID string) error 
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit()
 }
 
 // SaveRuntime persists the latest runtime snapshot rather than a full event
@@ -446,6 +501,14 @@ func (s *SQLiteStore) migrate(ctx context.Context) error {
 			device_name TEXT NOT NULL,
 			token TEXT NOT NULL,
 			expires_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS paired_device_scopes (
+			device_id TEXT PRIMARY KEY,
+			scopes TEXT NOT NULL DEFAULT '[]'
+		)`,
+		`CREATE TABLE IF NOT EXISTS paired_device_proofs (
+			device_id TEXT PRIMARY KEY,
+			public_key TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS runtimes (
 			runtime_id TEXT PRIMARY KEY,

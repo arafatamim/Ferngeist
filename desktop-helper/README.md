@@ -80,6 +80,18 @@ Useful env vars:
 - `FERNGEIST_HELPER_MANAGED_BIN_DIR`
 - `FERNGEIST_HELPER_PUBLIC_BASE_URL`
 - `FERNGEIST_HELPER_REGISTRY_URL`
+- `FERNGEIST_HELPER_PAIRING_ARM_TTL_SECONDS`
+- `FERNGEIST_HELPER_PAIRING_MAX_ATTEMPTS`
+- `FERNGEIST_HELPER_PAIRING_LOCKOUT_SECONDS`
+- `FERNGEIST_HELPER_PAIRING_START_REFILL_SECONDS`
+- `FERNGEIST_HELPER_PAIRING_COMPLETE_REFILL_SECONDS`
+- `FERNGEIST_HELPER_PAIRING_BURST_PER_IP`
+- `FERNGEIST_HELPER_PAIRING_BURST_GLOBAL`
+- `FERNGEIST_HELPER_CREDENTIAL_TTL_SECONDS`
+- `FERNGEIST_HELPER_ALLOW_REMOTE_DIAGNOSTICS_EXPORT`
+- `FERNGEIST_HELPER_ALLOW_REMOTE_RUNTIME_RESTART_ENV`
+- `FERNGEIST_HELPER_REQUIRE_PROOF_OF_POSSESSION`
+- `FERNGEIST_HELPER_ALLOW_LEGACY_BEARER_CREDENTIALS`
 
 Optional real-agent smoke tests:
 
@@ -95,6 +107,19 @@ go run .\cmd\ferngeist pair
 go run .\cmd\ferngeist devices list
 ```
 
-## Maintenance Rule
+Pairing security behavior:
 
-Prefer deleting helper features over adding new helper surfaces. The daemon should stay small enough that one person can still understand the full request flow without a week of archaeology.
+- New pairings require a recent local approval action (`ferngeist pair` or local admin pairing start).
+- Public `POST /v1/pair/start` returns challenge metadata, but not the short code.
+- Public `GET /v1/pair/status/{challengeId}` returns challenge state without exposing the code.
+- Pairing endpoints are rate-limited and repeated wrong-code attempts trigger temporary lockout.
+- JSON request bodies for control paths are size-limited.
+- Paired devices now receive baseline `read` and `control` capabilities by default.
+- Remote diagnostics export is disabled by default unless `FERNGEIST_HELPER_ALLOW_REMOTE_DIAGNOSTICS_EXPORT` is enabled.
+- Runtime restart with environment overrides is disabled by default unless `FERNGEIST_HELPER_ALLOW_REMOTE_RUNTIME_RESTART_ENV` is enabled.
+- Default paired credential lifetime is 7 days unless `FERNGEIST_HELPER_CREDENTIAL_TTL_SECONDS` overrides it.
+- Paired devices can silently rotate credentials with `POST /v1/auth/refresh`; refresh returns a new token and invalidates the old one immediately.
+- New pairings can bind the credential to a proof key, and helper API requests then require signed proof headers (`X-Ferngeist-Proof-*`).
+- Public-mode helpers require proof-of-possession pairing by default and reject legacy bearer-only credentials unless `FERNGEIST_HELPER_ALLOW_LEGACY_BEARER_CREDENTIALS` is explicitly enabled.
+- Helper-issued device credentials are hashed before being written to the helper state database.
+- ACP runtime handoff returns a clean websocket URL/path; clients should send the returned runtime bearer token in the websocket `Authorization` header instead of query parameters.

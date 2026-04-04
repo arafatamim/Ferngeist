@@ -47,7 +47,12 @@ func Run(ctx context.Context, build api.BuildInfo) error {
 	catalogSvc := catalog.NewWithBaseDirAndRegistry(".", registryClient)
 	installer := acquire.New(logger, cfg.ManagedBinDir, store)
 	runtimeSvc := helperruntime.NewSupervisorWithBaseDirAndInstaller(logger, ".", store, installer)
-	pairingSvc := pairing.NewService(logger, store)
+	pairingSvc := pairing.NewServiceWithOptions(logger, store, pairing.Options{
+		ArmTTL:                 cfg.PairingArmTTL,
+		CredentialTTL:          cfg.CredentialTTL,
+		AllowDiagnosticsExport: cfg.AllowDiagnosticsExport,
+		AllowRuntimeRestartEnv: cfg.AllowRuntimeRestartEnv,
+	})
 	gatewaySvc := gateway.New(logger, store)
 	discoverySvc := discovery.New(logger)
 

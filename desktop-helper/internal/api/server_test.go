@@ -3,7 +3,14 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -446,6 +453,13 @@ func TestStatusFlagsInvalidRemoteConfiguration(t *testing.T) {
 func TestPairingRoundTrip(t *testing.T) {
 	server := newTestServer()
 
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
 	startRecorder := httptest.NewRecorder()
 	server.Handler().ServeHTTP(startRecorder, startRequest)
@@ -458,10 +472,28 @@ func TestPairingRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
 		t.Fatalf("Unmarshal(start) error = %v", err)
 	}
+	if startResponse.ChallengeID == "" {
+		t.Fatal("ChallengeID should not be empty")
+	}
+
+	challengeStatusRequest := httptest.NewRequest(http.MethodGet, "/admin/v1/pairings/"+startResponse.ChallengeID, nil)
+	challengeStatusRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(challengeStatusRecorder, challengeStatusRequest)
+	if challengeStatusRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing status code = %d, want %d", challengeStatusRecorder.Code, http.StatusOK)
+	}
+
+	var challengeStatus adminPairingResponse
+	if err := json.Unmarshal(challengeStatusRecorder.Body.Bytes(), &challengeStatus); err != nil {
+		t.Fatalf("Unmarshal(admin pairing status) error = %v", err)
+	}
+	if challengeStatus.Code == "" {
+		t.Fatal("Admin pairing status should include code")
+	}
 
 	body, err := json.Marshal(pairCompleteRequest{
 		ChallengeID: startResponse.ChallengeID,
-		Code:        startResponse.Code,
+		Code:        challengeStatus.Code,
 		DeviceName:  "Pixel 9",
 	})
 	if err != nil {
@@ -492,6 +524,13 @@ func TestPairingRoundTrip(t *testing.T) {
 func TestPairingRoundTripWithCodeOnlyComplete(t *testing.T) {
 	server := newTestServer()
 
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
 	startRecorder := httptest.NewRecorder()
 	server.Handler().ServeHTTP(startRecorder, startRequest)
@@ -505,8 +544,20 @@ func TestPairingRoundTripWithCodeOnlyComplete(t *testing.T) {
 		t.Fatalf("Unmarshal(start) error = %v", err)
 	}
 
+	challengeStatusRequest := httptest.NewRequest(http.MethodGet, "/admin/v1/pairings/"+startResponse.ChallengeID, nil)
+	challengeStatusRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(challengeStatusRecorder, challengeStatusRequest)
+	if challengeStatusRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing status code = %d, want %d", challengeStatusRecorder.Code, http.StatusOK)
+	}
+
+	var challengeStatus adminPairingResponse
+	if err := json.Unmarshal(challengeStatusRecorder.Body.Bytes(), &challengeStatus); err != nil {
+		t.Fatalf("Unmarshal(admin pairing status) error = %v", err)
+	}
+
 	body, err := json.Marshal(pairCompleteRequest{
-		Code:       startResponse.Code,
+		Code:       challengeStatus.Code,
 		DeviceName: "Pixel 9",
 	})
 	if err != nil {
@@ -519,6 +570,246 @@ func TestPairingRoundTripWithCodeOnlyComplete(t *testing.T) {
 
 	if completeRecorder.Code != http.StatusOK {
 		t.Fatalf("complete status code = %d, want %d", completeRecorder.Code, http.StatusOK)
+	}
+}
+
+func TestAuthRefreshRotatesCredentialToken(t *testing.T) {
+	server := newConfiguredTestServer(config.Config{ListenAddr: "127.0.0.1:0", CredentialTTL: 24 * time.Hour})
+	oldToken := pairDevice(t, server)
+
+	refreshRequest := httptest.NewRequest(http.MethodPost, "/v1/auth/refresh", nil)
+	refreshRequest.Header.Set("Authorization", "Bearer "+oldToken)
+	refreshRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(refreshRecorder, refreshRequest)
+
+	if refreshRecorder.Code != http.StatusOK {
+		t.Fatalf("refresh status code = %d, want %d", refreshRecorder.Code, http.StatusOK)
+	}
+
+	var refreshed pairCompleteResponse
+	if err := json.Unmarshal(refreshRecorder.Body.Bytes(), &refreshed); err != nil {
+		t.Fatalf("Unmarshal(refresh) error = %v", err)
+	}
+	if refreshed.Token == "" {
+		t.Fatal("refreshed token should not be empty")
+	}
+	if refreshed.Token == oldToken {
+		t.Fatal("refresh should rotate the token")
+	}
+
+	oldRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	oldRequest.Header.Set("Authorization", "Bearer "+oldToken)
+	oldRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(oldRecorder, oldRequest)
+	if oldRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("old token status code = %d, want %d", oldRecorder.Code, http.StatusUnauthorized)
+	}
+
+	newRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	newRequest.Header.Set("Authorization", "Bearer "+refreshed.Token)
+	newRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(newRecorder, newRequest)
+	if newRecorder.Code != http.StatusOK {
+		t.Fatalf("new token status code = %d, want %d", newRecorder.Code, http.StatusOK)
+	}
+}
+
+func TestAuthRefreshRequiresValidCredential(t *testing.T) {
+	server := newTestServer()
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/auth/refresh", nil)
+	request.Header.Set("Authorization", "Bearer invalid-token")
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestPublicModeRequiresProofKeyForPairing(t *testing.T) {
+	server := newConfiguredTestServer(config.Config{ListenAddr: "127.0.0.1:0", RequireProofOfPossession: true})
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse pairStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	challengeStatusRequest := httptest.NewRequest(http.MethodGet, "/admin/v1/pairings/"+startResponse.ChallengeID, nil)
+	challengeStatusRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(challengeStatusRecorder, challengeStatusRequest)
+	var challengeStatus adminPairingResponse
+	if err := json.Unmarshal(challengeStatusRecorder.Body.Bytes(), &challengeStatus); err != nil {
+		t.Fatalf("Unmarshal(admin pairing status) error = %v", err)
+	}
+
+	body, err := json.Marshal(pairCompleteRequest{ChallengeID: startResponse.ChallengeID, Code: challengeStatus.Code, DeviceName: "Pixel 9"})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	completeRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(body))
+	completeRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(completeRecorder, completeRequest)
+	if completeRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("complete status code = %d, want %d", completeRecorder.Code, http.StatusBadRequest)
+	}
+}
+
+func TestLegacyBearerCredentialCanBeDisabled(t *testing.T) {
+	server := newTestServer()
+	server.cfg.AllowLegacyBearerCredentials = false
+	token := pairDevice(t, server)
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestProofBoundCredentialRequiresSignedRequests(t *testing.T) {
+	server := newTestServer()
+	credential := pairDeviceWithProof(t, server)
+
+	unsignedRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	unsignedRequest.Header.Set("Authorization", "Bearer "+credential.token)
+	unsignedRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(unsignedRecorder, unsignedRequest)
+	if unsignedRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("unsigned status code = %d, want %d", unsignedRecorder.Code, http.StatusUnauthorized)
+	}
+
+	signedRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	signProofRequest(t, signedRequest, credential, nil, time.Now().UTC(), "nonce-1")
+	signedRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(signedRecorder, signedRequest)
+	if signedRecorder.Code != http.StatusOK {
+		t.Fatalf("signed status code = %d, want %d", signedRecorder.Code, http.StatusOK)
+	}
+}
+
+func TestProofBoundCredentialRejectsReplay(t *testing.T) {
+	server := newTestServer()
+	credential := pairDeviceWithProof(t, server)
+	proofTime := time.Now().UTC()
+
+	firstRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	signProofRequest(t, firstRequest, credential, nil, proofTime, "nonce-replay")
+	firstRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(firstRecorder, firstRequest)
+	if firstRecorder.Code != http.StatusOK {
+		t.Fatalf("first status code = %d, want %d", firstRecorder.Code, http.StatusOK)
+	}
+
+	secondRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	signProofRequest(t, secondRequest, credential, nil, proofTime, "nonce-replay")
+	secondRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(secondRecorder, secondRequest)
+	if secondRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("second status code = %d, want %d", secondRecorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestPairingLockoutTracksChallengeAcrossIPs(t *testing.T) {
+	server := newTestServer()
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse pairStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	for i := 0; i < pairingMaxAttempts; i++ {
+		body, err := json.Marshal(pairCompleteRequest{ChallengeID: startResponse.ChallengeID, Code: "000000", DeviceName: "Pixel 9"})
+		if err != nil {
+			t.Fatalf("Marshal() error = %v", err)
+		}
+		completeRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(body))
+		completeRequest.RemoteAddr = fmt.Sprintf("203.0.113.%d:1234", i+1)
+		completeRecorder := httptest.NewRecorder()
+		server.Handler().ServeHTTP(completeRecorder, completeRequest)
+		if completeRecorder.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d status = %d, want %d", i+1, completeRecorder.Code, http.StatusUnauthorized)
+		}
+	}
+
+	body, err := json.Marshal(pairCompleteRequest{ChallengeID: startResponse.ChallengeID, Code: "000000", DeviceName: "Pixel 9"})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	lockedRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(body))
+	lockedRequest.RemoteAddr = "203.0.113.250:9999"
+	lockedRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(lockedRecorder, lockedRequest)
+	if lockedRecorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("locked status code = %d, want %d", lockedRecorder.Code, http.StatusTooManyRequests)
+	}
+}
+
+func TestProofBoundCredentialRefreshRequiresProofAndRotatesToken(t *testing.T) {
+	server := newTestServer()
+	credential := pairDeviceWithProof(t, server)
+
+	refreshRequest := httptest.NewRequest(http.MethodPost, "/v1/auth/refresh", nil)
+	signProofRequest(t, refreshRequest, credential, nil, time.Now().UTC(), "nonce-refresh")
+	refreshRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(refreshRecorder, refreshRequest)
+	if refreshRecorder.Code != http.StatusOK {
+		t.Fatalf("refresh status code = %d, want %d", refreshRecorder.Code, http.StatusOK)
+	}
+
+	var refreshed pairCompleteResponse
+	if err := json.Unmarshal(refreshRecorder.Body.Bytes(), &refreshed); err != nil {
+		t.Fatalf("Unmarshal(refresh) error = %v", err)
+	}
+	if refreshed.Token == credential.token {
+		t.Fatal("refresh should rotate the token")
+	}
+
+	oldRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	signProofRequest(t, oldRequest, credential, nil, time.Now().UTC(), "nonce-old")
+	oldRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(oldRecorder, oldRequest)
+	if oldRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("old token status code = %d, want %d", oldRecorder.Code, http.StatusUnauthorized)
+	}
+
+	credential.token = refreshed.Token
+	newRequest := httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
+	signProofRequest(t, newRequest, credential, nil, time.Now().UTC(), "nonce-new")
+	newRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(newRecorder, newRequest)
+	if newRecorder.Code != http.StatusOK {
+		t.Fatalf("new token status code = %d, want %d", newRecorder.Code, http.StatusOK)
 	}
 }
 
@@ -575,6 +866,7 @@ func TestAgentsEndpointIncludesRuntimeState(t *testing.T) {
 		stopRequest.Header.Set("Authorization", "Bearer "+token)
 		stopRecorder := httptest.NewRecorder()
 		server.Handler().ServeHTTP(stopRecorder, stopRequest)
+		time.Sleep(150 * time.Millisecond)
 	})
 
 	request = httptest.NewRequest(http.MethodGet, "/v1/agents", nil)
@@ -620,6 +912,13 @@ func TestAgentsRejectsNonGetMethods(t *testing.T) {
 func TestPairingRejectsWrongCode(t *testing.T) {
 	server := newTestServer()
 
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
 	startRecorder := httptest.NewRecorder()
 	server.Handler().ServeHTTP(startRecorder, startRequest)
@@ -644,6 +943,208 @@ func TestPairingRejectsWrongCode(t *testing.T) {
 
 	if completeRecorder.Code != http.StatusUnauthorized {
 		t.Fatalf("complete status code = %d, want %d", completeRecorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestPairStartRequiresLocalApproval(t *testing.T) {
+	server := newTestServer()
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+
+	if startRecorder.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", startRecorder.Code, http.StatusForbidden)
+	}
+}
+
+func TestPairStartResponseDoesNotExposeCode(t *testing.T) {
+	server := newTestServer()
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+	if _, ok := raw["code"]; ok {
+		t.Fatalf("public start response should not expose code: %v", raw)
+	}
+}
+
+func TestPublicPairStatusReturnsStateWithoutCode(t *testing.T) {
+	server := newTestServer()
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse pairStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/pair/status/"+startResponse.ChallengeID, nil)
+	statusRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(statusRecorder, statusRequest)
+	if statusRecorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", statusRecorder.Code, http.StatusOK)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(statusRecorder.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("Unmarshal(status) error = %v", err)
+	}
+	if raw["challengeId"] != startResponse.ChallengeID {
+		t.Fatalf("challengeId = %v, want %q", raw["challengeId"], startResponse.ChallengeID)
+	}
+	if raw["state"] != string(pairing.ChallengeStateActive) {
+		t.Fatalf("state = %v, want %q", raw["state"], pairing.ChallengeStateActive)
+	}
+	if _, ok := raw["code"]; ok {
+		t.Fatalf("public pair status should not expose code: %v", raw)
+	}
+}
+
+func TestPairCompleteLocksOutAfterRepeatedMismatches(t *testing.T) {
+	server := newTestServer()
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse pairStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	for i := 0; i < pairingMaxAttempts; i++ {
+		body, err := json.Marshal(pairCompleteRequest{
+			ChallengeID: startResponse.ChallengeID,
+			Code:        "000000",
+			DeviceName:  "Pixel 9",
+		})
+		if err != nil {
+			t.Fatalf("Marshal() error = %v", err)
+		}
+		completeRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(body))
+		completeRecorder := httptest.NewRecorder()
+		server.Handler().ServeHTTP(completeRecorder, completeRequest)
+		if completeRecorder.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d status = %d, want %d", i+1, completeRecorder.Code, http.StatusUnauthorized)
+		}
+	}
+
+	body, err := json.Marshal(pairCompleteRequest{
+		ChallengeID: startResponse.ChallengeID,
+		Code:        "000000",
+		DeviceName:  "Pixel 9",
+	})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	lockedRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(body))
+	lockedRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(lockedRecorder, lockedRequest)
+	if lockedRecorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("locked status code = %d, want %d", lockedRecorder.Code, http.StatusTooManyRequests)
+	}
+}
+
+func TestPairStartRateLimitedPerIP(t *testing.T) {
+	server := newTestServer()
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	for i := 0; i < pairingBurstPerIP; i++ {
+		startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+		startRecorder := httptest.NewRecorder()
+		server.Handler().ServeHTTP(startRecorder, startRequest)
+		if startRecorder.Code != http.StatusOK {
+			t.Fatalf("attempt %d status code = %d, want %d", i+1, startRecorder.Code, http.StatusOK)
+		}
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("rate-limited status code = %d, want %d", startRecorder.Code, http.StatusTooManyRequests)
+	}
+}
+
+func TestPairCompleteRejectsOversizedBody(t *testing.T) {
+	server := newTestServer()
+
+	oversized := bytes.Repeat([]byte("a"), int(jsonBodyLimit)+1)
+	request := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(oversized))
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+}
+
+func TestPairStartUsesConfiguredBurstLimit(t *testing.T) {
+	server := newConfiguredTestServer(config.Config{ListenAddr: "127.0.0.1:0", PairingBurstPerIP: 1, PairingBurstGlobal: 1})
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status code = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("first status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	secondRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	secondRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(secondRecorder, secondRequest)
+	if secondRecorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("second status code = %d, want %d", secondRecorder.Code, http.StatusTooManyRequests)
 	}
 }
 
@@ -705,13 +1206,14 @@ func TestDiagnosticsExportIncludesHelperLogsAndRuntimeLogs(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(io.Discard, logSvc), nil))
 	logger.Info("diagnostic export ready", slog.String("component", "test"))
 
+	cfg := config.Config{ListenAddr: "127.0.0.1:0", LogDir: filepath.Join(baseDir, "logs"), StateDBPath: filepath.Join(baseDir, "state.db"), HelperName: "test-helper", AllowDiagnosticsExport: true}
 	server := NewServer(
-		config.Config{ListenAddr: "127.0.0.1:0", LogDir: filepath.Join(baseDir, "logs"), StateDBPath: filepath.Join(baseDir, "state.db"), HelperName: "test-helper"},
+		cfg,
 		BuildInfo{Version: "1.2.3", Commit: "abc123", BuiltAt: "2026-03-25T10:00:00Z", GoVersion: "go1.test"},
 		logger,
 		catalog.NewWithBaseDir(baseDir),
 		runtime.NewSupervisorWithBaseDir(logger, baseDir, nil),
-		pairing.NewService(logger, nil),
+		pairing.NewServiceWithOptions(logger, nil, pairing.Options{AllowDiagnosticsExport: cfg.AllowDiagnosticsExport}),
 		gateway.New(logger, nil),
 		discovery.New(logger),
 		logSvc,
@@ -787,6 +1289,20 @@ func TestDiagnosticsExportIncludesHelperLogsAndRuntimeLogs(t *testing.T) {
 	}
 	if !foundRuntimeLogs {
 		t.Fatal("runtime logs should not be empty")
+	}
+}
+
+func TestDiagnosticsExportRequiresElevatedScopeByDefault(t *testing.T) {
+	server := newTestServer()
+	token := pairDevice(t, server)
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/diagnostics/export", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusForbidden)
 	}
 }
 
@@ -899,15 +1415,15 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 	if !strings.Contains(connectResponse.WebSocketURL, connectResponse.WebSocketPath) {
 		t.Fatalf("WebSocketURL = %q does not contain path %q", connectResponse.WebSocketURL, connectResponse.WebSocketPath)
 	}
-	if !strings.Contains(connectResponse.WebSocketURL, connectResponse.BearerToken) {
-		t.Fatalf("WebSocketURL = %q does not contain bearer token", connectResponse.WebSocketURL)
+	if strings.Contains(connectResponse.WebSocketURL, connectResponse.BearerToken) {
+		t.Fatalf("WebSocketURL = %q should not contain bearer token", connectResponse.WebSocketURL)
 	}
 
 	socketServer := httptest.NewServer(server.Handler())
 	defer socketServer.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath + "?access_token=" + connectResponse.BearerToken
-	conn := dialTestWebSocket(t, wsURL)
+	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath
+	conn := dialTestWebSocket(t, wsURL, connectResponse.BearerToken)
 	defer conn.CloseNow()
 
 	var ready map[string]any
@@ -975,7 +1491,7 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 		t.Fatalf("Runtime.Stopped = %d, want 1", diagnostics.Runtime.Stopped)
 	}
 
-	reconnect, _, err := dialTestWebSocketConn(wsURL)
+	reconnect, _, err := dialTestWebSocketConn(wsURL, connectResponse.BearerToken)
 	if err == nil {
 		reconnect.CloseNow()
 		t.Fatal("expected websocket dial to fail after runtime token revocation")
@@ -986,7 +1502,7 @@ func TestRuntimeRestartEndpointReturnsFreshConnectDescriptor(t *testing.T) {
 	baseDir := t.TempDir()
 	buildMockAgent(t, baseDir)
 
-	server := newTestServerWithBaseDir(baseDir)
+	server := newConfiguredTestServerWithBaseDir(baseDir, config.Config{ListenAddr: "127.0.0.1:0", AllowRuntimeRestartEnv: true})
 	token := pairDevice(t, server)
 
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/start", nil)
@@ -996,6 +1512,12 @@ func TestRuntimeRestartEndpointReturnsFreshConnectDescriptor(t *testing.T) {
 	if startRecorder.Code != http.StatusOK {
 		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
 	}
+	t.Cleanup(func() {
+		stopRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/stop", nil)
+		stopRequest.Header.Set("Authorization", "Bearer "+token)
+		stopRecorder := httptest.NewRecorder()
+		server.Handler().ServeHTTP(stopRecorder, stopRequest)
+	})
 
 	var startResponse runtimeStartResponse
 	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
@@ -1027,8 +1549,8 @@ func TestRuntimeRestartEndpointReturnsFreshConnectDescriptor(t *testing.T) {
 	socketServer := httptest.NewServer(server.Handler())
 	defer socketServer.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + restartResponse.WebSocketPath + "?access_token=" + restartResponse.BearerToken
-	conn := dialTestWebSocket(t, wsURL)
+	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + restartResponse.WebSocketPath
+	conn := dialTestWebSocket(t, wsURL, restartResponse.BearerToken)
 	defer conn.CloseNow()
 
 	var ready map[string]string
@@ -1041,6 +1563,63 @@ func TestRuntimeRestartEndpointReturnsFreshConnectDescriptor(t *testing.T) {
 	}
 	if ready["env"] != "restart-token" {
 		t.Fatalf("ready env = %q, want %q", ready["env"], "restart-token")
+	}
+}
+
+func TestRuntimeRestartWithEnvRequiresElevatedScopeByDefault(t *testing.T) {
+	baseDir := t.TempDir()
+	buildMockAgent(t, baseDir)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	runtimeSvc := runtime.NewSupervisorWithBaseDir(logger, baseDir, nil)
+	server := NewServer(
+		config.Config{ListenAddr: "127.0.0.1:0"},
+		BuildInfo{},
+		logger,
+		catalog.NewWithBaseDir(baseDir),
+		runtimeSvc,
+		pairing.NewService(logger, nil),
+		gateway.New(logger, nil),
+		discovery.New(logger),
+		nil,
+		nil,
+	)
+	var token string
+	t.Cleanup(func() {
+		stopRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/stop", nil)
+		stopRequest.Header.Set("Authorization", "Bearer "+token)
+		stopRecorder := httptest.NewRecorder()
+		server.Handler().ServeHTTP(stopRecorder, stopRequest)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = runtimeSvc.Shutdown(ctx)
+		time.Sleep(150 * time.Millisecond)
+	})
+	token = pairDevice(t, server)
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/start", nil)
+	startRequest.Header.Set("Authorization", "Bearer "+token)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status code = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse runtimeStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	restartBody, err := json.Marshal(runtimeRestartRequest{Env: map[string]string{"FERNGEIST_TEST_ENV": "forbidden"}})
+	if err != nil {
+		t.Fatalf("Marshal(restart) error = %v", err)
+	}
+	restartRequest := httptest.NewRequest(http.MethodPost, "/v1/runtimes/"+startResponse.Runtime.ID+"/restart", bytes.NewReader(restartBody))
+	restartRequest.Header.Set("Authorization", "Bearer "+token)
+	restartRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(restartRecorder, restartRequest)
+	if restartRecorder.Code != http.StatusForbidden {
+		t.Fatalf("restart status code = %d, want %d", restartRecorder.Code, http.StatusForbidden)
 	}
 }
 
@@ -1105,8 +1684,8 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	socketServer := httptest.NewServer(server.Handler())
 	defer socketServer.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath + "?access_token=" + connectResponse.BearerToken
-	conn := dialTestWebSocket(t, wsURL)
+	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath
+	conn := dialTestWebSocket(t, wsURL, connectResponse.BearerToken)
 	defer conn.CloseNow()
 
 	var ready map[string]any
@@ -1228,8 +1807,8 @@ func TestWebSocketDisconnectStopsRuntimeAndAllowsReconnect(t *testing.T) {
 	socketServer := httptest.NewServer(server.Handler())
 	defer socketServer.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath + "?access_token=" + connectResponse.BearerToken
-	conn := dialTestWebSocket(t, wsURL)
+	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath
+	conn := dialTestWebSocket(t, wsURL, connectResponse.BearerToken)
 	_, _ = readTestWebSocketMessage(t, conn)
 	conn.CloseNow()
 
@@ -1268,20 +1847,24 @@ func TestWebSocketDisconnectStopsRuntimeAndAllowsReconnect(t *testing.T) {
 	}
 }
 
-func dialTestWebSocket(t *testing.T, wsURL string) *websocket.Conn {
+func dialTestWebSocket(t *testing.T, wsURL string, bearerToken ...string) *websocket.Conn {
 	t.Helper()
 
-	conn, _, err := dialTestWebSocketConn(wsURL)
+	conn, _, err := dialTestWebSocketConn(wsURL, bearerToken...)
 	if err != nil {
 		t.Fatalf("Dial() error = %v", err)
 	}
 	return conn
 }
 
-func dialTestWebSocketConn(wsURL string) (*websocket.Conn, *http.Response, error) {
+func dialTestWebSocketConn(wsURL string, bearerToken ...string) (*websocket.Conn, *http.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return websocket.Dial(ctx, wsURL, nil)
+	options := &websocket.DialOptions{}
+	if len(bearerToken) > 0 && strings.TrimSpace(bearerToken[0]) != "" {
+		options.HTTPHeader = http.Header{"Authorization": []string{"Bearer " + bearerToken[0]}}
+	}
+	return websocket.Dial(ctx, wsURL, options)
 }
 
 func readTestWebSocketMessage(t *testing.T, conn *websocket.Conn) (websocket.MessageType, []byte) {
@@ -1304,14 +1887,26 @@ func writeTestWebSocketMessage(conn *websocket.Conn, messageType websocket.Messa
 }
 
 func newTestServer() *Server {
+	return newConfiguredTestServer(config.Config{ListenAddr: "127.0.0.1:0"})
+}
+
+func newConfiguredTestServer(cfg config.Config) *Server {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = "127.0.0.1:0"
+	}
 	return NewServer(
-		config.Config{ListenAddr: "127.0.0.1:0"},
+		cfg,
 		BuildInfo{},
 		logger,
 		catalog.NewWithBaseDir("."),
 		runtime.NewSupervisor(logger),
-		pairing.NewService(logger, nil),
+		pairing.NewServiceWithOptions(logger, nil, pairing.Options{
+			ArmTTL:                 cfg.PairingArmTTL,
+			CredentialTTL:          cfg.CredentialTTL,
+			AllowDiagnosticsExport: cfg.AllowDiagnosticsExport,
+			AllowRuntimeRestartEnv: cfg.AllowRuntimeRestartEnv,
+		}),
 		gateway.New(logger, nil),
 		discovery.New(logger),
 		nil,
@@ -1320,14 +1915,26 @@ func newTestServer() *Server {
 }
 
 func newTestServerWithBaseDir(baseDir string) *Server {
+	return newConfiguredTestServerWithBaseDir(baseDir, config.Config{ListenAddr: "127.0.0.1:0"})
+}
+
+func newConfiguredTestServerWithBaseDir(baseDir string, cfg config.Config) *Server {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = "127.0.0.1:0"
+	}
 	return NewServer(
-		config.Config{ListenAddr: "127.0.0.1:0"},
+		cfg,
 		BuildInfo{},
 		logger,
 		catalog.NewWithBaseDir(baseDir),
 		runtime.NewSupervisorWithBaseDir(logger, baseDir, nil),
-		pairing.NewService(logger, nil),
+		pairing.NewServiceWithOptions(logger, nil, pairing.Options{
+			ArmTTL:                 cfg.PairingArmTTL,
+			CredentialTTL:          cfg.CredentialTTL,
+			AllowDiagnosticsExport: cfg.AllowDiagnosticsExport,
+			AllowRuntimeRestartEnv: cfg.AllowRuntimeRestartEnv,
+		}),
 		gateway.New(logger, nil),
 		discovery.New(logger),
 		nil,
@@ -1387,18 +1994,40 @@ func (f fakeRegistryStatusProvider) Status() acpregistry.Status {
 func pairDevice(t *testing.T, server *Server) string {
 	t.Helper()
 
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
 	startRecorder := httptest.NewRecorder()
 	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("pair start status = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
 
 	var startResponse pairStartResponse
 	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
 		t.Fatalf("Unmarshal(start) error = %v", err)
 	}
 
+	challengeStatusRequest := httptest.NewRequest(http.MethodGet, "/admin/v1/pairings/"+startResponse.ChallengeID, nil)
+	challengeStatusRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(challengeStatusRecorder, challengeStatusRequest)
+	if challengeStatusRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing status = %d, want %d", challengeStatusRecorder.Code, http.StatusOK)
+	}
+
+	var challengeStatus adminPairingResponse
+	if err := json.Unmarshal(challengeStatusRecorder.Body.Bytes(), &challengeStatus); err != nil {
+		t.Fatalf("Unmarshal(admin pairing status) error = %v", err)
+	}
+
 	body, err := json.Marshal(pairCompleteRequest{
 		ChallengeID: startResponse.ChallengeID,
-		Code:        startResponse.Code,
+		Code:        challengeStatus.Code,
 		DeviceName:  "Pixel 9",
 	})
 	if err != nil {
@@ -1418,6 +2047,94 @@ func pairDevice(t *testing.T, server *Server) string {
 		t.Fatalf("Unmarshal(complete) error = %v", err)
 	}
 	return completeResponse.Token
+}
+
+type proofTestCredential struct {
+	token      string
+	privateKey *ecdsa.PrivateKey
+}
+
+func pairDeviceWithProof(t *testing.T, server *Server) proofTestCredential {
+	t.Helper()
+
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("MarshalPKIXPublicKey() error = %v", err)
+	}
+
+	armRequest := httptest.NewRequest(http.MethodPost, "/admin/v1/pairings/start", nil)
+	armRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(armRecorder, armRequest)
+	if armRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing start status = %d, want %d", armRecorder.Code, http.StatusOK)
+	}
+
+	startRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/start", nil)
+	startRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(startRecorder, startRequest)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("pair start status = %d, want %d", startRecorder.Code, http.StatusOK)
+	}
+
+	var startResponse pairStartResponse
+	if err := json.Unmarshal(startRecorder.Body.Bytes(), &startResponse); err != nil {
+		t.Fatalf("Unmarshal(start) error = %v", err)
+	}
+
+	challengeStatusRequest := httptest.NewRequest(http.MethodGet, "/admin/v1/pairings/"+startResponse.ChallengeID, nil)
+	challengeStatusRecorder := httptest.NewRecorder()
+	server.AdminHandler().ServeHTTP(challengeStatusRecorder, challengeStatusRequest)
+	if challengeStatusRecorder.Code != http.StatusOK {
+		t.Fatalf("admin pairing status = %d, want %d", challengeStatusRecorder.Code, http.StatusOK)
+	}
+
+	var challengeStatus adminPairingResponse
+	if err := json.Unmarshal(challengeStatusRecorder.Body.Bytes(), &challengeStatus); err != nil {
+		t.Fatalf("Unmarshal(admin pairing status) error = %v", err)
+	}
+
+	body, err := json.Marshal(pairCompleteRequest{
+		ChallengeID:    startResponse.ChallengeID,
+		Code:           challengeStatus.Code,
+		DeviceName:     "Pixel 9",
+		ProofPublicKey: base64.RawURLEncoding.EncodeToString(publicKeyBytes),
+	})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	completeRequest := httptest.NewRequest(http.MethodPost, "/v1/pair/complete", bytes.NewReader(body))
+	completeRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(completeRecorder, completeRequest)
+	if completeRecorder.Code != http.StatusOK {
+		t.Fatalf("pair complete status = %d, want %d", completeRecorder.Code, http.StatusOK)
+	}
+
+	var completeResponse pairCompleteResponse
+	if err := json.Unmarshal(completeRecorder.Body.Bytes(), &completeResponse); err != nil {
+		t.Fatalf("Unmarshal(complete) error = %v", err)
+	}
+	return proofTestCredential{token: completeResponse.Token, privateKey: privateKey}
+}
+
+func signProofRequest(t *testing.T, request *http.Request, credential proofTestCredential, body []byte, proofTime time.Time, nonce string) {
+	t.Helper()
+	request.Header.Set("Authorization", "Bearer "+credential.token)
+	timestamp := fmt.Sprintf("%d", proofTime.UTC().Unix())
+	bodyHash := sha256.Sum256(body)
+	message := buildProofMessage(request.Method, requestPathWithRawQuery(request), credential.token, timestamp, nonce, base64.RawURLEncoding.EncodeToString(bodyHash[:]))
+	digest := sha256.Sum256([]byte(message))
+	signature, err := ecdsa.SignASN1(rand.Reader, credential.privateKey, digest[:])
+	if err != nil {
+		t.Fatalf("SignASN1() error = %v", err)
+	}
+	request.Header.Set(proofHeaderTimestamp, timestamp)
+	request.Header.Set(proofHeaderNonce, nonce)
+	request.Header.Set(proofHeaderSignature, base64.RawURLEncoding.EncodeToString(signature))
 }
 
 func buildMockAgent(t *testing.T, baseDir string) {

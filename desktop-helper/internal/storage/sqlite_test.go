@@ -17,10 +17,12 @@ func TestSQLiteStorePersistsPairingsAndRuntimes(t *testing.T) {
 	ctx := context.Background()
 	expiresAt := time.Date(2026, 4, 25, 10, 0, 0, 0, time.UTC)
 	if err := store.SavePairing(ctx, PairingRecord{
-		DeviceID:   "dev-1",
-		DeviceName: "Pixel 9",
-		Token:      "token-1",
-		ExpiresAt:  expiresAt,
+		DeviceID:       "dev-1",
+		DeviceName:     "Pixel 9",
+		Token:          "token-1",
+		ExpiresAt:      expiresAt,
+		Scopes:         []string{"helper.read", "helper.control"},
+		ProofPublicKey: "proof-key-1",
 	}); err != nil {
 		t.Fatalf("SavePairing() error = %v", err)
 	}
@@ -47,6 +49,12 @@ func TestSQLiteStorePersistsPairingsAndRuntimes(t *testing.T) {
 	if pairings[0].Token != "token-1" {
 		t.Fatalf("pairing token = %q, want %q", pairings[0].Token, "token-1")
 	}
+	if len(pairings[0].Scopes) != 2 {
+		t.Fatalf("len(pairing scopes) = %d, want 2", len(pairings[0].Scopes))
+	}
+	if pairings[0].ProofPublicKey != "proof-key-1" {
+		t.Fatalf("pairing proof key = %q, want %q", pairings[0].ProofPublicKey, "proof-key-1")
+	}
 
 	if err := store.DeletePairing(ctx, "dev-1"); err != nil {
 		t.Fatalf("DeletePairing() error = %v", err)
@@ -64,10 +72,12 @@ func TestSQLiteStorePersistsPairingsAndRuntimes(t *testing.T) {
 	}
 
 	if err := store.SavePairing(ctx, PairingRecord{
-		DeviceID:   "dev-1",
-		DeviceName: "Pixel 9",
-		Token:      "token-1",
-		ExpiresAt:  expiresAt,
+		DeviceID:       "dev-1",
+		DeviceName:     "Pixel 9",
+		Token:          "token-1",
+		ExpiresAt:      expiresAt,
+		Scopes:         []string{"helper.read"},
+		ProofPublicKey: "proof-key-2",
 	}); err != nil {
 		t.Fatalf("SavePairing() after delete error = %v", err)
 	}
