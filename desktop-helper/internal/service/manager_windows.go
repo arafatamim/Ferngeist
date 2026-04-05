@@ -21,7 +21,11 @@ func newOSManager() Manager {
 	return &windowsManager{}
 }
 
-func (m *windowsManager) Install() error {
+func (m *windowsManager) Install(options InstallOptions) error {
+	options = NormalizeInstallOptions(options)
+	if err := ValidateInstallOptions(options); err != nil {
+		return err
+	}
 	if err := m.ensureTaskSchedulerAvailable(); err != nil {
 		return err
 	}
@@ -50,7 +54,7 @@ func (m *windowsManager) Install() error {
 	if err := copyCurrentBinaryWindows(paths.binaryPath); err != nil {
 		return err
 	}
-	if err := writeWindowsWrapperScript(paths); err != nil {
+	if err := writeWindowsWrapperScript(paths, options); err != nil {
 		return err
 	}
 	if err := writeWindowsOverridesTemplate(paths); err != nil {
@@ -315,7 +319,18 @@ func copyCurrentBinaryWindows(targetPath string) error {
 	return nil
 }
 
-func writeWindowsWrapperScript(paths windowsPaths) error {
+func writeWindowsWrapperScript(paths windowsPaths, options InstallOptions) error {
+	options = NormalizeInstallOptions(options)
+	listenAddr := ListenAddr(options)
+	enableLAN := "0"
+	if !isLoopbackHost(options.Host) {
+		enableLAN = "1"
+	}
+	publicURLLine := ""
+	if options.PublicURL != "" {
+		publicURLLine = "$env:FERNGEIST_HELPER_PUBLIC_BASE_URL = '" + escapePowerShellSingleQuoted(options.PublicURL) + "'"
+	}
+
 	content := fmt.Sprintf(
 		`$ErrorActionPreference = "Stop"
 
@@ -332,6 +347,9 @@ New-Item -ItemType Directory -Force -Path $managedBinDir | Out-Null
 $env:FERNGEIST_HELPER_STATE_DB = $stateDBPath
 $env:FERNGEIST_HELPER_LOG_DIR = $logDir
 $env:FERNGEIST_HELPER_MANAGED_BIN_DIR = $managedBinDir
+$env:FERNGEIST_HELPER_LISTEN_ADDR = '%s'
+$env:FERNGEIST_HELPER_ENABLE_LAN = '%s'
+%s
 
 if (Test-Path $overrideScriptPath) {
     . $overrideScriptPath
@@ -345,6 +363,9 @@ if (Test-Path $overrideScriptPath) {
 		escapePowerShellSingleQuoted(paths.stateDBPath),
 		escapePowerShellSingleQuoted(paths.dataLogsDir),
 		escapePowerShellSingleQuoted(paths.dataManagedBinDir),
+		escapePowerShellSingleQuoted(listenAddr),
+		escapePowerShellSingleQuoted(enableLAN),
+		publicURLLine,
 	)
 
 	if err := os.WriteFile(paths.wrapperScriptPath, []byte(content), 0o644); err != nil {

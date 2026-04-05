@@ -33,7 +33,11 @@ func newOSManager() Manager {
 	return &linuxManager{}
 }
 
-func (m *linuxManager) Install() error {
+func (m *linuxManager) Install(options InstallOptions) error {
+	options = NormalizeInstallOptions(options)
+	if err := ValidateInstallOptions(options); err != nil {
+		return err
+	}
 	if err := m.ensureSystemctlAvailable(); err != nil {
 		return err
 	}
@@ -68,7 +72,7 @@ func (m *linuxManager) Install() error {
 	if err := copyCurrentBinary(paths.binaryPath); err != nil {
 		return err
 	}
-	if err := writeLinuxEnvFile(paths); err != nil {
+	if err := writeLinuxEnvFile(paths, options); err != nil {
 		return err
 	}
 	if err := writeLinuxUnitFile(paths); err != nil {
@@ -289,13 +293,27 @@ func copyCurrentBinary(targetPath string) error {
 	return nil
 }
 
-func writeLinuxEnvFile(paths linuxPaths) error {
-	content := strings.Join([]string{
+func writeLinuxEnvFile(paths linuxPaths, options InstallOptions) error {
+	options = NormalizeInstallOptions(options)
+	listenAddr := ListenAddr(options)
+	enableLAN := "0"
+	if !isLoopbackHost(options.Host) {
+		enableLAN = "1"
+	}
+
+	lines := []string{
+		"FERNGEIST_HELPER_LISTEN_ADDR=" + listenAddr,
+		"FERNGEIST_HELPER_ENABLE_LAN=" + enableLAN,
 		"FERNGEIST_HELPER_STATE_DB=" + paths.dbPath,
 		"FERNGEIST_HELPER_LOG_DIR=" + paths.logDir,
 		"FERNGEIST_HELPER_MANAGED_BIN_DIR=" + paths.managedBinDir,
-		"",
-	}, "\n")
+	}
+	if options.PublicURL != "" {
+		lines = append(lines, "FERNGEIST_HELPER_PUBLIC_BASE_URL="+options.PublicURL)
+	}
+	lines = append(lines, "")
+
+	content := strings.Join(lines, "\n")
 
 	if err := os.WriteFile(paths.envPath, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("write service environment file: %w", err)

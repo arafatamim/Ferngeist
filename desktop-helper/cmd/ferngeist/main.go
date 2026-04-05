@@ -17,6 +17,7 @@ import (
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/api"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/config"
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/daemon"
+	"github.com/tamimarafat/ferngeist/desktop-helper/internal/service"
 	"github.com/urfave/cli/v3"
 )
 
@@ -78,8 +79,27 @@ func main() {
 					{
 						Name:  "install",
 						Usage: "install and start the daemon as a user service",
-						Action: func(_ context.Context, _ *cli.Command) error {
-							return runDaemonInstall()
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "host",
+								Usage: "host interface for daemon listen address (optional, defaults to 127.0.0.1)",
+							},
+							&cli.IntFlag{
+								Name:  "port",
+								Usage: "port for daemon listen address (optional, defaults to 5788)",
+								Value: 5788,
+							},
+							&cli.StringFlag{
+								Name:  "public-url",
+								Usage: "public base URL announced to clients (optional)",
+							},
+						},
+						Action: func(_ context.Context, cmd *cli.Command) error {
+							return runDaemonInstall(service.InstallOptions{
+								Host:      cmd.String("host"),
+								Port:      cmd.Int("port"),
+								PublicURL: cmd.String("public-url"),
+							})
 						},
 					},
 					{

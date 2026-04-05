@@ -13,11 +13,14 @@ import (
 	"github.com/tamimarafat/ferngeist/desktop-helper/internal/service"
 )
 
-func runDaemonInstall() error {
+func runDaemonInstall(options service.InstallOptions) error {
 	manager := service.NewManager()
-	if err := manager.Install(); err != nil {
+	if err := manager.Install(options); err != nil {
 		if errors.Is(err, service.ErrServicePermissionDenied) {
 			return fmt.Errorf("install daemon service: %w\nHint: rerun with elevated privileges, for example: sudo ferngeist daemon install", err)
+		}
+		if errors.Is(err, service.ErrInvalidInstallOptions) {
+			return fmt.Errorf("install daemon service: %w\nHint: use --host, --port, and optional --public-url", err)
 		}
 		return fmt.Errorf("install daemon service: %w", err)
 	}
