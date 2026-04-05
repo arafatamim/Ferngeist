@@ -1,19 +1,19 @@
 package com.tamimarafat.ferngeist.feature.serverlist.helper
 
-import android.net.Uri
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.net.URLDecoder
 
 /**
  * Parsed pairing payload shared by QR scans and manual paste flows. The helper
- * can encode either a custom URI or JSON payload containing host details plus
- * the pairing code shown on the desktop.
+ * now emits this payload from `ferngeist pair`, so Android expects it to carry
+ * host details plus the one-time pairing challenge metadata.
  */
 data class DesktopHelperPairingPayload(
     val scheme: String,
     val host: String,
     val code: String,
-    val challengeId: String? = null,
+    val challengeId: String,
 )
 
 object DesktopHelperPairingPayloadParser {
@@ -26,30 +26,51 @@ object DesktopHelperPairingPayloadParser {
     }
 
     private fun parseUri(raw: String): DesktopHelperPairingPayload? {
-        val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return null
-        if (uri.scheme != "ferngeist-helper") return null
-        if (uri.host != "pair") return null
-        val host = uri.getQueryParameter("host")?.trim().orEmpty()
-        val code = uri.getQueryParameter("code")?.trim().orEmpty()
-        if (host.isBlank() || code.isBlank()) return null
+        val normalized = raw.removePrefix("ferngeist-helper://")
+        if (!normalized.startsWith("pair")) return null
+        val query = raw.substringAfter('?', "")
+        if (query.isBlank()) return null
+        val params = parseQueryParams(query)
+        val host = params["host"].orEmpty()
+        val code = params["code"].orEmpty()
+        val challengeId = params["challengeId"].orEmpty()
+        if (host.isBlank() || code.isBlank() || challengeId.isBlank()) return null
         return DesktopHelperPairingPayload(
-            scheme = uri.getQueryParameter("scheme")?.trim().takeUnless { it.isNullOrBlank() } ?: "http",
+            scheme = params["scheme"].takeUnless { it.isNullOrBlank() } ?: "http",
             host = host,
             code = code,
-            challengeId = uri.getQueryParameter("challengeId")?.trim().takeUnless { it.isNullOrBlank() },
+            challengeId = challengeId,
         )
     }
 
     private fun parseJson(raw: String): DesktopHelperPairingPayload? {
         val payload = runCatching { json.decodeFromString<DesktopHelperPairingPayloadDto>(raw) }.getOrNull()
             ?: return null
-        if (payload.host.isBlank() || payload.code.isBlank()) return null
+        val challengeId = payload.challengeId?.trim().orEmpty()
+        if (payload.host.isBlank() || payload.code.isBlank() || challengeId.isBlank()) return null
         return DesktopHelperPairingPayload(
             scheme = payload.scheme?.takeUnless { it.isBlank() } ?: "http",
             host = payload.host.trim(),
             code = payload.code.trim(),
-            challengeId = payload.challengeId?.trim().takeUnless { it.isNullOrBlank() },
+            challengeId = challengeId,
         )
+    }
+
+    private fun parseQueryParams(query: String): Map<String, String> {
+        return query.split('&')
+            .mapNotNull { segment ->
+                val separatorIndex = segment.indexOf('=')
+                if (separatorIndex <= 0) return@mapNotNull null
+                val key = decodeQueryComponent(segment.substring(0, separatorIndex))
+                val value = decodeQueryComponent(segment.substring(separatorIndex + 1))
+                if (key.isBlank()) return@mapNotNull null
+                key to value
+            }
+            .toMap()
+    }
+
+    private fun decodeQueryComponent(value: String): String {
+        return URLDecoder.decode(value, "UTF-8").trim()
     }
 }
 
