@@ -20,17 +20,11 @@ data class DesktopHelperRemoteStatus(
 )
 
 @Serializable
-data class DesktopHelperPairStartResponse(
-    @SerialName("challengeId") val challengeId: String,
-    val code: String,
-    @SerialName("expiresAt") val expiresAt: String,
-)
-
-@Serializable
 data class DesktopHelperPairCompleteRequest(
     @SerialName("challengeId") val challengeId: String,
     val code: String,
     @SerialName("deviceName") val deviceName: String,
+    @SerialName("proofPublicKey") val proofPublicKey: String? = null,
 )
 
 @Serializable
@@ -41,16 +35,10 @@ data class DesktopHelperPairCompleteResponse(
     @SerialName("expiresAt") val expiresAt: String,
 )
 
-data class DesktopHelperPairingChallenge(
-    val challengeId: String,
-    val code: String,
-    val expiresAt: String,
-)
-
 data class DesktopHelperPairingResult(
     val deviceId: String,
     val deviceName: String,
-    val token: String,
+    val helperCredential: String,
     val expiresAt: String,
 )
 
@@ -118,4 +106,20 @@ data class DesktopHelperLogEntry(
     val timestamp: String,
     val stream: String,
     val message: String,
+)
+
+@Serializable
+data class DesktopHelperPairStartResponse(
+    @SerialName("challengeId") val challengeId: String,
+    @SerialName("expiresAt") val expiresAt: String,
+)
+
+@Serializable
+data class DesktopHelperPairStatusResponse(
+    @SerialName("challengeId") val challengeId: String,
+    @SerialName("expiresAt") val expiresAt: String,
+    val state: String,
+    @SerialName("completedDevice") val completedDevice: String? = null,
+    @SerialName("completedDeviceId") val completedDeviceId: String? = null,
+    @SerialName("completedDeviceExpiresAt") val completedDeviceExpiresAt: String? = null,
 )

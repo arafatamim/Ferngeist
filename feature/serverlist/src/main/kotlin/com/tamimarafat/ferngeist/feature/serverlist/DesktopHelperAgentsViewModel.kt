@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.core.model.HelperAgentBinding
 import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgent
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
+import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,14 +55,15 @@ class DesktopHelperAgentsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             val bindings = helperAgentBindingRepository.getBindingsForHelper(companionId)
-            val companion = helperSourceRepository.getHelper(companionId)
-            if (companion == null) {
+            val storedCompanion = helperSourceRepository.getHelper(companionId)
+            if (storedCompanion == null) {
                 _uiState.value = DesktopHelperAgentsUiState(
                     isLoading = false,
                     loadError = "Desktop companion not found",
                 )
                 return@launch
             }
+			val companion = refreshHelperSourceIfNeeded(storedCompanion, helperRepository, helperSourceRepository)
 
             _uiState.value = _uiState.value.copy(
                 companion = companion,

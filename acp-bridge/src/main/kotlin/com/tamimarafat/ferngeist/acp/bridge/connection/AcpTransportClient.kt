@@ -18,6 +18,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
+import io.ktor.client.request.url
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -145,13 +146,18 @@ internal class AcpTransportClient(
         diagnosticsStore.setWebSocketState(WebSocketState.CONNECTING)
 
         return try {
-            val url = config.webSocketUrl ?: "${config.scheme}://${config.host}"
-            diagnosticsStore.startConnect(url)
+            val endpointUrl = config.webSocketUrl ?: "${config.scheme}://${config.host}"
+            diagnosticsStore.startConnect(endpointUrl)
 
             val client = HttpClient(CIO) {
                 install(WebSockets)
             }
-            val webSocketSession = client.webSocketSession(urlString = url)
+            val webSocketSession = client.webSocketSession {
+                url(endpointUrl)
+                config.webSocketBearerToken?.takeIf { it.isNotBlank() }?.let {
+                    headers.append("Authorization", "Bearer $it")
+                }
+            }
             val transport = WebSocketTransport(
                 parentScope = webSocketSession,
                 wss = webSocketSession,

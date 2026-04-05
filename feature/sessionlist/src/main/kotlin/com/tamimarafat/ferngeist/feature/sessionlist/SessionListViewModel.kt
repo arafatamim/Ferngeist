@@ -16,12 +16,14 @@ import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
+import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,8 +38,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URI
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 
 /**
@@ -64,6 +64,7 @@ sealed interface PendingAuthAction {
 @HiltViewModel
 class SessionListViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val helperSourceRepository: DesktopHelperSourceRepository,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val sessionRepository: SessionRepository,
     private val connectionManager: AcpConnectionManager,
@@ -340,7 +341,9 @@ class SessionListViewModel @Inject constructor(
             _isLoading.value = false
             return
         }
-        val helperSource = helperTarget.helperSource
+		val helperSource = withContext(Dispatchers.IO) {
+			refreshHelperSourceIfNeeded(helperTarget.helperSource, helperRepository, helperSourceRepository)
+		}
         if (helperSource.helperCredential.isBlank()) {
             _pendingAuthentication.update {
                 it?.copy(authErrorMessage = "Desktop companion is not paired.")
@@ -386,6 +389,7 @@ class SessionListViewModel @Inject constructor(
                     scheme = helperSource.scheme,
                     host = helperSource.host,
                     webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    webSocketBearerToken = handoff.bearerToken,
                     preferredAuthMethodId = method.id,
                     helperRuntimeId = handoff.runtimeId,
                     helperSourceId = helperSource.id,
@@ -493,8 +497,7 @@ class SessionListViewModel @Inject constructor(
             "https", "wss" -> "wss"
             else -> "ws"
         }
-        val encodedToken = URLEncoder.encode(handoff.bearerToken, StandardCharsets.UTF_8.toString())
-        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}?access_token=$encodedToken"
+        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}"
     }
 
     private fun isUnroutableHelperHost(host: String): Boolean {

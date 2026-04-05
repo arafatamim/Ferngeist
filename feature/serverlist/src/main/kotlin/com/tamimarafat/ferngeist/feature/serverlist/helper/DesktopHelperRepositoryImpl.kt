@@ -25,8 +25,40 @@ class DesktopHelperRepositoryImpl @Inject constructor(
 ) : DesktopHelperRepository {
 
     override suspend fun fetchStatus(scheme: String, host: String): DesktopHelperStatus {
-        val response = httpClient.getJson<DesktopHelperStatus>(json, scheme, host, "v1", "status")
+        val response = httpClient.getJson<DesktopHelperStatus>(
+            json = json,
+            scheme = scheme,
+            host = host,
+            bearerToken = null,
+            "v1",
+            "status",
+        )
         return response
+    }
+
+    override suspend fun startPairing(scheme: String, host: String): DesktopHelperPairStartResponse {
+        return httpClient.postJson(
+            json = json,
+            scheme = scheme,
+            host = host,
+            bearerToken = null,
+            "v1",
+            "pair",
+            "start",
+        )
+    }
+
+    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String): DesktopHelperPairStatusResponse {
+        return httpClient.getJson(
+            json = json,
+            scheme = scheme,
+            host = host,
+            bearerToken = null,
+            "v1",
+            "pair",
+            "status",
+            challengeId,
+        )
     }
 
     override suspend fun fetchAgents(scheme: String, host: String, helperCredential: String): List<DesktopHelperAgent> {
@@ -117,15 +149,6 @@ class DesktopHelperRepositoryImpl @Inject constructor(
         return response.logs
     }
 
-    override suspend fun startPairing(scheme: String, host: String): DesktopHelperPairingChallenge {
-        val response = httpClient.postJson<DesktopHelperPairStartResponse>(json, scheme, host, "v1", "pair", "start")
-        return DesktopHelperPairingChallenge(
-            challengeId = response.challengeId,
-            code = response.code,
-            expiresAt = response.expiresAt,
-        )
-    }
-
     override suspend fun completePairing(
         scheme: String,
         host: String,
@@ -133,10 +156,12 @@ class DesktopHelperRepositoryImpl @Inject constructor(
         code: String,
         deviceName: String,
     ): DesktopHelperPairingResult {
+        val proofKey = DesktopHelperProofAuth.generateProofKey()
         val response = httpClient.postJson<DesktopHelperPairCompleteResponse>(
             json = json,
             scheme = scheme,
             host = host,
+            bearerToken = null,
             "v1",
             "pair",
             "complete",
@@ -145,16 +170,39 @@ class DesktopHelperRepositoryImpl @Inject constructor(
                     challengeId = challengeId,
                     code = code,
                     deviceName = deviceName,
+                    proofPublicKey = proofKey.publicKey,
                 ),
             ),
         )
         return DesktopHelperPairingResult(
             deviceId = response.deviceId,
             deviceName = response.deviceName,
-            token = response.token,
+            helperCredential = DesktopHelperProofAuth.encodeStoredCredential(response.token, proofKey.privateKey),
             expiresAt = response.expiresAt,
         )
     }
+
+    override suspend fun refreshCredential(
+	    scheme: String,
+	    host: String,
+	    helperCredential: String,
+	): DesktopHelperPairingResult {
+	    val response = httpClient.postJson<DesktopHelperPairCompleteResponse>(
+	        json = json,
+	        scheme = scheme,
+	        host = host,
+	        bearerToken = helperCredential,
+	        "v1",
+	        "auth",
+	        "refresh",
+	    )
+	    return DesktopHelperPairingResult(
+	        deviceId = response.deviceId,
+	        deviceName = response.deviceName,
+	        helperCredential = DesktopHelperProofAuth.rotateStoredCredential(helperCredential, response.token),
+	        expiresAt = response.expiresAt,
+	    )
+	}
 }
 
 private suspend inline fun <reified T> HttpClient.getJson(
@@ -164,17 +212,23 @@ private suspend inline fun <reified T> HttpClient.getJson(
     bearerToken: String? = null,
     vararg segments: String,
 ): T {
-    val response = get {
-        url {
-            protocol = io.ktor.http.URLProtocol.createOrDefault(scheme)
-            this.host = host.substringBefore(':')
-            host.substringAfter(':', "").toIntOrNull()?.let { port = it }
-            path(*segments)
-        }
-        accept(ContentType.Application.Json)
-        bearerToken?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
+    val endpoint = buildHelperEndpoint(scheme, host, *segments)
+    val authHeaders = bearerToken?.takeIf { it.isNotBlank() }?.let {
+        DesktopHelperProofAuth.buildAuthHeaders(
+            helperCredential = it,
+            method = "GET",
+            endpoint = endpoint,
+            body = null,
+        )
     }
-    check(response.status.isSuccess()) { "Helper request failed: ${response.status}" }
+    val response = get {
+        url(endpoint)
+        accept(ContentType.Application.Json)
+        authHeaders?.let { applyHelperAuthHeaders(it) }
+    }
+    if (!response.status.isSuccess()) {
+        throw helperRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())
+    }
     return json.decodeFromString(response.bodyAsText())
 }
 
@@ -186,20 +240,89 @@ private suspend inline fun <reified T> HttpClient.postJson(
     vararg segments: String,
     body: String? = null,
 ): T {
+    val endpoint = buildHelperEndpoint(scheme, host, *segments)
+    val authHeaders = bearerToken?.takeIf { it.isNotBlank() }?.let {
+        DesktopHelperProofAuth.buildAuthHeaders(
+            helperCredential = it,
+            method = "POST",
+            endpoint = endpoint,
+            body = body,
+        )
+    }
     val response = post {
-        url {
-            protocol = io.ktor.http.URLProtocol.createOrDefault(scheme)
-            this.host = host.substringBefore(':')
-            host.substringAfter(':', "").toIntOrNull()?.let { port = it }
-            path(*segments)
-        }
+        url(endpoint)
         accept(ContentType.Application.Json)
         contentType(ContentType.Application.Json)
-        bearerToken?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
+        authHeaders?.let { applyHelperAuthHeaders(it) }
         if (body != null) {
             setBody(body)
         }
     }
-    check(response.status.isSuccess()) { "Helper request failed: ${response.status}" }
+    if (!response.status.isSuccess()) {
+        throw helperRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())
+    }
     return json.decodeFromString(response.bodyAsText())
+}
+
+private fun buildHelperEndpoint(scheme: String, host: String, vararg segments: String): String {
+    val normalizedScheme = normalizeControlScheme(scheme)
+    val normalizedHost = normalizeHelperHost(host)
+    return "$normalizedScheme://$normalizedHost/${segments.joinToString("/")}"
+}
+
+private fun normalizeControlScheme(scheme: String): String {
+    return when (scheme.trim().lowercase()) {
+        "", "http", "ws" -> "http"
+        "https", "wss" -> "https"
+        else -> scheme.trim().lowercase()
+    }
+}
+
+private fun normalizeHelperHost(host: String): String {
+    return host.trim()
+        .removePrefix("http://")
+        .removePrefix("https://")
+        .removePrefix("ws://")
+        .removePrefix("wss://")
+        .trimEnd('/')
+}
+
+private fun helperRequestException(statusCode: Int, statusDescription: String, endpoint: String, responseBody: String): IllegalStateException {
+    val normalizedBody = responseBody.trim()
+    val statusLine = "$statusCode ${statusDescription.ifBlank { "unknown" }}".trim()
+    val message = when (statusCode) {
+        404 -> {
+            buildString {
+                append("Desktop companion request failed: ")
+                append(statusLine)
+                append(" at ")
+                append(endpoint)
+                append(". The host is reachable, but this port is not serving the Ferngeist desktop companion API.")
+                if (normalizedBody.isNotBlank()) {
+                    append(" Response: ")
+                    append(normalizedBody)
+                }
+            }
+        }
+        else -> {
+            buildString {
+                append("Desktop companion request failed: ")
+                append(statusLine)
+                append(" at ")
+                append(endpoint)
+                if (normalizedBody.isNotBlank()) {
+                    append(". Response: ")
+                    append(normalizedBody)
+                }
+            }
+        }
+    }
+    return IllegalStateException(message)
+}
+
+private fun io.ktor.client.request.HttpRequestBuilder.applyHelperAuthHeaders(headers: DesktopHelperAuthHeaders) {
+    header("Authorization", headers.authorization)
+    headers.proofTimestamp?.let { header("X-Ferngeist-Proof-Timestamp", it) }
+    headers.proofNonce?.let { header("X-Ferngeist-Proof-Nonce", it) }
+    headers.proofSignature?.let { header("X-Ferngeist-Proof-Signature", it) }
 }

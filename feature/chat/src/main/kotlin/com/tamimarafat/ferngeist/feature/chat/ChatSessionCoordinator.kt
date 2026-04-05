@@ -16,9 +16,11 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
+import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -28,13 +30,12 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.net.URI
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 internal class ChatSessionCoordinator(
     private val scope: CoroutineScope,
     private val connectionManager: AcpConnectionManager,
     private val launchableTargetRepository: LaunchableTargetRepository,
+    private val helperSourceRepository: DesktopHelperSourceRepository,
     private val helperRepository: DesktopHelperRepository,
     private val serverId: String,
     private val initialSessionId: String,
@@ -302,25 +303,27 @@ internal class ChatSessionCoordinator(
             return null
         }
         return try {
+            val refreshedSource = refreshHelperSourceIfNeeded(helperSource, helperRepository, helperSourceRepository)
             val runtime = helperRepository.startAgent(
-                scheme = helperSource.scheme,
-                host = helperSource.host,
-                helperCredential = helperSource.helperCredential,
+                scheme = refreshedSource.scheme,
+                host = refreshedSource.host,
+                helperCredential = refreshedSource.helperCredential,
                 agentId = target.binding.agentId,
             )
             val handoff = helperRepository.connectRuntime(
-                scheme = helperSource.scheme,
-                host = helperSource.host,
-                helperCredential = helperSource.helperCredential,
+                scheme = refreshedSource.scheme,
+                host = refreshedSource.host,
+                helperCredential = refreshedSource.helperCredential,
                 runtimeId = runtime.id,
             )
             AcpConnectionConfig(
-                scheme = helperSource.scheme,
-                host = helperSource.host,
-                webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                scheme = refreshedSource.scheme,
+                host = refreshedSource.host,
+                webSocketUrl = resolveDesktopHelperWebSocketUrl(refreshedSource, handoff),
+                webSocketBearerToken = handoff.bearerToken,
                 preferredAuthMethodId = target.binding.preferredAuthMethodId,
                 helperRuntimeId = runtime.id,
-                helperSourceId = helperSource.id,
+                helperSourceId = refreshedSource.id,
             )
         } catch (error: Throwable) {
             callbacks.onLoadFailed("Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}")
@@ -342,8 +345,7 @@ internal class ChatSessionCoordinator(
             "https", "wss" -> "wss"
             else -> "ws"
         }
-        val encodedToken = URLEncoder.encode(handoff.bearerToken, StandardCharsets.UTF_8.toString())
-        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}?access_token=$encodedToken"
+        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}"
     }
 
     private fun isUnroutableHelperHost(host: String): Boolean {

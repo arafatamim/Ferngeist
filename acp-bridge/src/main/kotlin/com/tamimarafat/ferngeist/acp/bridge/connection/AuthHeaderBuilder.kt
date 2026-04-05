@@ -4,6 +4,7 @@ data class AcpConnectionConfig(
     val scheme: String = "ws",
     val host: String,
     val webSocketUrl: String? = null,
+    val webSocketBearerToken: String? = null,
     val preferredAuthMethodId: String? = null,
     val helperRuntimeId: String? = null,
     val helperSourceId: String? = null,

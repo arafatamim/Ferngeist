@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
@@ -139,6 +140,7 @@ class ChatViewModelTest {
 
         return ChatViewModel(
             connectionManager = manager,
+            helperSourceRepository = FakeDesktopHelperSourceRepository(),
             launchableTargetRepository = targetRepository,
             sessionRepository = sessionRepository,
             helperRepository = FakeDesktopHelperRepository(),
@@ -175,6 +177,14 @@ private class FakeLaunchableTargetRepository : LaunchableTargetRepository {
     override suspend fun deleteTarget(id: String) = Unit
 }
 
+private class FakeDesktopHelperSourceRepository : DesktopHelperSourceRepository {
+    override fun getHelpers() = flowOf(emptyList<com.tamimarafat.ferngeist.core.model.DesktopHelperSource>())
+    override suspend fun addHelper(helper: com.tamimarafat.ferngeist.core.model.DesktopHelperSource) = Unit
+    override suspend fun updateHelper(helper: com.tamimarafat.ferngeist.core.model.DesktopHelperSource) = Unit
+    override suspend fun deleteHelper(id: String) = Unit
+    override suspend fun getHelper(id: String) = null
+}
+
 private class FakeSessionRepository : SessionRepository {
     override fun getSessions(serverId: String): Flow<List<SessionSummary>> = emptyFlow()
     override suspend fun upsertSession(serverId: String, summary: SessionSummary) = Unit
@@ -189,8 +199,8 @@ private class FakeDesktopHelperRepository : com.tamimarafat.ferngeist.feature.se
     override suspend fun connectRuntime(scheme: String, host: String, helperCredential: String, runtimeId: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse = throw NotImplementedError()
     override suspend fun restartRuntime(scheme: String, host: String, helperCredential: String, runtimeId: String, envVars: Map<String, String>): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse = throw NotImplementedError()
     override suspend fun fetchRuntimeLogs(scheme: String, host: String, helperCredential: String, runtimeId: String): List<com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperLogEntry> = emptyList()
-    override suspend fun startPairing(scheme: String, host: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingChallenge = throw NotImplementedError()
     override suspend fun completePairing(scheme: String, host: String, challengeId: String, code: String, deviceName: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingResult = throw NotImplementedError()
+    override suspend fun refreshCredential(scheme: String, host: String, helperCredential: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingResult = throw NotImplementedError()
 }
 
 private class InMemoryChatScrollStateStore : ChatScrollStateStore {

@@ -20,6 +20,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSe
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
+import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -34,8 +35,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URI
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 
 /**
@@ -396,7 +395,9 @@ class ServerListViewModel @Inject constructor(
             }
             return
         }
-        val helperSource = helperTarget.helperSource
+        val helperSource = withContext(Dispatchers.IO) {
+            refreshHelperSourceIfNeeded(helperTarget.helperSource, helperRepository, helperSourceRepository)
+        }
         if (helperSource.helperCredential.isBlank()) {
             _uiState.update {
                 it.copy(
@@ -445,6 +446,7 @@ class ServerListViewModel @Inject constructor(
                     scheme = helperSource.scheme,
                     host = helperSource.host,
                     webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    webSocketBearerToken = handoff.bearerToken,
                     preferredAuthMethodId = method.id,
                     helperRuntimeId = handoff.runtimeId,
                     helperSourceId = helperSource.id,
@@ -627,7 +629,9 @@ class ServerListViewModel @Inject constructor(
      * response into an ACP connection config Ferngeist can reconnect with later.
      */
     private suspend fun buildDesktopHelperLaunchContext(server: LaunchableTarget.HelperAgent): Result<DesktopHelperLaunchContext> {
-        val helperSource = server.helperSource
+        val helperSource = withContext(Dispatchers.IO) {
+            refreshHelperSourceIfNeeded(server.helperSource, helperRepository, helperSourceRepository)
+        }
         if (helperSource.helperCredential.isBlank()) {
             return Result.failure(IllegalStateException("Desktop companion is not paired"))
         }
@@ -654,6 +658,7 @@ class ServerListViewModel @Inject constructor(
                     scheme = helperSource.scheme,
                     host = helperSource.host,
                     webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    webSocketBearerToken = handoff.bearerToken,
                     preferredAuthMethodId = server.preferredAuthMethodId,
                     helperRuntimeId = runtime.id,
                     helperSourceId = helperSource.id,
@@ -687,10 +692,13 @@ class ServerListViewModel @Inject constructor(
         }
 
         val runtimeHint = runCatching {
+            val refreshedSource = withContext(Dispatchers.IO) {
+                refreshHelperSourceIfNeeded(helperSource, helperRepository, helperSourceRepository)
+            }
             helperRepository.fetchRuntimeLogs(
-                scheme = helperSource.scheme,
-                host = helperSource.host,
-                helperCredential = helperSource.helperCredential,
+                scheme = refreshedSource.scheme,
+                host = refreshedSource.host,
+                helperCredential = refreshedSource.helperCredential,
                 runtimeId = runtimeId,
             )
         }.getOrNull()
@@ -721,7 +729,8 @@ class ServerListViewModel @Inject constructor(
      * Helper handoff URLs are convenient, but some helper deployments advertise
      * wildcard or loopback hosts that are not reachable from Android. When that
      * happens, rebuild the socket URL from the paired helper host plus the
-     * runtime-specific path and bearer token returned by the helper.
+     * runtime-specific path returned by the helper. Runtime auth stays in the
+     * websocket Authorization header.
      */
     private fun resolveDesktopHelperWebSocketUrl(
         helperSource: DesktopHelperSource,
@@ -737,8 +746,7 @@ class ServerListViewModel @Inject constructor(
             "https", "wss" -> "wss"
             else -> "ws"
         }
-        val encodedToken = URLEncoder.encode(handoff.bearerToken, StandardCharsets.UTF_8.toString())
-        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}?access_token=$encodedToken"
+        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}"
     }
 
     private fun isUnroutableHelperHost(host: String): Boolean {
