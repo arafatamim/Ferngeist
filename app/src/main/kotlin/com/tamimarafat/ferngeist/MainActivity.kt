@@ -30,8 +30,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
-import com.tamimarafat.ferngeist.onboarding.FirstLaunchOnboardingScreen
-import com.tamimarafat.ferngeist.onboarding.OnboardingViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.DesktopCompanionListViewModel
@@ -121,48 +119,21 @@ fun FerngeistNavHost() {
         ) {
             composable("server_list") {
                 val viewModel: ServerListViewModel = hiltViewModel()
-                val onboardingViewModel: OnboardingViewModel = hiltViewModel()
-                val servers by viewModel.servers.collectAsState()
-                val onboardingCompleted by onboardingViewModel.isCompleted.collectAsState()
-                val onboardingUiState by onboardingViewModel.uiState.collectAsState()
-
-                if (!onboardingCompleted && servers.isEmpty()) {
-                    FirstLaunchOnboardingScreen(
-                        uiState = onboardingUiState,
-                        onSkip = { onboardingViewModel.completeOnboarding() },
-                        onStartSetup = {
-                            onboardingViewModel.completeOnboarding()
-                            navController.navigate(
-                                buildAddServerRoute(
-                                    name = onboardingUiState.selectedAgent?.name ?: "My Agent",
-                                    scheme = "ws",
-                                    host = "",
-                                )
-                            )
-                        },
-                        onLoadRegistry = onboardingViewModel::ensureRegistryLoaded,
-                        onSelectAgent = onboardingViewModel::selectAgent,
-                        onSelectPlatform = onboardingViewModel::selectPlatform,
-                        onUpdatePort = onboardingViewModel::updatePort,
-                        onRetryLoad = onboardingViewModel::retryRegistryLoad,
-                    )
-                } else {
-                    ServerListScreen(
-                        onNavigateToAddServer = { navController.navigate("add_server") },
-                        onNavigateToPairDesktopCompanion = { navController.navigate("add_desktop_helper") },
-                        onNavigateToDesktopCompanions = { navController.navigate("desktop_companions") },
-                        onNavigateToEditServer = { server ->
-                            when (server) {
-                                is LaunchableTarget.HelperAgent -> navController.navigate("desktop_companion_agents/${server.helperSource.id}")
-                                is LaunchableTarget.Manual -> navController.navigate("edit_server/${server.id}")
-                            }
-                        },
-                        onNavigateToSessions = { serverId, _, openCreateSessionDialog ->
-                            navController.navigate("sessions/$serverId?create=$openCreateSessionDialog")
-                        },
-                        viewModel = viewModel,
-                    )
-                }
+                ServerListScreen(
+                    onNavigateToAddServer = { navController.navigate("add_server") },
+                    onNavigateToPairDesktopCompanion = { navController.navigate("add_desktop_helper") },
+                    onNavigateToDesktopCompanions = { navController.navigate("desktop_companions") },
+                    onNavigateToEditServer = { server ->
+                        when (server) {
+                            is LaunchableTarget.HelperAgent -> navController.navigate("desktop_companion_agents/${server.helperSource.id}")
+                            is LaunchableTarget.Manual -> navController.navigate("edit_server/${server.id}")
+                        }
+                    },
+                    onNavigateToSessions = { serverId, _, openCreateSessionDialog ->
+                        navController.navigate("sessions/$serverId?create=$openCreateSessionDialog")
+                    },
+                    viewModel = viewModel,
+                )
             }
 
             composable("desktop_companions") {
@@ -315,12 +286,4 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.isSessionChatTrans
     val toRoute = targetState.destination.route ?: return false
     return (fromRoute.startsWith("sessions/") && toRoute.startsWith("chat/")) ||
         (fromRoute.startsWith("chat/") && toRoute.startsWith("sessions/"))
-}
-
-private fun buildAddServerRoute(
-    name: String,
-    scheme: String,
-    host: String,
-): String {
-    return "add_server?name=${Uri.encode(name)}&scheme=${Uri.encode(scheme)}&host=${Uri.encode(host)}"
 }

@@ -86,7 +86,7 @@ fun AddDesktopHelperScreen(
         listOf(
             CompanionPairingStep(
                 title = "Run ferngeist pair",
-                body = "Start pairing on your computer first.",
+                body = "Install and run the desktop companion daemon on your computer, then start pairing.",
                 icon = Icons.Default.Computer,
             ),
             CompanionPairingStep(
@@ -328,6 +328,7 @@ fun AddDesktopHelperScreen(
 private fun RunFerngeistPairStep() {
     OnboardingBulletList(
         items = listOf(
+            "If you do not have the desktop companion yet, download it from https://github.com/arafatamim/Ferngeist.",
             "Open a terminal on the computer running the desktop companion.",
             "Run `ferngeist pair`.",
             "Keep that terminal open.",
