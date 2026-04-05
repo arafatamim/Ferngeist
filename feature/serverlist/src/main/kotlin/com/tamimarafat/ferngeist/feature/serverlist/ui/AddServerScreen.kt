@@ -144,6 +144,21 @@ fun AddServerScreen(
                     selected = scheme,
                     onSelect = viewModel::updateScheme,
                 )
+                if (scheme == "ws") {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "Only use this for trusted local network connections as this is not encrypted.",
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
