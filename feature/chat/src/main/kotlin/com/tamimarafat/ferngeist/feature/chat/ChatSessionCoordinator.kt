@@ -119,6 +119,21 @@ internal class ChatSessionCoordinator(
                 loadTimedOut = true
                 null
             } catch (error: Exception) {
+                if (isDestroyedBridgeStreamError(error)) {
+                    val fallbackBridge = runCatching {
+                        connectionManager.createSession(cwd)
+                    }.getOrNull()
+                    if (fallbackBridge != null) {
+                        trace("loadSession:bridgeRestartFallback active=${fallbackBridge.sessionId}")
+                        attachSessionBridge(fallbackBridge)
+                        callbacks.onSessionReady()
+                        callbacks.onOperationError(
+                            message = "The ACP bridge process restarted while loading this session. Opened a new live session.",
+                            stopStreaming = false,
+                        )
+                        return
+                    }
+                }
                 // Preserve the original session/load failure so provider-specific
                 // JSON-RPC errors are shown to the user instead of a generic
                 // "Could not load this session" message.
@@ -555,6 +570,12 @@ internal class ChatSessionCoordinator(
         val raw = error.message.orEmpty()
         return raw.contains("Method not found", ignoreCase = true) &&
             raw.contains("session/cancel", ignoreCase = true)
+    }
+
+    private fun isDestroyedBridgeStreamError(error: Throwable): Boolean {
+        val message = formatAcpErrorMessage(error, "").lowercase()
+        return message.contains("write after a stream was destroyed") ||
+            message.contains("stream was destroyed")
     }
 
     private suspend fun publishCapabilities() {

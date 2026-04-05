@@ -194,6 +194,8 @@ private class FakeSessionRepository : SessionRepository {
 
 private class FakeDesktopHelperRepository : com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository {
     override suspend fun fetchStatus(scheme: String, host: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperStatus = throw NotImplementedError()
+    override suspend fun startPairing(scheme: String, host: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairStartResponse = throw NotImplementedError()
+    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairStatusResponse = throw NotImplementedError()
     override suspend fun fetchAgents(scheme: String, host: String, helperCredential: String): List<com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgent> = emptyList()
     override suspend fun startAgent(scheme: String, host: String, helperCredential: String, agentId: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRuntime = throw NotImplementedError()
     override suspend fun connectRuntime(scheme: String, host: String, helperCredential: String, runtimeId: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse = throw NotImplementedError()
