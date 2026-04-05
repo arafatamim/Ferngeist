@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	buildVersion = "dev"
+	buildVersion = "1.0.0"
 	buildCommit  = ""
 	buildTime    = ""
 )
@@ -30,7 +30,18 @@ func main() {
 	command := &cli.Command{
 		Name:  "ferngeist",
 		Usage: "manage the Ferngeist desktop helper",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "version",
+				Aliases: []string{"v"},
+				Usage:   "print version information",
+			},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
+			if cmd.Bool("version") {
+				printVersion()
+				return nil
+			}
 			cli.ShowSubcommandHelp(cmd)
 			return nil
 		},
@@ -295,4 +306,13 @@ func formatUptime(seconds int64) string {
 		return "0s"
 	}
 	return (time.Duration(seconds) * time.Second).String()
+}
+
+func printVersion() {
+	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(writer, "VERSION\t%s\n", valueOrFallback(buildVersion, "dev"))
+	fmt.Fprintf(writer, "COMMIT\t%s\n", valueOrFallback(buildCommit, "unknown"))
+	fmt.Fprintf(writer, "BUILT AT\t%s\n", valueOrFallback(buildTime, "unknown"))
+	fmt.Fprintf(writer, "GO VERSION\t%s\n", goruntime.Version())
+	_ = writer.Flush()
 }

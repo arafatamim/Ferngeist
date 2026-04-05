@@ -23,8 +23,8 @@ It should not become a second product surface, a transcript store, or a general-
 
 ## Package Map
 
-- `cmd/helperd`
-  Daemon entrypoint and dependency wiring.
+- `cmd/ferngeist`
+  User-facing CLI and daemon entrypoint (`ferngeist daemon run`).
 - `internal/api`
   HTTP routing, auth enforcement, and response shaping.
 - `internal/catalog`

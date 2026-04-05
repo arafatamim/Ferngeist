@@ -7,7 +7,6 @@ If this directory starts feeling like a second product, it is going in the wrong
 ## Layout
 
 - `cmd/ferngeist`: user-facing CLI for daemon run, pairing, and paired-device management
-- `cmd/helperd`: daemon entrypoint
 - `cmd/mock-stdio-agent`: local stdio ACP test agent
 - `internal/api`: HTTP API and auth wiring
 - `internal/catalog`: manifest loading, supported agents, detection, validation
