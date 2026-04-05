@@ -7,6 +7,7 @@ import (
 var (
 	ErrServiceUnsupportedOS     = errors.New("daemon service management is unsupported on this operating system")
 	ErrServiceUnsupportedConfig = errors.New("daemon service management is unsupported in this environment")
+	ErrServicePermissionDenied  = errors.New("insufficient permissions to manage daemon service")
 	ErrServiceNotInstalled      = errors.New("daemon service is not installed")
 )
 
