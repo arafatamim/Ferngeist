@@ -237,7 +237,7 @@ func runPair() error {
 	}
 	if strings.TrimSpace(status.Payload) != "" {
 		fmt.Println()
-		qrterminal.Generate(status.Payload, qrterminal.L, os.Stdout)
+		renderPairingQRCode(status.Payload)
 		fmt.Println("Payload:")
 		fmt.Println(status.Payload)
 	}
@@ -326,6 +326,15 @@ func formatUptime(seconds int64) string {
 		return "0s"
 	}
 	return (time.Duration(seconds) * time.Second).String()
+}
+
+func renderPairingQRCode(payload string) {
+	qrterminal.GenerateWithConfig(payload, qrterminal.Config{
+		Level:      qrterminal.L,
+		Writer:     os.Stdout,
+		HalfBlocks: true,
+		QuietZone:  2,
+	})
 }
 
 func printVersion() {
