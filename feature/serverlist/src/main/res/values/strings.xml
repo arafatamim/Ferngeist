@@ -1,0 +1,11 @@
+<resources>
+    <string name="about">About Ferngeist</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string
+        name="privacy_policy_url"
+    >https://github.com/arafatamim/Ferngeist/blob/main/PRIVACY_POLICY.md</string>
+    <string name="report_issue">Report an Issue</string>
+    <string
+        name="github_repo_url"
+    >https://github.com/arafatamim/ferngeist/issues</string>
+</resources>

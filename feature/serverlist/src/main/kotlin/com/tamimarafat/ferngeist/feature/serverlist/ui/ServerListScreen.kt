@@ -73,6 +73,16 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
 import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.res.stringResource
+import com.tamimarafat.ferngeist.feature.serverlist.R
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ServerListScreen(
@@ -89,6 +99,7 @@ fun ServerListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
+    var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     val pendingAuthentication = uiState.pendingAuthentication
     var selectedAuthMethodId by rememberSaveable(pendingAuthentication?.serverId) {
         mutableStateOf(uiState.pendingAuthentication?.authMethods?.firstOrNull()?.id)
@@ -139,9 +150,18 @@ fun ServerListScreen(
         )
     }
 
+    if (showAboutDialog) {
+        AboutDialog(onDismiss = { showAboutDialog = false })
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = { ServerListTopBar(scrollBehavior = scrollBehavior) },
+        topBar = {
+            ServerListTopBar(
+                scrollBehavior = scrollBehavior,
+                onAboutClick = { showAboutDialog = true },
+            )
+        },
         floatingActionButton = {
             FloatingActionButtonMenu(
                 expanded = showAddMenu,
@@ -218,7 +238,10 @@ fun ServerListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ServerListTopBar(scrollBehavior: TopAppBarScrollBehavior) {
+private fun ServerListTopBar(
+    scrollBehavior: TopAppBarScrollBehavior,
+    onAboutClick: () -> Unit,
+) {
     val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     val titleStyle = lerp(
         MaterialTheme.typography.displayMedium,
@@ -228,11 +251,69 @@ private fun ServerListTopBar(scrollBehavior: TopAppBarScrollBehavior) {
 
     LargeTopAppBar(
         title = { Text(text = "Ferngeist", style = titleStyle) },
+        actions = {
+            AnimatedVisibility(
+                visible = collapse > 0.5f,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                IconButton(onClick = onAboutClick) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = stringResource(R.string.about)
+                    )
+                }
+            }
+        },
         scrollBehavior = scrollBehavior,
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,
             scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
         ),
+    )
+}
+
+@Composable
+private fun AboutDialog(
+    onDismiss: () -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
+    val githubRepoUrl = stringResource(R.string.github_repo_url)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.about)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Ferngeist is an Android client for Agent Client Protocol (ACP) servers, allowing you to interact with coding agents directly from your mobile device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextButton(
+                        onClick = { uriHandler.openUri(privacyPolicyUrl) },
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Text(stringResource(R.string.privacy_policy))
+                    }
+                    TextButton(
+                        onClick = { uriHandler.openUri(githubRepoUrl) },
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Text(stringResource(R.string.report_issue))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("OK")
+            }
+        },
     )
 }
 
