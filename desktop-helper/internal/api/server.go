@@ -75,18 +75,18 @@ const protocolVersion = "v1alpha1"
 
 // Operational limits and security defaults.
 const (
-	acpWebSocketReadLimit = 1024 * 1024               // max ACP message size (1MB)
-	acpWebSocketIOTimeout = 30 * time.Second          // read/write deadline per WebSocket frame
-	jsonBodyLimit         = int64(16 * 1024)          // max JSON request body size
-	pairingMaxAttempts    = 5                         // failures before temporary lockout
-	pairingLockoutWindow  = 2 * time.Minute           // cooldown period after max attempts
-	pairingStartRefill    = 5 * time.Second           // token bucket refill interval for /pair/start
-	pairingCompleteRefill = 2 * time.Second           // token bucket refill interval for /pair/complete
-	pairingBurstPerIP     = 5                         // burst allowance per source IP
-	pairingBurstGlobal    = 30                        // global burst allowance across all IPs
-	proofSkewWindow       = 5 * time.Minute           // allowed clock drift for proof timestamps
-	proofReplayWindow     = 10 * time.Minute          // nonce validity window to prevent replay
-	proofDomain           = "FERNGEIST-HTTP-PROOF-V1" // domain separator for proof signatures
+	acpWebSocketReadLimit    = 1024 * 1024               // max ACP message size (1MB)
+	acpWebSocketWriteTimeout = 30 * time.Second          // write deadline per WebSocket frame
+	jsonBodyLimit            = int64(16 * 1024)          // max JSON request body size
+	pairingMaxAttempts       = 5                         // failures before temporary lockout
+	pairingLockoutWindow     = 2 * time.Minute           // cooldown period after max attempts
+	pairingStartRefill       = 5 * time.Second           // token bucket refill interval for /pair/start
+	pairingCompleteRefill    = 2 * time.Second           // token bucket refill interval for /pair/complete
+	pairingBurstPerIP        = 5                         // burst allowance per source IP
+	pairingBurstGlobal       = 30                        // global burst allowance across all IPs
+	proofSkewWindow          = 5 * time.Minute           // allowed clock drift for proof timestamps
+	proofReplayWindow        = 10 * time.Minute          // nonce validity window to prevent replay
+	proofDomain              = "FERNGEIST-HTTP-PROOF-V1" // domain separator for proof signatures
 )
 
 // HTTP header names used for proof-of-possession credential verification.
@@ -1460,16 +1460,10 @@ func isPrivateHostname(host string) bool {
 	return false
 }
 
-// websocketReadContext returns a context with the configured ACP WebSocket
-// read timeout. Each incoming message read is bounded by this deadline.
-func websocketReadContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), acpWebSocketIOTimeout)
-}
-
 // websocketWriteContext returns a context with the configured ACP WebSocket
 // write timeout. Each outgoing message write is bounded by this deadline.
 func websocketWriteContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), acpWebSocketIOTimeout)
+	return context.WithTimeout(context.Background(), acpWebSocketWriteTimeout)
 }
 
 // proxyWebSocketToStdio adapts ACP-over-WebSocket client messages into the
@@ -1479,9 +1473,9 @@ func websocketWriteContext() (context.Context, context.CancelFunc) {
 func proxyWebSocketToStdio(src *websocket.Conn, stdin io.WriteCloser, runtimeID string, appendLog func(string, string, string), done chan<- error) {
 	defer stdin.Close()
 	for {
-		ctx, cancel := websocketReadContext()
-		messageType, payload, err := src.Read(ctx)
-		cancel()
+		// ACP sessions can stay quiet between turns. Do not treat a short idle
+		// period as a dead websocket just because no client frame arrived yet.
+		messageType, payload, err := src.Read(context.Background())
 		if err != nil {
 			if closeStatus := websocket.CloseStatus(err); closeStatus == websocket.StatusNormalClosure || closeStatus == websocket.StatusGoingAway {
 				done <- io.EOF

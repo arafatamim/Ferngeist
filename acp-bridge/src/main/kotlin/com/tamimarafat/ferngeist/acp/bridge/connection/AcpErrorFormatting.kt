@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.protocol.JsonRpcException
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -9,9 +10,23 @@ fun formatAcpErrorMessage(
     error: Throwable,
     fallback: String,
 ): String {
-    return when (error) {
-        is JsonRpcException -> formatJsonRpcErrorMessage(error, fallback)
+    return when {
+        isCancellationLikeError(error) -> fallback
+        error is JsonRpcException -> formatJsonRpcErrorMessage(error, fallback)
         else -> error.message?.takeIf { it.isNotBlank() } ?: fallback
+    }
+}
+
+fun isCancellationLikeError(error: Throwable): Boolean {
+    return generateSequence(error as Throwable?) { it.cause }.any { cause ->
+        if (cause is CancellationException) {
+            true
+        } else {
+            val message = cause.message?.trim().orEmpty()
+            message.contains("StandaloneCoroutine", ignoreCase = true) ||
+                message.contains("was cancelled", ignoreCase = true) ||
+                message.contains("was canceled", ignoreCase = true)
+        }
     }
 }
 

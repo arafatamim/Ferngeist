@@ -19,6 +19,7 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -32,6 +33,10 @@ internal class AcpTransportClient(
     private val updateConnectionState: (AcpConnectionState) -> Unit,
     private val emitManagerEvent: suspend (AcpManagerEvent) -> Unit,
 ) {
+    companion object {
+        private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 20_000L
+    }
+
     private var reconnectJob: Job? = null
     private var reconnectAttempts = 0
     private var currentConfig: AcpConnectionConfig? = null
@@ -88,6 +93,7 @@ internal class AcpTransportClient(
             scope.launch { emitManagerEvent(AcpManagerEvent.Initialized(result)) }
             result
         }.getOrElse { error ->
+            if (error is CancellationException) throw error
             diagnosticsStore.appendError("initialize", formatAcpErrorMessage(error, "Initialization failed"))
             scope.launch { emitManagerEvent(AcpManagerEvent.Error(error)) }
             null
@@ -103,6 +109,7 @@ internal class AcpTransportClient(
             scope.launch { emitManagerEvent(AcpManagerEvent.Authenticated(methodId)) }
             AcpAuthenticateResult.Success
         }.getOrElse { error ->
+            if (error is CancellationException) throw error
             val message = formatAcpErrorMessage(error, "Authentication failed")
             diagnosticsStore.appendError("authenticate", message)
             scope.launch { emitManagerEvent(AcpManagerEvent.Error(error)) }
@@ -150,7 +157,9 @@ internal class AcpTransportClient(
             diagnosticsStore.startConnect(endpointUrl)
 
             val client = HttpClient(CIO) {
-                install(WebSockets)
+                install(WebSockets) {
+                    pingIntervalMillis = WEB_SOCKET_PING_INTERVAL_MILLIS
+                }
             }
             val webSocketSession = client.webSocketSession {
                 url(endpointUrl)
@@ -198,6 +207,12 @@ internal class AcpTransportClient(
             scope.launch { emitManagerEvent(AcpManagerEvent.Connected) }
             true
         } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (isCancellationLikeError(error)) {
+                updateConnectionState(AcpConnectionState.Disconnected)
+                diagnosticsStore.markDisconnected()
+                return false
+            }
             updateConnectionState(AcpConnectionState.Failed(error))
             diagnosticsStore.setWebSocketState(WebSocketState.FAILED)
             diagnosticsStore.appendError("connect", formatAcpErrorMessage(error, "Unknown connection failure"))
@@ -241,7 +256,7 @@ internal class AcpTransportClient(
         runCatching { httpClient?.close() }
         httpClient = null
 
-        if (error == null) {
+        if (error == null || isCancellationLikeError(error)) {
             updateConnectionState(AcpConnectionState.Disconnected)
             diagnosticsStore.markDisconnected()
         } else {

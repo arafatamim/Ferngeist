@@ -1438,6 +1438,10 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 		t.Fatalf("ready type = %v, want %q", ready["type"], "mock.ready")
 	}
 
+	// Keep the websocket idle briefly before the first ACP request. The helper
+	// should leave quiet sessions alone instead of timing them out eagerly.
+	time.Sleep(200 * time.Millisecond)
+
 	payload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize"}`)
 	if err := writeTestWebSocketMessage(conn, websocket.MessageText, payload); err != nil {
 		t.Fatalf("Write() error = %v", err)
@@ -1637,11 +1641,13 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 			Version: "1.0.0",
 			Agents: map[string]acpregistry.AgentEntry{
 				"codex-acp": {
-					ID:                "codex-acp",
-					Name:              "Codex CLI",
-					Version:           "0.10.0",
-					DistributionKinds: []string{"binary", "npx"},
-					NpxPackage:        "@zed-industries/codex-acp@0.10.0",
+					ID:      "codex-acp",
+					Name:    "Codex CLI",
+					Version: "0.10.0",
+					// Force this test down the PATH-binary external launch path. If
+					// npx is available on the host, the catalog prefers that over a
+					// discovered binary and the test stops exercising the mock agent.
+					DistributionKinds: []string{"binary"},
 					CurrentBinary: &acpregistry.BinaryTarget{
 						CommandName: "codex-acp",
 					},

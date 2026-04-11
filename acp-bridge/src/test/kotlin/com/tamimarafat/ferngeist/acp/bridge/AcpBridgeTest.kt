@@ -19,6 +19,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.protocol.JsonRpcException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -313,6 +314,15 @@ class AcpErrorFormattingTest {
 
         assertTrue(formatted.startsWith("Internal error: "))
         assertTrue(formatted.contains("\"missing\":\"CODEX_API_KEY\""))
+    }
+
+    @Test
+    fun `formats cancellation errors using fallback instead of coroutine internals`() {
+        val error = CancellationException("StandaloneCoroutine was cancelled")
+
+        val formatted = formatAcpErrorMessage(error, "Connection lost")
+
+        assertEquals("Connection lost", formatted)
     }
 }
 
