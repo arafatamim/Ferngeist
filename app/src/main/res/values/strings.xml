@@ -3,7 +3,7 @@
     <string name="notification_channel_name">Connection</string>
     <string name="notification_channel_description">Shows the status of the active agent connection</string>
     <string name="notification_connected_title">Ferngeist Connected</string>
-    <string name="notification_connected_text">Connected to agent server</string>
+    <string name="notification_connected_text">Connected to %1$s</string>
     <string name="notification_connecting_title">Ferngeist Connecting</string>
     <string name="notification_connecting_text">Connecting to agent server…</string>
     <string name="notification_disconnected_title">Ferngeist Disconnected</string>

@@ -62,7 +62,7 @@ class FerngeistForegroundService : Service() {
 
         if (!isStarted) {
             isStarted = true
-            val notification = buildNotification(connectionManager.connectionState.value)
+            val notification = buildNotification(connectionManager.connectionState.value, connectionManager.agentInfo.value?.name)
             startForeground(NOTIFICATION_ID, notification)
             observeConnectionState()
         }
@@ -82,29 +82,38 @@ class FerngeistForegroundService : Service() {
     private fun observeConnectionState() {
         observationJob?.cancel()
         observationJob = scope.launch {
-            connectionManager.connectionState
-                .collect { state ->
-                    if (!isStarted) return@collect
-                    updateNotification(state)
-                    if (state is AcpConnectionState.Disconnected) {
-                        stopSelf()
+            launch {
+                connectionManager.connectionState
+                    .collect { state ->
+                        if (!isStarted) return@collect
+                        updateNotification(state)
+                        if (state is AcpConnectionState.Disconnected) {
+                            stopSelf()
+                        }
                     }
-                }
+            }
+            launch {
+                connectionManager.agentInfo
+                    .collect {
+                        if (!isStarted) return@collect
+                        updateNotification(connectionManager.connectionState.value)
+                    }
+            }
         }
     }
 
     private fun updateNotification(state: AcpConnectionState) {
         if (!isStarted) return
-        val notification = buildNotification(state)
+        val notification = buildNotification(state, connectionManager.agentInfo.value?.name)
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun buildNotification(state: AcpConnectionState): Notification {
+    private fun buildNotification(state: AcpConnectionState, agentName: String?): Notification {
         val (title, text) = when (state) {
             is AcpConnectionState.Connected ->
                 getString(R.string.notification_connected_title) to
-                    getString(R.string.notification_connected_text)
+                    getString(R.string.notification_connected_text, agentName ?: "agent")
             is AcpConnectionState.Connecting ->
                 getString(R.string.notification_connecting_title) to
                     getString(R.string.notification_connecting_text)
