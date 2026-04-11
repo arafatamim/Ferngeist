@@ -174,6 +174,7 @@ class ServerListViewModel @Inject constructor(
                     scheme = server.server.scheme,
                     host = server.server.host,
                     preferredAuthMethodId = server.server.preferredAuthMethodId,
+                    serverDisplayName = server.name,
                 )
 
                 is LaunchableTarget.HelperAgent -> error("Helper-backed targets must launch through the helper runtime flow")
@@ -662,6 +663,7 @@ class ServerListViewModel @Inject constructor(
                     preferredAuthMethodId = server.preferredAuthMethodId,
                     helperRuntimeId = runtime.id,
                     helperSourceId = helperSource.id,
+                    serverDisplayName = server.name,
                 ),
                 helperSource = helperSource,
                 runtimeId = runtime.id,

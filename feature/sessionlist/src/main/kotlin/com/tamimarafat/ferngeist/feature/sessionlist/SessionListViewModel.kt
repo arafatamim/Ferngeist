@@ -246,6 +246,7 @@ class SessionListViewModel @Inject constructor(
                                 scheme = server.server.scheme,
                                 host = server.server.host,
                                 preferredAuthMethodId = server.server.preferredAuthMethodId,
+                                serverDisplayName = server.name,
                             )
                         )
                     }
@@ -393,6 +394,7 @@ class SessionListViewModel @Inject constructor(
                     preferredAuthMethodId = method.id,
                     helperRuntimeId = handoff.runtimeId,
                     helperSourceId = helperSource.id,
+                    serverDisplayName = currentServer.name,
                 )
             )
         }

@@ -110,10 +110,11 @@ class FerngeistForegroundService : Service() {
     }
 
     private fun buildNotification(state: AcpConnectionState, agentName: String?): Notification {
+        val displayName = connectionManager.currentConnectionConfig()?.serverDisplayName ?: agentName
         val (title, text) = when (state) {
             is AcpConnectionState.Connected ->
                 getString(R.string.notification_connected_title) to
-                    getString(R.string.notification_connected_text, agentName ?: "agent")
+                    getString(R.string.notification_connected_text, displayName ?: "agent")
             is AcpConnectionState.Connecting ->
                 getString(R.string.notification_connecting_title) to
                     getString(R.string.notification_connecting_text)

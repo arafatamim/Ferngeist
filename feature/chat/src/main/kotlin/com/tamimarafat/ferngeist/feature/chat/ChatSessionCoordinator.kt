@@ -288,6 +288,7 @@ internal class ChatSessionCoordinator(
                         scheme = server.server.scheme,
                         host = server.server.host,
                         preferredAuthMethodId = server.server.preferredAuthMethodId,
+                        serverDisplayName = server.name,
                     )
                 )
             }
@@ -339,6 +340,7 @@ internal class ChatSessionCoordinator(
                 preferredAuthMethodId = target.binding.preferredAuthMethodId,
                 helperRuntimeId = runtime.id,
                 helperSourceId = refreshedSource.id,
+                serverDisplayName = target.name,
             )
         } catch (error: Throwable) {
             callbacks.onLoadFailed("Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}")

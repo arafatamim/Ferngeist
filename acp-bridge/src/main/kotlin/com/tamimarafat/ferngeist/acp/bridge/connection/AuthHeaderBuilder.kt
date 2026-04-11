@@ -8,6 +8,7 @@ data class AcpConnectionConfig(
     val preferredAuthMethodId: String? = null,
     val helperRuntimeId: String? = null,
     val helperSourceId: String? = null,
+    val serverDisplayName: String? = null,
 )
 
 sealed interface AcpConnectionState {
