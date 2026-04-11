@@ -1,10 +1,15 @@
 package com.tamimarafat.ferngeist
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -17,10 +22,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
@@ -29,6 +40,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperViewModel
@@ -43,6 +55,9 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.ServerListScreen
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
+import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
+import com.tamimarafat.ferngeist.service.BatteryOptimizationHelper
+import com.tamimarafat.ferngeist.service.BatteryOptimizationPreferences
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -119,6 +134,35 @@ fun FerngeistNavHost() {
         ) {
             composable("server_list") {
                 val viewModel: ServerListViewModel = hiltViewModel()
+                val uiState by viewModel.uiState.collectAsState()
+                val context = LocalContext.current
+                val batteryPrefs = remember(context) { BatteryOptimizationPreferences(context) }
+                val isDismissed by batteryPrefs.isDismissed.collectAsState()
+                var showBatteryDialog by remember { mutableStateOf(false) }
+
+                NotificationPermissionEffect()
+
+                LaunchedEffect(uiState.connectionState, isDismissed) {
+                    val shouldShow = uiState.connectionState is AcpConnectionState.Connected &&
+                        !isDismissed &&
+                        !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    showBatteryDialog = shouldShow
+                }
+
+                if (showBatteryDialog) {
+                    BatteryOptimizationDialog(
+                        onDismiss = {
+                            showBatteryDialog = false
+                            batteryPrefs.markDismissed()
+                        },
+                        onBackFromSettings = {
+                            if (BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)) {
+                                batteryPrefs.markDismissed()
+                            }
+                        },
+                    )
+                }
+
                 ServerListScreen(
                     onNavigateToAddServer = { navController.navigate("add_server") },
                     onNavigateToPairDesktopCompanion = { navController.navigate("add_desktop_helper") },
@@ -276,6 +320,25 @@ fun FerngeistNavHost() {
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedContentScope = this@composable,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationPermissionEffect() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val context = LocalContext.current
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        val hasPermission = remember {
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+        }
+        if (!hasPermission) {
+            val launcher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+            ) { }
+            LaunchedEffect(Unit) {
+                launcher.launch(permission)
             }
         }
     }
