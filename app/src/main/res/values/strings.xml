@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">Ferngeist</string>
+    <string name="notification_channel_name">Connection</string>
+    <string name="notification_channel_description">Shows the status of the active agent connection</string>
+    <string name="notification_connected_title">Ferngeist Connected</string>
+    <string name="notification_connected_text">Connected to agent server</string>
+    <string name="notification_connecting_title">Ferngeist Connecting</string>
+    <string name="notification_connecting_text">Connecting to agent server…</string>
+    <string name="notification_disconnected_title">Ferngeist Disconnected</string>
+    <string name="notification_disconnected_text">Disconnected from agent server</string>
+    <string name="notification_failed_title">Connection Failed</string>
+    <string name="notification_failed_text">Could not connect to agent server</string>
+    <string name="notification_action_disconnect">Disconnect</string>
 </resources>
