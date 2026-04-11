@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist
 
 import android.app.Application
 import android.util.Log
+import com.tamimarafat.ferngeist.service.AppKeepAliveService
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
@@ -13,5 +14,7 @@ class FerngeistApplication : Application() {
             Log.e("FerngeistCrash", "Uncaught exception on thread=${thread.name}", throwable)
             previous?.uncaughtException(thread, throwable)
         }
+
+        AppKeepAliveService.start(this)
     }
 }

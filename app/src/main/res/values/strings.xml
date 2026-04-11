@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Ferngeist</string>
+    <string name="keep_alive_notification_title">Ferngeist is running</string>
+    <string name="keep_alive_notification_body">Keeping your sessions active in the background.</string>
+    <string name="keep_alive_notification_channel_name">Background session service</string>
+    <string name="keep_alive_notification_channel_description">Keeps Ferngeist alive while it runs in the background.</string>
 </resources>
