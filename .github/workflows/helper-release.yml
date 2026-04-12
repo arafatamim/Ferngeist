@@ -8,7 +8,7 @@ on:
     inputs:
       tag:
         description: "Release tag (e.g. v1.0.0). Only needed for manual dispatch."
-        required: false
+        required: true
         type: string
 
 permissions:
@@ -49,12 +49,18 @@ jobs:
           LDFLAGS="-X main.buildVersion=${VERSION#v} -X main.buildCommit=${COMMIT} -X main.buildTime=${BUILD_TIME}"
           mkdir -p dist/${{ matrix.artifact_name }}
           go build -ldflags="$LDFLAGS" -o dist/${{ matrix.artifact_name }}/ferngeist ./cmd/ferngeist
-          cp README.md LICENSE dist/${{ matrix.artifact_name }}/
+          cp README.md ../LICENSE dist/${{ matrix.artifact_name }}/
 
       - name: Create Linux archive
+        id: package_linux
         shell: bash
         working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
-        run: tar --sort=name --mtime="${{ github.event.release.tag_name || '2025-01-01' }}" --pax-option=exthdr.name=%d/PaxHeader,pnthdr.name=%d/PaxHeader -czf ../${{ matrix.artifact_name }}.tar.gz .
+        run: |
+          VERSION="${{ github.event.release.tag_name || github.inputs.tag }}"
+          VERSION="${VERSION#v}"
+          ARCHIVE="ferngeist_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
+          tar --sort=name --mtime='2025-01-01T00:00:00Z' --pax-option=exthdr.name=%d/PaxHeader,pnthdr.name=%d/PaxHeader -czf "../$ARCHIVE" .
+          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
 
       - name: Run smoke check (amd64 only)
         if: matrix.goarch == 'amd64'
@@ -66,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: desktop-helper/dist/${{ matrix.artifact_name }}.tar.gz
+          path: desktop-helper/dist/${{ steps.package_linux.outputs.archive }}
           retention-days: 5
 
   build-windows:
@@ -104,12 +110,18 @@ jobs:
           LDFLAGS="-X main.buildVersion=${VERSION#v} -X main.buildCommit=${COMMIT} -X main.buildTime=${BUILD_TIME}"
           mkdir -p dist/${{ matrix.artifact_name }}
           go build -ldflags="$LDFLAGS" -o dist/${{ matrix.artifact_name }}/ferngeist.exe ./cmd/ferngeist
-          cp README.md LICENSE dist/${{ matrix.artifact_name }}/
+          cp README.md ../LICENSE dist/${{ matrix.artifact_name }}/
 
       - name: Create Windows archive
+        id: package_windows
         shell: powershell
         working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
-        run: Compress-Archive -Path * -DestinationPath ../${{ matrix.artifact_name }}.zip -Force
+        run: |
+          $version = "${{ github.event.release.tag_name || github.inputs.tag }}"
+          if ($version.StartsWith("v")) { $version = $version.Substring(1) }
+          $archive = "ferngeist_${version}_${{ matrix.goos }}_${{ matrix.goarch }}.zip"
+          Compress-Archive -Path * -DestinationPath "../$archive" -Force
+          "archive=$archive" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Run smoke check (amd64 only)
         if: matrix.goarch == 'amd64'
@@ -121,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: desktop-helper/dist/${{ matrix.artifact_name }}.zip
+          path: desktop-helper/dist/${{ steps.package_windows.outputs.archive }}
           retention-days: 5
 
   publish:
@@ -135,23 +147,31 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-        pattern: ferngeist_*
-        merge-multiple: true
+          pattern: ferngeist_*
+          merge-multiple: true
 
       - name: Generate SHA256 checksums
         shell: bash
         run: |
           cd artifacts
-          sha256sum ferngeist_windows_amd64.zip \
-                    ferngeist_windows_arm64.zip \
-                    ferngeist_linux_amd64.tar.gz \
-                    ferngeist_linux_arm64.tar.gz > SHA256SUMS
+          sha256sum ferngeist_*.zip ferngeist_*.tar.gz > SHA256SUMS
           cat SHA256SUMS
+
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          TAG="${{ github.event.release.tag_name || github.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "Release tag is required"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name || github.inputs.tag }}
+          TAG: ${{ steps.release_tag.outputs.tag }}
         shell: bash
         run: |
           for file in artifacts/*; do
