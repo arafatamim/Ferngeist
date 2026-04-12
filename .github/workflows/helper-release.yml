@@ -1,0 +1,160 @@
+name: Publish Helper Release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0). Only needed for manual dispatch."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            artifact_name: ferngeist_linux_amd64
+          - goos: linux
+            goarch: arm64
+            artifact_name: ferngeist_linux_arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: desktop-helper/go.sum
+
+      - name: Build helper binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        working-directory: desktop-helper
+        run: |
+          VERSION="${{ github.event.release.tag_name || github.inputs.tag }}"
+          COMMIT="${{ github.sha }}"
+          BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          LDFLAGS="-X main.buildVersion=${VERSION#v} -X main.buildCommit=${COMMIT} -X main.buildTime=${BUILD_TIME}"
+          mkdir -p dist/${{ matrix.artifact_name }}
+          go build -ldflags="$LDFLAGS" -o dist/${{ matrix.artifact_name }}/ferngeist ./cmd/ferngeist
+          cp README.md LICENSE dist/${{ matrix.artifact_name }}/
+
+      - name: Create Linux archive
+        shell: bash
+        working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
+        run: tar --sort=name --mtime="${{ github.event.release.tag_name || '2025-01-01' }}" --pax-option=exthdr.name=%d/PaxHeader,pnthdr.name=%d/PaxHeader -czf ../${{ matrix.artifact_name }}.tar.gz .
+
+      - name: Run smoke check (amd64 only)
+        if: matrix.goarch == 'amd64'
+        shell: bash
+        working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
+        run: ./ferngeist --version
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: desktop-helper/dist/${{ matrix.artifact_name }}.tar.gz
+          retention-days: 5
+
+  build-windows:
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            artifact_name: ferngeist_windows_amd64
+          - goos: windows
+            goarch: arm64
+            artifact_name: ferngeist_windows_arm64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: desktop-helper/go.sum
+
+      - name: Build helper binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        shell: bash
+        working-directory: desktop-helper
+        run: |
+          VERSION="${{ github.event.release.tag_name || github.inputs.tag }}"
+          COMMIT="${{ github.sha }}"
+          BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          LDFLAGS="-X main.buildVersion=${VERSION#v} -X main.buildCommit=${COMMIT} -X main.buildTime=${BUILD_TIME}"
+          mkdir -p dist/${{ matrix.artifact_name }}
+          go build -ldflags="$LDFLAGS" -o dist/${{ matrix.artifact_name }}/ferngeist.exe ./cmd/ferngeist
+          cp README.md LICENSE dist/${{ matrix.artifact_name }}/
+
+      - name: Create Windows archive
+        shell: powershell
+        working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
+        run: Compress-Archive -Path * -DestinationPath ../${{ matrix.artifact_name }}.zip -Force
+
+      - name: Run smoke check (amd64 only)
+        if: matrix.goarch == 'amd64'
+        shell: powershell
+        working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
+        run: .\ferngeist.exe --version
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: desktop-helper/dist/${{ matrix.artifact_name }}.zip
+          retention-days: 5
+
+  publish:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+        pattern: ferngeist_*
+        merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          cd artifacts
+          sha256sum ferngeist_windows_amd64.zip \
+                    ferngeist_windows_arm64.zip \
+                    ferngeist_linux_amd64.tar.gz \
+                    ferngeist_linux_arm64.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || github.inputs.tag }}
+        shell: bash
+        run: |
+          for file in artifacts/*; do
+            echo "Uploading: $file"
+            gh release upload "$TAG" "$file" --clobber
+          done

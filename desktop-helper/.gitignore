@@ -2,6 +2,7 @@
 .gotmp/
 .tmp/
 bin/
+dist/
 logs/
 *.db
 *.db-journal
@@ -16,3 +17,7 @@ logs/
 *.rej
 *.swp
 *.swo
+ferngeist
+ferngeist.exe
+ferngeist-*-amd64*
+ferngeist-*-arm64*

@@ -122,3 +122,124 @@ Pairing security behavior:
 - Public-mode helpers require proof-of-possession pairing by default and reject legacy bearer-only credentials unless `FERNGEIST_HELPER_ALLOW_LEGACY_BEARER_CREDENTIALS` is explicitly enabled.
 - Helper-issued device credentials are hashed before being written to the helper state database.
 - ACP runtime handoff returns a clean websocket URL/path; clients should send the returned runtime bearer token in the websocket `Authorization` header instead of query parameters.
+
+## Portable Distribution
+
+The helper is distributed as a standalone archive. No installer is required.
+
+### Downloads
+
+Find the archive for your platform in the [latest release](https://github.com/arafatamim/ferngeist/releases/latest):
+
+| Platform | Archive |
+|----------|---------|
+| Windows x64 | `ferngeist_<version>_windows_amd64.zip` |
+| Windows ARM64 | `ferngeist_<version>_windows_arm64.zip` |
+| Linux x64 | `ferngeist_<version>_linux_amd64.tar.gz` |
+| Linux ARM64 | `ferngeist_<version>_linux_arm64.tar.gz` |
+
+Verify the archive before extracting:
+
+```powershell
+# Windows (PowerShell)
+Get-FileHash -Algorithm SHA256 -Path .\ferngeist_<version>_windows_amd64.zip
+# Compare against SHA256SUMS in the release
+```
+
+```bash
+# Linux
+sha256sum ferngeist_<version>_linux_amd64.tar.gz
+# Compare against SHA256SUMS in the release
+```
+
+### Install
+
+Extract the archive to a location of your choice, then register the daemon as a user service.
+
+**Windows**
+
+```powershell
+Expand-Archive -Path .\ferngeist_<version>_windows_amd64.zip -DestinationPath .\FerngeistHelper
+cd .\FerngeistHelper
+.\ferngeist.exe daemon install
+.\ferngeist.exe daemon status
+```
+
+**Linux**
+
+```bash
+tar -xzf ferngeist_<version>_linux_amd64.tar.gz
+cd ferngeist_linux_amd64
+./ferngeist daemon install
+./ferngeist daemon status
+```
+
+The daemon listens on `127.0.0.1:5788` by default. On first run, pair your Ferngeist Android app:
+
+```powershell
+# Windows
+.\ferngeist.exe pair
+
+# Linux
+./ferngeist pair
+```
+
+### Upgrade
+
+Stop the daemon, replace the binary, then restart:
+
+**Windows**
+
+```powershell
+.\ferngeist.exe daemon stop
+# Extract the new archive, replacing the contents of the FerngeistHelper directory
+.\ferngeist.exe daemon start
+.\ferngeist.exe daemon status
+```
+
+**Linux**
+
+```bash
+./ferngeist daemon stop
+# Extract the new archive, replacing the contents of the ferngeist_linux_amd64 directory
+./ferngeist daemon start
+./ferngeist daemon status
+```
+
+### Uninstall
+
+**Windows**
+
+```powershell
+.\ferngeist.exe daemon uninstall --purge
+# Remove the FerngeistHelper directory
+Remove-Item -Recurse -Force .\FerngeistHelper
+```
+
+**Linux**
+
+```bash
+./ferngeist daemon uninstall --purge
+# Remove the extracted directory
+rm -rf ~/ferngeist_linux_amd64
+```
+
+### Running Without a Service
+
+To run the daemon directly (for development or manual use):
+
+```powershell
+# Windows — foreground, Ctrl-C to stop
+.\ferngeist.exe daemon run
+
+# Expose on LAN (not recommended for production without firewall review)
+.\ferngeist.exe daemon run --lan
+```
+
+```bash
+# Linux — foreground, Ctrl-C to stop
+./ferngeist daemon run
+
+# Expose on LAN (not recommended for production without firewall review)
+./ferngeist daemon run --lan
+```
