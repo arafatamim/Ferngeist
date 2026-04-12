@@ -13,6 +13,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSe
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
+import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.repository.DesktopHelperSourceRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.HelperAgentBindingRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetRepositoryImpl
@@ -43,19 +44,19 @@ object AppModule {
             context,
             FerngeistDatabase::class.java,
             FerngeistDatabase.DATABASE_NAME,
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build()
     }
     
     @Provides
     @Singleton
-    fun provideServerRepository(database: FerngeistDatabase): ServerRepository {
-        return ServerRepositoryImpl(database.serverDao())
+    fun provideServerRepository(database: FerngeistDatabase, credentialEncryptor: CredentialEncryptor): ServerRepository {
+        return ServerRepositoryImpl(database.serverDao(), credentialEncryptor)
     }
 
     @Provides
     @Singleton
-    fun provideDesktopHelperSourceRepository(database: FerngeistDatabase): DesktopHelperSourceRepository {
-        return DesktopHelperSourceRepositoryImpl(database.desktopHelperSourceDao())
+    fun provideDesktopHelperSourceRepository(database: FerngeistDatabase, credentialEncryptor: CredentialEncryptor): DesktopHelperSourceRepository {
+        return DesktopHelperSourceRepositoryImpl(database.desktopHelperSourceDao(), credentialEncryptor)
     }
 
     @Provides
@@ -90,6 +91,12 @@ object AppModule {
         return LaunchableTargetSessionSettingsRepositoryImpl(database.launchableTargetSessionSettingsDao())
     }
     
+    @Provides
+    @Singleton
+    fun provideCredentialEncryptor(@ApplicationContext context: Context): CredentialEncryptor {
+        return CredentialEncryptor(context)
+    }
+
     @Provides
     @Singleton
     fun provideAcpConnectionManager(@ApplicationContext context: Context): AcpConnectionManager {
@@ -408,6 +415,17 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
         )
         db.execSQL("DROP TABLE `helper_agent_bindings`")
         db.execSQL("ALTER TABLE `helper_agent_bindings_new` RENAME TO `helper_agent_bindings`")
+    }
+}
+
+private val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Credentials are now encrypted at the repository layer via CredentialEncryptor.
+        // No schema changes; existing plaintext credentials remain unencrypted in Room
+        // until the corresponding server/helper row is next written (add/update), at
+        // which point CredentialEncryptor.encrypt() rewrites them to EncryptedSharedPreferences.
+        // Users who never edit a saved server after this migration will retain plaintext
+        // credentials in the database backup.
     }
 }
 

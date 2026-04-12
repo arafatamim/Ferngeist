@@ -66,6 +66,8 @@ class AddServerViewModel @Inject constructor(
                 _token.value = server.token
                 persistedPreferredAuthMethodId = server.preferredAuthMethodId
                 _preferredAuthMethodId.value = server.preferredAuthMethodId
+            } else if (isEditMode) {
+                _events.emit(AddServerEvent.ShowError("Server could not be loaded. The credential may be corrupted. Please remove and re-add the server."))
             }
             _isLoading.value = false
         }

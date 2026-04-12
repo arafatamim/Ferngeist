@@ -211,11 +211,15 @@ class AddDesktopHelperViewModel @Inject constructor(
 
     private fun loadExisting(id: String) {
         viewModelScope.launch {
-            val helper = helperSourceRepository.getHelper(id) ?: return@launch
-            existingHelper = helper
-            _name.value = helper.name
-            _scheme.value = helper.scheme
-            _host.value = helper.host
+            val helper = helperSourceRepository.getHelper(id)
+            if (helper != null) {
+                existingHelper = helper
+                _name.value = helper.name
+                _scheme.value = helper.scheme
+                _host.value = helper.host
+            } else if (isEditMode) {
+                _events.emit(AddDesktopHelperEvent.ShowError("Desktop companion could not be loaded. The credential may be corrupted. Please remove and re-pair."))
+            }
         }
     }
 

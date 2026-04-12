@@ -21,7 +21,7 @@ import com.tamimarafat.ferngeist.data.database.entity.SessionEntity
         SessionEntity::class,
         LaunchableTargetSessionSettingsEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class FerngeistDatabase : RoomDatabase() {
