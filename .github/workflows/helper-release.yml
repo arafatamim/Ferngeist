@@ -43,7 +43,17 @@ jobs:
           CGO_ENABLED: "0"
         working-directory: desktop-helper
         run: |
-          VERSION="${{ github.event.release.tag_name || github.inputs.tag }}"
+          VERSION="${{ github.event.release.tag_name }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ inputs.tag }}"
+          fi
+          if [ -z "$VERSION" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "Release tag is required"
+            exit 1
+          fi
           COMMIT="${{ github.sha }}"
           BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           LDFLAGS="-X main.buildVersion=${VERSION#v} -X main.buildCommit=${COMMIT} -X main.buildTime=${BUILD_TIME}"
@@ -56,7 +66,17 @@ jobs:
         shell: bash
         working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
         run: |
-          VERSION="${{ github.event.release.tag_name || github.inputs.tag }}"
+          VERSION="${{ github.event.release.tag_name }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ inputs.tag }}"
+          fi
+          if [ -z "$VERSION" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "Release tag is required"
+            exit 1
+          fi
           VERSION="${VERSION#v}"
           ARCHIVE="ferngeist_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
           tar --sort=name --mtime='2025-01-01T00:00:00Z' --pax-option=exthdr.name=%d/PaxHeader,pnthdr.name=%d/PaxHeader -czf "../$ARCHIVE" .
@@ -104,7 +124,17 @@ jobs:
         shell: bash
         working-directory: desktop-helper
         run: |
-          VERSION="${{ github.event.release.tag_name || github.inputs.tag }}"
+          VERSION="${{ github.event.release.tag_name }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ inputs.tag }}"
+          fi
+          if [ -z "$VERSION" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "Release tag is required"
+            exit 1
+          fi
           COMMIT="${{ github.sha }}"
           BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           LDFLAGS="-X main.buildVersion=${VERSION#v} -X main.buildCommit=${COMMIT} -X main.buildTime=${BUILD_TIME}"
@@ -117,7 +147,10 @@ jobs:
         shell: powershell
         working-directory: desktop-helper/dist/${{ matrix.artifact_name }}
         run: |
-          $version = "${{ github.event.release.tag_name || github.inputs.tag }}"
+          $version = "${{ github.event.release.tag_name }}"
+          if ([string]::IsNullOrWhiteSpace($version)) { $version = "${{ inputs.tag }}" }
+          if ([string]::IsNullOrWhiteSpace($version) -and "${{ github.ref_type }}" -eq "tag") { $version = "${{ github.ref_name }}" }
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "Release tag is required" }
           if ($version.StartsWith("v")) { $version = $version.Substring(1) }
           $archive = "ferngeist_${version}_${{ matrix.goos }}_${{ matrix.goarch }}.zip"
           Compress-Archive -Path * -DestinationPath "../$archive" -Force
@@ -161,7 +194,13 @@ jobs:
         id: release_tag
         shell: bash
         run: |
-          TAG="${{ github.event.release.tag_name || github.inputs.tag }}"
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ inputs.tag }}"
+          fi
+          if [ -z "$TAG" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          fi
           if [ -z "$TAG" ]; then
             echo "Release tag is required"
             exit 1
