@@ -1,0 +1,33 @@
+[changelog]
+header = ""
+body = """
+## What Changed
+
+{% for commit in commits %}
+* {{ commit.message | split(pat="\n") | first }} \
+  ([{{ commit.id | truncate(length=7, end="") }}]({{ repository }}/commit/{{ commit.id }}))
+{% endfor %}
+
+{% if previous.version %}
+**Full diff**: [{{ previous.version }}...{{ version }}]({{ repository }}/compare/{{ previous.version }}...{{ version }})
+{% endif %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^doc", group = "Documentation" },
+  { message = "^test", group = "Testing" },
+  { message = "^chore|^ci|^build", group = "Maintenance" },
+]
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"

@@ -1,0 +1,11 @@
+title: Ferngeist
+description: Privacy policy and documentation
+theme: minima
+baseurl: /Ferngeist
+url: https://arafatamim.github.io
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: page
