@@ -1,3 +1,8 @@
+---
+title: Privacy Policy
+layout: page
+---
+
 # Privacy Policy for Ferngeist
 
 **Last Updated: 2026-04-13**

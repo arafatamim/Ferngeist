@@ -2,11 +2,12 @@
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["master"]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
 
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -31,13 +32,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          cache-version: 0
       - name: Setup Pages
+        id: pages
         uses: actions/configure-pages@v5
+      - name: Build with Jekyll
+        run: |
+          cd docs
+          bundle init
+          bundle add minima jekyll
+          bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+        env:
+          JEKYLL_ENV: production
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: './docs'
+          path: docs/_site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
