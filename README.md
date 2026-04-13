@@ -3,13 +3,12 @@
 Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compatible coding agents. It includes a desktop companion daemon that auto-detects local agents and exposes a single authenticated endpoint to the app.
 
 ## Screenshots
-
-<img src="https://github.com/user-attachments/assets/a076834d-1973-4e2e-858f-8ac477e37177" alt="Server list" height="500">
-<img src="https://github.com/user-attachments/assets/a806a4f7-3455-44ac-a6d4-1d4d3f8462e9" alt="Active session" height="500">
+<img height="500" alt="01-agents-list" src="https://github.com/user-attachments/assets/ea308065-dd67-4dac-af85-978b313642d9" />
+<img height="500" alt="03-chat" src="https://github.com/user-attachments/assets/e6317469-0b97-42f4-aab4-44aee6acefee" />
 
 ## Usage
-
-**Desktop companion** (optional, for local agents) — available for Windows and Linux:
+Two ways to add ACP agents:
+### 1. Desktop companion (optional, for local agents) — available for Windows and Linux:
 
 1. Download the [latest release](https://github.com/arafatamim/ferngeist/releases/latest) for your platform.
 2. Extract and run:
@@ -19,7 +18,7 @@ Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compa
    ```
 3. Open Ferngeist on your Android device, tap **Add server**, and enter the tunnel URL with the pairing code.
 
-### Exposing via tunnel
+#### Exposing via tunnel
 
 The daemon listens on `127.0.0.1:5788`. To reach it from a mobile device on a different network:
 
@@ -46,7 +45,8 @@ Then pair and add the tunnel URL as the server host in Ferngeist:
 
 The companion can also be self-hosted on a VPS (Linux amd64 binaries are available in each release).
 
-**Direct ACP server**: Most ACP agents only support `stdio` transport — wrap with a WebSocket bridge first. Check the agent's docs for the correct flags to start in ACP mode.
+### 2. Add an ACP server manually
+Most ACP agents only support `stdio` transport — wrap with a WebSocket bridge first. Check the agent's docs for the correct flags to start in ACP mode.
 
 Example:
 ```powershell
@@ -87,6 +87,13 @@ feature/sessionlist/  Session listing and creation
 feature/chat/         Streaming chat UI, reducers, markdown state
 gradle/               Version catalog
 ```
+
+## Reporting Issues
+Bug reports and feature requests welcome on [GitHub Issues](https://github.com/arafatamim/ferngeist/issues).
+
+## Further Reading
+- [Introduction to Agent Client Protocol](https://agentclientprotocol.com/get-started/introduction)
+- [Jetpack Compose](https://developer.android.com/compose)
 
 ## License
 
