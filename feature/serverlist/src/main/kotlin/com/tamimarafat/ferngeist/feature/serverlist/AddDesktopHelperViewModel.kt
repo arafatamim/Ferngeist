@@ -173,9 +173,24 @@ class AddDesktopHelperViewModel @Inject constructor(
             val importedPayload = _uiState.value.importedPairingPayload
             val manualCode = _pairingCode.value.trim()
             val resolvedCode = importedPayload?.code ?: manualCode
-            val challengeId = activeChallengeId ?: importedPayload?.challengeId
+            var challengeId = activeChallengeId ?: importedPayload?.challengeId
+
+            if (challengeId.isNullOrBlank() && resolvedCode.isNotBlank()) {
+                _uiState.value = _uiState.value.copy(isCheckingStatus = true)
+                runCatching {
+                    val pairingResponse = helperRepository.startPairing(_scheme.value, helperHost)
+                    challengeId = pairingResponse.challengeId
+                    activeChallengeId = pairingResponse.challengeId
+                    _uiState.value = _uiState.value.copy(isCheckingStatus = false)
+                }.onFailure { error ->
+                    _uiState.value = _uiState.value.copy(isCheckingStatus = false)
+                    emitError("Could not start pairing: ${error.message ?: "unknown error"}")
+                    return@launch
+                }
+            }
+
             if (resolvedCode.isBlank() || challengeId.isNullOrBlank()) {
-                emitError("Scan the QR, paste the payload, or type the pairing code first")
+                emitError("Scan QR, paste payload, or type pairing code first")
                 return@launch
             }
 
