@@ -92,7 +92,7 @@ fun BatteryOptimizationDialog(
                     Button(
                         onClick = {
                             inSettings = true
-                            val intent = BatteryOptimizationHelper.createRequestIntent(context)
+                            val intent = BatteryOptimizationHelper.createSettingsIntent(context)
                             launcher.launch(intent)
                         },
                     ) {
