@@ -41,6 +41,20 @@
 -keep class com.agentclientprotocol.** { *; }
 -dontwarn com.agentclientprotocol.**
 
+# Google Code Scanner (play-services-code-scanner)
+-keep class com.google.mlkit.vision.codescanner.** { *; }
+-keep class com.google.android.gms.internal.mlkit_code_scanner.** { *; }
+-keep class com.google.mlkit.common.** { *; }
+-keep class com.google.mlkit.vision.common.** { *; }
+-keep class com.google.mlkit.common.internal.** { *; }
+-keep class com.google.mlkit.common.sdkinternal.** { *; }
+-keep class com.google.mlkit.vision.common.internal.** { *; }
+-keep class com.google.firebase.components.ComponentRegistrar { *; }
+-keep class com.google.mlkit.common.internal.CommonComponentRegistrar { *; }
+-keep class com.google.mlkit.vision.common.internal.VisionCommonRegistrar { *; }
+-dontwarn com.google.mlkit.vision.codescanner.**
+-dontwarn com.google.android.gms.internal.mlkit_code_scanner.**
+
 # Markdown renderer
 -keep class com.mikepenz.** { *; }
 -dontwarn com.mikepenz.**
