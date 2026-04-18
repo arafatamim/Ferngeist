@@ -4,10 +4,7 @@ import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,13 +24,14 @@ import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -57,8 +56,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.common.GoogleApiAvailability
 import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperViewModel
@@ -76,12 +75,13 @@ fun AddDesktopHelperScreen(
     val host by viewModel.host.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
     val pairingQrPayload by viewModel.pairingQrPayload.collectAsState()
-    val pairingCode by viewModel.pairingCode.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
     var stepIndex by rememberSaveable { mutableIntStateOf(0) }
+    var showPairingCodeDialog by rememberSaveable { mutableStateOf(false) }
+    var dialogPairingCode by rememberSaveable { mutableStateOf("") }
     val steps = remember {
         listOf(
             CompanionPairingStep(
@@ -111,11 +111,7 @@ fun AddDesktopHelperScreen(
         }
     }
 
-    LaunchedEffect(viewModel.isEditMode, uiState.importedPairingPayload?.challengeId) {
-        if (!viewModel.isEditMode && uiState.importedPairingPayload != null) {
-            stepIndex = 2
-        }
-    }
+
 
     if (viewModel.isEditMode) {
         EditDesktopCompanionScreen(
@@ -144,25 +140,23 @@ fun AddDesktopHelperScreen(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                FilledTonalIconButton(onClick = {
+                    if (stepIndex > 0) {
+                        stepIndex -= 1
+                    } else {
+                        onNavigateBack()
                     }
-                    Text(
-                        text = "Pair Desktop Companion",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                }) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                 }
-                TextButton(onClick = onNavigateBack) {
-                    Text("Cancel")
-                }
+                Text(
+                    text = "Pair Desktop Companion",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -224,26 +218,58 @@ fun AddDesktopHelperScreen(
 
                         1 -> ImportPairingStep(
                             pairingQrPayload = pairingQrPayload,
-                            pairingCode = pairingCode,
                             importedPayload = uiState.importedPairingPayload,
-                            onUpdatePayload = viewModel::updatePairingQrPayload,
-                            onUpdatePairingCode = viewModel::updatePairingCode,
-                            onApplyPayload = viewModel::applyPairingPayload,
+                            onUpdatePayload = { value ->
+                                viewModel.updatePairingQrPayload(value)
+                                val parsed = com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayloadParser.parse(value)
+                                if (parsed != null) {
+                                    viewModel.applyPairingPayload()
+                                }
+                            },
                             onScanQr = {
-                                val activity = context as? Activity ?: return@ImportPairingStep
-                                val options = GmsBarcodeScannerOptions.Builder()
-                                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                                    .build()
-                                GmsBarcodeScanning.getClient(activity, options)
-                                    .startScan()
-                                    .addOnSuccessListener { barcode: Barcode ->
-                                        val payload = barcode.rawValue.orEmpty()
-                                        viewModel.updatePairingQrPayload(payload)
-                                        viewModel.applyPairingPayload()
-                                    }
-                                    .addOnFailureListener { error: Exception ->
-                                        viewModel.showMessage("QR scan failed: ${error.message ?: "unknown error"}")
-                                    }
+                                val activity = context as? Activity
+                                if (activity == null) {
+                                    viewModel.showMessage("Cannot open scanner: not in an activity context")
+                                    return@ImportPairingStep
+                                }
+                                val availability = GoogleApiAvailability.getInstance()
+                                val statusCode = availability.isGooglePlayServicesAvailable(activity)
+                                if (statusCode != com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                                    val msg = availability.getErrorString(statusCode)
+                                    viewModel.showMessage("Google Play Services unavailable: $msg")
+                                    return@ImportPairingStep
+                                }
+                                val scanner = try {
+                                    GmsBarcodeScanning.getClient(activity)
+                                } catch (_: Exception) {
+                                    viewModel.showMessage("Cannot open scanner on this device. Paste the pairing payload instead.")
+                                    return@ImportPairingStep
+                                }
+
+                                try {
+                                    scanner.startScan()
+                                        .addOnSuccessListener { barcode: Barcode ->
+                                            val raw = barcode.rawValue.orEmpty()
+                                            if (raw.isBlank()) {
+                                                viewModel.showMessage("QR code was empty")
+                                                return@addOnSuccessListener
+                                            }
+                                            val parsed = com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayloadParser.parse(raw)
+                                            if (parsed == null) {
+                                                viewModel.showMessage("QR does not contain a valid pairing payload")
+                                                return@addOnSuccessListener
+                                            }
+                                            viewModel.updatePairingQrPayload(raw)
+                                            viewModel.applyPairingPayload()
+                                        }
+                                        .addOnCanceledListener {
+                                        }
+                                        .addOnFailureListener { error: Exception ->
+                                            viewModel.showMessage("QR scan failed: ${error.message ?: "unknown error"}")
+                                        }
+                                } catch (_: Exception) {
+                                    viewModel.showMessage("Cannot start scanner on this device. Paste the pairing payload instead.")
+                                }
                             },
                         )
 
@@ -271,47 +297,37 @@ fun AddDesktopHelperScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (stepIndex > 0) {
-                    OutlinedButton(
-                        onClick = { stepIndex -= 1 },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Back")
-                    }
-                }
-
                 Button(
                     onClick = {
                         when (stepIndex) {
                             0 -> stepIndex = 1
                             1 -> {
-                                if (pairingQrPayload.isNotBlank()) {
-                                    viewModel.applyPairingPayload()
+                                if (uiState.importedPairingPayload != null) {
+                                    stepIndex = 2
                                 } else {
                                     stepIndex = 2
                                 }
                             }
-
-                            else -> viewModel.saveDesktopCompanion()
+                            else -> {
+                                if (uiState.importedPairingPayload != null) {
+                                    viewModel.saveDesktopCompanion()
+                                } else {
+                                    showPairingCodeDialog = true
+                                }
+                            }
                         }
                     },
-                    enabled = !uiState.isSaving && when (stepIndex) {
-                        0 -> true
-                        1 -> pairingQrPayload.isNotBlank() || pairingCode.isNotBlank()
-                        else -> uiState.importedPairingPayload != null || pairingCode.isNotBlank()
-                    },
+                    enabled = !uiState.isSaving,
                     modifier = Modifier.weight(1f),
                 ) {
-                    if (uiState.isSaving && stepIndex == steps.lastIndex) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(
-                            when (stepIndex) {
-                                0 -> "Next"
-                                1 -> "Next"
-                                else -> "Pair and save"
-                            }
-                        )
+                    Text(
+                        when (stepIndex) {
+                            0 -> "Next"
+                            1 -> if (uiState.importedPairingPayload != null) "Next" else "Skip and add manually"
+                            else -> "Pair"
+                        }
+                    )
+                    if (stepIndex < steps.lastIndex) {
                         Spacer(modifier = Modifier.size(8.dp))
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -322,6 +338,76 @@ fun AddDesktopHelperScreen(
             }
         }
     }
+
+    var dialogOpenedWhileSaving by rememberSaveable { mutableStateOf(false) }
+    
+    if (showPairingCodeDialog) {
+        PairingCodeDialog(
+            code = dialogPairingCode,
+            onCodeChange = { dialogPairingCode = it },
+            onDismiss = {
+                if (!uiState.isSaving) {
+                    showPairingCodeDialog = false
+                    dialogPairingCode = ""
+                    dialogOpenedWhileSaving = false
+                }
+            },
+            onConfirm = {
+                dialogOpenedWhileSaving = true
+                viewModel.pairAndSaveWithCode(dialogPairingCode)
+            },
+            isLoading = uiState.isSaving,
+        )
+        LaunchedEffect(uiState.isSaving) {
+            if (dialogOpenedWhileSaving && !uiState.isSaving) {
+                showPairingCodeDialog = false
+                dialogPairingCode = ""
+                dialogOpenedWhileSaving = false
+            }
+        }
+    }
+}
+
+@Composable
+private fun PairingCodeDialog(
+    code: String,
+    onCodeChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    isLoading: Boolean,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Enter pairing code") },
+        text = {
+            OutlinedTextField(
+                value = code,
+                onValueChange = onCodeChange,
+                label = { Text("Pairing code") },
+                placeholder = { Text("000000") },
+                singleLine = true,
+                enabled = !isLoading,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = code.isNotBlank() && !isLoading,
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Pair and save")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable
@@ -454,25 +540,14 @@ private fun EditDesktopCompanionScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ImportPairingStep(
     pairingQrPayload: String,
-    pairingCode: String,
     importedPayload: DesktopHelperPairingPayload?,
     onUpdatePayload: (String) -> Unit,
-    onUpdatePairingCode: (String) -> Unit,
-    onApplyPayload: () -> Unit,
     onScanQr: () -> Unit,
 ) {
     val innerPadding = 14.dp
-
-    // OnboardingBulletList(
-    //     items = listOf(
-    //         "Scan the QR code from the terminal, or paste the payload below.",
-    //         "If you already know the companion host, entering the pairing code alone is enough.",
-    //     ),
-    // )
 
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(
@@ -486,106 +561,41 @@ private fun ImportPairingStep(
                 .padding(innerPadding),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = pairingQrPayload,
-                    onValueChange = onUpdatePayload,
-                    label = { Text("Pairing payload") },
-                    placeholder = { Text("ferngeist-helper://pair?scheme=...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) },
-                )
-
-                BoxWithConstraints {
-                    val isNarrow = maxWidth < 320.dp
-                    if (isNarrow) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = onScanQr,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Icon(Icons.Default.CameraAlt, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Scan QR")
-                            }
-                            OutlinedButton(
-                                onClick = onApplyPayload,
-                                enabled = pairingQrPayload.isNotBlank(),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Icon(Icons.Default.QrCode2, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Use payload")
-                            }
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = onScanQr,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Icon(Icons.Default.CameraAlt, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Scan QR")
-                            }
-                            OutlinedButton(
-                                onClick = onApplyPayload,
-                                enabled = pairingQrPayload.isNotBlank(),
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Icon(Icons.Default.QrCode2, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Use payload")
-                            }
-                        }
-                    }
-                }
-
-                importedPayload?.let { payload ->
-                    ImportedPayloadCard(payload = payload)
-                }
-            }
+            OutlinedTextField(
+                value = pairingQrPayload,
+                onValueChange = onUpdatePayload,
+                label = { Text("Pairing payload") },
+                placeholder = { Text("ferngeist-helper://pair?scheme=...") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) },
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 HorizontalDivider(modifier = Modifier.weight(1f))
                 Text(
                     text = "OR",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 12.dp),
                 )
                 HorizontalDivider(modifier = Modifier.weight(1f))
             }
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            OutlinedButton(
+                onClick = onScanQr,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                OutlinedTextField(
-                    value = pairingCode,
-                    onValueChange = onUpdatePairingCode,
-                    label = { Text("Pairing code") },
-                    placeholder = { Text("Enter 6-digit code") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
-                    singleLine = true,
-                )
+                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Scan QR")
+            }
 
-                Text(
-                    text = "Only needed if the companion host is not already known.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            importedPayload?.let { payload ->
+                ImportedPayloadCard(payload = payload)
             }
         }
     }

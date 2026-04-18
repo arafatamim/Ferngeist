@@ -106,7 +106,9 @@ class AddDesktopHelperViewModel @Inject constructor(
         _host.value = payload.host
         _pairingCode.value = payload.code
         activeChallengeId = payload.challengeId
+        _name.value = extractHostnameFromHost(payload.host)
         _uiState.value = _uiState.value.copy(importedPairingPayload = payload, status = null)
+        checkStatus()
     }
 
     fun checkStatus() {
@@ -121,12 +123,68 @@ class AddDesktopHelperViewModel @Inject constructor(
                 helperRepository.fetchStatus(_scheme.value, helperHost)
             }.onSuccess { status ->
                 _uiState.value = _uiState.value.copy(status = status, isCheckingStatus = false)
-                if (_name.value.isBlank()) {
-                    _name.value = status.name
-                }
+                _name.value = status.name
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(isCheckingStatus = false)
                 emitError("Could not reach desktop companion: ${error.message ?: "unknown error"}")
+            }
+        }
+    }
+
+    fun pairAndSaveWithCode(codeFromDialog: String) {
+        viewModelScope.launch {
+            val helperHost = normalizedHost()
+            if (helperHost == null) {
+                emitError("Desktop companion host is required")
+                return@launch
+            }
+            val helperName = _name.value.trim()
+            if (helperName.isBlank()) {
+                emitError("Name is required")
+                return@launch
+            }
+            val trimmedCode = codeFromDialog.trim()
+            if (trimmedCode.isBlank()) {
+                emitError("Pairing code is required")
+                return@launch
+            }
+
+            _uiState.value = _uiState.value.copy(isSaving = true)
+            val challengeResult = runCatching {
+                val pairingResponse = helperRepository.startPairing(_scheme.value, helperHost)
+                pairingResponse.challengeId
+            }
+            if (challengeResult.isFailure) {
+                _uiState.value = _uiState.value.copy(isSaving = false)
+                emitError("Could not start pairing: ${challengeResult.exceptionOrNull()?.message ?: "unknown error"}")
+                return@launch
+            }
+            val challengeId = challengeResult.getOrThrow()
+
+            runCatching {
+                helperRepository.completePairing(
+                    scheme = _scheme.value,
+                    host = helperHost,
+                    challengeId = challengeId,
+                    code = trimmedCode,
+                    deviceName = _deviceName.value.trim().ifBlank { defaultDeviceName() },
+                )
+            }.onSuccess { pairing ->
+                val helper = DesktopHelperSource(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = helperName,
+                    scheme = _scheme.value,
+                    host = helperHost,
+                    helperCredential = pairing.helperCredential,
+                    helperCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
+                    helperRemoteMode = _uiState.value.status?.remote?.mode,
+                )
+                helperSourceRepository.addHelper(helper)
+                _uiState.value = _uiState.value.copy(isSaving = false)
+                _events.emit(AddDesktopHelperEvent.HelperSaved)
+            }.onFailure { error ->
+                _uiState.value = _uiState.value.copy(isSaving = false)
+                emitError("Could not complete pairing: ${error.message ?: "unknown error"}")
             }
         }
     }
@@ -254,6 +312,11 @@ class AddDesktopHelperViewModel @Inject constructor(
 
     private fun normalizedHost(): String? {
         return _host.value.trim().ifBlank { null }
+    }
+
+    private fun extractHostnameFromHost(host: String): String {
+        val hostname = host.substringBefore(':')
+        return hostname.ifBlank { "Desktop Companion" }
     }
 
     private fun defaultDeviceName(): String {
