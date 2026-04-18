@@ -886,12 +886,17 @@ func (s *Supervisor) Summary() Summary {
 
 // resolveCommandPath converts a command string to an absolute path.
 // If the command is already absolute, it's returned as-is. Otherwise,
-// it's resolved relative to the supervisor's base directory.
+// it's resolved relative to the supervisor's base directory and made absolute.
 func (s *Supervisor) resolveCommandPath(command string) string {
 	if filepath.IsAbs(command) {
 		return command
 	}
-	return filepath.Join(s.baseDir, command)
+	resolved := filepath.Join(s.baseDir, command)
+	abs, err := filepath.Abs(resolved)
+	if err != nil {
+		return resolved
+	}
+	return abs
 }
 
 // resolveLaunch determines the executable path and working directory for an

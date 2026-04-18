@@ -189,12 +189,27 @@ func TestRestartLaunchesNewRuntimeWithMergedEnv(t *testing.T) {
 	defer release()
 	defer stdin.Close()
 
-	var ready map[string]string
-	if err := json.NewDecoder(stdout).Decode(&ready); err != nil {
-		t.Fatalf("Decode(ready) error = %v", err)
+	if _, err := io.WriteString(stdin, "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":1,\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"0\"}}}\n"); err != nil {
+		t.Fatalf("WriteString() error = %v", err)
 	}
-	if ready["env"] != "after-restart" {
-		t.Fatalf("ready env = %q, want %q", ready["env"], "after-restart")
+
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	if !scanner.Scan() {
+		t.Fatalf("expected JSON-RPC initialize response: %v", scanner.Err())
+	}
+	var initResp struct {
+		Result struct {
+			AgentInfo struct {
+				Env string `json:"env"`
+			} `json:"agentInfo"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(scanner.Text()), &initResp); err != nil {
+		t.Fatalf("unmarshal initialize response: %v", err)
+	}
+	if initResp.Result.AgentInfo.Env != "after-restart" {
+		t.Fatalf("agentInfo.env = %q, want %q", initResp.Result.AgentInfo.Env, "after-restart")
 	}
 
 	runtimes := supervisor.List()
@@ -356,21 +371,20 @@ func TestStartSupportsExternalStdioRuntime(t *testing.T) {
 	defer release()
 
 	scanner := bufio.NewScanner(stdout)
-	if !scanner.Scan() {
-		t.Fatal("expected ready line from stdio runtime")
-	}
-	if scanner.Text() == "" {
-		t.Fatal("ready line should not be empty")
-	}
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
-	if _, err := io.WriteString(stdin, "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"initialize\"}\n"); err != nil {
+	if _, err := io.WriteString(stdin, "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":1,\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"0\"}}}\n"); err != nil {
 		t.Fatalf("WriteString() error = %v", err)
 	}
 	if !scanner.Scan() {
-		t.Fatal("expected echoed stdio line")
+		t.Fatal("expected JSON-RPC response from stdio runtime")
 	}
-	if got := scanner.Text(); got != "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"initialize\"}" {
-		t.Fatalf("echoed line = %q", got)
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(scanner.Text()), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if _, ok := resp["result"]; !ok {
+		t.Fatal("expected result field in JSON-RPC response")
 	}
 
 	_, _ = supervisor.StopByRuntimeID(runtimeInfo.ID)

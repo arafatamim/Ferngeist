@@ -1376,7 +1376,7 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 			t.Fatalf("Unmarshal(logs) error = %v", err)
 		}
 		for _, entry := range logsResponse.Logs {
-			if strings.Contains(entry.Message, "mock stdio agent started") {
+			if strings.Contains(entry.Message, "mock-stdio-agent started") {
 				foundStartupLog = true
 				break
 			}
@@ -1426,33 +1426,53 @@ func TestRuntimeLifecycleEndpoints(t *testing.T) {
 	conn := dialTestWebSocket(t, wsURL, connectResponse.BearerToken)
 	defer conn.CloseNow()
 
-	var ready map[string]any
+	// Send an initialize request to the agent and verify the response.
+	initializePayload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"protocolVersion":1,"capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`)
+	if err := writeTestWebSocketMessage(conn, websocket.MessageText, initializePayload); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	var initializeResp struct {
+		Result struct {
+			AgentInfo struct {
+				Name string `json:"name"`
+			} `json:"agentInfo"`
+		} `json:"result"`
+	}
 	msgType, data := readTestWebSocketMessage(t, conn)
 	if msgType != websocket.MessageText {
 		t.Fatalf("message type = %v, want %v", msgType, websocket.MessageText)
 	}
-	if err := json.Unmarshal(data, &ready); err != nil {
-		t.Fatalf("Unmarshal(ready) error = %v", err)
+	if err := json.Unmarshal(data, &initializeResp); err != nil {
+		t.Fatalf("Unmarshal(initialize response) error = %v", err)
 	}
-	if ready["type"] != "mock.ready" {
-		t.Fatalf("ready type = %v, want %q", ready["type"], "mock.ready")
+	if initializeResp.Result.AgentInfo.Name != "mock-acp" {
+		t.Fatalf("agentInfo.name = %q, want %q", initializeResp.Result.AgentInfo.Name, "mock-acp")
 	}
 
 	// Keep the websocket idle briefly before the first ACP request. The helper
 	// should leave quiet sessions alone instead of timing them out eagerly.
 	time.Sleep(200 * time.Millisecond)
 
-	payload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize"}`)
+	payload := []byte(`{"jsonrpc":"2.0","id":"2","method":"session/new","params":{}}`)
 	if err := writeTestWebSocketMessage(conn, websocket.MessageText, payload); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	messageType, echoed := readTestWebSocketMessage(t, conn)
+	messageType, sessionResp := readTestWebSocketMessage(t, conn)
 	if messageType != websocket.MessageText {
 		t.Fatalf("message type = %v, want %v", messageType, websocket.MessageText)
 	}
-	if string(echoed) != string(payload) {
-		t.Fatalf("echoed payload = %q, want %q", string(echoed), string(payload))
+	var sessionNewResp struct {
+		Result struct {
+			SessionID string `json:"sessionId"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(sessionResp, &sessionNewResp); err != nil {
+		t.Fatalf("Unmarshal(session/new response) error = %v", err)
+	}
+	if sessionNewResp.Result.SessionID == "" {
+		t.Fatal("session/new response should contain a sessionId")
 	}
 
 	stopRequest := httptest.NewRequest(http.MethodPost, "/v1/agents/mock-acp/stop", nil)
@@ -1557,16 +1577,27 @@ func TestRuntimeRestartEndpointReturnsFreshConnectDescriptor(t *testing.T) {
 	conn := dialTestWebSocket(t, wsURL, restartResponse.BearerToken)
 	defer conn.CloseNow()
 
-	var ready map[string]string
+	initializePayload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"protocolVersion":1,"capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`)
+	if err := writeTestWebSocketMessage(conn, websocket.MessageText, initializePayload); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
 	msgType, data := readTestWebSocketMessage(t, conn)
 	if msgType != websocket.MessageText {
 		t.Fatalf("message type = %v, want %v", msgType, websocket.MessageText)
 	}
-	if err := json.Unmarshal(data, &ready); err != nil {
-		t.Fatalf("Unmarshal(ready) error = %v", err)
+	var initResp struct {
+		Result struct {
+			AgentInfo struct {
+				Env string `json:"env"`
+			} `json:"agentInfo"`
+		} `json:"result"`
 	}
-	if ready["env"] != "restart-token" {
-		t.Fatalf("ready env = %q, want %q", ready["env"], "restart-token")
+	if err := json.Unmarshal(data, &initResp); err != nil {
+		t.Fatalf("Unmarshal(initialize response) error = %v", err)
+	}
+	if initResp.Result.AgentInfo.Env != "restart-token" {
+		t.Fatalf("agentInfo.env = %q, want %q", initResp.Result.AgentInfo.Env, "restart-token")
 	}
 }
 
@@ -1694,29 +1725,27 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	conn := dialTestWebSocket(t, wsURL, connectResponse.BearerToken)
 	defer conn.CloseNow()
 
-	var ready map[string]any
-	msgType, data := readTestWebSocketMessage(t, conn)
-	if msgType != websocket.MessageText {
-		t.Fatalf("message type = %v, want %v", msgType, websocket.MessageText)
-	}
-	if err := json.Unmarshal(data, &ready); err != nil {
-		t.Fatalf("Unmarshal(ready) error = %v", err)
-	}
-	if ready["type"] != "mock.ready" {
-		t.Fatalf("ready type = %v, want %q", ready["type"], "mock.ready")
-	}
-
-	payload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize"}`)
-	if err := writeTestWebSocketMessage(conn, websocket.MessageText, payload); err != nil {
+	initializePayload := []byte(`{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"protocolVersion":1,"capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`)
+	if err := writeTestWebSocketMessage(conn, websocket.MessageText, initializePayload); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	messageType, echoed := readTestWebSocketMessage(t, conn)
+	messageType, respData := readTestWebSocketMessage(t, conn)
 	if messageType != websocket.MessageText {
 		t.Fatalf("message type = %v, want %v", messageType, websocket.MessageText)
 	}
-	if string(echoed) != string(payload) {
-		t.Fatalf("echoed payload = %q, want %q", string(echoed), string(payload))
+	var initResp struct {
+		Result struct {
+			AgentInfo struct {
+				Name string `json:"name"`
+			} `json:"agentInfo"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(respData, &initResp); err != nil {
+		t.Fatalf("Unmarshal(initialize response) error = %v", err)
+	}
+	if initResp.Result.AgentInfo.Name != "mock-acp" {
+		t.Fatalf("agentInfo.name = %q, want %q", initResp.Result.AgentInfo.Name, "mock-acp")
 	}
 
 	conn.CloseNow()
@@ -1734,23 +1763,17 @@ func TestExternalStdioRuntimeLifecycleEndpoints(t *testing.T) {
 	if err := json.Unmarshal(logsRecorder.Body.Bytes(), &logsResponse); err != nil {
 		t.Fatalf("Unmarshal(logs) error = %v", err)
 	}
-	foundStdoutReady := false
-	foundStdoutEcho := false
+	foundStdoutACP := false
 	foundStdinPayload := false
 	for _, entry := range logsResponse.Logs {
 		switch {
-		case entry.Stream == "acp.stdout" && strings.Contains(entry.Message, "mock stdio ACP agent connected"):
-			foundStdoutReady = true
-		case entry.Stream == "acp.stdout" && entry.Message == string(payload):
-			foundStdoutEcho = true
-		case entry.Stream == "acp.stdin" && entry.Message == string(payload):
+		case entry.Stream == "acp.stdout" && strings.Contains(entry.Message, "mock-acp"):
+			foundStdoutACP = true
+		case entry.Stream == "acp.stdin" && strings.Contains(entry.Message, "initialize"):
 			foundStdinPayload = true
 		}
 	}
-	if !foundStdoutReady {
-		t.Fatal("expected stdout ready message to be retained in runtime logs")
-	}
-	if !foundStdoutEcho {
+	if !foundStdoutACP {
 		t.Fatal("expected stdout ACP response to be retained in runtime logs")
 	}
 	if !foundStdinPayload {
@@ -1815,7 +1838,7 @@ func TestWebSocketDisconnectStopsRuntimeAndAllowsReconnect(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(socketServer.URL, "http") + connectResponse.WebSocketPath
 	conn := dialTestWebSocket(t, wsURL, connectResponse.BearerToken)
-	_, _ = readTestWebSocketMessage(t, conn)
+	time.Sleep(100 * time.Millisecond)
 	conn.CloseNow()
 
 	time.Sleep(150 * time.Millisecond)
