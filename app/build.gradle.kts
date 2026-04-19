@@ -1,3 +1,5 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.ksp)
@@ -5,6 +7,30 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
 }
+
+fun getGitTag(): String {
+    return try {
+        val stdout = ByteArrayOutputStream()
+        exec {
+            commandLine("git", "describe", "--tags", "--abbrev=0")
+            standardOutput = stdout
+        }
+        stdout.toString().trim().removePrefix("v")
+    } catch (_: Exception) {
+        "0.0.0"
+    }
+}
+
+fun getVersionCodeFromTag(tag: String): Int {
+    val parts = tag.removePrefix("v").split(".")
+    val major = parts.getOrElse(0) { "0" }.toIntOrNull() ?: 0
+    val minor = parts.getOrElse(1) { "0" }.toIntOrNull() ?: 0
+    val patch = parts.getOrElse(2) { "0" }.toIntOrNull() ?: 0
+    return major * 10000 + minor * 100 + patch
+}
+
+val appVersionName = getGitTag()
+val appVersionCode = getVersionCodeFromTag(appVersionName)
 
 val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.trim()?.replaceFirst(Regex("[\\\\/]+$"), "")
 val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
@@ -31,8 +57,8 @@ android {
         applicationId = "com.tamimarafat.ferngeist"
         minSdk = 30
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
