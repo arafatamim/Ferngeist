@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +23,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -72,16 +74,42 @@ fun DesktopHelperAgentsScreen(
     }
 
     pendingAddAgent?.let { agent ->
+        var acknowledgedRisk by rememberSaveable(agent.id) { mutableStateOf(false) }
+        val companionHost = uiState.companion?.host.orEmpty()
+        val riskLines = addAgentRiskLines(agent, companionHost)
         AlertDialog(
             onDismissRequest = { pendingAddAgent = null },
             title = { Text("Add agent to list?") },
             text = {
-                Text(
-                    "${agent.displayName} will be added to your main agent list and can then be launched from the server screen.",
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "${agent.displayName} will be added to your main agent list and can then be launched from the server screen.",
+                    )
+                    riskLines.forEach { line ->
+                        Text(
+                            text = "- $line",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Checkbox(
+                            checked = acknowledgedRisk,
+                            onCheckedChange = { acknowledgedRisk = it },
+                        )
+                        Text(
+                            text = "I understand this may download and execute agent binaries on my companion host.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
+                    enabled = acknowledgedRisk,
                     onClick = {
                         viewModel.addAgent(agent)
                         pendingAddAgent = null

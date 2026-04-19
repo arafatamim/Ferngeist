@@ -80,8 +80,10 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.ui.res.stringResource
 import com.tamimarafat.ferngeist.feature.serverlist.R
+import com.tamimarafat.ferngeist.feature.serverlist.PendingLaunchConsent
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -101,6 +103,7 @@ fun ServerListScreen(
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     val pendingAuthentication = uiState.pendingAuthentication
+    val pendingLaunchConsent = uiState.pendingLaunchConsent
     var selectedAuthMethodId by rememberSaveable(pendingAuthentication?.serverId) {
         mutableStateOf(uiState.pendingAuthentication?.authMethods?.firstOrNull()?.id)
     }
@@ -147,6 +150,14 @@ fun ServerListScreen(
             onSubmit = { methodId, values -> viewModel.authenticate(it.serverId, methodId, values) },
             onReconnect = { viewModel.retryPendingAuthentication(it.serverId) },
             onDismiss = viewModel::dismissAuthenticationPrompt,
+        )
+    }
+
+    pendingLaunchConsent?.let { pending ->
+        LaunchRiskConsentDialog(
+            pending = pending,
+            onConfirm = { viewModel.confirmLaunchConsent(pending.serverId) },
+            onDismiss = viewModel::dismissLaunchConsent,
         )
     }
 
@@ -234,6 +245,62 @@ fun ServerListScreen(
             }
         }
     }
+}
+
+@Composable
+private fun LaunchRiskConsentDialog(
+    pending: PendingLaunchConsent,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var acknowledgedRisk by rememberSaveable(pending.serverId) { mutableStateOf(false) }
+    val riskLines = launchRiskLines(
+        serverName = pending.serverName,
+        agentId = pending.agentId,
+        companionHost = pending.companionHost,
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Run agent on companion?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                riskLines.forEach { line ->
+                    Text(
+                        text = "- $line",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(
+                        checked = acknowledgedRisk,
+                        onCheckedChange = { acknowledgedRisk = it },
+                    )
+                    Text(
+                        text = "I understand and want to continue.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = acknowledgedRisk,
+                onClick = onConfirm,
+            ) {
+                Text("Continue")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

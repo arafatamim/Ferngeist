@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingReposit
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
+import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,7 @@ class DesktopCompanionListViewModel @Inject constructor(
     private val helperAgentBindingRepository: HelperAgentBindingRepository,
     private val sessionRepository: SessionRepository,
     private val authEnvValueStore: AuthEnvValueStore,
+    private val agentLaunchConsentStore: AgentLaunchConsentStore,
     private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
 ) : ViewModel() {
 
@@ -39,6 +41,7 @@ class DesktopCompanionListViewModel @Inject constructor(
                 sessionSettingsRepository.deleteSettings(binding.id)
                 helperAgentBindingRepository.deleteBinding(binding.id)
             }
+            agentLaunchConsentStore.clearByPrefix(companion.id)
             authEnvValueStore.deleteValues(companion.id)
             helperSourceRepository.deleteHelper(companion.id)
         }

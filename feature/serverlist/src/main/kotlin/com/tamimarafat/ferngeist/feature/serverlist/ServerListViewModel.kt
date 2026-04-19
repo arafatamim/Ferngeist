@@ -19,8 +19,10 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
+import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
 import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
+import com.tamimarafat.ferngeist.feature.serverlist.ui.buildLaunchConsentKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -58,6 +60,7 @@ data class ServerListUiState(
     val connectedServerState: ConnectedServerState? = null,
     val showConnectionError: String? = null,
     val pendingAuthentication: PendingAuthentication? = null,
+    val pendingLaunchConsent: PendingLaunchConsent? = null,
 )
 
 data class PendingAuthentication(
@@ -72,6 +75,13 @@ data class PendingAuthentication(
 
 data class PendingHelperRuntime(
     val runtimeId: String,
+)
+
+data class PendingLaunchConsent(
+    val serverId: String,
+    val serverName: String,
+    val agentId: String,
+    val companionHost: String,
 )
 
 private data class DesktopHelperLaunchContext(
@@ -90,6 +100,7 @@ class ServerListViewModel @Inject constructor(
     private val connectionManager: AcpConnectionManager,
     private val helperRepository: DesktopHelperRepository,
     private val authEnvValueStore: AuthEnvValueStore,
+    private val agentLaunchConsentStore: AgentLaunchConsentStore,
     private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
 ) : ViewModel() {
 
@@ -128,6 +139,29 @@ class ServerListViewModel @Inject constructor(
      */
     fun connectAndOpenServer(server: LaunchableTarget) {
         viewModelScope.launch {
+            if (server is LaunchableTarget.HelperAgent) {
+                val consentKey = buildLaunchConsentKey(
+                    helperSourceId = server.helperSource.id,
+                    agentId = server.binding.agentId,
+                )
+                val hasConsent = withContext(Dispatchers.IO) {
+                    agentLaunchConsentStore.hasConsent(consentKey)
+                }
+                if (!hasConsent) {
+                    _uiState.update {
+                        it.copy(
+                            pendingLaunchConsent = PendingLaunchConsent(
+                                serverId = server.id,
+                                serverName = server.name,
+                                agentId = server.binding.agentId,
+                                companionHost = server.helperSource.host,
+                            ),
+                        )
+                    }
+                    return@launch
+                }
+            }
+
             // Helper-backed agents should start from a fresh ACP transport. If we
             // request a new helper handoff before closing the existing socket,
             // the old runtime can survive long enough to be reused, which some
@@ -145,6 +179,7 @@ class ServerListViewModel @Inject constructor(
                     connectionState = AcpConnectionState.Connecting,
                     showConnectionError = null,
                     pendingAuthentication = null,
+                    pendingLaunchConsent = null,
                     connectedServerState = ConnectedServerState(
                         serverId = server.id,
                         isInitializing = true,
@@ -338,6 +373,31 @@ class ServerListViewModel @Inject constructor(
         _uiState.update { it.copy(pendingAuthentication = null, connectingServerId = null) }
     }
 
+    fun dismissLaunchConsent() {
+        _uiState.update { it.copy(pendingLaunchConsent = null) }
+    }
+
+    fun confirmLaunchConsent(serverId: String) {
+        viewModelScope.launch {
+            val server = withContext(Dispatchers.IO) {
+                launchableTargetRepository.getTarget(serverId)
+            }
+            val helperTarget = server as? LaunchableTarget.HelperAgent ?: run {
+                _uiState.update { it.copy(pendingLaunchConsent = null) }
+                return@launch
+            }
+            val consentKey = buildLaunchConsentKey(
+                helperSourceId = helperTarget.helperSource.id,
+                agentId = helperTarget.binding.agentId,
+            )
+            withContext(Dispatchers.IO) {
+                agentLaunchConsentStore.setConsent(consentKey, true)
+            }
+            _uiState.update { it.copy(pendingLaunchConsent = null) }
+            connectAndOpenServer(helperTarget)
+        }
+    }
+
     fun disconnect() {
         viewModelScope.launch {
             connectionManager.disconnect()
@@ -354,6 +414,14 @@ class ServerListViewModel @Inject constructor(
     fun deleteServer(serverId: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
+                val target = launchableTargetRepository.getTarget(serverId)
+                if (target is LaunchableTarget.HelperAgent) {
+                    val consentKey = buildLaunchConsentKey(
+                        helperSourceId = target.helperSource.id,
+                        agentId = target.binding.agentId,
+                    )
+                    agentLaunchConsentStore.clearByPrefix(consentKey)
+                }
                 authEnvValueStore.deleteValues(serverId)
                 sessionRepository.clearSessions(serverId)
                 sessionSettingsRepository.deleteSettings(serverId)
