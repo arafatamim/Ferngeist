@@ -6,20 +6,20 @@ Ferngeist ("we", "us", or "our") operates the Ferngeist Android application (the
 
 ## 1. Information Collection and Use
 
-Ferngeist is an Android client designed to connect to Agent Client Protocol (ACP) servers and Desktop Helpers. We do not operate any central servers and do not collect, store, or process your personal data on our own infrastructure.
+Ferngeist is an Android client designed to connect to Agent Client Protocol (ACP) servers and optionally to a self-hosted [Ferngeist ACP Gateway](https://github.com/arafatamim/ferngeist-acp-gateway). We do not operate any central servers and do not collect, store, or process your personal data on our own infrastructure.
 
 ### Types of Data Collected
 
 #### Local Data
 The App stores the following information locally on your device to provide its core functionality:
-- **Server Configurations:** URLs and metadata for the ACP servers and Desktop Helpers you configure.
+- **Server Configurations:** URLs and metadata for the ACP servers and Ferngeist Gateways you configure.
 - **Credentials:** Bearer tokens and authentication keys required to communicate with your configured servers.
 - **Session Data:** Chat history, tool calls, and agent interactions.
 
 This data is stored in a local Room database and, for certain sensitive values, using Android's EncryptedSharedPreferences.
 
 #### Transmission to Third-Party Servers
-When you use the App, your data (including prompts and session content) is transmitted directly to the **ACP servers** and **Desktop Helpers** that you have explicitly configured. We do not control these third-party servers and are not responsible for their privacy practices. We encourage you to review the privacy policies of any server or service you connect to via Ferngeist.
+When you use the App, your data (including prompts and session content) is transmitted directly to the **ACP servers** and **Ferngeist Gateways** that you have explicitly configured. We do not control these third-party servers and are not responsible for their privacy practices. We encourage you to review the privacy policies of any server or service you connect to via Ferngeist.
 
 ## 2. Use of Data
 The information stored locally on your device is used solely to:

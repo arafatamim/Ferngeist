@@ -1,6 +1,21 @@
 # Ferngeist
 
-Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compatible coding agents. It includes a desktop companion daemon that auto-detects local agents and exposes a single authenticated endpoint to the app.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?color=4DB6AC&style=flat-square)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/github/v/release/arafatamim/ferngeist?color=4DB6AC&style=flat-square)](https://github.com/arafatamim/ferngeist/releases/latest)
+
+Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compatible coding agents, paired with an optional [Ferngeist ACP Gateway](https://github.com/arafatamim/ferngeist-acp-gateway) that auto-detects local agents and exposes a single authenticated endpoint to the app.
+
+## Download
+
+Ferngeist is currently in **closed testing** on Google Play. To install:
+
+1. Join the tester group: [ferngeist-testers](https://groups.google.com/g/ferngeist-testers)
+2. Opt-in to the test: [ferngeist on Play Store (testing)](https://play.google.com/apps/testing/com.tamimarafat.ferngeist)
+3. Download:
+
+[![Google Play](https://github.com/pioug/google-play-badges/raw/refs/heads/main/svg/en.svg)](https://play.google.com/store/apps/details?id=com.tamimarafat.ferngeist)
+
+Alternatively, download the APK from [GitHub Releases](https://github.com/arafatamim/ferngeist/releases/latest) (manual updates only — Play Store is recommended for auto-updates).
 
 ## Screenshots
 <img height="500" alt="01-agents-list" src="https://github.com/user-attachments/assets/ea308065-dd67-4dac-af85-978b313642d9" />
@@ -8,13 +23,13 @@ Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compa
 
 ## Usage
 Two ways to add ACP agents:
-### 1. Desktop companion (optional, for local agents) — available for Windows and Linux:
+### 1. Ferngeist Gateway (optional, for local agents) — available for Windows and Linux:
 
-1. Download the [latest release](https://github.com/arafatamim/ferngeist/releases/latest) for your platform.
+1. Download the [latest gateway release](https://github.com/arafatamim/ferngeist-acp-gateway/releases/latest) for your platform.
 2. Extract and run:
    ```powershell
-   .\ferngeist.exe daemon install  # Windows: run as Administrator
-   .\ferngeist.exe pair            # displays a pairing code
+   .\ferngeist-gateway.exe daemon install  # Windows: run as Administrator
+   .\ferngeist-gateway.exe pair            # displays a pairing code
    ```
 3. Open Ferngeist on your Android device, tap **Add server**, and enter the tunnel URL with the pairing code.
 
@@ -26,24 +41,23 @@ The daemon listens on `127.0.0.1:5788`. To reach it from a mobile device on a di
 ```powershell
 ngrok http 5788
 # Note the HTTPS URL (e.g. https://xxxx.ngrok.io)
-.\ferngeist.exe daemon install --public-url https://xxxx.ngrok.io
+.\ferngeist-gateway.exe daemon install --public-url https://xxxx.ngrok.io
 ```
 
 **Cloudflare Tunnel:**
 ```powershell
 cloudflared tunnel --url http://localhost:5788
 # Note the URL (e.g. https://xxxx.trycloudflare.com)
-.\ferngeist.exe daemon install --public-url https://xxxx.trycloudflare.com
+.\ferngeist-gateway.exe daemon install --public-url https://xxxx.trycloudflare.com
 ```
-For a persistent tunnel without a terminal, see [Cloudflare Docs](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/).
 
 Then pair and add the tunnel URL as the server host in Ferngeist:
 
 ```powershell
-.\ferngeist.exe pair
+.\ferngeist-gateway.exe pair
 ```
 
-The companion can also be self-hosted on a VPS (Linux amd64 binaries are available in each release).
+For detailed configuration, see the [Ferngeist Gateway docs](https://github.com/arafatamim/ferngeist-acp-gateway).
 
 ### 2. Add an ACP server manually
 Most ACP agents only support `stdio` transport — wrap with a WebSocket bridge first. Check the agent's docs for the correct flags to start in ACP mode.
@@ -77,7 +91,6 @@ cmd /c gradlew.bat :app:assembleDebug
 
 ```
 app/                  Android entry point, navigation, theme, DI
-desktop-helper/       Local companion daemon (Go) for agent discovery and pairing
 acp-bridge/           ACP transport, connection manager, session bridge
 core/common/          Shared UI helpers and utilities
 core/model/           Domain models and repository interfaces
