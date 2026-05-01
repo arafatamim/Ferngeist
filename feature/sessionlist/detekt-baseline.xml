@@ -1,0 +1,29 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:SessionListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
+    <ID>CyclomaticComplexMethod:SessionListScreen.kt:@RequiresApi(Build.VERSION_CODES.O) @OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun SessionListScreen</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@Composable private fun ConnectionStatusDot</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@Composable private fun EmptySessionList</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable private fun SessionCard</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@RequiresApi(Build.VERSION_CODES.O) @OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun SessionListScreen</ID>
+    <ID>LongMethod:SessionListScreen.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>LongMethod:SessionListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
+    <ID>LongMethod:SessionListScreen.kt:@RequiresApi(Build.VERSION_CODES.O) @OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun SessionListScreen</ID>
+    <ID>LongMethod:SessionListViewModel.kt:SessionListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>MagicNumber:SessionListScreen.kt:0xFF2E7D32</ID>
+    <ID>MagicNumber:SessionListViewModel.kt:SessionListViewModel$5000</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:text = "Set these environment variables before launching the agent, then reconnect to retry authentication."</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:text = "The agent \"${pendingAuthentication.agentName}\" requires ACP authentication before sessions can be opened."</ID>
+    <ID>MaxLineLength:SessionListViewModel.kt:SessionListViewModel$.</ID>
+    <ID>MaxLineLength:SessionListViewModel.kt:SessionListViewModel$it?.copy(authErrorMessage = "Failed to initialize ${currentServer.name}", gatewayRuntimeId = handoff.runtimeId)</ID>
+    <ID>MaxLineLength:SessionListViewModel.kt:SessionListViewModel$it?.copy(authErrorMessage = "Failed to reconnect to ${currentServer.name}", gatewayRuntimeId = handoff.runtimeId)</ID>
+    <ID>ReturnCount:SessionListViewModel.kt:SessionListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>ReturnCount:SessionListViewModel.kt:SessionListViewModel$private suspend fun handleAuthenticationRequired: Boolean</ID>
+    <ID>TooManyFunctions:SessionListViewModel.kt:SessionListViewModel : ViewModel</ID>
+  </CurrentIssues>
+</SmellBaseline>

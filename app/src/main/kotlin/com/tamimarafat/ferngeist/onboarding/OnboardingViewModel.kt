@@ -10,71 +10,76 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class OnboardingViewModel @Inject constructor(
-    private val onboardingPreferences: OnboardingPreferences,
-    private val agentRegistryRepository: AgentRegistryRepository,
-) : ViewModel() {
-    val isCompleted: StateFlow<Boolean> = onboardingPreferences.isCompleted
+class OnboardingViewModel
+    @Inject
+    constructor(
+        private val onboardingPreferences: OnboardingPreferences,
+        private val agentRegistryRepository: AgentRegistryRepository,
+    ) : ViewModel() {
+        val isCompleted: StateFlow<Boolean> = onboardingPreferences.isCompleted
 
-    private val _uiState = MutableStateFlow(OnboardingUiState())
-    val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
+        private val _uiState = MutableStateFlow(OnboardingUiState())
+        val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
-    fun ensureRegistryLoaded() {
-        val state = _uiState.value
-        if (state.isLoadingAgents || state.agents.isNotEmpty()) {
-            return
+        fun ensureRegistryLoaded() {
+            val state = _uiState.value
+            if (state.isLoadingAgents || state.agents.isNotEmpty()) {
+                return
+            }
+            loadRegistry()
         }
-        loadRegistry()
-    }
 
-    fun retryRegistryLoad() {
-        loadRegistry()
-    }
+        fun retryRegistryLoad() {
+            loadRegistry()
+        }
 
-    fun selectAgent(agentId: String) {
-        _uiState.value = _uiState.value.copy(selectedAgentId = agentId)
-    }
+        fun selectAgent(agentId: String) {
+            _uiState.value = _uiState.value.copy(selectedAgentId = agentId)
+        }
 
-    fun selectPlatform(platform: PcPlatform) {
-        _uiState.value = _uiState.value.copy(platform = platform)
-    }
+        fun selectPlatform(platform: PcPlatform) {
+            _uiState.value = _uiState.value.copy(platform = platform)
+        }
 
-    fun updatePort(value: String) {
-        val sanitized = value.filter(Char::isDigit).take(5)
-        _uiState.value = _uiState.value.copy(port = sanitized)
-    }
+        fun updatePort(value: String) {
+            val sanitized = value.filter(Char::isDigit).take(5)
+            _uiState.value = _uiState.value.copy(port = sanitized)
+        }
 
-    fun completeOnboarding() {
-        onboardingPreferences.markCompleted()
-    }
+        fun completeOnboarding() {
+            onboardingPreferences.markCompleted()
+        }
 
-    private fun loadRegistry() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                isLoadingAgents = true,
-                loadError = null,
-            )
-            runCatching { agentRegistryRepository.fetchAgents() }
-                .onSuccess { agents ->
-                    val currentSelection = _uiState.value.selectedAgentId
-                    val selectedAgentId = agents.firstOrNull { it.id == currentSelection }?.id
-                        ?: agents.firstOrNull { it.id == "codex-acp" }?.id
-                        ?: agents.firstOrNull()?.id
-                    _uiState.value = _uiState.value.copy(
-                        isLoadingAgents = false,
-                        agents = agents,
-                        selectedAgentId = selectedAgentId,
+        private fun loadRegistry() {
+            viewModelScope.launch {
+                _uiState.value =
+                    _uiState.value.copy(
+                        isLoadingAgents = true,
+                        loadError = null,
                     )
-                }
-                .onFailure { error ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoadingAgents = false,
-                        loadError = error.message ?: "Failed to load the ACP registry.",
-                    )
-                }
+                runCatching { agentRegistryRepository.fetchAgents() }
+                    .onSuccess { agents ->
+                        val currentSelection = _uiState.value.selectedAgentId
+                        val selectedAgentId =
+                            agents.firstOrNull { it.id == currentSelection }?.id
+                                ?: agents.firstOrNull { it.id == "codex-acp" }?.id
+                                ?: agents.firstOrNull()?.id
+                        _uiState.value =
+                            _uiState.value.copy(
+                                isLoadingAgents = false,
+                                agents = agents,
+                                selectedAgentId = selectedAgentId,
+                            )
+                    }.onFailure { error ->
+                        _uiState.value =
+                            _uiState.value.copy(
+                                isLoadingAgents = false,
+                                loadError = error.message ?: "Failed to load the ACP registry.",
+                            )
+                    }
+            }
         }
     }
-}
 
 data class OnboardingUiState(
     val isLoadingAgents: Boolean = false,
@@ -91,11 +96,12 @@ data class OnboardingUiState(
         get() = port.toIntOrNull()?.takeIf { it in 1..65535 } ?: DEFAULT_AGENT_PORT
 
     val launchInstructions: AgentLaunchInstructions?
-        get() = selectedAgent?.let { agent ->
-            AgentLaunchCommandBuilder.build(
-                agent = agent,
-                platform = platform,
-                port = parsedPort,
-            )
-        }
+        get() =
+            selectedAgent?.let { agent ->
+                AgentLaunchCommandBuilder.build(
+                    agent = agent,
+                    platform = platform,
+                    port = parsedPort,
+                )
+            }
 }

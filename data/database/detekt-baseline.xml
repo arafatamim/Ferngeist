@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>MaxLineLength:CredentialEncryptor.kt:CredentialEncryptor$message = "Encrypted credential backing entry not found for key: $key. The credential may have been invalidated or the app data may be corrupted."</ID>
+    <ID>ReturnCount:LaunchableTargetRepositoryImpl.kt:LaunchableTargetRepositoryImpl$override suspend fun getTarget: LaunchableTarget?</ID>
+  </CurrentIssues>
+</SmellBaseline>

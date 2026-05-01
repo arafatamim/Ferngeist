@@ -1,6 +1,6 @@
 [versions]
-agp = "9.1.0"
-kotlin = "2.3.20"
+agp = "9.1.1"
+kotlin = "2.3.21"
 ksp = "2.3.6"
 coreKtx = "1.18.0"
 coreSplashScreen = "1.2.0"
@@ -11,10 +11,10 @@ lifecycleRuntimeKtx = "2.10.0"
 lifecycleViewmodelKtx = "2.10.0"
 lifecycleViewmodelCompose = "2.10.0"
 activityCompose = "1.13.0"
-composeBom = "2026.03.01"
+composeBom = "2026.04.01"
 
 # Serialization
-kotlinxSerializationJson = "1.10.0"
+kotlinxSerializationJson = "1.11.0"
 
 # Coroutines
 kotlinxCoroutinesCore = "1.10.2"
@@ -27,23 +27,26 @@ room = "2.8.4"
 # Hilt
 hilt = "2.59.2"
 hiltNavigationCompose = "1.3.0"
+ktlintGradle = "14.2.0"
+detekt = "2.0.0-alpha.3"
 
 # Navigation
-navigationCompose = "2.9.7"
+navigationCompose = "2.9.8"
 playServicesCodeScanner = "16.1.0"
 
 # ACP Kotlin SDK
-acp = "0.18.0"
+acp = "0.20.1"
 
 # Ktor
-ktor = "3.4.2"
+ktor = "3.4.3"
 
 # Turbine for Flow testing
 turbine = "1.2.1"
-material3 = "1.5.0-alpha16"
-markdownRenderer = "0.39.2"
-annotationJvm = "1.9.1"
+material3 = "1.5.0-alpha18"
+markdownRenderer = "0.40.2"
+annotationJvm = "1.10.0"
 securityCrypto = "1.1.0"
+datastorePreferences = "1.1.4"
 
 [libraries]
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashScreen" }
@@ -100,12 +103,14 @@ multiplatform-markdown-renderer = { group = "com.mikepenz", name = "multiplatfor
 multiplatform-markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
 androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }

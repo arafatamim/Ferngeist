@@ -17,18 +17,16 @@ class ServerRepositoryImpl(
     private val serverDao: ServerDao,
     private val credentialEncryptor: CredentialEncryptor,
 ) : ServerRepository {
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    override fun getServers(): Flow<List<ServerConfig>> {
-        return serverDao.getAllServers().map { entities ->
+    override fun getServers(): Flow<List<ServerConfig>> =
+        serverDao.getAllServers().map { entities ->
             withContext(Dispatchers.IO) {
                 entities.mapNotNull { entity ->
                     toDomainOrCleanUp(entity)
                 }
             }
         }
-    }
 
     override suspend fun addServer(config: ServerConfig) {
         withContext(Dispatchers.IO) {

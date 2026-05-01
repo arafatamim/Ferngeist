@@ -9,14 +9,14 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class AcpSessionUpdateParserTest {
-
     @Test
     fun `usage_update maps used size and usd cost`() {
-        val update = SessionUpdate.UsageUpdate(
-            used = 2048,
-            size = 8192,
-            cost = com.agentclientprotocol.model.Cost(amount = 0.52, currency = "USD")
-        )
+        val update =
+            SessionUpdate.UsageUpdate(
+                used = 2048,
+                size = 8192,
+                cost = com.agentclientprotocol.model.Cost(amount = 0.52, currency = "USD"),
+            )
 
         val event = invokeMapSessionUpdateToEvent(update)
         val usage = event as AppSessionEvent.UsageUpdated
@@ -27,9 +27,10 @@ class AcpSessionUpdateParserTest {
 
     @Test
     fun `chunk text parser preserves whitespace-only text`() {
-        val update = SessionUpdate.AgentMessageChunk(
-            content = ContentBlock.Text("  \n")
-        )
+        val update =
+            SessionUpdate.AgentMessageChunk(
+                content = ContentBlock.Text("  \n"),
+            )
 
         val event = invokeMapSessionUpdateToEvent(update)
         val msg = event as AppSessionEvent.AgentMessage
@@ -38,11 +39,12 @@ class AcpSessionUpdateParserTest {
 
     @Test
     fun `tool call update maps rawOutput`() {
-        val update = SessionUpdate.ToolCallUpdate(
-            toolCallId = ToolCallId("tool_123"),
-            title = "Read",
-            rawOutput = kotlinx.serialization.json.JsonPrimitive("{\"ok\":true}")
-        )
+        val update =
+            SessionUpdate.ToolCallUpdate(
+                toolCallId = ToolCallId("tool_123"),
+                title = "Read",
+                rawOutput = kotlinx.serialization.json.JsonPrimitive("{\"ok\":true}"),
+            )
 
         val event = invokeMapSessionUpdateToEvent(update)
         val tool = event as AppSessionEvent.ToolCallUpdated
@@ -51,9 +53,6 @@ class AcpSessionUpdateParserTest {
         assertNotNull(tool.title)
     }
 
-    private fun invokeMapSessionUpdateToEvent(
-        update: SessionUpdate,
-    ): AppSessionEvent {
-        return requireNotNull(AcpSessionUpdateMapper.mapSessionUpdateToEvent(update))
-    }
+    private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =
+        requireNotNull(AcpSessionUpdateMapper.mapSessionUpdateToEvent(update))
 }

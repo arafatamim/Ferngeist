@@ -13,9 +13,14 @@ data class AcpConnectionConfig(
 
 sealed interface AcpConnectionState {
     data object Disconnected : AcpConnectionState
+
     data object Connecting : AcpConnectionState
+
     data object Connected : AcpConnectionState
-    data class Failed(val error: Throwable) : AcpConnectionState
+
+    data class Failed(
+        val error: Throwable,
+    ) : AcpConnectionState
 }
 
 data class AcpAuthMethodInfo(
@@ -56,8 +61,8 @@ data class AcpAgentCapabilities(
     val mcp: AcpMcpCapabilities = AcpMcpCapabilities(),
     val session: AcpSessionCapabilities = AcpSessionCapabilities(),
 ) {
-    fun displayLabels(): List<String> {
-        return buildList {
+    fun displayLabels(): List<String> =
+        buildList {
             if (loadSession) add("Load")
             if (prompt.image) add("Images")
             if (prompt.embeddedContext) add("Context")
@@ -68,7 +73,6 @@ data class AcpAgentCapabilities(
             if (session.resume) add("Resume")
             if (session.fork) add("Fork")
         }
-    }
 }
 
 data class AcpPromptCapabilities(
@@ -110,5 +114,8 @@ sealed interface AcpInitializeResult {
 
 sealed interface AcpAuthenticateResult {
     data object Success : AcpAuthenticateResult
-    data class Failure(val message: String) : AcpAuthenticateResult
+
+    data class Failure(
+        val message: String,
+    ) : AcpAuthenticateResult
 }

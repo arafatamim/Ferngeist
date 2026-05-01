@@ -9,10 +9,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class GatewayModule {
-
     @Binds
     @Singleton
-    abstract fun bindGatewayRepository(
-        impl: GatewayRepositoryImpl,
-    ): GatewayRepository
+    abstract fun bindGatewayRepository(impl: GatewayRepositoryImpl): GatewayRepository
 }

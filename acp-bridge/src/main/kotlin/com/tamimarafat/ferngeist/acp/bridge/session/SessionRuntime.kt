@@ -35,27 +35,29 @@ class SessionRuntime(
     private var buffered = RuntimeData()
     private var eventSeq = 0L
 
-    private val _snapshot = MutableStateFlow(
-        SessionSnapshot(
-            sessionId = sessionId,
-            loadState = SessionLoadState.READY,
+    private val _snapshot =
+        MutableStateFlow(
+            SessionSnapshot(
+                sessionId = sessionId,
+                loadState = SessionLoadState.READY,
+            ),
         )
-    )
     val snapshot: StateFlow<SessionSnapshot> = _snapshot.asStateFlow()
 
     suspend fun beginHydration() {
         mutex.withLock {
             debug("beginHydration: clearing buffered/live snapshot view")
             buffered = RuntimeData()
-            _snapshot.value = _snapshot.value.copy(
-                loadState = SessionLoadState.HYDRATING,
-                messages = emptyList(),
-                isStreaming = false,
-                usage = null,
-                availableCommands = emptyList(),
-                commandsAdvertised = false,
-                error = null,
-            )
+            _snapshot.value =
+                _snapshot.value.copy(
+                    loadState = SessionLoadState.HYDRATING,
+                    messages = emptyList(),
+                    isStreaming = false,
+                    usage = null,
+                    availableCommands = emptyList(),
+                    commandsAdvertised = false,
+                    error = null,
+                )
         }
     }
 
@@ -63,12 +65,13 @@ class SessionRuntime(
         mutex.withLock {
             debug(
                 "completeHydration: committing buffered messages=${buffered.messages.size}, " +
-                    "bufferedStreaming=${buffered.isStreaming}"
+                    "bufferedStreaming=${buffered.isStreaming}",
             )
-            live = buffered.copy(
-                messages = SessionMessageReducer.finishStreaming(buffered.messages),
-                isStreaming = false,
-            )
+            live =
+                buffered.copy(
+                    messages = SessionMessageReducer.finishStreaming(buffered.messages),
+                    isStreaming = false,
+                )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -76,11 +79,12 @@ class SessionRuntime(
     suspend fun failHydration(error: String?) {
         mutex.withLock {
             debug("failHydration: error=${error ?: "unknown"}")
-            _snapshot.value = _snapshot.value.copy(
-                loadState = SessionLoadState.FAILED,
-                error = error,
-                isStreaming = false,
-            )
+            _snapshot.value =
+                _snapshot.value.copy(
+                    loadState = SessionLoadState.FAILED,
+                    error = error,
+                    isStreaming = false,
+                )
         }
     }
 
@@ -101,13 +105,13 @@ class SessionRuntime(
             val loadState = _snapshot.value.loadState
             debug(
                 "event#$seq state=$loadState type=${event::class.simpleName} " +
-                    "summary=${summarizeEvent(event)}"
+                    "summary=${summarizeEvent(event)}",
             )
             if (_snapshot.value.loadState == SessionLoadState.HYDRATING) {
                 buffered = reduce(buffered, event)
                 debug(
                     "event#$seq bufferedApplied messages=${buffered.messages.size} " +
-                        "streaming=${buffered.isStreaming}"
+                        "streaming=${buffered.isStreaming}",
                 )
                 return@withLock
             }
@@ -117,24 +121,29 @@ class SessionRuntime(
         }
     }
 
-    suspend fun onLocalPromptStarted(text: String, images: List<Pair<String, String>>) {
+    suspend fun onLocalPromptStarted(
+        text: String,
+        images: List<Pair<String, String>>,
+    ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) {
                 debug("onLocalPromptStarted ignored: loadState=${_snapshot.value.loadState}")
                 return@withLock
             }
 
-            val mappedImages = images.map { (base64, mimeType) ->
-                ChatImageData(base64 = base64, mimeType = mimeType)
-            }
+            val mappedImages =
+                images.map { (base64, mimeType) ->
+                    ChatImageData(base64 = base64, mimeType = mimeType)
+                }
             debug("onLocalPromptStarted textLen=${text.length}, images=${mappedImages.size}")
             val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, text, mappedImages)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
-            live = live.copy(
-                messages = withAssistantPlaceholder,
-                isStreaming = true,
-            )
+            live =
+                live.copy(
+                    messages = withAssistantPlaceholder,
+                    isStreaming = true,
+                )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -142,10 +151,11 @@ class SessionRuntime(
     suspend fun onPromptSendFailed() {
         mutex.withLock {
             debug("onPromptSendFailed: finishing local streaming placeholder")
-            live = live.copy(
-                messages = SessionMessageReducer.finishStreaming(live.messages),
-                isStreaming = false,
-            )
+            live =
+                live.copy(
+                    messages = SessionMessageReducer.finishStreaming(live.messages),
+                    isStreaming = false,
+                )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -153,15 +163,19 @@ class SessionRuntime(
     suspend fun onLocalCancel() {
         mutex.withLock {
             debug("onLocalCancel: finishing local streaming placeholder")
-            live = live.copy(
-                messages = SessionMessageReducer.finishStreaming(live.messages),
-                isStreaming = false,
-            )
+            live =
+                live.copy(
+                    messages = SessionMessageReducer.finishStreaming(live.messages),
+                    isStreaming = false,
+                )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
 
-    private fun reduce(current: RuntimeData, event: AppSessionEvent): RuntimeData {
+    private fun reduce(
+        current: RuntimeData,
+        event: AppSessionEvent,
+    ): RuntimeData {
         var messages = current.messages
         var isStreaming = current.isStreaming
         var usage = current.usage
@@ -171,23 +185,25 @@ class SessionRuntime(
         var legacyModes = current.legacyModes
         var legacyModel = current.legacyModel
 
-        messages = when (event) {
-            is AppSessionEvent.SessionLoadComplete -> SessionMessageReducer.finishStreaming(messages)
-            else -> SessionMessageReducer.handleEvent(messages, event)
-        }
+        messages =
+            when (event) {
+                is AppSessionEvent.SessionLoadComplete -> SessionMessageReducer.finishStreaming(messages)
+                else -> SessionMessageReducer.handleEvent(messages, event)
+            }
 
         when (event) {
             is AppSessionEvent.TurnComplete -> isStreaming = false
             is AppSessionEvent.SessionLoadComplete -> isStreaming = false
             is AppSessionEvent.UsageUpdated -> {
-                usage = SessionUsage(
-                    promptTokens = event.promptTokens,
-                    completionTokens = event.completionTokens,
-                    totalTokens = event.totalTokens,
-                    cachedReadTokens = event.cachedReadTokens,
-                    contextWindowTokens = event.contextWindowTokens,
-                    costUsd = event.costUsd,
-                )
+                usage =
+                    SessionUsage(
+                        promptTokens = event.promptTokens,
+                        completionTokens = event.completionTokens,
+                        totalTokens = event.totalTokens,
+                        cachedReadTokens = event.cachedReadTokens,
+                        contextWindowTokens = event.contextWindowTokens,
+                        costUsd = event.costUsd,
+                    )
             }
             is AppSessionEvent.CommandsUpdated -> {
                 availableCommands = event.commands
@@ -197,27 +213,30 @@ class SessionRuntime(
                 legacyModes = (legacyModes ?: LegacyModeState()).copy(currentModeId = event.modeId)
             }
             is AppSessionEvent.ModesUpdated -> {
-                legacyModes = LegacyModeState(
-                    modes = event.modes,
-                    currentModeId = event.currentModeId ?: legacyModes?.currentModeId,
-                )
+                legacyModes =
+                    LegacyModeState(
+                        modes = event.modes,
+                        currentModeId = event.currentModeId ?: legacyModes?.currentModeId,
+                    )
             }
             is AppSessionEvent.ConfigOptionsUpdated -> {
                 nativeConfigOptions = event.options
             }
             is AppSessionEvent.ConfigOptionValueChanged -> {
-                nativeConfigOptions = nativeConfigOptions.map { option ->
-                    option.withUpdatedValue(
-                        optionId = event.optionId,
-                        value = event.value,
-                    )
-                }
+                nativeConfigOptions =
+                    nativeConfigOptions.map { option ->
+                        option.withUpdatedValue(
+                            optionId = event.optionId,
+                            value = event.value,
+                        )
+                    }
             }
             is AppSessionEvent.LegacyModelOptionsUpdated -> {
-                legacyModel = LegacyModelState(
-                    choices = event.choices,
-                    currentModelId = event.currentModelId,
-                )
+                legacyModel =
+                    LegacyModelState(
+                        choices = event.choices,
+                        currentModelId = event.currentModelId,
+                    )
             }
             is AppSessionEvent.ModelSelectionConfirmed -> {
                 val selectedModel = event.modelId
@@ -241,36 +260,41 @@ class SessionRuntime(
         )
     }
 
-    private fun publishLive(loadState: SessionLoadState, error: String?) {
-        val effectiveConfigOptions = SessionConfigCompatibility.resolve(
-            nativeOptions = live.nativeConfigOptions,
-            legacyModes = live.legacyModes,
-            legacyModel = live.legacyModel,
-        )
+    private fun publishLive(
+        loadState: SessionLoadState,
+        error: String?,
+    ) {
+        val effectiveConfigOptions =
+            SessionConfigCompatibility.resolve(
+                nativeOptions = live.nativeConfigOptions,
+                legacyModes = live.legacyModes,
+                legacyModel = live.legacyModel,
+            )
         val last = live.messages.lastOrNull()
         val lastRole = last?.role?.name ?: "none"
         val lastLen = last?.content?.length ?: 0
         val lastSegments = last?.segments?.size ?: 0
-        _snapshot.value = SessionSnapshot(
-            sessionId = sessionId,
-            loadState = loadState,
-            messages = live.messages,
-            isStreaming = live.isStreaming,
-            usage = live.usage,
-            availableCommands = live.availableCommands,
-            commandsAdvertised = live.commandsAdvertised,
-            configOptions = effectiveConfigOptions,
-            error = error,
-        )
+        _snapshot.value =
+            SessionSnapshot(
+                sessionId = sessionId,
+                loadState = loadState,
+                messages = live.messages,
+                isStreaming = live.isStreaming,
+                usage = live.usage,
+                availableCommands = live.availableCommands,
+                commandsAdvertised = live.commandsAdvertised,
+                configOptions = effectiveConfigOptions,
+                error = error,
+            )
         debug(
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +
                 "lastRole=$lastRole lastLen=$lastLen lastSegments=$lastSegments " +
-                "commands=${live.availableCommands.size} configOptions=${effectiveConfigOptions.size}"
+                "commands=${live.availableCommands.size} configOptions=${effectiveConfigOptions.size}",
         )
     }
 
-    private fun summarizeEvent(event: AppSessionEvent): String {
-        return when (event) {
+    private fun summarizeEvent(event: AppSessionEvent): String =
+        when (event) {
             is AppSessionEvent.UserMessage -> "userLen=${event.text.length} append=${event.append}"
             is AppSessionEvent.AgentMessage -> "agentLen=${event.text.length}"
             is AppSessionEvent.AgentThought -> "thoughtLen=${event.text.length}"
@@ -293,7 +317,6 @@ class SessionRuntime(
             is AppSessionEvent.TurnComplete -> "stopReason=${event.stopReason}"
             is AppSessionEvent.Unknown -> "unknownRawLen=${event.raw.length}"
         }
-    }
 
     private fun debug(message: String) {
         runCatching { android.util.Log.d(TAG, "[$sessionId] $message") }
@@ -306,12 +329,14 @@ private fun SessionConfigOption.withUpdatedValue(
 ): SessionConfigOption {
     if (id != optionId) return this
     return when (this) {
-        is SessionConfigOption.Select -> copy(
-            currentValue = (value as? SessionConfigValue.StringValue)?.value ?: currentValue,
-        )
-        is SessionConfigOption.BooleanOption -> copy(
-            currentValue = (value as? SessionConfigValue.BoolValue)?.value ?: currentValue,
-        )
+        is SessionConfigOption.Select ->
+            copy(
+                currentValue = (value as? SessionConfigValue.StringValue)?.value ?: currentValue,
+            )
+        is SessionConfigOption.BooleanOption ->
+            copy(
+                currentValue = (value as? SessionConfigValue.BoolValue)?.value ?: currentValue,
+            )
         is SessionConfigOption.Unknown -> copy(currentValue = value)
     }
 }

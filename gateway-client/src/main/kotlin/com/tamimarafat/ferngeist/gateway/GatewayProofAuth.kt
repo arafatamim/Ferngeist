@@ -51,18 +51,25 @@ object GatewayProofAuth {
         )
     }
 
-    fun encodeStoredCredential(token: String, proofPrivateKey: String?): String {
+    fun encodeStoredCredential(
+        token: String,
+        proofPrivateKey: String?,
+    ): String {
         if (proofPrivateKey.isNullOrBlank()) return token
-        val payload = json.encodeToString(
-            GatewayStoredAuthBundle(
-                token = token,
-                proofPrivateKey = proofPrivateKey,
-            ),
-        )
+        val payload =
+            json.encodeToString(
+                GatewayStoredAuthBundle(
+                    token = token,
+                    proofPrivateKey = proofPrivateKey,
+                ),
+            )
         return AUTH_BUNDLE_PREFIX + encoder.encodeToString(payload.toByteArray(Charsets.UTF_8))
     }
 
-    fun rotateStoredCredential(existingCredential: String, newToken: String): String {
+    fun rotateStoredCredential(
+        existingCredential: String,
+        newToken: String,
+    ): String {
         val existing = decodeStoredCredential(existingCredential)
         return encodeStoredCredential(newToken, existing.proofPrivateKey)
     }
@@ -73,32 +80,37 @@ object GatewayProofAuth {
         endpoint: String,
         body: String? = null,
         timestampSeconds: Long = System.currentTimeMillis() / 1000,
-        nonce: String = java.util.UUID.randomUUID().toString(),
+        nonce: String =
+            java.util.UUID
+                .randomUUID()
+                .toString(),
     ): GatewayAuthHeaders {
         val auth = decodeStoredCredential(gatewayCredential)
         if (auth.proofPrivateKey.isNullOrBlank()) {
             return GatewayAuthHeaders(authorization = "Bearer ${auth.token}")
         }
         val bodyHash = sha256Base64Url(body.orEmpty().toByteArray(Charsets.UTF_8))
-        val pathWithQuery = URI(endpoint).run {
-            buildString {
-                append(rawPath ?: "/")
-                rawQuery?.takeIf { it.isNotBlank() }?.let {
-                    append('?')
-                    append(it)
+        val pathWithQuery =
+            URI(endpoint).run {
+                buildString {
+                    append(rawPath ?: "/")
+                    rawQuery?.takeIf { it.isNotBlank() }?.let {
+                        append('?')
+                        append(it)
+                    }
                 }
             }
-        }
         val timestamp = timestampSeconds.toString()
-        val message = listOf(
-            PROOF_DOMAIN,
-            method.trim().uppercase(),
-            pathWithQuery,
-            auth.token,
-            timestamp,
-            nonce,
-            bodyHash,
-        ).joinToString("\n")
+        val message =
+            listOf(
+                PROOF_DOMAIN,
+                method.trim().uppercase(),
+                pathWithQuery,
+                auth.token,
+                timestamp,
+                nonce,
+                bodyHash,
+            ).joinToString("\n")
         val keyFactory = KeyFactory.getInstance("EC")
         val privateKey = keyFactory.generatePrivate(PKCS8EncodedKeySpec(decoder.decode(auth.proofPrivateKey)))
         val signature = Signature.getInstance("SHA256withECDSA")
@@ -126,7 +138,10 @@ object GatewayProofAuth {
     }
 
     private fun sha256Base64Url(bytes: ByteArray): String {
-        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+        val digest =
+            java.security.MessageDigest
+                .getInstance("SHA-256")
+                .digest(bytes)
         return encoder.encodeToString(digest)
     }
 }

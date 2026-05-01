@@ -5,7 +5,6 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-
 @Entity(
     tableName = "gateway_agent_bindings",
     foreignKeys = [
@@ -14,7 +13,7 @@ import androidx.room.PrimaryKey
             parentColumns = ["id"],
             childColumns = ["gatewaySourceId"],
             onDelete = ForeignKey.CASCADE,
-        )
+        ),
     ],
     indices = [Index("gatewaySourceId")],
 )

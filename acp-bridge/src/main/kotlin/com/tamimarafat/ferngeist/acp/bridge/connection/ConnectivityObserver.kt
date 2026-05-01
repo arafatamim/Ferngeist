@@ -17,20 +17,28 @@ interface ConnectivityObserver {
 class AndroidConnectivityObserver(
     private val context: Context,
 ) : ConnectivityObserver {
+    override val isConnected: Flow<Boolean> =
+        callbackFlow {
+            val manager = context.getSystemService(ConnectivityManager::class.java)!!
+            val callback =
+                object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        trySend(true)
+                    }
 
-    override val isConnected: Flow<Boolean> = callbackFlow {
-        val manager = context.getSystemService(ConnectivityManager::class.java)!!
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { trySend(true) }
-            override fun onLost(network: Network) { trySend(false) }
-        }
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
+                    override fun onLost(network: Network) {
+                        trySend(false)
+                    }
+                }
+            val request =
+                NetworkRequest
+                    .Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
 
-        manager.registerNetworkCallback(request, callback)
-        trySend(manager.activeNetwork != null)
+            manager.registerNetworkCallback(request, callback)
+            trySend(manager.activeNetwork != null)
 
-        awaitClose { manager.unregisterNetworkCallback(callback) }
-    }.distinctUntilChanged()
+            awaitClose { manager.unregisterNetworkCallback(callback) }
+        }.distinctUntilChanged()
 }

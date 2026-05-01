@@ -1,0 +1,86 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:ChatScreen.kt:AutoScrollManager$_state.value is AutoScrollState.PausedByUser &amp;&amp; !recentlyUserScrolled &amp;&amp; timeSinceLastScroll &gt;= USER_RESUME_IDLE_MS &amp;&amp; listState.isAtBottom(RESUME_TOLERANCE_PX)</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@Composable private fun rememberChatScrollState: Pair&lt;LazyListState, AutoScrollManager&gt;</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ChatScreen</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:AutoScrollManager$suspend fun scrollToBottom</ID>
+    <ID>CyclomaticComplexMethod:ChatSessionCoordinator.kt:ChatSessionCoordinator$suspend fun loadSession</ID>
+    <ID>FunctionNaming:ChatScreen.kt:@Composable internal fun CommandsDialog</ID>
+    <ID>FunctionNaming:ChatScreen.kt:@Composable internal fun SelectConfigOptionDialog</ID>
+    <ID>FunctionNaming:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ChatScreen</ID>
+    <ID>FunctionNaming:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable private fun ChatTopBar</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable internal fun ChatScreenBody</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable internal fun ChatScreenDialogs</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ChatLoadError</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ChatMessageList</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ConfigOptionMenuItem</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ExpandedComposerContent</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun PermissionRequestSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun PrimaryComposerActionButton</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ThoughtDetailsSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ToolCallDetailsSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun CollapsedComposerActions</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun ModeMenuButton</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun ToolbarOptionsButton</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun ChatComposerBar</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable fun MessageBubble</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun AssistantMessageContent</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun MarkdownText</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun PlanBubble</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun ThoughtBubble</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@ExperimentalMaterial3ExpressiveApi @Composable private fun ImageAttachments</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun StreamingIndicator</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun ToolCallCard</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun UserMessageContent</ID>
+    <ID>LongMethod:ChatScreen.kt:@Composable internal fun SelectConfigOptionDialog</ID>
+    <ID>LongMethod:ChatScreen.kt:@Composable private fun rememberChatScrollState: Pair&lt;LazyListState, AutoScrollManager&gt;</ID>
+    <ID>LongMethod:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ChatScreen</ID>
+    <ID>LongMethod:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable private fun ChatTopBar</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun ExpandedComposerContent</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun PermissionRequestSheet</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun ToolCallDetailsSheet</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun ToolbarOptionsButton</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun ChatComposerBar</ID>
+    <ID>LongMethod:ChatSessionCoordinator.kt:ChatSessionCoordinator$suspend fun loadSession</ID>
+    <ID>LongMethod:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun ToolCallCard</ID>
+    <ID>LoopWithTooManyJumpStatements:ChatScreen.kt:AutoScrollManager$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ChatSessionCoordinator.kt:ChatSessionCoordinator$while</ID>
+    <ID>MagicNumber:ChatScreen.kt:0xFF2E7D32</ID>
+    <ID>MagicNumber:ChatScreen.kt:AutoScrollManager.&lt;no name provided&gt;$0.5f</ID>
+    <ID>MagicNumber:ChatScreenSections.kt:0.92f</ID>
+    <ID>MagicNumber:MessageBubble.kt:200f</ID>
+    <ID>MagicNumber:MessageBubble.kt:6</ID>
+    <ID>MaxLineLength:ChatSessionCoordinator.kt:ChatSessionCoordinator$"ACP authentication is required for this server. Reconnect from the server list and choose an auth method."</ID>
+    <ID>MaxLineLength:ChatSessionCoordinator.kt:ChatSessionCoordinator$"ACP authentication is required for this server. Return to the session list and authenticate first."</ID>
+    <ID>MaxLineLength:ChatSessionCoordinator.kt:ChatSessionCoordinator$message = "The ACP bridge process restarted while loading this session. Opened a new live session."</ID>
+    <ID>MaxLineLength:ChatSessionCoordinator.kt:ChatSessionCoordinator$val refreshedSource = refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun completePairing: GatewayPairingResult</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun connectRuntime: GatewayConnectResponse</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun fetchAgents: List&lt;GatewayAgent&gt;</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun fetchRuntimeLogs: List&lt;GatewayLogEntry&gt;</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun getPairingStatus: GatewayPairStatusResponse</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun refreshCredential: GatewayPairingResult</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun restartRuntime: GatewayConnectResponse</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun startAgent: GatewayRuntime</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun startPairing: GatewayPairStartResponse</ID>
+    <ID>NestedBlockDepth:ChatScreen.kt:AutoScrollManager$suspend fun scrollToBottom</ID>
+    <ID>ReturnCount:ChatScreen.kt:AutoScrollManager$private fun handleInsetsChanged</ID>
+    <ID>ReturnCount:ChatScreen.kt:private fun LazyListState.isAtBottom: Boolean</ID>
+    <ID>ReturnCount:ChatSessionCoordinator.kt:ChatSessionCoordinator$private suspend fun ensureConnectedAndInitialized: Boolean</ID>
+    <ID>ReturnCount:ChatSessionCoordinator.kt:ChatSessionCoordinator$private suspend fun ensureSessionReadyForSend: SessionBridge?</ID>
+    <ID>ReturnCount:ChatSessionCoordinator.kt:ChatSessionCoordinator$private suspend fun recoverSessionBridge: SessionBridge?</ID>
+    <ID>ReturnCount:ChatSessionCoordinator.kt:ChatSessionCoordinator$suspend fun cancelStreaming</ID>
+    <ID>ReturnCount:ChatSessionCoordinator.kt:ChatSessionCoordinator$suspend fun loadSession</ID>
+    <ID>ReturnCount:ChatSessionCoordinator.kt:ChatSessionCoordinator$suspend fun sendMessage</ID>
+    <ID>SwallowedException:ChatSessionCoordinator.kt:ChatSessionCoordinator$error: AcpAuthenticationRequiredException</ID>
+    <ID>TooGenericExceptionCaught:ChatSessionCoordinator.kt:ChatSessionCoordinator$error: Exception</ID>
+    <ID>TooGenericExceptionCaught:ChatSessionCoordinator.kt:ChatSessionCoordinator$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:MarkdownStateStore.kt:MarkdownStateStore$error: Exception</ID>
+    <ID>TooManyFunctions:ChatScreen.kt:AutoScrollManager</ID>
+    <ID>TooManyFunctions:ChatScreenSections.kt:com.tamimarafat.ferngeist.feature.chat.ui.ChatScreenSections.kt</ID>
+    <ID>TooManyFunctions:ChatSessionCoordinator.kt:ChatSessionCoordinator</ID>
+    <ID>UnusedParameter:ChatScreen.kt:AutoScrollManager$isStreaming: Boolean</ID>
+  </CurrentIssues>
+</SmellBaseline>

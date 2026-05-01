@@ -1,42 +1,48 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -58,33 +64,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
 import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
-import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
-
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.ui.res.stringResource
-import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.PendingLaunchConsent
+import com.tamimarafat.ferngeist.feature.serverlist.R
+import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
+import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -106,18 +103,24 @@ fun ServerListScreen(
     val pendingAuthentication = uiState.pendingAuthentication
     val pendingLaunchConsent = uiState.pendingLaunchConsent
     var selectedAuthMethodId by rememberSaveable(pendingAuthentication?.serverId) {
-        mutableStateOf(uiState.pendingAuthentication?.authMethods?.firstOrNull()?.id)
+        mutableStateOf(
+            uiState.pendingAuthentication
+                ?.authMethods
+                ?.firstOrNull()
+                ?.id,
+        )
     }
     val envValues = remember(pendingAuthentication?.serverId) { mutableStateMapOf<String, String>() }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is ServerListEvent.NavigateToSessions -> onNavigateToSessions(
-                    event.serverId,
-                    event.sessions,
-                    event.openCreateSessionDialog,
-                )
+                is ServerListEvent.NavigateToSessions ->
+                    onNavigateToSessions(
+                        event.serverId,
+                        event.sessions,
+                        event.openCreateSessionDialog,
+                    )
 
                 is ServerListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
@@ -223,9 +226,10 @@ fun ServerListScreen(
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -255,11 +259,12 @@ private fun LaunchRiskConsentDialog(
     onDismiss: () -> Unit,
 ) {
     var acknowledgedRisk by rememberSaveable(pending.serverId) { mutableStateOf(false) }
-    val riskLines = launchRiskLines(
-        serverName = pending.serverName,
-        agentId = pending.agentId,
-        gatewayHost = pending.gatewayHost,
-    )
+    val riskLines =
+        launchRiskLines(
+            serverName = pending.serverName,
+            agentId = pending.agentId,
+            gatewayHost = pending.gatewayHost,
+        )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -311,11 +316,12 @@ private fun ServerListTopBar(
     onAboutClick: () -> Unit,
 ) {
     val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
-    val titleStyle = lerp(
-        MaterialTheme.typography.displayMedium,
-        MaterialTheme.typography.titleLarge,
-        collapse
-    )
+    val titleStyle =
+        lerp(
+            MaterialTheme.typography.displayMedium,
+            MaterialTheme.typography.titleLarge,
+            collapse,
+        )
 
     LargeTopAppBar(
         title = { Text(text = "Ferngeist", style = titleStyle) },
@@ -328,23 +334,22 @@ private fun ServerListTopBar(
                 IconButton(onClick = onAboutClick) {
                     Icon(
                         imageVector = Icons.Rounded.Info,
-                        contentDescription = stringResource(R.string.about)
+                        contentDescription = stringResource(R.string.about),
                     )
                 }
             }
         },
         scrollBehavior = scrollBehavior,
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ),
+        colors =
+            TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
     )
 }
 
 @Composable
-private fun AboutDialog(
-    onDismiss: () -> Unit,
-) {
+private fun AboutDialog(onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     val githubRepoUrl = stringResource(R.string.github_repo_url)
@@ -360,7 +365,7 @@ private fun AboutDialog(
                 )
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     TextButton(
                         onClick = { uriHandler.openUri(privacyPolicyUrl) },
@@ -397,24 +402,27 @@ private fun PendingAuthenticationDialog(
 ) {
     val uriHandler = LocalUriHandler.current
     val scrollState = rememberScrollState()
-    val selectedMethod = pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
-        ?: pendingAuthentication.authMethods.firstOrNull()
-    val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.GatewayRuntime != null
-    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.GatewayRuntime == null
-    val requiredEnvVarsFilled = selectedMethod
-        ?.envVars
-        ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
-        ?: false
+    val selectedMethod =
+        pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
+            ?: pendingAuthentication.authMethods.firstOrNull()
+    val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntime != null
+    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntime == null
+    val requiredEnvVarsFilled =
+        selectedMethod
+            ?.envVars
+            ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
+            ?: false
 
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Authenticate ${pendingAuthentication.serverName}") },
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(scrollState),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
@@ -435,9 +443,10 @@ private fun PendingAuthenticationDialog(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
                             verticalAlignment = Alignment.Top,
                         ) {
                             RadioButton(
@@ -445,9 +454,10 @@ private fun PendingAuthenticationDialog(
                                 onClick = { onSelectedAuthMethodChange(method.id) },
                             )
                             Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(top = 2.dp),
+                                modifier =
+                                    Modifier
+                                        .weight(1f)
+                                        .padding(top = 2.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 Text(text = method.name, fontWeight = FontWeight.SemiBold)
@@ -460,7 +470,7 @@ private fun PendingAuthenticationDialog(
                                     AuthenticationMethodDetails(
                                         method = method,
                                         envValues = envValues,
-                                        isGatewayBacked = pendingAuthentication.GatewayRuntime != null,
+                                        isGatewayBacked = pendingAuthentication.gatewayRuntime != null,
                                         onOpenLink = { uriHandler.openUri(it) },
                                         onEnvValueChange = { name, value -> envValues[name] = value },
                                     )
@@ -473,11 +483,12 @@ private fun PendingAuthenticationDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = when {
-                    selectedMethod == null -> false
-                    isGatewayEnvAuth -> requiredEnvVarsFilled
-                    else -> true
-                },
+                enabled =
+                    when {
+                        selectedMethod == null -> false
+                        isGatewayEnvAuth -> requiredEnvVarsFilled
+                        else -> true
+                    },
                 onClick = {
                     when {
                         selectedMethod == null -> Unit
@@ -528,14 +539,15 @@ private fun AuthenticationMethodDetails(
         )
         method.envVars.forEach { envVar ->
             Text(
-                text = buildString {
-                    append(envVar.label ?: envVar.name)
-                    append(" -> ")
-                    append(envVar.name)
-                    if (envVar.optional) {
-                        append(" (optional)")
-                    }
-                },
+                text =
+                    buildString {
+                        append(envVar.label ?: envVar.name)
+                        append(" -> ")
+                        append(envVar.name)
+                        if (envVar.optional) {
+                            append(" (optional)")
+                        }
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -554,27 +566,27 @@ private fun AuthenticationMethodDetails(
                         if (envVar.optional) {
                             append(" (optional)")
                         }
-                    }
+                    },
                 )
             },
             supportingText = { Text(envVar.name) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
-            ),
-            visualTransformation = if (envVar.secret) {
-                PasswordVisualTransformation()
-            } else {
-                VisualTransformation.None
-            },
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
+                ),
+            visualTransformation =
+                if (envVar.secret) {
+                    PasswordVisualTransformation()
+                } else {
+                    VisualTransformation.None
+                },
         )
     }
 }
 
 @Composable
-private fun EmptyServerList(
-    onAddServer: () -> Unit,
-) {
+private fun EmptyServerList(onAddServer: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -582,9 +594,10 @@ private fun EmptyServerList(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 28.dp, vertical = 36.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 28.dp, vertical = 36.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

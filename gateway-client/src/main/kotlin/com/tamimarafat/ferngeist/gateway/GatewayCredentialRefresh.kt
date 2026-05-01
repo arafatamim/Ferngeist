@@ -16,19 +16,19 @@ suspend fun refreshGatewaySourceIfNeeded(
     if (expiresAt - nowMillis > GATEWAY_REFRESH_WINDOW_MS) {
         return gatewaySource
     }
-    val refreshed = gatewayRepository.refreshCredential(
-        scheme = gatewaySource.scheme,
-        host = gatewaySource.host,
-        gatewayCredential = gatewaySource.gatewayCredential,
-    )
-    val updated = gatewaySource.copy(
-        gatewayCredential = refreshed.gatewayCredential,
-        gatewayCredentialExpiresAt = refreshed.expiresAt.toEpochMillisOrNull(),
-    )
+    val refreshed =
+        gatewayRepository.refreshCredential(
+            scheme = gatewaySource.scheme,
+            host = gatewaySource.host,
+            gatewayCredential = gatewaySource.gatewayCredential,
+        )
+    val updated =
+        gatewaySource.copy(
+            gatewayCredential = refreshed.gatewayCredential,
+            gatewayCredentialExpiresAt = refreshed.expiresAt.toEpochMillisOrNull(),
+        )
     gatewaySourceRepository.updateGateway(updated)
     return updated
 }
 
-private fun String.toEpochMillisOrNull(): Long? {
-    return runCatching { Instant.parse(this).toEpochMilli() }.getOrNull()
-}
+private fun String.toEpochMillisOrNull(): Long? = runCatching { Instant.parse(this).toEpochMilli() }.getOrNull()

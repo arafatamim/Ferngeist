@@ -71,19 +71,23 @@ internal class AcpDiagnosticsStore {
         rpcId: String? = null,
         summary: String? = null,
     ) {
-        val entry = RpcDiagnosticEntry(
-            direction = direction,
-            method = method,
-            rpcId = rpcId,
-            summary = summary,
-        )
+        val entry =
+            RpcDiagnosticEntry(
+                direction = direction,
+                method = method,
+                rpcId = rpcId,
+                summary = summary,
+            )
         update { current ->
             val next = (current.recentRpc + entry).takeLast(maxDiagnosticRpcEntries)
             current.copy(recentRpc = next)
         }
     }
 
-    fun appendError(source: String, message: String) {
+    fun appendError(
+        source: String,
+        message: String,
+    ) {
         val entry = DiagnosticErrorEntry(source = source, message = message)
         update { current ->
             val next = (current.recentErrors + entry).takeLast(maxDiagnosticErrorEntries)
@@ -91,9 +95,7 @@ internal class AcpDiagnosticsStore {
         }
     }
 
-    private inline fun update(
-        transform: (ConnectionDiagnostics) -> ConnectionDiagnostics,
-    ) {
+    private inline fun update(transform: (ConnectionDiagnostics) -> ConnectionDiagnostics) {
         _diagnostics.update { current ->
             transform(current).copy(lastUpdatedAtMs = System.currentTimeMillis())
         }

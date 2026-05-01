@@ -39,7 +39,6 @@ enum class RpcDirection {
 enum class WebSocketState {
     CONNECTING,
     OPEN,
-    CLOSING,
     CLOSED,
     FAILED,
 }

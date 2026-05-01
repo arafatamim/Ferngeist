@@ -6,12 +6,12 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class GatewayPairingPayloadParserTest {
-
     @Test
     fun `parse URI format with all fields`() {
-        val payload = GatewayPairingPayloadParser.parse(
-            "ferngeist-gateway://pair?host=myhost.local&code=abc123&challengeId=ch1"
-        )
+        val payload =
+            GatewayPairingPayloadParser.parse(
+                "ferngeist-gateway://pair?host=myhost.local&code=abc123&challengeId=ch1",
+            )
         assertNotNull(payload)
         assertEquals("myhost.local", payload!!.host)
         assertEquals("abc123", payload.code)
@@ -21,9 +21,10 @@ class GatewayPairingPayloadParserTest {
 
     @Test
     fun `parse URI format with explicit scheme`() {
-        val payload = GatewayPairingPayloadParser.parse(
-            "ferngeist-gateway://pair?host=myhost.local&code=abc123&challengeId=ch1&scheme=https"
-        )
+        val payload =
+            GatewayPairingPayloadParser.parse(
+                "ferngeist-gateway://pair?host=myhost.local&code=abc123&challengeId=ch1&scheme=https",
+            )
         assertNotNull(payload)
         assertEquals("https", payload!!.scheme)
     }
@@ -46,9 +47,10 @@ class GatewayPairingPayloadParserTest {
 
     @Test
     fun `returns null for missing required fields`() {
-        val payload = GatewayPairingPayloadParser.parse(
-            "ferngeist-gateway://pair?host=myhost.local&code=abc123"
-        )
+        val payload =
+            GatewayPairingPayloadParser.parse(
+                "ferngeist-gateway://pair?host=myhost.local&code=abc123",
+            )
         assertNull(payload)
     }
 }

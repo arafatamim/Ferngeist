@@ -1,7 +1,5 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.ClientOperationsFactory
 import com.agentclientprotocol.client.ClientSession
@@ -9,7 +7,6 @@ import com.agentclientprotocol.common.ClientSessionOperations
 import com.agentclientprotocol.common.Event
 import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.ContentBlock
-import com.agentclientprotocol.model.McpServer
 import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.RequestPermissionOutcome
@@ -19,6 +16,7 @@ import com.agentclientprotocol.model.SessionConfigOptionValue
 import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.SessionModeId
 import com.agentclientprotocol.model.SessionUpdate
+import com.agentclientprotocol.protocol.JsonRpcException
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
@@ -26,7 +24,6 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.agentclientprotocol.protocol.JsonRpcException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -58,20 +55,20 @@ class AcpConnectionManager(
     private val _agentInfo = MutableStateFlow<AgentInfo?>(null)
     val agentInfo: StateFlow<AgentInfo?> = _agentInfo.asStateFlow()
 
-    private val _authMethods = MutableStateFlow<List<AcpAuthMethodInfo>>(emptyList())
-    val authMethods: StateFlow<List<AcpAuthMethodInfo>> = _authMethods.asStateFlow()
+    private val authMethodsFlow = MutableStateFlow<List<AcpAuthMethodInfo>>(emptyList())
 
     private val diagnosticsStore = AcpDiagnosticsStore()
     val diagnostics: StateFlow<ConnectionDiagnostics> = diagnosticsStore.diagnostics
 
     private val sessionRegistry = AcpSessionRegistry()
-    private val transportClient = AcpTransportClient(
-        connectivityObserver = connectivityObserver,
-        scope = scope,
-        diagnosticsStore = diagnosticsStore,
-        updateConnectionState = { state -> _connectionState.value = state },
-        emitManagerEvent = { event -> _events.emit(event) },
-    )
+    private val transportClient =
+        AcpTransportClient(
+            connectivityObserver = connectivityObserver,
+            scope = scope,
+            diagnosticsStore = diagnosticsStore,
+            updateConnectionState = { state -> _connectionState.value = state },
+            emitManagerEvent = { event -> _events.emit(event) },
+        )
 
     init {
         scope.launch {
@@ -80,13 +77,13 @@ class AcpConnectionManager(
                     is AcpManagerEvent.Initialized -> {
                         _agentCapabilities.value = event.result.agentCapabilities
                         _agentInfo.value = event.result.agentInfo
-                        _authMethods.value = event.result.authMethods
+                        authMethodsFlow.value = event.result.authMethods
                     }
 
                     is AcpManagerEvent.Disconnected -> {
                         _agentCapabilities.value = null
                         _agentInfo.value = null
-                        _authMethods.value = emptyList()
+                        authMethodsFlow.value = emptyList()
                     }
 
                     else -> Unit
@@ -98,29 +95,25 @@ class AcpConnectionManager(
     val isConnected: Boolean
         get() = _connectionState.value is AcpConnectionState.Connected
 
-    suspend fun connect(config: AcpConnectionConfig): Boolean {
-        return transportClient.connect(config, resetState = ::resetConnectionState)
-    }
+    suspend fun connect(config: AcpConnectionConfig): Boolean =
+        transportClient.connect(config, resetState = ::resetConnectionState)
 
     suspend fun initialize(): AcpInitializeResult? {
         val result = transportClient.initialize()
         _agentCapabilities.value = result?.agentCapabilities
         _agentInfo.value = result?.agentInfo
-        _authMethods.value = result?.authMethods ?: emptyList()
+        authMethodsFlow.value = result?.authMethods ?: emptyList()
         return result
     }
 
     fun currentConnectionConfig(): AcpConnectionConfig? = transportClient.currentConnectionConfig()
 
-    suspend fun authenticate(methodId: String): AcpAuthenticateResult {
-        return transportClient.authenticate(methodId)
-    }
+    suspend fun authenticate(methodId: String): AcpAuthenticateResult = transportClient.authenticate(methodId)
 
-    suspend fun disconnect() {
+    fun disconnect() {
         transportClient.disconnect(resetState = ::resetConnectionState)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun listSessions(cwd: String? = null): List<SessionSummary> {
         val client = transportClient.sdkClient ?: return emptyList()
         return runCatching {
@@ -130,7 +123,7 @@ class AcpConnectionManager(
                     id = sessionInfo.sessionId.value,
                     title = sessionInfo.title,
                     cwd = sessionInfo.cwd,
-                    updatedAt = AcpSessionUpdateMapper.parseIsoOrMillis(sessionInfo.updatedAt)
+                    updatedAt = AcpSessionUpdateMapper.parseIsoOrMillis(sessionInfo.updatedAt),
                 )
             }
         }.getOrElse {
@@ -144,10 +137,11 @@ class AcpConnectionManager(
         val client = transportClient.sdkClient ?: return null
         return runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/new")
-            val session = client.newSession(
-                sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
-                operationsFactory = operationsFactory
-            )
+            val session =
+                client.newSession(
+                    sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
+                    operationsFactory = operationsFactory,
+                )
             registerSession(session)
         }.getOrElse {
             toAuthRequiredException(it)?.let { error -> throw error }
@@ -164,21 +158,24 @@ class AcpConnectionManager(
             return existing
         }
 
-        val client = transportClient.sdkClient ?: run {
-            logError("loadSession: sdkClient is NULL, returning null")
-            return null
-        }
+        val client =
+            transportClient.sdkClient ?: run {
+                logError("loadSession: sdkClient is NULL, returning null")
+                return null
+            }
         diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/load")
         return runCatching {
-            val bridge = sessionRegistry.getBridge(sessionId)
-                ?: SessionBridge(sessionId, this).also { sessionRegistry.storeBridge(sessionId, it) }
+            val bridge =
+                sessionRegistry.getBridge(sessionId)
+                    ?: SessionBridge(sessionId, this).also { sessionRegistry.storeBridge(sessionId, it) }
             bridge.beginHydration()
 
-            val session = client.loadSession(
-                sessionId = SessionId(sessionId),
-                sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList<McpServer>()),
-                operationsFactory = operationsFactory,
-            )
+            val session =
+                client.loadSession(
+                    sessionId = SessionId(sessionId),
+                    sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
+                    operationsFactory = operationsFactory,
+                )
             val registeredBridge = registerSession(session)
             registeredBridge.completeHydration()
             registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
@@ -187,7 +184,10 @@ class AcpConnectionManager(
             toAuthRequiredException(error)?.let { authError -> throw authError }
             if (isSessionAlreadyLoadedError(error)) {
                 getLoadedSession(sessionId)?.let { existing ->
-                    diagnosticsStore.appendError("session/load", "Session is already loaded locally. Reusing the active session.")
+                    diagnosticsStore.appendError(
+                        "session/load",
+                        "Session is already loaded locally. Reusing the active session.",
+                    )
                     return existing
                 }
 
@@ -206,11 +206,17 @@ class AcpConnectionManager(
         }
     }
 
-    suspend fun sendSessionMessage(sessionId: String, content: String, images: List<Pair<String, String>> = emptyList()) {
-        val bridge = sessionRegistry.getBridge(sessionId)
-            ?: throw IllegalStateException("Session bridge missing for sessionId=$sessionId")
-        val session = sessionRegistry.getSdkSession(sessionId)
-            ?: throw IllegalStateException("SDK session missing for sessionId=$sessionId")
+    suspend fun sendSessionMessage(
+        sessionId: String,
+        content: String,
+        images: List<Pair<String, String>> = emptyList(),
+    ) {
+        val bridge =
+            sessionRegistry.getBridge(sessionId)
+                ?: throw IllegalStateException("Session bridge missing for sessionId=$sessionId")
+        val session =
+            sessionRegistry.getSdkSession(sessionId)
+                ?: throw IllegalStateException("SDK session missing for sessionId=$sessionId")
 
         diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/prompt")
 
@@ -234,7 +240,7 @@ class AcpConnectionManager(
                 is Event.PromptResponseEvent -> {
                     receivedPromptResponse = true
                     bridge.emitEvent(
-                        AppSessionEvent.TurnComplete(AcpSessionUpdateMapper.mapStopReason(event.response.stopReason))
+                        AppSessionEvent.TurnComplete(AcpSessionUpdateMapper.mapStopReason(event.response.stopReason)),
                     )
                 }
             }
@@ -259,7 +265,10 @@ class AcpConnectionManager(
         }.onFailure(::handleSessionCancelFailure)
     }
 
-    suspend fun setSessionMode(sessionId: String, modeId: String) {
+    suspend fun setSessionMode(
+        sessionId: String,
+        modeId: String,
+    ) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_mode")
@@ -270,7 +279,10 @@ class AcpConnectionManager(
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun setSessionModel(sessionId: String, modelId: String) {
+    suspend fun setSessionModel(
+        sessionId: String,
+        modelId: String,
+    ) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_model")
@@ -281,7 +293,11 @@ class AcpConnectionManager(
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun setSessionConfigOption(sessionId: String, optionId: String, value: SessionConfigValue) {
+    suspend fun setSessionConfigOption(
+        sessionId: String,
+        optionId: String,
+        value: SessionConfigValue,
+    ) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_config_option")
@@ -294,20 +310,30 @@ class AcpConnectionManager(
                 sessionId,
                 AppSessionEvent.ConfigOptionsUpdated(
                     options = response.configOptions.map(AcpSessionUpdateMapper::mapSdkConfigOption),
-                )
+                ),
             )
         }.onFailure {
-            diagnosticsStore.appendError("session/set_config_option", formatAcpErrorMessage(it, "Set config option failed"))
+            diagnosticsStore.appendError(
+                "session/set_config_option",
+                formatAcpErrorMessage(it, "Set config option failed"),
+            )
         }
     }
 
-    suspend fun respondPermissionSelected(sessionId: String, toolCallId: String, optionId: String) {
+    suspend fun respondPermissionSelected(
+        sessionId: String,
+        toolCallId: String,
+        optionId: String,
+    ) {
         val pending = sessionRegistry.takePendingPermissionRequest(toolCallId) ?: return
         pending.deferred.complete(RequestPermissionOutcome.Selected(PermissionOptionId(optionId)))
         emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
     }
 
-    suspend fun respondPermissionCancelled(sessionId: String, toolCallId: String) {
+    suspend fun respondPermissionCancelled(
+        sessionId: String,
+        toolCallId: String,
+    ) {
         val pending = sessionRegistry.takePendingPermissionRequest(toolCallId) ?: return
         pending.deferred.complete(RequestPermissionOutcome.Cancelled)
         emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
@@ -319,13 +345,13 @@ class AcpConnectionManager(
         clearSessionState(sessionId, closeBridge = true)
     }
 
-    private val operationsFactory = ClientOperationsFactory { sessionId, _ ->
-        createBridgeSessionOperations(sessionId.value)
-    }
+    private val operationsFactory =
+        ClientOperationsFactory { sessionId, _ ->
+            createBridgeSessionOperations(sessionId.value)
+        }
 
-    private fun createBridgeSessionOperations(sessionId: String): ClientSessionOperations {
-        return BridgeSessionOperations(sessionId)
-    }
+    private fun createBridgeSessionOperations(sessionId: String): ClientSessionOperations =
+        BridgeSessionOperations(sessionId)
 
     private inner class BridgeSessionOperations(
         private val sessionId: String,
@@ -333,7 +359,7 @@ class AcpConnectionManager(
         override suspend fun requestPermissions(
             toolCall: SessionUpdate.ToolCallUpdate,
             permissions: List<PermissionOption>,
-            _meta: kotlinx.serialization.json.JsonElement?
+            _meta: kotlinx.serialization.json.JsonElement?,
         ): RequestPermissionResponse {
             val toolId = toolCall.toolCallId.value
             val deferred = CompletableDeferred<RequestPermissionOutcome>()
@@ -343,13 +369,14 @@ class AcpConnectionManager(
                 deferred = deferred,
             )
 
-            val options = permissions.map {
-                SessionPermissionOption(
-                    id = it.optionId.value,
-                    label = it.name,
-                    kind = it.kind.name.lowercase()
-                )
-            }
+            val options =
+                permissions.map {
+                    SessionPermissionOption(
+                        id = it.optionId.value,
+                        label = it.name,
+                        kind = it.kind.name.lowercase(),
+                    )
+                }
 
             emitToBridge(
                 sessionId,
@@ -357,15 +384,18 @@ class AcpConnectionManager(
                     toolCallId = toolId,
                     requestId = toolId,
                     title = toolCall.title,
-                    options = options
-                )
+                    options = options,
+                ),
             )
 
             val outcome = deferred.await()
             return RequestPermissionResponse(outcome = outcome)
         }
 
-        override suspend fun notify(notification: SessionUpdate, _meta: kotlinx.serialization.json.JsonElement?) {
+        override suspend fun notify(
+            notification: SessionUpdate,
+            _meta: kotlinx.serialization.json.JsonElement?,
+        ) {
             val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(notification) ?: return
             emitToBridge(sessionId, appEvent)
         }
@@ -374,45 +404,48 @@ class AcpConnectionManager(
     private suspend fun registerSession(session: ClientSession): SessionBridge {
         // Reuse the existing bridge if one was pre-created by loadSession so
         // buffered history can be committed into the same runtime.
-        val bridge = sessionRegistry.getBridge(session.sessionId.value)
-            ?: SessionBridge(session.sessionId.value, this)
+        val bridge =
+            sessionRegistry.getBridge(session.sessionId.value)
+                ?: SessionBridge(session.sessionId.value, this)
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
 
         if (session.modesSupported) {
-            val modes = session.availableModes.map {
-                SessionMode(
-                    id = it.id.value,
-                    name = it.name,
-                    description = it.description
-                )
-            }
+            val modes =
+                session.availableModes.map {
+                    SessionMode(
+                        id = it.id.value,
+                        name = it.name,
+                        description = it.description,
+                    )
+                }
             emitToBridge(
                 session.sessionId.value,
                 AppSessionEvent.ModesUpdated(
                     modes = modes,
-                    currentModeId = session.currentMode.value.value
-                )
+                    currentModeId = session.currentMode.value.value,
+                ),
             )
         }
 
         @OptIn(UnstableApi::class)
         if (session.modelsSupported) {
             val current = session.currentModel.value.value
-            val modelChoices = session.availableModels.map { model ->
-                SessionConfigChoice(
-                    id = model.modelId.value,
-                    label = model.name,
-                    value = model.modelId.value,
-                    description = model.description,
-                )
-            }
+            val modelChoices =
+                session.availableModels.map { model ->
+                    SessionConfigChoice(
+                        id = model.modelId.value,
+                        label = model.name,
+                        value = model.modelId.value,
+                        description = model.description,
+                    )
+                }
             emitToBridge(
                 session.sessionId.value,
                 AppSessionEvent.LegacyModelOptionsUpdated(
                     choices = modelChoices,
                     currentModelId = current,
-                )
+                ),
             )
             // Stand-in for missing SDK client update type: the SDK exposes currentModel on the
             // session object, but not a corresponding SessionUpdate.CurrentModelUpdate event for
@@ -426,7 +459,7 @@ class AcpConnectionManager(
                 session.sessionId.value,
                 AppSessionEvent.ConfigOptionsUpdated(
                     options = session.configOptions.value.map(AcpSessionUpdateMapper::mapSdkConfigOption),
-                )
+                ),
             )
         }
 
@@ -434,7 +467,10 @@ class AcpConnectionManager(
         return bridge
     }
 
-    private suspend fun emitToBridge(sessionId: String, event: AppSessionEvent) {
+    private suspend fun emitToBridge(
+        sessionId: String,
+        event: AppSessionEvent,
+    ) {
         val bridge = sessionRegistry.getBridge(sessionId)
         if (bridge != null) {
             trace("emitToBridge sid=$sessionId event=${event::class.simpleName}")
@@ -449,7 +485,10 @@ class AcpConnectionManager(
         runCatching { android.util.Log.d(TRACE_TAG, message) }
     }
 
-    private fun logError(message: String, throwable: Throwable? = null) {
+    private fun logError(
+        message: String,
+        throwable: Throwable? = null,
+    ) {
         runCatching { android.util.Log.e("AcpConnectionManager", message, throwable) }
     }
 
@@ -457,7 +496,10 @@ class AcpConnectionManager(
         sessionRegistry.clearAll(closeBridges = closeBridges)
     }
 
-    private fun clearSessionState(sessionId: String, closeBridge: Boolean) {
+    private fun clearSessionState(
+        sessionId: String,
+        closeBridge: Boolean,
+    ) {
         sessionRegistry.clearSession(sessionId, closeBridge = closeBridge)
     }
 
@@ -494,32 +536,32 @@ class AcpConnectionManager(
     }
 
     @OptIn(UnstableApi::class)
-    private fun SessionConfigValue.toSdkValue(): SessionConfigOptionValue {
-        return when (this) {
+    private fun SessionConfigValue.toSdkValue(): SessionConfigOptionValue =
+        when (this) {
             is SessionConfigValue.StringValue -> SessionConfigOptionValue.of(value)
             is SessionConfigValue.BoolValue -> SessionConfigOptionValue.of(value)
             is SessionConfigValue.UnknownValue -> error("Unsupported config option value: $this")
         }
-    }
 
     private fun resetConnectionState() {
         _agentCapabilities.value = null
         _agentInfo.value = null
-        _authMethods.value = emptyList()
+        authMethodsFlow.value = emptyList()
         clearAllSessionState(closeBridges = true)
     }
 
     private fun toAuthRequiredException(error: Throwable): AcpAuthenticationRequiredException? {
         if (!isAuthenticationRequiredError(error)) return null
-        val challenge = currentAuthChallenge(message = formatAcpErrorMessage(error, "Authentication required"))
-            ?: return null
+        val challenge =
+            currentAuthChallenge(message = formatAcpErrorMessage(error, "Authentication required"))
+                ?: return null
         diagnosticsStore.appendError("authentication", challenge.message)
         return AcpAuthenticationRequiredException(challenge)
     }
 
     private fun currentAuthChallenge(message: String): AcpAuthChallenge? {
         val agent = _agentInfo.value ?: return null
-        val methods = _authMethods.value
+        val methods = authMethodsFlow.value
         return AcpAuthChallenge(
             agentInfo = agent,
             authMethods = methods,
@@ -532,29 +574,39 @@ class AcpConnectionManager(
         // only human-readable JSON-RPC messages. Keep the check broad enough to
         // recognize those failures without hard-coding a vendor name here.
         val rpcError = error as? JsonRpcException
-        val message = buildString {
-            append(error.message.orEmpty())
-            if (rpcError != null) {
-                append(' ')
-                append(rpcError.data?.toString().orEmpty())
+        val message =
+            buildString {
+                append(error.message.orEmpty())
+                if (rpcError != null) {
+                    append(' ')
+                    append(rpcError.data?.toString().orEmpty())
+                }
             }
-        }
         return message.contains("auth_required", ignoreCase = true) ||
             message.contains("authentication required", ignoreCase = true) ||
             message.contains("requires authentication", ignoreCase = true)
     }
-
 }
 
 data class AgentInfo(
     val name: String,
-    val version: String
+    val version: String,
 )
 
 sealed interface AcpManagerEvent {
     data object Connected : AcpManagerEvent
+
     data object Disconnected : AcpManagerEvent
-    data class Initialized(val result: AcpInitializeResult) : AcpManagerEvent
-    data class Authenticated(val methodId: String) : AcpManagerEvent
-    data class Error(val throwable: Throwable) : AcpManagerEvent
+
+    data class Initialized(
+        val result: AcpInitializeResult,
+    ) : AcpManagerEvent
+
+    data class Authenticated(
+        val methodId: String,
+    ) : AcpManagerEvent
+
+    data class Error(
+        val throwable: Throwable,
+    ) : AcpManagerEvent
 }

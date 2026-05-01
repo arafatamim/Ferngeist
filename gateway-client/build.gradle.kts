@@ -24,7 +24,9 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget("17")
+        jvmTarget =
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget
+                .fromTarget("17")
     }
 }
 

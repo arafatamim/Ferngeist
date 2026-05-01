@@ -10,10 +10,10 @@ import kotlinx.coroutines.flow.map
 class GatewayAgentBindingRepositoryImpl(
     private val bindingDao: GatewayAgentBindingDao,
 ) : GatewayAgentBindingRepository {
-
-    override fun getBindings(): Flow<List<GatewayAgentBinding>> {
-        return bindingDao.getAllBindings().map { entities -> entities.map { it.toDomain() } }
-    }
+    override fun getBindings(): Flow<List<GatewayAgentBinding>> =
+        bindingDao.getAllBindings().map { entities ->
+            entities.map { it.toDomain() }
+        }
 
     override suspend fun addBinding(binding: GatewayAgentBinding) {
         bindingDao.insertBinding(binding.toEntity())
@@ -27,31 +27,28 @@ class GatewayAgentBindingRepositoryImpl(
         bindingDao.deleteBindingById(id)
     }
 
-    override suspend fun getBinding(id: String): GatewayAgentBinding? {
-        return bindingDao.getBindingById(id)?.toDomain()
-    }
+    override suspend fun getBinding(id: String): GatewayAgentBinding? = bindingDao.getBindingById(id)?.toDomain()
 
-    override suspend fun getBindingsForGateway(gatewayId: String): List<GatewayAgentBinding> {
-        return bindingDao.getBindingsForGateway(gatewayId).map { it.toDomain() }
-    }
+    override suspend fun getBindingsForGateway(gatewayId: String): List<GatewayAgentBinding> =
+        bindingDao.getBindingsForGateway(gatewayId).map {
+            it.toDomain()
+        }
 }
 
-private fun GatewayAgentBindingEntity.toDomain(): GatewayAgentBinding {
-    return GatewayAgentBinding(
+private fun GatewayAgentBindingEntity.toDomain(): GatewayAgentBinding =
+    GatewayAgentBinding(
         id = id,
         name = name,
         gatewaySourceId = gatewaySourceId,
         agentId = agentId,
         preferredAuthMethodId = preferredAuthMethodId,
     )
-}
 
-private fun GatewayAgentBinding.toEntity(): GatewayAgentBindingEntity {
-    return GatewayAgentBindingEntity(
+private fun GatewayAgentBinding.toEntity(): GatewayAgentBindingEntity =
+    GatewayAgentBindingEntity(
         id = id,
         name = name,
         gatewaySourceId = gatewaySourceId,
         agentId = agentId,
         preferredAuthMethodId = preferredAuthMethodId,
     )
-}

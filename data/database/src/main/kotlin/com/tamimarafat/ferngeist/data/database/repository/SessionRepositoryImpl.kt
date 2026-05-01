@@ -10,33 +10,37 @@ import kotlinx.coroutines.flow.map
 class SessionRepositoryImpl(
     private val sessionDao: SessionDao,
 ) : SessionRepository {
-
-    override fun getSessions(serverId: String): Flow<List<SessionSummary>> {
-        return sessionDao.getSessionsByServerId(serverId).map { entities ->
+    override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
+        sessionDao.getSessionsByServerId(serverId).map { entities ->
             entities.map { entity ->
                 SessionSummary(
                     id = entity.sessionId,
                     title = entity.title,
                     cwd = entity.cwd,
-                    updatedAt = entity.updatedAt
+                    updatedAt = entity.updatedAt,
                 )
             }
         }
-    }
 
-    override suspend fun upsertSession(serverId: String, summary: SessionSummary) {
+    override suspend fun upsertSession(
+        serverId: String,
+        summary: SessionSummary,
+    ) {
         sessionDao.insertSession(
             SessionEntity(
                 sessionId = summary.id,
                 serverId = serverId,
                 title = summary.title,
                 cwd = summary.cwd,
-                updatedAt = summary.updatedAt
-            )
+                updatedAt = summary.updatedAt,
+            ),
         )
     }
 
-    override suspend fun deleteSession(serverId: String, sessionId: String) {
+    override suspend fun deleteSession(
+        serverId: String,
+        sessionId: String,
+    ) {
         sessionDao.deleteSessionById(sessionId)
     }
 

@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.ksp)
@@ -6,22 +8,29 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-val appVersionName = providers.exec {
-    commandLine("git", "describe", "--tags", "--abbrev=0")
-}.standardOutput.asText.get().trim().removePrefix("v").ifEmpty { "0.0.0" }
+val appVersionName =
+    providers
+        .exec {
+            commandLine("git", "describe", "--tags", "--abbrev=0")
+        }.standardOutput.asText
+        .get()
+        .trim()
+        .removePrefix("v")
+        .ifEmpty { "0.0.0" }
 
-val appVersionCode = run {
-    val parts = appVersionName.split(".")
-    val major = parts.getOrElse(0) { "0" }.toIntOrNull() ?: 0
-    val minor = parts.getOrElse(1) { "0" }.toIntOrNull() ?: 0
-    val patch = parts.getOrElse(2) { "0" }.toIntOrNull() ?: 0
-    major * 10000 + minor * 100 + patch
-}
+val appVersionCode =
+    run {
+        val parts = appVersionName.split(".")
+        val major = parts.getOrElse(0) { "0" }.toIntOrNull() ?: 0
+        val minor = parts.getOrElse(1) { "0" }.toIntOrNull() ?: 0
+        val patch = parts.getOrElse(2) { "0" }.toIntOrNull() ?: 0
+        major * 10000 + minor * 100 + patch
+    }
 
 val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.trim()?.replaceFirst(Regex("[\\\\/]+$"), "")
-val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
-val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+val releaseKeystorePassword: String? = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias: String? = System.getenv("ANDROID_KEY_ALIAS")
+val releaseKeyPassword: String? = System.getenv("ANDROID_KEY_PASSWORD")
 val hasReleaseSigning =
     !releaseKeystorePath.isNullOrBlank() &&
         !releaseKeystorePassword.isNullOrBlank() &&
@@ -31,7 +40,7 @@ val hasReleaseSigning =
 kotlin {
     jvmToolchain(17)
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget("17")
+        jvmTarget = JvmTarget.fromTarget("17")
     }
 }
 
@@ -69,7 +78,7 @@ android {
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -80,9 +89,10 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        lintConfig = file("lint.xml")
+    }
 }
-
-
 
 dependencies {
     implementation(projects.core.model)
@@ -110,7 +120,7 @@ dependencies {
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    
+
     // Hilt Setup
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -129,5 +139,4 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-
 }

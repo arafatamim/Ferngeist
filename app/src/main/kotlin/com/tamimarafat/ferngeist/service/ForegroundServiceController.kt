@@ -5,13 +5,13 @@ import android.content.Intent
 import android.util.Log
 
 object ForegroundServiceController {
-
     private const val TAG = "FgServiceController"
 
     fun start(context: Context) {
-        val intent = Intent(context, FerngeistForegroundService::class.java).apply {
-            action = FerngeistForegroundService.ACTION_START
-        }
+        val intent =
+            Intent(context, FerngeistForegroundService::class.java).apply {
+                action = FerngeistForegroundService.ACTION_START
+            }
         try {
             context.startForegroundService(intent)
         } catch (e: Exception) {
@@ -20,9 +20,10 @@ object ForegroundServiceController {
     }
 
     fun stop(context: Context) {
-        val intent = Intent(context, FerngeistForegroundService::class.java).apply {
-            action = FerngeistForegroundService.ACTION_STOP
-        }
+        val intent =
+            Intent(context, FerngeistForegroundService::class.java).apply {
+                action = FerngeistForegroundService.ACTION_STOP
+            }
         try {
             context.startService(intent)
         } catch (e: Exception) {

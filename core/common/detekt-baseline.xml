@@ -1,0 +1,18 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
+    <ID>FunctionNaming:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
+    <ID>LongMethod:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:12</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000.0</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000L</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000.0</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000L</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000_000.0</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000_000L</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:8</ID>
+    <ID>MaxLineLength:ConnectionDiagnosticsUi.kt:text = "${formatDiagnosticsTime(entry.timestampMs)} ${directionLabel(entry.direction)} ${entry.method}$rpcIdText$summaryText"</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,11 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +25,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -98,19 +92,21 @@ fun AddServerScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Spacer(modifier = Modifier.height(4.dp))
@@ -197,9 +193,10 @@ fun AddServerScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
@@ -249,9 +246,10 @@ fun AddServerScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(
@@ -279,19 +277,22 @@ fun AddServerScreen(
 
             Button(
                 onClick = viewModel::saveServer,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
                 enabled = !isLoading,
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                elevation = ButtonDefaults.buttonElevation(
-                    defaultElevation = 2.dp,
-                    pressedElevation = 0.dp,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                elevation =
+                    ButtonDefaults.buttonElevation(
+                        defaultElevation = 2.dp,
+                        pressedElevation = 0.dp,
+                    ),
             ) {
                 if (isLoading) {
                     LoadingIndicator(
@@ -354,21 +355,24 @@ private fun ProtocolOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-    }
-    val contentColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val borderColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-    } else {
-        MaterialTheme.colorScheme.outlineVariant
-    }
+    val containerColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        }
+    val contentColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    val borderColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant
+        }
 
     Surface(
         onClick = onClick,
@@ -379,9 +383,10 @@ private fun ProtocolOption(
         modifier = modifier.height(52.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -425,10 +430,11 @@ internal fun SectionCard(
         tonalElevation = 0.dp,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-                .animateContentSize(),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .animateContentSize(),
         ) {
             // Header
             Row(
@@ -473,12 +479,13 @@ internal fun SectionCard(
 // ── Shared TextField Colors ─────────────────────────────────────────────────────
 
 @Composable
-private fun sectionTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = MaterialTheme.colorScheme.primary,
-    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-    focusedContainerColor = MaterialTheme.colorScheme.surface,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-)
+private fun sectionTextFieldColors() =
+    OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        focusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+    )
 
 private fun String.isLoopbackHost(): Boolean {
     val normalized = trim().lowercase()

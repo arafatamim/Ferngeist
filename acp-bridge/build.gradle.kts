@@ -8,19 +8,21 @@ android {
     compileSdk = 36
 
     defaultConfig {
+        minSdk = 30
         consumerProguardFiles("consumer-rules.pro")
     }
-    
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
 }
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget("17")
+        jvmTarget =
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget
+                .fromTarget("17")
     }
 }
 
@@ -51,4 +53,3 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }
-

@@ -21,10 +21,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,28 +28,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 
+@Suppress("LongMethod", "FunctionNaming")
 @Composable
 fun BatteryOptimizationDialog(
     onDismiss: () -> Unit,
     onBackFromSettings: () -> Unit,
 ) {
     val context = LocalContext.current
-    var inSettings by remember { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        inSettings = false
-        onBackFromSettings()
-    }
+    val launcher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult(),
+        ) {
+            onBackFromSettings()
+        }
 
     Dialog(onDismissRequest = onDismiss) {
         ElevatedCard(
             shape = RoundedCornerShape(28.dp),
         ) {
             Column(
-                modifier = Modifier
-                    .widthIn(max = 320.dp)
-                    .padding(24.dp),
+                modifier =
+                    Modifier
+                        .widthIn(max = 320.dp)
+                        .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(
@@ -74,7 +71,10 @@ fun BatteryOptimizationDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Android may restrict Ferngeist in the background, causing the agent connection to drop. Disabling battery optimization helps keep your session alive.",
+                    text =
+                        "Android may restrict Ferngeist in the background, " +
+                            "causing the agent connection to drop. " +
+                            "Disabling battery optimization helps keep your session alive.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -91,7 +91,6 @@ fun BatteryOptimizationDialog(
                     }
                     Button(
                         onClick = {
-                            inSettings = true
                             val intent = BatteryOptimizationHelper.createSettingsIntent(context)
                             launcher.launch(intent)
                         },

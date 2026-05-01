@@ -1,10 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
 
 class SessionBridge(
     val sessionId: String,
@@ -15,10 +15,11 @@ class SessionBridge(
 
     // Replay must be large because session/load history often arrives as many chunk events
     // before ChatViewModel attaches its collector.
-    private val _events = MutableSharedFlow<AppSessionEvent>(
-        replay = 5000,
-        extraBufferCapacity = 2048,
-    )
+    private val _events =
+        MutableSharedFlow<AppSessionEvent>(
+            replay = 5000,
+            extraBufferCapacity = 2048,
+        )
     val events: SharedFlow<AppSessionEvent> = _events.asSharedFlow()
     private val traceTag = "TSBridge"
 
@@ -44,7 +45,10 @@ class SessionBridge(
         runtime.markReady()
     }
 
-    suspend fun sendPrompt(text: String, images: List<Pair<String, String>> = emptyList()) {
+    suspend fun sendPrompt(
+        text: String,
+        images: List<Pair<String, String>> = emptyList(),
+    ) {
         runtime.onLocalPromptStarted(text, images)
         try {
             connectionManager?.sendSessionMessage(sessionId, text, images)
@@ -59,7 +63,10 @@ class SessionBridge(
         runtime.onLocalCancel()
     }
 
-    suspend fun setConfigOption(optionId: String, value: SessionConfigValue) {
+    suspend fun setConfigOption(
+        optionId: String,
+        value: SessionConfigValue,
+    ) {
         val option = snapshot.value.configOptions.firstOrNull { it.id == optionId }
         when (option?.origin) {
             SessionConfigOrigin.LegacyMode -> {
@@ -84,13 +91,16 @@ class SessionBridge(
                     AppSessionEvent.ConfigOptionValueChanged(
                         optionId = optionId,
                         value = value,
-                    )
+                    ),
                 )
             }
         }
     }
 
-    suspend fun grantPermission(toolCallId: String, optionId: String) {
+    suspend fun grantPermission(
+        toolCallId: String,
+        optionId: String,
+    ) {
         connectionManager?.respondPermissionSelected(sessionId, toolCallId, optionId)
     }
 
@@ -99,7 +109,12 @@ class SessionBridge(
     }
 
     fun close() {
-        // Clean up
+        // Intentionally empty: SessionBridge doesn't directly own resources that need
+        // explicit synchronous teardown. SDK sessions and transport resources are
+        // managed by AcpConnectionManager / AcpTransportClient and removed via
+        // AcpSessionRegistry.clearSession. This method exists as a lifecycle hook
+        // so callers (for example AcpSessionRegistry) may invoke it if future
+        // cleanup is required.
     }
 
     private fun debug(message: String) {
@@ -113,20 +128,24 @@ sealed interface AppSessionEvent {
         val append: Boolean = false,
         val timestampMs: Long? = null,
     ) : AppSessionEvent
+
     data class AgentMessage(
         val text: String,
         val timestampMs: Long? = null,
     ) : AppSessionEvent
+
     data class AgentThought(
         val text: String,
         val timestampMs: Long? = null,
     ) : AppSessionEvent
+
     data class ToolCallStarted(
         val toolCallId: String,
         val title: String,
         val kind: String?,
         val status: String?,
     ) : AppSessionEvent
+
     data class ToolCallUpdated(
         val toolCallId: String,
         val status: String?,
@@ -135,38 +154,50 @@ sealed interface AppSessionEvent {
         val output: String?,
         val rawOutput: String? = null,
     ) : AppSessionEvent
+
     data class ToolPermissionRequested(
         val toolCallId: String,
         val requestId: String,
         val title: String?,
         val options: List<SessionPermissionOption>,
     ) : AppSessionEvent
+
     data class ToolPermissionResolved(
         val toolCallId: String,
     ) : AppSessionEvent
-    data class ModeChanged(val modeId: String) : AppSessionEvent
+
+    data class ModeChanged(
+        val modeId: String,
+    ) : AppSessionEvent
+
     data class ModesUpdated(
         val modes: List<SessionMode>,
         val currentModeId: String? = null,
     ) : AppSessionEvent
+
     data class ConfigOptionsUpdated(
         val options: List<SessionConfigOption>,
     ) : AppSessionEvent
+
     data class ConfigOptionValueChanged(
         val optionId: String,
         val value: SessionConfigValue,
     ) : AppSessionEvent
+
     data class LegacyModelOptionsUpdated(
         val choices: List<SessionConfigChoice>,
         val currentModelId: String? = null,
     ) : AppSessionEvent
+
     data class ModelSelectionConfirmed(
         val modelId: String?,
     ) : AppSessionEvent
+
     data class PlanUpdated(
         val content: String,
         val timestampMs: Long? = null,
     ) : AppSessionEvent
+
     data class UsageUpdated(
         val promptTokens: Int? = null,
         val completionTokens: Int? = null,
@@ -175,15 +206,26 @@ sealed interface AppSessionEvent {
         val contextWindowTokens: Int? = null,
         val costUsd: Double? = null,
     ) : AppSessionEvent
-    data class CommandsUpdated(val commands: List<String>) : AppSessionEvent
+
+    data class CommandsUpdated(
+        val commands: List<String>,
+    ) : AppSessionEvent
+
     data class SessionInfoUpdated(
         val title: String?,
         val updatedAt: String?,
     ) : AppSessionEvent
+
     /** Synthetic event emitted after session/load replay events have been forwarded. */
     data object SessionLoadComplete : AppSessionEvent
-    data class TurnComplete(val stopReason: String) : AppSessionEvent
-    data class Unknown(val raw: String) : AppSessionEvent
+
+    data class TurnComplete(
+        val stopReason: String,
+    ) : AppSessionEvent
+
+    data class Unknown(
+        val raw: String,
+    ) : AppSessionEvent
 }
 
 data class SessionMode(

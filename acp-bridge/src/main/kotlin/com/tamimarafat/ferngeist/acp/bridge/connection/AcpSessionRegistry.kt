@@ -13,19 +13,21 @@ internal class AcpSessionRegistry {
 
     fun getBridge(sessionId: String): SessionBridge? = sessionBridges[sessionId]
 
-    fun storeBridge(sessionId: String, bridge: SessionBridge) {
+    fun storeBridge(
+        sessionId: String,
+        bridge: SessionBridge,
+    ) {
         sessionBridges[sessionId] = bridge
     }
 
     fun getSdkSession(sessionId: String): ClientSession? = sdkSessions[sessionId]
 
-    fun storeSdkSession(sessionId: String, session: ClientSession) {
+    fun storeSdkSession(
+        sessionId: String,
+        session: ClientSession,
+    ) {
         sdkSessions[sessionId] = session
     }
-
-    fun removeSdkSession(sessionId: String): ClientSession? = sdkSessions.remove(sessionId)
-
-    fun hasBridge(sessionId: String): Boolean = sessionBridges.containsKey(sessionId)
 
     fun hasSdkSession(sessionId: String): Boolean = sdkSessions.containsKey(sessionId)
 
@@ -36,40 +38,45 @@ internal class AcpSessionRegistry {
         sessionId: String,
         deferred: CompletableDeferred<RequestPermissionOutcome>,
     ) {
-        pendingPermissionRequests[toolCallId] = PendingPermissionRequest(
-            sessionId = sessionId,
-            deferred = deferred,
-        )
+        pendingPermissionRequests[toolCallId] =
+            PendingPermissionRequest(
+                sessionId = sessionId,
+                deferred = deferred,
+            )
     }
 
-    fun takePendingPermissionRequest(toolCallId: String): PendingPermissionRequest? {
-        return pendingPermissionRequests.remove(toolCallId)
-    }
+    fun takePendingPermissionRequest(toolCallId: String): PendingPermissionRequest? =
+        pendingPermissionRequests.remove(toolCallId)
 
     fun clearAll(closeBridges: Boolean) {
         val allSessionIds = (sessionBridges.keys + sdkSessions.keys).toSet()
         allSessionIds.forEach { sessionId ->
             clearSession(sessionId, closeBridge = closeBridges)
         }
-        pendingPermissionRequests.entries.removeIf { (_, pending) ->
+        val pendingIterator = pendingPermissionRequests.entries.iterator()
+        while (pendingIterator.hasNext()) {
+            val pending = pendingIterator.next().value
             pending.deferred.cancel()
-            true
+            pendingIterator.remove()
         }
     }
 
-    fun clearSession(sessionId: String, closeBridge: Boolean) {
+    fun clearSession(
+        sessionId: String,
+        closeBridge: Boolean,
+    ) {
         sdkSessions.remove(sessionId)
         if (closeBridge) {
             sessionBridges.remove(sessionId)?.close()
         } else {
             sessionBridges.remove(sessionId)
         }
-        pendingPermissionRequests.entries.removeIf { (_, pending) ->
-            if (pending.sessionId != sessionId) {
-                return@removeIf false
-            }
-            pending.deferred.cancel()
-            true
+        val pendingIterator = pendingPermissionRequests.entries.iterator()
+        while (pendingIterator.hasNext()) {
+            val entry = pendingIterator.next()
+            if (entry.value.sessionId != sessionId) continue
+            entry.value.deferred.cancel()
+            pendingIterator.remove()
         }
     }
 }

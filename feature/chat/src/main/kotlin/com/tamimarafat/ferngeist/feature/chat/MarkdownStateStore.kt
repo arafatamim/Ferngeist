@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat
 
-import com.mikepenz.markdown.model.State as MarkdownRenderState
 import com.mikepenz.markdown.model.parseMarkdownFlow
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
@@ -13,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.mikepenz.markdown.model.State as MarkdownRenderState
 
 internal class MarkdownStateStore(
     private val scope: CoroutineScope,
@@ -64,9 +64,7 @@ internal class MarkdownStateStore(
         markdownParsingKeys.clear()
     }
 
-    private fun collectRequiredEntries(
-        messages: List<ChatMessage>,
-    ): LinkedHashMap<String, String> {
+    private fun collectRequiredEntries(messages: List<ChatMessage>): LinkedHashMap<String, String> {
         val requiredEntries = linkedMapOf<String, String>()
         messages.forEach { message ->
             if (message.role != ChatMessage.Role.ASSISTANT) return@forEach
@@ -83,9 +81,7 @@ internal class MarkdownStateStore(
         return requiredEntries
     }
 
-    private suspend fun preparseMissingEntries(
-        requiredEntries: Map<String, String>,
-    ) {
+    private suspend fun preparseMissingEntries(requiredEntries: Map<String, String>) {
         requiredEntries.forEach { (key, text) ->
             val cached = markdownStateCache[key]
             if (cached?.text == text) return@forEach
@@ -102,16 +98,16 @@ internal class MarkdownStateStore(
         }
     }
 
-    private fun buildMarkdownEntries(
-        messages: List<ChatMessage>,
-    ): Map<String, MarkdownRenderState> {
+    private fun buildMarkdownEntries(messages: List<ChatMessage>): Map<String, MarkdownRenderState> {
         val requiredEntries = collectRequiredEntries(messages)
         val requiredKeys = requiredEntries.keys
 
-        markdownStateCache.keys.toList()
+        markdownStateCache.keys
+            .toList()
             .filterNot(requiredKeys::contains)
             .forEach { markdownStateCache.remove(it) }
-        pendingMarkdownQueue.keys.toList()
+        pendingMarkdownQueue.keys
+            .toList()
             .filterNot(requiredKeys::contains)
             .forEach { pendingMarkdownQueue.remove(it) }
         markdownParsingKeys.retainAll(requiredKeys)
@@ -126,72 +122,74 @@ internal class MarkdownStateStore(
             scheduleMarkdownParsing()
         }
 
-        return requiredKeys.mapNotNull { key ->
-            markdownStateCache[key]?.state?.let { key to it }
-        }.toMap()
+        return requiredKeys
+            .mapNotNull { key ->
+                markdownStateCache[key]?.state?.let { key to it }
+            }.toMap()
     }
 
     private fun scheduleMarkdownParsing() {
         if (markdownParserJob?.isActive == true) return
 
-        markdownParserJob = scope.launch {
-            var lastEmitAtMs = 0L
-            try {
-                while (pendingMarkdownQueue.isNotEmpty()) {
-                    val batch = mutableListOf<Pair<String, String>>()
-                    val iterator = pendingMarkdownQueue.entries.iterator()
-                    while (iterator.hasNext() && batch.size < MARKDOWN_BATCH_SIZE) {
-                        val entry = iterator.next()
-                        iterator.remove()
-                        batch += entry.key to entry.value
-                        markdownParsingKeys += entry.key
-                    }
+        markdownParserJob =
+            scope.launch {
+                var lastEmitAtMs = 0L
+                try {
+                    while (pendingMarkdownQueue.isNotEmpty()) {
+                        val batch = mutableListOf<Pair<String, String>>()
+                        val iterator = pendingMarkdownQueue.entries.iterator()
+                        while (iterator.hasNext() && batch.size < MARKDOWN_BATCH_SIZE) {
+                            val entry = iterator.next()
+                            iterator.remove()
+                            batch += entry.key to entry.value
+                            markdownParsingKeys += entry.key
+                        }
 
-                    val parsedBatch = mutableListOf<Pair<String, MarkdownEntry>>()
-                    batch.forEach { (key, text) ->
-                        try {
-                            val parsedState = parse(text)
-                            parsedBatch += key to MarkdownEntry(text = text, state = parsedState)
-                        } catch (error: CancellationException) {
-                            throw error
-                        } catch (error: Exception) {
-                            trace("markdownParse:error key=$key message=${error.message}")
-                        } finally {
-                            markdownParsingKeys.remove(key)
+                        val parsedBatch = mutableListOf<Pair<String, MarkdownEntry>>()
+                        batch.forEach { (key, text) ->
+                            try {
+                                val parsedState = parse(text)
+                                parsedBatch += key to MarkdownEntry(text = text, state = parsedState)
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                trace("markdownParse:error key=$key message=${error.message}")
+                            } finally {
+                                markdownParsingKeys.remove(key)
+                            }
+                        }
+
+                        parsedBatch.forEach { (key, entry) ->
+                            val queuedOverride = pendingMarkdownQueue[key]
+                            if (queuedOverride == null || queuedOverride == entry.text) {
+                                markdownStateCache[key] = entry
+                            }
+                        }
+
+                        val now = System.currentTimeMillis()
+                        val shouldEmitState =
+                            pendingMarkdownQueue.isEmpty() ||
+                                (now - lastEmitAtMs) >= MARKDOWN_STATE_EMIT_INTERVAL_MS
+                        if (shouldEmitState) {
+                            lastEmitAtMs = now
+                            publishMarkdownStatesForCurrentMessages()
+                        }
+
+                        if (pendingMarkdownQueue.isNotEmpty()) {
+                            delay(MARKDOWN_FLUSH_INTERVAL_MS)
                         }
                     }
-
-                    parsedBatch.forEach { (key, entry) ->
-                        val queuedOverride = pendingMarkdownQueue[key]
-                        if (queuedOverride == null || queuedOverride == entry.text) {
-                            markdownStateCache[key] = entry
-                        }
-                    }
-
-                    val now = System.currentTimeMillis()
-                    val shouldEmitState = pendingMarkdownQueue.isEmpty() ||
-                        (now - lastEmitAtMs) >= MARKDOWN_STATE_EMIT_INTERVAL_MS
-                    if (shouldEmitState) {
-                        lastEmitAtMs = now
-                        publishMarkdownStatesForCurrentMessages()
-                    }
-
-                    if (pendingMarkdownQueue.isNotEmpty()) {
-                        delay(MARKDOWN_FLUSH_INTERVAL_MS)
-                    }
+                } finally {
+                    markdownParserJob = null
                 }
-            } finally {
-                markdownParserJob = null
             }
-        }
     }
 
-    private suspend fun parse(text: String): MarkdownRenderState {
-        return withContext(Dispatchers.Default) {
+    private suspend fun parse(text: String): MarkdownRenderState =
+        withContext(Dispatchers.Default) {
             parseMarkdownFlow(text)
                 .first { it !is MarkdownRenderState.Loading }
         }
-    }
 
     private fun publishMarkdownStatesForCurrentMessages() {
         onMarkdownStatesChanged(buildMarkdownEntries(currentMessages()))

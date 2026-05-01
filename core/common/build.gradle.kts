@@ -14,7 +14,7 @@ android {
         multiDexEnabled = true
         consumerProguardFiles("consumer-rules.pro")
     }
-    
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -27,7 +27,9 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget("17")
+        jvmTarget =
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget
+                .fromTarget("17")
     }
 }
 

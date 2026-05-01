@@ -1,8 +1,8 @@
 package com.tamimarafat.ferngeist.data.database.repository
 
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import kotlinx.coroutines.flow.Flow
@@ -13,7 +13,6 @@ class LaunchableTargetRepositoryImpl(
     private val gatewaySourceRepository: GatewaySourceRepository,
     private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
 ) : LaunchableTargetRepository {
-
     override fun getTargets(): Flow<List<LaunchableTarget>> {
         return combine(
             serverRepository.getServers(),
@@ -42,7 +41,10 @@ class LaunchableTargetRepositoryImpl(
         return LaunchableTarget.GatewayAgent(binding, gateway)
     }
 
-    override suspend fun updatePreferredAuthMethod(targetId: String, methodId: String) {
+    override suspend fun updatePreferredAuthMethod(
+        targetId: String,
+        methodId: String,
+    ) {
         serverRepository.getServer(targetId)?.let { server ->
             if (server.preferredAuthMethodId != methodId) {
                 serverRepository.updateServer(server.copy(preferredAuthMethodId = methodId))

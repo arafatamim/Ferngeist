@@ -11,19 +11,31 @@ sealed interface SessionConfigCategory {
         override val rawValue: String = "model"
     }
 
-    data class Custom(override val rawValue: String) : SessionConfigCategory
+    data class Custom(
+        override val rawValue: String,
+    ) : SessionConfigCategory
 }
 
 sealed interface SessionConfigOrigin {
     data object NativeConfigOption : SessionConfigOrigin
+
     data object LegacyMode : SessionConfigOrigin
+
     data object LegacyModel : SessionConfigOrigin
 }
 
 sealed interface SessionConfigValue {
-    data class StringValue(val value: String) : SessionConfigValue
-    data class BoolValue(val value: Boolean) : SessionConfigValue
-    data class UnknownValue(val debugValue: String? = null) : SessionConfigValue
+    data class StringValue(
+        val value: String,
+    ) : SessionConfigValue
+
+    data class BoolValue(
+        val value: Boolean,
+    ) : SessionConfigValue
+
+    data class UnknownValue(
+        val debugValue: String? = null,
+    ) : SessionConfigValue
 }
 
 data class SessionConfigChoice(
@@ -77,27 +89,32 @@ sealed interface SessionConfigOption {
     ) : SessionConfigOption
 }
 
-fun SessionConfigOption.Select.allChoices(): List<SessionConfigChoice> {
-    return if (groups.isEmpty()) choices else groups.flatMap { it.choices }
-}
+fun SessionConfigOption.Select.allChoices(): List<SessionConfigChoice> =
+    if (groups.isEmpty()) {
+        choices
+    } else {
+        groups.flatMap {
+            it.choices
+        }
+    }
 
 fun SessionConfigOption.Select.selectedChoice(): SessionConfigChoice? {
     val value = currentValue ?: return null
     return allChoices().firstOrNull { it.value == value }
 }
 
-fun SessionConfigOption.displayValueLabel(): String? {
-    return when (this) {
+fun SessionConfigOption.displayValueLabel(): String? =
+    when (this) {
         is SessionConfigOption.Select -> selectedChoice()?.label ?: currentValue
         is SessionConfigOption.BooleanOption -> currentValue.toString()
-        is SessionConfigOption.Unknown -> when (val value = currentValue) {
-            is SessionConfigValue.StringValue -> value.value
-            is SessionConfigValue.BoolValue -> value.value.toString()
-            is SessionConfigValue.UnknownValue -> value.debugValue
-            null -> null
-        }
+        is SessionConfigOption.Unknown ->
+            when (val value = currentValue) {
+                is SessionConfigValue.StringValue -> value.value
+                is SessionConfigValue.BoolValue -> value.value.toString()
+                is SessionConfigValue.UnknownValue -> value.debugValue
+                null -> null
+            }
     }
-}
 
 internal data class LegacyModeState(
     val modes: List<SessionMode> = emptyList(),
@@ -162,8 +179,18 @@ internal object SessionConfigCompatibility {
     ): SessionConfigCategory? {
         if (option is SessionConfigOption.Select) {
             val optionValues = option.allChoices().map { it.value }.toSet()
-            val modeValues = legacyModes?.modes?.map { it.id }?.toSet().orEmpty()
-            val modelValues = legacyModel?.choices?.map { it.value }?.toSet().orEmpty()
+            val modeValues =
+                legacyModes
+                    ?.modes
+                    ?.map { it.id }
+                    ?.toSet()
+                    .orEmpty()
+            val modelValues =
+                legacyModel
+                    ?.choices
+                    ?.map { it.value }
+                    ?.toSet()
+                    .orEmpty()
 
             if (modeValues.isNotEmpty() && optionValues == modeValues) {
                 return SessionConfigCategory.Mode
@@ -193,14 +220,15 @@ internal object SessionConfigCompatibility {
             category = SessionConfigCategory.Mode,
             origin = SessionConfigOrigin.LegacyMode,
             currentValue = currentModeId,
-            choices = modes.map { mode ->
-                SessionConfigChoice(
-                    id = mode.id,
-                    label = mode.name,
-                    value = mode.id,
-                    description = mode.description,
-                )
-            },
+            choices =
+                modes.map { mode ->
+                    SessionConfigChoice(
+                        id = mode.id,
+                        label = mode.name,
+                        value = mode.id,
+                        description = mode.description,
+                    )
+                },
         )
     }
 
@@ -217,9 +245,7 @@ internal object SessionConfigCompatibility {
         )
     }
 
-    private fun normalize(value: String): String {
-        return value.lowercase().filter { it.isLetterOrDigit() }
-    }
+    private fun normalize(value: String): String = value.lowercase().filter { it.isLetterOrDigit() }
 
     private val MODE_HINTS = setOf("mode", "modes", "sessionmode", "approvalpreset")
     private val MODEL_HINTS = setOf("model", "models", "sessionmodel")

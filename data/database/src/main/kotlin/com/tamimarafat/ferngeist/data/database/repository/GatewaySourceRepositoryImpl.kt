@@ -17,18 +17,16 @@ class GatewaySourceRepositoryImpl(
     private val gatewayDao: GatewaySourceDao,
     private val credentialEncryptor: CredentialEncryptor,
 ) : GatewaySourceRepository {
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    override fun getGateways(): Flow<List<GatewaySource>> {
-        return gatewayDao.getAllGateways().map { entities ->
+    override fun getGateways(): Flow<List<GatewaySource>> =
+        gatewayDao.getAllGateways().map { entities ->
             withContext(Dispatchers.IO) {
                 entities.mapNotNull { entity ->
                     toDomainOrCleanUp(entity)
                 }
             }
         }
-    }
 
     override suspend fun addGateway(gateway: GatewaySource) {
         withContext(Dispatchers.IO) {

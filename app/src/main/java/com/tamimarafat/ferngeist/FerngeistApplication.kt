@@ -15,7 +15,6 @@ import javax.inject.Inject
 
 @HiltAndroidApp
 class FerngeistApplication : Application() {
-
     @Inject
     lateinit var connectionManager: AcpConnectionManager
 
@@ -36,7 +35,8 @@ class FerngeistApplication : Application() {
                     when (state) {
                         is AcpConnectionState.Connected,
                         is AcpConnectionState.Connecting,
-                        is AcpConnectionState.Failed -> {
+                        is AcpConnectionState.Failed,
+                        -> {
                             if (!isServiceRunning) {
                                 isServiceRunning = true
                                 ForegroundServiceController.start(this@FerngeistApplication)

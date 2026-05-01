@@ -17,8 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
@@ -79,9 +77,10 @@ fun GatewayListScreen(
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -116,14 +115,15 @@ private fun GatewayCard(
     Box(modifier = Modifier.fillMaxWidth()) {
         Card(
             shape = RoundedCornerShape(cardCornerRadius),
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onOpenGatewayAgents,
-                    onLongClick = { showActionsMenu = true },
-                ),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onOpenGatewayAgents,
+                        onLongClick = { showActionsMenu = true },
+                    ),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -165,7 +165,7 @@ private fun GatewayCard(
                     onClick = {
                         showActionsMenu = false
                         onDeleteGateway()
-                    }
+                    },
                 )
             }
         }

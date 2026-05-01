@@ -9,16 +9,15 @@ import kotlinx.serialization.json.JsonPrimitive
 fun formatAcpErrorMessage(
     error: Throwable,
     fallback: String,
-): String {
-    return when {
+): String =
+    when {
         isCancellationLikeError(error) -> fallback
         error is JsonRpcException -> formatJsonRpcErrorMessage(error, fallback)
         else -> error.message?.takeIf { it.isNotBlank() } ?: fallback
     }
-}
 
-fun isCancellationLikeError(error: Throwable): Boolean {
-    return generateSequence(error as Throwable?) { it.cause }.any { cause ->
+fun isCancellationLikeError(error: Throwable): Boolean =
+    generateSequence(error as Throwable?) { it.cause }.any { cause ->
         if (cause is CancellationException) {
             true
         } else {
@@ -28,7 +27,6 @@ fun isCancellationLikeError(error: Throwable): Boolean {
                 message.contains("was canceled", ignoreCase = true)
         }
     }
-}
 
 private fun formatJsonRpcErrorMessage(
     error: JsonRpcException,
@@ -41,10 +39,9 @@ private fun formatJsonRpcErrorMessage(
     return "$message: $formattedData"
 }
 
-private fun stringifyJsonRpcData(data: JsonElement?): String? {
-    return when (data) {
+private fun stringifyJsonRpcData(data: JsonElement?): String? =
+    when (data) {
         null, JsonNull -> null
         is JsonPrimitive -> if (data.isString) data.content else data.toString()
         else -> data.toString()
     }?.trim()?.takeIf { it.isNotEmpty() }
-}

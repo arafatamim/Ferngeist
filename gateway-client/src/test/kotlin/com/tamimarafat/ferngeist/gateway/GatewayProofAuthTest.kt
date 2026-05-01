@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GatewayProofAuthTest {
-
     @Test
     fun `generateProofKey returns key pair with non-empty public and private keys`() {
         val key = GatewayProofAuth.generateProofKey()
@@ -35,11 +34,12 @@ class GatewayProofAuthTest {
 
     @Test
     fun `buildAuthHeaders with bare token returns Bearer authorization only`() {
-        val headers = GatewayProofAuth.buildAuthHeaders(
-            gatewayCredential = "simple-token",
-            method = "GET",
-            endpoint = "/v1/agents",
-        )
+        val headers =
+            GatewayProofAuth.buildAuthHeaders(
+                gatewayCredential = "simple-token",
+                method = "GET",
+                endpoint = "/v1/agents",
+            )
         assertEquals("Bearer simple-token", headers.authorization)
         assertEquals(null, headers.proofTimestamp)
         assertEquals(null, headers.proofNonce)
@@ -50,11 +50,12 @@ class GatewayProofAuthTest {
     fun `buildAuthHeaders with proof credential includes proof headers`() {
         val key = GatewayProofAuth.generateProofKey()
         val credential = GatewayProofAuth.encodeStoredCredential("my-token", key.privateKey)
-        val headers = GatewayProofAuth.buildAuthHeaders(
-            gatewayCredential = credential,
-            method = "GET",
-            endpoint = "/v1/agents",
-        )
+        val headers =
+            GatewayProofAuth.buildAuthHeaders(
+                gatewayCredential = credential,
+                method = "GET",
+                endpoint = "/v1/agents",
+            )
         assertEquals("Bearer my-token", headers.authorization)
         assertNotNull(headers.proofTimestamp)
         assertNotNull(headers.proofNonce)
@@ -68,11 +69,12 @@ class GatewayProofAuthTest {
         val rotated = GatewayProofAuth.rotateStoredCredential(credential, "new-token")
         assertTrue(rotated.startsWith("ferngeist-gateway-auth-v1:"))
 
-        val headers = GatewayProofAuth.buildAuthHeaders(
-            gatewayCredential = rotated,
-            method = "GET",
-            endpoint = "/v1/agents",
-        )
+        val headers =
+            GatewayProofAuth.buildAuthHeaders(
+                gatewayCredential = rotated,
+                method = "GET",
+                endpoint = "/v1/agents",
+            )
         assertEquals("Bearer new-token", headers.authorization)
         assertNotNull(headers.proofSignature)
     }

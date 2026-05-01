@@ -41,18 +41,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
-import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
-import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
-import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayListScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayAgentsScreen
+import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayListScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.ServerListScreen
-import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
 import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
@@ -143,9 +143,10 @@ fun FerngeistNavHost() {
                 NotificationPermissionEffect()
 
                 LaunchedEffect(uiState.connectionState, isDismissed) {
-                    val shouldShow = uiState.connectionState is AcpConnectionState.Connected &&
-                        !isDismissed &&
-                        !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                    val shouldShow =
+                        uiState.connectionState is AcpConnectionState.Connected &&
+                            !isDismissed &&
+                            !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
                     showBatteryDialog = shouldShow
                 }
 
@@ -169,7 +170,10 @@ fun FerngeistNavHost() {
                     onNavigateToGateways = { navController.navigate("gateways") },
                     onNavigateToEditServer = { server ->
                         when (server) {
-                            is LaunchableTarget.GatewayAgent -> navController.navigate("gateway_agents/${server.gatewaySource.id}")
+                            is LaunchableTarget.GatewayAgent ->
+                                navController.navigate(
+                                    "gateway_agents/${server.gatewaySource.id}",
+                                )
                             is LaunchableTarget.Manual -> navController.navigate("edit_server/${server.id}")
                         }
                     },
@@ -193,23 +197,24 @@ fun FerngeistNavHost() {
 
             composable(
                 route = "add_server?name={name}&scheme={scheme}&host={host}",
-                arguments = listOf(
-                    navArgument("name") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("scheme") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("host") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                ),
+                arguments =
+                    listOf(
+                        navArgument("name") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                        navArgument("scheme") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                        navArgument("host") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
             ) {
                 val viewModel: AddServerViewModel = hiltViewModel()
                 AddServerScreen(
@@ -261,13 +266,14 @@ fun FerngeistNavHost() {
 
             composable(
                 route = "sessions/{serverId}?create={create}",
-                arguments = listOf(
-                    navArgument("serverId") { type = NavType.StringType },
-                    navArgument("create") {
-                        type = NavType.BoolType
-                        defaultValue = false
-                    },
-                ),
+                arguments =
+                    listOf(
+                        navArgument("serverId") { type = NavType.StringType },
+                        navArgument("create") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        },
+                    ),
             ) { backStackEntry ->
                 val serverId = backStackEntry.arguments?.getString("serverId") ?: return@composable
                 val openCreateSessionDialog = backStackEntry.arguments?.getBoolean("create") == true
@@ -282,7 +288,9 @@ fun FerngeistNavHost() {
                         val encodedCwd = Uri.encode(cwd)
                         val encodedTitle = Uri.encode(title ?: "Untitled Session")
                         val updatedAtParam = updatedAt ?: -1L
-                        navController.navigate("chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=$updatedAtParam&title=$encodedTitle")
+                        navController.navigate(
+                            "chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=$updatedAtParam&title=$encodedTitle",
+                        )
                     },
                     viewModel = viewModel,
                     sharedTransitionScope = this@SharedTransitionLayout,
@@ -292,24 +300,25 @@ fun FerngeistNavHost() {
 
             composable(
                 route = "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}",
-                arguments = listOf(
-                    navArgument("serverId") { type = NavType.StringType },
-                    navArgument("sessionId") { type = NavType.StringType },
-                    navArgument("cwd") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = "/"
-                    },
-                    navArgument("updatedAt") {
-                        type = NavType.LongType
-                        defaultValue = -1L
-                    },
-                    navArgument("title") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = "Untitled Session"
-                    },
-                ),
+                arguments =
+                    listOf(
+                        navArgument("serverId") { type = NavType.StringType },
+                        navArgument("sessionId") { type = NavType.StringType },
+                        navArgument("cwd") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = "/"
+                        },
+                        navArgument("updatedAt") {
+                            type = NavType.LongType
+                            defaultValue = -1L
+                        },
+                        navArgument("title") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = "Untitled Session"
+                        },
+                    ),
             ) { backStackEntry ->
                 val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
                 val title = Uri.decode(backStackEntry.arguments?.getString("title") ?: "Untitled Session")
@@ -330,13 +339,15 @@ private fun NotificationPermissionEffect() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val context = LocalContext.current
         val permission = Manifest.permission.POST_NOTIFICATIONS
-        val hasPermission = remember {
-            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-        }
+        val hasPermission =
+            remember {
+                ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+            }
         if (!hasPermission) {
-            val launcher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission(),
-            ) { }
+            val launcher =
+                rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission(),
+                ) { }
             LaunchedEffect(Unit) {
                 launcher.launch(permission)
             }

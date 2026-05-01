@@ -1,0 +1,70 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:FirstLaunchOnboardingScreen.kt:@Composable fun FirstLaunchOnboardingScreen</ID>
+    <ID>CyclomaticComplexMethod:MainActivity.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable fun FerngeistNavHost</ID>
+    <ID>FunctionNaming:BatteryOptimizationDialog.kt:@Composable fun BatteryOptimizationDialog</ID>
+    <ID>FunctionNaming:FirstLaunchOnboardingScreen.kt:@Composable fun FirstLaunchOnboardingScreen</ID>
+    <ID>FunctionNaming:FirstLaunchOnboardingScreen.kt:@Composable private fun AgentSelectionCard</ID>
+    <ID>FunctionNaming:FirstLaunchOnboardingScreen.kt:@Composable private fun OnboardingBulletList</ID>
+    <ID>FunctionNaming:FirstLaunchOnboardingScreen.kt:@Composable private fun StartOnComputerCard</ID>
+    <ID>FunctionNaming:FirstLaunchOnboardingScreen.kt:@Composable private fun StepProgress</ID>
+    <ID>FunctionNaming:MainActivity.kt:@Composable private fun NotificationPermissionEffect</ID>
+    <ID>FunctionNaming:MainActivity.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable fun FerngeistNavHost</ID>
+    <ID>FunctionNaming:Theme.kt:@Composable fun FerngeistTheme</ID>
+    <ID>LongMethod:AppModule.kt:&lt;no name provided&gt;$override fun migrate</ID>
+    <ID>LongMethod:FirstLaunchOnboardingScreen.kt:@Composable fun FirstLaunchOnboardingScreen</ID>
+    <ID>LongMethod:FirstLaunchOnboardingScreen.kt:@Composable private fun AgentSelectionCard</ID>
+    <ID>LongMethod:FirstLaunchOnboardingScreen.kt:@Composable private fun StartOnComputerCard</ID>
+    <ID>LongMethod:MainActivity.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable fun FerngeistNavHost</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$10</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$11</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$3</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$4</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$5</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$6</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$7</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$8</ID>
+    <ID>MagicNumber:AppModule.kt:&lt;no name provided&gt;$9</ID>
+    <ID>MagicNumber:Color.kt:0xFF625b71</ID>
+    <ID>MagicNumber:Color.kt:0xFF6650a4</ID>
+    <ID>MagicNumber:Color.kt:0xFF7D5260</ID>
+    <ID>MagicNumber:Color.kt:0xFFCCC2DC</ID>
+    <ID>MagicNumber:Color.kt:0xFFD0BCFF</ID>
+    <ID>MagicNumber:Color.kt:0xFFEFB8C8</ID>
+    <ID>MagicNumber:OnboardingViewModel.kt:OnboardingUiState$65535</ID>
+    <ID>MagicNumber:OnboardingViewModel.kt:OnboardingViewModel$5</ID>
+    <ID>MaxLineLength:AppModule.kt:&lt;no name provided&gt;$db.execSQL("ALTER TABLE `launchable_target_session_settings_new` RENAME TO `launchable_target_session_settings`")</ID>
+    <ID>MaxLineLength:AppModule.kt:&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_gatewaySourceId` ON `gateway_agent_bindings` (`gatewaySourceId`)")</ID>
+    <ID>MaxLineLength:AppModule.kt:&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_new_gatewaySourceId` ON `gateway_agent_bindings_new` (`gatewaySourceId`)")</ID>
+    <ID>MaxLineLength:AppModule.kt:AppModule$)</ID>
+    <ID>MaxLineLength:AppModule.kt:AppModule$fun</ID>
+    <ID>MaxLineLength:BatteryOptimizationDialog.kt:text = "Android may restrict Ferngeist in the background, causing the agent connection to drop. Disabling battery optimization helps keep your session alive."</ID>
+    <ID>MaxLineLength:FerngeistForegroundService.kt:FerngeistForegroundService$val notification = buildNotification(connectionManager.connectionState.value, connectionManager.agentInfo.value?.name)</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:"If an agent only speaks ACP over stdio, Ferngeist needs a stdio-to-ws bridge on your computer."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:"If the agent does not support session listing, Ferngeist will open the new session dialog for you."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:"This setup fetches agent launch instructions from the ACP registry and builds the command for you."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:body = "Add your agent after this tutorial is finished. Save the same WebSocket port there so Ferngeist can connect back to the bridge on your computer."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:body = "After the server is saved, connect to it and create your first session. Ferngeist will branch based on the agent capabilities it discovers."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:body = "Ferngeist needs the network address of your computer, not localhost. If your firewall asks about access, allow it for your local network."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:body = "Ferngeist talks to ACP agents over WebSocket. This guide will fetch agents from the ACP registry, generate the PC command, then hand you off to the real setup form."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:body = "Pick the agent you want to run on your computer. Ferngeist reads the latest ACP registry so the launch command stays current."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:body = "Run the generated command in a terminal on your computer. If the agent is not ACP-over-WebSocket natively, Ferngeist wraps it with stdio-to-ws."</ID>
+    <ID>MaxLineLength:FirstLaunchOnboardingScreen.kt:text = "Ferngeist connects over WebSocket. The generated command starts the agent and exposes it through stdio-to-ws when needed."</ID>
+    <ID>MaxLineLength:MainActivity.kt:is LaunchableTarget.GatewayAgent -&gt; navController.navigate("gateway_agents/${server.gatewaySource.id}")</ID>
+    <ID>MaxLineLength:MainActivity.kt:navController.navigate("chat/$serverId/$sessionId?cwd=$encodedCwd&amp;updatedAt=$updatedAtParam&amp;title=$encodedTitle")</ID>
+    <ID>NewLineAtEndOfFile:BatteryOptimizationDialog.kt:com.tamimarafat.ferngeist.service.BatteryOptimizationDialog.kt</ID>
+    <ID>NewLineAtEndOfFile:BatteryOptimizationHelper.kt:com.tamimarafat.ferngeist.service.BatteryOptimizationHelper.kt</ID>
+    <ID>NewLineAtEndOfFile:BatteryOptimizationPreferences.kt:com.tamimarafat.ferngeist.service.BatteryOptimizationPreferences.kt</ID>
+    <ID>NewLineAtEndOfFile:Color.kt:com.tamimarafat.ferngeist.ui.theme.Color.kt</ID>
+    <ID>NewLineAtEndOfFile:FerngeistApplication.kt:com.tamimarafat.ferngeist.FerngeistApplication.kt</ID>
+    <ID>NewLineAtEndOfFile:ForegroundServiceController.kt:com.tamimarafat.ferngeist.service.ForegroundServiceController.kt</ID>
+    <ID>NewLineAtEndOfFile:Theme.kt:com.tamimarafat.ferngeist.ui.theme.Theme.kt</ID>
+    <ID>ReturnCount:AgentRegistry.kt:AgentLaunchCommandBuilder$private fun selectDistribution: DistributionSelection?</ID>
+    <ID>ReturnCount:FerngeistForegroundService.kt:FerngeistForegroundService$override fun onStartCommand: Int</ID>
+    <ID>ReturnCount:MainActivity.kt:private fun AnimatedContentTransitionScope&lt;NavBackStackEntry&gt;.isSessionChatTransition: Boolean</ID>
+    <ID>TooGenericExceptionCaught:ForegroundServiceController.kt:ForegroundServiceController$e: Exception</ID>
+    <ID>UnusedParameter:BatteryOptimizationHelper.kt:BatteryOptimizationHelper$context: Context</ID>
+  </CurrentIssues>
+</SmellBaseline>

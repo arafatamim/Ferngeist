@@ -82,25 +82,26 @@ fun AddGatewayScreen(
     var stepIndex by rememberSaveable { mutableIntStateOf(0) }
     var showPairingCodeDialog by rememberSaveable { mutableStateOf(false) }
     var dialogPairingCode by rememberSaveable { mutableStateOf("") }
-    val steps = remember {
-        listOf(
-            GatewayPairingStep(
-                title = "Run ferngeist pair",
-                body = "Install and run Ferngeist Gateway on your computer, then start pairing.",
-                icon = Icons.Default.Computer,
-            ),
-            GatewayPairingStep(
-                title = "Scan QR",
-                body = "Scan the QR code, or paste the payload from the terminal.",
-                icon = Icons.Default.QrCode2,
-            ),
-            GatewayPairingStep(
-                title = "Add gateway",
-                body = "Check the details, name the gateway, then save it.",
-                icon = Icons.Default.Link,
-            ),
-        )
-    }
+    val steps =
+        remember {
+            listOf(
+                GatewayPairingStep(
+                    title = "Run ferngeist pair",
+                    body = "Install and run Ferngeist Gateway on your computer, then start pairing.",
+                    icon = Icons.Default.Computer,
+                ),
+                GatewayPairingStep(
+                    title = "Scan QR",
+                    body = "Scan the QR code, or paste the payload from the terminal.",
+                    icon = Icons.Default.QrCode2,
+                ),
+                GatewayPairingStep(
+                    title = "Add gateway",
+                    body = "Check the details, name the gateway, then save it.",
+                    icon = Icons.Default.Link,
+                ),
+            )
+        }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -110,8 +111,6 @@ fun AddGatewayScreen(
             }
         }
     }
-
-
 
     if (viewModel.isEditMode) {
         EditGatewayScreen(
@@ -132,11 +131,12 @@ fun AddGatewayScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(MaterialTheme.colorScheme.background)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -175,16 +175,18 @@ fun AddGatewayScreen(
 
             ElevatedCard(
                 modifier = Modifier.weight(1f),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
+                colors =
+                    CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
                 shape = RoundedCornerShape(28.dp),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(24.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Surface(
@@ -216,77 +218,91 @@ fun AddGatewayScreen(
                     when (stepIndex) {
                         0 -> RunFerngeistPairStep()
 
-                        1 -> ImportPairingStep(
-                            pairingQrPayload = pairingQrPayload,
-                            importedPayload = uiState.importedPairingPayload,
-                            onUpdatePayload = { value ->
-                                viewModel.updatePairingQrPayload(value)
-                                val parsed = com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser.parse(value)
-                                if (parsed != null) {
-                                    viewModel.applyPairingPayload()
-                                }
-                            },
-                            onScanQr = {
-                                val activity = context as? Activity
-                                if (activity == null) {
-                                    viewModel.showMessage("Cannot open scanner: not in an activity context")
-                                    return@ImportPairingStep
-                                }
-                                val availability = GoogleApiAvailability.getInstance()
-                                val statusCode = availability.isGooglePlayServicesAvailable(activity)
-                                if (statusCode != com.google.android.gms.common.ConnectionResult.SUCCESS) {
-                                    val msg = availability.getErrorString(statusCode)
-                                    viewModel.showMessage("Google Play Services unavailable: $msg")
-                                    return@ImportPairingStep
-                                }
-                                val scanner = try {
-                                    GmsBarcodeScanning.getClient(activity)
-                                } catch (_: Exception) {
-                                    viewModel.showMessage("Cannot open scanner on this device. Paste the pairing payload instead.")
-                                    return@ImportPairingStep
-                                }
+                        1 ->
+                            ImportPairingStep(
+                                pairingQrPayload = pairingQrPayload,
+                                importedPayload = uiState.importedPairingPayload,
+                                onUpdatePayload = { value ->
+                                    viewModel.updatePairingQrPayload(value)
+                                    val parsed =
+                                        com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
+                                            .parse(value)
+                                    if (parsed != null) {
+                                        viewModel.applyPairingPayload()
+                                    }
+                                },
+                                onScanQr = {
+                                    val activity = context as? Activity
+                                    if (activity == null) {
+                                        viewModel.showMessage("Cannot open scanner: not in an activity context")
+                                        return@ImportPairingStep
+                                    }
+                                    val availability = GoogleApiAvailability.getInstance()
+                                    val statusCode = availability.isGooglePlayServicesAvailable(activity)
+                                    if (statusCode != com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                                        val msg = availability.getErrorString(statusCode)
+                                        viewModel.showMessage("Google Play Services unavailable: $msg")
+                                        return@ImportPairingStep
+                                    }
+                                    val scanner =
+                                        try {
+                                            GmsBarcodeScanning.getClient(activity)
+                                        } catch (_: Exception) {
+                                            viewModel.showMessage(
+                                                "Cannot open scanner on this device. Paste the pairing payload instead.",
+                                            )
+                                            return@ImportPairingStep
+                                        }
 
-                                try {
-                                    scanner.startScan()
-                                        .addOnSuccessListener { barcode: Barcode ->
-                                            val raw = barcode.rawValue.orEmpty()
-                                            if (raw.isBlank()) {
-                                                viewModel.showMessage("QR code was empty")
-                                                return@addOnSuccessListener
+                                    try {
+                                        scanner
+                                            .startScan()
+                                            .addOnSuccessListener { barcode: Barcode ->
+                                                val raw = barcode.rawValue.orEmpty()
+                                                if (raw.isBlank()) {
+                                                    viewModel.showMessage("QR code was empty")
+                                                    return@addOnSuccessListener
+                                                }
+                                                val parsed =
+                                                    com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
+                                                        .parse(
+                                                            raw,
+                                                        )
+                                                if (parsed == null) {
+                                                    viewModel.showMessage("QR does not contain a valid pairing payload")
+                                                    return@addOnSuccessListener
+                                                }
+                                                viewModel.updatePairingQrPayload(raw)
+                                                viewModel.applyPairingPayload()
+                                            }.addOnCanceledListener {
+                                            }.addOnFailureListener { error: Exception ->
+                                                viewModel.showMessage(
+                                                    "QR scan failed: ${error.message ?: "unknown error"}",
+                                                )
                                             }
-                                            val parsed = com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser.parse(raw)
-                                            if (parsed == null) {
-                                                viewModel.showMessage("QR does not contain a valid pairing payload")
-                                                return@addOnSuccessListener
-                                            }
-                                            viewModel.updatePairingQrPayload(raw)
-                                            viewModel.applyPairingPayload()
-                                        }
-                                        .addOnCanceledListener {
-                                        }
-                                        .addOnFailureListener { error: Exception ->
-                                            viewModel.showMessage("QR scan failed: ${error.message ?: "unknown error"}")
-                                        }
-                                } catch (_: Exception) {
-                                    viewModel.showMessage("Cannot start scanner on this device. Paste the pairing payload instead.")
-                                }
-                            },
-                        )
+                                    } catch (_: Exception) {
+                                        viewModel.showMessage(
+                                            "Cannot start scanner on this device. Paste the pairing payload instead.",
+                                        )
+                                    }
+                                },
+                            )
 
-                        else -> ReviewGatewayStep(
-                            name = name,
-                            onUpdateName = viewModel::updateName,
-                            deviceName = deviceName,
-                            onUpdateDeviceName = viewModel::updateDeviceName,
-                            scheme = scheme,
-                            onSelectScheme = viewModel::updateScheme,
-                            host = host,
-                            onUpdateHost = viewModel::updateHost,
-                            status = uiState.status,
-                            isCheckingStatus = uiState.isCheckingStatus,
-                            importedPayload = uiState.importedPairingPayload,
-                            onCheckStatus = viewModel::checkStatus,
-                        )
+                        else ->
+                            ReviewGatewayStep(
+                                name = name,
+                                onUpdateName = viewModel::updateName,
+                                deviceName = deviceName,
+                                onUpdateDeviceName = viewModel::updateDeviceName,
+                                scheme = scheme,
+                                onSelectScheme = viewModel::updateScheme,
+                                host = host,
+                                onUpdateHost = viewModel::updateHost,
+                                status = uiState.status,
+                                isCheckingStatus = uiState.isCheckingStatus,
+                                importedPayload = uiState.importedPairingPayload,
+                                onCheckStatus = viewModel::checkStatus,
+                            )
                     }
                 }
             }
@@ -302,11 +318,12 @@ fun AddGatewayScreen(
                         when (stepIndex) {
                             0 -> stepIndex = 1
                             1 -> {
-                                if (uiState.importedPairingPayload != null) {
-                                    stepIndex = 2
-                                } else {
-                                    stepIndex = 2
-                                }
+                                stepIndex =
+                                    if (uiState.importedPairingPayload != null) {
+                                        2
+                                    } else {
+                                        2
+                                    }
                             }
                             else -> {
                                 if (uiState.importedPairingPayload != null) {
@@ -325,7 +342,7 @@ fun AddGatewayScreen(
                             0 -> "Next"
                             1 -> if (uiState.importedPairingPayload != null) "Next" else "Skip and add manually"
                             else -> "Pair"
-                        }
+                        },
                     )
                     if (stepIndex < steps.lastIndex) {
                         Spacer(modifier = Modifier.size(8.dp))
@@ -413,24 +430,27 @@ private fun PairingCodeDialog(
 @Composable
 private fun RunFerngeistPairStep() {
     OnboardingBulletList(
-        items = listOf(
-            "If you do not have Ferngeist Gateway yet, download it from https://github.com/arafatamim/ferngeist-acp-gateway.",
-            "Open a terminal on the computer running Ferngeist Gateway.",
-            "Run `ferngeist-gateway pair`.",
-            "Keep that terminal open.",
-        ),
+        items =
+            listOf(
+                "If you do not have Ferngeist Gateway yet, download it from https://github.com/arafatamim/ferngeist-acp-gateway.",
+                "Open a terminal on the computer running Ferngeist Gateway.",
+                "Run `ferngeist-gateway pair`.",
+                "Keep that terminal open.",
+            ),
     )
 
     ElevatedCard(
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
+        colors =
+            CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ),
         shape = RoundedCornerShape(20.dp),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
@@ -483,11 +503,12 @@ private fun EditGatewayScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             SectionCard(
@@ -550,15 +571,17 @@ private fun ImportPairingStep(
     val innerPadding = 14.dp
 
     ElevatedCard(
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
+        colors =
+            CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ),
         shape = RoundedCornerShape(20.dp),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(innerPadding),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(innerPadding),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             OutlinedTextField(
@@ -622,15 +645,17 @@ private fun ReviewGatewayStep(
     }
 
     ElevatedCard(
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
+        colors =
+            CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ),
         shape = RoundedCornerShape(20.dp),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             OutlinedTextField(
@@ -692,7 +717,7 @@ private fun ImportedPayloadCard(payload: GatewayPairingPayload) {
             Text(
                 "Pairing payload loaded",
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
             )
             Text("${payload.scheme}://${payload.host}", style = MaterialTheme.typography.bodyMedium)
             Text("Challenge ${payload.challengeId.take(10)}...", style = MaterialTheme.typography.bodySmall)
@@ -739,16 +764,18 @@ private fun PairingStepProgress(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         repeat(totalSteps) { index ->
-            val color = if (index <= currentStep) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHighest
-            }
+            val color =
+                if (index <= currentStep) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                }
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(6.dp)
-                    .background(color = color, shape = RoundedCornerShape(999.dp))
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .height(6.dp)
+                        .background(color = color, shape = RoundedCornerShape(999.dp)),
             )
         }
     }
@@ -811,21 +838,24 @@ private fun GatewayProtocolOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-    }
-    val contentColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val borderColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-    } else {
-        MaterialTheme.colorScheme.outlineVariant
-    }
+    val containerColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        }
+    val contentColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    val borderColor =
+        if (isSelected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant
+        }
 
     Surface(
         onClick = onClick,
@@ -836,9 +866,10 @@ private fun GatewayProtocolOption(
         modifier = modifier.height(52.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {

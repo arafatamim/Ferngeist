@@ -2,9 +2,9 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -41,8 +41,8 @@ import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -73,14 +73,15 @@ internal fun ServerCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val connectionState = remember(
-        server.id,
-        uiState.connectingServerId,
-        uiState.connectedServerState,
-        uiState.connectionState
-    ) {
-        ServerConnectionUiState.from(server.id, uiState)
-    }
+    val connectionState =
+        remember(
+            server.id,
+            uiState.connectingServerId,
+            uiState.connectedServerState,
+            uiState.connectionState,
+        ) {
+            ServerConnectionUiState.from(server.id, uiState)
+        }
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
     val hasSavedAuthMethod = server.preferredAuthMethodId?.isNotBlank() == true
 
@@ -119,31 +120,34 @@ internal fun ServerCard(
     }
 
     val containerColor by animateColorAsState(
-        targetValue = when {
-            connectionState.isConnected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            connectionState.isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-            else -> MaterialTheme.colorScheme.surfaceContainer
-        },
+        targetValue =
+            when {
+                connectionState.isConnected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                connectionState.isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                else -> MaterialTheme.colorScheme.surfaceContainer
+            },
         animationSpec = tween(400),
         label = "containerColor",
     )
 
     Box(modifier = Modifier.fillMaxWidth()) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    enabled = !connectionState.isConnecting,
-                    onClick = onClick,
-                    onLongClick = { showActionsMenu = true },
-                ),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        enabled = !connectionState.isConnecting,
+                        onClick = onClick,
+                        onLongClick = { showActionsMenu = true },
+                    ),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Row(
@@ -172,7 +176,7 @@ internal fun ServerCard(
 
         DropdownMenuPopup(
             expanded = showActionsMenu,
-            onDismissRequest = { showActionsMenu = false }
+            onDismissRequest = { showActionsMenu = false },
         ) {
             DropdownMenuGroup(
                 shapes = MenuDefaults.groupShape(0, 1),
@@ -183,14 +187,14 @@ internal fun ServerCard(
                     onClick = {
                         showActionsMenu = false
                         onEdit()
-                    }
+                    },
                 )
                 DropdownMenuItem(
                     text = { Text("Delete") },
                     onClick = {
                         showActionsMenu = false
                         showDeleteDialog = true
-                    }
+                    },
                 )
             }
         }
@@ -247,9 +251,7 @@ private fun ServerSubtitle(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ConnectingTitleIndicator(
-    visible: Boolean,
-) {
+private fun ConnectingTitleIndicator(visible: Boolean) {
     val slotWidth by animateDpAsState(
         targetValue = if (visible) 42.dp else 0.dp,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 500f),
@@ -259,10 +261,11 @@ private fun ConnectingTitleIndicator(
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(4200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
         label = "sunnyRotation",
     )
     Box(
@@ -271,17 +274,20 @@ private fun ConnectingTitleIndicator(
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(animationSpec = spring(stiffness = 500f)) +
-                scaleIn(animationSpec = spring(dampingRatio = 0.62f, stiffness = 500f)),
-            exit = fadeOut(animationSpec = spring(stiffness = 500f)) +
-                scaleOut(animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f)),
+            enter =
+                fadeIn(animationSpec = spring(stiffness = 500f)) +
+                    scaleIn(animationSpec = spring(dampingRatio = 0.62f, stiffness = 500f)),
+            exit =
+                fadeOut(animationSpec = spring(stiffness = 500f)) +
+                    scaleOut(animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f)),
         ) {
             Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .rotate(rotation)
-                    .clip(MaterialShapes.VerySunny.toShape())
-                    .background(MaterialTheme.colorScheme.secondary)
+                modifier =
+                    Modifier
+                        .size(24.dp)
+                        .rotate(rotation)
+                        .clip(MaterialShapes.VerySunny.toShape())
+                        .background(MaterialTheme.colorScheme.secondary),
             )
         }
     }
@@ -293,15 +299,19 @@ private data class ServerConnectionUiState(
     val isFailed: Boolean,
 ) {
     companion object {
-        fun from(serverId: String, uiState: ServerListUiState): ServerConnectionUiState {
+        fun from(
+            serverId: String,
+            uiState: ServerListUiState,
+        ): ServerConnectionUiState {
             val isConnecting = uiState.connectingServerId == serverId
-            val isConnected = uiState.connectedServerState?.serverId == serverId &&
+            val isConnected =
+                uiState.connectedServerState?.serverId == serverId &&
                     uiState.connectionState is AcpConnectionState.Connected
             val isFailed = isConnecting && uiState.connectionState is AcpConnectionState.Failed
             return ServerConnectionUiState(
                 isConnecting = isConnecting,
                 isConnected = isConnected,
-                isFailed = isFailed
+                isFailed = isFailed,
             )
         }
     }

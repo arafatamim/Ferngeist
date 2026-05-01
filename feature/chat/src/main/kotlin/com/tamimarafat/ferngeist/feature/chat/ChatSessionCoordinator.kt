@@ -1,37 +1,32 @@
 package com.tamimarafat.ferngeist.feature.chat
 
-import com.tamimarafat.ferngeist.feature.chat.BuildConfig
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
-import com.tamimarafat.ferngeist.gateway.isUnroutableGatewayHost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-
+import kotlinx.coroutines.withTimeout
 
 internal class ChatSessionCoordinator(
     private val scope: CoroutineScope,
@@ -50,14 +45,30 @@ internal class ChatSessionCoordinator(
 ) {
     interface Callbacks {
         suspend fun onLoadStarted()
+
         suspend fun onSnapshot(snapshot: SessionSnapshot)
+
         suspend fun onSessionReady()
-        suspend fun onSessionStored(sessionId: String, cwd: String, updatedAt: Long)
+
+        suspend fun onSessionStored(
+            sessionId: String,
+            cwd: String,
+            updatedAt: Long,
+        )
+
         suspend fun onLoadFailed(message: String)
-        suspend fun onOperationError(message: String, stopStreaming: Boolean)
+
+        suspend fun onOperationError(
+            message: String,
+            stopStreaming: Boolean,
+        )
+
         suspend fun onStreamingCancelled()
+
         suspend fun onCancelUnsupported()
+
         suspend fun onModelUpdated()
+
         suspend fun onCapabilitiesChanged(capabilities: AcpAgentCapabilities)
     }
 
@@ -65,6 +76,7 @@ internal class ChatSessionCoordinator(
     private var sessionBridge: SessionBridge? = null
     private var bridgeObserverJobs: List<Job> = emptyList()
     private var bridgeRecoveryJob: Job? = null
+
     // Legacy model changes are confirmed locally because the current SDK surface does not
     // expose a dedicated CurrentModelUpdate event on the client side.
     private var pendingModelSelectionId: String? = null
@@ -105,43 +117,45 @@ internal class ChatSessionCoordinator(
             }
 
             var loadTimedOut = false
-            val bridge = try {
-                withTimeout(sessionLoadTimeoutMs) {
-                    connectionManager.loadSession(
-                        sessionId = initialSessionId,
-                        cwd = cwd,
-                    )
-                }
-            } catch (error: AcpAuthenticationRequiredException) {
-                callbacks.onLoadFailed(
-                    "ACP authentication is required for this server. Return to the session list and authenticate first.",
-                )
-                return
-            } catch (_: TimeoutCancellationException) {
-                loadTimedOut = true
-                null
-            } catch (error: Exception) {
-                if (isDestroyedBridgeStreamError(error)) {
-                    val fallbackBridge = runCatching {
-                        connectionManager.createSession(cwd)
-                    }.getOrNull()
-                    if (fallbackBridge != null) {
-                        trace("loadSession:bridgeRestartFallback active=${fallbackBridge.sessionId}")
-                        attachSessionBridge(fallbackBridge)
-                        callbacks.onSessionReady()
-                        callbacks.onOperationError(
-                            message = "The ACP bridge process restarted while loading this session. Opened a new live session.",
-                            stopStreaming = false,
+            val bridge =
+                try {
+                    withTimeout(sessionLoadTimeoutMs) {
+                        connectionManager.loadSession(
+                            sessionId = initialSessionId,
+                            cwd = cwd,
                         )
-                        return
                     }
+                } catch (error: AcpAuthenticationRequiredException) {
+                    callbacks.onLoadFailed(
+                        "ACP authentication is required for this server. Return to the session list and authenticate first.",
+                    )
+                    return
+                } catch (_: TimeoutCancellationException) {
+                    loadTimedOut = true
+                    null
+                } catch (error: Exception) {
+                    if (isDestroyedBridgeStreamError(error)) {
+                        val fallbackBridge =
+                            runCatching {
+                                connectionManager.createSession(cwd)
+                            }.getOrNull()
+                        if (fallbackBridge != null) {
+                            trace("loadSession:bridgeRestartFallback active=${fallbackBridge.sessionId}")
+                            attachSessionBridge(fallbackBridge)
+                            callbacks.onSessionReady()
+                            callbacks.onOperationError(
+                                message = "The ACP bridge process restarted while loading this session. Opened a new live session.",
+                                stopStreaming = false,
+                            )
+                            return
+                        }
+                    }
+                    // Preserve the original session/load failure so provider-specific
+                    // JSON-RPC errors are shown to the user instead of a generic
+                    // "Could not load this session" message.
+                    callbacks.onLoadFailed(formatAcpErrorMessage(error, "Failed to load session"))
+                    return
                 }
-                // Preserve the original session/load failure so provider-specific
-                // JSON-RPC errors are shown to the user instead of a generic
-                // "Could not load this session" message.
-                callbacks.onLoadFailed(formatAcpErrorMessage(error, "Failed to load session"))
-                return
-            }
 
             if (bridge != null) {
                 trace("loadSession:bridgeReady requested=$initialSessionId active=${bridge.sessionId}")
@@ -150,9 +164,10 @@ internal class ChatSessionCoordinator(
             }
 
             if (loadTimedOut) {
-                val fallbackBridge = runCatching {
-                    connectionManager.createSession(cwd)
-                }.getOrNull()
+                val fallbackBridge =
+                    runCatching {
+                        connectionManager.createSession(cwd)
+                    }.getOrNull()
                 if (fallbackBridge != null) {
                     trace("loadSession:fallbackCreated active=${fallbackBridge.sessionId}")
                     attachSessionBridge(fallbackBridge)
@@ -165,11 +180,12 @@ internal class ChatSessionCoordinator(
                 }
             }
 
-            val errorMessage = if (loadTimedOut) {
-                "Session load timed out. Check server connection and retry."
-            } else {
-                "Could not load this session. Check connection and retry."
-            }
+            val errorMessage =
+                if (loadTimedOut) {
+                    "Session load timed out. Check server connection and retry."
+                } else {
+                    "Could not load this session. Check connection and retry."
+                }
             trace("loadSession:failed timedOut=$loadTimedOut sessionId=$initialSessionId")
             logError("loadSession failed: bridge is null for sessionId=$initialSessionId", null)
             callbacks.onLoadFailed(errorMessage)
@@ -181,11 +197,15 @@ internal class ChatSessionCoordinator(
             is AcpConnectionState.Connected -> scheduleBridgeRecovery()
             is AcpConnectionState.Connecting,
             is AcpConnectionState.Disconnected,
-            is AcpConnectionState.Failed -> invalidateActiveBridge()
+            is AcpConnectionState.Failed,
+            -> invalidateActiveBridge()
         }
     }
 
-    suspend fun sendMessage(text: String, images: List<ChatImageData>) {
+    suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+    ) {
         if (text.isBlank() && images.isEmpty()) return
 
         val bridge = ensureSessionReadyForSend()
@@ -241,21 +261,30 @@ internal class ChatSessionCoordinator(
         callbacks.onStreamingCancelled()
     }
 
-    suspend fun setConfigOption(optionId: String, value: SessionConfigValue) {
+    suspend fun setConfigOption(
+        optionId: String,
+        value: SessionConfigValue,
+    ) {
         val bridge = requireActiveBridge("setConfigOption:$optionId") ?: return
-        val option = bridge.snapshot.value.configOptions.firstOrNull { it.id == optionId }
-        val selectedModelId = if (option?.category is SessionConfigCategory.Model) {
-            (value as? SessionConfigValue.StringValue)?.value
-        } else {
-            null
-        }
+        val option =
+            bridge.snapshot.value.configOptions
+                .firstOrNull { it.id == optionId }
+        val selectedModelId =
+            if (option?.category is SessionConfigCategory.Model) {
+                (value as? SessionConfigValue.StringValue)?.value
+            } else {
+                null
+            }
         if (!selectedModelId.isNullOrBlank()) {
             pendingModelSelectionId = selectedModelId
         }
         bridge.setConfigOption(optionId, value)
     }
 
-    suspend fun grantPermission(toolCallId: String, optionId: String) {
+    suspend fun grantPermission(
+        toolCallId: String,
+        optionId: String,
+    ) {
         requireActiveBridge("grantPermission:$toolCallId")?.grantPermission(toolCallId, optionId)
     }
 
@@ -274,27 +303,29 @@ internal class ChatSessionCoordinator(
             publishCapabilities()
             return true
         }
-        val server = launchableTargetRepository.getTarget(serverId) ?: run {
-            logError("ensureConnectedAndInitialized: target not found for serverId=$serverId", null)
-            return false
-        }
-        val connected = when (server) {
-            is LaunchableTarget.GatewayAgent -> {
-                val config = buildGatewayConnectionConfig(server) ?: return false
-                connectionManager.connect(config)
+        val server =
+            launchableTargetRepository.getTarget(serverId) ?: run {
+                logError("ensureConnectedAndInitialized: target not found for serverId=$serverId", null)
+                return false
             }
+        val connected =
+            when (server) {
+                is LaunchableTarget.GatewayAgent -> {
+                    val config = buildGatewayConnectionConfig(server) ?: return false
+                    connectionManager.connect(config)
+                }
 
-            is LaunchableTarget.Manual -> {
-                connectionManager.connect(
-                    AcpConnectionConfig(
-                        scheme = server.server.scheme,
-                        host = server.server.host,
-                        preferredAuthMethodId = server.server.preferredAuthMethodId,
-                        serverDisplayName = server.name,
+                is LaunchableTarget.Manual -> {
+                    connectionManager.connect(
+                        AcpConnectionConfig(
+                            scheme = server.server.scheme,
+                            host = server.server.host,
+                            preferredAuthMethodId = server.server.preferredAuthMethodId,
+                            serverDisplayName = server.name,
+                        ),
                     )
-                )
+                }
             }
-        }
         if (!connected) return false
         return when (val initializeResult = connectionManager.initialize()) {
             is AcpInitializeResult.Ready -> {
@@ -321,19 +352,22 @@ internal class ChatSessionCoordinator(
             return null
         }
         return try {
-            val refreshedSource = refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
-            val runtime = gatewayRepository.startAgent(
-                scheme = refreshedSource.scheme,
-                host = refreshedSource.host,
-                gatewayCredential = refreshedSource.gatewayCredential,
-                agentId = target.binding.agentId,
-            )
-            val handoff = gatewayRepository.connectRuntime(
-                scheme = refreshedSource.scheme,
-                host = refreshedSource.host,
-                gatewayCredential = refreshedSource.gatewayCredential,
-                runtimeId = runtime.id,
-            )
+            val refreshedSource =
+                refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
+            val runtime =
+                gatewayRepository.startAgent(
+                    scheme = refreshedSource.scheme,
+                    host = refreshedSource.host,
+                    gatewayCredential = refreshedSource.gatewayCredential,
+                    agentId = target.binding.agentId,
+                )
+            val handoff =
+                gatewayRepository.connectRuntime(
+                    scheme = refreshedSource.scheme,
+                    host = refreshedSource.host,
+                    gatewayCredential = refreshedSource.gatewayCredential,
+                    runtimeId = runtime.id,
+                )
             AcpConnectionConfig(
                 scheme = refreshedSource.scheme,
                 host = refreshedSource.host,
@@ -366,43 +400,50 @@ internal class ChatSessionCoordinator(
 
     private fun observeSessionBridge(bridge: SessionBridge) {
         clearBridgeObservers()
-        bridgeObserverJobs = listOf(
-            scope.launch {
-                var lastSignature: String? = null
-                bridge.snapshot.collect { snapshot ->
-                    if (BuildConfig.DEBUG) {
-                        val signature = buildString {
-                            append("state=")
-                            append(snapshot.loadState)
-                            append(" messages=")
-                            append(snapshot.messages.size)
-                            append(" streaming=")
-                            append(snapshot.isStreaming)
-                            append(" lastId=")
-                            append(snapshot.messages.lastOrNull()?.id)
-                            append(" lastRole=")
-                            append(snapshot.messages.lastOrNull()?.role)
-                            append(" lastLen=")
-                            append(snapshot.messages.lastOrNull()?.content?.length ?: 0)
-                            append(" commands=")
-                            append(snapshot.availableCommands.size)
-                            append(" configOptions=")
-                            append(snapshot.configOptions.size)
+        bridgeObserverJobs =
+            listOf(
+                scope.launch {
+                    var lastSignature: String? = null
+                    bridge.snapshot.collect { snapshot ->
+                        if (BuildConfig.DEBUG) {
+                            val signature =
+                                buildString {
+                                    append("state=")
+                                    append(snapshot.loadState)
+                                    append(" messages=")
+                                    append(snapshot.messages.size)
+                                    append(" streaming=")
+                                    append(snapshot.isStreaming)
+                                    append(" lastId=")
+                                    append(snapshot.messages.lastOrNull()?.id)
+                                    append(" lastRole=")
+                                    append(snapshot.messages.lastOrNull()?.role)
+                                    append(" lastLen=")
+                                    append(
+                                        snapshot.messages
+                                            .lastOrNull()
+                                            ?.content
+                                            ?.length ?: 0,
+                                    )
+                                    append(" commands=")
+                                    append(snapshot.availableCommands.size)
+                                    append(" configOptions=")
+                                    append(snapshot.configOptions.size)
+                                }
+                            if (signature != lastSignature) {
+                                trace("snapshot session=${bridge.sessionId} $signature")
+                                lastSignature = signature
+                            }
                         }
-                        if (signature != lastSignature) {
-                            trace("snapshot session=${bridge.sessionId} $signature")
-                            lastSignature = signature
-                        }
+                        callbacks.onSnapshot(snapshot)
                     }
-                    callbacks.onSnapshot(snapshot)
-                }
-            },
-            scope.launch {
-                bridge.events.collect { event ->
-                    handleBridgeEvent(event)
-                }
-            }
-        )
+                },
+                scope.launch {
+                    bridge.events.collect { event ->
+                        handleBridgeEvent(event)
+                    }
+                },
+            )
     }
 
     private fun clearBridgeObservers() {
@@ -432,14 +473,15 @@ internal class ChatSessionCoordinator(
             return existing
         }
 
-        val created = try {
-            connectionManager.createSession(cwd)
-        } catch (_: AcpAuthenticationRequiredException) {
-            callbacks.onLoadFailed(
-                "ACP authentication is required for this server. Return to the session list and authenticate first.",
-            )
-            null
-        } ?: return null
+        val created =
+            try {
+                connectionManager.createSession(cwd)
+            } catch (_: AcpAuthenticationRequiredException) {
+                callbacks.onLoadFailed(
+                    "ACP authentication is required for this server. Return to the session list and authenticate first.",
+                )
+                null
+            } ?: return null
         attachSessionBridge(created)
         callbacks.onSessionReady()
         return created
@@ -448,30 +490,32 @@ internal class ChatSessionCoordinator(
     private fun scheduleBridgeRecovery() {
         if (!shouldRecoverBridge || sessionBridge != null || bridgeRecoveryJob != null) return
 
-        bridgeRecoveryJob = scope.launch {
-            try {
-                while (shouldRecoverBridge && sessionBridge == null) {
-                    if (!connectionManager.isConnected) break
+        bridgeRecoveryJob =
+            scope.launch {
+                try {
+                    while (shouldRecoverBridge && sessionBridge == null) {
+                        if (!connectionManager.isConnected) break
 
-                    val recoveredBridge = bridgeOperationMutex.withLock {
-                        if (sessionBridge != null) {
-                            sessionBridge
-                        } else {
-                            recoverSessionBridge()
+                        val recoveredBridge =
+                            bridgeOperationMutex.withLock {
+                                if (sessionBridge != null) {
+                                    sessionBridge
+                                } else {
+                                    recoverSessionBridge()
+                                }
+                            }
+                        if (recoveredBridge != null) {
+                            trace("recoverSessionBridge:recovered sessionId=${recoveredBridge.sessionId}")
+                            callbacks.onSessionReady()
+                            break
                         }
-                    }
-                    if (recoveredBridge != null) {
-                        trace("recoverSessionBridge:recovered sessionId=${recoveredBridge.sessionId}")
-                        callbacks.onSessionReady()
-                        break
-                    }
 
-                    delay(bridgeRecoveryRetryDelayMs)
+                        delay(bridgeRecoveryRetryDelayMs)
+                    }
+                } finally {
+                    bridgeRecoveryJob = null
                 }
-            } finally {
-                bridgeRecoveryJob = null
             }
-        }
     }
 
     private fun cancelBridgeRecovery() {
@@ -499,32 +543,33 @@ internal class ChatSessionCoordinator(
             return created
         }
 
-        val recovered = try {
-            withTimeout(sessionLoadTimeoutMs) {
-                connectionManager.loadSession(
-                    sessionId = activeSessionId,
-                    cwd = cwd,
+        val recovered =
+            try {
+                withTimeout(sessionLoadTimeoutMs) {
+                    connectionManager.loadSession(
+                        sessionId = activeSessionId,
+                        cwd = cwd,
+                    )
+                }
+            } catch (_: AcpAuthenticationRequiredException) {
+                callbacks.onLoadFailed(
+                    "ACP authentication is required for this server. Return to the session list and authenticate first.",
                 )
+                null
+            } catch (_: TimeoutCancellationException) {
+                null
+            } catch (error: Exception) {
+                callbacks.onLoadFailed(formatAcpErrorMessage(error, "Failed to load session"))
+                null
             }
-        } catch (_: AcpAuthenticationRequiredException) {
-            callbacks.onLoadFailed(
-                "ACP authentication is required for this server. Return to the session list and authenticate first.",
-            )
-            null
-        } catch (_: TimeoutCancellationException) {
-            null
-        } catch (error: Exception) {
-            callbacks.onLoadFailed(formatAcpErrorMessage(error, "Failed to load session"))
-            null
-        }
         if (recovered != null) {
             attachSessionBridge(recovered)
         }
         return recovered
     }
 
-    private suspend fun requireActiveBridge(action: String): SessionBridge? {
-        return sessionBridge ?: run {
+    private suspend fun requireActiveBridge(action: String): SessionBridge? =
+        sessionBridge ?: run {
             trace("$action: bridge missing activeSessionId=$activeSessionId")
             callbacks.onOperationError(
                 message = SESSION_NOT_READY_MESSAGE,
@@ -532,7 +577,6 @@ internal class ChatSessionCoordinator(
             )
             null
         }
-    }
 
     private fun userFacingSendError(error: Throwable): String {
         val detailedMessage = formatAcpErrorMessage(error, "Send failed")

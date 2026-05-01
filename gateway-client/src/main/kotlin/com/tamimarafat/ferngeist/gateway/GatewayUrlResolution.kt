@@ -13,13 +13,13 @@ fun resolveGatewayWebSocketUrl(
         return advertisedUrl
     }
 
-    val socketScheme = when (gatewaySource.scheme.lowercase()) {
-        "https", "wss" -> "wss"
-        else -> "ws"
-    }
+    val socketScheme =
+        when (gatewaySource.scheme.lowercase()) {
+            "https", "wss" -> "wss"
+            else -> "ws"
+        }
     return "$socketScheme://${gatewaySource.host}${handoff.webSocketPath}"
 }
 
-fun isUnroutableGatewayHost(host: String): Boolean {
-    return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
-}
+fun isUnroutableGatewayHost(host: String): Boolean =
+    host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"

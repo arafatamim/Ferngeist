@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>MagicNumber:GatewayProofAuth.kt:GatewayProofAuth$1000</ID>
+    <ID>MagicNumber:GatewayRepositoryImpl.kt:404</ID>
+    <ID>MaxLineLength:GatewayRepositoryImpl.kt:GatewayRepositoryImpl$override suspend</ID>
+    <ID>MaxLineLength:GatewayRepositoryImpl.kt:private</ID>
+    <ID>MaxLineLength:GatewayRepositoryImpl.kt:throw gatewayRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())</ID>
+    <ID>ReturnCount:GatewayCredentialRefresh.kt:suspend fun refreshGatewaySourceIfNeeded: GatewaySource</ID>
+    <ID>ReturnCount:GatewayPairingPayload.kt:GatewayPairingPayloadParser$private fun parseJson: GatewayPairingPayload?</ID>
+    <ID>ReturnCount:GatewayPairingPayload.kt:GatewayPairingPayloadParser$private fun parseUri: GatewayPairingPayload?</ID>
+  </CurrentIssues>
+</SmellBaseline>

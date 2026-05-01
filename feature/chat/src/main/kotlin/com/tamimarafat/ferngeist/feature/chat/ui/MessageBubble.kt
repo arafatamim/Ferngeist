@@ -41,9 +41,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,26 +73,28 @@ fun MessageBubble(
 
     Box(
         modifier = modifier.fillMaxWidth(),
-        contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
+        contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         if (isUser) {
             ElevatedCard(
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = contentColor
-                ),
-                shape = RoundedCornerShape(
-                    topStart = 20.dp,
-                    topEnd = 20.dp,
-                    bottomStart = 20.dp,
-                    bottomEnd = 8.dp
-                ),
-                modifier = Modifier.widthIn(max = 420.dp)
+                colors =
+                    CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = contentColor,
+                    ),
+                shape =
+                    RoundedCornerShape(
+                        topStart = 20.dp,
+                        topEnd = 20.dp,
+                        bottomStart = 20.dp,
+                        bottomEnd = 8.dp,
+                    ),
+                modifier = Modifier.widthIn(max = 420.dp),
             ) {
                 UserMessageContent(
                     message = message,
                     textColor = contentColor,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 )
             }
         } else {
@@ -102,7 +104,7 @@ fun MessageBubble(
                 showStreamingIndicator = showStreamingIndicator,
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -113,7 +115,7 @@ fun MessageBubble(
 private fun UserMessageContent(
     message: ChatMessage,
     textColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         // Text content
@@ -121,7 +123,7 @@ private fun UserMessageContent(
             Text(
                 text = message.content,
                 style = MaterialTheme.typography.bodyLarge,
-                color = textColor
+                color = textColor,
             )
         }
 
@@ -140,7 +142,7 @@ private fun AssistantMessageContent(
     showStreamingIndicator: Boolean,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         // Render segments in order
@@ -190,7 +192,7 @@ private fun AssistantMessageContent(
         if (showStreamingIndicator && message.segments.isEmpty() && message.content.isBlank()) {
             StreamingIndicator(
                 streamKey = message.id,
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier.padding(vertical = 4.dp),
             )
         }
     }
@@ -201,29 +203,31 @@ private fun MarkdownText(
     state: MarkdownRenderState?,
     modifier: Modifier = Modifier,
 ) {
-    val compactTypography = markdownTypography(
-        h1 = MaterialTheme.typography.titleLarge,
-        h2 = MaterialTheme.typography.titleMedium,
-        h3 = MaterialTheme.typography.titleSmall,
-        h4 = MaterialTheme.typography.bodyLarge,
-        h5 = MaterialTheme.typography.bodyMedium,
-        h6 = MaterialTheme.typography.bodySmall,
-        text = MaterialTheme.typography.bodyLarge,
-        paragraph = MaterialTheme.typography.bodyLarge,
-        list = MaterialTheme.typography.bodyLarge,
-        bullet = MaterialTheme.typography.bodyLarge,
-        ordered = MaterialTheme.typography.bodyLarge
-    )
+    val compactTypography =
+        markdownTypography(
+            h1 = MaterialTheme.typography.titleLarge,
+            h2 = MaterialTheme.typography.titleMedium,
+            h3 = MaterialTheme.typography.titleSmall,
+            h4 = MaterialTheme.typography.bodyLarge,
+            h5 = MaterialTheme.typography.bodyMedium,
+            h6 = MaterialTheme.typography.bodySmall,
+            text = MaterialTheme.typography.bodyLarge,
+            paragraph = MaterialTheme.typography.bodyLarge,
+            list = MaterialTheme.typography.bodyLarge,
+            bullet = MaterialTheme.typography.bodyLarge,
+            ordered = MaterialTheme.typography.bodyLarge,
+        )
     if (state != null) {
         SelectionContainer {
             Markdown(
                 state = state,
                 typography = compactTypography,
-                animations = markdownAnimations(
-                    animateTextSize = { this }
-                ),
+                animations =
+                    markdownAnimations(
+                        animateTextSize = { this },
+                    ),
                 dimens = markdownDimens(),
-                modifier = modifier.fillMaxWidth()
+                modifier = modifier.fillMaxWidth(),
             )
         }
     }
@@ -233,27 +237,30 @@ private fun MarkdownText(
 private fun ThoughtBubble(
     isStreaming: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val baseColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val textBrush = rememberShimmerTextBrush(
-        isActive = isStreaming,
-        baseColor = baseColor,
-        labelPrefix = "reasoning"
-    )
+    val textBrush =
+        rememberShimmerTextBrush(
+            isActive = isStreaming,
+            baseColor = baseColor,
+            labelPrefix = "reasoning",
+        )
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = if (isStreaming) "Reasoning" else "Show Reasoning",
-            style = MaterialTheme.typography.bodySmall.copy(
-                brush = textBrush
-            ),
-            modifier = Modifier.padding(vertical = 4.dp)
+            style =
+                MaterialTheme.typography.bodySmall.copy(
+                    brush = textBrush,
+                ),
+            modifier = Modifier.padding(vertical = 4.dp),
         )
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
@@ -262,36 +269,36 @@ private fun ThoughtBubble(
             tint = baseColor,
             modifier = Modifier.size(16.dp),
         )
-
     }
 }
 
 @Composable
 private fun PlanBubble(
     text: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        ),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ),
         shape = RoundedCornerShape(8.dp),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.PlaylistAddCheck,
                 contentDescription = "Plan",
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(16.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
             )
         }
     }
@@ -302,44 +309,48 @@ private fun PlanBubble(
 private fun ToolCallCard(
     toolCall: ToolCallDisplay,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-        ),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            ),
         shape = CardDefaults.shape,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
     ) {
         Column {
             // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onClick() }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onClick() }
+                        .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Status badge
                 toolCall.status?.let { status ->
                     when (status.lowercase()) {
-                        "pending", "in_progress" -> ContainedLoadingIndicator(
-                            polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
-                            containerShape = MaterialTheme.shapes.medium,
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        "completed" -> Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Completed",
-                        )
-                        "failed" -> Icon(
-                            imageVector = Icons.Default.Error,
-                            contentDescription = "Error",
-                        )
-
+                        "pending", "in_progress" ->
+                            ContainedLoadingIndicator(
+                                polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
+                                containerShape = MaterialTheme.shapes.medium,
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(32.dp),
+                            )
+                        "completed" ->
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Completed",
+                            )
+                        "failed" ->
+                            Icon(
+                                imageVector = Icons.Default.Error,
+                                contentDescription = "Error",
+                            )
                     }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
@@ -349,18 +360,18 @@ private fun ToolCallCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                     )
                     toolCall.kind?.let { kind ->
                         Text(
                             text = kind,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
@@ -385,7 +396,7 @@ private fun ToolCallCard(
 @Composable
 private fun ImageAttachments(
     images: List<ChatImageData>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         images.forEach { image ->
@@ -393,21 +404,21 @@ private fun ImageAttachments(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
                     modifier = Modifier.padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Image,
                         contentDescription = "Image",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Image (${image.mimeType})",
-                        style = MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
@@ -420,111 +431,115 @@ private fun ImageAttachments(
 @Composable
 private fun StreamingIndicator(
     streamKey: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val spinnerVerb = remember(streamKey) {
-        STREAMING_VERBS[Random.nextInt(STREAMING_VERBS.size)]
-    }
+    val spinnerVerb =
+        remember(streamKey) {
+            STREAMING_VERBS[Random.nextInt(STREAMING_VERBS.size)]
+        }
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
     val baseColor = LocalContentColor.current.copy(alpha = 0.8f)
-    val textBrush = rememberShimmerTextBrush(
-        isActive = true,
-        baseColor = baseColor,
-        labelPrefix = "spinnerVerb"
-    )
+    val textBrush =
+        rememberShimmerTextBrush(
+            isActive = true,
+            baseColor = baseColor,
+            labelPrefix = "spinnerVerb",
+        )
     Row(
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         LoadingIndicator(
             polygons = polygons,
-            modifier = Modifier.size(28.dp)
+            modifier = Modifier.size(28.dp),
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "$spinnerVerb...",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                brush = textBrush
-            )
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    brush = textBrush,
+                ),
         )
     }
 }
 
 // Yoinked from Claude Code. Ref: https://github.com/levindixon/tengu_spinner_words
-private val STREAMING_VERBS = listOf(
-    "Accomplishing",
-    "Actioning",
-    "Actualizing",
-    "Baking",
-    "Brewing",
-    "Calculating",
-    "Cerebrating",
-    "Churning",
-    "Coalescing",
-    "Cogitating",
-    "Computing",
-    "Conjuring",
-    "Considering",
-    "Cooking",
-    "Crafting",
-    "Creating",
-    "Crunching",
-    "Deliberating",
-    "Determining",
-    "Doing",
-    "Effecting",
-    "Finagling",
-    "Forging",
-    "Forming",
-    "Generating",
-    "Hatching",
-    "Herding",
-    "Honking",
-    "Hustling",
-    "Ideating",
-    "Inferring",
-    "Manifesting",
-    "Marinating",
-    "Moseying",
-    "Mulling",
-    "Mustering",
-    "Musing",
-    "Noodling",
-    "Percolating",
-    "Pondering",
-    "Processing",
-    "Puttering",
-    "Reticulating",
-    "Ruminating",
-    "Schlepping",
-    "Shucking",
-    "Simmering",
-    "Smooshing",
-    "Spinning",
-    "Stewing",
-    "Synthesizing",
-    "Thinking",
-    "Transmuting",
-    "Vibing",
-    "Working",
-)
+private val STREAMING_VERBS =
+    listOf(
+        "Accomplishing",
+        "Actioning",
+        "Actualizing",
+        "Baking",
+        "Brewing",
+        "Calculating",
+        "Cerebrating",
+        "Churning",
+        "Coalescing",
+        "Cogitating",
+        "Computing",
+        "Conjuring",
+        "Considering",
+        "Cooking",
+        "Crafting",
+        "Creating",
+        "Crunching",
+        "Deliberating",
+        "Determining",
+        "Doing",
+        "Effecting",
+        "Finagling",
+        "Forging",
+        "Forming",
+        "Generating",
+        "Hatching",
+        "Herding",
+        "Honking",
+        "Hustling",
+        "Ideating",
+        "Inferring",
+        "Manifesting",
+        "Marinating",
+        "Moseying",
+        "Mulling",
+        "Mustering",
+        "Musing",
+        "Noodling",
+        "Percolating",
+        "Pondering",
+        "Processing",
+        "Puttering",
+        "Reticulating",
+        "Ruminating",
+        "Schlepping",
+        "Shucking",
+        "Simmering",
+        "Smooshing",
+        "Spinning",
+        "Stewing",
+        "Synthesizing",
+        "Thinking",
+        "Transmuting",
+        "Vibing",
+        "Working",
+    )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-private val LOADING_SHAPES = listOf(
-    MaterialShapes.Oval,
-    MaterialShapes.ClamShell,
-    MaterialShapes.Diamond,
-    MaterialShapes.VerySunny,
-    MaterialShapes.Cookie4Sided,
-    MaterialShapes.SoftBurst,
-    MaterialShapes.SoftBoom,
-    MaterialShapes.Flower,
-    MaterialShapes.PuffyDiamond,
-    MaterialShapes.Bun,
-)
+private val LOADING_SHAPES =
+    listOf(
+        MaterialShapes.Oval,
+        MaterialShapes.ClamShell,
+        MaterialShapes.Diamond,
+        MaterialShapes.VerySunny,
+        MaterialShapes.Cookie4Sided,
+        MaterialShapes.SoftBurst,
+        MaterialShapes.SoftBoom,
+        MaterialShapes.Flower,
+        MaterialShapes.PuffyDiamond,
+        MaterialShapes.Bun,
+    )
 
-private fun pickLoadingPolygons(seedKey: String) =
-    LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(6)
+private fun pickLoadingPolygons(seedKey: String) = LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(6)
 
 @Composable
 private fun rememberShimmerTextBrush(
@@ -533,27 +548,31 @@ private fun rememberShimmerTextBrush(
     labelPrefix: String,
 ): Brush {
     val shimmerTransition = rememberInfiniteTransition(label = "${labelPrefix}Shimmer")
-    val shimmerOffset = if (isActive) {
-        shimmerTransition.animateFloat(
-            initialValue = -200f,
-            targetValue = 600f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1400, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "${labelPrefix}ShimmerOffset",
-        ).value
-    } else {
-        0f
-    }
+    val shimmerOffset =
+        if (isActive) {
+            shimmerTransition
+                .animateFloat(
+                    initialValue = -200f,
+                    targetValue = 600f,
+                    animationSpec =
+                        infiniteRepeatable(
+                            animation = tween(durationMillis = 1400, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart,
+                        ),
+                    label = "${labelPrefix}ShimmerOffset",
+                ).value
+        } else {
+            0f
+        }
 
     return if (isActive) {
         Brush.linearGradient(
-            colors = listOf(
-                baseColor.copy(alpha = 0.45f),
-                baseColor.copy(alpha = 0.95f),
-                baseColor.copy(alpha = 0.45f),
-            ),
+            colors =
+                listOf(
+                    baseColor.copy(alpha = 0.45f),
+                    baseColor.copy(alpha = 0.95f),
+                    baseColor.copy(alpha = 0.45f),
+                ),
             start = Offset(shimmerOffset - 200f, 0f),
             end = Offset(shimmerOffset, 0f),
         )

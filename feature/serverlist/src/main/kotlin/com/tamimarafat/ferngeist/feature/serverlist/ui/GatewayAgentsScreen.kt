@@ -141,9 +141,10 @@ fun GatewayAgentsScreen(
     ) { padding ->
         if (uiState.isLoading) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularWavyProgressIndicator(modifier = Modifier.size(64.dp))
@@ -153,10 +154,11 @@ fun GatewayAgentsScreen(
 
         uiState.loadError?.let { message ->
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 24.dp),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 24.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(
@@ -179,9 +181,10 @@ fun GatewayAgentsScreen(
         }
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -190,32 +193,47 @@ fun GatewayAgentsScreen(
                 val canAdd = agent.manifestValid && !alreadyAdded
 
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (canAdd) {
-                                Modifier.clickable { pendingAddAgent = agent }
-                            } else {
-                                Modifier
-                            }
-                        ),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (canAdd) {
+                                    Modifier.clickable { pendingAddAgent = agent }
+                                } else {
+                                    Modifier
+                                },
+                            ),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (alreadyAdded) {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerLow
-                        }
-                    ),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor =
+                                if (alreadyAdded) {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerLow
+                                },
+                        ),
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(agent.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(agent.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            agent.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            agent.id,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         agent.hint?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),

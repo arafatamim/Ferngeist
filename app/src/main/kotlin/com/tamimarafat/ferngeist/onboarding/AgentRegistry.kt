@@ -12,17 +12,20 @@ private const val REGISTRY_URL = "https://cdn.agentclientprotocol.com/registry/v
 const val DEFAULT_AGENT_PORT = 6000
 
 @Singleton
-class AgentRegistryRepository @Inject constructor(
-    private val httpClient: HttpClient,
-    private val json: Json,
-) {
-    suspend fun fetchAgents(): List<RegistryAgent> {
-        val payload = httpClient.get(REGISTRY_URL).bodyAsText()
-        return json.decodeFromString<AgentRegistryResponse>(payload)
-            .agents
-            .sortedBy { it.name.lowercase() }
+class AgentRegistryRepository
+    @Inject
+    constructor(
+        private val httpClient: HttpClient,
+        private val json: Json,
+    ) {
+        suspend fun fetchAgents(): List<RegistryAgent> {
+            val payload = httpClient.get(REGISTRY_URL).bodyAsText()
+            return json
+                .decodeFromString<AgentRegistryResponse>(payload)
+                .agents
+                .sortedBy { it.name.lowercase() }
+        }
     }
-}
 
 @Serializable
 data class AgentRegistryResponse(
@@ -61,7 +64,9 @@ data class BinaryDistribution(
     val args: List<String> = emptyList(),
 )
 
-enum class PcPlatform(val label: String) {
+enum class PcPlatform(
+    val label: String,
+) {
     Windows("Windows"),
     MacOS("macOS"),
     Linux("Linux"),
@@ -79,11 +84,12 @@ object AgentLaunchCommandBuilder {
         platform: PcPlatform,
         port: Int,
     ): AgentLaunchInstructions {
-        val distribution = selectDistribution(agent, platform) ?: return AgentLaunchInstructions(
-            command = null,
-            environment = emptyMap(),
-            notes = listOf("This registry entry does not include a runnable ACP command."),
-        )
+        val distribution =
+            selectDistribution(agent, platform) ?: return AgentLaunchInstructions(
+                command = null,
+                environment = emptyMap(),
+                notes = listOf("This registry entry does not include a runnable ACP command."),
+            )
 
         // The ACP registry currently provides local process launch instructions, not WebSocket
         // transport metadata. Ferngeist connects over WebSocket, so onboarding wraps the agent
@@ -102,12 +108,13 @@ object AgentLaunchCommandBuilder {
     ): DistributionSelection? {
         agent.distribution.npx?.let { npx ->
             return DistributionSelection(
-                command = buildCommand(
-                    launcher = "npx",
-                    packageName = npx.`package`,
-                    args = npx.args,
-                    assumeYes = true,
-                ),
+                command =
+                    buildCommand(
+                        launcher = "npx",
+                        packageName = npx.`package`,
+                        args = npx.args,
+                        assumeYes = true,
+                    ),
                 environment = npx.env,
                 notes = listOf("Make sure Node.js is installed on your computer."),
             )
@@ -115,27 +122,32 @@ object AgentLaunchCommandBuilder {
 
         agent.distribution.uvx?.let { uvx ->
             return DistributionSelection(
-                command = buildCommand(
-                    launcher = "uvx",
-                    packageName = uvx.`package`,
-                    args = uvx.args,
-                    assumeYes = false,
-                ),
+                command =
+                    buildCommand(
+                        launcher = "uvx",
+                        packageName = uvx.`package`,
+                        args = uvx.args,
+                        assumeYes = false,
+                    ),
                 environment = uvx.env,
                 notes = listOf("Install uv first if it is not already available on your computer."),
             )
         }
 
-        val binary = agent.distribution.binary[platform.binaryKey]
-            ?: agent.distribution.binary.entries.firstOrNull()?.value
+        val binary =
+            agent.distribution.binary[platform.binaryKey]
+                ?: agent.distribution.binary.entries
+                    .firstOrNull()
+                    ?.value
         if (binary != null) {
             return DistributionSelection(
                 command = joinCommandParts(listOf(binary.cmd) + binary.args),
                 environment = emptyMap(),
-                notes = listOf(
-                    "Download and extract the agent first: ${binary.archive}",
-                    "Run the generated command from the extracted folder on your computer.",
-                ),
+                notes =
+                    listOf(
+                        "Download and extract the agent first: ${binary.archive}",
+                        "Run the generated command from the extracted folder on your computer.",
+                    ),
             )
         }
 
@@ -148,38 +160,37 @@ object AgentLaunchCommandBuilder {
         args: List<String>,
         assumeYes: Boolean,
     ): String {
-        val parts = buildList {
-            add(launcher)
-            if (assumeYes) {
-                add("-y")
+        val parts =
+            buildList {
+                add(launcher)
+                if (assumeYes) {
+                    add("-y")
+                }
+                add(packageName)
+                addAll(args)
             }
-            add(packageName)
-            addAll(args)
-        }
         return joinCommandParts(parts)
     }
 
-    private fun joinCommandParts(parts: List<String>): String {
-        return parts.joinToString(" ") { part ->
+    private fun joinCommandParts(parts: List<String>): String =
+        parts.joinToString(" ") { part ->
             if (part.any(Char::isWhitespace) || '"' in part) {
                 "\"${escapeForDoubleQuotes(part)}\""
             } else {
                 part
             }
         }
-    }
 
-    private fun escapeForDoubleQuotes(value: String): String {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"")
-    }
+    private fun escapeForDoubleQuotes(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
 }
 
 val PcPlatform.binaryKey: String
-    get() = when (this) {
-        PcPlatform.Windows -> "windows-x86_64"
-        PcPlatform.MacOS -> "darwin-aarch64"
-        PcPlatform.Linux -> "linux-x86_64"
-    }
+    get() =
+        when (this) {
+            PcPlatform.Windows -> "windows-x86_64"
+            PcPlatform.MacOS -> "darwin-aarch64"
+            PcPlatform.Linux -> "linux-x86_64"
+        }
 
 private data class DistributionSelection(
     val command: String,

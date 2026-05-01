@@ -6,13 +6,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AddAgentRiskDisclosureTest {
-
     @Test
     fun `risk lines include host agent id and execution warning`() {
-        val lines = addAgentRiskLines(
-            agent = sampleAgent(),
-            gatewayHost = "76.13.225.224:5788",
-        )
+        val lines =
+            addAgentRiskLines(
+                agent = sampleAgent(),
+                gatewayHost = "76.13.225.224:5788",
+            )
 
         assertTrue(lines.any { it.contains("76.13.225.224:5788") })
         assertTrue(lines.any { it.contains("mock-acp") })
@@ -22,21 +22,21 @@ class AddAgentRiskDisclosureTest {
 
     @Test
     fun `risk lines fall back when host is missing`() {
-        val lines = addAgentRiskLines(
-            agent = sampleAgent(),
-            gatewayHost = "   ",
-        )
+        val lines =
+            addAgentRiskLines(
+                agent = sampleAgent(),
+                gatewayHost = "   ",
+            )
 
         assertTrue(lines.any { it.contains("your gateway host", ignoreCase = true) })
     }
 
-    private fun sampleAgent(): GatewayAgent {
-        return GatewayAgent(
+    private fun sampleAgent(): GatewayAgent =
+        GatewayAgent(
             id = "mock-acp",
             displayName = "Mock ACP Agent",
             detected = true,
             manifestValid = true,
             security = GatewayAgentSecurity(allowsRemoteStart = true),
         )
-    }
 }

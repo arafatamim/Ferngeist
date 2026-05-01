@@ -39,8 +39,9 @@ object GatewayPairingPayloadParser {
     }
 
     private fun parseJson(raw: String): GatewayPairingPayload? {
-        val payload = runCatching { json.decodeFromString<GatewayPairingPayloadDto>(raw) }.getOrNull()
-            ?: return null
+        val payload =
+            runCatching { json.decodeFromString<GatewayPairingPayloadDto>(raw) }.getOrNull()
+                ?: return null
         val challengeId = payload.challengeId?.trim().orEmpty()
         if (payload.host.isBlank() || payload.code.isBlank() || challengeId.isBlank()) return null
         return GatewayPairingPayload(
@@ -52,7 +53,8 @@ object GatewayPairingPayloadParser {
     }
 
     private fun parseQueryParams(query: String): Map<String, String> {
-        return query.split('&')
+        return query
+            .split('&')
             .mapNotNull { segment ->
                 val separatorIndex = segment.indexOf('=')
                 if (separatorIndex <= 0) return@mapNotNull null
@@ -60,13 +62,10 @@ object GatewayPairingPayloadParser {
                 val value = decodeQueryComponent(segment.substring(separatorIndex + 1))
                 if (key.isBlank()) return@mapNotNull null
                 key to value
-            }
-            .toMap()
+            }.toMap()
     }
 
-    private fun decodeQueryComponent(value: String): String {
-        return URLDecoder.decode(value, "UTF-8").trim()
-    }
+    private fun decodeQueryComponent(value: String): String = URLDecoder.decode(value, "UTF-8").trim()
 }
 
 @Serializable

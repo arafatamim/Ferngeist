@@ -1,13 +1,27 @@
 package com.tamimarafat.ferngeist.gateway
 
 interface GatewayRepository {
-    suspend fun fetchStatus(scheme: String, host: String): GatewayStatus
+    suspend fun fetchStatus(
+        scheme: String,
+        host: String,
+    ): GatewayStatus
 
-    suspend fun startPairing(scheme: String, host: String): GatewayPairStartResponse
+    suspend fun startPairing(
+        scheme: String,
+        host: String,
+    ): GatewayPairStartResponse
 
-    suspend fun getPairingStatus(scheme: String, host: String, challengeId: String): GatewayPairStatusResponse
+    suspend fun getPairingStatus(
+        scheme: String,
+        host: String,
+        challengeId: String,
+    ): GatewayPairStatusResponse
 
-    suspend fun fetchAgents(scheme: String, host: String, gatewayCredential: String): List<GatewayAgent>
+    suspend fun fetchAgents(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ): List<GatewayAgent>
 
     suspend fun startAgent(
         scheme: String,

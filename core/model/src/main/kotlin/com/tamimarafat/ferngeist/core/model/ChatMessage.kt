@@ -16,7 +16,9 @@ data class ChatMessage(
 ) {
     @Serializable
     enum class Role {
-        USER, ASSISTANT, SYSTEM
+        USER,
+        ASSISTANT,
+        SYSTEM,
     }
 }
 
@@ -29,7 +31,10 @@ data class AssistantSegment(
 ) {
     @Serializable
     enum class Kind {
-        MESSAGE, THOUGHT, TOOL_CALL, PLAN
+        MESSAGE,
+        THOUGHT,
+        TOOL_CALL,
+        PLAN,
     }
 }
 

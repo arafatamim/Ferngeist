@@ -27,13 +27,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
@@ -52,18 +52,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -223,9 +223,10 @@ private fun ChatLoadError(
     onRetry: () -> Unit,
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -258,9 +259,10 @@ private fun ChatMessageList(
 ) {
     LazyColumn(
         state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(userScrollDetector),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .nestedScroll(userScrollDetector),
         contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 0.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -292,8 +294,9 @@ internal fun List<ChatMessage>.latestPendingPermissionRequest(): PendingPermissi
         message.segments.asReversed().firstNotNullOfOrNull { segment ->
             val toolCall = segment.toolCall ?: return@firstNotNullOfOrNull null
             val toolCallId = toolCall.toolCallId ?: return@firstNotNullOfOrNull null
-            val permissionOptions = toolCall.permissionOptions?.takeIf { it.isNotEmpty() }
-                ?: return@firstNotNullOfOrNull null
+            val permissionOptions =
+                toolCall.permissionOptions?.takeIf { it.isNotEmpty() }
+                    ?: return@firstNotNullOfOrNull null
             PendingPermissionRequest(
                 toolCallId = toolCallId,
                 requestId = toolCall.permissionRequestId,
@@ -308,7 +311,10 @@ internal fun List<ChatMessage>.latestPendingPermissionRequest(): PendingPermissi
 internal fun List<ChatMessage>.toolCallForSegment(segmentId: String?): ToolCallDisplay? {
     val targetId = segmentId ?: return null
     return asReversed().firstNotNullOfOrNull { message ->
-        message.segments.asReversed().firstOrNull { it.id == targetId }?.toolCall
+        message.segments
+            .asReversed()
+            .firstOrNull { it.id == targetId }
+            ?.toolCall
     }
 }
 
@@ -329,18 +335,20 @@ private fun PermissionRequestSheet(
     onGrantPermission: (String, String) -> Unit,
     onDenyPermission: (String) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { value -> value != SheetValue.Hidden },
-    )
+    val sheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { value -> value != SheetValue.Hidden },
+        )
     ModalBottomSheet(
         onDismissRequest = {},
         sheetState = sheetState,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
@@ -409,9 +417,10 @@ private fun ToolCallDetailsSheet(
         sheetState = sheetState,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -477,9 +486,10 @@ private fun ThoughtDetailsSheet(
         sheetState = sheetState,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -499,11 +509,12 @@ private fun ThoughtDetailsSheet(
                     Text(
                         text = thought,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 420.dp)
-                            .verticalScroll(rememberScrollState())
-                            .padding(12.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 420.dp)
+                                .verticalScroll(rememberScrollState())
+                                .padding(12.dp),
                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                     )
                 }
@@ -546,10 +557,11 @@ internal fun ChatComposerBar(
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
     val animatedHeight by animateDpAsState(
         targetValue = if (composerExpanded) 142.dp else 62.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
+        animationSpec =
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMedium,
+            ),
         label = "ComposerHeight",
     )
     val collapsedMaxToolbarWidth = screenWidth * 0.92f
@@ -559,35 +571,35 @@ internal fun ChatComposerBar(
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         shadowElevation = 6.dp,
-        modifier = modifier
-            .height(animatedHeight)
-            .then(
-                if (composerExpanded) {
-                    Modifier.fillMaxWidth(0.92f)
-                } else {
-                    Modifier.widthIn(max = collapsedMaxToolbarWidth)
-                }
-            )
-            .onSizeChanged { onHeightChanged(it.height) },
-    ) {
-        Row(
-            modifier = Modifier
+        modifier =
+            modifier
+                .height(animatedHeight)
                 .then(
                     if (composerExpanded) {
-                        Modifier.fillMaxSize()
+                        Modifier.fillMaxWidth(0.92f)
                     } else {
-                        Modifier
-                            .fillMaxHeight()
-                            .wrapContentWidth()
-                    }
-                )
-                .animateContentSize(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
-                    )
-                )
-                .padding(horizontal = 12.dp),
+                        Modifier.widthIn(max = collapsedMaxToolbarWidth)
+                    },
+                ).onSizeChanged { onHeightChanged(it.height) },
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .then(
+                        if (composerExpanded) {
+                            Modifier.fillMaxSize()
+                        } else {
+                            Modifier
+                                .fillMaxHeight()
+                                .wrapContentWidth()
+                        },
+                    ).animateContentSize(
+                        animationSpec =
+                            spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow,
+                            ),
+                    ).padding(horizontal = 12.dp),
             verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -654,16 +666,18 @@ private fun ExpandedComposerContent(
     onSend: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxHeight()
-            .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 12.dp)
-            .alpha(inputAlpha),
+        modifier =
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 12.dp)
+                .alpha(inputAlpha),
     ) {
-        val selectionColors = TextSelectionColors(
-            handleColor = MaterialTheme.colorScheme.onPrimary,
-            backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
-        )
+        val selectionColors =
+            TextSelectionColors(
+                handleColor = MaterialTheme.colorScheme.onPrimary,
+                backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
+            )
         CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
             BasicTextField(
                 value = messageText,
@@ -671,21 +685,24 @@ private fun ExpandedComposerContent(
                 singleLine = false,
                 minLines = 3,
                 maxLines = 8,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onPrimary,
-                ),
+                textStyle =
+                    MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { onSend() }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .focusRequester(focusRequester),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .focusRequester(focusRequester),
                 decorationBox = { innerTextField ->
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
                         contentAlignment = Alignment.TopStart,
                     ) {
                         if (messageText.isEmpty()) {
@@ -702,9 +719,10 @@ private fun ExpandedComposerContent(
         }
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -773,7 +791,7 @@ private fun CollapsedComposerActions(
                         showStopAction && canCancelStreaming -> "Stop"
                         showStopAction && !canCancelStreaming -> "Cancel unavailable"
                         else -> "Chat"
-                    }
+                    },
                 )
             }
         },
@@ -783,11 +801,12 @@ private fun CollapsedComposerActions(
             showStopAction = showStopAction,
             canCancelStreaming = canCancelStreaming,
             enabled = !showStopAction || canCancelStreaming,
-            modifier = Modifier.size(
-                IconButtonDefaults.smallContainerSize(
-                    IconButtonDefaults.IconButtonWidthOption.Wide,
-                )
-            ),
+            modifier =
+                Modifier.size(
+                    IconButtonDefaults.smallContainerSize(
+                        IconButtonDefaults.IconButtonWidthOption.Wide,
+                    ),
+                ),
             onClick = {
                 if (showStopAction && canCancelStreaming) {
                     onCancelStreaming()
@@ -832,10 +851,11 @@ private fun ModeMenuButton(
             TextButton(
                 onClick = { onExpandedChange(true) },
                 modifier = Modifier.widthIn(max = maxWidth),
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    containerColor = Color.Transparent
-                )
+                colors =
+                    ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = Color.Transparent,
+                    ),
             ) {
                 Text(
                     text = currentModeLabel,
@@ -980,12 +1000,11 @@ private fun ConfigOptionMenuItem(
     )
 }
 
-private fun SessionConfigOption.dropdownSubtitle(): String {
-    return when (this) {
+private fun SessionConfigOption.dropdownSubtitle(): String =
+    when (this) {
         is SessionConfigOption.BooleanOption -> if (currentValue) "Enabled" else "Disabled"
         else -> displayValueLabel() ?: "Not selected"
     }
-}
 
 @Composable
 private fun PrimaryComposerActionButton(
@@ -999,10 +1018,11 @@ private fun PrimaryComposerActionButton(
     FilledIconButton(
         onClick = onClick,
         enabled = enabled,
-        colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.onPrimary,
-            contentColor = MaterialTheme.colorScheme.primary,
-        ),
+        colors =
+            IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.onPrimary,
+                contentColor = MaterialTheme.colorScheme.primary,
+            ),
         shapes = IconButtonDefaults.shapes(),
         modifier = modifier,
     ) {

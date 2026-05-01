@@ -122,6 +122,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 
 // region: Auto-Scroll Configuration
+
 /**
  * Configuration constants for the auto-scroll mechanism.
  *
@@ -220,13 +221,19 @@ private sealed class AutoScrollEvent {
     data object UserScrolled : AutoScrollEvent()
 
     /** Content has changed (new message, streaming update, etc.) */
-    data class ContentChanged(val anchor: ContentAnchor) : AutoScrollEvent()
+    data class ContentChanged(
+        val anchor: ContentAnchor,
+    ) : AutoScrollEvent()
 
     /** Keyboard or composer height changed */
-    data class InsetsChanged(val messageCount: Int) : AutoScrollEvent()
+    data class InsetsChanged(
+        val messageCount: Int,
+    ) : AutoScrollEvent()
 
     /** Streaming state changed */
-    data class StreamingChanged(val isStreaming: Boolean) : AutoScrollEvent()
+    data class StreamingChanged(
+        val isStreaming: Boolean,
+    ) : AutoScrollEvent()
 
     /** Scroll animation completed */
     data object ScrollCompleted : AutoScrollEvent()
@@ -256,10 +263,11 @@ private class AutoScrollManager(
 ) {
     private val _state = MutableStateFlow<AutoScrollState>(AutoScrollState.Following)
 
-    private val _sideEffects = MutableSharedFlow<ScrollSideEffect>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
+    private val _sideEffects =
+        MutableSharedFlow<ScrollSideEffect>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
     val sideEffectFlow: Flow<ScrollSideEffect> = _sideEffects
 
     private var lastUserScrollTimeMs = 0L
@@ -276,14 +284,18 @@ private class AutoScrollManager(
      * Creates a NestedScrollConnection that detects user scrolls.
      * Instead of mutating state directly, it emits events.
      */
-    fun createUserScrollDetector(): NestedScrollConnection = object : NestedScrollConnection {
-        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-            if (source == NestedScrollSource.UserInput && kotlin.math.abs(available.y) > 0.5f) {
-                onEvent(AutoScrollEvent.UserScrolled)
+    fun createUserScrollDetector(): NestedScrollConnection =
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source == NestedScrollSource.UserInput && kotlin.math.abs(available.y) > 0.5f) {
+                    onEvent(AutoScrollEvent.UserScrolled)
+                }
+                return Offset.Zero
             }
-            return Offset.Zero
         }
-    }
 
     /**
      * Processes an event and triggers appropriate state transitions and side effects.
@@ -405,16 +417,17 @@ private class AutoScrollManager(
      * Continuously follows streaming content with periodic scroll corrections.
      * Uses Flow-based approach for proper cancellation handling.
      */
-    fun followWhileStreamingFlow(isStreaming: Boolean): Flow<Unit> = flow<Unit> {
-        if (!isStreaming || _state.value !is AutoScrollState.Following) return@flow
+    fun followWhileStreamingFlow(isStreaming: Boolean): Flow<Unit> =
+        flow<Unit> {
+            if (!isStreaming || _state.value !is AutoScrollState.Following) return@flow
 
-        while (true) {
-            scrollToBottom(smooth = true)
-            delay(STREAM_FOLLOW_TICK_MS)
+            while (true) {
+                scrollToBottom(smooth = true)
+                delay(STREAM_FOLLOW_TICK_MS)
+            }
+        }.catch {
+            // Silently handle cancellation - this is expected when streaming stops
         }
-    }.catch {
-        // Silently handle cancellation - this is expected when streaming stops
-    }
 
     /**
      * Scrolls to the bottom of the list with multi-pass correction.
@@ -499,10 +512,14 @@ private class AutoScrollManager(
  */
 private sealed class ScrollSideEffect {
     /** Scroll to bottom immediately */
-    data class ScrollToBottom(val smooth: Boolean) : ScrollSideEffect()
+    data class ScrollToBottom(
+        val smooth: Boolean,
+    ) : ScrollSideEffect()
 
     /** Wait for delay, then scroll to bottom */
-    data class DelayThenScroll(val delayMs: Long) : ScrollSideEffect()
+    data class DelayThenScroll(
+        val delayMs: Long,
+    ) : ScrollSideEffect()
 }
 // endregion
 
@@ -620,8 +637,7 @@ private fun rememberChatScrollState(
                     isFollowing = scrollManager.isFollowing,
                 )
             }
-        }
-            .distinctUntilChanged()
+        }.distinctUntilChanged()
             .debounce(AutoScrollConfig.SCROLL_DEBOUNCE_MS)
             .collect { observation ->
                 observation ?: return@collect
@@ -632,7 +648,7 @@ private fun rememberChatScrollState(
                         firstVisibleItemScrollOffset = observation.firstVisibleItemScrollOffset,
                         isFollowing = observation.isFollowing,
                         savedAt = System.currentTimeMillis(),
-                    )
+                    ),
                 )
             }
     }
@@ -647,14 +663,16 @@ private fun rememberChatScrollState(
         imeBottomPx,
     ) {
         if (!restorePending || !restoreReady || renderedMessages.isEmpty()) return@LaunchedEffect
-        val snapshot = restoredScrollSnapshot ?: run {
-            restorePending = false
-            return@LaunchedEffect
-        }
-        val restoredIndex = snapshot.anchorMessageId
-            ?.let { anchorId -> renderedMessages.indexOfFirst { it.id == anchorId } }
-            ?.takeIf { it >= 0 }
-            ?: snapshot.firstVisibleItemIndex.coerceIn(0, renderedMessages.lastIndex)
+        val snapshot =
+            restoredScrollSnapshot ?: run {
+                restorePending = false
+                return@LaunchedEffect
+            }
+        val restoredIndex =
+            snapshot.anchorMessageId
+                ?.let { anchorId -> renderedMessages.indexOfFirst { it.id == anchorId } }
+                ?.takeIf { it >= 0 }
+                ?: snapshot.firstVisibleItemIndex.coerceIn(0, renderedMessages.lastIndex)
 
         repeat(2) {
             withFrameNanos { }
@@ -706,105 +724,124 @@ fun ChatScreen(
     val systemBottomInsetPx = if (imeBottomPx > navBottomPx) imeBottomPx else navBottomPx
     val showComposerToolbar = !state.isLoading && !(state.error != null && state.messages.isEmpty())
     val composerContentHeightDp = with(density) { composerContentHeightPx.toDp() }
-    val screenWidthDp = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
+    val screenWidthDp =
+        with(density) {
+            LocalWindowInfo.current.containerSize.width
+                .toDp()
+        }
     val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
-    val listBottomPadding = if (!showComposerToolbar) {
-        0.dp
-    } else {
-        composerContentHeightDp +
+    val listBottomPadding =
+        if (!showComposerToolbar) {
+            0.dp
+        } else {
+            composerContentHeightDp +
                 systemBottomInsetDp +
                 FloatingToolbarDefaults.ScreenOffset +
                 36.dp
-    }
-    val snackbarBottomPadding = if (!showComposerToolbar) {
-        0.dp
-    } else {
-        composerContentHeightDp +
+        }
+    val snackbarBottomPadding =
+        if (!showComposerToolbar) {
+            0.dp
+        } else {
+            composerContentHeightDp +
                 systemBottomInsetDp +
                 FloatingToolbarDefaults.ScreenOffset +
                 16.dp
-    }
-    val modelOption = remember(state.configOptions) {
+        }
+    remember(state.configOptions) {
         state.configOptions
             .filterIsInstance<SessionConfigOption.Select>()
             .firstOrNull { it.category is SessionConfigCategory.Model && it.allChoices().isNotEmpty() }
     }
-    val activeModel = remember(state.configOptions) {
-        state.configOptions.firstOrNull { it.category is SessionConfigCategory.Model }?.displayValueLabel()
-    }
-    val modeOption = remember(state.configOptions) {
-        state.configOptions
-            .filterIsInstance<SessionConfigOption.Select>()
-            .firstOrNull { it.category is SessionConfigCategory.Mode && it.allChoices().isNotEmpty() }
-    }
-    val toolbarConfigOptions = remember(state.configOptions) {
-        state.configOptions.filterNot { it.category is SessionConfigCategory.Mode }
-    }
-    val selectedConfigPickerOption = remember(state.configOptions, selectedConfigPickerOptionId) {
-        val optionId = selectedConfigPickerOptionId ?: return@remember null
-        state.configOptions.firstOrNull { it.id == optionId } as? SessionConfigOption.Select
-    }
+    val activeModel =
+        remember(state.configOptions) {
+            state.configOptions.firstOrNull { it.category is SessionConfigCategory.Model }?.displayValueLabel()
+        }
+    val modeOption =
+        remember(state.configOptions) {
+            state.configOptions
+                .filterIsInstance<SessionConfigOption.Select>()
+                .firstOrNull { it.category is SessionConfigCategory.Mode && it.allChoices().isNotEmpty() }
+        }
+    val toolbarConfigOptions =
+        remember(state.configOptions) {
+            state.configOptions.filterNot { it.category is SessionConfigCategory.Mode }
+        }
+    val selectedConfigPickerOption =
+        remember(state.configOptions, selectedConfigPickerOptionId) {
+            val optionId = selectedConfigPickerOptionId ?: return@remember null
+            state.configOptions.firstOrNull { it.id == optionId } as? SessionConfigOption.Select
+        }
     val canCancelStreaming = state.canCancelStreaming
     val hasStreamingBubble = state.messages.lastOrNull()?.isStreaming == true
     val activelyStreaming = state.isStreaming || hasStreamingBubble
     val showStopAction = state.isStreaming && hasStreamingBubble
     val showModeButton = modeOption != null
-    val currentModeLabel = remember(modeOption) {
-        modeOption?.displayValueLabel()?.uppercase() ?: "MODE"
-    }
+    val currentModeLabel =
+        remember(modeOption) {
+            modeOption?.displayValueLabel()?.uppercase() ?: "MODE"
+        }
     val renderedMessages = state.messages
-    val selectedThought = remember(renderedMessages, selectedThoughtSegmentId) {
-        renderedMessages.thoughtForSegment(selectedThoughtSegmentId)
-    }
-    val selectedToolCall = remember(renderedMessages, selectedToolCallSegmentId) {
-        renderedMessages.toolCallForSegment(selectedToolCallSegmentId)
-    }
-    val activePermissionRequest = remember(renderedMessages) {
-        renderedMessages.latestPendingPermissionRequest()
-    }
+    val selectedThought =
+        remember(renderedMessages, selectedThoughtSegmentId) {
+            renderedMessages.thoughtForSegment(selectedThoughtSegmentId)
+        }
+    val selectedToolCall =
+        remember(renderedMessages, selectedToolCallSegmentId) {
+            renderedMessages.toolCallForSegment(selectedToolCallSegmentId)
+        }
+    val activePermissionRequest =
+        remember(renderedMessages) {
+            renderedMessages.latestPendingPermissionRequest()
+        }
     val renderedLastMessageId = renderedMessages.lastOrNull()?.id
-    val contentAnchor = remember(renderedMessages, state.isStreaming) {
-        val last = renderedMessages.lastOrNull()
-        val lastToolOutputLength = last?.segments
-            ?.lastOrNull { it.toolCall != null }
-            ?.toolCall
-            ?.output
-            ?.length ?: 0
-        ContentAnchor(
-            messageCount = renderedMessages.size,
-            lastMessageId = last?.id,
-            lastMessageContentLength = last?.content?.length ?: 0,
-            lastMessageSegmentCount = last?.segments?.size ?: 0,
-            lastToolOutputLength = lastToolOutputLength,
-            isStreaming = state.isStreaming,
+    val contentAnchor =
+        remember(renderedMessages, state.isStreaming) {
+            val last = renderedMessages.lastOrNull()
+            val lastToolOutputLength =
+                last
+                    ?.segments
+                    ?.lastOrNull { it.toolCall != null }
+                    ?.toolCall
+                    ?.output
+                    ?.length ?: 0
+            ContentAnchor(
+                messageCount = renderedMessages.size,
+                lastMessageId = last?.id,
+                lastMessageContentLength = last?.content?.length ?: 0,
+                lastMessageSegmentCount = last?.segments?.size ?: 0,
+                lastToolOutputLength = lastToolOutputLength,
+                isStreaming = state.isStreaming,
+            )
+        }
+    val (listState, scrollManager) =
+        rememberChatScrollState(
+            sessionId = sessionId,
+            renderedMessages = renderedMessages,
+            contentAnchor = contentAnchor,
+            composerContentHeightPx = composerContentHeightPx,
+            imeBottomPx = imeBottomPx,
+            activelyStreaming = activelyStreaming,
+            restoredScrollSnapshot = state.restoredScrollSnapshot,
+            restoreReady = renderedMessages.isNotEmpty() && !state.isLoading,
+            onScrollSnapshotChanged = viewModel::persistScrollSnapshot,
         )
-    }
-    val (listState, scrollManager) = rememberChatScrollState(
-        sessionId = sessionId,
-        renderedMessages = renderedMessages,
-        contentAnchor = contentAnchor,
-        composerContentHeightPx = composerContentHeightPx,
-        imeBottomPx = imeBottomPx,
-        activelyStreaming = activelyStreaming,
-        restoredScrollSnapshot = state.restoredScrollSnapshot,
-        restoreReady = renderedMessages.isNotEmpty() && !state.isLoading,
-        onScrollSnapshotChanged = viewModel::persistScrollSnapshot,
-    )
 
     // --- Composer spring animations ---
-    val fadeSpring = spring<Float>(
-        dampingRatio = Spring.DampingRatioNoBouncy,
-        stiffness = Spring.StiffnessMedium
-    )
+    val fadeSpring =
+        spring<Float>(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium,
+        )
     val buttonsAlpha by animateFloatAsState(
         targetValue = if (composerExpanded) 0f else 1f,
         animationSpec = fadeSpring,
-        label = "ButtonsAlpha"
+        label = "ButtonsAlpha",
     )
     val inputAlpha by animateFloatAsState(
         targetValue = if (composerExpanded) 1f else 0f,
         animationSpec = fadeSpring,
-        label = "InputAlpha"
+        label = "InputAlpha",
     )
 
     val sendMessage: () -> Unit = {
@@ -845,17 +882,18 @@ fun ChatScreen(
     }
     with(sharedTransitionScope) {
         Box(
-            modifier = Modifier
-                .sharedBounds(
-                    sharedContentState = rememberSharedContentState(
-                        key = SessionSharedBoundsKey(sessionId),
-                    ),
-                    animatedVisibilityScope = animatedContentScope,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                )
-                .fillMaxSize()
+            modifier =
+                Modifier
+                    .sharedBounds(
+                        sharedContentState =
+                            rememberSharedContentState(
+                                key = SessionSharedBoundsKey(sessionId),
+                            ),
+                        animatedVisibilityScope = animatedContentScope,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                    ).fillMaxSize(),
         ) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -870,12 +908,13 @@ fun ChatScreen(
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
                     )
-                }
+                },
             ) { innerPadding ->
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
                 ) {
                     ChatScreenDialogs(
                         selectedConfigPickerOption = selectedConfigPickerOption,
@@ -884,7 +923,7 @@ fun ChatScreen(
                                 ChatIntent.SetConfigOption(
                                     optionId = optionId,
                                     value = SessionConfigValue.StringValue(value),
-                                )
+                                ),
                             )
                             selectedConfigPickerOptionId = null
                         },
@@ -934,21 +973,23 @@ fun ChatScreen(
 
                     SnackbarHost(
                         hostState = snackbarHostState,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(start = 16.dp, end = 16.dp, bottom = snackbarBottomPadding)
-                            .zIndex(2f)
+                        modifier =
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(start = 16.dp, end = 16.dp, bottom = snackbarBottomPadding)
+                                .zIndex(2f),
                     )
 
                     if (showComposerToolbar) {
                         ChatComposerBar(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .navigationBarsPadding()
-                                .imePadding()
-                                .padding(horizontal = 1.dp)
-                                .offset(y = -FloatingToolbarDefaults.ScreenOffset)
-                                .zIndex(1f),
+                            modifier =
+                                Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .navigationBarsPadding()
+                                    .imePadding()
+                                    .padding(horizontal = 1.dp)
+                                    .offset(y = -FloatingToolbarDefaults.ScreenOffset)
+                                    .zIndex(1f),
                             state = state,
                             toolbarConfigOptions = toolbarConfigOptions,
                             composerExpanded = composerExpanded,
@@ -973,7 +1014,7 @@ fun ChatScreen(
                                     ChatIntent.SetConfigOption(
                                         optionId = optionId,
                                         value = SessionConfigValue.StringValue(value),
-                                    )
+                                    ),
                                 )
                             },
                             onSetBooleanConfigOption = { optionId, value ->
@@ -981,7 +1022,7 @@ fun ChatScreen(
                                     ChatIntent.SetConfigOption(
                                         optionId = optionId,
                                         value = SessionConfigValue.BoolValue(value),
-                                    )
+                                    ),
                                 )
                             },
                             onShowCommands = { showCommandsDialog = true },
@@ -1023,15 +1064,17 @@ private fun ChatTopBar(
                     style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.sharedBounds(
-                        sharedContentState = rememberSharedContentState(
-                            key = SessionTitleSharedBoundsKey(sessionId),
+                    modifier =
+                        Modifier.sharedBounds(
+                            sharedContentState =
+                                rememberSharedContentState(
+                                    key = SessionTitleSharedBoundsKey(sessionId),
+                                ),
+                            animatedVisibilityScope = animatedContentScope,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                         ),
-                        animatedVisibilityScope = animatedContentScope,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                    ),
                 )
             }
             activeModel?.takeIf { it.isNotBlank() }?.let { model ->
@@ -1040,14 +1083,15 @@ private fun ChatTopBar(
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
     }, navigationIcon = {
         FilledTonalIconButton(onClick = onNavigateBack) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back"
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
             )
         }
     }, actions = {
@@ -1055,23 +1099,23 @@ private fun ChatTopBar(
         TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
             tooltip = { PlainTooltip { Text("Connection: $connectionLabel") } },
-            state = rememberTooltipState()
+            state = rememberTooltipState(),
         ) {
             Box(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = "Connection status"
-                        stateDescription = connectionLabel
-                    }
-                    .clickable(onClick = onConnectionStatusClick),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .padding(horizontal = 8.dp)
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Connection status"
+                            stateDescription = connectionLabel
+                        }.clickable(onClick = onConnectionStatusClick),
+                contentAlignment = Alignment.Center,
             ) {
                 when (connectionState) {
                     is AcpConnectionState.Connecting -> {
                         LoadingIndicator(
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         )
                     }
 
@@ -1079,7 +1123,7 @@ private fun ChatTopBar(
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = Color(0xFF2E7D32),
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.size(12.dp),
                         ) {}
                     }
 
@@ -1087,7 +1131,7 @@ private fun ChatTopBar(
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.size(12.dp),
                         ) {}
                     }
 
@@ -1095,13 +1139,12 @@ private fun ChatTopBar(
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.outlineVariant,
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.size(12.dp),
                         ) {}
                     }
                 }
             }
         }
-
     })
 }
 
@@ -1118,27 +1161,29 @@ internal fun CommandsDialog(
             if (commands.isEmpty()) {
                 Text(
                     text = "No commands advertised by the server.",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.verticalScroll(rememberScrollState())
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
                 ) {
                     commands.forEach { command ->
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             shape = MaterialTheme.shapes.small,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onCommandClick(command) }
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onCommandClick(command) },
                         ) {
                             Text(
                                 text = command,
                                 style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                             )
                         }
                     }
@@ -1149,7 +1194,7 @@ internal fun CommandsDialog(
             TextButton(onClick = onDismiss) {
                 Text("Close")
             }
-        }
+        },
     )
 }
 
@@ -1160,25 +1205,29 @@ internal fun SelectConfigOptionDialog(
     onDismiss: () -> Unit,
 ) {
     var query by remember(option) { mutableStateOf("") }
-    val filteredOptions = remember(option, query) {
-        val options = option.allChoices()
-        val trimmedQuery = query.trim()
-        if (trimmedQuery.isBlank()) {
-            options
-        } else {
-            options.filter { choice ->
-                choice.label.contains(trimmedQuery, ignoreCase = true) || choice.value.contains(
-                    trimmedQuery, ignoreCase = true
-                ) || (choice.description?.contains(trimmedQuery, ignoreCase = true) == true)
+    val filteredOptions =
+        remember(option, query) {
+            val options = option.allChoices()
+            val trimmedQuery = query.trim()
+            if (trimmedQuery.isBlank()) {
+                options
+            } else {
+                options.filter { choice ->
+                    choice.label.contains(trimmedQuery, ignoreCase = true) ||
+                        choice.value.contains(
+                            trimmedQuery,
+                            ignoreCase = true,
+                        ) ||
+                        (choice.description?.contains(trimmedQuery, ignoreCase = true) == true)
+                }
             }
         }
-    }
 
     AlertDialog(onDismissRequest = onDismiss, title = { Text(option.name) }, text = {
         if (option.allChoices().isEmpty()) {
             Text(
                 text = "No values available from agent.",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
             )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1188,43 +1237,50 @@ internal fun SelectConfigOptionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     label = { Text("Search ${option.name.lowercase()}") },
-                    placeholder = { Text("Type a value") })
+                    placeholder = { Text("Type a value") },
+                )
 
                 if (filteredOptions.isEmpty()) {
                     Text(
                         text = "No matching models.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 320.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         items(
-                            items = filteredOptions, key = { it.id }) { choice ->
+                            items = filteredOptions,
+                            key = { it.id },
+                        ) { choice ->
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onOptionSelected(choice.value) }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onOptionSelected(choice.value) }
+                                        .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 RadioButton(
                                     selected = choice.value == option.currentValue,
-                                    onClick = { onOptionSelected(choice.value) })
+                                    onClick = { onOptionSelected(choice.value) },
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
                                         text = choice.label,
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
                                     choice.description?.let { description ->
                                         Text(
                                             text = description,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
                                 }

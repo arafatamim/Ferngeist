@@ -34,17 +34,20 @@ fun ConnectionDiagnosticsDialog(
     showCancelSupport: Boolean = false,
 ) {
     val scrollState = rememberScrollState()
-    val totalTokensText = totalTokens?.let {
-        formatCompactTokens(it, Locale.getDefault())
-    } ?: "N/A"
-    val contextUsagePct = percentString(
-        totalTokens,
-        contextWindowTokens,
-        Locale.getDefault()
-    ) ?: "N/A"
-    val costText = costAmount?.let { amount ->
-        formatCurrency(amount, costCurrency, Locale.getDefault())
-    } ?: "Unavailable"
+    val totalTokensText =
+        totalTokens?.let {
+            formatCompactTokens(it, Locale.getDefault())
+        } ?: "N/A"
+    val contextUsagePct =
+        percentString(
+            totalTokens,
+            contextWindowTokens,
+            Locale.getDefault(),
+        ) ?: "N/A"
+    val costText =
+        costAmount?.let { amount ->
+            formatCurrency(amount, costCurrency, Locale.getDefault())
+        } ?: "Unavailable"
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -52,7 +55,7 @@ fun ConnectionDiagnosticsDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("Connection: ${connectionStateLabel(connectionState)}")
                 Text("WebSocket: ${diagnostics.websocketState.name.lowercase().replace('_', ' ')}")
@@ -69,7 +72,7 @@ fun ConnectionDiagnosticsDialog(
                                 false -> "Unsupported"
                                 null -> "Unknown"
                             }
-                        }"
+                        }",
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -82,15 +85,17 @@ fun ConnectionDiagnosticsDialog(
                     Text(
                         "No recent RPC activity",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     diagnostics.recentRpc.takeLast(12).reversed().forEach { entry ->
                         val rpcIdText = entry.rpcId?.let { " #$it" } ?: ""
                         val summaryText = entry.summary?.let { " - $it" } ?: ""
                         Text(
-                            text = "${formatDiagnosticsTime(entry.timestampMs)}  ${directionLabel(entry.direction)} ${entry.method}$rpcIdText$summaryText",
-                            style = MaterialTheme.typography.bodySmall
+                            text = "${formatDiagnosticsTime(
+                                entry.timestampMs,
+                            )}  ${directionLabel(entry.direction)} ${entry.method}$rpcIdText$summaryText",
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
@@ -100,13 +105,13 @@ fun ConnectionDiagnosticsDialog(
                     Text(
                         "No recent errors",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     diagnostics.recentErrors.takeLast(8).reversed().forEach { entry ->
                         Text(
                             text = "${formatDiagnosticsTime(entry.timestampMs)}  ${entry.source}: ${entry.message}",
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
@@ -116,46 +121,61 @@ fun ConnectionDiagnosticsDialog(
             TextButton(onClick = onDismiss) {
                 Text("Close")
             }
-        }
+        },
     )
 }
 
-fun connectionStateLabel(state: AcpConnectionState): String = when (state) {
-    is AcpConnectionState.Connecting -> "Connecting"
-    is AcpConnectionState.Connected -> "Connected"
-    is AcpConnectionState.Failed -> "Failed"
-    is AcpConnectionState.Disconnected -> "Disconnected"
-}
+fun connectionStateLabel(state: AcpConnectionState): String =
+    when (state) {
+        is AcpConnectionState.Connecting -> "Connecting"
+        is AcpConnectionState.Connected -> "Connected"
+        is AcpConnectionState.Failed -> "Failed"
+        is AcpConnectionState.Disconnected -> "Disconnected"
+    }
 
-private fun directionLabel(direction: RpcDirection): String = when (direction) {
-    RpcDirection.OutboundRequest -> "REQ"
-    RpcDirection.InboundResult -> "RES"
-    RpcDirection.InboundError -> "ERR"
-    RpcDirection.InboundNotification -> "NTF"
-}
+private fun directionLabel(direction: RpcDirection): String =
+    when (direction) {
+        RpcDirection.OutboundRequest -> "REQ"
+        RpcDirection.InboundResult -> "RES"
+        RpcDirection.InboundError -> "ERR"
+        RpcDirection.InboundNotification -> "NTF"
+    }
 
-private fun formatDiagnosticsTime(timestampMs: Long): String {
-    return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestampMs))
-}
+private fun formatDiagnosticsTime(timestampMs: Long): String =
+    SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestampMs))
 
-private fun percentString(part: Int?, total: Int?, locale: Locale): String? {
+private fun percentString(
+    part: Int?,
+    total: Int?,
+    locale: Locale,
+): String? {
     if (part == null || total == null || total <= 0) return null
     val percent = part.toDouble() / total.toDouble()
-    return NumberFormat.getPercentInstance(locale).apply {
-        maximumFractionDigits = 0
-    }.format(percent)
+    return NumberFormat
+        .getPercentInstance(locale)
+        .apply {
+            maximumFractionDigits = 0
+        }.format(percent)
 }
 
-private fun formatCurrency(amount: Double, currencyCode: String?, locale: Locale): String {
-    return NumberFormat.getCurrencyInstance(locale).apply {
-        currencyCode?.let {
-            runCatching { currency = java.util.Currency.getInstance(it) }
-        }
-        maximumFractionDigits = 2
-    }.format(amount)
-}
+private fun formatCurrency(
+    amount: Double,
+    currencyCode: String?,
+    locale: Locale,
+): String =
+    NumberFormat
+        .getCurrencyInstance(locale)
+        .apply {
+            currencyCode?.let {
+                runCatching { currency = java.util.Currency.getInstance(it) }
+            }
+            maximumFractionDigits = 2
+        }.format(amount)
 
-private fun formatCompactTokens(tokens: Int, locale: Locale): String {
+private fun formatCompactTokens(
+    tokens: Int,
+    locale: Locale,
+): String {
     val absolute = kotlin.math.abs(tokens.toLong())
     return when {
         absolute >= 1_000_000_000L -> {

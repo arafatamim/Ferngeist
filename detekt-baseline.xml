@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SmellBaseline>
+    <ManuallySuppressedIssues/>
+    <CurrentIssues>
+        <ID>LongMethod:AddGatewayViewModel.kt$AddGatewayViewModel$private suspend fun pairAndSaveWithCode</ID>
+        <ID>MaxLineLength:AddServerViewModel.kt$"Copy the Verify URL and run it in your browser to complete the pairing process."</ID>
+        <ID>ExplicitItLambdaParameter:ServerListViewModel.kt$ServerListViewModel$suspend</ID>
+        <ID>MagicNumber:EncryptedAuthEnvValueStore.kt$EncryptedAuthEnvValueStore$AndroidKeystoreCipherProvider$private val gcmTagLength = 128</ID>
+        <ID>MaxLineLength:AddGatewayScreen.kt$description = "In the agent's CLI, run the command \u201cfg gateway add\u201d and follow the prompts."</ID>
+    </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,43 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:SessionMessageReducer.kt:SessionMessageReducer$lastMessage?.role == ChatMessage.Role.ASSISTANT &amp;&amp; lastMessage.isStreaming &amp;&amp; lastMessage.content.isBlank() &amp;&amp; lastMessage.segments.isEmpty() &amp;&amp; previousMessage?.role == ChatMessage.Role.USER</ID>
+    <ID>CyclomaticComplexMethod:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
+    <ID>CyclomaticComplexMethod:SessionRuntime.kt:SessionRuntime$private fun reduce: RuntimeData</ID>
+    <ID>CyclomaticComplexMethod:SessionRuntime.kt:SessionRuntime$private fun summarizeEvent: String</ID>
+    <ID>LongMethod:AcpTransportClient.kt:AcpTransportClient$private suspend fun connectInternal: Boolean</ID>
+    <ID>LongMethod:SessionRuntime.kt:SessionRuntime$private fun reduce: RuntimeData</ID>
+    <ID>MagicNumber:AcpConnectionManager.kt:AcpConnectionManager$32602</ID>
+    <ID>MagicNumber:AcpDiagnosticsStore.kt:AcpDiagnosticsStore$20</ID>
+    <ID>MagicNumber:AcpDiagnosticsStore.kt:AcpDiagnosticsStore$40</ID>
+    <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$1000L</ID>
+    <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$1_000_000_000L</ID>
+    <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$9_999_999_999L</ID>
+    <ID>MagicNumber:AcpTransportClient.kt:AcpTransportClient$1000L</ID>
+    <ID>MagicNumber:AcpTransportClient.kt:AcpTransportClient$5000L</ID>
+    <ID>MaxLineLength:AcpConnectionManager.kt:AcpConnectionManager$diagnosticsStore.appendError("session/load", "Session is already loaded locally. Reusing the active session.")</ID>
+    <ID>MaxLineLength:AcpConnectionManager.kt:AcpConnectionManager$diagnosticsStore.appendError("session/set_config_option", formatAcpErrorMessage(it, "Set config option failed"))</ID>
+    <ID>MaxLineLength:AcpConnectionManager.kt:AcpConnectionManager$suspend</ID>
+    <ID>MaxLineLength:AcpTransportClient.kt:AcpTransportClient$val client = sdkClient ?: return AcpAuthenticateResult.Failure("Authentication is unavailable because the server connection is closed.")</ID>
+    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$is AppSessionEvent.AgentMessage -&gt; appendText(messages, event.text, AssistantSegment.Kind.MESSAGE, event.timestampMs)</ID>
+    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$is AppSessionEvent.AgentThought -&gt; appendText(messages, event.text, AssistantSegment.Kind.THOUGHT, event.timestampMs)</ID>
+    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$is AppSessionEvent.PlanUpdated -&gt; appendText(messages, event.content, AssistantSegment.Kind.PLAN, event.timestampMs)</ID>
+    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$val previousMessage = if (mutableMessages.size &gt;= 2) mutableMessages[mutableMessages.lastIndex - 1] else null</ID>
+    <ID>ReturnCount:AcpConnectionManager.kt:AcpConnectionManager$private fun toAuthRequiredException: AcpAuthenticationRequiredException?</ID>
+    <ID>ReturnCount:AcpConnectionManager.kt:AcpConnectionManager$suspend fun loadSession: SessionBridge?</ID>
+    <ID>ReturnCount:AcpErrorFormatting.kt:private fun formatJsonRpcErrorMessage: String</ID>
+    <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$fun parseIsoOrMillis: Long?</ID>
+    <ID>ReturnCount:SessionConfigModels.kt:SessionConfigCompatibility$private fun annotateCategory: SessionConfigOption</ID>
+    <ID>ReturnCount:SessionConfigModels.kt:SessionConfigCompatibility$private fun inferCategory: SessionConfigCategory?</ID>
+    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
+    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun updateToolCallPermission: List&lt;ChatMessage&gt;</ID>
+    <ID>TooGenericExceptionCaught:AcpTransportClient.kt:AcpTransportClient$error: Exception</ID>
+    <ID>TooGenericExceptionCaught:SessionBridge.kt:SessionBridge$t: Throwable</ID>
+    <ID>TooManyFunctions:AcpConnectionManager.kt:AcpConnectionManager</ID>
+    <ID>TooManyFunctions:AcpSessionRegistry.kt:AcpSessionRegistry</ID>
+    <ID>TooManyFunctions:AcpTransportClient.kt:AcpTransportClient</ID>
+    <ID>TooManyFunctions:SessionBridge.kt:SessionBridge</ID>
+    <ID>TooManyFunctions:SessionRuntime.kt:SessionRuntime</ID>
+  </CurrentIssues>
+</SmellBaseline>

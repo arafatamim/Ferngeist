@@ -16,12 +16,12 @@ android {
         multiDexEnabled = true
         consumerProguardFiles("consumer-rules.pro")
     }
-    
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
+
     buildFeatures {
         compose = true
     }
@@ -29,7 +29,9 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget("17")
+        jvmTarget =
+            org.jetbrains.kotlin.gradle.dsl.JvmTarget
+                .fromTarget("17")
     }
 }
 
@@ -54,7 +56,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
-    implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.client.core)
     implementation(libs.play.services.code.scanner)

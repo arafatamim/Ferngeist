@@ -10,24 +10,24 @@ import kotlinx.coroutines.flow.map
 class LaunchableTargetSessionSettingsRepositoryImpl(
     private val dao: LaunchableTargetSessionSettingsDao,
 ) : LaunchableTargetSessionSettingsRepository {
-
-    override fun getSettings(targetId: String): Flow<LaunchableTargetSessionSettings> {
-        return dao.getSettingsByTargetId(targetId).map { entity ->
+    override fun getSettings(targetId: String): Flow<LaunchableTargetSessionSettings> =
+        dao.getSettingsByTargetId(targetId).map { entity ->
             entity?.toDomain() ?: LaunchableTargetSessionSettings(targetId = targetId)
         }
-    }
 
-    override suspend fun getSettingsBlocking(targetId: String): LaunchableTargetSessionSettings? {
-        return dao.getSettingsByTargetIdBlocking(targetId)?.toDomain()
-    }
+    override suspend fun getSettingsBlocking(targetId: String): LaunchableTargetSessionSettings? =
+        dao.getSettingsByTargetIdBlocking(targetId)?.toDomain()
 
-    override suspend fun updateCwd(targetId: String, cwd: String) {
+    override suspend fun updateCwd(
+        targetId: String,
+        cwd: String,
+    ) {
         val normalizedCwd = cwd.trim().ifBlank { null }
         dao.upsertSettings(
             LaunchableTargetSessionSettingsEntity(
                 targetId = targetId,
                 cwd = normalizedCwd,
-            )
+            ),
         )
     }
 
@@ -36,9 +36,8 @@ class LaunchableTargetSessionSettingsRepositoryImpl(
     }
 }
 
-private fun LaunchableTargetSessionSettingsEntity.toDomain(): LaunchableTargetSessionSettings {
-    return LaunchableTargetSessionSettings(
+private fun LaunchableTargetSessionSettingsEntity.toDomain(): LaunchableTargetSessionSettings =
+    LaunchableTargetSessionSettings(
         targetId = targetId,
         cwd = cwd,
     )
-}

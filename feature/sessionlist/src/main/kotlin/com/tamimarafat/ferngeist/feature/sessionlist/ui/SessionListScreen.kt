@@ -1,7 +1,5 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -22,10 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -63,16 +63,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -80,15 +81,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
@@ -96,8 +95,8 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.connectionStateLabel
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
+import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -105,9 +104,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Date
 import kotlin.math.max
-import androidx.compose.ui.platform.LocalLocale
 
-@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
@@ -125,7 +122,6 @@ fun SessionListScreen(
 ) {
     val sessions by viewModel.sessions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val server by viewModel.server.collectAsState()
     val sessionSettings by viewModel.sessionSettings.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val agentCapabilities by viewModel.agentCapabilities.collectAsState()
@@ -140,16 +136,17 @@ fun SessionListScreen(
     var hasConsumedLaunchCreate by rememberSaveable { mutableStateOf(false) }
     var selectedAuthMethodId by rememberSaveable(
         pendingAuthentication?.serverId,
-        pendingAuthentication?.pendingAction
+        pendingAuthentication?.pendingAction,
     ) {
         mutableStateOf(
-            pendingAuthentication?.preferredAuthMethodId ?: pendingAuthentication?.authMethods?.firstOrNull()?.id
+            pendingAuthentication?.preferredAuthMethodId ?: pendingAuthentication?.authMethods?.firstOrNull()?.id,
         )
     }
-    val envValues = remember(
-        pendingAuthentication?.serverId,
-        pendingAuthentication?.pendingAction
-    ) { mutableStateMapOf<String, String>() }
+    val envValues =
+        remember(
+            pendingAuthentication?.serverId,
+            pendingAuthentication?.pendingAction,
+        ) { mutableStateMapOf<String, String>() }
     val pullToRefreshState = rememberPullToRefreshState()
     val showRefreshingIndicator = isLoading && sessions.isNotEmpty()
     val supportsSessionList = agentCapabilities?.session?.list != false
@@ -157,7 +154,7 @@ fun SessionListScreen(
     LaunchedEffect(
         pendingAuthentication?.serverId,
         pendingAuthentication?.pendingAction,
-        pendingAuthentication?.persistedEnvValues
+        pendingAuthentication?.persistedEnvValues,
     ) {
         envValues.clear()
         pendingAuthentication?.persistedEnvValues?.forEach { (name, value) ->
@@ -199,14 +196,14 @@ fun SessionListScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "Set the current working directory for this agent. Leave empty to show all sessions.",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     OutlinedTextField(
                         value = cwdDialogValue,
                         onValueChange = { cwdDialogValue = it },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Leave empty for no filter") }
+                        placeholder = { Text("Leave empty for no filter") },
                     )
                 }
             },
@@ -216,14 +213,14 @@ fun SessionListScreen(
                         onClick = {
                             showCwdDialog = false
                             viewModel.updateCurrentCwd(cwdDialogValue)
-                        }
+                        },
                     ) { Text("Save") }
                     if (currentCwd != null) {
                         TextButton(
                             onClick = {
                                 showCwdDialog = false
                                 viewModel.updateCurrentCwd("")
-                            }
+                            },
                         ) { Text("Clear") }
                     }
                 }
@@ -232,7 +229,7 @@ fun SessionListScreen(
                 TextButton(onClick = { showCwdDialog = false }) {
                     Text("Cancel")
                 }
-            }
+            },
         )
     }
 
@@ -241,7 +238,7 @@ fun SessionListScreen(
             connectionState = connectionState,
             diagnostics = connectionDiagnostics,
             showCancelSupport = true,
-            onDismiss = { showConnectionStatusDialog = false }
+            onDismiss = { showConnectionStatusDialog = false },
         )
     }
 
@@ -257,31 +254,32 @@ fun SessionListScreen(
         )
     }
 
-
     val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
-    val titleStyle = lerp(
-        MaterialTheme.typography.headlineMedium, // expanded
-        MaterialTheme.typography.titleLarge,    // collapsed
-        collapse
-    )
+    val titleStyle =
+        lerp(
+            MaterialTheme.typography.headlineMedium, // expanded
+            MaterialTheme.typography.titleLarge, // collapsed
+            collapse,
+        )
 
-    val containerModifier = if (supportsSessionList) {
-        Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
-            .pullToRefresh(
-                state = pullToRefreshState,
-                isRefreshing = showRefreshingIndicator,
-                onRefresh = viewModel::refreshSessions,
-            )
-    } else {
-        Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
-    }
+    val containerModifier =
+        if (supportsSessionList) {
+            Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .pullToRefresh(
+                    state = pullToRefreshState,
+                    isRefreshing = showRefreshingIndicator,
+                    onRefresh = viewModel::refreshSessions,
+                )
+        } else {
+            Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+        }
 
     Box(
-        modifier = containerModifier
+        modifier = containerModifier,
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -291,7 +289,7 @@ fun SessionListScreen(
                         Column {
                             Text(
                                 text = serverName,
-                                style = titleStyle
+                                style = titleStyle,
                             )
                             currentCwd?.let { cwd ->
                                 Row(
@@ -306,7 +304,10 @@ fun SessionListScreen(
                                     )
                                     Text(
                                         text = cwd,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                                        style =
+                                            MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                            ),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -325,11 +326,12 @@ fun SessionListScreen(
                     },
                     actions = {
                         TooltipBox(
-                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                TooltipAnchorPosition.Above
-                            ),
+                            positionProvider =
+                                TooltipDefaults.rememberTooltipPositionProvider(
+                                    TooltipAnchorPosition.Above,
+                                ),
                             tooltip = { PlainTooltip { Text("Change working directory") } },
-                            state = rememberTooltipState()
+                            state = rememberTooltipState(),
                         ) {
                             FilledTonalIconButton(
                                 onClick = {
@@ -345,22 +347,23 @@ fun SessionListScreen(
                         }
                         val connectionLabel = connectionStateLabel(connectionState)
                         TooltipBox(
-                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                TooltipAnchorPosition.Above
-                            ),
+                            positionProvider =
+                                TooltipDefaults.rememberTooltipPositionProvider(
+                                    TooltipAnchorPosition.Above,
+                                ),
                             tooltip = { PlainTooltip { Text("Connection: $connectionLabel") } },
-                            state = rememberTooltipState()
+                            state = rememberTooltipState(),
                         ) {
                             Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp)
-                                    .semantics {
-                                        role = Role.Button
-                                        contentDescription = "Connection status"
-                                        stateDescription = connectionLabel
-                                    }
-                                    .clickable(onClick = { showConnectionStatusDialog = true }),
-                                contentAlignment = Alignment.Center
+                                modifier =
+                                    Modifier
+                                        .padding(horizontal = 8.dp)
+                                        .semantics {
+                                            role = Role.Button
+                                            contentDescription = "Connection status"
+                                            stateDescription = connectionLabel
+                                        }.clickable(onClick = { showConnectionStatusDialog = true }),
+                                contentAlignment = Alignment.Center,
                             ) {
                                 ConnectionStatusDot(connectionState = connectionState)
                             }
@@ -375,11 +378,11 @@ fun SessionListScreen(
                         viewModel.createSessionWithCurrentCwd()
                     },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "New session"
+                        contentDescription = "New session",
                     )
                 }
             },
@@ -388,34 +391,37 @@ fun SessionListScreen(
             when {
                 isLoading && sessions.isEmpty() -> {
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding),
-                        contentAlignment = Alignment.Center
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(padding),
+                        contentAlignment = Alignment.Center,
                     ) {
                         CircularWavyProgressIndicator(
-                            modifier = Modifier.size(64.dp)
+                            modifier = Modifier.size(64.dp),
                         )
                     }
                 }
 
                 sessions.isEmpty() -> {
                     EmptySessionList(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(padding),
                         supportsSessionList = supportsSessionList,
-                        onCreateSession = { viewModel.createSessionWithCurrentCwd() }
+                        onCreateSession = { viewModel.createSessionWithCurrentCwd() },
                     )
                 }
 
                 else -> {
                     val zoneId = ZoneId.systemDefault()
                     val today = LocalDate.now(zoneId)
-                    val sortedSessions = sessions.sortedWith(
-                        compareByDescending<SessionSummary> { it.updatedAt ?: Long.MIN_VALUE }
-                            .thenByDescending { it.id }
-                    )
+                    val sortedSessions =
+                        sessions.sortedWith(
+                            compareByDescending<SessionSummary> { it.updatedAt ?: Long.MIN_VALUE }
+                                .thenByDescending { it.id },
+                        )
                     val groupedSessions = linkedMapOf<String, List<SessionSummary>>()
                     val withDate =
                         sortedSessions.filter { it.updatedAt != null }.groupBy { session ->
@@ -425,18 +431,20 @@ fun SessionListScreen(
                     withDate.entries
                         .sortedByDescending { it.key }
                         .forEach { (sessionDate, groupSessions) ->
-                            val label = when (sessionDate) {
-                                today -> "Today"
-                                today.minusDays(1) -> "Yesterday"
-                                else -> {
-                                    val epoch = max(
-                                        groupSessions.firstOrNull()?.updatedAt ?: 0L,
-                                        0L
-                                    )
-                                    SimpleDateFormat("MMMM d, yyyy", LocalLocale.current.platformLocale)
-                                        .format(Date(epoch))
+                            val label =
+                                when (sessionDate) {
+                                    today -> "Today"
+                                    today.minusDays(1) -> "Yesterday"
+                                    else -> {
+                                        val epoch =
+                                            max(
+                                                groupSessions.firstOrNull()?.updatedAt ?: 0L,
+                                                0L,
+                                            )
+                                        SimpleDateFormat("MMMM d, yyyy", LocalLocale.current.platformLocale)
+                                            .format(Date(epoch))
+                                    }
                                 }
-                            }
                             groupedSessions[label] = groupSessions
                         }
                     val unknownSessions = sortedSessions.filter { it.updatedAt == null }
@@ -446,12 +454,13 @@ fun SessionListScreen(
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            top = padding.calculateTopPadding() + 16.dp,
-                            end = 16.dp,
-                            bottom = padding.calculateBottomPadding() + 16.dp,
-                        ),
+                        contentPadding =
+                            PaddingValues(
+                                start = 16.dp,
+                                top = padding.calculateTopPadding() + 16.dp,
+                                end = 16.dp,
+                                bottom = padding.calculateBottomPadding() + 16.dp,
+                            ),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         groupedSessions.forEach { (group, groupSessions) ->
@@ -482,9 +491,10 @@ fun SessionListScreen(
                         item {
                             Text(
                                 text = "${sessions.size} session${if (sessions.size != 1) "s" else ""}",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 16.dp, bottom = 8.dp),
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 16.dp, bottom = 8.dp),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
@@ -499,9 +509,10 @@ fun SessionListScreen(
             PullToRefreshDefaults.LoadingIndicator(
                 state = pullToRefreshState,
                 isRefreshing = showRefreshingIndicator,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
+                modifier =
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding(),
             )
         }
     }
@@ -519,24 +530,27 @@ private fun PendingAuthenticationDialog(
 ) {
     val uriHandler = LocalUriHandler.current
     val scrollState = rememberScrollState()
-    val selectedMethod = pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
-        ?: pendingAuthentication.authMethods.firstOrNull()
+    val selectedMethod =
+        pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
+            ?: pendingAuthentication.authMethods.firstOrNull()
     val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntimeId != null
     val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntimeId == null
-    val requiredEnvVarsFilled = selectedMethod
-        ?.envVars
-        ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
-        ?: false
+    val requiredEnvVarsFilled =
+        selectedMethod
+            ?.envVars
+            ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
+            ?: false
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Authenticate ${pendingAuthentication.serverName}") },
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(scrollState),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
@@ -557,9 +571,10 @@ private fun PendingAuthenticationDialog(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
                             verticalAlignment = Alignment.Top,
                         ) {
                             RadioButton(
@@ -567,9 +582,10 @@ private fun PendingAuthenticationDialog(
                                 onClick = { onSelectedAuthMethodChange(method.id) },
                             )
                             Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(top = 2.dp),
+                                modifier =
+                                    Modifier
+                                        .weight(1f)
+                                        .padding(top = 2.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 Text(text = method.name, fontWeight = FontWeight.SemiBold)
@@ -595,11 +611,12 @@ private fun PendingAuthenticationDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = when {
-                    selectedMethod == null -> false
-                    isGatewayEnvAuth -> requiredEnvVarsFilled
-                    else -> true
-                },
+                enabled =
+                    when {
+                        selectedMethod == null -> false
+                        isGatewayEnvAuth -> requiredEnvVarsFilled
+                        else -> true
+                    },
                 onClick = {
                     when {
                         selectedMethod == null -> Unit
@@ -650,14 +667,15 @@ private fun AuthenticationMethodDetails(
         )
         method.envVars.forEach { envVar ->
             Text(
-                text = buildString {
-                    append(envVar.label ?: envVar.name)
-                    append(" -> ")
-                    append(envVar.name)
-                    if (envVar.optional) {
-                        append(" (optional)")
-                    }
-                },
+                text =
+                    buildString {
+                        append(envVar.label ?: envVar.name)
+                        append(" -> ")
+                        append(envVar.name)
+                        if (envVar.optional) {
+                            append(" (optional)")
+                        }
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -676,19 +694,21 @@ private fun AuthenticationMethodDetails(
                         if (envVar.optional) {
                             append(" (optional)")
                         }
-                    }
+                    },
                 )
             },
             supportingText = { Text(envVar.name) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
-            ),
-            visualTransformation = if (envVar.secret) {
-                PasswordVisualTransformation()
-            } else {
-                VisualTransformation.None
-            },
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
+                ),
+            visualTransformation =
+                if (envVar.secret) {
+                    PasswordVisualTransformation()
+                } else {
+                    VisualTransformation.None
+                },
         )
     }
 }
@@ -703,26 +723,29 @@ private fun SessionCard(
 ) {
     with(sharedTransitionScope) {
         Card(
-            modifier = Modifier
-                .sharedBounds(
-                    sharedContentState = rememberSharedContentState(
-                        key = SessionSharedBoundsKey(session.id),
-                    ),
-                    animatedVisibilityScope = animatedContentScope,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                )
-                .fillMaxWidth()
-                .clickable(onClick = onClick),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
+            modifier =
+                Modifier
+                    .sharedBounds(
+                        sharedContentState =
+                            rememberSharedContentState(
+                                key = SessionSharedBoundsKey(session.id),
+                            ),
+                        animatedVisibilityScope = animatedContentScope,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                    ).fillMaxWidth()
+                    .clickable(onClick = onClick),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -732,15 +755,17 @@ private fun SessionCard(
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.sharedBounds(
-                            sharedContentState = rememberSharedContentState(
-                                key = SessionTitleSharedBoundsKey(session.id),
+                        modifier =
+                            Modifier.sharedBounds(
+                                sharedContentState =
+                                    rememberSharedContentState(
+                                        key = SessionTitleSharedBoundsKey(session.id),
+                                    ),
+                                animatedVisibilityScope = animatedContentScope,
+                                enter = fadeIn(),
+                                exit = fadeOut(),
+                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                             ),
-                            animatedVisibilityScope = animatedContentScope,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                        ),
                     )
                     session.cwd?.let { cwd ->
                         Text(
@@ -775,15 +800,16 @@ private fun EmptySessionList(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (supportsSessionList) {
-                    "Sessions from the server will appear here"
-                } else {
-                    "Sessions you create on this device will appear here"
-                },
+                text =
+                    if (supportsSessionList) {
+                        "Sessions from the server will appear here"
+                    } else {
+                        "Sessions you create on this device will appear here"
+                    },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.width(240.dp),
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(16.dp))
             TextButton(onClick = onCreateSession) {
@@ -799,45 +825,48 @@ private fun ConnectionStatusDot(connectionState: AcpConnectionState) {
         is AcpConnectionState.Connecting -> {
             CircularProgressIndicator(
                 modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
         }
 
         is AcpConnectionState.Connected -> {
             Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .padding(1.dp)
+                modifier =
+                    Modifier
+                        .size(12.dp)
+                        .padding(1.dp),
             ) {
                 Card(
                     modifier = Modifier.fillMaxSize(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2E7D32))
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2E7D32)),
                 ) {}
             }
         }
 
         is AcpConnectionState.Failed -> {
             Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .padding(1.dp)
+                modifier =
+                    Modifier
+                        .size(12.dp)
+                        .padding(1.dp),
             ) {
                 Card(
                     modifier = Modifier.fillMaxSize(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error),
                 ) {}
             }
         }
 
         is AcpConnectionState.Disconnected -> {
             Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .padding(1.dp)
+                modifier =
+                    Modifier
+                        .size(12.dp)
+                        .padding(1.dp),
             ) {
                 Card(
                     modifier = Modifier.fillMaxSize(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outlineVariant)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outlineVariant),
                 ) {}
             }
         }

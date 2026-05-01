@@ -9,10 +9,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AgentLaunchConsentModule {
-
     @Binds
     @Singleton
-    abstract fun bindAgentLaunchConsentStore(
-        impl: AgentLaunchConsentStoreImpl,
-    ): AgentLaunchConsentStore
+    abstract fun bindAgentLaunchConsentStore(impl: AgentLaunchConsentStoreImpl): AgentLaunchConsentStore
 }

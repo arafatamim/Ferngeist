@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientInfo
 import com.agentclientprotocol.model.AgentCapabilities
@@ -10,8 +11,8 @@ import com.agentclientprotocol.model.FileSystemCapability
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.model.McpCapabilities
 import com.agentclientprotocol.model.PromptCapabilities
-import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.model.SessionCapabilities
+import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.transport.WebSocketTransport
 import io.ktor.client.HttpClient
@@ -61,33 +62,40 @@ internal class AcpTransportClient(
         )
     }
 
+    @OptIn(UnstableApi::class)
     suspend fun initialize(): AcpInitializeResult? {
         val client = sdkClient ?: return null
         return runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "initialize")
-            val info = client.initialize(
-                clientInfo = ClientInfo(
-                    capabilities = ClientCapabilities(
-                        fs = FileSystemCapability(
-                            readTextFile = false,
-                            writeTextFile = false,
-                        )
-                    ),
-                    implementation = Implementation(name = "Ferngeist", version = "1.0.0"),
+            val info =
+                client.initialize(
+                    clientInfo =
+                        ClientInfo(
+                            capabilities =
+                                ClientCapabilities(
+                                    fs =
+                                        FileSystemCapability(
+                                            readTextFile = false,
+                                            writeTextFile = false,
+                                        ),
+                                ),
+                            implementation = Implementation(name = "Ferngeist", version = "1.0.0"),
+                        ),
                 )
-            )
 
-            val mapped = AgentInfo(
-                name = info.implementation?.name?.takeIf { it.isNotBlank() } ?: "Agent",
-                version = info.implementation?.version?.takeIf { it.isNotBlank() } ?: "unknown",
-            )
+            val mapped =
+                AgentInfo(
+                    name = info.implementation?.name?.takeIf { it.isNotBlank() } ?: "Agent",
+                    version = info.implementation?.version?.takeIf { it.isNotBlank() } ?: "unknown",
+                )
             val agentCapabilities = mapAgentCapabilities(info.capabilities)
             val authMethods = info.authMethods.map(::mapAuthMethod)
-            val result = AcpInitializeResult.Ready(
-                agentInfo = mapped,
-                agentCapabilities = agentCapabilities,
-                authMethods = authMethods,
-            )
+            val result =
+                AcpInitializeResult.Ready(
+                    agentInfo = mapped,
+                    agentCapabilities = agentCapabilities,
+                    authMethods = authMethods,
+                )
 
             diagnosticsStore.recordInitialization(mapped)
             scope.launch { emitManagerEvent(AcpManagerEvent.Initialized(result)) }
@@ -101,7 +109,11 @@ internal class AcpTransportClient(
     }
 
     suspend fun authenticate(methodId: String): AcpAuthenticateResult {
-        val client = sdkClient ?: return AcpAuthenticateResult.Failure("Authentication is unavailable because the server connection is closed.")
+        val client =
+            sdkClient
+                ?: return AcpAuthenticateResult.Failure(
+                    "Authentication is unavailable because the server connection is closed.",
+                )
         return runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "authenticate")
             client.authenticate(AuthMethodId(methodId))
@@ -117,7 +129,7 @@ internal class AcpTransportClient(
         }
     }
 
-    suspend fun disconnect(resetState: () -> Unit) {
+    fun disconnect(resetState: () -> Unit) {
         reconnectJob?.cancel()
         reconnectJob = null
         resetState()
@@ -143,6 +155,7 @@ internal class AcpTransportClient(
         connectivityObserver.isConnected.first { it }
     }
 
+    @OptIn(UnstableApi::class)
     private suspend fun connectInternal(
         config: AcpConnectionConfig,
         resetState: () -> Unit,
@@ -156,26 +169,30 @@ internal class AcpTransportClient(
             val endpointUrl = config.webSocketUrl ?: "${config.scheme}://${config.host}"
             diagnosticsStore.startConnect(endpointUrl)
 
-            val client = HttpClient(CIO) {
-                install(WebSockets) {
-                    pingIntervalMillis = WEB_SOCKET_PING_INTERVAL_MILLIS
+            val client =
+                HttpClient(CIO) {
+                    install(WebSockets) {
+                        pingIntervalMillis = WEB_SOCKET_PING_INTERVAL_MILLIS
+                    }
                 }
-            }
-            val webSocketSession = client.webSocketSession {
-                url(endpointUrl)
-                config.webSocketBearerToken?.takeIf { it.isNotBlank() }?.let {
-                    headers.append("Authorization", "Bearer $it")
+            val webSocketSession =
+                client.webSocketSession {
+                    url(endpointUrl)
+                    config.webSocketBearerToken?.takeIf { it.isNotBlank() }?.let {
+                        headers.append("Authorization", "Bearer $it")
+                    }
                 }
-            }
-            val transport = WebSocketTransport(
-                parentScope = webSocketSession,
-                wss = webSocketSession,
-            )
-            val protocol = Protocol(
-                parentScope = webSocketSession,
-                transport = transport,
-                options = ProtocolOptions(protocolDebugName = "FerngeistACP"),
-            )
+            val transport =
+                WebSocketTransport(
+                    parentScope = webSocketSession,
+                    wss = webSocketSession,
+                )
+            val protocol =
+                Protocol(
+                    parentScope = webSocketSession,
+                    transport = transport,
+                    options = ProtocolOptions(protocolDebugName = "FerngeistACP"),
+                )
             val generation = activeTransportGeneration + 1L
             activeTransportGeneration = generation
             ignoreTransportCallbacks = false
@@ -225,19 +242,20 @@ internal class AcpTransportClient(
 
     private fun scheduleReconnect(resetState: () -> Unit) {
         if (reconnectJob != null) return
-        reconnectJob = scope.launch {
-            val config = currentConfig ?: return@launch
-            while (sdkClient == null) {
-                awaitConnectivityForReconnect()
-                reconnectAttempts++
-                delay((1000L * reconnectAttempts).coerceAtMost(5000L))
-                if (connectInternal(config, resetState, scheduleReconnectOnFailure = false)) {
-                    initialize()
-                    break
+        reconnectJob =
+            scope.launch {
+                val config = currentConfig ?: return@launch
+                while (sdkClient == null) {
+                    awaitConnectivityForReconnect()
+                    reconnectAttempts++
+                    delay((1000L * reconnectAttempts).coerceAtMost(5000L))
+                    if (connectInternal(config, resetState, scheduleReconnectOnFailure = false)) {
+                        initialize()
+                        break
+                    }
                 }
+                reconnectJob = null
             }
-            reconnectJob = null
-        }
     }
 
     private suspend fun handleUnexpectedTransportTermination(
@@ -280,78 +298,80 @@ internal class AcpTransportClient(
         ignoreTransportCallbacks = false
     }
 
-    private fun mapAuthMethod(method: AuthMethod): AcpAuthMethodInfo {
-        return when (method) {
-            is AuthMethod.AgentAuth -> AcpAuthMethodInfo(
-                id = method.id.toString(),
-                name = method.name,
-                description = method.description,
-                type = "agent",
-            )
+    @OptIn(UnstableApi::class)
+    private fun mapAuthMethod(method: AuthMethod): AcpAuthMethodInfo =
+        when (method) {
+            is AuthMethod.AgentAuth ->
+                AcpAuthMethodInfo(
+                    id = method.id.toString(),
+                    name = method.name,
+                    description = method.description,
+                    type = "agent",
+                )
 
-            is AuthMethod.EnvVarAuth -> AcpAuthMethodInfo(
-                id = method.id.toString(),
-                name = method.name,
-                description = method.description,
-                type = "env",
-                envVars = method.vars.map { variable ->
-                    AuthEnvVarInfo(
-                        name = variable.name,
-                        label = variable.label,
-                        secret = variable.secret,
-                        optional = variable.optional,
-                    )
-                },
-                link = method.link,
-            )
+            is AuthMethod.EnvVarAuth ->
+                AcpAuthMethodInfo(
+                    id = method.id.toString(),
+                    name = method.name,
+                    description = method.description,
+                    type = "env",
+                    envVars =
+                        method.vars.map { variable ->
+                            AuthEnvVarInfo(
+                                name = variable.name,
+                                label = variable.label,
+                                secret = variable.secret,
+                                optional = variable.optional,
+                            )
+                        },
+                    link = method.link,
+                )
 
-            is AuthMethod.TerminalAuth -> AcpAuthMethodInfo(
-                id = method.id.toString(),
-                name = method.name,
-                description = method.description,
-                type = "terminal",
-                args = method.args ?: emptyList(),
-                env = method.env ?: emptyMap(),
-            )
+            is AuthMethod.TerminalAuth ->
+                AcpAuthMethodInfo(
+                    id = method.id.toString(),
+                    name = method.name,
+                    description = method.description,
+                    type = "terminal",
+                    args = method.args ?: emptyList(),
+                    env = method.env ?: emptyMap(),
+                )
 
-            is AuthMethod.UnknownAuthMethod -> AcpAuthMethodInfo(
-                id = method.id.toString(),
-                name = method.name,
-                description = method.description,
-                type = method.type,
-            )
+            is AuthMethod.UnknownAuthMethod ->
+                AcpAuthMethodInfo(
+                    id = method.id.toString(),
+                    name = method.name,
+                    description = method.description,
+                    type = method.type,
+                )
         }
-    }
 
-    private fun mapAgentCapabilities(capabilities: AgentCapabilities): AcpAgentCapabilities {
-        return AcpAgentCapabilities(
+    private fun mapAgentCapabilities(capabilities: AgentCapabilities): AcpAgentCapabilities =
+        AcpAgentCapabilities(
             loadSession = capabilities.loadSession,
             prompt = mapPromptCapabilities(capabilities.promptCapabilities),
             mcp = mapMcpCapabilities(capabilities.mcpCapabilities),
             session = mapSessionCapabilities(capabilities.sessionCapabilities),
         )
-    }
 
-    private fun mapPromptCapabilities(capabilities: PromptCapabilities): AcpPromptCapabilities {
-        return AcpPromptCapabilities(
+    private fun mapPromptCapabilities(capabilities: PromptCapabilities): AcpPromptCapabilities =
+        AcpPromptCapabilities(
             audio = capabilities.audio,
             embeddedContext = capabilities.embeddedContext,
             image = capabilities.image,
         )
-    }
 
-    private fun mapMcpCapabilities(capabilities: McpCapabilities): AcpMcpCapabilities {
-        return AcpMcpCapabilities(
+    private fun mapMcpCapabilities(capabilities: McpCapabilities): AcpMcpCapabilities =
+        AcpMcpCapabilities(
             http = capabilities.http,
             sse = capabilities.sse,
         )
-    }
 
-    private fun mapSessionCapabilities(capabilities: SessionCapabilities): AcpSessionCapabilities {
-        return AcpSessionCapabilities(
+    @OptIn(UnstableApi::class)
+    private fun mapSessionCapabilities(capabilities: SessionCapabilities): AcpSessionCapabilities =
+        AcpSessionCapabilities(
             fork = capabilities.fork != null,
             list = capabilities.list != null,
             resume = capabilities.resume != null,
         )
-    }
 }
