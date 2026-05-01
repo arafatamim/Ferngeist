@@ -58,6 +58,6 @@ class CredentialEncryptor(context: Context) {
         private const val FILE_NAME = "encrypted_credentials"
 
         fun serverTokenKey(serverId: String) = "server_token:$serverId"
-        fun helperCredentialKey(helperId: String) = "helper_credential:$helperId"
+        fun gatewayCredentialKey(gatewayId: String) = "gateway_credential:$gatewayId"
     }
 }

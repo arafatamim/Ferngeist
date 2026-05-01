@@ -1,8 +1,8 @@
 package com.tamimarafat.ferngeist.data.database.repository
 
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import kotlinx.coroutines.flow.Flow
@@ -10,24 +10,24 @@ import kotlinx.coroutines.flow.combine
 
 class LaunchableTargetRepositoryImpl(
     private val serverRepository: ServerRepository,
-    private val helperSourceRepository: DesktopHelperSourceRepository,
-    private val helperAgentBindingRepository: HelperAgentBindingRepository,
+    private val gatewaySourceRepository: GatewaySourceRepository,
+    private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
 ) : LaunchableTargetRepository {
 
     override fun getTargets(): Flow<List<LaunchableTarget>> {
         return combine(
             serverRepository.getServers(),
-            helperSourceRepository.getHelpers(),
-            helperAgentBindingRepository.getBindings(),
-        ) { servers, helpers, bindings ->
-            val helpersById = helpers.associateBy { it.id }
+            gatewaySourceRepository.getGateways(),
+            gatewayAgentBindingRepository.getBindings(),
+        ) { servers, gateways, bindings ->
+            val gatewaysById = gateways.associateBy { it.id }
             buildList {
                 servers.forEach { server ->
                     add(LaunchableTarget.Manual(server))
                 }
                 bindings.forEach { binding ->
-                    val helper = helpersById[binding.helperSourceId] ?: return@forEach
-                    add(LaunchableTarget.HelperAgent(binding, helper))
+                    val gateway = gatewaysById[binding.gatewaySourceId] ?: return@forEach
+                    add(LaunchableTarget.GatewayAgent(binding, gateway))
                 }
             }.sortedBy { it.name.lowercase() }
         }
@@ -37,9 +37,9 @@ class LaunchableTargetRepositoryImpl(
         serverRepository.getServer(id)?.let { server ->
             return LaunchableTarget.Manual(server)
         }
-        val binding = helperAgentBindingRepository.getBinding(id) ?: return null
-        val helper = helperSourceRepository.getHelper(binding.helperSourceId) ?: return null
-        return LaunchableTarget.HelperAgent(binding, helper)
+        val binding = gatewayAgentBindingRepository.getBinding(id) ?: return null
+        val gateway = gatewaySourceRepository.getGateway(binding.gatewaySourceId) ?: return null
+        return LaunchableTarget.GatewayAgent(binding, gateway)
     }
 
     override suspend fun updatePreferredAuthMethod(targetId: String, methodId: String) {
@@ -49,9 +49,9 @@ class LaunchableTargetRepositoryImpl(
             }
             return
         }
-        helperAgentBindingRepository.getBinding(targetId)?.let { binding ->
+        gatewayAgentBindingRepository.getBinding(targetId)?.let { binding ->
             if (binding.preferredAuthMethodId != methodId) {
-                helperAgentBindingRepository.updateBinding(binding.copy(preferredAuthMethodId = methodId))
+                gatewayAgentBindingRepository.updateBinding(binding.copy(preferredAuthMethodId = methodId))
             }
         }
     }
@@ -61,6 +61,6 @@ class LaunchableTargetRepositoryImpl(
             serverRepository.deleteServer(id)
             return
         }
-        helperAgentBindingRepository.deleteBinding(id)
+        gatewayAgentBindingRepository.deleteBinding(id)
     }
 }

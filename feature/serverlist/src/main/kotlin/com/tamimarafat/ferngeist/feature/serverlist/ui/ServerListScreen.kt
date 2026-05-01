@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -89,14 +90,14 @@ import com.tamimarafat.ferngeist.feature.serverlist.PendingLaunchConsent
 @Composable
 fun ServerListScreen(
     onNavigateToAddServer: () -> Unit,
-    onNavigateToPairDesktopCompanion: () -> Unit,
-    onNavigateToDesktopCompanions: () -> Unit,
+    onNavigateToPairGateway: () -> Unit,
+    onNavigateToGateways: () -> Unit,
     onNavigateToEditServer: (LaunchableTarget) -> Unit,
     onNavigateToSessions: (String, List<SessionSummary>, Boolean) -> Unit,
     viewModel: ServerListViewModel,
 ) {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
-    val hasDesktopCompanions by viewModel.hasDesktopCompanions.collectAsStateWithLifecycle()
+    val hasGateways by viewModel.hasGateways.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -191,14 +192,14 @@ fun ServerListScreen(
                 FloatingActionButtonMenuItem(
                     onClick = {
                         showAddMenu = false
-                        if (hasDesktopCompanions) {
-                            onNavigateToDesktopCompanions()
+                        if (hasGateways) {
+                            onNavigateToGateways()
                         } else {
-                            onNavigateToPairDesktopCompanion()
+                            onNavigateToPairGateway()
                         }
                     },
                     icon = { Icon(Icons.Default.Devices, contentDescription = null) },
-                    text = { Text(if (hasDesktopCompanions) "Add using paired companion" else "Pair desktop companion") },
+                    text = { Text(if (hasGateways) "Add using paired gateway" else "Pair Ferngeist Gateway") },
                 )
                 FloatingActionButtonMenuItem(
                     onClick = {
@@ -257,12 +258,12 @@ private fun LaunchRiskConsentDialog(
     val riskLines = launchRiskLines(
         serverName = pending.serverName,
         agentId = pending.agentId,
-        companionHost = pending.companionHost,
+        gatewayHost = pending.gatewayHost,
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Run agent on companion?") },
+        title = { Text("Run agent on gateway?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 riskLines.forEach { line ->
@@ -326,7 +327,7 @@ private fun ServerListTopBar(
             ) {
                 IconButton(onClick = onAboutClick) {
                     Icon(
-                        imageVector = Icons.Default.Info,
+                        imageVector = Icons.Rounded.Info,
                         contentDescription = stringResource(R.string.about)
                     )
                 }
@@ -398,8 +399,8 @@ private fun PendingAuthenticationDialog(
     val scrollState = rememberScrollState()
     val selectedMethod = pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
         ?: pendingAuthentication.authMethods.firstOrNull()
-    val isHelperEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntime != null
-    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntime == null
+    val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.GatewayRuntime != null
+    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.GatewayRuntime == null
     val requiredEnvVarsFilled = selectedMethod
         ?.envVars
         ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
@@ -459,7 +460,7 @@ private fun PendingAuthenticationDialog(
                                     AuthenticationMethodDetails(
                                         method = method,
                                         envValues = envValues,
-                                        isHelperBacked = pendingAuthentication.helperRuntime != null,
+                                        isGatewayBacked = pendingAuthentication.GatewayRuntime != null,
                                         onOpenLink = { uriHandler.openUri(it) },
                                         onEnvValueChange = { name, value -> envValues[name] = value },
                                     )
@@ -474,7 +475,7 @@ private fun PendingAuthenticationDialog(
             TextButton(
                 enabled = when {
                     selectedMethod == null -> false
-                    isHelperEnvAuth -> requiredEnvVarsFilled
+                    isGatewayEnvAuth -> requiredEnvVarsFilled
                     else -> true
                 },
                 onClick = {
@@ -500,7 +501,7 @@ private fun PendingAuthenticationDialog(
 private fun AuthenticationMethodDetails(
     method: AcpAuthMethodInfo,
     envValues: MutableMap<String, String>,
-    isHelperBacked: Boolean,
+    isGatewayBacked: Boolean,
     onOpenLink: (String) -> Unit,
     onEnvValueChange: (String, String) -> Unit,
 ) {
@@ -519,7 +520,7 @@ private fun AuthenticationMethodDetails(
     if (method.type != "env") {
         return
     }
-    if (!isHelperBacked) {
+    if (!isGatewayBacked) {
         Text(
             text = "Set these environment variables before launching the agent, then reconnect to retry authentication.",
             style = MaterialTheme.typography.bodySmall,
@@ -608,7 +609,7 @@ private fun EmptyServerList(
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Add an agent manually or pair a desktop companion to build your launch list.",
+                text = "Add an agent manually or pair a gateway to build your launch list.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

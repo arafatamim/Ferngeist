@@ -4,12 +4,12 @@ import android.os.Build
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayload
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayloadParser
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperStatus
+import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayload
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayloadParser
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,22 +19,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class AddDesktopHelperUiState(
-    val status: DesktopHelperStatus? = null,
-    val importedPairingPayload: DesktopHelperPairingPayload? = null,
+data class AddGatewayUiState(
+    val status: GatewayStatus? = null,
+    val importedPairingPayload: GatewayPairingPayload? = null,
     val isCheckingStatus: Boolean = false,
     val isSaving: Boolean = false,
 )
 
 @HiltViewModel
-class AddDesktopHelperViewModel @Inject constructor(
-    private val helperSourceRepository: DesktopHelperSourceRepository,
-    private val helperRepository: DesktopHelperRepository,
+class AddGatewayViewModel @Inject constructor(
+    private val gatewaySourceRepository: GatewaySourceRepository,
+    private val gatewayRepository: GatewayRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val initialServerId: String? = savedStateHandle.get<String>("serverId")
-    private var existingHelper: DesktopHelperSource? = null
+    private var existingGateway: GatewaySource? = null
 
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
@@ -54,10 +54,10 @@ class AddDesktopHelperViewModel @Inject constructor(
     private val _pairingCode = MutableStateFlow("")
     val pairingCode: StateFlow<String> = _pairingCode.asStateFlow()
 
-    private val _uiState = MutableStateFlow(AddDesktopHelperUiState())
-    val uiState: StateFlow<AddDesktopHelperUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(AddGatewayUiState())
+    val uiState: StateFlow<AddGatewayUiState> = _uiState.asStateFlow()
 
-    private val _events = MutableSharedFlow<AddDesktopHelperEvent>()
+    private val _events = MutableSharedFlow<AddGatewayEvent>()
     val events = _events.asSharedFlow()
 
     val isEditMode: Boolean = initialServerId != null
@@ -97,7 +97,7 @@ class AddDesktopHelperViewModel @Inject constructor(
     }
 
     fun applyPairingPayload() {
-        val payload = DesktopHelperPairingPayloadParser.parse(_pairingQrPayload.value)
+        val payload = GatewayPairingPayloadParser.parse(_pairingQrPayload.value)
         if (payload == null) {
             viewModelScope.launch { emitError("Pairing payload is invalid. Scan the QR from `ferngeist pair` or paste the full payload.") }
             return
@@ -113,33 +113,33 @@ class AddDesktopHelperViewModel @Inject constructor(
 
     fun checkStatus() {
         viewModelScope.launch {
-            val helperHost = normalizedHost()
-            if (helperHost == null) {
-                emitError("Desktop companion host is required")
+            val gatewayHost = normalizedHost()
+            if (gatewayHost == null) {
+                emitError("Gateway host is required")
                 return@launch
             }
             _uiState.value = _uiState.value.copy(isCheckingStatus = true)
             runCatching {
-                helperRepository.fetchStatus(_scheme.value, helperHost)
+                gatewayRepository.fetchStatus(_scheme.value, gatewayHost)
             }.onSuccess { status ->
                 _uiState.value = _uiState.value.copy(status = status, isCheckingStatus = false)
                 _name.value = status.name
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(isCheckingStatus = false)
-                emitError("Could not reach desktop companion: ${error.message ?: "unknown error"}")
+                emitError("Could not reach gateway: ${error.message ?: "unknown error"}")
             }
         }
     }
 
     fun pairAndSaveWithCode(codeFromDialog: String) {
         viewModelScope.launch {
-            val helperHost = normalizedHost()
-            if (helperHost == null) {
-                emitError("Desktop companion host is required")
+            val gatewayHost = normalizedHost()
+            if (gatewayHost == null) {
+                emitError("Gateway host is required")
                 return@launch
             }
-            val helperName = _name.value.trim()
-            if (helperName.isBlank()) {
+            val gatewayName = _name.value.trim()
+            if (gatewayName.isBlank()) {
                 emitError("Name is required")
                 return@launch
             }
@@ -151,7 +151,7 @@ class AddDesktopHelperViewModel @Inject constructor(
 
             _uiState.value = _uiState.value.copy(isSaving = true)
             val challengeResult = runCatching {
-                val pairingResponse = helperRepository.startPairing(_scheme.value, helperHost)
+                val pairingResponse = gatewayRepository.startPairing(_scheme.value, gatewayHost)
                 pairingResponse.challengeId
             }
             if (challengeResult.isFailure) {
@@ -162,26 +162,26 @@ class AddDesktopHelperViewModel @Inject constructor(
             val challengeId = challengeResult.getOrThrow()
 
             runCatching {
-                helperRepository.completePairing(
+                gatewayRepository.completePairing(
                     scheme = _scheme.value,
-                    host = helperHost,
+                    host = gatewayHost,
                     challengeId = challengeId,
                     code = trimmedCode,
                     deviceName = _deviceName.value.trim().ifBlank { defaultDeviceName() },
                 )
             }.onSuccess { pairing ->
-                val helper = DesktopHelperSource(
+                val gateway = GatewaySource(
                     id = java.util.UUID.randomUUID().toString(),
-                    name = helperName,
+                    name = gatewayName,
                     scheme = _scheme.value,
-                    host = helperHost,
-                    helperCredential = pairing.helperCredential,
-                    helperCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
-                    helperRemoteMode = _uiState.value.status?.remote?.mode,
+                    host = gatewayHost,
+                    gatewayCredential = pairing.gatewayCredential,
+                    gatewayCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
+                    gatewayRemoteMode = _uiState.value.status?.remote?.mode,
                 )
-                helperSourceRepository.addHelper(helper)
+                gatewaySourceRepository.addGateway(gateway)
                 _uiState.value = _uiState.value.copy(isSaving = false)
-                _events.emit(AddDesktopHelperEvent.HelperSaved)
+                _events.emit(AddGatewayEvent.GatewaySaved)
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(isSaving = false)
                 emitError("Could not complete pairing: ${error.message ?: "unknown error"}")
@@ -189,41 +189,41 @@ class AddDesktopHelperViewModel @Inject constructor(
         }
     }
 
-    fun saveDesktopCompanion() {
+    fun saveGateway() {
         viewModelScope.launch {
-            val helperHost = normalizedHost()
-            if (helperHost == null) {
-                emitError("Desktop companion host is required")
+            val gatewayHost = normalizedHost()
+            if (gatewayHost == null) {
+                emitError("Gateway host is required")
                 return@launch
             }
-            val helperName = _name.value.trim()
-            if (helperName.isBlank()) {
+            val gatewayName = _name.value.trim()
+            if (gatewayName.isBlank()) {
                 emitError("Name is required")
                 return@launch
             }
 
             if (isEditMode) {
-                val currentHelper = existingHelper
-                if (currentHelper == null) {
-                    emitError("Desktop companion could not be loaded")
+                val currentGateway = existingGateway
+                if (currentGateway == null) {
+                    emitError("Gateway could not be loaded")
                     return@launch
                 }
                 _uiState.value = _uiState.value.copy(isSaving = true)
                 runCatching {
-                    val updatedHelper = currentHelper.copy(
-                        name = helperName,
+                    val updatedGateway = currentGateway.copy(
+                        name = gatewayName,
                         scheme = _scheme.value,
-                        host = helperHost,
-                        helperRemoteMode = _uiState.value.status?.remote?.mode ?: currentHelper.helperRemoteMode,
+                        host = gatewayHost,
+                        gatewayRemoteMode = _uiState.value.status?.remote?.mode ?: currentGateway.gatewayRemoteMode,
                     )
-                    helperSourceRepository.updateHelper(updatedHelper)
-                    existingHelper = updatedHelper
+                    gatewaySourceRepository.updateGateway(updatedGateway)
+                    existingGateway = updatedGateway
                 }.onSuccess {
                     _uiState.value = _uiState.value.copy(isSaving = false)
-                    _events.emit(AddDesktopHelperEvent.HelperSaved)
+                    _events.emit(AddGatewayEvent.GatewaySaved)
                 }.onFailure { error ->
                     _uiState.value = _uiState.value.copy(isSaving = false)
-                    emitError("Could not save desktop companion: ${error.message ?: "unknown error"}")
+                    emitError("Could not save gateway: ${error.message ?: "unknown error"}")
                 }
                 return@launch
             }
@@ -236,7 +236,7 @@ class AddDesktopHelperViewModel @Inject constructor(
             if (challengeId.isNullOrBlank() && resolvedCode.isNotBlank()) {
                 _uiState.value = _uiState.value.copy(isCheckingStatus = true)
                 runCatching {
-                    val pairingResponse = helperRepository.startPairing(_scheme.value, helperHost)
+                    val pairingResponse = gatewayRepository.startPairing(_scheme.value, gatewayHost)
                     challengeId = pairingResponse.challengeId
                     activeChallengeId = pairingResponse.challengeId
                     _uiState.value = _uiState.value.copy(isCheckingStatus = false)
@@ -254,27 +254,27 @@ class AddDesktopHelperViewModel @Inject constructor(
 
             _uiState.value = _uiState.value.copy(isSaving = true)
             runCatching {
-                helperRepository.completePairing(
+                gatewayRepository.completePairing(
                     scheme = _scheme.value,
-                    host = helperHost,
+                    host = gatewayHost,
                     challengeId = challengeId,
                     code = resolvedCode,
                     deviceName = _deviceName.value.trim().ifBlank { defaultDeviceName() },
                 )
             }.onSuccess { pairing ->
-                val helperStatus = _uiState.value.status
-                val helper = DesktopHelperSource(
+                val gatewayStatus = _uiState.value.status
+                val gateway = GatewaySource(
                     id = initialServerId ?: java.util.UUID.randomUUID().toString(),
-                    name = helperName,
+                    name = gatewayName,
                     scheme = _scheme.value,
-                    host = helperHost,
-                    helperCredential = pairing.helperCredential,
-                    helperCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
-                    helperRemoteMode = helperStatus?.remote?.mode,
+                    host = gatewayHost,
+                    gatewayCredential = pairing.gatewayCredential,
+                    gatewayCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
+                    gatewayRemoteMode = gatewayStatus?.remote?.mode,
                 )
-                helperSourceRepository.addHelper(helper)
+                gatewaySourceRepository.addGateway(gateway)
                 _uiState.value = _uiState.value.copy(isSaving = false)
-                _events.emit(AddDesktopHelperEvent.HelperSaved)
+                _events.emit(AddGatewayEvent.GatewaySaved)
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(isSaving = false)
                 emitError("Could not complete pairing: ${error.message ?: "unknown error"}")
@@ -284,20 +284,20 @@ class AddDesktopHelperViewModel @Inject constructor(
 
     private fun loadExisting(id: String) {
         viewModelScope.launch {
-            val helper = helperSourceRepository.getHelper(id)
-            if (helper != null) {
-                existingHelper = helper
-                _name.value = helper.name
-                _scheme.value = helper.scheme
-                _host.value = helper.host
+            val gateway = gatewaySourceRepository.getGateway(id)
+            if (gateway != null) {
+                existingGateway = gateway
+                _name.value = gateway.name
+                _scheme.value = gateway.scheme
+                _host.value = gateway.host
             } else if (isEditMode) {
-                _events.emit(AddDesktopHelperEvent.ShowError("Desktop companion could not be loaded. The credential may be corrupted. Please remove and re-pair."))
+                _events.emit(AddGatewayEvent.ShowError("Gateway could not be loaded. The credential may be corrupted. Please remove and re-pair."))
             }
         }
     }
 
     private suspend fun emitError(message: String) {
-        _events.emit(AddDesktopHelperEvent.ShowError(message))
+        _events.emit(AddGatewayEvent.ShowError(message))
     }
 
     fun showMessage(message: String) {
@@ -316,7 +316,7 @@ class AddDesktopHelperViewModel @Inject constructor(
 
     private fun extractHostnameFromHost(host: String): String {
         val hostname = host.substringBefore(':')
-        return hostname.ifBlank { "Desktop Companion" }
+        return hostname.ifBlank { "Gateway" }
     }
 
     private fun defaultDeviceName(): String {
@@ -327,9 +327,9 @@ class AddDesktopHelperViewModel @Inject constructor(
     }
 }
 
-sealed interface AddDesktopHelperEvent {
-    data object HelperSaved : AddDesktopHelperEvent
-    data class ShowError(val message: String) : AddDesktopHelperEvent
+sealed interface AddGatewayEvent {
+    data object GatewaySaved : AddGatewayEvent
+    data class ShowError(val message: String) : AddGatewayEvent
 }
 
 private fun String.toEpochMillisOrNull(): Long? {

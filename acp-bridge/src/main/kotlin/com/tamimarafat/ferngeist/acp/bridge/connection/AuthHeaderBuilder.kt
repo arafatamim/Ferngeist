@@ -6,8 +6,8 @@ data class AcpConnectionConfig(
     val webSocketUrl: String? = null,
     val webSocketBearerToken: String? = null,
     val preferredAuthMethodId: String? = null,
-    val helperRuntimeId: String? = null,
-    val helperSourceId: String? = null,
+    val gatewayRuntimeId: String? = null,
+    val gatewaySourceId: String? = null,
     val serverDisplayName: String? = null,
 )
 

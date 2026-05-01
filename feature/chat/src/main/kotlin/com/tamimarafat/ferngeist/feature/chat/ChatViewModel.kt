@@ -17,10 +17,10 @@ import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,10 +28,10 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val connectionManager: AcpConnectionManager,
-    private val helperSourceRepository: DesktopHelperSourceRepository,
+    private val gatewaySourceRepository: GatewaySourceRepository,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val sessionRepository: SessionRepository,
-    private val helperRepository: DesktopHelperRepository,
+    private val gatewayRepository: GatewayRepository,
     private val chatScrollStateStore: ChatScrollStateStore,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(
@@ -75,8 +75,8 @@ class ChatViewModel @Inject constructor(
         scope = viewModelScope,
         connectionManager = connectionManager,
         launchableTargetRepository = launchableTargetRepository,
-        helperSourceRepository = helperSourceRepository,
-        helperRepository = helperRepository,
+        gatewaySourceRepository = gatewaySourceRepository,
+        gatewayRepository = gatewayRepository,
         serverId = serverId,
         initialSessionId = sessionId,
         cwd = cwd,

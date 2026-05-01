@@ -179,7 +179,7 @@ internal fun ServerCard(
                 interactionSource = actionsMenuInteractionSource,
             ) {
                 DropdownMenuItem(
-                    text = { Text(if (server is LaunchableTarget.HelperAgent) "Manage" else "Edit") },
+                    text = { Text(if (server is LaunchableTarget.GatewayAgent) "Manage" else "Edit") },
                     onClick = {
                         showActionsMenu = false
                         onEdit()
@@ -216,7 +216,7 @@ private fun ServerSubtitle(
         }
 
         when (server) {
-            is LaunchableTarget.HelperAgent -> {
+            is LaunchableTarget.GatewayAgent -> {
                 Icon(
                     imageVector = Icons.Default.Devices,
                     contentDescription = null,
@@ -224,7 +224,7 @@ private fun ServerSubtitle(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = server.helperSource.name,
+                    text = server.gatewaySource.name,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

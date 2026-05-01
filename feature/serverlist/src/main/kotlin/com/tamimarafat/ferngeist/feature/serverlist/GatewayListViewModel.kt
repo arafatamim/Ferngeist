@@ -2,9 +2,9 @@ package com.tamimarafat.ferngeist.feature.serverlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
+import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
@@ -17,33 +17,33 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Lists paired desktop companions separately from launchable agents so the main
+ * Lists paired gateways separately from launchable agents so the main
  * server list can stay focused on user-startable entries only.
  */
 @HiltViewModel
-class DesktopCompanionListViewModel @Inject constructor(
-    private val helperSourceRepository: DesktopHelperSourceRepository,
-    private val helperAgentBindingRepository: HelperAgentBindingRepository,
+class GatewayListViewModel @Inject constructor(
+    private val gatewaySourceRepository: GatewaySourceRepository,
+    private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
     private val sessionRepository: SessionRepository,
     private val authEnvValueStore: AuthEnvValueStore,
     private val agentLaunchConsentStore: AgentLaunchConsentStore,
     private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
 ) : ViewModel() {
 
-    val companions: StateFlow<List<DesktopHelperSource>> = helperSourceRepository.getHelpers()
+    val gateways: StateFlow<List<GatewaySource>> = gatewaySourceRepository.getGateways()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun deleteCompanion(companion: DesktopHelperSource) {
+    fun deleteGateway(gateway: GatewaySource) {
         viewModelScope.launch {
-            helperAgentBindingRepository.getBindingsForHelper(companion.id).forEach { binding ->
+            gatewayAgentBindingRepository.getBindingsForGateway(gateway.id).forEach { binding ->
                 authEnvValueStore.deleteValues(binding.id)
                 sessionRepository.clearSessions(binding.id)
                 sessionSettingsRepository.deleteSettings(binding.id)
-                helperAgentBindingRepository.deleteBinding(binding.id)
+                gatewayAgentBindingRepository.deleteBinding(binding.id)
             }
-            agentLaunchConsentStore.clearByPrefix(companion.id)
-            authEnvValueStore.deleteValues(companion.id)
-            helperSourceRepository.deleteHelper(companion.id)
+            agentLaunchConsentStore.clearByPrefix(gateway.id)
+            authEnvValueStore.deleteValues(gateway.id)
+            gatewaySourceRepository.deleteGateway(gateway.id)
         }
     }
 }

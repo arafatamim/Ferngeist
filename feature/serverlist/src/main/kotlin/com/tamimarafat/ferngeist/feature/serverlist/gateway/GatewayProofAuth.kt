@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.serverlist.helper
+package com.tamimarafat.ferngeist.feature.serverlist.gateway
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -10,42 +10,42 @@ import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Base64
 
-private const val AUTH_BUNDLE_PREFIX = "ferngeist-helper-auth-v1:"
+private const val AUTH_BUNDLE_PREFIX = "ferngeist-gateway-auth-v1:"
 private const val PROOF_DOMAIN = "FERNGEIST-HTTP-PROOF-V1"
 
-data class DesktopHelperAuthHeaders(
+data class GatewayAuthHeaders(
     val authorization: String,
     val proofTimestamp: String? = null,
     val proofNonce: String? = null,
     val proofSignature: String? = null,
 )
 
-data class DesktopHelperGeneratedProofKey(
+data class GatewayGeneratedProofKey(
     val publicKey: String,
     val privateKey: String,
 )
 
 @Serializable
-private data class DesktopHelperStoredAuthBundle(
+private data class GatewayStoredAuthBundle(
     val token: String,
     val proofPrivateKey: String? = null,
 )
 
-private data class DesktopHelperAuthBundle(
+private data class GatewayAuthBundle(
     val token: String,
     val proofPrivateKey: String? = null,
 )
 
-object DesktopHelperProofAuth {
+object GatewayProofAuth {
     private val json = Json { ignoreUnknownKeys = true }
     private val encoder = Base64.getUrlEncoder().withoutPadding()
     private val decoder = Base64.getUrlDecoder()
 
-    fun generateProofKey(): DesktopHelperGeneratedProofKey {
+    fun generateProofKey(): GatewayGeneratedProofKey {
         val generator = KeyPairGenerator.getInstance("EC")
         generator.initialize(ECGenParameterSpec("secp256r1"))
         val keyPair = generator.generateKeyPair()
-        return DesktopHelperGeneratedProofKey(
+        return GatewayGeneratedProofKey(
             publicKey = encoder.encodeToString(keyPair.public.encoded),
             privateKey = encoder.encodeToString(keyPair.private.encoded),
         )
@@ -54,7 +54,7 @@ object DesktopHelperProofAuth {
     fun encodeStoredCredential(token: String, proofPrivateKey: String?): String {
         if (proofPrivateKey.isNullOrBlank()) return token
         val payload = json.encodeToString(
-            DesktopHelperStoredAuthBundle(
+            GatewayStoredAuthBundle(
                 token = token,
                 proofPrivateKey = proofPrivateKey,
             ),
@@ -68,16 +68,16 @@ object DesktopHelperProofAuth {
     }
 
     fun buildAuthHeaders(
-        helperCredential: String,
+        gatewayCredential: String,
         method: String,
         endpoint: String,
         body: String? = null,
         timestampSeconds: Long = System.currentTimeMillis() / 1000,
         nonce: String = java.util.UUID.randomUUID().toString(),
-    ): DesktopHelperAuthHeaders {
-        val auth = decodeStoredCredential(helperCredential)
+    ): GatewayAuthHeaders {
+        val auth = decodeStoredCredential(gatewayCredential)
         if (auth.proofPrivateKey.isNullOrBlank()) {
-            return DesktopHelperAuthHeaders(authorization = "Bearer ${auth.token}")
+            return GatewayAuthHeaders(authorization = "Bearer ${auth.token}")
         }
         val bodyHash = sha256Base64Url(body.orEmpty().toByteArray(Charsets.UTF_8))
         val pathWithQuery = URI(endpoint).run {
@@ -104,7 +104,7 @@ object DesktopHelperProofAuth {
         val signature = Signature.getInstance("SHA256withECDSA")
         signature.initSign(privateKey)
         signature.update(message.toByteArray(Charsets.UTF_8))
-        return DesktopHelperAuthHeaders(
+        return GatewayAuthHeaders(
             authorization = "Bearer ${auth.token}",
             proofTimestamp = timestamp,
             proofNonce = nonce,
@@ -112,14 +112,14 @@ object DesktopHelperProofAuth {
         )
     }
 
-    private fun decodeStoredCredential(helperCredential: String): DesktopHelperAuthBundle {
-        if (!helperCredential.startsWith(AUTH_BUNDLE_PREFIX)) {
-            return DesktopHelperAuthBundle(token = helperCredential)
+    private fun decodeStoredCredential(gatewayCredential: String): GatewayAuthBundle {
+        if (!gatewayCredential.startsWith(AUTH_BUNDLE_PREFIX)) {
+            return GatewayAuthBundle(token = gatewayCredential)
         }
-        val encodedPayload = helperCredential.removePrefix(AUTH_BUNDLE_PREFIX)
+        val encodedPayload = gatewayCredential.removePrefix(AUTH_BUNDLE_PREFIX)
         val payload = decoder.decode(encodedPayload).toString(Charsets.UTF_8)
-        val parsed = json.decodeFromString<DesktopHelperStoredAuthBundle>(payload)
-        return DesktopHelperAuthBundle(
+        val parsed = json.decodeFromString<GatewayStoredAuthBundle>(payload)
+        return GatewayAuthBundle(
             token = parsed.token,
             proofPrivateKey = parsed.proofPrivateKey,
         )

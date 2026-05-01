@@ -6,16 +6,16 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.HelperAgentBindingRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
-import com.tamimarafat.ferngeist.data.database.repository.DesktopHelperSourceRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.HelperAgentBindingRepositoryImpl
+import com.tamimarafat.ferngeist.data.database.repository.GatewaySourceRepositoryImpl
+import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetSessionSettingsRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.ServerRepositoryImpl
@@ -36,7 +36,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): FerngeistDatabase {
@@ -44,9 +44,11 @@ object AppModule {
             context,
             FerngeistDatabase::class.java,
             FerngeistDatabase.DATABASE_NAME,
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            .fallbackToDestructiveMigration(false)
+            .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideServerRepository(database: FerngeistDatabase, credentialEncryptor: CredentialEncryptor): ServerRepository {
@@ -55,30 +57,30 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideDesktopHelperSourceRepository(database: FerngeistDatabase, credentialEncryptor: CredentialEncryptor): DesktopHelperSourceRepository {
-        return DesktopHelperSourceRepositoryImpl(database.desktopHelperSourceDao(), credentialEncryptor)
+    fun provideGatewaySourceRepository(database: FerngeistDatabase, credentialEncryptor: CredentialEncryptor): GatewaySourceRepository {
+        return GatewaySourceRepositoryImpl(database.gatewaySourceDao(), credentialEncryptor)
     }
 
     @Provides
     @Singleton
-    fun provideHelperAgentBindingRepository(database: FerngeistDatabase): HelperAgentBindingRepository {
-        return HelperAgentBindingRepositoryImpl(database.helperAgentBindingDao())
+    fun provideGatewayAgentBindingRepository(database: FerngeistDatabase): GatewayAgentBindingRepository {
+        return GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao())
     }
 
     @Provides
     @Singleton
     fun provideLaunchableTargetRepository(
         serverRepository: ServerRepository,
-        helperSourceRepository: DesktopHelperSourceRepository,
-        helperAgentBindingRepository: HelperAgentBindingRepository,
+        gatewaySourceRepository: GatewaySourceRepository,
+        gatewayAgentBindingRepository: GatewayAgentBindingRepository,
     ): LaunchableTargetRepository {
         return LaunchableTargetRepositoryImpl(
             serverRepository = serverRepository,
-            helperSourceRepository = helperSourceRepository,
-            helperAgentBindingRepository = helperAgentBindingRepository,
+            gatewaySourceRepository = gatewaySourceRepository,
+            gatewayAgentBindingRepository = gatewayAgentBindingRepository,
         )
     }
-    
+
     @Provides
     @Singleton
     fun provideSessionRepository(database: FerngeistDatabase): SessionRepository {
@@ -90,7 +92,7 @@ object AppModule {
     fun provideLaunchableTargetSessionSettingsRepository(database: FerngeistDatabase): LaunchableTargetSessionSettingsRepository {
         return LaunchableTargetSessionSettingsRepositoryImpl(database.launchableTargetSessionSettingsDao())
     }
-    
+
     @Provides
     @Singleton
     fun provideCredentialEncryptor(@ApplicationContext context: Context): CredentialEncryptor {
@@ -174,19 +176,19 @@ private val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL(
             """
             ALTER TABLE `servers`
-            ADD COLUMN `helperCredential` TEXT NOT NULL DEFAULT ''
+            ADD COLUMN `gatewayCredential` TEXT NOT NULL DEFAULT ''
             """.trimIndent()
         )
         db.execSQL(
             """
             ALTER TABLE `servers`
-            ADD COLUMN `helperCredentialExpiresAt` INTEGER
+            ADD COLUMN `gatewayCredentialExpiresAt` INTEGER
             """.trimIndent()
         )
         db.execSQL(
             """
             ALTER TABLE `servers`
-            ADD COLUMN `helperRemoteMode` TEXT
+            ADD COLUMN `gatewayRemoteMode` TEXT
             """.trimIndent()
         )
         db.execSQL(
@@ -209,7 +211,7 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL(
             """
             ALTER TABLE `servers`
-            ADD COLUMN `helperSourceId` TEXT
+            ADD COLUMN `gatewaySourceId` TEXT
             """.trimIndent()
         )
     }
@@ -219,37 +221,37 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             """
-            CREATE TABLE IF NOT EXISTS `desktop_helper_sources` (
+            CREATE TABLE IF NOT EXISTS `gateway_sources` (
               `id` TEXT NOT NULL,
               `name` TEXT NOT NULL,
               `scheme` TEXT NOT NULL,
               `host` TEXT NOT NULL,
-              `helperCredential` TEXT NOT NULL,
-              `helperCredentialExpiresAt` INTEGER,
-              `helperRemoteMode` TEXT,
+              `gatewayCredential` TEXT NOT NULL,
+              `gatewayCredentialExpiresAt` INTEGER,
+              `gatewayRemoteMode` TEXT,
               PRIMARY KEY(`id`)
             )
             """.trimIndent()
         )
         db.execSQL(
             """
-            INSERT INTO `desktop_helper_sources` (
+            INSERT INTO `gateway_sources` (
               `id`,
               `name`,
               `scheme`,
               `host`,
-              `helperCredential`,
-              `helperCredentialExpiresAt`,
-              `helperRemoteMode`
+              `gatewayCredential`,
+              `gatewayCredentialExpiresAt`,
+              `gatewayRemoteMode`
             )
             SELECT
               `id`,
               `name`,
               `scheme`,
               `host`,
-              `helperCredential`,
-              `helperCredentialExpiresAt`,
-              `helperRemoteMode`
+              `gatewayCredential`,
+              `gatewayCredentialExpiresAt`,
+              `gatewayRemoteMode`
             FROM `servers`
             WHERE `sourceKind` = 'DESKTOP_HELPER' AND (`selectedAgentId` IS NULL OR TRIM(`selectedAgentId`) = '')
             """.trimIndent()
@@ -267,25 +269,25 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             """
-            CREATE TABLE IF NOT EXISTS `helper_agent_bindings` (
+            CREATE TABLE IF NOT EXISTS `gateway_agent_bindings` (
               `id` TEXT NOT NULL,
               `name` TEXT NOT NULL,
-              `helperSourceId` TEXT NOT NULL,
+              `gatewaySourceId` TEXT NOT NULL,
               `agentId` TEXT NOT NULL,
               `workingDirectory` TEXT NOT NULL,
               `preferredAuthMethodId` TEXT,
               PRIMARY KEY(`id`),
-              FOREIGN KEY(`helperSourceId`) REFERENCES `desktop_helper_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+              FOREIGN KEY(`gatewaySourceId`) REFERENCES `gateway_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
             )
             """.trimIndent()
         )
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_helper_agent_bindings_helperSourceId` ON `helper_agent_bindings` (`helperSourceId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_gatewaySourceId` ON `gateway_agent_bindings` (`gatewaySourceId`)")
         db.execSQL(
             """
-            INSERT INTO `helper_agent_bindings` (
+            INSERT INTO `gateway_agent_bindings` (
               `id`,
               `name`,
-              `helperSourceId`,
+              `gatewaySourceId`,
               `agentId`,
               `workingDirectory`,
               `preferredAuthMethodId`
@@ -293,12 +295,12 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
             SELECT
               `id`,
               `name`,
-              `helperSourceId`,
+              `gatewaySourceId`,
               `selectedAgentId`,
               `workingDirectory`,
               `preferredAuthMethodId`
             FROM `servers`
-            WHERE `sourceKind` = 'DESKTOP_HELPER' AND `helperSourceId` IS NOT NULL AND TRIM(`helperSourceId`) != ''
+            WHERE `sourceKind` = 'DESKTOP_HELPER' AND `gatewaySourceId` IS NOT NULL AND TRIM(`gatewaySourceId`) != ''
             """.trimIndent()
         )
         db.execSQL(
@@ -369,7 +371,7 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
         db.execSQL(
             """
             INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
-            SELECT `id`, `workingDirectory` FROM `helper_agent_bindings`
+            SELECT `id`, `workingDirectory` FROM `gateway_agent_bindings`
             """.trimIndent()
         )
         db.execSQL(
@@ -395,26 +397,26 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
         db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
         db.execSQL(
             """
-            CREATE TABLE IF NOT EXISTS `helper_agent_bindings_new` (
+            CREATE TABLE IF NOT EXISTS `gateway_agent_bindings_new` (
               `id` TEXT NOT NULL,
               `name` TEXT NOT NULL,
-              `helperSourceId` TEXT NOT NULL,
+              `gatewaySourceId` TEXT NOT NULL,
               `agentId` TEXT NOT NULL,
               `preferredAuthMethodId` TEXT,
               PRIMARY KEY(`id`),
-              FOREIGN KEY(`helperSourceId`) REFERENCES `desktop_helper_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+              FOREIGN KEY(`gatewaySourceId`) REFERENCES `gateway_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
             )
             """.trimIndent()
         )
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_helper_agent_bindings_new_helperSourceId` ON `helper_agent_bindings_new` (`helperSourceId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_new_gatewaySourceId` ON `gateway_agent_bindings_new` (`gatewaySourceId`)")
         db.execSQL(
             """
-            INSERT INTO `helper_agent_bindings_new` (`id`, `name`, `helperSourceId`, `agentId`, `preferredAuthMethodId`)
-            SELECT `id`, `name`, `helperSourceId`, `agentId`, `preferredAuthMethodId` FROM `helper_agent_bindings`
+            INSERT INTO `gateway_agent_bindings_new` (`id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId`)
+            SELECT `id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId` FROM `gateway_agent_bindings`
             """.trimIndent()
         )
-        db.execSQL("DROP TABLE `helper_agent_bindings`")
-        db.execSQL("ALTER TABLE `helper_agent_bindings_new` RENAME TO `helper_agent_bindings`")
+        db.execSQL("DROP TABLE `gateway_agent_bindings`")
+        db.execSQL("ALTER TABLE `gateway_agent_bindings_new` RENAME TO `gateway_agent_bindings`")
     }
 }
 
@@ -422,7 +424,7 @@ private val MIGRATION_10_11 = object : Migration(10, 11) {
     override fun migrate(db: SupportSQLiteDatabase) {
         // Credentials are now encrypted at the repository layer via CredentialEncryptor.
         // No schema changes; existing plaintext credentials remain unencrypted in Room
-        // until the corresponding server/helper row is next written (add/update), at
+        // until the corresponding server/gateway row is next written (add/update), at
         // which point CredentialEncryptor.encrypt() rewrites them to EncryptedSharedPreferences.
         // Users who never edit a saved server after this migration will retain plaintext
         // credentials in the database backup.

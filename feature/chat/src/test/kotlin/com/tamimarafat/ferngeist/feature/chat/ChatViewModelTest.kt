@@ -8,10 +8,20 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
+import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayLogEntry
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingResult
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairStartResponse
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairStatusResponse
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRuntime
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -140,10 +150,10 @@ class ChatViewModelTest {
 
         return ChatViewModel(
             connectionManager = manager,
-            helperSourceRepository = FakeDesktopHelperSourceRepository(),
+            gatewaySourceRepository = FakeGatewaySourceRepository(),
             launchableTargetRepository = targetRepository,
             sessionRepository = sessionRepository,
-            helperRepository = FakeDesktopHelperRepository(),
+            gatewayRepository = FakeGatewayRepository(),
             chatScrollStateStore = chatScrollStateStore,
             savedStateHandle = handle,
         )
@@ -177,12 +187,12 @@ private class FakeLaunchableTargetRepository : LaunchableTargetRepository {
     override suspend fun deleteTarget(id: String) = Unit
 }
 
-private class FakeDesktopHelperSourceRepository : DesktopHelperSourceRepository {
-    override fun getHelpers() = flowOf(emptyList<com.tamimarafat.ferngeist.core.model.DesktopHelperSource>())
-    override suspend fun addHelper(helper: com.tamimarafat.ferngeist.core.model.DesktopHelperSource) = Unit
-    override suspend fun updateHelper(helper: com.tamimarafat.ferngeist.core.model.DesktopHelperSource) = Unit
-    override suspend fun deleteHelper(id: String) = Unit
-    override suspend fun getHelper(id: String) = null
+private class FakeGatewaySourceRepository : GatewaySourceRepository {
+    override fun getGateways() = flowOf(emptyList<GatewaySource>())
+    override suspend fun addGateway(gateway: GatewaySource) = Unit
+    override suspend fun updateGateway(gateway: GatewaySource) = Unit
+    override suspend fun deleteGateway(id: String) = Unit
+    override suspend fun getGateway(id: String) = null
 }
 
 private class FakeSessionRepository : SessionRepository {
@@ -192,17 +202,17 @@ private class FakeSessionRepository : SessionRepository {
     override suspend fun clearSessions(serverId: String) = Unit
 }
 
-private class FakeDesktopHelperRepository : com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository {
-    override suspend fun fetchStatus(scheme: String, host: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperStatus = throw NotImplementedError()
-    override suspend fun startPairing(scheme: String, host: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairStartResponse = throw NotImplementedError()
-    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairStatusResponse = throw NotImplementedError()
-    override suspend fun fetchAgents(scheme: String, host: String, helperCredential: String): List<com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgent> = emptyList()
-    override suspend fun startAgent(scheme: String, host: String, helperCredential: String, agentId: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRuntime = throw NotImplementedError()
-    override suspend fun connectRuntime(scheme: String, host: String, helperCredential: String, runtimeId: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse = throw NotImplementedError()
-    override suspend fun restartRuntime(scheme: String, host: String, helperCredential: String, runtimeId: String, envVars: Map<String, String>): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse = throw NotImplementedError()
-    override suspend fun fetchRuntimeLogs(scheme: String, host: String, helperCredential: String, runtimeId: String): List<com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperLogEntry> = emptyList()
-    override suspend fun completePairing(scheme: String, host: String, challengeId: String, code: String, deviceName: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingResult = throw NotImplementedError()
-    override suspend fun refreshCredential(scheme: String, host: String, helperCredential: String): com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingResult = throw NotImplementedError()
+private class FakeGatewayRepository : GatewayRepository {
+    override suspend fun fetchStatus(scheme: String, host: String): GatewayStatus = throw NotImplementedError()
+    override suspend fun startPairing(scheme: String, host: String): GatewayPairStartResponse = throw NotImplementedError()
+    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String): GatewayPairStatusResponse = throw NotImplementedError()
+    override suspend fun fetchAgents(scheme: String, host: String, gatewayCredential: String): List<GatewayAgent> = emptyList()
+    override suspend fun startAgent(scheme: String, host: String, gatewayCredential: String, agentId: String): GatewayRuntime = throw NotImplementedError()
+    override suspend fun connectRuntime(scheme: String, host: String, gatewayCredential: String, runtimeId: String): GatewayConnectResponse = throw NotImplementedError()
+    override suspend fun restartRuntime(scheme: String, host: String, gatewayCredential: String, runtimeId: String, envVars: Map<String, String>): GatewayConnectResponse = throw NotImplementedError()
+    override suspend fun fetchRuntimeLogs(scheme: String, host: String, gatewayCredential: String, runtimeId: String): List<GatewayLogEntry> = emptyList()
+    override suspend fun completePairing(scheme: String, host: String, challengeId: String, code: String, deviceName: String): GatewayPairingResult = throw NotImplementedError()
+    override suspend fun refreshCredential(scheme: String, host: String, gatewayCredential: String): GatewayPairingResult = throw NotImplementedError()
 }
 
 private class InMemoryChatScrollStateStore : ChatScrollStateStore {

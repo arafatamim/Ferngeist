@@ -59,16 +59,16 @@ import androidx.compose.ui.unit.dp
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
-import com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperEvent
-import com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperViewModel
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayload
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperStatus
+import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayEvent
+import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayload
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddDesktopHelperScreen(
+fun AddGatewayScreen(
     onNavigateBack: () -> Unit,
-    viewModel: AddDesktopHelperViewModel,
+    viewModel: AddGatewayViewModel,
 ) {
     val name by viewModel.name.collectAsState()
     val scheme by viewModel.scheme.collectAsState()
@@ -84,19 +84,19 @@ fun AddDesktopHelperScreen(
     var dialogPairingCode by rememberSaveable { mutableStateOf("") }
     val steps = remember {
         listOf(
-            CompanionPairingStep(
+            GatewayPairingStep(
                 title = "Run ferngeist pair",
-                body = "Install and run the desktop companion daemon on your computer, then start pairing.",
+                body = "Install and run Ferngeist Gateway on your computer, then start pairing.",
                 icon = Icons.Default.Computer,
             ),
-            CompanionPairingStep(
+            GatewayPairingStep(
                 title = "Scan QR",
                 body = "Scan the QR code, or paste the payload from the terminal.",
                 icon = Icons.Default.QrCode2,
             ),
-            CompanionPairingStep(
-                title = "Add companion",
-                body = "Check the details, name the companion, then save it.",
+            GatewayPairingStep(
+                title = "Add gateway",
+                body = "Check the details, name the gateway, then save it.",
                 icon = Icons.Default.Link,
             ),
         )
@@ -105,8 +105,8 @@ fun AddDesktopHelperScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                AddDesktopHelperEvent.HelperSaved -> onNavigateBack()
-                is AddDesktopHelperEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
+                AddGatewayEvent.GatewaySaved -> onNavigateBack()
+                is AddGatewayEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }
     }
@@ -114,7 +114,7 @@ fun AddDesktopHelperScreen(
 
 
     if (viewModel.isEditMode) {
-        EditDesktopCompanionScreen(
+        EditGatewayScreen(
             onNavigateBack = onNavigateBack,
             snackbarHostState = snackbarHostState,
             viewModel = viewModel,
@@ -153,7 +153,7 @@ fun AddDesktopHelperScreen(
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                 }
                 Text(
-                    text = "Pair Desktop Companion",
+                    text = "Pair Ferngeist Gateway",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -221,7 +221,7 @@ fun AddDesktopHelperScreen(
                             importedPayload = uiState.importedPairingPayload,
                             onUpdatePayload = { value ->
                                 viewModel.updatePairingQrPayload(value)
-                                val parsed = com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayloadParser.parse(value)
+                                val parsed = com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayloadParser.parse(value)
                                 if (parsed != null) {
                                     viewModel.applyPairingPayload()
                                 }
@@ -254,7 +254,7 @@ fun AddDesktopHelperScreen(
                                                 viewModel.showMessage("QR code was empty")
                                                 return@addOnSuccessListener
                                             }
-                                            val parsed = com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperPairingPayloadParser.parse(raw)
+                                            val parsed = com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayloadParser.parse(raw)
                                             if (parsed == null) {
                                                 viewModel.showMessage("QR does not contain a valid pairing payload")
                                                 return@addOnSuccessListener
@@ -273,7 +273,7 @@ fun AddDesktopHelperScreen(
                             },
                         )
 
-                        else -> ReviewCompanionStep(
+                        else -> ReviewGatewayStep(
                             name = name,
                             onUpdateName = viewModel::updateName,
                             deviceName = deviceName,
@@ -310,7 +310,7 @@ fun AddDesktopHelperScreen(
                             }
                             else -> {
                                 if (uiState.importedPairingPayload != null) {
-                                    viewModel.saveDesktopCompanion()
+                                    viewModel.saveGateway()
                                 } else {
                                     showPairingCodeDialog = true
                                 }
@@ -340,7 +340,7 @@ fun AddDesktopHelperScreen(
     }
 
     var dialogOpenedWhileSaving by rememberSaveable { mutableStateOf(false) }
-    
+
     if (showPairingCodeDialog) {
         PairingCodeDialog(
             code = dialogPairingCode,
@@ -414,9 +414,9 @@ private fun PairingCodeDialog(
 private fun RunFerngeistPairStep() {
     OnboardingBulletList(
         items = listOf(
-            "If you do not have the desktop companion yet, download it from https://github.com/arafatamim/Ferngeist.",
-            "Open a terminal on the computer running the desktop companion.",
-            "Run `ferngeist pair`.",
+            "If you do not have Ferngeist Gateway yet, download it from https://github.com/arafatamim/ferngeist-acp-gateway.",
+            "Open a terminal on the computer running Ferngeist Gateway.",
+            "Run `ferngeist-gateway pair`.",
             "Keep that terminal open.",
         ),
     )
@@ -443,7 +443,7 @@ private fun RunFerngeistPairStep() {
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
             ) {
                 Text(
-                    text = "ferngeist pair",
+                    text = "ferngeist-gateway pair",
                     modifier = Modifier.padding(14.dp),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
@@ -460,19 +460,19 @@ private fun RunFerngeistPairStep() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EditDesktopCompanionScreen(
+private fun EditGatewayScreen(
     onNavigateBack: () -> Unit,
     snackbarHostState: SnackbarHostState,
-    viewModel: AddDesktopHelperViewModel,
+    viewModel: AddGatewayViewModel,
     name: String,
     scheme: String,
     host: String,
-    uiState: com.tamimarafat.ferngeist.feature.serverlist.AddDesktopHelperUiState,
+    uiState: com.tamimarafat.ferngeist.feature.serverlist.AddGatewayUiState,
 ) {
     Scaffold(
         topBar = {
             androidx.compose.material3.TopAppBar(
-                title = { Text("Edit Desktop Companion") },
+                title = { Text("Edit Gateway") },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
@@ -491,8 +491,8 @@ private fun EditDesktopCompanionScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             SectionCard(
-                title = "Desktop Companion Details",
-                subtitle = "Update how this companion is saved in Ferngeist.",
+                title = "Gateway Details",
+                subtitle = "Update how this gateway is saved in Ferngeist.",
                 icon = Icons.Default.Computer,
             ) {
                 OutlinedTextField(
@@ -504,12 +504,12 @@ private fun EditDesktopCompanionScreen(
                     singleLine = true,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                DesktopCompanionProtocolSelector(selected = scheme, onSelect = viewModel::updateScheme)
+                GatewayProtocolSelector(selected = scheme, onSelect = viewModel::updateScheme)
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = host,
                     onValueChange = viewModel::updateHost,
-                    label = { Text("Desktop companion host") },
+                    label = { Text("Gateway host") },
                     placeholder = { Text("192.168.1.42:5788") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -520,19 +520,19 @@ private fun EditDesktopCompanionScreen(
                     if (uiState.isCheckingStatus) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Check desktop companion")
+                        Text("Check gateway")
                     }
                 }
                 uiState.status?.let { status ->
                     Spacer(modifier = Modifier.height(12.dp))
-                    CompanionStatusCard(status = status)
+                    GatewayStatusCard(status = status)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = viewModel::saveDesktopCompanion, enabled = !uiState.isSaving) {
+                Button(onClick = viewModel::saveGateway, enabled = !uiState.isSaving) {
                     if (uiState.isSaving) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Save desktop companion")
+                        Text("Save gateway")
                     }
                 }
             }
@@ -543,7 +543,7 @@ private fun EditDesktopCompanionScreen(
 @Composable
 private fun ImportPairingStep(
     pairingQrPayload: String,
-    importedPayload: DesktopHelperPairingPayload?,
+    importedPayload: GatewayPairingPayload?,
     onUpdatePayload: (String) -> Unit,
     onScanQr: () -> Unit,
 ) {
@@ -565,7 +565,7 @@ private fun ImportPairingStep(
                 value = pairingQrPayload,
                 onValueChange = onUpdatePayload,
                 label = { Text("Pairing payload") },
-                placeholder = { Text("ferngeist-helper://pair?scheme=...") },
+                placeholder = { Text("ferngeist-gateway://pair?scheme=...") },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) },
             )
@@ -602,7 +602,7 @@ private fun ImportPairingStep(
 }
 
 @Composable
-private fun ReviewCompanionStep(
+private fun ReviewGatewayStep(
     name: String,
     onUpdateName: (String) -> Unit,
     deviceName: String,
@@ -611,9 +611,9 @@ private fun ReviewCompanionStep(
     onSelectScheme: (String) -> Unit,
     host: String,
     onUpdateHost: (String) -> Unit,
-    status: DesktopHelperStatus?,
+    status: GatewayStatus?,
     isCheckingStatus: Boolean,
-    importedPayload: DesktopHelperPairingPayload?,
+    importedPayload: GatewayPairingPayload?,
     onCheckStatus: () -> Unit,
 ) {
     importedPayload?.let { payload ->
@@ -648,11 +648,11 @@ private fun ReviewCompanionStep(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
-            DesktopCompanionProtocolSelector(selected = scheme, onSelect = onSelectScheme)
+            GatewayProtocolSelector(selected = scheme, onSelect = onSelectScheme)
             OutlinedTextField(
                 value = host,
                 onValueChange = onUpdateHost,
-                label = { Text("Desktop companion host") },
+                label = { Text("Gateway host") },
                 placeholder = { Text("192.168.1.42:5788") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -669,17 +669,17 @@ private fun ReviewCompanionStep(
                 if (isCheckingStatus) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Check desktop companion")
+                    Text("Check gateway")
                 }
             }
 
-            status?.let { CompanionStatusCard(status = it) }
+            status?.let { GatewayStatusCard(status = it) }
         }
     }
 }
 
 @Composable
-private fun ImportedPayloadCard(payload: DesktopHelperPairingPayload) {
+private fun ImportedPayloadCard(payload: GatewayPairingPayload) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
         shape = MaterialTheme.shapes.medium,
@@ -702,7 +702,7 @@ private fun ImportedPayloadCard(payload: DesktopHelperPairingPayload) {
 }
 
 @Composable
-private fun CompanionStatusCard(status: DesktopHelperStatus) {
+private fun GatewayStatusCard(status: GatewayStatus) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = MaterialTheme.shapes.medium,
@@ -778,7 +778,7 @@ private fun OnboardingBulletList(items: List<String>) {
 }
 
 @Composable
-private fun DesktopCompanionProtocolSelector(
+private fun GatewayProtocolSelector(
     selected: String,
     onSelect: (String) -> Unit,
 ) {
@@ -786,14 +786,14 @@ private fun DesktopCompanionProtocolSelector(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        CompanionProtocolOption(
+        GatewayProtocolOption(
             label = "HTTP",
             code = "http",
             isSelected = selected.equals("http", ignoreCase = true) || selected.equals("ws", ignoreCase = true),
             onClick = { onSelect("http") },
             modifier = Modifier.weight(1f),
         )
-        CompanionProtocolOption(
+        GatewayProtocolOption(
             label = "HTTPS",
             code = "https",
             isSelected = selected.equals("https", ignoreCase = true) || selected.equals("wss", ignoreCase = true),
@@ -804,7 +804,7 @@ private fun DesktopCompanionProtocolSelector(
 }
 
 @Composable
-private fun CompanionProtocolOption(
+private fun GatewayProtocolOption(
     label: String,
     code: String,
     isSelected: Boolean,
@@ -859,7 +859,7 @@ private fun CompanionProtocolOption(
     }
 }
 
-private data class CompanionPairingStep(
+private data class GatewayPairingStep(
     val title: String,
     val body: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,

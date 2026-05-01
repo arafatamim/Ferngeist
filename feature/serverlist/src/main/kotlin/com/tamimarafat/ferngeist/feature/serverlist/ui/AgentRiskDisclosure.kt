@@ -1,27 +1,23 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgent
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
 
-internal fun addAgentRiskLines(agent: DesktopHelperAgent, companionHost: String): List<String> {
-    val normalizedHost = companionHost.trim().ifBlank { "your desktop companion host" }
+internal fun addAgentRiskLines(agent: GatewayAgent, gatewayHost: String): List<String> {
+    val normalizedHost = gatewayHost.trim().ifBlank { "your gateway host" }
     return listOf(
-        "This action adds ${agent.displayName} (${agent.id}) from your desktop companion.",
+        "This action adds ${agent.displayName} (${agent.id}) from your gateway.",
         "Launching this agent runs code on $normalizedHost.",
-        "If the binary is not installed, the desktop companion may download it from the ACP registry source.",
-        "Only add agents and sources you trust.",
+        "If the binary is not installed, the gateway may download it from the ACP registry source.",
+        "Only add agents and sources you trust."
     )
 }
 
-internal fun buildLaunchConsentKey(helperSourceId: String, agentId: String): String {
-    return "$helperSourceId|$agentId"
-}
-
-internal fun launchRiskLines(serverName: String, agentId: String, companionHost: String): List<String> {
-    val normalizedHost = companionHost.trim().ifBlank { "your desktop companion host" }
+internal fun launchRiskLines(serverName: String, agentId: String, gatewayHost: String): List<String> {
+    val normalizedHost = gatewayHost.trim().ifBlank { "your gateway host" }
     return listOf(
-        "Launching $serverName starts agent '$agentId' via your desktop companion.",
+        "Launching $serverName starts agent '$agentId' via your gateway.",
         "This can execute binaries on $normalizedHost.",
-        "If required, your companion may download agent binaries from ACP registry sources.",
-        "Continue only if you trust this agent and its source.",
+        "If required, your gateway may download agent binaries from ACP registry sources.",
+        "Continue only if you trust this agent and its source."
     )
 }

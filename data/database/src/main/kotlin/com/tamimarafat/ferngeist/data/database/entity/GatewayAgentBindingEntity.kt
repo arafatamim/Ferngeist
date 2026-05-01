@@ -5,22 +5,23 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+
 @Entity(
-    tableName = "helper_agent_bindings",
+    tableName = "gateway_agent_bindings",
     foreignKeys = [
         ForeignKey(
-            entity = DesktopHelperSourceEntity::class,
+            entity = GatewaySourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["helperSourceId"],
+            childColumns = ["gatewaySourceId"],
             onDelete = ForeignKey.CASCADE,
         )
     ],
-    indices = [Index("helperSourceId")],
+    indices = [Index("gatewaySourceId")],
 )
-data class HelperAgentBindingEntity(
+data class GatewayAgentBindingEntity(
     @PrimaryKey val id: String,
     val name: String,
-    val helperSourceId: String,
+    val gatewaySourceId: String,
     val agentId: String,
     val preferredAuthMethodId: String?,
 )

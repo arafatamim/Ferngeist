@@ -12,18 +12,18 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
-import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.refreshGatewaySourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -52,7 +52,7 @@ data class SessionListPendingAuthentication(
     val preferredAuthMethodId: String? = null,
     val persistedEnvValues: Map<String, String> = emptyMap(),
     val authErrorMessage: String? = null,
-    val helperRuntimeId: String? = null,
+    val gatewayRuntimeId: String? = null,
     val pendingAction: PendingAuthAction,
 )
 
@@ -64,11 +64,11 @@ sealed interface PendingAuthAction {
 @HiltViewModel
 class SessionListViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val helperSourceRepository: DesktopHelperSourceRepository,
+    private val gatewaySourceRepository: GatewaySourceRepository,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val sessionRepository: SessionRepository,
     private val connectionManager: AcpConnectionManager,
-    private val helperRepository: DesktopHelperRepository,
+    private val gatewayRepository: GatewayRepository,
     private val authEnvValueStore: AuthEnvValueStore,
     private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
 ) : ViewModel() {
@@ -201,8 +201,8 @@ class SessionListViewModel @Inject constructor(
             _isLoading.value = true
             _pendingAuthentication.update { it?.copy(authErrorMessage = null) }
 
-            if (method.type == "env" && pending.helperRuntimeId != null) {
-                authenticateHelperEnvVar(pending, method, envValues)
+            if (method.type == "env" && pending.gatewayRuntimeId != null) {
+                authenticateGatewayEnvVar(pending, method, envValues)
                 return@launch
             }
 
@@ -251,7 +251,7 @@ class SessionListViewModel @Inject constructor(
                         )
                     }
 
-                    is LaunchableTarget.HelperAgent -> false
+                    is LaunchableTarget.GatewayAgent -> false
                 }
             }
             if (!connected) {
@@ -313,20 +313,20 @@ class SessionListViewModel @Inject constructor(
             preferredAuthMethodId = currentServer.preferredAuthMethodId,
             persistedEnvValues = loadPersistedEnvValues(currentServer.id, authError.challenge.authMethods),
             authErrorMessage = authError.challenge.message,
-            helperRuntimeId = connectionManager.currentConnectionConfig()?.helperRuntimeId,
+            gatewayRuntimeId = connectionManager.currentConnectionConfig()?.gatewayRuntimeId,
             pendingAction = action,
         )
         _isLoading.value = false
         return true
     }
 
-    private suspend fun authenticateHelperEnvVar(
+    private suspend fun authenticateGatewayEnvVar(
         pending: SessionListPendingAuthentication,
         method: AcpAuthMethodInfo,
         envValues: Map<String, String>,
     ) {
-        // Helper-backed env auth requires a fresh process environment. Restart
-        // the helper runtime with the saved values, reconnect, authenticate,
+        // Gateway-backed env auth requires a fresh process environment. Restart
+        // the gateway runtime with the saved values, reconnect, authenticate,
         // then retry the original session action.
         val currentServer = server.value ?: run {
             _pendingAuthentication.update {
@@ -335,27 +335,27 @@ class SessionListViewModel @Inject constructor(
             _isLoading.value = false
             return
         }
-        val helperTarget = currentServer as? LaunchableTarget.HelperAgent ?: run {
+        val gatewayTarget = currentServer as? LaunchableTarget.GatewayAgent ?: run {
             _pendingAuthentication.update {
-                it?.copy(authErrorMessage = "Desktop companion was not found for ${currentServer.name}.")
+                it?.copy(authErrorMessage = "Gateway was not found for ${currentServer.name}.")
             }
             _isLoading.value = false
             return
         }
-		val helperSource = withContext(Dispatchers.IO) {
-			refreshHelperSourceIfNeeded(helperTarget.helperSource, helperRepository, helperSourceRepository)
+		val gatewaySource = withContext(Dispatchers.IO) {
+			refreshGatewaySourceIfNeeded(gatewayTarget.gatewaySource, gatewayRepository, gatewaySourceRepository)
 		}
-        if (helperSource.helperCredential.isBlank()) {
+        if (gatewaySource.gatewayCredential.isBlank()) {
             _pendingAuthentication.update {
-                it?.copy(authErrorMessage = "Desktop companion is not paired.")
+                it?.copy(authErrorMessage = "Gateway is not paired.")
             }
             _isLoading.value = false
             return
         }
 
-        val runtimeId = pending.helperRuntimeId ?: run {
+        val runtimeId = pending.gatewayRuntimeId ?: run {
             _pendingAuthentication.update {
-                it?.copy(authErrorMessage = "Desktop companion runtime context is missing for ${currentServer.name}.")
+                it?.copy(authErrorMessage = "Gateway runtime context is missing for ${currentServer.name}.")
             }
             _isLoading.value = false
             return
@@ -364,10 +364,10 @@ class SessionListViewModel @Inject constructor(
         persistEnvValues(currentServer.id, method, envValues)
         val handoff = runCatching {
             withContext(Dispatchers.IO) {
-                helperRepository.restartRuntime(
-                    scheme = helperSource.scheme,
-                    host = helperSource.host,
-                    helperCredential = helperSource.helperCredential,
+                gatewayRepository.restartRuntime(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = gatewaySource.gatewayCredential,
                     runtimeId = runtimeId,
                     envVars = buildEnvPayload(method, envValues),
                 )
@@ -387,20 +387,20 @@ class SessionListViewModel @Inject constructor(
         val reconnected = withContext(Dispatchers.IO) {
             connectionManager.connect(
                 AcpConnectionConfig(
-                    scheme = helperSource.scheme,
-                    host = helperSource.host,
-                    webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    webSocketUrl = resolveGatewayWebSocketUrl(gatewaySource, handoff),
                     webSocketBearerToken = handoff.bearerToken,
                     preferredAuthMethodId = method.id,
-                    helperRuntimeId = handoff.runtimeId,
-                    helperSourceId = helperSource.id,
+                    gatewayRuntimeId = handoff.runtimeId,
+                    gatewaySourceId = gatewaySource.id,
                     serverDisplayName = currentServer.name,
                 )
             )
         }
         if (!reconnected) {
             _pendingAuthentication.update {
-                it?.copy(authErrorMessage = "Failed to reconnect to ${currentServer.name}", helperRuntimeId = handoff.runtimeId)
+                it?.copy(authErrorMessage = "Failed to reconnect to ${currentServer.name}", gatewayRuntimeId = handoff.runtimeId)
             }
             _isLoading.value = false
             return
@@ -411,7 +411,7 @@ class SessionListViewModel @Inject constructor(
         }
         if (initializeResult == null) {
             _pendingAuthentication.update {
-                it?.copy(authErrorMessage = "Failed to initialize ${currentServer.name}", helperRuntimeId = handoff.runtimeId)
+                it?.copy(authErrorMessage = "Failed to initialize ${currentServer.name}", gatewayRuntimeId = handoff.runtimeId)
             }
             _isLoading.value = false
             return
@@ -420,7 +420,7 @@ class SessionListViewModel @Inject constructor(
         when (val result = connectionManager.authenticate(method.id)) {
             is AcpAuthenticateResult.Failure -> {
                 _pendingAuthentication.update {
-                    it?.copy(authErrorMessage = result.message, helperRuntimeId = handoff.runtimeId)
+                    it?.copy(authErrorMessage = result.message, gatewayRuntimeId = handoff.runtimeId)
                 }
                 _isLoading.value = false
                 return
@@ -473,7 +473,7 @@ class SessionListViewModel @Inject constructor(
     }
 
     private fun buildEnvPayload(method: AcpAuthMethodInfo, envValues: Map<String, String>): Map<String, String> {
-        // Omit blank optional values so helper-managed restarts only inject the
+        // Omit blank optional values so gateway-managed restarts only inject the
         // variables the user actually provided.
         return buildMap {
             method.envVars.forEach { envVar ->
@@ -485,24 +485,24 @@ class SessionListViewModel @Inject constructor(
         }
     }
 
-    private fun resolveDesktopHelperWebSocketUrl(
-        helperSource: DesktopHelperSource,
-        handoff: DesktopHelperConnectResponse,
+    private fun resolveGatewayWebSocketUrl(
+        gatewaySource: GatewaySource,
+        handoff: GatewayConnectResponse,
     ): String {
         val advertisedUrl = handoff.webSocketUrl.trim()
         val advertisedHost = runCatching { URI(advertisedUrl).host?.lowercase() }.getOrNull()
-        if (advertisedHost != null && !isUnroutableHelperHost(advertisedHost)) {
+        if (advertisedHost != null && !isUnroutableGatewayHost(advertisedHost)) {
             return advertisedUrl
         }
 
-        val socketScheme = when (helperSource.scheme.lowercase()) {
+        val socketScheme = when (gatewaySource.scheme.lowercase()) {
             "https", "wss" -> "wss"
             else -> "ws"
         }
-        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}"
+        return "$socketScheme://${gatewaySource.host}${handoff.webSocketPath}"
     }
 
-    private fun isUnroutableHelperHost(host: String): Boolean {
+    private fun isUnroutableGatewayHost(host: String): Boolean {
         return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 

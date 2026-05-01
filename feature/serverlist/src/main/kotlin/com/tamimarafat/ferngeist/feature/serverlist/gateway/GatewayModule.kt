@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.serverlist.helper
+package com.tamimarafat.ferngeist.feature.serverlist.gateway
 
 import dagger.Binds
 import dagger.Module
@@ -8,11 +8,11 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class DesktopHelperModule {
+abstract class GatewayModule {
 
     @Binds
     @Singleton
-    abstract fun bindDesktopHelperRepository(
-        impl: DesktopHelperRepositoryImpl,
-    ): DesktopHelperRepository
+    abstract fun bindGatewayRepository(
+        impl: GatewayRepositoryImpl,
+    ): GatewayRepository
 }

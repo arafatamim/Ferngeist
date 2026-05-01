@@ -1,7 +1,7 @@
 package com.tamimarafat.ferngeist.core.model.repository
 
-import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
-import com.tamimarafat.ferngeist.core.model.HelperAgentBinding
+import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.ServerConfig
@@ -16,21 +16,21 @@ interface ServerRepository {
     suspend fun getServer(id: String): ServerConfig?
 }
 
-interface DesktopHelperSourceRepository {
-    fun getHelpers(): Flow<List<DesktopHelperSource>>
-    suspend fun addHelper(helper: DesktopHelperSource)
-    suspend fun updateHelper(helper: DesktopHelperSource)
-    suspend fun deleteHelper(id: String)
-    suspend fun getHelper(id: String): DesktopHelperSource?
+interface GatewaySourceRepository {
+    fun getGateways(): Flow<List<GatewaySource>>
+    suspend fun addGateway(gateway: GatewaySource)
+    suspend fun updateGateway(gateway: GatewaySource)
+    suspend fun deleteGateway(id: String)
+    suspend fun getGateway(id: String): GatewaySource?
 }
 
-interface HelperAgentBindingRepository {
-    fun getBindings(): Flow<List<HelperAgentBinding>>
-    suspend fun addBinding(binding: HelperAgentBinding)
-    suspend fun updateBinding(binding: HelperAgentBinding)
+interface GatewayAgentBindingRepository {
+    fun getBindings(): Flow<List<GatewayAgentBinding>>
+    suspend fun addBinding(binding: GatewayAgentBinding)
+    suspend fun updateBinding(binding: GatewayAgentBinding)
     suspend fun deleteBinding(id: String)
-    suspend fun getBinding(id: String): HelperAgentBinding?
-    suspend fun getBindingsForHelper(helperId: String): List<HelperAgentBinding>
+    suspend fun getBinding(id: String): GatewayAgentBinding?
+    suspend fun getBindingsForGateway(gatewayId: String): List<GatewayAgentBinding>
 }
 
 interface LaunchableTargetRepository {

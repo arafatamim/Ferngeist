@@ -1,17 +1,17 @@
-package com.tamimarafat.ferngeist.feature.serverlist.helper
+package com.tamimarafat.ferngeist.feature.serverlist.gateway
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class DesktopHelperStatus(
+data class GatewayStatus(
     val name: String,
     val version: String,
-    val remote: DesktopHelperRemoteStatus,
+    val remote: GatewayRemoteStatus,
 )
 
 @Serializable
-data class DesktopHelperRemoteStatus(
+data class GatewayRemoteStatus(
     val configured: Boolean,
     val mode: String? = null,
     val scope: String? = null,
@@ -20,7 +20,7 @@ data class DesktopHelperRemoteStatus(
 )
 
 @Serializable
-data class DesktopHelperPairCompleteRequest(
+data class GatewayPairCompleteRequest(
     @SerialName("challengeId") val challengeId: String,
     val code: String,
     @SerialName("deviceName") val deviceName: String,
@@ -28,32 +28,32 @@ data class DesktopHelperPairCompleteRequest(
 )
 
 @Serializable
-data class DesktopHelperPairCompleteResponse(
+data class GatewayPairCompleteResponse(
     @SerialName("deviceId") val deviceId: String,
     @SerialName("deviceName") val deviceName: String,
     val token: String,
     @SerialName("expiresAt") val expiresAt: String,
 )
 
-data class DesktopHelperPairingResult(
+data class GatewayPairingResult(
     val deviceId: String,
     val deviceName: String,
-    val helperCredential: String,
+    val gatewayCredential: String,
     val expiresAt: String,
 )
 
 @Serializable
-data class DesktopHelperAgentsResponse(
-    val agents: List<DesktopHelperAgent>,
+data class GatewayAgentsResponse(
+    val agents: List<GatewayAgent>,
 )
 
 @Serializable
-data class DesktopHelperAgent(
+data class GatewayAgent(
     val id: String,
     val displayName: String,
     val detected: Boolean,
     val manifestValid: Boolean,
-    val security: DesktopHelperAgentSecurity,
+    val security: GatewayAgentSecurity,
     val validationError: String? = null,
     val hint: String? = null,
     val running: Boolean = false,
@@ -62,24 +62,24 @@ data class DesktopHelperAgent(
 )
 
 @Serializable
-data class DesktopHelperAgentSecurity(
+data class GatewayAgentSecurity(
     val allowsRemoteStart: Boolean,
 )
 
 @Serializable
-data class DesktopHelperStartAgentResponse(
-    val runtime: DesktopHelperRuntime,
+data class GatewayStartAgentResponse(
+    val runtime: GatewayRuntime,
 )
 
 @Serializable
-data class DesktopHelperRuntime(
+data class GatewayRuntime(
     val id: String,
     val status: String,
     val agentId: String,
 )
 
 @Serializable
-data class DesktopHelperConnectResponse(
+data class GatewayConnectResponse(
     val runtimeId: String,
     val scheme: String,
     val host: String,
@@ -91,31 +91,31 @@ data class DesktopHelperConnectResponse(
 )
 
 @Serializable
-data class DesktopHelperRestartRequest(
+data class GatewayRestartRequest(
     val env: Map<String, String>,
 )
 
 @Serializable
-data class DesktopHelperRuntimeLogsResponse(
+data class GatewayRuntimeLogsResponse(
     val runtimeId: String,
-    val logs: List<DesktopHelperLogEntry>,
+    val logs: List<GatewayLogEntry>,
 )
 
 @Serializable
-data class DesktopHelperLogEntry(
+data class GatewayLogEntry(
     val timestamp: String,
     val stream: String,
     val message: String,
 )
 
 @Serializable
-data class DesktopHelperPairStartResponse(
+data class GatewayPairStartResponse(
     @SerialName("challengeId") val challengeId: String,
     @SerialName("expiresAt") val expiresAt: String,
 )
 
 @Serializable
-data class DesktopHelperPairStatusResponse(
+data class GatewayPairStatusResponse(
     @SerialName("challengeId") val challengeId: String,
     @SerialName("expiresAt") val expiresAt: String,
     val state: String,

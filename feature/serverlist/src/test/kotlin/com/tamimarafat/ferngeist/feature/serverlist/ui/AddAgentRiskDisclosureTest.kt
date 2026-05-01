@@ -1,7 +1,7 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgent
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgentSecurity
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgentSecurity
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -11,7 +11,7 @@ class AddAgentRiskDisclosureTest {
     fun `risk lines include host agent id and execution warning`() {
         val lines = addAgentRiskLines(
             agent = sampleAgent(),
-            companionHost = "76.13.225.224:5788",
+            gatewayHost = "76.13.225.224:5788",
         )
 
         assertTrue(lines.any { it.contains("76.13.225.224:5788") })
@@ -24,19 +24,19 @@ class AddAgentRiskDisclosureTest {
     fun `risk lines fall back when host is missing`() {
         val lines = addAgentRiskLines(
             agent = sampleAgent(),
-            companionHost = "   ",
+            gatewayHost = "   ",
         )
 
-        assertTrue(lines.any { it.contains("your desktop companion host", ignoreCase = true) })
+        assertTrue(lines.any { it.contains("your gateway host", ignoreCase = true) })
     }
 
-    private fun sampleAgent(): DesktopHelperAgent {
-        return DesktopHelperAgent(
+    private fun sampleAgent(): GatewayAgent {
+        return GatewayAgent(
             id = "mock-acp",
             displayName = "Mock ACP Agent",
             detected = true,
             manifestValid = true,
-            security = DesktopHelperAgentSecurity(allowsRemoteStart = true),
+            security = GatewayAgentSecurity(allowsRemoteStart = true),
         )
     }
 }

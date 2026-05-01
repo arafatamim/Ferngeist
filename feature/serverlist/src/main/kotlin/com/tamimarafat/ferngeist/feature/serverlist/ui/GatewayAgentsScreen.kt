@@ -50,22 +50,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.feature.serverlist.DesktopHelperAgentsViewModel
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperAgent
+import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
 
 /**
- * Displays the launchable agent inventory for one paired desktop companion and
+ * Displays the launchable agent inventory for one paired gateway and
  * lets the user add specific agents into the main server list.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun DesktopHelperAgentsScreen(
+fun GatewayAgentsScreen(
     onNavigateBack: () -> Unit,
-    viewModel: DesktopHelperAgentsViewModel,
+    viewModel: GatewayAgentsViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingAddAgent by rememberSaveable { mutableStateOf<DesktopHelperAgent?>(null) }
+    var pendingAddAgent by rememberSaveable { mutableStateOf<GatewayAgent?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { message ->
@@ -75,8 +75,8 @@ fun DesktopHelperAgentsScreen(
 
     pendingAddAgent?.let { agent ->
         var acknowledgedRisk by rememberSaveable(agent.id) { mutableStateOf(false) }
-        val companionHost = uiState.companion?.host.orEmpty()
-        val riskLines = addAgentRiskLines(agent, companionHost)
+        val gatewayHost = uiState.gateway?.host.orEmpty()
+        val riskLines = addAgentRiskLines(agent, gatewayHost)
         AlertDialog(
             onDismissRequest = { pendingAddAgent = null },
             title = { Text("Add agent to list?") },
@@ -101,7 +101,7 @@ fun DesktopHelperAgentsScreen(
                             onCheckedChange = { acknowledgedRisk = it },
                         )
                         Text(
-                            text = "I understand this may download and execute agent binaries on my companion host.",
+                            "I understand this may download and execute agent binaries on my gateway host.",
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -129,7 +129,7 @@ fun DesktopHelperAgentsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(uiState.companion?.name ?: "Companion Agents") },
+                title = { Text(uiState.gateway?.name ?: "Gateway Agents") },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
@@ -233,7 +233,7 @@ fun DesktopHelperAgentsScreen(
                         }
                         if (!alreadyAdded && !canAdd) {
                             Text(
-                                text = "This agent cannot be added because the desktop companion marked it invalid.",
+                                text = "This agent cannot be added because the gateway marked it invalid.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.serverlist.helper
+package com.tamimarafat.ferngeist.feature.serverlist.gateway
 
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsText
@@ -16,16 +16,16 @@ import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 /**
- * Small helper-control client used by the app setup flow. It intentionally
+ * Small gateway-control client used by the app setup flow. It intentionally
  * covers only status and pairing for now; runtime/agent APIs come later.
  */
-class DesktopHelperRepositoryImpl @Inject constructor(
+class GatewayRepositoryImpl @Inject constructor(
     private val httpClient: HttpClient,
     private val json: Json,
-) : DesktopHelperRepository {
+) : GatewayRepository {
 
-    override suspend fun fetchStatus(scheme: String, host: String): DesktopHelperStatus {
-        val response = httpClient.getJson<DesktopHelperStatus>(
+    override suspend fun fetchStatus(scheme: String, host: String): GatewayStatus {
+        val response = httpClient.getJson<GatewayStatus>(
             json = json,
             scheme = scheme,
             host = host,
@@ -36,7 +36,7 @@ class DesktopHelperRepositoryImpl @Inject constructor(
         return response
     }
 
-    override suspend fun startPairing(scheme: String, host: String): DesktopHelperPairStartResponse {
+    override suspend fun startPairing(scheme: String, host: String): GatewayPairStartResponse {
         return httpClient.postJson(
             json = json,
             scheme = scheme,
@@ -48,7 +48,7 @@ class DesktopHelperRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String): DesktopHelperPairStatusResponse {
+    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String): GatewayPairStatusResponse {
         return httpClient.getJson(
             json = json,
             scheme = scheme,
@@ -61,12 +61,12 @@ class DesktopHelperRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun fetchAgents(scheme: String, host: String, helperCredential: String): List<DesktopHelperAgent> {
-        val response = httpClient.getJson<DesktopHelperAgentsResponse>(
+    override suspend fun fetchAgents(scheme: String, host: String, gatewayCredential: String): List<GatewayAgent> {
+        val response = httpClient.getJson<GatewayAgentsResponse>(
             json,
             scheme,
             host,
-            helperCredential,
+            gatewayCredential,
             "v1",
             "agents",
         )
@@ -76,14 +76,14 @@ class DesktopHelperRepositoryImpl @Inject constructor(
     override suspend fun startAgent(
         scheme: String,
         host: String,
-        helperCredential: String,
+        gatewayCredential: String,
         agentId: String,
-    ): DesktopHelperRuntime {
-        val response = httpClient.postJson<DesktopHelperStartAgentResponse>(
+    ): GatewayRuntime {
+        val response = httpClient.postJson<GatewayStartAgentResponse>(
             json = json,
             scheme = scheme,
             host = host,
-            bearerToken = helperCredential,
+            bearerToken = gatewayCredential,
             "v1",
             "agents",
             agentId,
@@ -95,14 +95,14 @@ class DesktopHelperRepositoryImpl @Inject constructor(
     override suspend fun connectRuntime(
         scheme: String,
         host: String,
-        helperCredential: String,
+        gatewayCredential: String,
         runtimeId: String,
-    ): DesktopHelperConnectResponse {
+    ): GatewayConnectResponse {
         return httpClient.postJson(
             json = json,
             scheme = scheme,
             host = host,
-            bearerToken = helperCredential,
+            bearerToken = gatewayCredential,
             "v1",
             "runtimes",
             runtimeId,
@@ -113,34 +113,34 @@ class DesktopHelperRepositoryImpl @Inject constructor(
     override suspend fun restartRuntime(
         scheme: String,
         host: String,
-        helperCredential: String,
+        gatewayCredential: String,
         runtimeId: String,
         envVars: Map<String, String>,
-    ): DesktopHelperConnectResponse {
+    ): GatewayConnectResponse {
         return httpClient.postJson(
             json = json,
             scheme = scheme,
             host = host,
-            bearerToken = helperCredential,
+            bearerToken = gatewayCredential,
             "v1",
             "runtimes",
             runtimeId,
             "restart",
-            body = json.encodeToString(DesktopHelperRestartRequest(env = envVars)),
+            body = json.encodeToString(GatewayRestartRequest(env = envVars)),
         )
     }
 
     override suspend fun fetchRuntimeLogs(
         scheme: String,
         host: String,
-        helperCredential: String,
+        gatewayCredential: String,
         runtimeId: String,
-    ): List<DesktopHelperLogEntry> {
-        val response = httpClient.getJson<DesktopHelperRuntimeLogsResponse>(
+    ): List<GatewayLogEntry> {
+        val response = httpClient.getJson<GatewayRuntimeLogsResponse>(
             json = json,
             scheme = scheme,
             host = host,
-            bearerToken = helperCredential,
+            bearerToken = gatewayCredential,
             "v1",
             "runtimes",
             runtimeId,
@@ -155,9 +155,9 @@ class DesktopHelperRepositoryImpl @Inject constructor(
         challengeId: String,
         code: String,
         deviceName: String,
-    ): DesktopHelperPairingResult {
-        val proofKey = DesktopHelperProofAuth.generateProofKey()
-        val response = httpClient.postJson<DesktopHelperPairCompleteResponse>(
+    ): GatewayPairingResult {
+        val proofKey = GatewayProofAuth.generateProofKey()
+        val response = httpClient.postJson<GatewayPairCompleteResponse>(
             json = json,
             scheme = scheme,
             host = host,
@@ -166,7 +166,7 @@ class DesktopHelperRepositoryImpl @Inject constructor(
             "pair",
             "complete",
             body = json.encodeToString(
-                DesktopHelperPairCompleteRequest(
+                GatewayPairCompleteRequest(
                     challengeId = challengeId,
                     code = code,
                     deviceName = deviceName,
@@ -174,10 +174,10 @@ class DesktopHelperRepositoryImpl @Inject constructor(
                 ),
             ),
         )
-        return DesktopHelperPairingResult(
+        return GatewayPairingResult(
             deviceId = response.deviceId,
             deviceName = response.deviceName,
-            helperCredential = DesktopHelperProofAuth.encodeStoredCredential(response.token, proofKey.privateKey),
+            gatewayCredential = GatewayProofAuth.encodeStoredCredential(response.token, proofKey.privateKey),
             expiresAt = response.expiresAt,
         )
     }
@@ -185,21 +185,21 @@ class DesktopHelperRepositoryImpl @Inject constructor(
     override suspend fun refreshCredential(
 	    scheme: String,
 	    host: String,
-	    helperCredential: String,
-	): DesktopHelperPairingResult {
-	    val response = httpClient.postJson<DesktopHelperPairCompleteResponse>(
+	    gatewayCredential: String,
+	    ): GatewayPairingResult {
+	    val response = httpClient.postJson<GatewayPairCompleteResponse>(
 	        json = json,
 	        scheme = scheme,
 	        host = host,
-	        bearerToken = helperCredential,
+	        bearerToken = gatewayCredential,
 	        "v1",
 	        "auth",
 	        "refresh",
 	    )
-	    return DesktopHelperPairingResult(
+	    return GatewayPairingResult(
 	        deviceId = response.deviceId,
 	        deviceName = response.deviceName,
-	        helperCredential = DesktopHelperProofAuth.rotateStoredCredential(helperCredential, response.token),
+	        gatewayCredential = GatewayProofAuth.rotateStoredCredential(gatewayCredential, response.token),
 	        expiresAt = response.expiresAt,
 	    )
 	}
@@ -212,10 +212,10 @@ private suspend inline fun <reified T> HttpClient.getJson(
     bearerToken: String? = null,
     vararg segments: String,
 ): T {
-    val endpoint = buildHelperEndpoint(scheme, host, *segments)
+    val endpoint = buildGatewayEndpoint(scheme, host, *segments)
     val authHeaders = bearerToken?.takeIf { it.isNotBlank() }?.let {
-        DesktopHelperProofAuth.buildAuthHeaders(
-            helperCredential = it,
+        GatewayProofAuth.buildAuthHeaders(
+            gatewayCredential = it,
             method = "GET",
             endpoint = endpoint,
             body = null,
@@ -224,10 +224,10 @@ private suspend inline fun <reified T> HttpClient.getJson(
     val response = get {
         url(endpoint)
         accept(ContentType.Application.Json)
-        authHeaders?.let { applyHelperAuthHeaders(it) }
+        authHeaders?.let { applyGatewayAuthHeaders(it) }
     }
     if (!response.status.isSuccess()) {
-        throw helperRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())
+        throw gatewayRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())
     }
     return json.decodeFromString(response.bodyAsText())
 }
@@ -240,10 +240,10 @@ private suspend inline fun <reified T> HttpClient.postJson(
     vararg segments: String,
     body: String? = null,
 ): T {
-    val endpoint = buildHelperEndpoint(scheme, host, *segments)
+    val endpoint = buildGatewayEndpoint(scheme, host, *segments)
     val authHeaders = bearerToken?.takeIf { it.isNotBlank() }?.let {
-        DesktopHelperProofAuth.buildAuthHeaders(
-            helperCredential = it,
+        GatewayProofAuth.buildAuthHeaders(
+            gatewayCredential = it,
             method = "POST",
             endpoint = endpoint,
             body = body,
@@ -253,20 +253,20 @@ private suspend inline fun <reified T> HttpClient.postJson(
         url(endpoint)
         accept(ContentType.Application.Json)
         contentType(ContentType.Application.Json)
-        authHeaders?.let { applyHelperAuthHeaders(it) }
+        authHeaders?.let { applyGatewayAuthHeaders(it) }
         if (body != null) {
             setBody(body)
         }
     }
     if (!response.status.isSuccess()) {
-        throw helperRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())
+        throw gatewayRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())
     }
     return json.decodeFromString(response.bodyAsText())
 }
 
-private fun buildHelperEndpoint(scheme: String, host: String, vararg segments: String): String {
+private fun buildGatewayEndpoint(scheme: String, host: String, vararg segments: String): String {
     val normalizedScheme = normalizeControlScheme(scheme)
-    val normalizedHost = normalizeHelperHost(host)
+    val normalizedHost = normalizeGatewayHost(host)
     return "$normalizedScheme://$normalizedHost/${segments.joinToString("/")}"
 }
 
@@ -278,7 +278,7 @@ private fun normalizeControlScheme(scheme: String): String {
     }
 }
 
-private fun normalizeHelperHost(host: String): String {
+private fun normalizeGatewayHost(host: String): String {
     return host.trim()
         .removePrefix("http://")
         .removePrefix("https://")
@@ -287,17 +287,17 @@ private fun normalizeHelperHost(host: String): String {
         .trimEnd('/')
 }
 
-private fun helperRequestException(statusCode: Int, statusDescription: String, endpoint: String, responseBody: String): IllegalStateException {
+private fun gatewayRequestException(statusCode: Int, statusDescription: String, endpoint: String, responseBody: String): IllegalStateException {
     val normalizedBody = responseBody.trim()
     val statusLine = "$statusCode ${statusDescription.ifBlank { "unknown" }}".trim()
     val message = when (statusCode) {
         404 -> {
             buildString {
-                append("Desktop companion request failed: ")
+                append("Gateway request failed: ")
                 append(statusLine)
                 append(" at ")
                 append(endpoint)
-                append(". The host is reachable, but this port is not serving the Ferngeist desktop companion API.")
+                append(". The host is reachable, but this port is not serving the Ferngeist Gateway API.")
                 if (normalizedBody.isNotBlank()) {
                     append(" Response: ")
                     append(normalizedBody)
@@ -306,7 +306,7 @@ private fun helperRequestException(statusCode: Int, statusDescription: String, e
         }
         else -> {
             buildString {
-                append("Desktop companion request failed: ")
+                append("Gateway request failed: ")
                 append(statusLine)
                 append(" at ")
                 append(endpoint)
@@ -320,7 +320,7 @@ private fun helperRequestException(statusCode: Int, statusDescription: String, e
     return IllegalStateException(message)
 }
 
-private fun io.ktor.client.request.HttpRequestBuilder.applyHelperAuthHeaders(headers: DesktopHelperAuthHeaders) {
+private fun io.ktor.client.request.HttpRequestBuilder.applyGatewayAuthHeaders(headers: GatewayAuthHeaders) {
     header("Authorization", headers.authorization)
     headers.proofTimestamp?.let { header("X-Ferngeist-Proof-Timestamp", it) }
     headers.proofNonce?.let { header("X-Ferngeist-Proof-Nonce", it) }

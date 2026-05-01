@@ -521,8 +521,8 @@ private fun PendingAuthenticationDialog(
     val scrollState = rememberScrollState()
     val selectedMethod = pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
         ?: pendingAuthentication.authMethods.firstOrNull()
-    val isHelperEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntimeId != null
-    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.helperRuntimeId == null
+    val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntimeId != null
+    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntimeId == null
     val requiredEnvVarsFilled = selectedMethod
         ?.envVars
         ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
@@ -582,7 +582,7 @@ private fun PendingAuthenticationDialog(
                                     AuthenticationMethodDetails(
                                         method = method,
                                         envValues = envValues,
-                                        isHelperBacked = pendingAuthentication.helperRuntimeId != null,
+                                        isGatewayBacked = pendingAuthentication.gatewayRuntimeId != null,
                                         onOpenLink = { uriHandler.openUri(it) },
                                         onEnvValueChange = { name, value -> envValues[name] = value },
                                     )
@@ -597,7 +597,7 @@ private fun PendingAuthenticationDialog(
             TextButton(
                 enabled = when {
                     selectedMethod == null -> false
-                    isHelperEnvAuth -> requiredEnvVarsFilled
+                    isGatewayEnvAuth -> requiredEnvVarsFilled
                     else -> true
                 },
                 onClick = {
@@ -623,7 +623,7 @@ private fun PendingAuthenticationDialog(
 private fun AuthenticationMethodDetails(
     method: AcpAuthMethodInfo,
     envValues: MutableMap<String, String>,
-    isHelperBacked: Boolean,
+    isGatewayBacked: Boolean,
     onOpenLink: (String) -> Unit,
     onEnvValueChange: (String, String) -> Unit,
 ) {
@@ -642,7 +642,7 @@ private fun AuthenticationMethodDetails(
     if (method.type != "env") {
         return
     }
-    if (!isHelperBacked) {
+    if (!isGatewayBacked) {
         Text(
             text = "Set these environment variables before launching the agent, then reconnect to retry authentication.",
             style = MaterialTheme.typography.bodySmall,

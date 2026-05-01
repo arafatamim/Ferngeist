@@ -11,18 +11,19 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
-import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
-import com.tamimarafat.ferngeist.feature.serverlist.ui.buildLaunchConsentKey
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.refreshGatewaySourceIfNeeded
+
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -70,10 +71,10 @@ data class PendingAuthentication(
     val authMethods: List<AcpAuthMethodInfo>,
     val persistedEnvValues: Map<String, String> = emptyMap(),
     val authErrorMessage: String? = null,
-    val helperRuntime: PendingHelperRuntime? = null,
+    val GatewayRuntime: PendingGatewayRuntime? = null,
 )
 
-data class PendingHelperRuntime(
+data class PendingGatewayRuntime(
     val runtimeId: String,
 )
 
@@ -81,12 +82,12 @@ data class PendingLaunchConsent(
     val serverId: String,
     val serverName: String,
     val agentId: String,
-    val companionHost: String,
+    val gatewayHost: String,
 )
 
-private data class DesktopHelperLaunchContext(
+private data class GatewayLaunchContext(
     val config: AcpConnectionConfig,
-    val helperSource: DesktopHelperSource,
+    val gatewaySource: GatewaySource,
     val runtimeId: String,
 )
 
@@ -94,11 +95,11 @@ private const val LOG_TAG = "ServerListViewModel"
 
 @HiltViewModel
 class ServerListViewModel @Inject constructor(
-    private val helperSourceRepository: DesktopHelperSourceRepository,
+    private val gatewaySourceRepository: GatewaySourceRepository,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val sessionRepository: SessionRepository,
     private val connectionManager: AcpConnectionManager,
-    private val helperRepository: DesktopHelperRepository,
+    private val gatewayRepository: GatewayRepository,
     private val authEnvValueStore: AuthEnvValueStore,
     private val agentLaunchConsentStore: AgentLaunchConsentStore,
     private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
@@ -107,8 +108,8 @@ class ServerListViewModel @Inject constructor(
     val servers: StateFlow<List<LaunchableTarget>> = launchableTargetRepository.getTargets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val hasDesktopCompanions: StateFlow<Boolean> = helperSourceRepository.getHelpers()
-        .map { helpers -> helpers.isNotEmpty() }
+    val hasGateways: StateFlow<Boolean> = gatewaySourceRepository.getGateways()
+        .map { gateways -> gateways.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _uiState = MutableStateFlow(ServerListUiState())
@@ -139,9 +140,9 @@ class ServerListViewModel @Inject constructor(
      */
     fun connectAndOpenServer(server: LaunchableTarget) {
         viewModelScope.launch {
-            if (server is LaunchableTarget.HelperAgent) {
+            if (server is LaunchableTarget.GatewayAgent) {
                 val consentKey = buildLaunchConsentKey(
-                    helperSourceId = server.helperSource.id,
+                    gatewaySourceId = server.gatewaySource.id,
                     agentId = server.binding.agentId,
                 )
                 val hasConsent = withContext(Dispatchers.IO) {
@@ -154,7 +155,7 @@ class ServerListViewModel @Inject constructor(
                                 serverId = server.id,
                                 serverName = server.name,
                                 agentId = server.binding.agentId,
-                                companionHost = server.helperSource.host,
+                                gatewayHost = server.gatewaySource.host,
                             ),
                         )
                     }
@@ -162,8 +163,8 @@ class ServerListViewModel @Inject constructor(
                 }
             }
 
-            // Helper-backed agents should start from a fresh ACP transport. If we
-            // request a new helper handoff before closing the existing socket,
+            // Gateway-backed agents should start from a fresh ACP transport. If we
+            // request a new gateway handoff before closing the existing socket,
             // the old runtime can survive long enough to be reused, which some
             // stdio agents do not handle correctly on reattach.
             if (_uiState.value.connectionState !is AcpConnectionState.Disconnected) {
@@ -187,12 +188,12 @@ class ServerListViewModel @Inject constructor(
                 )
             }
 
-            val helperLaunch = when (server) {
-                is LaunchableTarget.HelperAgent -> buildDesktopHelperLaunchContext(server)
-                is LaunchableTarget.Manual -> Result.success<DesktopHelperLaunchContext?>(null)
+            val gatewayLaunch = when (server) {
+                is LaunchableTarget.GatewayAgent -> buildGatewayLaunchContext(server)
+                is LaunchableTarget.Manual -> Result.success<GatewayLaunchContext?>(null)
             }
 
-            val launchContext = helperLaunch.getOrElse { error ->
+            val launchContext = gatewayLaunch.getOrElse { error ->
                 _uiState.update {
                     it.copy(
                         connectingServerId = null,
@@ -212,7 +213,7 @@ class ServerListViewModel @Inject constructor(
                     serverDisplayName = server.name,
                 )
 
-                is LaunchableTarget.HelperAgent -> error("Helper-backed targets must launch through the helper runtime flow")
+                is LaunchableTarget.GatewayAgent -> error("Gateway-backed targets must launch through the gateway runtime flow")
             }
 
             val connected = withContext(Dispatchers.IO) {
@@ -241,7 +242,7 @@ class ServerListViewModel @Inject constructor(
             if (initializeResult == null) {
                 val initializeDetail = buildInitializeFailureMessage(
                     server = server,
-                    helperSource = launchContext?.helperSource,
+                    gatewaySource = launchContext?.gatewaySource,
                     runtimeId = launchContext?.runtimeId,
                 )
                 logConnectionFailure(server, "initialize", initializeDetail)
@@ -288,7 +289,7 @@ class ServerListViewModel @Inject constructor(
                                 authMethods = initializeResult.authMethods,
                                 persistedEnvValues = persistedEnvValues,
                                 authErrorMessage = initializeResult.authErrorMessage,
-                                helperRuntime = launchContext?.let { PendingHelperRuntime(runtimeId = it.runtimeId) },
+                                GatewayRuntime = launchContext?.let { PendingGatewayRuntime(runtimeId = it.runtimeId) },
                             ),
                             connectedServerState = it.connectedServerState?.copy(
                                 agentName = initializeResult.agentInfo.name,
@@ -316,8 +317,8 @@ class ServerListViewModel @Inject constructor(
                 )
             }
 
-            if (method.type == "env" && pending.helperRuntime != null) {
-                authenticateHelperEnvVar(
+            if (method.type == "env" && pending.GatewayRuntime != null) {
+                authenticateGatewayEnvVar(
                     pending = pending,
                     method = method,
                     envValues = envValues,
@@ -382,19 +383,19 @@ class ServerListViewModel @Inject constructor(
             val server = withContext(Dispatchers.IO) {
                 launchableTargetRepository.getTarget(serverId)
             }
-            val helperTarget = server as? LaunchableTarget.HelperAgent ?: run {
+            val gatewayTarget = server as? LaunchableTarget.GatewayAgent ?: run {
                 _uiState.update { it.copy(pendingLaunchConsent = null) }
                 return@launch
             }
             val consentKey = buildLaunchConsentKey(
-                helperSourceId = helperTarget.helperSource.id,
-                agentId = helperTarget.binding.agentId,
+                gatewaySourceId = gatewayTarget.gatewaySource.id,
+                agentId = gatewayTarget.binding.agentId,
             )
             withContext(Dispatchers.IO) {
                 agentLaunchConsentStore.setConsent(consentKey, true)
             }
             _uiState.update { it.copy(pendingLaunchConsent = null) }
-            connectAndOpenServer(helperTarget)
+            connectAndOpenServer(gatewayTarget)
         }
     }
 
@@ -415,9 +416,9 @@ class ServerListViewModel @Inject constructor(
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 val target = launchableTargetRepository.getTarget(serverId)
-                if (target is LaunchableTarget.HelperAgent) {
+                if (target is LaunchableTarget.GatewayAgent) {
                     val consentKey = buildLaunchConsentKey(
-                        helperSourceId = target.helperSource.id,
+                        gatewaySourceId = target.gatewaySource.id,
                         agentId = target.binding.agentId,
                     )
                     agentLaunchConsentStore.clearByPrefix(consentKey)
@@ -438,12 +439,12 @@ class ServerListViewModel @Inject constructor(
         _uiState.update { it.copy(showConnectionError = null) }
     }
 
-    private suspend fun authenticateHelperEnvVar(
+    private suspend fun authenticateGatewayEnvVar(
         pending: PendingAuthentication,
         method: AcpAuthMethodInfo,
         envValues: Map<String, String>,
     ) {
-        val helperRuntime = pending.helperRuntime ?: return
+        val GatewayRuntime = pending.GatewayRuntime ?: return
         val server = withContext(Dispatchers.IO) {
             launchableTargetRepository.getTarget(pending.serverId)
         } ?: run {
@@ -455,23 +456,23 @@ class ServerListViewModel @Inject constructor(
             }
             return
         }
-        val helperTarget = server as? LaunchableTarget.HelperAgent ?: run {
+        val gatewayTarget = server as? LaunchableTarget.GatewayAgent ?: run {
             _uiState.update {
                 it.copy(
                     connectingServerId = null,
-                    pendingAuthentication = pending.copy(authErrorMessage = "Desktop companion was not found for ${server.name}."),
+                    pendingAuthentication = pending.copy(authErrorMessage = "Gateway was not found for ${server.name}."),
                 )
             }
             return
         }
-        val helperSource = withContext(Dispatchers.IO) {
-            refreshHelperSourceIfNeeded(helperTarget.helperSource, helperRepository, helperSourceRepository)
+        val gatewaySource = withContext(Dispatchers.IO) {
+            refreshGatewaySourceIfNeeded(gatewayTarget.gatewaySource, gatewayRepository, gatewaySourceRepository)
         }
-        if (helperSource.helperCredential.isBlank()) {
+        if (gatewaySource.gatewayCredential.isBlank()) {
             _uiState.update {
                 it.copy(
                     connectingServerId = null,
-                    pendingAuthentication = pending.copy(authErrorMessage = "Desktop companion is not paired."),
+                    pendingAuthentication = pending.copy(authErrorMessage = "Gateway is not paired."),
                 )
             }
             return
@@ -481,11 +482,11 @@ class ServerListViewModel @Inject constructor(
         persistEnvValues(server.id, method, envValues)
         val handoff = runCatching {
             withContext(Dispatchers.IO) {
-                helperRepository.restartRuntime(
-                    scheme = helperSource.scheme,
-                    host = helperSource.host,
-                    helperCredential = helperSource.helperCredential,
-                    runtimeId = helperRuntime.runtimeId,
+                gatewayRepository.restartRuntime(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = gatewaySource.gatewayCredential,
+                    runtimeId = GatewayRuntime.runtimeId,
                     envVars = envPayload,
                 )
             }
@@ -501,7 +502,7 @@ class ServerListViewModel @Inject constructor(
 
         val updatedPending = pending.copy(
             authErrorMessage = null,
-            helperRuntime = PendingHelperRuntime(runtimeId = handoff.runtimeId),
+            GatewayRuntime = PendingGatewayRuntime(runtimeId = handoff.runtimeId),
         )
         _uiState.update { it.copy(pendingAuthentication = updatedPending) }
 
@@ -512,13 +513,13 @@ class ServerListViewModel @Inject constructor(
         val reconnected = withContext(Dispatchers.IO) {
             connectionManager.connect(
                 AcpConnectionConfig(
-                    scheme = helperSource.scheme,
-                    host = helperSource.host,
-                    webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    webSocketUrl = resolveGatewayWebSocketUrl(gatewaySource, handoff),
                     webSocketBearerToken = handoff.bearerToken,
                     preferredAuthMethodId = method.id,
-                    helperRuntimeId = handoff.runtimeId,
-                    helperSourceId = helperSource.id,
+                    gatewayRuntimeId = handoff.runtimeId,
+                    gatewaySourceId = gatewaySource.id,
                 )
             )
         }
@@ -543,7 +544,7 @@ class ServerListViewModel @Inject constructor(
         if (initializeResult == null) {
             val message = buildInitializeFailureMessage(
                 server = server,
-                helperSource = helperSource,
+                gatewaySource = gatewaySource,
                 runtimeId = handoff.runtimeId,
             )
             _uiState.update {
@@ -690,65 +691,65 @@ class ServerListViewModel @Inject constructor(
     }
 
     /**
-     * Desktop helper agents need a two-stage launch: start or reuse the helper
+     * Gateway agents need a two-stage launch: start or reuse the gateway
      * runtime, then request a runtime-scoped ACP WebSocket handoff.
      */
     /**
-     * Starts the selected helper-backed agent and converts the helper handoff
+     * Starts the selected gateway-backed agent and converts the gateway handoff
      * response into an ACP connection config Ferngeist can reconnect with later.
      */
-    private suspend fun buildDesktopHelperLaunchContext(server: LaunchableTarget.HelperAgent): Result<DesktopHelperLaunchContext> {
-        val helperSource = withContext(Dispatchers.IO) {
-            refreshHelperSourceIfNeeded(server.helperSource, helperRepository, helperSourceRepository)
+    private suspend fun buildGatewayLaunchContext(server: LaunchableTarget.GatewayAgent): Result<GatewayLaunchContext> {
+        val gatewaySource = withContext(Dispatchers.IO) {
+            refreshGatewaySourceIfNeeded(server.gatewaySource, gatewayRepository, gatewaySourceRepository)
         }
-        if (helperSource.helperCredential.isBlank()) {
-            return Result.failure(IllegalStateException("Desktop companion is not paired"))
+        if (gatewaySource.gatewayCredential.isBlank()) {
+            return Result.failure(IllegalStateException("Gateway is not paired"))
         }
 
         return runCatching {
             val runtime = withContext(Dispatchers.IO) {
-                helperRepository.startAgent(
-                    scheme = helperSource.scheme,
-                    host = helperSource.host,
-                    helperCredential = helperSource.helperCredential,
+                gatewayRepository.startAgent(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = gatewaySource.gatewayCredential,
                     agentId = server.binding.agentId,
                 )
             }
             val handoff = withContext(Dispatchers.IO) {
-                helperRepository.connectRuntime(
-                    scheme = helperSource.scheme,
-                    host = helperSource.host,
-                    helperCredential = helperSource.helperCredential,
+                gatewayRepository.connectRuntime(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = gatewaySource.gatewayCredential,
                     runtimeId = runtime.id,
                 )
             }
-            DesktopHelperLaunchContext(
+            GatewayLaunchContext(
                 config = AcpConnectionConfig(
-                    scheme = helperSource.scheme,
-                    host = helperSource.host,
-                    webSocketUrl = resolveDesktopHelperWebSocketUrl(helperSource, handoff),
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    webSocketUrl = resolveGatewayWebSocketUrl(gatewaySource, handoff),
                     webSocketBearerToken = handoff.bearerToken,
                     preferredAuthMethodId = server.preferredAuthMethodId,
-                    helperRuntimeId = runtime.id,
-                    helperSourceId = helperSource.id,
+                    gatewayRuntimeId = runtime.id,
+                    gatewaySourceId = gatewaySource.id,
                     serverDisplayName = server.name,
                 ),
-                helperSource = helperSource,
+                gatewaySource = gatewaySource,
                 runtimeId = runtime.id,
             )
         }
     }
 
     /**
-     * Helper-backed initialize failures can happen after the helper has already
+     * Gateway-backed initialize failures can happen after the gateway has already
      * successfully started and handed off the runtime. Surface the recorded ACP
-     * initialization error and, when available, the last helper runtime stderr
+     * initialization error and, when available, the last gateway runtime stderr
      * or ACP stdout line so the user sees the real agent failure instead of the
      * generic session initialization message.
      */
     private suspend fun buildInitializeFailureMessage(
         server: LaunchableTarget,
-        helperSource: DesktopHelperSource?,
+        gatewaySource: GatewaySource?,
         runtimeId: String?,
     ): String {
         val diagnosticMessage = connectionManager.diagnostics.value.recentErrors
@@ -757,18 +758,18 @@ class ServerListViewModel @Inject constructor(
             ?.takeIf { it.isNotBlank() }
             ?: "Failed to initialize session with ${server.name}"
 
-        if (helperSource == null || runtimeId.isNullOrBlank() || helperSource.helperCredential.isBlank()) {
+        if (gatewaySource == null || runtimeId.isNullOrBlank() || gatewaySource.gatewayCredential.isBlank()) {
             return diagnosticMessage
         }
 
         val runtimeHint = runCatching {
             val refreshedSource = withContext(Dispatchers.IO) {
-                refreshHelperSourceIfNeeded(helperSource, helperRepository, helperSourceRepository)
+                refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
             }
-            helperRepository.fetchRuntimeLogs(
+            gatewayRepository.fetchRuntimeLogs(
                 scheme = refreshedSource.scheme,
                 host = refreshedSource.host,
-                helperCredential = refreshedSource.helperCredential,
+                gatewayCredential = refreshedSource.gatewayCredential,
                 runtimeId = runtimeId,
             )
         }.getOrNull()
@@ -782,7 +783,7 @@ class ServerListViewModel @Inject constructor(
         if (runtimeHint.isNullOrBlank() || diagnosticMessage.contains(runtimeHint, ignoreCase = true)) {
             return diagnosticMessage
         }
-        return "$diagnosticMessage\nDesktop companion runtime: $runtimeHint"
+        return "$diagnosticMessage\nGateway runtime: $runtimeHint"
     }
 
     private fun shortInitializeFailureMessage(server: LaunchableTarget): String {
@@ -796,30 +797,30 @@ class ServerListViewModel @Inject constructor(
     }
 
     /**
-     * Helper handoff URLs are convenient, but some helper deployments advertise
+     * Gateway handoff URLs are convenient, but some gateway deployments advertise
      * wildcard or loopback hosts that are not reachable from Android. When that
-     * happens, rebuild the socket URL from the paired helper host plus the
-     * runtime-specific path returned by the helper. Runtime auth stays in the
+     * happens, rebuild the socket URL from the paired gateway host plus the
+     * runtime-specific path returned by the gateway. Runtime auth stays in the
      * websocket Authorization header.
      */
-    private fun resolveDesktopHelperWebSocketUrl(
-        helperSource: DesktopHelperSource,
-        handoff: com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse,
+    private fun resolveGatewayWebSocketUrl(
+        gatewaySource: GatewaySource,
+        handoff: GatewayConnectResponse,
     ): String {
         val advertisedUrl = handoff.webSocketUrl.trim()
         val advertisedHost = runCatching { URI(advertisedUrl).host?.lowercase() }.getOrNull()
-        if (advertisedHost != null && !isUnroutableHelperHost(advertisedHost)) {
+        if (advertisedHost != null && !isUnroutableGatewayHost(advertisedHost)) {
             return advertisedUrl
         }
 
-        val socketScheme = when (helperSource.scheme.lowercase()) {
+        val socketScheme = when (gatewaySource.scheme.lowercase()) {
             "https", "wss" -> "wss"
             else -> "ws"
         }
-        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}"
+        return "$socketScheme://${gatewaySource.host}${handoff.webSocketPath}"
     }
 
-    private fun isUnroutableHelperHost(host: String): Boolean {
+    private fun isUnroutableGatewayHost(host: String): Boolean {
         return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
@@ -832,6 +833,8 @@ class ServerListViewModel @Inject constructor(
         )
     }
 }
+
+private fun buildLaunchConsentKey(gatewaySourceId: String, agentId: String): String = "$gatewaySourceId:$agentId"
 
 sealed interface ServerListEvent {
     data class NavigateToSessions(

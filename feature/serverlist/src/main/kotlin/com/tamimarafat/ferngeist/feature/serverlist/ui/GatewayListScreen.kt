@@ -43,28 +43,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
-import com.tamimarafat.ferngeist.feature.serverlist.DesktopCompanionListViewModel
+import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
 
 /**
- * Shows paired desktop companions only. Launchable helper-backed agents are
- * managed from the companion detail flow, not shown directly on this screen.
+ * Shows paired gateways only. Launchable gateway-backed agents are
+ * managed from the gateway detail flow, not shown directly on this screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DesktopCompanionListScreen(
+fun GatewayListScreen(
     onNavigateBack: () -> Unit,
     onPairAnother: () -> Unit,
-    onEditCompanion: (DesktopHelperSource) -> Unit,
-    onOpenCompanionAgents: (String) -> Unit,
-    viewModel: DesktopCompanionListViewModel,
+    onEditGateway: (GatewaySource) -> Unit,
+    onOpenGatewayAgents: (String) -> Unit,
+    viewModel: GatewayListViewModel,
 ) {
-    val companions by viewModel.companions.collectAsState()
+    val gateways by viewModel.gateways.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Desktop Companions") },
+                title = { Text("Ferngeist Gateways") },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
@@ -85,12 +85,12 @@ fun DesktopCompanionListScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(companions, key = { it.id }) { companion ->
-                DesktopCompanionCard(
-                    companion = companion,
-                    onOpenCompanionAgents = { onOpenCompanionAgents(companion.id) },
-                    onEditCompanion = { onEditCompanion(companion) },
-                    onDeleteCompanion = { viewModel.deleteCompanion(companion) },
+            items(gateways, key = { it.id }) { gateway ->
+                GatewayCard(
+                    gateway = gateway,
+                    onOpenGatewayAgents = { onOpenGatewayAgents(gateway.id) },
+                    onEditGateway = { onEditGateway(gateway) },
+                    onDeleteGateway = { viewModel.deleteGateway(gateway) },
                 )
             }
         }
@@ -99,18 +99,18 @@ fun DesktopCompanionListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun DesktopCompanionCard(
-    companion: DesktopHelperSource,
-    onOpenCompanionAgents: () -> Unit,
-    onEditCompanion: () -> Unit,
-    onDeleteCompanion: () -> Unit,
+private fun GatewayCard(
+    gateway: GatewaySource,
+    onOpenGatewayAgents: () -> Unit,
+    onEditGateway: () -> Unit,
+    onDeleteGateway: () -> Unit,
 ) {
     var showActionsMenu by rememberSaveable { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val cardCornerRadius by animateDpAsState(
         targetValue = if (isPressed) 28.dp else 20.dp,
-        label = "desktopCompanionCardCornerRadius",
+        label = "gatewayCardCornerRadius",
     )
 
     Box(modifier = Modifier.fillMaxWidth()) {
@@ -121,7 +121,7 @@ private fun DesktopCompanionCard(
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = null,
-                    onClick = onOpenCompanionAgents,
+                    onClick = onOpenGatewayAgents,
                     onLongClick = { showActionsMenu = true },
                 ),
         ) {
@@ -129,13 +129,13 @@ private fun DesktopCompanionCard(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(companion.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(gateway.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = "${companion.scheme}://${companion.host}",
+                    text = "${gateway.scheme}://${gateway.host}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                companion.helperRemoteMode?.let {
+                gateway.gatewayRemoteMode?.let {
                     Text(
                         text = "Remote mode: $it",
                         style = MaterialTheme.typography.bodySmall,
@@ -157,14 +157,14 @@ private fun DesktopCompanionCard(
                     text = { Text("Edit") },
                     onClick = {
                         showActionsMenu = false
-                        onEditCompanion()
+                        onEditGateway()
                     },
                 )
                 DropdownMenuItem(
                     text = { Text("Delete") },
                     onClick = {
                         showActionsMenu = false
-                        onDeleteCompanion()
+                        onDeleteGateway()
                     }
                 )
             }

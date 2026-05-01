@@ -14,13 +14,13 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.DesktopHelperSource
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.repository.DesktopHelperSourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperConnectResponse
-import com.tamimarafat.ferngeist.feature.serverlist.helper.DesktopHelperRepository
-import com.tamimarafat.ferngeist.feature.serverlist.helper.refreshHelperSourceIfNeeded
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.feature.serverlist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -35,8 +35,8 @@ internal class ChatSessionCoordinator(
     private val scope: CoroutineScope,
     private val connectionManager: AcpConnectionManager,
     private val launchableTargetRepository: LaunchableTargetRepository,
-    private val helperSourceRepository: DesktopHelperSourceRepository,
-    private val helperRepository: DesktopHelperRepository,
+    private val gatewaySourceRepository: GatewaySourceRepository,
+    private val gatewayRepository: GatewayRepository,
     private val serverId: String,
     private val initialSessionId: String,
     private val cwd: String,
@@ -277,8 +277,8 @@ internal class ChatSessionCoordinator(
             return false
         }
         val connected = when (server) {
-            is LaunchableTarget.HelperAgent -> {
-                val config = buildHelperConnectionConfig(server) ?: return false
+            is LaunchableTarget.GatewayAgent -> {
+                val config = buildGatewayConnectionConfig(server) ?: return false
                 connectionManager.connect(config)
             }
 
@@ -312,34 +312,34 @@ internal class ChatSessionCoordinator(
         }
     }
 
-    private suspend fun buildHelperConnectionConfig(target: LaunchableTarget.HelperAgent): AcpConnectionConfig? {
-        val helperSource = target.helperSource
-        if (helperSource.helperCredential.isBlank()) {
-            callbacks.onLoadFailed("Desktop companion is not paired for ${target.name}.")
+    private suspend fun buildGatewayConnectionConfig(target: LaunchableTarget.GatewayAgent): AcpConnectionConfig? {
+        val gatewaySource = target.gatewaySource
+        if (gatewaySource.gatewayCredential.isBlank()) {
+            callbacks.onLoadFailed("Gateway is not paired for ${target.name}.")
             return null
         }
         return try {
-            val refreshedSource = refreshHelperSourceIfNeeded(helperSource, helperRepository, helperSourceRepository)
-            val runtime = helperRepository.startAgent(
+            val refreshedSource = refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
+            val runtime = gatewayRepository.startAgent(
                 scheme = refreshedSource.scheme,
                 host = refreshedSource.host,
-                helperCredential = refreshedSource.helperCredential,
+                gatewayCredential = refreshedSource.gatewayCredential,
                 agentId = target.binding.agentId,
             )
-            val handoff = helperRepository.connectRuntime(
+            val handoff = gatewayRepository.connectRuntime(
                 scheme = refreshedSource.scheme,
                 host = refreshedSource.host,
-                helperCredential = refreshedSource.helperCredential,
+                gatewayCredential = refreshedSource.gatewayCredential,
                 runtimeId = runtime.id,
             )
             AcpConnectionConfig(
                 scheme = refreshedSource.scheme,
                 host = refreshedSource.host,
-                webSocketUrl = resolveDesktopHelperWebSocketUrl(refreshedSource, handoff),
+                webSocketUrl = resolveGatewayWebSocketUrl(refreshedSource, handoff),
                 webSocketBearerToken = handoff.bearerToken,
                 preferredAuthMethodId = target.binding.preferredAuthMethodId,
-                helperRuntimeId = runtime.id,
-                helperSourceId = refreshedSource.id,
+                gatewayRuntimeId = runtime.id,
+                gatewaySourceId = refreshedSource.id,
                 serverDisplayName = target.name,
             )
         } catch (error: Throwable) {
@@ -348,24 +348,24 @@ internal class ChatSessionCoordinator(
         }
     }
 
-    private fun resolveDesktopHelperWebSocketUrl(
-        helperSource: DesktopHelperSource,
-        handoff: DesktopHelperConnectResponse,
+    private fun resolveGatewayWebSocketUrl(
+        gatewaySource: GatewaySource,
+        handoff: GatewayConnectResponse,
     ): String {
         val advertisedUrl = handoff.webSocketUrl.trim()
         val advertisedHost = runCatching { URI(advertisedUrl).host?.lowercase() }.getOrNull()
-        if (advertisedHost != null && !isUnroutableHelperHost(advertisedHost)) {
+        if (advertisedHost != null && !isUnroutableGatewayHost(advertisedHost)) {
             return advertisedUrl
         }
 
-        val socketScheme = when (helperSource.scheme.lowercase()) {
+        val socketScheme = when (gatewaySource.scheme.lowercase()) {
             "https", "wss" -> "wss"
             else -> "ws"
         }
-        return "$socketScheme://${helperSource.host}${handoff.webSocketPath}"
+        return "$socketScheme://${gatewaySource.host}${handoff.webSocketPath}"
     }
 
-    private fun isUnroutableHelperHost(host: String): Boolean {
+    private fun isUnroutableGatewayHost(host: String): Boolean {
         return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
