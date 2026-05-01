@@ -3,6 +3,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?color=4DB6AC&style=flat-square)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/github/v/release/arafatamim/ferngeist?color=4DB6AC&style=flat-square)](https://github.com/arafatamim/ferngeist/releases/latest)
 
+> **Starting September 2026, a silent update pushed by Google will block every Android app whose developer hasn't registered, signed Google's contract, paid up, and handed over government ID.**
+>
+> If you care about the open Android ecosystem, visit [Keep Android Open](https://keepandroidopen.org) to learn more.
+
 Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compatible coding agents, paired with an optional [Ferngeist ACP Gateway](https://github.com/arafatamim/ferngeist-acp-gateway) that auto-detects local agents and exposes a single authenticated endpoint to the app.
 
 ## Download
