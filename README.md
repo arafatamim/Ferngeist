@@ -13,7 +13,7 @@ Ferngeist is currently in **closed testing** on Google Play. To install:
 2. Opt-in to the test: [ferngeist on Play Store (testing)](https://play.google.com/apps/testing/com.tamimarafat.ferngeist)
 3. Download:
 
-[![Google Play](https://github.com/pioug/google-play-badges/raw/refs/heads/main/svg/en.svg)](https://play.google.com/store/apps/details?id=com.tamimarafat.ferngeist)
+<a href="https://play.google.com/store/apps/details?id=com.tamimarafat.ferngeist"><img alt="Google Play" src="https://github.com/pioug/google-play-badges/raw/refs/heads/main/svg/en.svg" width="200" /></a>
 
 Alternatively, download the APK from [GitHub Releases](https://github.com/arafatamim/ferngeist/releases/latest) (manual updates only — Play Store is recommended for auto-updates).
 
