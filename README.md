@@ -115,3 +115,7 @@ Bug reports and feature requests welcome on [GitHub Issues](https://github.com/a
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Privacy Policy
+
+See [Privacy Policy](docs/privacy_policy.md).
