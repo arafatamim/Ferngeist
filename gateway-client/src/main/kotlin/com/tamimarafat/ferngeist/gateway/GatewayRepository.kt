@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.serverlist.gateway
+package com.tamimarafat.ferngeist.gateway
 
 interface GatewayRepository {
     suspend fun fetchStatus(scheme: String, host: String): GatewayStatus

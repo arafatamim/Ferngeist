@@ -7,9 +7,9 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.refreshGatewaySourceIfNeeded
+import com.tamimarafat.ferngeist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow

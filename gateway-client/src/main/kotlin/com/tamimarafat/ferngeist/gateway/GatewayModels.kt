@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.serverlist.gateway
+package com.tamimarafat.ferngeist.gateway
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

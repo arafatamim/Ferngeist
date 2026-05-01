@@ -61,8 +61,8 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayload
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayStatus
+import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
+import com.tamimarafat.ferngeist.gateway.GatewayStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -221,7 +221,7 @@ fun AddGatewayScreen(
                             importedPayload = uiState.importedPairingPayload,
                             onUpdatePayload = { value ->
                                 viewModel.updatePairingQrPayload(value)
-                                val parsed = com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayloadParser.parse(value)
+                                val parsed = com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser.parse(value)
                                 if (parsed != null) {
                                     viewModel.applyPairingPayload()
                                 }
@@ -254,7 +254,7 @@ fun AddGatewayScreen(
                                                 viewModel.showMessage("QR code was empty")
                                                 return@addOnSuccessListener
                                             }
-                                            val parsed = com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayloadParser.parse(raw)
+                                            val parsed = com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser.parse(raw)
                                             if (parsed == null) {
                                                 viewModel.showMessage("QR does not contain a valid pairing payload")
                                                 return@addOnSuccessListener

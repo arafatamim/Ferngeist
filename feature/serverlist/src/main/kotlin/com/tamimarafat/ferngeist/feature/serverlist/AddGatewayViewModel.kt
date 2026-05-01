@@ -6,10 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayload
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayPairingPayloadParser
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayStatus
+import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
+import com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -39,6 +39,7 @@ dependencies {
     implementation(projects.core.common)
     implementation(projects.data.database)
     implementation(projects.acpBridge)
+    implementation(projects.gatewayClient)
 
     // === Android ===
     implementation(libs.androidx.core.ktx)

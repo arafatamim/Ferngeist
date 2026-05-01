@@ -20,9 +20,11 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSe
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayConnectResponse
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.refreshGatewaySourceIfNeeded
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
+import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
+import com.tamimarafat.ferngeist.gateway.isUnroutableGatewayHost
 
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +39,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.URI
 import javax.inject.Inject
 
 /**
@@ -794,34 +795,6 @@ class ServerListViewModel @Inject constructor(
         runCatching {
             Log.e(LOG_TAG, "${server.name} $phase failed\n$message")
         }
-    }
-
-    /**
-     * Gateway handoff URLs are convenient, but some gateway deployments advertise
-     * wildcard or loopback hosts that are not reachable from Android. When that
-     * happens, rebuild the socket URL from the paired gateway host plus the
-     * runtime-specific path returned by the gateway. Runtime auth stays in the
-     * websocket Authorization header.
-     */
-    private fun resolveGatewayWebSocketUrl(
-        gatewaySource: GatewaySource,
-        handoff: GatewayConnectResponse,
-    ): String {
-        val advertisedUrl = handoff.webSocketUrl.trim()
-        val advertisedHost = runCatching { URI(advertisedUrl).host?.lowercase() }.getOrNull()
-        if (advertisedHost != null && !isUnroutableGatewayHost(advertisedHost)) {
-            return advertisedUrl
-        }
-
-        val socketScheme = when (gatewaySource.scheme.lowercase()) {
-            "https", "wss" -> "wss"
-            else -> "ws"
-        }
-        return "$socketScheme://${gatewaySource.host}${handoff.webSocketPath}"
-    }
-
-    private fun isUnroutableGatewayHost(host: String): Boolean {
-        return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
     private suspend fun openConnectedServer(serverId: String) {

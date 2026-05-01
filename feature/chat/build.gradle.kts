@@ -40,7 +40,7 @@ dependencies {
     implementation(projects.core.model)
     implementation(projects.core.common)
     implementation(projects.acpBridge)
-    implementation(projects.feature.serverlist)
+    implementation(projects.gatewayClient)
 
     // === Android ===
     implementation(libs.androidx.core.ktx)

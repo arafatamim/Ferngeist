@@ -38,6 +38,7 @@ dependencies {
     implementation(projects.core.common)
     implementation(projects.data.database)
     implementation(projects.acpBridge)
+    implementation(projects.gatewayClient)
     implementation(projects.feature.serverlist)
 
     // === Android ===

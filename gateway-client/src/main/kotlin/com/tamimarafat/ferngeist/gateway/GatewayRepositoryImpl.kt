@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.serverlist.gateway
+package com.tamimarafat.ferngeist.gateway
 
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsText
@@ -15,10 +15,6 @@ import io.ktor.http.path
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
-/**
- * Small gateway-control client used by the app setup flow. It intentionally
- * covers only status and pairing for now; runtime/agent APIs come later.
- */
 class GatewayRepositoryImpl @Inject constructor(
     private val httpClient: HttpClient,
     private val json: Json,

@@ -51,7 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.gateway.GatewayAgent
 
 /**
  * Displays the launchable agent inventory for one paired gateway and

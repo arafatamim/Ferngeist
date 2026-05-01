@@ -1,7 +1,7 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgentSecurity
+import com.tamimarafat.ferngeist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.gateway.GatewayAgentSecurity
 import org.junit.Assert.assertTrue
 import org.junit.Test
 

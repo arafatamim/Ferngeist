@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.gateway.GatewayAgent
 
 internal fun addAgentRiskLines(agent: GatewayAgent, gatewayHost: String): List<String> {
     val normalizedHost = gatewayHost.trim().ifBlank { "your gateway host" }

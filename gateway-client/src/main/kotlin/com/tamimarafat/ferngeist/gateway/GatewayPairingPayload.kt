@@ -1,14 +1,9 @@
-package com.tamimarafat.ferngeist.feature.serverlist.gateway
+package com.tamimarafat.ferngeist.gateway
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.URLDecoder
 
-/**
- * Parsed pairing payload shared by QR scans and manual paste flows. The gateway
- * now emits this payload from `ferngeist pair`, so Android expects it to carry
- * host details plus the one-time pairing challenge metadata.
- */
 data class GatewayPairingPayload(
     val scheme: String,
     val host: String,

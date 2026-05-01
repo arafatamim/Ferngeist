@@ -18,9 +18,11 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayConnectResponse
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.feature.serverlist.gateway.refreshGatewaySourceIfNeeded
+import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
+import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
+import com.tamimarafat.ferngeist.gateway.isUnroutableGatewayHost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -29,7 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.net.URI
+
 
 internal class ChatSessionCoordinator(
     private val scope: CoroutineScope,
@@ -346,27 +348,6 @@ internal class ChatSessionCoordinator(
             callbacks.onLoadFailed("Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}")
             null
         }
-    }
-
-    private fun resolveGatewayWebSocketUrl(
-        gatewaySource: GatewaySource,
-        handoff: GatewayConnectResponse,
-    ): String {
-        val advertisedUrl = handoff.webSocketUrl.trim()
-        val advertisedHost = runCatching { URI(advertisedUrl).host?.lowercase() }.getOrNull()
-        if (advertisedHost != null && !isUnroutableGatewayHost(advertisedHost)) {
-            return advertisedUrl
-        }
-
-        val socketScheme = when (gatewaySource.scheme.lowercase()) {
-            "https", "wss" -> "wss"
-            else -> "ws"
-        }
-        return "$socketScheme://${gatewaySource.host}${handoff.webSocketPath}"
-    }
-
-    private fun isUnroutableGatewayHost(host: String): Boolean {
-        return host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
     private fun bindSessionBridge(bridge: SessionBridge) {
