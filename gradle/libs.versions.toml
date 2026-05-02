@@ -42,11 +42,12 @@ ktor = "3.4.3"
 
 # Turbine for Flow testing
 turbine = "1.2.1"
+mockk = "1.14.9"
 material3 = "1.5.0-alpha18"
 markdownRenderer = "0.40.2"
 annotationJvm = "1.10.0"
 securityCrypto = "1.1.0"
-datastorePreferences = "1.1.4"
+datastorePreferences = "1.2.1"
 
 [libraries]
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashScreen" }
@@ -99,6 +100,7 @@ play-services-code-scanner = { group = "com.google.android.gms", name = "play-se
 
 # Turbine
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 multiplatform-markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer", version.ref = "markdownRenderer" }
 multiplatform-markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
 androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }

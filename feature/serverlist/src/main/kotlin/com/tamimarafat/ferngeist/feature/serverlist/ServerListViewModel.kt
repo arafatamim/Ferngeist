@@ -143,6 +143,15 @@ class ServerListViewModel
          */
         fun connectAndOpenServer(server: LaunchableTarget) {
             viewModelScope.launch {
+                // REUSE GUARD: If already connected to this server (and no pending auth), skip re-connection
+                if (_uiState.value.connectedServerState?.serverId == server.id &&
+                    connectionManager.isConnected &&
+                    _uiState.value.pendingAuthentication == null
+                ) {
+                    openConnectedServer(server.id)
+                    return@launch
+                }
+
                 if (server is LaunchableTarget.GatewayAgent) {
                     val consentKey =
                         buildLaunchConsentKey(
