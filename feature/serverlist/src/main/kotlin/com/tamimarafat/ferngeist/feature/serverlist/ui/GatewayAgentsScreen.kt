@@ -47,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -196,6 +197,7 @@ fun GatewayAgentsScreen(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
                             .then(
                                 if (canAdd) {
                                     Modifier.clickable { pendingAddAgent = agent }

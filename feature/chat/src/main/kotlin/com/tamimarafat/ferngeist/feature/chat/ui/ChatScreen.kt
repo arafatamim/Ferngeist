@@ -1238,7 +1238,8 @@ private fun ChatTopBarTitle(
                 text = sessionTitle,
                 style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                softWrap = true,
+                overflow = TextOverflow.MiddleEllipsis,
                 modifier =
                     Modifier
                         .then(
@@ -1272,7 +1273,7 @@ private fun ChatTopBarTitle(
                     text = sessionTitle,
                     style = MaterialTheme.typography.titleSmall.copy(fontFamily = FontFamily.Monospace),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.MiddleEllipsis,
                     modifier =
                         Modifier
                             .padding(horizontal = 16.dp, vertical = 8.dp)

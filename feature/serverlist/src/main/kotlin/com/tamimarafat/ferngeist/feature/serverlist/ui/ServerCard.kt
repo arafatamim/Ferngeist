@@ -135,6 +135,7 @@ internal fun ServerCard(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
                     .combinedClickable(
                         enabled = !connectionState.isConnecting,
                         onClick = onClick,

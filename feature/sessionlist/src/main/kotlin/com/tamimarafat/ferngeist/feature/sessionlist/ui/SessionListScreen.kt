@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -750,7 +751,8 @@ private fun SessionCard(
                         enter = fadeIn(),
                         exit = fadeOut(),
                         resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                    ).fillMaxWidth()
+                    )                    .fillMaxWidth()
+                    .clip(CardDefaults.shape)
                     .clickable(onClick = onClick),
             colors =
                 CardDefaults.cardColors(
@@ -770,7 +772,7 @@ private fun SessionCard(
                         text = session.title ?: "Untitled Session",
                         style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.MiddleEllipsis,
                         modifier =
                             Modifier.sharedBounds(
                                 sharedContentState =
@@ -789,7 +791,7 @@ private fun SessionCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = TextOverflow.MiddleEllipsis,
                         )
                     }
                 }

@@ -17,14 +17,11 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
-
-private val ConnectedDotColor = Color(0xFF2E7D32)
 
 /**
  * Floating pill showing the ACP connection state as a colored dot (or loading spinner).
@@ -32,7 +29,7 @@ private val ConnectedDotColor = Color(0xFF2E7D32)
  * The pill is a circular [FilledTonalButton] with [secondaryContainer] color.
  * [connectionState] determines the inner indicator:
  * - [AcpConnectionState.Connecting] → [CircularProgressIndicator] (12dp)
- * - [AcpConnectionState.Connected] → green dot ([ConnectedDotColor])
+ * - [AcpConnectionState.Connected] → [MaterialTheme.colorScheme.primary] dot
  * - [AcpConnectionState.Failed] → [MaterialTheme.colorScheme.error] dot
  * - [AcpConnectionState.Disconnected] → [MaterialTheme.colorScheme.outlineVariant] dot
  *
@@ -82,7 +79,7 @@ fun ConnectionStatusPill(
                 is AcpConnectionState.Connected ->
                     Surface(
                         shape = CircleShape,
-                        color = ConnectedDotColor,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(10.dp),
                     ) {}
 
