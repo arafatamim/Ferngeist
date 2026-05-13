@@ -128,6 +128,7 @@ class ChatViewModelTest {
                 }
 
             val viewModel = createViewModel(chatScrollStateStore = chatScrollStateStore)
+            advanceUntilIdle()
 
             assertTrue(viewModel.state.value.restoredScrollSnapshot != null)
             assertFalse(
@@ -299,12 +300,12 @@ private class FakeGatewayRepository : GatewayRepository {
 private class InMemoryChatScrollStateStore : ChatScrollStateStore {
     private val entries = linkedMapOf<Pair<String, String>, ChatScrollSnapshot>()
 
-    override fun restore(
+    override suspend fun restore(
         serverId: String,
         sessionId: String,
     ): ChatScrollSnapshot? = entries[serverId to sessionId]
 
-    override fun save(
+    override suspend fun save(
         serverId: String,
         sessionId: String,
         snapshot: ChatScrollSnapshot,
@@ -312,7 +313,7 @@ private class InMemoryChatScrollStateStore : ChatScrollStateStore {
         entries[serverId to sessionId] = snapshot
     }
 
-    override fun clear(
+    override suspend fun clear(
         serverId: String,
         sessionId: String,
     ) {

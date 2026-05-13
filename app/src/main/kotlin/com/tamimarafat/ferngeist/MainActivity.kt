@@ -44,6 +44,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import kotlinx.coroutines.flow.first
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
@@ -122,12 +123,19 @@ fun FerngeistNavHost() {
 
     val context = LocalContext.current
     val batteryPrefs = remember(context) { BatteryOptimizationPreferences(context) }
-    val isDismissed by batteryPrefs.isDismissed.collectAsState()
+    val isDismissed by batteryPrefs.isDismissed.collectAsState(initial = false)
+    var dismissLoaded by remember { mutableStateOf(false) }
     var showBatteryDialog by remember { mutableStateOf(false) }
     val connectionManager = (context.applicationContext as FerngeistApplication).connectionManager
     val connectionState by connectionManager.connectionState.collectAsState()
 
-    LaunchedEffect(connectionState, isDismissed) {
+    LaunchedEffect(batteryPrefs) {
+        batteryPrefs.isDismissed.first()
+        dismissLoaded = true
+    }
+
+    LaunchedEffect(connectionState, isDismissed, dismissLoaded) {
+        if (!dismissLoaded) return@LaunchedEffect
         val shouldShow =
             connectionState is AcpConnectionState.Connected &&
                 !isDismissed &&

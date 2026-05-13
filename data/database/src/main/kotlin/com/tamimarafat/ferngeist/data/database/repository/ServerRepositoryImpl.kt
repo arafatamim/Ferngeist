@@ -54,7 +54,7 @@ class ServerRepositoryImpl(
         }
     }
 
-    private fun toDomainOrCleanUp(entity: ServerEntity): ServerConfig? {
+    private suspend fun toDomainOrCleanUp(entity: ServerEntity): ServerConfig? {
         val tokenKey = CredentialEncryptor.serverTokenKey(entity.id)
         return try {
             ServerConfig(
@@ -74,7 +74,7 @@ class ServerRepositoryImpl(
         }
     }
 
-    private fun ServerConfig.toEntity(): ServerEntity {
+    private suspend fun ServerConfig.toEntity(): ServerEntity {
         val tokenKey = CredentialEncryptor.serverTokenKey(id)
         return ServerEntity(
             id = id,

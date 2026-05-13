@@ -36,26 +36,12 @@ class ChatViewModel
         private val chatScrollStateStore: ChatScrollStateStore,
         savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(
-            initialState(savedStateHandle, chatScrollStateStore),
+            initialChatState(),
         ) {
         companion object {
             private const val TRACE_TAG = "TSChatVM"
 
-            private fun initialState(
-                savedStateHandle: SavedStateHandle,
-                chatScrollStateStore: ChatScrollStateStore,
-            ): ChatState {
-                val serverId = savedStateHandle.get<String>("serverId").orEmpty()
-                val sessionId = savedStateHandle.get<String>("sessionId").orEmpty()
-                return ChatState(
-                    restoredScrollSnapshot =
-                        if (serverId.isBlank() || sessionId.isBlank()) {
-                            null
-                        } else {
-                            chatScrollStateStore.restore(serverId, sessionId)
-                        },
-                )
-            }
+            private fun initialChatState(): ChatState = ChatState()
         }
 
         private val serverId: String = savedStateHandle["serverId"] ?: error("serverId is required")
@@ -189,6 +175,10 @@ class ChatViewModel
 
         init {
             viewModelScope.launch {
+                val snapshot = chatScrollStateStore.restore(serverId, sessionId)
+                updateState { copy(restoredScrollSnapshot = snapshot) }
+            }
+            viewModelScope.launch {
                 sessionCoordinator.loadSession()
             }
             viewModelScope.launch {
@@ -286,7 +276,9 @@ class ChatViewModel
         }
 
         fun persistScrollSnapshot(snapshot: ChatScrollSnapshot) {
-            chatScrollStateStore.save(serverId, sessionId, snapshot)
+            viewModelScope.launch {
+                chatScrollStateStore.save(serverId, sessionId, snapshot)
+            }
             updateState {
                 if (restoredScrollSnapshot == snapshot) {
                     this

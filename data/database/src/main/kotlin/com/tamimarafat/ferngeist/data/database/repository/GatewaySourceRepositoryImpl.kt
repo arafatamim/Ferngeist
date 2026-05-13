@@ -54,7 +54,7 @@ class GatewaySourceRepositoryImpl(
         }
     }
 
-    private fun toDomainOrCleanUp(entity: GatewaySourceEntity): GatewaySource? {
+    private suspend fun toDomainOrCleanUp(entity: GatewaySourceEntity): GatewaySource? {
         val credKey = CredentialEncryptor.gatewayCredentialKey(entity.id)
         return try {
             GatewaySource(
@@ -75,7 +75,7 @@ class GatewaySourceRepositoryImpl(
         }
     }
 
-    private fun GatewaySource.toEntity(): GatewaySourceEntity {
+    private suspend fun GatewaySource.toEntity(): GatewaySourceEntity {
         val credKey = CredentialEncryptor.gatewayCredentialKey(id)
         return GatewaySourceEntity(
             id = id,

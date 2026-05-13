@@ -1,17 +1,31 @@
 package com.tamimarafat.ferngeist.data.database.crypto
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.annotation.RequiresApi
+import androidx.datastore.preferences.SharedPreferencesMigration
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+
+// TODO: Remove SharedPreferencesMigration for "ferngeist_credentials" after
+// all users have upgraded from pre-DataStore builds (legacy migration).
+private val Context.credentialDataStore by preferencesDataStore(
+    name = "ferngeist_credentials",
+    produceMigrations = { context ->
+        listOf(SharedPreferencesMigration(context, "ferngeist_credentials"))
+    },
+)
 
 class CredentialEncryptor(
     context: Context,
@@ -25,16 +39,14 @@ class CredentialEncryptor(
         val key: String,
     ) : RuntimeException(message)
 
-    private val prefs: SharedPreferences by lazy {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    private val dataStore by lazy { context.credentialDataStore }
 
     private val keyStore: KeyStore by lazy {
         KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
-    fun encrypt(
+    suspend fun encrypt(
         plaintext: String,
         key: String,
     ): String {
@@ -45,23 +57,22 @@ class CredentialEncryptor(
         val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
         val combined = iv + ciphertext
         val encoded = Base64.encodeToString(combined, Base64.NO_WRAP)
-        val success = prefs.edit().putString(key, encoded).commit()
-        if (!success) {
-            throw CredentialPersistenceException(
-                "Failed to persist encrypted credential for key: $key",
-            )
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey(key)] = encoded
         }
         return ENCRYPTED_PREFIX + key
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
-    fun decrypt(
+    suspend fun decrypt(
         ciphertext: String,
         key: String,
     ): String {
         if (!ciphertext.startsWith(ENCRYPTED_PREFIX)) return ciphertext
         val encoded =
-            prefs.getString(key, null)
+            dataStore.data
+                .map { prefs -> prefs[stringPreferencesKey(key)] }
+                .first()
                 ?: throw CredentialUnavailableException(
                     message =
                         "Encrypted credential backing entry not found for key: $key. " +
@@ -85,12 +96,9 @@ class CredentialEncryptor(
         return String(plaintext, Charsets.UTF_8)
     }
 
-    fun delete(key: String) {
-        val success = prefs.edit().remove(key).commit()
-        if (!success) {
-            throw CredentialPersistenceException(
-                "Failed to delete encrypted credential for key: $key",
-            )
+    suspend fun delete(key: String) {
+        dataStore.edit { prefs ->
+            prefs.remove(stringPreferencesKey(key))
         }
     }
 
@@ -121,7 +129,6 @@ class CredentialEncryptor(
     companion object {
         const val ENCRYPTED_PREFIX = "_enc_:"
 
-        private const val PREFS_NAME = "ferngeist_credentials"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val KEY_ALIAS = "ferngeist_credential_key"
         private const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"

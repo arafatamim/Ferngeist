@@ -1,88 +1,101 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import android.content.Context
-import androidx.core.content.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private val Context.chatScrollDataStore by preferencesDataStore(name = "ferngeist_chat_scroll")
+
 interface ChatScrollStateStore {
-    fun restore(
+    suspend fun restore(
         serverId: String,
         sessionId: String,
     ): ChatScrollSnapshot?
 
-    fun save(
+    suspend fun save(
         serverId: String,
         sessionId: String,
         snapshot: ChatScrollSnapshot,
     )
 
-    fun clear(
+    suspend fun clear(
         serverId: String,
         sessionId: String,
     )
 }
 
 @Singleton
-class SharedPreferencesChatScrollStateStore
+class DataStoreChatScrollStateStore
     @Inject
     constructor(
-        @ApplicationContext context: Context,
+        @ApplicationContext private val context: Context,
     ) : ChatScrollStateStore {
-        private val sharedPreferences =
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        override fun restore(
+        override suspend fun restore(
             serverId: String,
             sessionId: String,
-        ): ChatScrollSnapshot? {
-            val prefix = keyPrefix(serverId, sessionId)
-            if (!sharedPreferences.contains("${prefix}saved_at")) return null
-            return ChatScrollSnapshot(
-                anchorMessageId = sharedPreferences.getString("${prefix}anchor_id", null),
-                firstVisibleItemIndex = sharedPreferences.getInt("${prefix}index", 0),
-                firstVisibleItemScrollOffset = sharedPreferences.getInt("${prefix}offset", 0),
-                isFollowing = sharedPreferences.getBoolean("${prefix}following", true),
-                savedAt = sharedPreferences.getLong("${prefix}saved_at", 0L),
-            )
-        }
+        ): ChatScrollSnapshot? =
+            withContext(Dispatchers.IO) {
+                context.chatScrollDataStore.data
+                    .map { prefs ->
+                        val prefix = "scroll.$serverId.$sessionId."
+                        val savedAt = prefs[longPreferencesKey("${prefix}savedAt")] ?: return@map null
+                        ChatScrollSnapshot(
+                            anchorMessageId = prefs[stringPreferencesKey("${prefix}anchor")],
+                            firstVisibleItemIndex = prefs[intPreferencesKey("${prefix}index")] ?: 0,
+                            firstVisibleItemScrollOffset = prefs[intPreferencesKey("${prefix}offset")] ?: 0,
+                            isFollowing = prefs[booleanPreferencesKey("${prefix}following")] ?: true,
+                            savedAt = savedAt,
+                        )
+                    }.first()
+            }
 
-        override fun save(
+        override suspend fun save(
             serverId: String,
             sessionId: String,
             snapshot: ChatScrollSnapshot,
         ) {
-            val prefix = keyPrefix(serverId, sessionId)
-            sharedPreferences.edit {
-                putString("${prefix}anchor_id", snapshot.anchorMessageId)
-                    .putInt("${prefix}index", snapshot.firstVisibleItemIndex)
-                    .putInt("${prefix}offset", snapshot.firstVisibleItemScrollOffset)
-                    .putBoolean("${prefix}following", snapshot.isFollowing)
-                    .putLong("${prefix}saved_at", snapshot.savedAt)
+            withContext(Dispatchers.IO) {
+                context.chatScrollDataStore.edit { prefs ->
+                    val prefix = "scroll.$serverId.$sessionId."
+                    val anchorKey = stringPreferencesKey("${prefix}anchor")
+                    if (snapshot.anchorMessageId != null) {
+                        prefs[anchorKey] = snapshot.anchorMessageId
+                    } else {
+                        prefs.remove(anchorKey)
+                    }
+                    prefs[intPreferencesKey("${prefix}index")] = snapshot.firstVisibleItemIndex
+                    prefs[intPreferencesKey("${prefix}offset")] = snapshot.firstVisibleItemScrollOffset
+                    prefs[booleanPreferencesKey("${prefix}following")] = snapshot.isFollowing
+                    prefs[longPreferencesKey("${prefix}savedAt")] = snapshot.savedAt
+                }
             }
         }
 
-        override fun clear(
+        override suspend fun clear(
             serverId: String,
             sessionId: String,
         ) {
-            val prefix = keyPrefix(serverId, sessionId)
-            sharedPreferences.edit {
-                remove("${prefix}anchor_id")
-                    .remove("${prefix}index")
-                    .remove("${prefix}offset")
-                    .remove("${prefix}following")
-                    .remove("${prefix}saved_at")
+            withContext(Dispatchers.IO) {
+                context.chatScrollDataStore.edit { prefs ->
+                    val prefix = "scroll.$serverId.$sessionId."
+                    prefs.remove(stringPreferencesKey("${prefix}anchor"))
+                    prefs.remove(intPreferencesKey("${prefix}index"))
+                    prefs.remove(intPreferencesKey("${prefix}offset"))
+                    prefs.remove(booleanPreferencesKey("${prefix}following"))
+                    prefs.remove(longPreferencesKey("${prefix}savedAt"))
+                }
             }
-        }
-
-        private fun keyPrefix(
-            serverId: String,
-            sessionId: String,
-        ): String = "scroll.$serverId.$sessionId."
-
-        private companion object {
-            const val PREFS_NAME = "ferngeist_chat_scroll"
         }
     }

@@ -11,5 +11,5 @@ import javax.inject.Singleton
 abstract class ChatScrollStateStoreModule {
     @Binds
     @Singleton
-    abstract fun bindChatScrollStateStore(impl: SharedPreferencesChatScrollStateStore): ChatScrollStateStore
+    abstract fun bindChatScrollStateStore(impl: DataStoreChatScrollStateStore): ChatScrollStateStore
 }

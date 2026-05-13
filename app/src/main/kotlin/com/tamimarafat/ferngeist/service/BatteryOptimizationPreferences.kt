@@ -1,13 +1,20 @@
 package com.tamimarafat.ferngeist.service
 
 import android.content.Context
-import androidx.core.content.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private val Context.batteryOptDataStore by preferencesDataStore(name = "ferngeist_battery_optimization")
 
 @Singleton
 class BatteryOptimizationPreferences
@@ -15,19 +22,19 @@ class BatteryOptimizationPreferences
     constructor(
         @ApplicationContext context: Context,
     ) {
-        private val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        private val dismissedFlow = MutableStateFlow(sharedPreferences.getBoolean(KEY_DISMISSED, false))
+        private val dataStore = context.batteryOptDataStore
 
-        val isDismissed: StateFlow<Boolean> = dismissedFlow.asStateFlow()
+        val isDismissed: Flow<Boolean> =
+            dataStore.data.map { prefs -> prefs[KEY_DISMISSED] ?: false }
 
         fun markDismissed() {
-            if (dismissedFlow.value) return
-            sharedPreferences.edit { putBoolean(KEY_DISMISSED, true) }
-            dismissedFlow.value = true
+            scope.launch {
+                dataStore.edit { prefs -> prefs[KEY_DISMISSED] = true }
+            }
         }
 
         companion object {
-            private const val PREFS_NAME = "ferngeist_battery_optimization"
-            private const val KEY_DISMISSED = "dismissed"
+            private val KEY_DISMISSED = booleanPreferencesKey("dismissed")
+            private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         }
     }
