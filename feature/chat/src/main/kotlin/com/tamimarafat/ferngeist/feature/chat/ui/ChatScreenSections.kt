@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
@@ -239,7 +240,7 @@ internal data class PendingPermissionRequest(
     val toolCallId: String,
     val requestId: String?,
     val title: String,
-    val kind: String?,
+    val kind: ToolKind?,
     val options: List<AcpPermissionOption>,
 )
 
@@ -314,9 +315,9 @@ private fun PermissionRequestSheet(
                     text = request.title,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                request.kind?.takeIf { it.isNotBlank() }?.let { kind ->
+                request.kind?.let { kind ->
                     Text(
-                        text = kind,
+                        text = kind.name.lowercase(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -384,16 +385,16 @@ private fun ToolCallDetailsSheet(
                     text = toolCall.title.ifBlank { "Tool Call" },
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                toolCall.kind?.takeIf { it.isNotBlank() }?.let { kind ->
+                toolCall.kind?.let { kind ->
                     Text(
-                        text = kind,
+                        text = kind.name.lowercase(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                     )
                 }
-                toolCall.status?.takeIf { it.isNotBlank() }?.let { status ->
+                toolCall.status?.let { status ->
                     Text(
-                        text = status.replace('_', ' '),
+                        text = status.name.lowercase().replace('_', ' '),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

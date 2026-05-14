@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.state
 
+import com.agentclientprotocol.model.ToolCallStatus
+import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMessageReducer
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
@@ -19,8 +21,8 @@ class SessionMessageReducerTest {
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_1",
                     title = "Read",
-                    kind = "read",
-                    status = "running",
+                    kind = ToolKind.READ,
+                    status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
 
@@ -29,7 +31,7 @@ class SessionMessageReducerTest {
                 started,
                 AppSessionEvent.ToolCallUpdated(
                     toolCallId = "tool_1",
-                    status = "completed",
+                    status = ToolCallStatus.COMPLETED,
                     title = null,
                     kind = null,
                     content = null,
@@ -56,8 +58,8 @@ class SessionMessageReducerTest {
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_replay",
                     title = "Replay",
-                    kind = "read",
-                    status = "running",
+                    kind = ToolKind.READ,
+                    status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
         val second =
@@ -66,8 +68,8 @@ class SessionMessageReducerTest {
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_replay",
                     title = "Replay",
-                    kind = "read",
-                    status = "running",
+                    kind = ToolKind.READ,
+                    status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
 
@@ -197,8 +199,8 @@ class SessionMessageReducerTest {
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_1",
                     title = "Read",
-                    kind = "read",
-                    status = "running",
+                    kind = ToolKind.READ,
+                    status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
         val second =
@@ -223,8 +225,8 @@ class SessionMessageReducerTest {
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_order",
                     title = "Read",
-                    kind = "read",
-                    status = "running",
+                    kind = ToolKind.READ,
+                    status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
         val second =

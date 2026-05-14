@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.core.model
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolCallStatus
+import com.agentclientprotocol.model.ToolKind
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
@@ -43,8 +45,8 @@ data class AssistantSegment(
 data class ToolCallDisplay(
     val toolCallId: String? = null,
     val title: String = "",
-    val kind: String? = null,
-    val status: String? = null,
+    val kind: ToolKind? = null,
+    val status: ToolCallStatus? = null,
     val content: List<ToolCallContent>? = null,
     val rawOutput: String? = null,
     val permissionOptions: List<AcpPermissionOption>? = null,

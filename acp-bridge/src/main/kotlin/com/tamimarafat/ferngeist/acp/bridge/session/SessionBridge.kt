@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolCallStatus
+import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -143,15 +145,15 @@ sealed interface AppSessionEvent {
     data class ToolCallStarted(
         val toolCallId: String,
         val title: String,
-        val kind: String?,
-        val status: String?,
+        val kind: ToolKind?,
+        val status: ToolCallStatus?,
     ) : AppSessionEvent
 
     data class ToolCallUpdated(
         val toolCallId: String,
-        val status: String?,
+        val status: ToolCallStatus?,
         val title: String?,
-        val kind: String?,
+        val kind: ToolKind?,
         val content: List<ToolCallContent>? = null,
         val rawOutput: String? = null,
     ) : AppSessionEvent

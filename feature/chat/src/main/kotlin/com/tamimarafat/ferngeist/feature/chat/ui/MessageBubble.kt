@@ -56,6 +56,8 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
+import com.agentclientprotocol.model.ToolCallStatus
+import com.agentclientprotocol.model.ToolKind
 import kotlin.random.Random
 import com.mikepenz.markdown.model.State as MarkdownRenderState
 
@@ -332,8 +334,8 @@ private fun ToolCallCard(
             ) {
                 // Status badge
                 toolCall.status?.let { status ->
-                    when (status.lowercase()) {
-                        "pending", "in_progress" ->
+                    when (status) {
+                        ToolCallStatus.PENDING, ToolCallStatus.IN_PROGRESS ->
                             ContainedLoadingIndicator(
                                 polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
                                 containerShape = MaterialTheme.shapes.medium,
@@ -341,12 +343,12 @@ private fun ToolCallCard(
                                 indicatorColor = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(32.dp),
                             )
-                        "completed" ->
+                        ToolCallStatus.COMPLETED ->
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = "Completed",
                             )
-                        "failed" ->
+                        ToolCallStatus.FAILED ->
                             Icon(
                                 imageVector = Icons.Default.Error,
                                 contentDescription = "Error",
@@ -364,7 +366,7 @@ private fun ToolCallCard(
                     )
                     toolCall.kind?.let { kind ->
                         Text(
-                            text = kind,
+                            text = kind.name.lowercase(),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

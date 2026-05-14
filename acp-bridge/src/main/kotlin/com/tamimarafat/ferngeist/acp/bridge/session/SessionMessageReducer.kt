@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.agentclientprotocol.model.ToolCallStatus
+import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
@@ -305,8 +307,8 @@ object SessionMessageReducer {
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = event.toolCallId,
                     title = event.title ?: "Permission Request",
-                    kind = "permission",
-                    status = "awaiting_permission",
+                    kind = ToolKind.OTHER,
+                    status = ToolCallStatus.PENDING,
                 ),
             )
         val index =
@@ -331,7 +333,7 @@ object SessionMessageReducer {
                 toolCall =
                     oldToolCall.copy(
                         title = oldToolCall.title.ifBlank { event.title ?: "Permission Request" },
-                        status = "awaiting_permission",
+                        status = ToolCallStatus.PENDING,
                         permissionRequestId = event.requestId,
                         permissionOptions =
                             event.options.map {
@@ -369,10 +371,10 @@ object SessionMessageReducer {
                                 permissionOptions = null,
                                 permissionRequestId = null,
                                 status =
-                                    if (oldToolCall.status ==
-                                        "awaiting_permission"
+                                    if (oldToolCall.status == ToolCallStatus.PENDING &&
+                                        oldToolCall.permissionRequestId != null
                                     ) {
-                                        "running"
+                                        ToolCallStatus.IN_PROGRESS
                                     } else {
                                         oldToolCall.status
                                     },

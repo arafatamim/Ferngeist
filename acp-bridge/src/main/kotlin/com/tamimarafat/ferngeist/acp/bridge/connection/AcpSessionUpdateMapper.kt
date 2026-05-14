@@ -27,15 +27,15 @@ internal object AcpSessionUpdateMapper {
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = update.toolCallId.value,
                     title = update.title,
-                    kind = update.kind?.toString()?.lowercase(),
-                    status = update.status?.toString()?.lowercase(),
+                    kind = update.kind,
+                    status = update.status,
                 )
             is SessionUpdate.ToolCallUpdate ->
                 AppSessionEvent.ToolCallUpdated(
                     toolCallId = update.toolCallId.value,
-                    status = update.status?.toString()?.lowercase(),
+                    status = update.status,
                     title = update.title,
-                    kind = update.kind?.toString()?.lowercase(),
+                    kind = update.kind,
                     content = update.content,
                     rawOutput = update.rawOutput?.toString(),
                 )
