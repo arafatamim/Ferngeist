@@ -23,7 +23,7 @@ class SessionRuntime(
         val messages: List<ChatMessage> = emptyList(),
         val isStreaming: Boolean = false,
         val usage: SessionUsage? = null,
-        val availableCommands: List<String> = emptyList(),
+        val availableCommands: List<CommandInfo> = emptyList(),
         val commandsAdvertised: Boolean = false,
         val nativeConfigOptions: List<SessionConfigOption> = emptyList(),
         val legacyModes: LegacyModeState? = null,

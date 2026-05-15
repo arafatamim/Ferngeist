@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
+import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
@@ -320,7 +321,7 @@ data class ChatState(
     val connectionDiagnostics: ConnectionDiagnostics = ConnectionDiagnostics(),
     val configOptions: List<SessionConfigOption> = emptyList(),
     val usage: UsageState? = null,
-    val availableCommands: List<String> = emptyList(),
+    val availableCommands: List<CommandInfo> = emptyList(),
     val commandsAdvertised: Boolean = false,
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,

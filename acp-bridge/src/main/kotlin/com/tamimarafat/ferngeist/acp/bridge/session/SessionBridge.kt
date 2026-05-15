@@ -215,7 +215,7 @@ sealed interface AppSessionEvent {
     ) : AppSessionEvent
 
     data class CommandsUpdated(
-        val commands: List<String>,
+        val commands: List<CommandInfo>,
     ) : AppSessionEvent
 
     data class SessionInfoUpdated(

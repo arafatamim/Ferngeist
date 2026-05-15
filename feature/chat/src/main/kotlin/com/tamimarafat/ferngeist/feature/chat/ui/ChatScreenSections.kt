@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -56,6 +57,7 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
+import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
@@ -84,7 +86,7 @@ internal fun ChatScreenDialogs(
     usage: UsageState?,
     onDismissConnectionStatus: () -> Unit,
     showCommandsDialog: Boolean,
-    commands: List<String>,
+    commands: List<CommandInfo>,
     onDismissCommands: () -> Unit,
     onCommandClick: (String) -> Unit,
 ) {
@@ -133,7 +135,7 @@ internal fun ChatScreenDialogs(
     }
 
     if (showCommandsDialog) {
-        CommandsDialog(
+        CommandsSheet(
             commands = commands,
             onDismiss = onDismissCommands,
             onCommandClick = onCommandClick,
@@ -494,36 +496,38 @@ private fun ThoughtDetailsSheet(
     }
 }
 
+private data class PickerItem(
+    val id: String,
+    val label: String,
+    val value: String,
+    val description: String? = null,
+)
+
 @Composable
-private fun SelectConfigOptionSheet(
-    option: SessionConfigOption.Select,
-    onOptionSelected: (String) -> Unit,
+private fun PickerSheet(
+    title: String,
+    items: List<PickerItem>,
+    selectedValue: String? = null,
+    onItemClick: (value: String) -> Unit,
     onDismiss: () -> Unit,
+    emptyText: String = "No items.",
+    noResultsText: String = "No matching items.",
+    searchPlaceholder: String = "",
 ) {
-    // skipPartiallyExpanded ensures the sheet opens to full height immediately,
-    // which is better for lists and search interactions.
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-
-    // Extract all available choices from the session config option
-    val allChoices = remember(option) { option.allChoices() }
-
-    // Only show the search bar if there are enough items to justify filtering
-    val showSearch = allChoices.size >= 10
-
-    // Filter the options based on the user's search query across labels, values, and descriptions
-    var query by remember(option) { mutableStateOf("") }
+    val showSearch = items.size >= 10
+    var query by remember { mutableStateOf("") }
     val filteredOptions =
-        remember(allChoices, query) {
+        remember(items, query) {
             if (!showSearch || query.trim().isBlank()) {
-                allChoices
+                items
             } else {
-                val trimmedQuery = query.trim()
-                allChoices.filter { choice ->
-                    // Match against any relevant text field in the choice object
-                    choice.label.contains(trimmedQuery, ignoreCase = true) ||
-                        choice.value.contains(trimmedQuery, ignoreCase = true) ||
-                        (choice.description?.contains(trimmedQuery, ignoreCase = true) == true)
+                val q = query.trim()
+                items.filter { item ->
+                    item.label.contains(q, ignoreCase = true) ||
+                        item.value.contains(q, ignoreCase = true) ||
+                        (item.description?.contains(q, ignoreCase = true) == true)
                 }
             }
         }
@@ -539,12 +543,12 @@ private fun SelectConfigOptionSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = option.name,
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
             )
-            if (allChoices.isEmpty()) {
+            if (items.isEmpty()) {
                 Text(
-                    text = "No values available from agent.",
+                    text = emptyText,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
@@ -555,14 +559,13 @@ private fun SelectConfigOptionSheet(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                        placeholder = { Text("Search ${option.name.lowercase()}") },
+                        placeholder = { Text(searchPlaceholder) },
                         shape = RoundedCornerShape(28.dp),
                     )
                 }
-
                 if (filteredOptions.isEmpty()) {
                     Text(
-                        text = "No matching models.",
+                        text = noResultsText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -571,15 +574,12 @@ private fun SelectConfigOptionSheet(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        items(
-                            items = filteredOptions,
-                            key = { it.id },
-                        ) { choice ->
+                        items(items = filteredOptions, key = { it.id }) { item ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        onOptionSelected(choice.value)
+                                        onItemClick(item.value)
                                         scope.launch {
                                             sheetState.hide()
                                             onDismiss()
@@ -590,18 +590,20 @@ private fun SelectConfigOptionSheet(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = choice.label,
+                                        text = item.label,
                                         style = MaterialTheme.typography.bodyMedium,
                                     )
-                                    choice.description?.let { description ->
+                                    item.description?.let { description ->
                                         Text(
                                             text = description,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     }
                                 }
-                                if (choice.value == option.currentValue) {
+                                if (selectedValue != null && item.value == selectedValue) {
                                     Icon(
                                         imageVector = Icons.Filled.Check,
                                         contentDescription = "Selected",
@@ -615,4 +617,54 @@ private fun SelectConfigOptionSheet(
             }
         }
     }
+}
+
+@Composable
+private fun SelectConfigOptionSheet(
+    option: SessionConfigOption.Select,
+    onOptionSelected: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val allChoices = remember(option) { option.allChoices() }
+    PickerSheet(
+        title = option.name,
+        items = allChoices.map { choice ->
+            PickerItem(
+                id = choice.id,
+                label = choice.label,
+                value = choice.value,
+                description = choice.description,
+            )
+        },
+        selectedValue = option.currentValue,
+        onItemClick = onOptionSelected,
+        onDismiss = onDismiss,
+        emptyText = "No values available from agent.",
+        noResultsText = "No matching models.",
+        searchPlaceholder = "Search ${option.name.lowercase()}",
+    )
+}
+
+@Composable
+private fun CommandsSheet(
+    commands: List<CommandInfo>,
+    onCommandClick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    PickerSheet(
+        title = "Commands",
+        items = commands.map { cmd ->
+            PickerItem(
+                id = cmd.name,
+                label = cmd.name,
+                value = cmd.name,
+                description = cmd.description,
+            )
+        },
+        onItemClick = onCommandClick,
+        onDismiss = onDismiss,
+        emptyText = "No commands advertised by the server.",
+        noResultsText = "No matching commands.",
+        searchPlaceholder = "search commands",
+    )
 }

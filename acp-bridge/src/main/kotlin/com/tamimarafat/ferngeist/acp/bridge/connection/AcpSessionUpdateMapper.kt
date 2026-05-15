@@ -5,6 +5,7 @@ import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.StopReason
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoiceGroup
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
@@ -47,7 +48,9 @@ internal object AcpSessionUpdateMapper {
                 )
             is SessionUpdate.AvailableCommandsUpdate ->
                 AppSessionEvent.CommandsUpdated(
-                    update.availableCommands.map { it.name },
+                    update.availableCommands.map { cmd ->
+                        CommandInfo(name = cmd.name, description = cmd.description)
+                    },
                 )
             is SessionUpdate.CurrentModeUpdate -> AppSessionEvent.ModeChanged(update.currentModeId.value)
             is SessionUpdate.UsageUpdate -> {

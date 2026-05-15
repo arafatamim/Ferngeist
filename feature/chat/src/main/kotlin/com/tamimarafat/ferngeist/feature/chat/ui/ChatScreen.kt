@@ -998,7 +998,6 @@ fun ChatScreen(
                         commands = state.availableCommands,
                         onDismissCommands = { showCommandsDialog = false },
                         onCommandClick = { command ->
-                            showCommandsDialog = false
                             val normalized = command.trim()
                             val slashCommand =
                                 if (normalized.startsWith("/")) normalized else "/$normalized"
@@ -1299,56 +1298,6 @@ private fun ChatTopBarTitle(
             }
         }
     }
-}
-
-@Composable
-internal fun CommandsDialog(
-    commands: List<String>,
-    onDismiss: () -> Unit,
-    onCommandClick: (String) -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Commands") },
-        text = {
-            if (commands.isEmpty()) {
-                Text(
-                    text = "No commands advertised by the server.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                ) {
-                    commands.forEach { command ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = MaterialTheme.shapes.small,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onCommandClick(command) },
-                        ) {
-                            Text(
-                                text = command,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
-        },
-    )
 }
 
 // endregion

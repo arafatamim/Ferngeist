@@ -25,7 +25,7 @@ data class SessionSnapshot(
     val messages: List<ChatMessage> = emptyList(),
     val isStreaming: Boolean = false,
     val usage: SessionUsage? = null,
-    val availableCommands: List<String> = emptyList(),
+    val availableCommands: List<CommandInfo> = emptyList(),
     val commandsAdvertised: Boolean = false,
     val configOptions: List<SessionConfigOption> = emptyList(),
     val error: String? = null,
