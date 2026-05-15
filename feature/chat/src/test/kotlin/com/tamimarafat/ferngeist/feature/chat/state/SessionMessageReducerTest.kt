@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat.state
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import kotlinx.serialization.json.JsonPrimitive
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMessageReducer
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -35,7 +36,7 @@ class SessionMessageReducerTest {
                     title = null,
                     kind = null,
                     content = null,
-                    rawOutput = "{\"ok\":true}",
+                    rawOutput = JsonPrimitive("{\"ok\":true}"),
                 ),
             )
 
@@ -47,7 +48,7 @@ class SessionMessageReducerTest {
                 .toolCall
         assertNotNull(toolCall)
         assertNull(toolCall?.content)
-        assertEquals("{\"ok\":true}", toolCall?.rawOutput)
+        assertEquals(JsonPrimitive("{\"ok\":true}"), toolCall?.rawOutput)
     }
 
     @Test

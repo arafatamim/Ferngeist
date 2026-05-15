@@ -39,8 +39,6 @@ import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
@@ -424,7 +422,10 @@ private fun ToolCallDetailsSheet(
                 content.forEach { tc ->
                     when (tc) {
                         is ToolCallContent.Content -> ContentBlockRenderer(tc.content)
-                        is ToolCallContent.Diff -> DiffRenderer(tc)
+                        is ToolCallContent.Diff -> {
+                            DiffRenderer(tc)
+                        }
+
                         is ToolCallContent.Terminal -> TerminalRenderer(tc)
                     }
                 }
