@@ -28,15 +28,18 @@ import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 import com.agentclientprotocol.model.ContentBlock
@@ -66,6 +70,7 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.UsageState
 
 @Composable
@@ -87,12 +92,16 @@ internal fun ChatScreenDialogs(
     onDismissConnectionStatus: () -> Unit,
     showCommandsDialog: Boolean,
     commands: List<CommandInfo>,
+    serverId: String,
+    recentSelectionStore: RecentSelectionStore,
     onDismissCommands: () -> Unit,
     onCommandClick: (String) -> Unit,
 ) {
     if (selectedConfigPickerOption != null) {
         SelectConfigOptionSheet(
             option = selectedConfigPickerOption,
+            serverId = serverId,
+            recentSelectionStore = recentSelectionStore,
             onOptionSelected = { value ->
                 onConfigOptionSelected(selectedConfigPickerOption.id, value)
             },
@@ -137,6 +146,8 @@ internal fun ChatScreenDialogs(
     if (showCommandsDialog) {
         CommandsSheet(
             commands = commands,
+            serverId = serverId,
+            recentSelectionStore = recentSelectionStore,
             onDismiss = onDismissCommands,
             onCommandClick = onCommandClick,
         )
@@ -508,6 +519,7 @@ private fun PickerSheet(
     title: String,
     items: List<PickerItem>,
     selectedValue: String? = null,
+    recentItems: List<PickerItem> = emptyList(),
     onItemClick: (value: String) -> Unit,
     onDismiss: () -> Unit,
     emptyText: String = "No items.",
@@ -518,13 +530,21 @@ private fun PickerSheet(
     val scope = rememberCoroutineScope()
     val showSearch = items.size >= 10
     var query by remember { mutableStateOf("") }
+
+    val recentValues = remember(recentItems) { recentItems.map { it.value }.toSet() }
+    val remainingItems = remember(items, recentValues) {
+        items.filter { it.value !in recentValues }
+    }
+    val showRecentSection = recentItems.isNotEmpty() && query.isBlank()
+    val searchPool = remember(remainingItems, recentItems) { recentItems + remainingItems }
+
     val filteredOptions =
-        remember(items, query) {
+        remember(searchPool, query) {
             if (!showSearch || query.trim().isBlank()) {
-                items
+                searchPool
             } else {
                 val q = query.trim()
-                items.filter { item ->
+                searchPool.filter { item ->
                     item.label.contains(q, ignoreCase = true) ||
                         item.value.contains(q, ignoreCase = true) ||
                         (item.description?.contains(q, ignoreCase = true) == true)
@@ -540,11 +560,11 @@ private fun PickerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 16.dp),
             )
             if (items.isEmpty()) {
                 Text(
@@ -556,7 +576,9 @@ private fun PickerSheet(
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                         placeholder = { Text(searchPlaceholder) },
@@ -570,47 +592,37 @@ private fun PickerSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
+                    val displayItems = if (showRecentSection) remainingItems else filteredOptions
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        items(items = filteredOptions, key = { it.id }) { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        onItemClick(item.value)
-                                        scope.launch {
-                                            sheetState.hide()
-                                            onDismiss()
-                                        }
-                                    }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.label,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                    item.description?.let { description ->
-                                        Text(
-                                            text = description,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                }
-                                if (selectedValue != null && item.value == selectedValue) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = "Selected",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                }
+                        if (showRecentSection) {
+                            Text(
+                                text = "Recent",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                            )
+                            recentItems.forEach { item ->
+                                PickerItemRow(item, selectedValue, onItemClick, sheetState, scope, onDismiss)
                             }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "All items",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                            )
+                        }
+
+                        displayItems.forEach { item ->
+                            PickerItemRow(item, selectedValue, onItemClick, sheetState, scope, onDismiss)
                         }
                     }
                 }
@@ -620,12 +632,79 @@ private fun PickerSheet(
 }
 
 @Composable
+private fun PickerItemRow(
+    item: PickerItem,
+    selectedValue: String?,
+    onItemClick: (String) -> Unit,
+    sheetState: SheetState,
+    scope: CoroutineScope,
+    onDismiss: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                onItemClick(item.value)
+                scope.launch {
+                    sheetState.hide()
+                    onDismiss()
+                }
+            }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = item.label, style = MaterialTheme.typography.bodyMedium)
+            item.description?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (selectedValue != null && item.value == selectedValue) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = "Selected",
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
 private fun SelectConfigOptionSheet(
     option: SessionConfigOption.Select,
+    serverId: String,
+    recentSelectionStore: RecentSelectionStore,
     onOptionSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    // Key format: "config_option:$serverId:$optionId"
+    // clearByPrefix uses "config_option:$serverId:" trailing colon to avoid cross-server matches
+    val storageKey = remember(option.id, serverId) { "config_option:$serverId:${option.id}" }
     val allChoices = remember(option) { option.allChoices() }
+    val enableRecents = allChoices.size >= 10
+    val recentValues by recentSelectionStore.getRecentSelections(storageKey)
+        .collectAsState(initial = emptyList())
+    val recentItems = remember(recentValues, allChoices, enableRecents) {
+        if (!enableRecents) emptyList()
+        else
+            recentValues.mapNotNull { val_ ->
+                allChoices.find { it.value == val_ }?.let { choice ->
+                    PickerItem(
+                        id = choice.id,
+                        label = choice.label,
+                        value = choice.value,
+                        description = choice.description,
+                    )
+                }
+            }
+    }
     PickerSheet(
         title = option.name,
         items = allChoices.map { choice ->
@@ -637,7 +716,13 @@ private fun SelectConfigOptionSheet(
             )
         },
         selectedValue = option.currentValue,
-        onItemClick = onOptionSelected,
+        recentItems = recentItems,
+        onItemClick = { value ->
+            onOptionSelected(value)
+            if (enableRecents) {
+                scope.launch { recentSelectionStore.addSelection(storageKey, value) }
+            }
+        },
         onDismiss = onDismiss,
         emptyText = "No values available from agent.",
         noResultsText = "No matching models.",
@@ -648,9 +733,32 @@ private fun SelectConfigOptionSheet(
 @Composable
 private fun CommandsSheet(
     commands: List<CommandInfo>,
+    serverId: String,
+    recentSelectionStore: RecentSelectionStore,
     onCommandClick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    // Trailing colon is required by clearByPrefix (startsWith check).
+    // Without it, serverId "abc" would also wipe recents for serverId "abcd".
+    val storageKey = "commands:$serverId:"
+    val enableRecents = commands.size >= 10
+    val recentNames by recentSelectionStore.getRecentSelections(storageKey)
+        .collectAsState(initial = emptyList())
+    val recentItems = remember(recentNames, commands, enableRecents) {
+        if (!enableRecents) emptyList()
+        else
+            recentNames.mapNotNull { name ->
+                commands.find { it.name == name }?.let { cmd ->
+                    PickerItem(
+                        id = cmd.name,
+                        label = cmd.name,
+                        value = cmd.name,
+                        description = cmd.description,
+                    )
+                }
+            }
+    }
     PickerSheet(
         title = "Commands",
         items = commands.map { cmd ->
@@ -661,7 +769,13 @@ private fun CommandsSheet(
                 description = cmd.description,
             )
         },
-        onItemClick = onCommandClick,
+        recentItems = recentItems,
+        onItemClick = { value ->
+            onCommandClick(value)
+            if (enableRecents) {
+                scope.launch { recentSelectionStore.addSelection(storageKey, value) }
+            }
+        },
         onDismiss = onDismiss,
         emptyText = "No commands advertised by the server.",
         noResultsText = "No matching commands.",

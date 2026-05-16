@@ -18,6 +18,8 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
+import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -103,6 +105,8 @@ class ServerListViewModel
         private val authEnvValueStore: AuthEnvValueStore,
         private val agentLaunchConsentStore: AgentLaunchConsentStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
+        private val recentCwdStore: RecentCwdStore,
+        private val recentSelectionStore: RecentSelectionStore,
     ) : ViewModel() {
         val servers: StateFlow<List<LaunchableTarget>> =
             launchableTargetRepository
@@ -471,6 +475,11 @@ class ServerListViewModel
                         agentLaunchConsentStore.clearByPrefix(consentKey)
                     }
                     authEnvValueStore.deleteValues(serverId)
+                    recentCwdStore.clear(serverId)
+                    // Prefix-based cleanup: clearByPrefix removes all entries whose DataStore key
+                    // starts with the given prefix. Trailing ":" prevents cross-server ID matches.
+                    recentSelectionStore.clearByPrefix("config_option:$serverId:")
+                    recentSelectionStore.clearByPrefix("commands:$serverId:")
                     sessionRepository.clearSessions(serverId)
                     sessionSettingsRepository.deleteSettings(serverId)
                     launchableTargetRepository.deleteTarget(serverId)

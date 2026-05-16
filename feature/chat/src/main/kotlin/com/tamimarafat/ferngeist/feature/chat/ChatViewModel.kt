@@ -35,6 +35,7 @@ class ChatViewModel
         private val sessionRepository: SessionRepository,
         private val gatewayRepository: GatewayRepository,
         private val chatScrollStateStore: ChatScrollStateStore,
+        val recentSelectionStore: RecentSelectionStore,
         savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(
             initialChatState(),
@@ -175,6 +176,7 @@ class ChatViewModel
             )
 
         init {
+            updateState { copy(serverId = serverId) }
             viewModelScope.launch {
                 val snapshot = chatScrollStateStore.restore(serverId, sessionId)
                 updateState { copy(restoredScrollSnapshot = snapshot) }
@@ -310,6 +312,7 @@ class ChatViewModel
     }
 
 data class ChatState(
+    val serverId: String = "",
     val messages: List<ChatMessage> = emptyList(),
     val markdownStates: Map<String, MarkdownRenderState> = emptyMap(),
     val restoredScrollSnapshot: ChatScrollSnapshot? = null,

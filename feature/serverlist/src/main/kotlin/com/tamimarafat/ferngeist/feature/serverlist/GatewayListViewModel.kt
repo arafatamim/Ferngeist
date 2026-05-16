@@ -7,6 +7,8 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingReposi
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
+import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +32,8 @@ class GatewayListViewModel
         private val authEnvValueStore: AuthEnvValueStore,
         private val agentLaunchConsentStore: AgentLaunchConsentStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
+        private val recentCwdStore: RecentCwdStore,
+        private val recentSelectionStore: RecentSelectionStore,
     ) : ViewModel() {
         val gateways: StateFlow<List<GatewaySource>> =
             gatewaySourceRepository
@@ -42,6 +46,11 @@ class GatewayListViewModel
                     authEnvValueStore.deleteValues(binding.id)
                     sessionRepository.clearSessions(binding.id)
                     sessionSettingsRepository.deleteSettings(binding.id)
+                    recentCwdStore.clear(binding.id)
+                    // Prefix-based cleanup: clearByPrefix removes all entries whose DataStore key
+                    // starts with the given prefix. Trailing ":" prevents cross-server ID matches.
+                    recentSelectionStore.clearByPrefix("config_option:${binding.id}:")
+                    recentSelectionStore.clearByPrefix("commands:${binding.id}:")
                     gatewayAgentBindingRepository.deleteBinding(binding.id)
                 }
                 agentLaunchConsentStore.clearByPrefix(gateway.id)

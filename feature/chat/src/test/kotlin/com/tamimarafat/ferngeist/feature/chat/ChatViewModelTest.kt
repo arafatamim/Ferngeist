@@ -22,6 +22,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayRuntime
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -164,6 +165,7 @@ class ChatViewModelTest {
             sessionRepository = sessionRepository,
             gatewayRepository = FakeGatewayRepository(),
             chatScrollStateStore = chatScrollStateStore,
+            recentSelectionStore = FakeRecentSelectionStore(),
             savedStateHandle = handle,
         )
     }
@@ -319,4 +321,12 @@ private class InMemoryChatScrollStateStore : ChatScrollStateStore {
     ) {
         entries.remove(serverId to sessionId)
     }
+}
+
+private class FakeRecentSelectionStore : RecentSelectionStore {
+    override fun getRecentSelections(key: String): Flow<List<String>> = emptyFlow()
+
+    override suspend fun addSelection(key: String, value: String) {}
+
+    override suspend fun clearByPrefix(prefix: String) {}
 }

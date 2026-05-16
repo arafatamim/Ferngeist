@@ -996,6 +996,8 @@ fun ChatScreen(
                         onDismissConnectionStatus = { showConnectionStatusDialog = false },
                         showCommandsDialog = showCommandsDialog,
                         commands = state.availableCommands,
+                        serverId = state.serverId,
+                        recentSelectionStore = viewModel.recentSelectionStore,
                         onDismissCommands = { showCommandsDialog = false },
                         onCommandClick = { command ->
                             val normalized = command.trim()

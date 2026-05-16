@@ -59,5 +59,11 @@ class DataStoreRecentCwdStore
             }
         }
 
+        override suspend fun clear(targetId: String) {
+            context.recentCwdDataStore.edit { prefs ->
+                prefs.remove(stringPreferencesKey(keyFor(targetId)))
+            }
+        }
+
         private fun keyFor(targetId: String): String = "recent_cwd_$targetId"
     }

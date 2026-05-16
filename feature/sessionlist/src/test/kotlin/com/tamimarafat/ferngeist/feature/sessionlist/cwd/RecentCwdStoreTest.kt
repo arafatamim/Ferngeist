@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** In-memory [RecentCwdStore] fake used as the test subject for contract tests. */
@@ -31,6 +32,14 @@ class InMemoryRecentCwdStore : RecentCwdStore {
             data.value.toMutableMap().apply {
                 val current = this[targetId] ?: return@apply
                 this[targetId] = current.filter { it != cwd }
+            },
+        )
+    }
+
+    override suspend fun clear(targetId: String) {
+        data.emit(
+            data.value.toMutableMap().apply {
+                remove(targetId)
             },
         )
     }
@@ -114,5 +123,17 @@ class RecentCwdStoreTest {
         val result2 = store.getRecentCwds("target2").first()
         assertEquals(listOf("/home/user/projects"), result1)
         assertEquals(listOf("/var/www"), result2)
+    }
+
+    @Test
+    fun clear_removesAllEntriesForTarget() = runTest {
+        store.addCwd("target1", "/home")
+        store.addCwd("target1", "/usr")
+        store.addCwd("target2", "/tmp")
+        store.clear("target1")
+        val recents1 = store.getRecentCwds("target1").first()
+        val recents2 = store.getRecentCwds("target2").first()
+        assertTrue(recents1.isEmpty())
+        assertEquals(listOf("/tmp"), recents2)
     }
 }

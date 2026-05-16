@@ -12,6 +12,8 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
+import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -46,6 +48,8 @@ class ServerListViewModelTest {
     private val authEnvValueStore = mockk<AuthEnvValueStore>(relaxed = true)
     private val agentLaunchConsentStore = mockk<AgentLaunchConsentStore>(relaxed = true)
     private val sessionSettingsRepository = mockk<LaunchableTargetSessionSettingsRepository>(relaxed = true)
+    private val recentCwdStore = mockk<RecentCwdStore>(relaxed = true)
+    private val recentSelectionStore = mockk<RecentSelectionStore>(relaxed = true)
 
     private val connectionStateFlow = MutableStateFlow<AcpConnectionState>(AcpConnectionState.Disconnected)
     private val eventsFlow = MutableSharedFlow<com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent>()
@@ -214,6 +218,8 @@ class ServerListViewModelTest {
         gatewayRepository,
         authEnvValueStore,
         agentLaunchConsentStore,
-        sessionSettingsRepository
+        sessionSettingsRepository,
+        recentCwdStore,
+        recentSelectionStore,
     )
 }
