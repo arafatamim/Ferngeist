@@ -1,0 +1,44 @@
+<resources>
+    <string name="common_back">Atrás</string>
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_retry">Reintentar</string>
+    <string name="common_delete">Eliminar</string>
+    <string name="common_save">Guardar</string>
+    <string name="common_close">Cerrar</string>
+    <string name="common_ok">Aceptar</string>
+    <string name="common_edit">Editar</string>
+
+    <string name="common_connecting">Conectando</string>
+    <string name="common_connected">Conectado</string>
+    <string name="common_disconnected">Desconectado</string>
+    <string name="common_failed">Fallido</string>
+    <string name="common_na">N/D</string>
+    <string name="common_unknown">Desconocido</string>
+    <string name="common_unsupported">No compatible</string>
+    <string name="common_supported">Compatible</string>
+
+    <string name="common_connection_status">Estado de conexión: %1$s</string>
+    <string name="common_connection_diagnostics">Diagnóstico de conexión</string>
+    <string name="common_connection">Conexión: %1$s</string>
+    <string name="common_websocket">WebSocket: %1$s</string>
+    <string name="common_server">Servidor: %1$s</string>
+    <string name="common_server_info">Información del servidor: %1$s (%2$s)</string>
+    <string name="common_pending_rpc">Solicitudes RPC pendientes: %1$d</string>
+    <string name="common_cancel_support">Compatibilidad con cancelación: %1$s</string>
+    <string name="common_total_tokens">Tokens totales usados: %1$s</string>
+    <string name="common_usage_percentage">Porcentaje de uso: %1$s</string>
+    <string name="common_cost_spent">Coste gastado: %1$s</string>
+    <string name="common_recent_rpc">Actividad RPC reciente</string>
+    <string name="common_no_recent_rpc">Sin actividad RPC reciente</string>
+    <string name="common_recent_errors">Errores recientes</string>
+    <string name="common_no_recent_errors">Sin errores recientes</string>
+    <string name="common_connection_status_desc">Estado de conexión</string>
+
+    <string name="common_context_used">Se han usado %1$s de %2$s de contexto</string>
+    <string name="common_cost_amount">%1$s gastados</string>
+
+    <string name="common_rpc_direction_req">REQ</string>
+    <string name="common_rpc_direction_res">RES</string>
+    <string name="common_rpc_direction_err">ERR</string>
+    <string name="common_rpc_direction_ntf">NTF</string>
+</resources>

@@ -1,0 +1,180 @@
+<resources>
+    <string name="about">Acerca de Ferngeist</string>
+    <string name="privacy_policy">Política de privacidad</string>
+    <string name="privacy_policy_url">https://arafatamim.github.io/Ferngeist/privacy_policy.html</string>
+    <string name="report_issue">Informar de un problema</string>
+    <string name="github_repo_url">https://github.com/arafatamim/ferngeist/issues</string>
+
+    <string name="serverlist_back_desc">Atrás</string>
+    <string name="serverlist_ok">Aceptar</string>
+    <string name="serverlist_cancel">Cancelar</string>
+    <string name="serverlist_continue">Continuar</string>
+
+    <string name="serverlist_title">Ferngeist</string>
+    <string name="serverlist_about_body">Ferngeist es un cliente de Android para servidores Agent Client Protocol (ACP), que te permite interactuar con agentes de programación directamente desde tu dispositivo móvil.</string>
+    <string name="serverlist_add_gateway_btn">Emparejar Ferngeist Gateway</string>
+    <string name="serverlist_add_agent_btn">Añadir agente manualmente</string>
+    <string name="serverlist_add_paired_btn">Añadir usando una puerta de enlace emparejada</string>
+    <string name="serverlist_launch_risk_title">¿Ejecutar el agente en la puerta de enlace?</string>
+    <string name="serverlist_launch_risk_accept">Lo entiendo y quiero continuar.</string>
+    <string name="serverlist_empty_title">Aún no hay agentes</string>
+    <string name="serverlist_empty_body">Añade un agente manualmente o empareja una puerta de enlace para construir tu lista de inicio.</string>
+    <string name="serverlist_empty_action">Añadir agente</string>
+
+    <string name="serverlist_auth_title">Autenticar %1$s</string>
+    <string name="serverlist_auth_body">El agente "%1$s" requiere autenticación ACP antes de poder abrir sesiones.</string>
+    <string name="serverlist_auth_method_fallback">Tipo: %1$s</string>
+    <string name="serverlist_auth_reconnect">Reconectar</string>
+    <string name="serverlist_auth_authenticate">Autenticar</string>
+    <string name="serverlist_auth_cancel">Cancelar</string>
+    <string name="serverlist_auth_cmd">Comando: %1$s</string>
+    <string name="serverlist_auth_env_instructions">Establece estas variables de entorno antes de iniciar el agente y luego vuelve a conectarte para reintentar la autenticación.</string>
+    <string name="serverlist_auth_optional_suffix"> (opcional)</string>
+
+    <string name="serverlist_card_delete_title">Eliminar servidor</string>
+    <string name="serverlist_card_delete_body">¿Eliminar "%1$s" y todas sus sesiones guardadas?</string>
+    <string name="serverlist_card_delete">Eliminar</string>
+    <string name="serverlist_card_manage">Gestionar</string>
+    <string name="serverlist_card_edit">Editar</string>
+
+    <string name="serverlist_add_server_title_edit">Editar agente ACP</string>
+    <string name="serverlist_add_server_title_new">Nuevo agente ACP</string>
+    <string name="serverlist_add_server_details_title">Detalles del agente ACP</string>
+    <string name="serverlist_add_server_name_label">Nombre</string>
+    <string name="serverlist_add_server_name_placeholder">Mi servidor</string>
+    <string name="serverlist_add_server_protocol_label">Protocolo</string>
+    <string name="serverlist_add_server_ws_warning">Usa esto solo para conexiones confiables en la red local, ya que no está cifrado.</string>
+    <string name="serverlist_add_server_host_label">Host</string>
+    <string name="serverlist_add_server_host_hint">Usa aquí la IP de tu PC en la red local, no localhost. Ejemplo: 192.168.1.42:6000</string>
+    <string name="serverlist_add_server_stdio_hint">Ejecuta tu agente ACP con un envoltorio stdio-to-ws antes de conectarte. Ejemplo:</string>
+    <string name="serverlist_add_server_docs_hint">Consulta la documentación de tu agente ACP para conocer el comando y los parámetros exactos para iniciarlo en modo ACP.</string>
+    <string name="serverlist_add_server_auth_title">Autenticación</string>
+    <string name="serverlist_add_server_auth_subtitle">Agente ACP</string>
+    <string name="serverlist_add_server_auth_desc">Ferngeist negocia la autenticación ACP después de conectarse usando los métodos de autenticación anunciados por el agente.</string>
+    <string name="serverlist_add_server_stored_auth">Método de autenticación guardado</string>
+    <string name="serverlist_add_server_btn_update">Actualizar servidor</string>
+    <string name="serverlist_add_server_btn_add">Añadir servidor</string>
+    <string name="serverlist_add_server_ws">WebSocket</string>
+    <string name="serverlist_add_server_wss">Seguro</string>
+
+    <string name="serverlist_add_gateway_title">Emparejar Ferngeist Gateway</string>
+    <string name="serverlist_add_gateway_step_run_title">Ejecutar ferngeist pair</string>
+    <string name="serverlist_add_gateway_step_run_body">Instala y ejecuta Ferngeist Gateway en tu ordenador y luego inicia el emparejamiento.</string>
+    <string name="serverlist_add_gateway_step_scan_title">Escanear QR</string>
+    <string name="serverlist_add_gateway_step_scan_body">Escanea el código QR o pega el payload desde la terminal.</string>
+    <string name="serverlist_add_gateway_step_add_title">Añadir puerta de enlace</string>
+    <string name="serverlist_add_gateway_step_add_body">Revisa los detalles, ponle nombre a la puerta de enlace y luego guárdala.</string>
+    <string name="serverlist_add_gateway_step_count">Paso %1$d de %2$d</string>
+    <string name="serverlist_add_gateway_next">Siguiente</string>
+    <string name="serverlist_add_gateway_pair">Emparejar</string>
+    <string name="serverlist_add_gateway_skip">Omitir y añadir manualmente</string>
+    <string name="serverlist_add_gateway_pairing_code_title">Introduce el código de emparejamiento</string>
+    <string name="serverlist_add_gateway_pairing_code_label">Código de emparejamiento</string>
+    <string name="serverlist_add_gateway_command_label">Comando a ejecutar</string>
+    <string name="serverlist_add_gateway_scan_instruction">Cuando aparezca el código QR, continúa con el siguiente paso.</string>
+    <string name="serverlist_add_gateway_edit_title">Editar puerta de enlace</string>
+    <string name="serverlist_add_gateway_details_title">Detalles de la puerta de enlace</string>
+    <string name="serverlist_add_gateway_details_subtitle">Actualiza cómo se guarda esta puerta de enlace en Ferngeist.</string>
+    <string name="serverlist_add_gateway_name_label">Nombre</string>
+    <string name="serverlist_add_gateway_name_placeholder">Estación de trabajo</string>
+    <string name="serverlist_add_gateway_host_label">Host de la puerta de enlace</string>
+    <string name="serverlist_add_gateway_payload_label">Payload de emparejamiento</string>
+    <string name="serverlist_add_gateway_or">O</string>
+    <string name="serverlist_add_gateway_device_label">Nombre de este dispositivo</string>
+    <string name="serverlist_add_gateway_manual_hint">El payload suele rellenar estos datos por ti.</string>
+    <string name="serverlist_add_gateway_http">HTTP</string>
+    <string name="serverlist_add_gateway_https">HTTPS</string>
+
+    <string name="serverlist_add_gateway_placeholder_code">000000</string>
+    <string name="serverlist_add_gateway_pair_save">Emparejar y guardar</string>
+    <string name="serverlist_add_gateway_cancel">Cancelar</string>
+    <string name="serverlist_add_gateway_check">Comprobar puerta de enlace</string>
+    <string name="serverlist_add_gateway_save">Guardar puerta de enlace</string>
+    <string name="serverlist_add_gateway_host_placeholder">192.168.1.42:5788</string>
+    <string name="serverlist_add_gateway_payload_placeholder">ferngeist-gateway://pair?scheme=…</string>
+    <string name="serverlist_add_gateway_imported_title">Payload de emparejamiento cargado</string>
+    <string name="serverlist_add_gateway_challenge_label">Desafío %1$s…</string>
+    <string name="serverlist_add_gateway_instruction_1">Si todavía no tienes Ferngeist Gateway, descárgalo desde https://github.com/arafatamim/ferngeist-acp-gateway.</string>
+    <string name="serverlist_add_gateway_instruction_2">Abre una terminal en el ordenador que ejecuta Ferngeist Gateway.</string>
+    <string name="serverlist_add_gateway_instruction_3">Ejecuta `ferngeist-gateway pair`.</string>
+    <string name="serverlist_add_gateway_instruction_4">Mantén esa terminal abierta.</string>
+
+    <string name="serverlist_payload_code_label">Código %1$s</string>
+    <string name="serverlist_payload_version_label">Versión %1$s</string>
+    <string name="serverlist_payload_remote_label">Remoto: %1$s</string>
+    <string name="serverlist_payload_remote_local_only">Solo local</string>
+
+    <string name="serverlist_add_server_host_placeholder">localhost:8080</string>
+    <string name="serverlist_add_server_clear_auth">Borrar método guardado</string>
+
+    <string name="serverlist_gateway_agents_title">Agentes de la puerta de enlace</string>
+    <string name="serverlist_gateway_agents_add_title">¿Añadir agente a la lista?</string>
+    <string name="serverlist_gateway_agents_detected">Detectado</string>
+    <string name="serverlist_gateway_agents_not_detected">No detectado</string>
+    <string name="serverlist_gateway_agents_valid">Válido</string>
+    <string name="serverlist_gateway_agents_invalid">Inválido</string>
+    <string name="serverlist_gateway_agents_added">Añadido</string>
+    <string name="serverlist_gateway_agents_invalid_body">Este agente no se puede añadir porque la puerta de enlace lo marcó como no válido.</string>
+    <string name="serverlist_gateway_agents_add_body">%1$s se añadirá a tu lista principal de agentes y luego se podrá iniciar desde la pantalla del servidor.</string>
+    <string name="serverlist_gateway_agents_acknowledge_risk">Entiendo que esto puede descargar y ejecutar binarios del agente en el host de mi puerta de enlace.</string>
+    <string name="serverlist_gateway_agents_add_btn">Añadir agente</string>
+    <string name="serverlist_gateway_agents_cancel">Cancelar</string>
+    <string name="serverlist_gateway_agents_retry">Reintentar</string>
+
+    <string name="serverlist_gateway_list_title">Puertas de enlace de Ferngeist</string>
+    <string name="serverlist_gateway_list_remote_mode">Modo remoto: %1$s</string>
+    <string name="serverlist_gateway_list_edit">Editar</string>
+    <string name="serverlist_gateway_list_delete">Eliminar</string>
+
+    <string name="serverlist_error_invalid_payload">El payload de emparejamiento no es válido. Escanea el QR de ferngeist pair o pega el payload completo.</string>
+    <string name="serverlist_error_gateway_host_required">Se requiere el host de la puerta de enlace</string>
+    <string name="serverlist_error_gateway_reach">No se pudo acceder a la puerta de enlace: %1$s</string>
+    <string name="serverlist_error_name_required">Se requiere el nombre</string>
+    <string name="serverlist_error_host_required">Se requiere el host</string>
+    <string name="serverlist_error_pairing_code_required">Se requiere el código de emparejamiento</string>
+    <string name="serverlist_error_start_pairing">No se pudo iniciar el emparejamiento: %1$s</string>
+    <string name="serverlist_error_complete_pairing">No se pudo completar el emparejamiento: %1$s</string>
+    <string name="serverlist_error_gateway_loaded">No se pudo cargar la puerta de enlace</string>
+    <string name="serverlist_error_save_gateway">No se pudo guardar la puerta de enlace: %1$s</string>
+    <string name="serverlist_error_scan_or_paste">Escanea el QR, pega el payload o escribe primero el código de emparejamiento</string>
+    <string name="serverlist_error_corrupted_gateway">No se pudo cargar la puerta de enlace. La credencial puede estar dañada. Elimínala y vuelve a emparejarla.</string>
+    <string name="serverlist_error_corrupted_server">No se pudo cargar el servidor. La credencial puede estar dañada. Elimínalo y vuelve a añadir el servidor.</string>
+    <string name="serverlist_error_launch">No se pudo iniciar %1$s</string>
+    <string name="serverlist_error_connect">No se pudo conectar a %1$s</string>
+    <string name="serverlist_error_reconnect">No se pudo volver a conectar a %1$s</string>
+    <string name="serverlist_error_server_removed">El servidor se eliminó antes de que se pudiera completar la autenticación.</string>
+    <string name="serverlist_error_gateway_not_found">No se encontró la puerta de enlace para %1$s.</string>
+    <string name="serverlist_error_gateway_unpaired">La puerta de enlace no está emparejada.</string>
+    <string name="serverlist_error_restart">No se pudo reiniciar %1$s.</string>
+    <string name="serverlist_error_init_session">No se pudo inicializar la sesión con %1$s</string>
+    <string name="serverlist_error_init_session_detail">No se pudo inicializar la sesión con %1$s. Consulta logcat para obtener más detalles.</string>
+    <string name="serverlist_error_gateway_not_found_vm">Puerta de enlace no encontrada</string>
+    <string name="serverlist_error_connect_gateway">No se pudo conectar a la puerta de enlace: %1$s</string>
+    <string name="serverlist_error_added_agent">Añadido %1$s</string>
+    <string name="serverlist_device_default">Ferngeist Android</string>
+
+    <string name="serverlist_risk_gateway_host_fallback">el host de tu puerta de enlace</string>
+    <string name="serverlist_risk_add_agent_line1">Esta acción añade %1$s (%2$s) desde tu puerta de enlace.</string>
+    <string name="serverlist_risk_add_agent_line2">Iniciar este agente ejecuta código en %1$s.</string>
+    <string name="serverlist_risk_add_agent_line3">Si el binario no está instalado, la puerta de enlace puede descargarlo desde la fuente del registro ACP.</string>
+    <string name="serverlist_risk_add_agent_line4">Añade solo agentes y fuentes en los que confíes.</string>
+    <string name="serverlist_risk_launch_agent_line1">Iniciar %1$s inicia el agente \'%2$s\' a través de tu puerta de enlace.</string>
+    <string name="serverlist_risk_launch_agent_line2">Esto puede ejecutar binarios en %1$s.</string>
+    <string name="serverlist_risk_launch_agent_line3">Si es necesario, tu puerta de enlace puede descargar binarios del agente desde fuentes del registro ACP.</string>
+    <string name="serverlist_risk_launch_agent_line4">Continúa solo si confías en este agente y en su fuente.</string>
+
+    <string name="serverlist_qr_error_no_activity">No se puede abrir el escáner: no está en un contexto de actividad</string>
+    <string name="serverlist_qr_error_play_services">Google Play Services no está disponible: %1$s</string>
+    <string name="serverlist_qr_error_no_scanner">No se puede abrir el escáner en este dispositivo. Pega en su lugar el payload de emparejamiento.</string>
+    <string name="serverlist_qr_error_empty">El código QR estaba vacío</string>
+    <string name="serverlist_qr_error_invalid">El QR no contiene un payload de emparejamiento válido</string>
+    <string name="serverlist_qr_error_scan_failed">El escaneo del QR falló: %1$s</string>
+    <string name="serverlist_qr_error_cannot_start">No se puede iniciar el escáner en este dispositivo. Pega en su lugar el payload de emparejamiento.</string>
+
+    <string name="serverlist_error_unknown">error desconocido</string>
+    <string name="serverlist_gateway_default_name">Puerta de enlace</string>
+
+    <string name="serverlist_gateway_url_format">%1$s://%2$s</string>
+
+    <string name="serverlist_add_server_stdio_example">npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769</string>
+</resources>

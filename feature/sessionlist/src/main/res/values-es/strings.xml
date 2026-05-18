@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sessionlist_back_desc">Atrás</string>
+    <string name="sessionlist_cwd_tooltip">Cambiar directorio de trabajo</string>
+    <string name="sessionlist_cwd_desc">Cambiar directorio de trabajo</string>
+    <string name="sessionlist_new_session_desc">Nueva sesión</string>
+    <string name="sessionlist_today">Hoy</string>
+    <string name="sessionlist_yesterday">Ayer</string>
+    <string name="sessionlist_unknown_date">Desconocido</string>
+
+    <plurals name="sessionlist_session_count">
+        <item quantity="one">%d sesión</item>
+        <item quantity="other">%d sesiones</item>
+    </plurals>
+
+    <string name="sessionlist_auth_title">Autenticar %1$s</string>
+    <string name="sessionlist_auth_body">El agente "%1$s" requiere autenticación ACP antes de poder abrir sesiones.</string>
+    <string name="sessionlist_auth_method_fallback">Tipo: %1$s</string>
+    <string name="sessionlist_auth_reconnect">Reconectar</string>
+    <string name="sessionlist_auth_authenticate">Autenticar</string>
+    <string name="sessionlist_auth_cancel">Cancelar</string>
+    <string name="sessionlist_auth_terminal_cmd">Comando: %1$s</string>
+    <string name="sessionlist_auth_env_instructions">Establece estas variables de entorno antes de iniciar el agente y luego vuelve a conectarte para reintentar la autenticación.</string>
+    <string name="sessionlist_auth_optional_suffix"> (opcional)</string>
+    <string name="sessionlist_untitled">Sesión sin título</string>
+    <string name="sessionlist_empty_title">No hay sesiones</string>
+    <string name="sessionlist_empty_subtitle_listed">Las sesiones del servidor aparecerán aquí</string>
+    <string name="sessionlist_empty_subtitle_offline">Las sesiones que crees en este dispositivo aparecerán aquí</string>
+    <string name="sessionlist_empty_action">Crear nueva sesión</string>
+    <string name="sessionlist_topbar_title">Sesiones</string>
+
+    <string name="sessionlist_cwd_title">Directorio de trabajo</string>
+    <string name="sessionlist_cwd_body">Define el directorio de trabajo actual para este agente. Déjalo vacío para mostrar todas las sesiones.</string>
+    <string name="sessionlist_cwd_placeholder">Déjalo vacío para no filtrar</string>
+    <string name="sessionlist_cwd_clear">Borrar</string>
+    <string name="sessionlist_cwd_cancel">Cancelar</string>
+    <string name="sessionlist_cwd_save">Guardar</string>
+
+    <string name="sessionlist_error_load">No se pudieron cargar las sesiones</string>
+    <string name="sessionlist_error_create">No se pudo crear una nueva sesión</string>
+    <string name="sessionlist_error_reconnect">No se pudo volver a conectar a %1$s</string>
+    <string name="sessionlist_error_init">No se pudo inicializar %1$s</string>
+    <string name="sessionlist_error_removed">El servidor se eliminó antes de que se pudiera completar la autenticación.</string>
+    <string name="sessionlist_error_gateway_not_found">No se encontró la puerta de enlace para %1$s.</string>
+    <string name="sessionlist_error_gateway_unpaired">La puerta de enlace no está emparejada.</string>
+    <string name="sessionlist_error_gateway_runtime_missing">Falta el contexto de ejecución de la puerta de enlace para %1$s.</string>
+    <string name="sessionlist_error_restart">No se pudo reiniciar %1$s.</string>
+    <string name="sessionlist_error_reconnect_gateway">No se pudo volver a conectar a %1$s</string>
+    <string name="sessionlist_error_init_gateway">No se pudo inicializar %1$s</string>
+</resources>

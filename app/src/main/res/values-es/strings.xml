@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Ferngeist</string>
+    <string name="notification_channel_name">Conexión</string>
+    <string name="notification_channel_description">Muestra el estado de la conexión activa con el agente</string>
+    <string name="notification_connected_title">Ferngeist conectado</string>
+    <string name="notification_connected_text">Conectado a %1$s</string>
+    <string name="notification_connecting_title">Ferngeist conectando</string>
+    <string name="notification_connecting_text">Conectando al servidor del agente…</string>
+    <string name="notification_disconnected_title">Ferngeist desconectado</string>
+    <string name="notification_disconnected_text">Desconectado del servidor del agente</string>
+    <string name="notification_failed_title">Fallo de conexión</string>
+    <string name="notification_failed_text">No se pudo conectar al servidor del agente</string>
+    <string name="notification_action_disconnect">Desconectar</string>
+    <string name="battery_opt_title">Mantén Ferngeist conectado</string>
+    <string name="battery_opt_body">Android puede restringir Ferngeist en segundo plano, lo que puede cortar la conexión con el agente. Desactivar la optimización de batería ayuda a mantener tu sesión activa.</string>
+    <string name="battery_opt_not_now">Ahora no</string>
+    <string name="battery_opt_open_settings">Abrir ajustes</string>
+    <string name="notification_agent_fallback">agente</string>
+    <string name="app_untitled_session">Sesión sin título</string>
+</resources>
