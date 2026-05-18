@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Ferngeist</string>
+    <string name="notification_channel_name">连接状态</string>
+    <string name="notification_channel_description">显示当前代理连接的状态</string>
+    <string name="notification_connected_title">Ferngeist 已连接</string>
+    <string name="notification_connected_text">已连接到 %1$s</string>
+    <string name="notification_connecting_title">Ferngeist 正在连接</string>
+    <string name="notification_connecting_text">正在连接到代理服务器…</string>
+    <string name="notification_disconnected_title">Ferngeist 连接已断开</string>
+    <string name="notification_disconnected_text">已从代理服务器断开连接</string>
+    <string name="notification_failed_title">连接失败</string>
+    <string name="notification_failed_text">无法连接到代理服务器</string>
+    <string name="notification_action_disconnect">断开连接</string>
+    <string name="battery_opt_title">保持 Ferngeist 连接</string>
+    <string name="battery_opt_body">Android 可能会限制后台运行的 Ferngeist，导致代理连接中断。禁用电池优化有助于保持会话持续运行。</string>
+    <string name="battery_opt_not_now">稍后再说</string>
+    <string name="battery_opt_open_settings">打开设置</string>
+    <string name="notification_agent_fallback">代理</string>
+    <string name="app_untitled_session">无标题会话</string>
+</resources>

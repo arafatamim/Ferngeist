@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- About & Legal -->
+    <string name="about">关于 Ferngeist</string>
+    <string name="privacy_policy">隐私政策</string>
+    <string name="privacy_policy_url">https://arafatamim.github.io/Ferngeist/privacy_policy.html</string>
+    <string name="report_issue">反馈问题</string>
+    <string name="github_repo_url">https://github.com/arafatamim/ferngeist/issues</string>
+
+    <!-- Common -->
+    <string name="serverlist_back_desc">返回</string>
+    <string name="serverlist_ok">确定</string>
+    <string name="serverlist_cancel">取消</string>
+    <string name="serverlist_continue">继续</string>
+
+    <!-- Server List -->
+    <string name="serverlist_title">Ferngeist</string>
+    <string name="serverlist_about_body">Ferngeist 是一款用于代理客户端协议 (ACP) 服务器的 Android 客户端，允许您直接从移动设备与编码代理进行交互。</string>
+    <string name="serverlist_add_gateway_btn">配对 Ferngeist 网关</string>
+    <string name="serverlist_add_agent_btn">手动添加代理</string>
+    <string name="serverlist_add_paired_btn">使用已配对的网关添加</string>
+    <string name="serverlist_launch_risk_title">在网关上运行代理？</string>
+    <string name="serverlist_launch_risk_accept">我了解并希望继续。</string>
+    <string name="serverlist_empty_title">暂无代理</string>
+    <string name="serverlist_empty_body">手动添加代理或配对网关以构建您的启动列表。</string>
+    <string name="serverlist_empty_action">添加代理</string>
+
+    <!-- Auth dialog (server list) -->
+    <string name="serverlist_auth_title">身份验证 %1$s</string>
+    <string name="serverlist_auth_body">代理“%1$s”在打开会话前需要 ACP 身份验证。</string>
+    <string name="serverlist_auth_method_fallback">类型：%1$s</string>
+    <string name="serverlist_auth_reconnect">重新连接</string>
+    <string name="serverlist_auth_authenticate">身份验证</string>
+    <string name="serverlist_auth_cancel">取消</string>
+    <string name="serverlist_auth_cmd">命令：%1$s</string>
+    <string name="serverlist_auth_env_instructions">在启动代理前设置这些环境变量，然后重新连接以重试身份验证。</string>
+    <string name="serverlist_auth_optional_suffix">（可选）</string>
+
+    <!-- Server Card -->
+    <string name="serverlist_card_delete_title">删除服务器</string>
+    <string name="serverlist_card_delete_body">移除“%1$s”及其所有保存的会话？</string>
+    <string name="serverlist_card_delete">删除</string>
+    <string name="serverlist_card_manage">管理</string>
+    <string name="serverlist_card_edit">编辑</string>
+
+    <!-- Add Server -->
+    <string name="serverlist_add_server_title_edit">编辑 ACP 代理</string>
+    <string name="serverlist_add_server_title_new">新建 ACP 代理</string>
+    <string name="serverlist_add_server_details_title">ACP 代理详情</string>
+    <string name="serverlist_add_server_name_label">名称</string>
+    <string name="serverlist_add_server_name_placeholder">我的服务器</string>
+    <string name="serverlist_add_server_protocol_label">协议</string>
+    <string name="serverlist_add_server_ws_warning">由于未加密，请仅在受信任的本地网络连接中使用此项。</string>
+    <string name="serverlist_add_server_host_label">主机</string>
+    <string name="serverlist_add_server_host_hint">在此处使用您电脑的局域网 IP，而不是 localhost。示例：192.168.1.42:6000</string>
+    <string name="serverlist_add_server_stdio_hint">在连接前，使用 stdio-to-ws 封装器运行您的 ACP 代理。示例：</string>
+    <string name="serverlist_add_server_docs_hint">查看您的 ACP 代理文档，了解在 ACP 模式下启动的确切命令和标志。</string>
+    <string name="serverlist_add_server_auth_title">身份验证</string>
+    <string name="serverlist_add_server_auth_subtitle">ACP 代理</string>
+    <string name="serverlist_add_server_auth_desc">Ferngeist 在连接后根据代理提供的验证方法进行 ACP 身份验证协商。</string>
+    <string name="serverlist_add_server_stored_auth">已保存的身份验证方法</string>
+    <string name="serverlist_add_server_btn_update">更新服务器</string>
+    <string name="serverlist_add_server_btn_add">添加服务器</string>
+    <string name="serverlist_add_server_ws">WebSocket</string>
+    <string name="serverlist_add_server_wss">安全 WebSocket</string>
+
+    <!-- Add Gateway -->
+    <string name="serverlist_add_gateway_title">配对 Ferngeist 网关</string>
+    <string name="serverlist_add_gateway_step_run_title">运行 ferngeist pair</string>
+    <string name="serverlist_add_gateway_step_run_body">在您的电脑上安装并运行 Ferngeist Gateway，然后开始配对。</string>
+    <string name="serverlist_add_gateway_step_scan_title">扫描二维码</string>
+    <string name="serverlist_add_gateway_step_scan_body">扫描二维码，或从终端粘贴 Payload。</string>
+    <string name="serverlist_add_gateway_step_add_title">添加网关</string>
+    <string name="serverlist_add_gateway_step_add_body">检查详情，命名网关，然后保存。</string>
+    <string name="serverlist_add_gateway_step_count">第 %1$d 步（共 %2$d 步）</string>
+    <string name="serverlist_add_gateway_next">下一步</string>
+    <string name="serverlist_add_gateway_pair">配对</string>
+    <string name="serverlist_add_gateway_skip">跳过并手动添加</string>
+    <string name="serverlist_add_gateway_pairing_code_title">输入配对码</string>
+    <string name="serverlist_add_gateway_pairing_code_label">配对码</string>
+    <string name="serverlist_add_gateway_command_label">运行命令</string>
+    <string name="serverlist_add_gateway_scan_instruction">当二维码出现时，继续下一步。</string>
+    <string name="serverlist_add_gateway_edit_title">编辑网关</string>
+    <string name="serverlist_add_gateway_details_title">网关详情</string>
+    <string name="serverlist_add_gateway_details_subtitle">更新此网关在 Ferngeist 中的保存方式。</string>
+    <string name="serverlist_add_gateway_name_label">名称</string>
+    <string name="serverlist_add_gateway_name_placeholder">工作站</string>
+    <string name="serverlist_add_gateway_host_label">网关主机</string>
+    <string name="serverlist_add_gateway_payload_label">配对 Payload</string>
+    <string name="serverlist_add_gateway_or">或</string>
+    <string name="serverlist_add_gateway_device_label">此设备名称</string>
+    <string name="serverlist_add_gateway_manual_hint">Payload 通常会自动为您填充这些详情。</string>
+    <string name="serverlist_add_gateway_http">HTTP</string>
+    <string name="serverlist_add_gateway_https">HTTPS</string>
+
+    <string name="serverlist_add_gateway_placeholder_code">000000</string>
+    <string name="serverlist_add_gateway_pair_save">配对并保存</string>
+    <string name="serverlist_add_gateway_cancel">取消</string>
+    <string name="serverlist_add_gateway_check">检查网关</string>
+    <string name="serverlist_add_gateway_save">保存网关</string>
+    <string name="serverlist_add_gateway_host_placeholder">192.168.1.42:5788</string>
+    <string name="serverlist_add_gateway_payload_placeholder">ferngeist-gateway://pair?scheme=…</string>
+    <string name="serverlist_add_gateway_imported_title">配对 Payload 已加载</string>
+    <string name="serverlist_add_gateway_challenge_label">挑战 (Challenge) %1$s…</string>
+    <string name="serverlist_add_gateway_instruction_1">如果您还没有 Ferngeist Gateway，请从 https://github.com/arafatamim/ferngeist-acp-gateway 下载。</string>
+    <string name="serverlist_add_gateway_instruction_2">在运行 Ferngeist Gateway 的电脑上打开终端。</string>
+    <string name="serverlist_add_gateway_instruction_3">运行 `ferngeist-gateway pair`。</string>
+    <string name="serverlist_add_gateway_instruction_4">保持该终端开启。</string>
+
+    <!-- Gateway Payload -->
+    <string name="serverlist_payload_code_label">代码 %1$s</string>
+    <string name="serverlist_payload_version_label">版本 %1$s</string>
+    <string name="serverlist_payload_remote_label">远程：%1$s</string>
+    <string name="serverlist_payload_remote_local_only">仅本地</string>
+
+    <!-- Add Server - extra -->
+    <string name="serverlist_add_server_host_placeholder">localhost:8080</string>
+    <string name="serverlist_add_server_clear_auth">清除已保存的方法</string>
+
+    <!-- Gateway Agents -->
+    <string name="serverlist_gateway_agents_title">网关代理</string>
+    <string name="serverlist_gateway_agents_add_title">将代理添加到列表？</string>
+    <string name="serverlist_gateway_agents_detected">已检测到</string>
+    <string name="serverlist_gateway_agents_not_detected">未检测到</string>
+    <string name="serverlist_gateway_agents_valid">有效</string>
+    <string name="serverlist_gateway_agents_invalid">无效</string>
+    <string name="serverlist_gateway_agents_added">已添加</string>
+    <string name="serverlist_gateway_agents_invalid_body">由于网关将其标记为无效，无法添加此代理。</string>
+    <string name="serverlist_gateway_agents_add_body">%1$s 将被添加到您的主代理列表，随后可以从服务器屏幕启动。</string>
+    <string name="serverlist_gateway_agents_acknowledge_risk">我明白这可能会在我的网关主机上下载并执行代理二进制文件。</string>
+    <string name="serverlist_gateway_agents_add_btn">添加代理</string>
+    <string name="serverlist_gateway_agents_cancel">取消</string>
+    <string name="serverlist_gateway_agents_retry">重试</string>
+
+    <!-- Gateway List -->
+    <string name="serverlist_gateway_list_title">Ferngeist 网关</string>
+    <string name="serverlist_gateway_list_remote_mode">远程模式：%1$s</string>
+    <string name="serverlist_gateway_list_edit">编辑</string>
+    <string name="serverlist_gateway_list_delete">删除</string>
+
+    <!-- Serverlist error messages -->
+    <string name="serverlist_error_invalid_payload">配对 Payload 无效。请扫描来自 ferngeist pair 的二维码或粘贴完整的 Payload。</string>
+    <string name="serverlist_error_gateway_host_required">需要网关主机</string>
+    <string name="serverlist_error_gateway_reach">无法访问网关：%1$s</string>
+    <string name="serverlist_error_name_required">需要名称</string>
+    <string name="serverlist_error_host_required">需要主机</string>
+    <string name="serverlist_error_pairing_code_required">需要配对码</string>
+    <string name="serverlist_error_start_pairing">无法开始配对：%1$s</string>
+    <string name="serverlist_error_complete_pairing">无法完成配对：%1$s</string>
+    <string name="serverlist_error_gateway_loaded">无法加载网关</string>
+    <string name="serverlist_error_save_gateway">无法保存网关：%1$s</string>
+    <string name="serverlist_error_scan_or_paste">请先扫描二维码、粘贴 Payload 或输入配对码</string>
+    <string name="serverlist_error_corrupted_gateway">无法加载网关。凭据可能已损坏。请移除并重新配对。</string>
+    <string name="serverlist_error_corrupted_server">无法加载服务器。凭据可能已损坏。请移除并重新添加服务器。</string>
+    <string name="serverlist_error_launch">启动 %1$s 失败</string>
+    <string name="serverlist_error_connect">连接 %1$s 失败</string>
+    <string name="serverlist_error_reconnect">重新连接 %1$s 失败</string>
+    <string name="serverlist_error_server_removed">在身份验证完成前服务器已被移除。</string>
+    <string name="serverlist_error_gateway_not_found">未找到 %1$s 的网关。</string>
+    <string name="serverlist_error_gateway_unpaired">网关未配对。</string>
+    <string name="serverlist_error_restart">重启 %1$s 失败。</string>
+    <string name="serverlist_error_init_session">初始化 %1$s 会话失败</string>
+    <string name="serverlist_error_init_session_detail">初始化 %1$s 会话失败。请查看 logcat 获取详情。</string>
+    <string name="serverlist_error_gateway_not_found_vm">未找到网关</string>
+    <string name="serverlist_error_connect_gateway">无法连接到网关：%1$s</string>
+    <string name="serverlist_error_added_agent">已添加 %1$s</string>
+    <string name="serverlist_device_default">Ferngeist Android</string>
+
+    <!-- Risk Disclosure Lines -->
+    <string name="serverlist_risk_gateway_host_fallback">您的网关主机</string>
+    <string name="serverlist_risk_add_agent_line1">此操作将从您的网关添加 %1$s (%2$s)。</string>
+    <string name="serverlist_risk_add_agent_line2">启动此代理将在 %1$s 上运行代码。</string>
+    <string name="serverlist_risk_add_agent_line3">如果未安装二进制文件，网关可能会从 ACP 注册中心源 (registry source) 下载。</string>
+    <string name="serverlist_risk_add_agent_line4">仅添加您信任的代理和源。</string>
+    <string name="serverlist_risk_launch_agent_line1">启动 %1$s 将通过您的网关启动代理“%2$s”。</string>
+    <string name="serverlist_risk_launch_agent_line2">这可能会在 %1$s 上执行二进制文件。</string>
+    <string name="serverlist_risk_launch_agent_line3">如有需要，您的网关可能会从 ACP 注册中心源下载代理二进制文件。</string>
+    <string name="serverlist_risk_launch_agent_line4">仅当您信任此代理及其来源时才继续。</string>
+
+    <!-- QR Scanner Errors -->
+    <string name="serverlist_qr_error_no_activity">无法打开扫描仪：不在 Activity 上下文中</string>
+    <string name="serverlist_qr_error_play_services">Google Play 服务不可用：%1$s</string>
+    <string name="serverlist_qr_error_no_scanner">此设备无法打开扫描仪。请改为粘贴配对 Payload。</string>
+    <string name="serverlist_qr_error_empty">二维码为空</string>
+    <string name="serverlist_qr_error_invalid">二维码不包含有效的配对 Payload</string>
+    <string name="serverlist_qr_error_scan_failed">二维码扫描失败：%1$s</string>
+    <string name="serverlist_qr_error_cannot_start">无法在此设备上启动扫描仪。请改为粘贴配对 Payload。</string>
+
+    <!-- Fallback / Default Values -->
+    <string name="serverlist_error_unknown">未知错误</string>
+    <string name="serverlist_gateway_default_name">网关</string>
+
+    <!-- URL Format -->
+    <string name="serverlist_gateway_url_format">%1$s://%2$s</string>
+
+    <!-- Add Server - CLI Example -->
+    <string name="serverlist_add_server_stdio_example">npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769</string>
+</resources>

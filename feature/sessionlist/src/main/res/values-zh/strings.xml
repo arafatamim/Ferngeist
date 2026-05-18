@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sessionlist_back_desc">返回</string>
+    <string name="sessionlist_cwd_tooltip">更改工作目录</string>
+    <string name="sessionlist_cwd_desc">更改工作目录</string>
+    <string name="sessionlist_new_session_desc">新会话</string>
+    <string name="sessionlist_today">今天</string>
+    <string name="sessionlist_yesterday">昨天</string>
+    <string name="sessionlist_unknown_date">未知</string>
+
+    <plurals name="sessionlist_session_count">
+        <item quantity="one">%d 个会话</item>
+        <item quantity="other">%d 个会话</item>
+    </plurals>
+
+    <string name="sessionlist_auth_title">身份验证 %1$s</string>
+    <string name="sessionlist_auth_body">代理“%1$s”在打开会话前需要 ACP 身份验证。</string>
+    <string name="sessionlist_auth_method_fallback">类型：%1$s</string>
+    <string name="sessionlist_auth_reconnect">重新连接</string>
+    <string name="sessionlist_auth_authenticate">身份验证</string>
+    <string name="sessionlist_auth_cancel">取消</string>
+    <string name="sessionlist_auth_terminal_cmd">命令：%1$s</string>
+    <string name="sessionlist_auth_env_instructions">在启动代理前设置这些环境变量，然后重新连接以重试身份验证。</string>
+    <string name="sessionlist_auth_optional_suffix">（可选）</string>
+    <string name="sessionlist_untitled">无标题会话</string>
+    <string name="sessionlist_empty_title">暂无会话</string>
+    <string name="sessionlist_empty_subtitle_listed">来自服务器的会话将显示在此处</string>
+    <string name="sessionlist_empty_subtitle_offline">您在此设备上创建的会话将显示在此处</string>
+    <string name="sessionlist_empty_action">创建新会话</string>
+    <string name="sessionlist_topbar_title">会话</string>
+
+    <!-- CWD Dialog -->
+    <string name="sessionlist_cwd_title">工作目录</string>
+    <string name="sessionlist_cwd_body">设置此代理的当前工作目录。留空则显示所有会话。</string>
+    <string name="sessionlist_cwd_placeholder">留空以取消过滤</string>
+    <string name="sessionlist_cwd_clear">清除</string>
+    <string name="sessionlist_cwd_cancel">取消</string>
+    <string name="sessionlist_cwd_save">保存</string>
+
+    <!-- Error messages -->
+    <string name="sessionlist_error_load">加载会话失败</string>
+    <string name="sessionlist_error_create">创建新会话失败</string>
+    <string name="sessionlist_error_reconnect">重新连接 %1$s 失败</string>
+    <string name="sessionlist_error_init">初始化 %1$s 失败</string>
+    <string name="sessionlist_error_removed">在身份验证完成前服务器已被移除。</string>
+    <string name="sessionlist_error_gateway_not_found">未找到 %1$s 的网关。</string>
+    <string name="sessionlist_error_gateway_unpaired">网关未配对。</string>
+    <string name="sessionlist_error_gateway_runtime_missing">缺少 %1$s 的网关运行时上下文。</string>
+    <string name="sessionlist_error_restart">重启 %1$s 失败。</string>
+    <string name="sessionlist_error_reconnect_gateway">重新连接 %1$s 失败</string>
+    <string name="sessionlist_error_init_gateway">初始化 %1$s 失败</string>
+</resources>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_back">返回</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_retry">重试</string>
+    <string name="common_delete">删除</string>
+    <string name="common_save">保存</string>
+    <string name="common_close">关闭</string>
+    <string name="common_ok">确定</string>
+    <string name="common_edit">编辑</string>
+
+    <!-- Connection status labels -->
+    <string name="common_connecting">正在连接</string>
+    <string name="common_connected">已连接</string>
+    <string name="common_disconnected">连接已断开</string>
+    <string name="common_failed">失败</string>
+    <string name="common_na">不适用</string>
+    <string name="common_unknown">未知</string>
+    <string name="common_unsupported">不支持</string>
+    <string name="common_supported">支持</string>
+
+    <!-- Connection diagnostics -->
+    <string name="common_connection_status">连接状态：%1$s</string>
+    <string name="common_connection_diagnostics">连接诊断</string>
+    <string name="common_connection">连接：%1$s</string>
+    <string name="common_websocket">WebSocket：%1$s</string>
+    <string name="common_server">服务器：%1$s</string>
+    <string name="common_server_info">服务器信息：%1$s (%2$s)</string>
+    <string name="common_pending_rpc">待处理 RPC 请求：%1$d</string>
+    <string name="common_cancel_support">取消支持：%1$s</string>
+    <string name="common_total_tokens">总消耗 Token：%1$s</string>
+    <string name="common_usage_percentage">使用百分比：%1$s</string>
+    <string name="common_cost_spent">已消耗金额：%1$s</string>
+    <string name="common_recent_rpc">近期 RPC 活动</string>
+    <string name="common_no_recent_rpc">无近期 RPC 活动</string>
+    <string name="common_recent_errors">近期错误</string>
+    <string name="common_no_recent_errors">无近期错误</string>
+    <string name="common_connection_status_desc">连接状态</string>
+
+    <!-- Context usage tooltip -->
+    <string name="common_context_used">已使用 %1$s，上下文总量为 %2$s</string>
+    <string name="common_cost_amount">已消耗 %1$s</string>
+
+    <!-- RPC direction labels -->
+    <string name="common_rpc_direction_req">请求</string>
+    <string name="common_rpc_direction_res">响应</string>
+    <string name="common_rpc_direction_err">错误</string>
+    <string name="common_rpc_direction_ntf">通知</string>
+</resources>
