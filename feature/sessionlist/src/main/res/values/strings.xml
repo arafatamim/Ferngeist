@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sessionlist_back_desc">Back</string>
+    <string name="sessionlist_cwd_tooltip">Change working directory</string>
+    <string name="sessionlist_cwd_desc">Change working directory</string>
+    <string name="sessionlist_new_session_desc">New session</string>
+    <string name="sessionlist_today">Today</string>
+    <string name="sessionlist_yesterday">Yesterday</string>
+    <string name="sessionlist_unknown_date">Unknown</string>
+
+    <plurals name="sessionlist_session_count">
+        <item quantity="one">%d session</item>
+        <item quantity="other">%d sessions</item>
+    </plurals>
+
+    <string name="sessionlist_auth_title">Authenticate %1$s</string>
+    <string name="sessionlist_auth_body">The agent \"%1$s\" requires ACP authentication before sessions can be opened.</string>
+    <string name="sessionlist_auth_method_fallback">Type: %1$s</string>
+    <string name="sessionlist_auth_reconnect">Reconnect</string>
+    <string name="sessionlist_auth_authenticate">Authenticate</string>
+    <string name="sessionlist_auth_cancel">Cancel</string>
+    <string name="sessionlist_auth_terminal_cmd">Command: %1$s</string>
+    <string name="sessionlist_auth_env_instructions">Set these environment variables before launching the agent, then reconnect to retry authentication.</string>
+    <string name="sessionlist_auth_optional_suffix"> (optional)</string>
+    <string name="sessionlist_untitled">Untitled Session</string>
+    <string name="sessionlist_empty_title">No sessions</string>
+    <string name="sessionlist_empty_subtitle_listed">Sessions from the server will appear here</string>
+    <string name="sessionlist_empty_subtitle_offline">Sessions you create on this device will appear here</string>
+    <string name="sessionlist_empty_action">Create new session</string>
+    <string name="sessionlist_topbar_title">Sessions</string>
+
+    <!-- CWD Dialog -->
+    <string name="sessionlist_cwd_title">Working Directory</string>
+    <string name="sessionlist_cwd_body">Set the current working directory for this agent. Leave empty to show all sessions.</string>
+    <string name="sessionlist_cwd_placeholder">Leave empty for no filter</string>
+    <string name="sessionlist_cwd_clear">Clear</string>
+    <string name="sessionlist_cwd_cancel">Cancel</string>
+    <string name="sessionlist_cwd_save">Save</string>
+
+    <!-- Error messages -->
+    <string name="sessionlist_error_load">Failed to load sessions</string>
+    <string name="sessionlist_error_create">Failed to create a new session</string>
+    <string name="sessionlist_error_reconnect">Failed to reconnect to %1$s</string>
+    <string name="sessionlist_error_init">Failed to initialize %1$s</string>
+    <string name="sessionlist_error_removed">Server was removed before authentication could complete.</string>
+    <string name="sessionlist_error_gateway_not_found">Gateway was not found for %1$s.</string>
+    <string name="sessionlist_error_gateway_unpaired">Gateway is not paired.</string>
+    <string name="sessionlist_error_gateway_runtime_missing">Gateway runtime context is missing for %1$s.</string>
+    <string name="sessionlist_error_restart">Failed to restart %1$s.</string>
+    <string name="sessionlist_error_reconnect_gateway">Failed to reconnect to %1$s</string>
+    <string name="sessionlist_error_init_gateway">Failed to initialize %1$s</string>
+</resources>

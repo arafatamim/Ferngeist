@@ -24,9 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.tamimarafat.ferngeist.R
 
 @Suppress("LongMethod", "FunctionNaming")
 @Composable
@@ -63,7 +65,7 @@ fun BatteryOptimizationDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Keep Ferngeist Connected",
+                    text = stringResource(R.string.battery_opt_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -71,10 +73,7 @@ fun BatteryOptimizationDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text =
-                        "Android may restrict Ferngeist in the background, " +
-                            "causing the agent connection to drop. " +
-                            "Disabling battery optimization helps keep your session alive.",
+                    text = stringResource(R.string.battery_opt_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -87,7 +86,7 @@ fun BatteryOptimizationDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Not now")
+                        Text(stringResource(R.string.battery_opt_not_now))
                     }
                     Button(
                         onClick = {
@@ -95,7 +94,7 @@ fun BatteryOptimizationDialog(
                             launcher.launch(intent)
                         },
                     ) {
-                        Text("Open Settings")
+                        Text(stringResource(R.string.battery_opt_open_settings))
                     }
                 }
             }

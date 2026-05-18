@@ -189,7 +189,7 @@ class FerngeistForegroundService : Service() {
             when (state) {
                 is AcpConnectionState.Connected ->
                     getString(R.string.notification_connected_title) to
-                        getString(R.string.notification_connected_text, displayName ?: "agent")
+                        getString(R.string.notification_connected_text, displayName ?: getString(R.string.notification_agent_fallback))
                 is AcpConnectionState.Connecting ->
                     getString(R.string.notification_connecting_title) to
                         getString(R.string.notification_connecting_text)

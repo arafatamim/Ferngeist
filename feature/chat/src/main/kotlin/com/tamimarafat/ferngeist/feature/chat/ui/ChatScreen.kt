@@ -42,6 +42,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -53,6 +54,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.tamimarafat.ferngeist.acp.bridge.session.displayValueLabel
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
+import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import kotlinx.coroutines.launch
 
@@ -170,9 +172,10 @@ fun ChatScreen(
 
     // --- Composer mode button ---
     val showModeButton = modeOption != null
+    val defaultModeLabel = stringResource(R.string.chat_mode_label)
     val currentModeLabel =
         remember(modeOption) {
-            modeOption?.displayValueLabel()?.uppercase() ?: "MODE"
+            modeOption?.displayValueLabel()?.uppercase() ?: defaultModeLabel
         }
 
     // --- Messages & selections ---

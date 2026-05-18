@@ -49,11 +49,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -83,13 +85,19 @@ fun AddServerScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (viewModel.isEditMode) "Edit ACP Agent" else "New ACP Agent",
+                        text = stringResource(
+                            if (viewModel.isEditMode) R.string.serverlist_add_server_title_edit
+                            else R.string.serverlist_add_server_title_new,
+                        ),
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.serverlist_back_desc),
+                        )
                     }
                 },
                 colors =
@@ -111,16 +119,15 @@ fun AddServerScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── Manual ACP Details Section ──────────────────────────────
             SectionCard(
-                title = "ACP Agent Details",
+                title = stringResource(R.string.serverlist_add_server_details_title),
                 icon = Icons.Default.Dns,
             ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = viewModel::updateName,
-                    label = { Text("Name") },
-                    placeholder = { Text("My Server") },
+                    label = { Text(stringResource(R.string.serverlist_add_server_name_label)) },
+                    placeholder = { Text(stringResource(R.string.serverlist_add_server_name_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -129,9 +136,8 @@ fun AddServerScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Protocol selector
                 Text(
-                    text = "Protocol",
+                    text = stringResource(R.string.serverlist_add_server_protocol_label),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -148,7 +154,7 @@ fun AddServerScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "Only use this for trusted local network connections as this is not encrypted.",
+                            text = stringResource(R.string.serverlist_add_server_ws_warning),
                             modifier = Modifier.padding(12.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -161,8 +167,8 @@ fun AddServerScreen(
                 OutlinedTextField(
                     value = host,
                     onValueChange = viewModel::updateHost,
-                    label = { Text("Host") },
-                    placeholder = { Text("localhost:8080") },
+                    label = { Text(stringResource(R.string.serverlist_add_server_host_label)) },
+                    placeholder = { Text(stringResource(R.string.serverlist_add_server_host_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -178,7 +184,7 @@ fun AddServerScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "Use your PC's local network IP here, not localhost. Example: 192.168.1.42:6000",
+                            text = stringResource(R.string.serverlist_add_server_host_hint),
                             modifier = Modifier.padding(12.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -200,7 +206,7 @@ fun AddServerScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = "Run your ACP agent with a stdio-to-ws wrapper before connecting. Example:",
+                            text = stringResource(R.string.serverlist_add_server_stdio_hint),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             fontWeight = FontWeight.SemiBold,
@@ -211,14 +217,14 @@ fun AddServerScreen(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = "npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769",
+                                text = stringResource(R.string.serverlist_add_server_stdio_example),
                                 modifier = Modifier.padding(10.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                         Text(
-                            text = "Check your ACP agent's docs for the exact command and flags to start in ACP mode.",
+                            text = stringResource(R.string.serverlist_add_server_docs_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
@@ -226,14 +232,13 @@ fun AddServerScreen(
                 }
             }
 
-            // ── Authentication Section ──────────────────────────────────
             SectionCard(
-                title = "Authentication",
-                subtitle = "ACP Agent",
+                title = stringResource(R.string.serverlist_add_server_auth_title),
+                subtitle = stringResource(R.string.serverlist_add_server_auth_subtitle),
                 icon = Icons.Default.Key,
             ) {
                 Text(
-                    text = "Ferngeist negotiates ACP authentication after connect using the auth methods advertised by the agent.",
+                    text = stringResource(R.string.serverlist_add_server_auth_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -253,7 +258,7 @@ fun AddServerScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(
-                                text = "Stored authentication method",
+                                text = stringResource(R.string.serverlist_add_server_stored_auth),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -264,7 +269,7 @@ fun AddServerScreen(
                             )
                             if (viewModel.isEditMode) {
                                 OutlinedButton(onClick = viewModel::clearPreferredAuthMethod) {
-                                    Text("Clear stored method")
+                                    Text(stringResource(R.string.serverlist_add_server_clear_auth))
                                 }
                             }
                         }
@@ -272,15 +277,11 @@ fun AddServerScreen(
                 }
             }
 
-            // ── Save Button ─────────────────────────────────────────────
             Spacer(modifier = Modifier.height(4.dp))
 
             Button(
                 onClick = viewModel::saveServer,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = !isLoading,
                 shape = RoundedCornerShape(16.dp),
                 colors =
@@ -308,7 +309,10 @@ fun AddServerScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (viewModel.isEditMode) "Update Server" else "Add Server",
+                    text = stringResource(
+                        if (viewModel.isEditMode) R.string.serverlist_add_server_btn_update
+                        else R.string.serverlist_add_server_btn_add,
+                    ),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -318,8 +322,6 @@ fun AddServerScreen(
         }
     }
 }
-
-// ── Protocol Selector ───────────────────────────────────────────────────────────
 
 @Composable
 internal fun ProtocolSelector(
@@ -331,14 +333,14 @@ internal fun ProtocolSelector(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         ProtocolOption(
-            label = "WebSocket",
+            label = stringResource(R.string.serverlist_add_server_ws),
             code = "ws",
             isSelected = selected == "ws",
             onClick = { onSelect("ws") },
             modifier = Modifier.weight(1f),
         )
         ProtocolOption(
-            label = "Secure",
+            label = stringResource(R.string.serverlist_add_server_wss),
             code = "wss",
             isSelected = selected == "wss",
             onClick = { onSelect("wss") },
@@ -414,8 +416,6 @@ private fun ProtocolOption(
     }
 }
 
-// ── Section Card ────────────────────────────────────────────────────────────────
-
 @Composable
 internal fun SectionCard(
     title: String,
@@ -436,7 +436,6 @@ internal fun SectionCard(
                     .padding(20.dp)
                     .animateContentSize(),
         ) {
-            // Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -475,8 +474,6 @@ internal fun SectionCard(
         }
     }
 }
-
-// ── Shared TextField Colors ─────────────────────────────────────────────────────
 
 @Composable
 private fun sectionTextFieldColors() =

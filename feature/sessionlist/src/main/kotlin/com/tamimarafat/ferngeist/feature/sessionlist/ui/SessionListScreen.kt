@@ -73,8 +73,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -83,10 +86,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
@@ -161,7 +162,7 @@ fun SessionListScreen(
     val pullToRefreshState = rememberPullToRefreshState()
     val showRefreshingIndicator = isLoading && sessions.isNotEmpty()
     val supportsSessionList = agentCapabilities?.session?.list != false
-    val serverName = resolveServerDisplayName(navArgName, loadedName)
+    val serverName = resolveServerDisplayName(navArgName, loadedName, stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_topbar_title))
     val hasCwd = !currentCwd.isNullOrBlank()
     val cwdAlpha by animateFloatAsState(
         targetValue = if (hasCwd) 1f else 0f,
@@ -322,7 +323,7 @@ fun SessionListScreen(
                         FilledTonalIconButton(onClick = onNavigateBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_back_desc),
                             )
                         }
                     },
@@ -332,7 +333,7 @@ fun SessionListScreen(
                                 TooltipDefaults.rememberTooltipPositionProvider(
                                     TooltipAnchorPosition.Above,
                                 ),
-                            tooltip = { PlainTooltip { Text("Change working directory") } },
+                            tooltip = { PlainTooltip { Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_cwd_tooltip)) } },
                             state = rememberTooltipState(),
                         ) {
                             FilledTonalIconButton(
@@ -343,7 +344,7 @@ fun SessionListScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.FolderOpen,
-                                    contentDescription = "Change working directory",
+                                    contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_cwd_desc),
                                 )
                             }
                         }
@@ -367,7 +368,7 @@ fun SessionListScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "New session",
+                        contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_new_session_desc),
                     )
                 }
             },
@@ -426,8 +427,8 @@ fun SessionListScreen(
                             // Show "Today" / "Yesterday" for recent dates, formatted date otherwise.
                             val label =
                                 when (sessionDate) {
-                                    today -> "Today"
-                                    today.minusDays(1) -> "Yesterday"
+                                    today -> stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_today)
+                                    today.minusDays(1) -> stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_yesterday)
                                     else -> {
                                         val epoch =
                                             max(
@@ -441,7 +442,7 @@ fun SessionListScreen(
                         }
                     val unknownSessions = sortedSessions.filter { it.updatedAt == null }
                     if (unknownSessions.isNotEmpty()) {
-                        groupedSessions["Unknown"] = unknownSessions
+                        groupedSessions[stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_unknown_date)] = unknownSessions
                     }
 
                     LazyColumn(
@@ -482,7 +483,7 @@ fun SessionListScreen(
                         }
                         item {
                             Text(
-                                text = "${sessions.size} session${if (sessions.size != 1) "s" else ""}",
+                                text = LocalContext.current.resources.getQuantityString(com.tamimarafat.ferngeist.feature.sessionlist.R.plurals.sessionlist_session_count, sessions.size, sessions.size),
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
@@ -544,7 +545,7 @@ private fun PendingAuthenticationDialog(
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Authenticate ${pendingAuthentication.serverName}") },
+        title = { Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_title, pendingAuthentication.serverName)) },
         text = {
             Column(
                 modifier =
@@ -555,7 +556,7 @@ private fun PendingAuthenticationDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "The agent \"${pendingAuthentication.agentName}\" requires ACP authentication before sessions can be opened.",
+                    text = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_body, pendingAuthentication.agentName),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 pendingAuthentication.authErrorMessage?.let { message ->
@@ -591,7 +592,7 @@ private fun PendingAuthenticationDialog(
                             ) {
                                 Text(text = method.name, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    text = method.description ?: "Type: ${method.type}",
+                                    text = method.description ?: stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_method_fallback, method.type),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -627,12 +628,12 @@ private fun PendingAuthenticationDialog(
                     }
                 },
             ) {
-                Text(if (isManualEnvAuth) "Reconnect" else "Authenticate")
+                Text(if (isManualEnvAuth) stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_reconnect) else stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_authenticate))
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_cancel))
             }
         },
     )
@@ -661,7 +662,7 @@ private fun AuthenticationMethodDetails(
     }
     if (method.args.isNotEmpty()) {
         Text(
-            text = "Command: ${method.args.joinToString(" ")}",
+            text = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_terminal_cmd, method.args.joinToString(" ")),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -671,7 +672,7 @@ private fun AuthenticationMethodDetails(
     }
     if (!isGatewayBacked) {
         Text(
-            text = "Set these environment variables before launching the agent, then reconnect to retry authentication.",
+            text = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_env_instructions),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -683,7 +684,7 @@ private fun AuthenticationMethodDetails(
                         append(" -> ")
                         append(envVar.name)
                         if (envVar.optional) {
-                            append(" (optional)")
+                            append(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_optional_suffix))
                         }
                     },
                 style = MaterialTheme.typography.bodySmall,
@@ -702,7 +703,7 @@ private fun AuthenticationMethodDetails(
                     buildString {
                         append(envVar.label ?: envVar.name)
                         if (envVar.optional) {
-                            append(" (optional)")
+                            append(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_optional_suffix))
                         }
                     },
                 )
@@ -769,7 +770,7 @@ private fun SessionCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = session.title ?: "Untitled Session",
+                        text = session.title ?: stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_untitled),
                         style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
                         maxLines = 1,
                         overflow = TextOverflow.MiddleEllipsis,
@@ -817,16 +818,16 @@ private fun EmptySessionList(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "No sessions",
+                text = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_title),
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text =
                     if (supportsSessionList) {
-                        "Sessions from the server will appear here"
+                        stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_listed)
                     } else {
-                        "Sessions you create on this device will appear here"
+                        stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_offline)
                     },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -835,7 +836,7 @@ private fun EmptySessionList(
             )
             Spacer(modifier = Modifier.height(16.dp))
             TextButton(onClick = onCreateSession) {
-                Text("Create new session")
+                Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_action))
             }
         }
     }
@@ -893,8 +894,8 @@ private fun SessionListTopBarTitle(
  * 2. [navArgName] if non-blank (fallback name passed as a navigation argument)
  * 3. "Sessions" (default)
  */
-internal fun resolveServerDisplayName(navArgName: String?, loadedName: String?): String {
+internal fun resolveServerDisplayName(navArgName: String?, loadedName: String?, defaultName: String = "Sessions"): String {
     if (!loadedName.isNullOrBlank()) return loadedName
     if (!navArgName.isNullOrBlank()) return navArgName
-    return "Sessions"
+    return defaultName
 }

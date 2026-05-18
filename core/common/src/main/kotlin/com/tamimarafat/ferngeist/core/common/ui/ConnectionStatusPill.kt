@@ -1,7 +1,6 @@
 package com.tamimarafat.ferngeist.core.common.ui
 
 import java.text.NumberFormat
-import java.util.Locale
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -29,11 +28,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.core.common.R
 import androidx.compose.ui.platform.LocalLocale
 
 /**
@@ -77,24 +78,25 @@ fun ConnectionStatusPill(
     modifier: Modifier = Modifier,
 ) {
     val connectionLabel = connectionStateLabel(connectionState)
+    val connectionStatusDesc = stringResource(R.string.common_connection_status_desc)
 
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
-            RichTooltip(title = { Text("Connection Status: $connectionLabel") }) {
+            RichTooltip(title = { Text(stringResource(R.string.common_connection_status, connectionLabel)) }) {
                 if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
                     val formattedUsed = formatCompactTokens(totalTokens, LocalLocale.current.platformLocale)
                     val formattedWindow = formatCompactTokens(contextWindowTokens, LocalLocale.current.platformLocale)
                     Column {
-                        Text("$formattedUsed used of $formattedWindow context")
+                        Text(stringResource(R.string.common_context_used, formattedUsed, formattedWindow))
                         costAmount?.let { amount ->
-                            val costFmt = NumberFormat.getCurrencyInstance(Locale.US).apply {
+                            val costFmt = NumberFormat.getCurrencyInstance(LocalLocale.current.platformLocale).apply {
                                 costCurrency?.let {
                                     runCatching { currency = java.util.Currency.getInstance(it) }
                                 }
                                 maximumFractionDigits = 2
                             }
-                            Text("${costFmt.format(amount)} spent")
+                            Text(stringResource(R.string.common_cost_amount, costFmt.format(amount)))
                         }
                     }
                 }
@@ -114,7 +116,7 @@ fun ConnectionStatusPill(
                 modifier
                     .size(40.dp)
                     .semantics {
-                        contentDescription = "Connection status"
+                        contentDescription = connectionStatusDesc
                         stateDescription = connectionLabel
                     },
         ) {

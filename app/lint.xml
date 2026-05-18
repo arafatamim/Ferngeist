@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Localization checks -->
+    <issue id="MissingTranslation" severity="error" />
+    <issue id="ExtraTranslation" severity="warning" />
+    <issue id="ImpliedQuantity" severity="warning" />
+    <issue id="MissingQuantity" severity="error" />
+    <issue id="UnusedQuantity" severity="warning" />
+</lint>

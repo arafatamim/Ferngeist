@@ -48,10 +48,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 
 /**
@@ -77,14 +80,14 @@ fun GatewayAgentsScreen(
     pendingAddAgent?.let { agent ->
         var acknowledgedRisk by rememberSaveable(agent.id) { mutableStateOf(false) }
         val gatewayHost = uiState.gateway?.host.orEmpty()
-        val riskLines = addAgentRiskLines(agent, gatewayHost)
+        val riskLines = addAgentRiskLines(LocalContext.current.resources, agent, gatewayHost)
         AlertDialog(
             onDismissRequest = { pendingAddAgent = null },
-            title = { Text("Add agent to list?") },
+            title = { Text(stringResource(R.string.serverlist_gateway_agents_add_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "${agent.displayName} will be added to your main agent list and can then be launched from the server screen.",
+                        stringResource(R.string.serverlist_gateway_agents_add_body, agent.displayName),
                     )
                     riskLines.forEach { line ->
                         Text(
@@ -102,7 +105,7 @@ fun GatewayAgentsScreen(
                             onCheckedChange = { acknowledgedRisk = it },
                         )
                         Text(
-                            "I understand this may download and execute agent binaries on my gateway host.",
+                            stringResource(R.string.serverlist_gateway_agents_acknowledge_risk),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -116,12 +119,12 @@ fun GatewayAgentsScreen(
                         pendingAddAgent = null
                     },
                 ) {
-                    Text("Add agent")
+                    Text(stringResource(R.string.serverlist_gateway_agents_add_btn))
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { pendingAddAgent = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.serverlist_gateway_agents_cancel))
                 }
             },
         )
@@ -130,10 +133,10 @@ fun GatewayAgentsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(uiState.gateway?.name ?: "Gateway Agents") },
+                title = { Text(uiState.gateway?.name ?: stringResource(R.string.serverlist_gateway_agents_title)) },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.serverlist_back_desc))
                     }
                 },
             )
@@ -174,7 +177,7 @@ fun GatewayAgentsScreen(
                         modifier = Modifier.width(320.dp),
                     )
                     OutlinedButton(onClick = viewModel::refresh) {
-                        Text("Retry")
+                        Text(stringResource(R.string.serverlist_gateway_agents_retry))
                     }
                 }
             }
@@ -241,19 +244,19 @@ fun GatewayAgentsScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            CompactAgentChip(label = if (agent.detected) "Detected" else "Not detected")
-                            CompactAgentChip(label = if (agent.manifestValid) "Valid" else "Invalid")
+                            CompactAgentChip(label = if (agent.detected) stringResource(R.string.serverlist_gateway_agents_detected) else stringResource(R.string.serverlist_gateway_agents_not_detected))
+                            CompactAgentChip(label = if (agent.manifestValid) stringResource(R.string.serverlist_gateway_agents_valid) else stringResource(R.string.serverlist_gateway_agents_invalid))
                             agent.runtimeStatus?.let { CompactAgentChip(label = it) }
                             if (alreadyAdded) {
                                 CompactAgentChip(
-                                    label = "Added",
+                                    label = stringResource(R.string.serverlist_gateway_agents_added),
                                     leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) },
                                 )
                             }
                         }
                         if (!alreadyAdded && !canAdd) {
                             Text(
-                                text = "This agent cannot be added because the gateway marked it invalid.",
+                                text = stringResource(R.string.serverlist_gateway_agents_invalid_body),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

@@ -1,11 +1,198 @@
 <resources>
+    <!-- About & Legal -->
     <string name="about">About Ferngeist</string>
     <string name="privacy_policy">Privacy Policy</string>
-    <string
-        name="privacy_policy_url"
-    >https://arafatamim.github.io/Ferngeist/privacy_policy.html</string>
+    <string name="privacy_policy_url">https://arafatamim.github.io/Ferngeist/privacy_policy.html</string>
     <string name="report_issue">Report an Issue</string>
-    <string
-        name="github_repo_url"
-    >https://github.com/arafatamim/ferngeist/issues</string>
+    <string name="github_repo_url">https://github.com/arafatamim/ferngeist/issues</string>
+
+    <!-- Common -->
+    <string name="serverlist_back_desc">Back</string>
+    <string name="serverlist_ok">OK</string>
+    <string name="serverlist_cancel">Cancel</string>
+    <string name="serverlist_continue">Continue</string>
+
+    <!-- Server List -->
+    <string name="serverlist_title">Ferngeist</string>
+    <string name="serverlist_about_body">Ferngeist is an Android client for Agent Client Protocol (ACP) servers, allowing you to interact with coding agents directly from your mobile device.</string>
+    <string name="serverlist_add_gateway_btn">Pair Ferngeist Gateway</string>
+    <string name="serverlist_add_agent_btn">Add agent manually</string>
+    <string name="serverlist_add_paired_btn">Add using paired gateway</string>
+    <string name="serverlist_launch_risk_title">Run agent on gateway?</string>
+    <string name="serverlist_launch_risk_accept">I understand and want to continue.</string>
+    <string name="serverlist_empty_title">No agents yet</string>
+    <string name="serverlist_empty_body">Add an agent manually or pair a gateway to build your launch list.</string>
+    <string name="serverlist_empty_action">Add agent</string>
+
+    <!-- Auth dialog (server list) -->
+    <string name="serverlist_auth_title">Authenticate %1$s</string>
+    <string name="serverlist_auth_body">The agent \"%1$s\" requires ACP authentication before sessions can be opened.</string>
+    <string name="serverlist_auth_method_fallback">Type: %1$s</string>
+    <string name="serverlist_auth_reconnect">Reconnect</string>
+    <string name="serverlist_auth_authenticate">Authenticate</string>
+    <string name="serverlist_auth_cancel">Cancel</string>
+    <string name="serverlist_auth_cmd">Command: %1$s</string>
+    <string name="serverlist_auth_env_instructions">Set these environment variables before launching the agent, then reconnect to retry authentication.</string>
+    <string name="serverlist_auth_optional_suffix"> (optional)</string>
+
+    <!-- Server Card -->
+    <string name="serverlist_card_delete_title">Delete Server</string>
+    <string name="serverlist_card_delete_body">Remove \"%1$s\" and all its saved sessions?</string>
+    <string name="serverlist_card_delete">Delete</string>
+    <string name="serverlist_card_manage">Manage</string>
+    <string name="serverlist_card_edit">Edit</string>
+
+    <!-- Add Server -->
+    <string name="serverlist_add_server_title_edit">Edit ACP Agent</string>
+    <string name="serverlist_add_server_title_new">New ACP Agent</string>
+    <string name="serverlist_add_server_details_title">ACP Agent Details</string>
+    <string name="serverlist_add_server_name_label">Name</string>
+    <string name="serverlist_add_server_name_placeholder">My Server</string>
+    <string name="serverlist_add_server_protocol_label">Protocol</string>
+    <string name="serverlist_add_server_ws_warning">Only use this for trusted local network connections as this is not encrypted.</string>
+    <string name="serverlist_add_server_host_label">Host</string>
+    <string name="serverlist_add_server_host_hint">Use your PC\'s local network IP here, not localhost. Example: 192.168.1.42:6000</string>
+    <string name="serverlist_add_server_stdio_hint">Run your ACP agent with a stdio-to-ws wrapper before connecting. Example:</string>
+    <string name="serverlist_add_server_docs_hint">Check your ACP agent\'s docs for the exact command and flags to start in ACP mode.</string>
+    <string name="serverlist_add_server_auth_title">Authentication</string>
+    <string name="serverlist_add_server_auth_subtitle">ACP Agent</string>
+    <string name="serverlist_add_server_auth_desc">Ferngeist negotiates ACP authentication after connect using the auth methods advertised by the agent.</string>
+    <string name="serverlist_add_server_stored_auth">Stored authentication method</string>
+    <string name="serverlist_add_server_btn_update">Update Server</string>
+    <string name="serverlist_add_server_btn_add">Add Server</string>
+    <string name="serverlist_add_server_ws">WebSocket</string>
+    <string name="serverlist_add_server_wss">Secure</string>
+
+    <!-- Add Gateway -->
+    <string name="serverlist_add_gateway_title">Pair Ferngeist Gateway</string>
+    <string name="serverlist_add_gateway_step_run_title">Run ferngeist pair</string>
+    <string name="serverlist_add_gateway_step_run_body">Install and run Ferngeist Gateway on your computer, then start pairing.</string>
+    <string name="serverlist_add_gateway_step_scan_title">Scan QR</string>
+    <string name="serverlist_add_gateway_step_scan_body">Scan the QR code, or paste the payload from the terminal.</string>
+    <string name="serverlist_add_gateway_step_add_title">Add gateway</string>
+    <string name="serverlist_add_gateway_step_add_body">Check the details, name the gateway, then save it.</string>
+    <string name="serverlist_add_gateway_step_count">Step %1$d of %2$d</string>
+    <string name="serverlist_add_gateway_next">Next</string>
+    <string name="serverlist_add_gateway_pair">Pair</string>
+    <string name="serverlist_add_gateway_skip">Skip and add manually</string>
+    <string name="serverlist_add_gateway_pairing_code_title">Enter pairing code</string>
+    <string name="serverlist_add_gateway_pairing_code_label">Pairing code</string>
+    <string name="serverlist_add_gateway_command_label">Command to run</string>
+    <string name="serverlist_add_gateway_scan_instruction">When the QR code appears, continue to the next step.</string>
+    <string name="serverlist_add_gateway_edit_title">Edit Gateway</string>
+    <string name="serverlist_add_gateway_details_title">Gateway Details</string>
+    <string name="serverlist_add_gateway_details_subtitle">Update how this gateway is saved in Ferngeist.</string>
+    <string name="serverlist_add_gateway_name_label">Name</string>
+    <string name="serverlist_add_gateway_name_placeholder">Workstation</string>
+    <string name="serverlist_add_gateway_host_label">Gateway host</string>
+    <string name="serverlist_add_gateway_payload_label">Pairing payload</string>
+    <string name="serverlist_add_gateway_or">OR</string>
+    <string name="serverlist_add_gateway_device_label">This device name</string>
+    <string name="serverlist_add_gateway_manual_hint">The payload usually fills these details for you.</string>
+    <string name="serverlist_add_gateway_http">HTTP</string>
+    <string name="serverlist_add_gateway_https">HTTPS</string>
+
+    <!-- Add Gateway - extra -->
+    <string name="serverlist_add_gateway_placeholder_code">000000</string>
+    <string name="serverlist_add_gateway_pair_save">Pair and save</string>
+    <string name="serverlist_add_gateway_cancel">Cancel</string>
+    <string name="serverlist_add_gateway_check">Check gateway</string>
+    <string name="serverlist_add_gateway_save">Save gateway</string>
+    <string name="serverlist_add_gateway_host_placeholder">192.168.1.42:5788</string>
+    <string name="serverlist_add_gateway_payload_placeholder">ferngeist-gateway://pair?scheme=…</string>
+    <string name="serverlist_add_gateway_imported_title">Pairing payload loaded</string>
+    <string name="serverlist_add_gateway_challenge_label">Challenge %1$s…</string>
+    <string name="serverlist_add_gateway_instruction_1">If you do not have Ferngeist Gateway yet, download it from https://github.com/arafatamim/ferngeist-acp-gateway.</string>
+    <string name="serverlist_add_gateway_instruction_2">Open a terminal on the computer running Ferngeist Gateway.</string>
+    <string name="serverlist_add_gateway_instruction_3">Run `ferngeist-gateway pair`.</string>
+    <string name="serverlist_add_gateway_instruction_4">Keep that terminal open.</string>
+
+    <!-- Gateway Payload -->
+    <string name="serverlist_payload_code_label">Code %1$s</string>
+    <string name="serverlist_payload_version_label">Version %1$s</string>
+    <string name="serverlist_payload_remote_label">Remote: %1$s</string>
+    <string name="serverlist_payload_remote_local_only">Local only</string>
+
+    <!-- Add Server - extra -->
+    <string name="serverlist_add_server_host_placeholder">localhost:8080</string>
+    <string name="serverlist_add_server_clear_auth">Clear stored method</string>
+
+    <!-- Gateway Agents -->
+    <string name="serverlist_gateway_agents_title">Gateway Agents</string>
+    <string name="serverlist_gateway_agents_add_title">Add agent to list?</string>
+    <string name="serverlist_gateway_agents_detected">Detected</string>
+    <string name="serverlist_gateway_agents_not_detected">Not detected</string>
+    <string name="serverlist_gateway_agents_valid">Valid</string>
+    <string name="serverlist_gateway_agents_invalid">Invalid</string>
+    <string name="serverlist_gateway_agents_added">Added</string>
+    <string name="serverlist_gateway_agents_invalid_body">This agent cannot be added because the gateway marked it invalid.</string>
+    <string name="serverlist_gateway_agents_add_body">%1$s will be added to your main agent list and can then be launched from the server screen.</string>
+    <string name="serverlist_gateway_agents_acknowledge_risk">I understand this may download and execute agent binaries on my gateway host.</string>
+    <string name="serverlist_gateway_agents_add_btn">Add agent</string>
+    <string name="serverlist_gateway_agents_cancel">Cancel</string>
+    <string name="serverlist_gateway_agents_retry">Retry</string>
+
+    <!-- Gateway List -->
+    <string name="serverlist_gateway_list_title">Ferngeist Gateways</string>
+    <string name="serverlist_gateway_list_remote_mode">Remote mode: %1$s</string>
+    <string name="serverlist_gateway_list_edit">Edit</string>
+    <string name="serverlist_gateway_list_delete">Delete</string>
+
+    <!-- Serverlist error messages -->
+    <string name="serverlist_error_invalid_payload">Pairing payload is invalid. Scan the QR from ferngeist pair or paste the full payload.</string>
+    <string name="serverlist_error_gateway_host_required">Gateway host is required</string>
+    <string name="serverlist_error_gateway_reach">Could not reach gateway: %1$s</string>
+    <string name="serverlist_error_name_required">Name is required</string>
+    <string name="serverlist_error_host_required">Host is required</string>
+    <string name="serverlist_error_pairing_code_required">Pairing code is required</string>
+    <string name="serverlist_error_start_pairing">Could not start pairing: %1$s</string>
+    <string name="serverlist_error_complete_pairing">Could not complete pairing: %1$s</string>
+    <string name="serverlist_error_gateway_loaded">Gateway could not be loaded</string>
+    <string name="serverlist_error_save_gateway">Could not save gateway: %1$s</string>
+    <string name="serverlist_error_scan_or_paste">Scan QR, paste payload, or type pairing code first</string>
+    <string name="serverlist_error_corrupted_gateway">Gateway could not be loaded. The credential may be corrupted. Please remove and re-pair.</string>
+    <string name="serverlist_error_corrupted_server">Server could not be loaded. The credential may be corrupted. Please remove and re-add the server.</string>
+    <string name="serverlist_error_launch">Failed to launch %1$s</string>
+    <string name="serverlist_error_connect">Failed to connect to %1$s</string>
+    <string name="serverlist_error_reconnect">Failed to reconnect to %1$s</string>
+    <string name="serverlist_error_server_removed">Server was removed before authentication could complete.</string>
+    <string name="serverlist_error_gateway_not_found">Gateway was not found for %1$s.</string>
+    <string name="serverlist_error_gateway_unpaired">Gateway is not paired.</string>
+    <string name="serverlist_error_restart">Failed to restart %1$s.</string>
+    <string name="serverlist_error_init_session">Failed to initialize session with %1$s</string>
+    <string name="serverlist_error_init_session_detail">Failed to initialize session with %1$s. See logcat for details.</string>
+    <string name="serverlist_error_gateway_not_found_vm">Gateway not found</string>
+    <string name="serverlist_error_connect_gateway">Could not connect to gateway: %1$s</string>
+    <string name="serverlist_error_added_agent">Added %1$s</string>
+    <string name="serverlist_device_default">Ferngeist Android</string>
+
+    <!-- Risk Disclosure Lines -->
+    <string name="serverlist_risk_gateway_host_fallback">your gateway host</string>
+    <string name="serverlist_risk_add_agent_line1">This action adds %1$s (%2$s) from your gateway.</string>
+    <string name="serverlist_risk_add_agent_line2">Launching this agent runs code on %1$s.</string>
+    <string name="serverlist_risk_add_agent_line3">If the binary is not installed, the gateway may download it from the ACP registry source.</string>
+    <string name="serverlist_risk_add_agent_line4">Only add agents and sources you trust.</string>
+    <string name="serverlist_risk_launch_agent_line1">Launching %1$s starts agent \'%2$s\' via your gateway.</string>
+    <string name="serverlist_risk_launch_agent_line2">This can execute binaries on %1$s.</string>
+    <string name="serverlist_risk_launch_agent_line3">If required, your gateway may download agent binaries from ACP registry sources.</string>
+    <string name="serverlist_risk_launch_agent_line4">Continue only if you trust this agent and its source.</string>
+
+    <!-- QR Scanner Errors -->
+    <string name="serverlist_qr_error_no_activity">Cannot open scanner: not in an activity context</string>
+    <string name="serverlist_qr_error_play_services">Google Play Services unavailable: %1$s</string>
+    <string name="serverlist_qr_error_no_scanner">Cannot open scanner on this device. Paste the pairing payload instead.</string>
+    <string name="serverlist_qr_error_empty">QR code was empty</string>
+    <string name="serverlist_qr_error_invalid">QR does not contain a valid pairing payload</string>
+    <string name="serverlist_qr_error_scan_failed">QR scan failed: %1$s</string>
+    <string name="serverlist_qr_error_cannot_start">Cannot start scanner on this device. Paste the pairing payload instead.</string>
+
+    <!-- Fallback / Default Values -->
+    <string name="serverlist_error_unknown">unknown error</string>
+    <string name="serverlist_gateway_default_name">Gateway</string>
+
+    <!-- URL Format -->
+    <string name="serverlist_gateway_url_format">%1$s://%2$s</string>
+
+    <!-- Add Server - CLI Example -->
+    <string name="serverlist_add_server_stdio_example">npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769</string>
 </resources>

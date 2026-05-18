@@ -47,6 +47,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
@@ -58,6 +60,7 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.agentclientprotocol.model.ToolCallStatus
+import com.tamimarafat.ferngeist.feature.chat.R
 import kotlin.random.Random
 import com.mikepenz.markdown.model.State as MarkdownRenderState
 
@@ -263,7 +266,7 @@ private fun ThoughtBubble(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = if (isStreaming) "Reasoning" else "Show Reasoning",
+            text = if (isStreaming) stringResource(R.string.chat_reasoning) else stringResource(R.string.chat_show_reasoning),
             style =
                 MaterialTheme.typography.bodySmall.copy(
                     brush = textBrush,
@@ -273,7 +276,7 @@ private fun ThoughtBubble(
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
             imageVector = Icons.Rounded.ChevronRight,
-            contentDescription = "Show reasoning",
+            contentDescription = stringResource(R.string.chat_reasoning_desc),
             tint = baseColor,
             modifier = Modifier.size(16.dp),
         )
@@ -300,7 +303,7 @@ private fun PlanBubble(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.PlaylistAddCheck,
-                contentDescription = "Plan",
+                contentDescription = stringResource(R.string.chat_plan_desc),
                 modifier = Modifier.size(16.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -352,19 +355,20 @@ private fun ToolCallCard(
                         ToolCallStatus.COMPLETED ->
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Completed",
+                                contentDescription = stringResource(R.string.chat_completed_desc),
                             )
                         ToolCallStatus.FAILED ->
                             Icon(
                                 imageVector = Icons.Default.Error,
-                                contentDescription = "Error",
+                                contentDescription = stringResource(R.string.chat_error_desc),
                             )
                     }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
+                val defaultToolCallTitle = stringResource(R.string.chat_tool_call)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = toolCall.title.ifBlank { "Tool Call" },
+                        text = toolCall.title.ifBlank { defaultToolCallTitle },
                         maxLines = 1,
                         overflow = TextOverflow.MiddleEllipsis,
                         style = MaterialTheme.typography.bodySmall,
@@ -372,7 +376,7 @@ private fun ToolCallCard(
                     )
                     toolCall.kind?.let { kind ->
                         Text(
-                            text = kind.name.lowercase(),
+                            text = toolKindLabel(kind),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -385,14 +389,14 @@ private fun ToolCallCard(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = "Show tool call details",
+                        contentDescription = stringResource(R.string.chat_tool_call_details_desc),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             if (!toolCall.permissionOptions.isNullOrEmpty()) {
                 Text(
-                    text = "Awaiting permission response",
+                    text = stringResource(R.string.chat_awaiting_permission),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 56.dp, end = 12.dp, bottom = 12.dp),
@@ -422,12 +426,12 @@ private fun ImageAttachments(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Image,
-                        contentDescription = "Image",
+                        contentDescription = stringResource(R.string.chat_image_desc),
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Image (${image.mimeType})",
+                        text = stringResource(R.string.chat_image_label, image.mimeType),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -443,9 +447,11 @@ private fun StreamingIndicator(
     streamKey: String,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val spinnerVerb =
         remember(streamKey) {
-            STREAMING_VERBS[Random.nextInt(STREAMING_VERBS.size)]
+            val verbs = context.resources.getStringArray(R.array.chat_spinner_verbs)
+            verbs[Random.nextInt(verbs.size)]
         }
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
     val baseColor = LocalContentColor.current.copy(alpha = 0.8f)
@@ -465,7 +471,7 @@ private fun StreamingIndicator(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "$spinnerVerb...",
+            text = stringResource(R.string.chat_streaming_indicator, spinnerVerb),
             style =
                 MaterialTheme.typography.bodyMedium.copy(
                     brush = textBrush,
@@ -474,65 +480,7 @@ private fun StreamingIndicator(
     }
 }
 
-// Yoinked from Claude Code. Ref: https://github.com/levindixon/tengu_spinner_words
-private val STREAMING_VERBS =
-    listOf(
-        "Accomplishing",
-        "Actioning",
-        "Actualizing",
-        "Baking",
-        "Brewing",
-        "Calculating",
-        "Cerebrating",
-        "Churning",
-        "Coalescing",
-        "Cogitating",
-        "Computing",
-        "Conjuring",
-        "Considering",
-        "Cooking",
-        "Crafting",
-        "Creating",
-        "Crunching",
-        "Deliberating",
-        "Determining",
-        "Doing",
-        "Effecting",
-        "Finagling",
-        "Forging",
-        "Forming",
-        "Generating",
-        "Hatching",
-        "Herding",
-        "Honking",
-        "Hustling",
-        "Ideating",
-        "Inferring",
-        "Manifesting",
-        "Marinating",
-        "Moseying",
-        "Mulling",
-        "Mustering",
-        "Musing",
-        "Noodling",
-        "Percolating",
-        "Pondering",
-        "Processing",
-        "Puttering",
-        "Reticulating",
-        "Ruminating",
-        "Schlepping",
-        "Shucking",
-        "Simmering",
-        "Smooshing",
-        "Spinning",
-        "Stewing",
-        "Synthesizing",
-        "Thinking",
-        "Transmuting",
-        "Vibing",
-        "Working",
-    )
+
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private val LOADING_SHAPES =

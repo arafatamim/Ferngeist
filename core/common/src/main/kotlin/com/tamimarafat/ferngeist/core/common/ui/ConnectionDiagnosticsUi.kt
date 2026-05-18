@@ -12,10 +12,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.core.common.R
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.RpcDirection
+import com.tamimarafat.ferngeist.acp.bridge.connection.WebSocketState
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -37,53 +40,50 @@ fun ConnectionDiagnosticsDialog(
     val totalTokensText =
         totalTokens?.let {
             formatCompactTokens(it, Locale.getDefault())
-        } ?: "N/A"
+        } ?: stringResource(R.string.common_na)
     val contextUsagePct =
         percentString(
             totalTokens,
             contextWindowTokens,
             Locale.getDefault(),
-        ) ?: "N/A"
+        ) ?: stringResource(R.string.common_na)
     val costText =
         costAmount?.let { amount ->
             formatCurrency(amount, costCurrency, Locale.getDefault())
-        } ?: "Unavailable"
+        } ?: stringResource(R.string.common_unsupported)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Connection Diagnostics") },
+        title = { Text(stringResource(R.string.common_connection_diagnostics)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("Connection: ${connectionStateLabel(connectionState)}")
-                Text("WebSocket: ${diagnostics.websocketState.name.lowercase().replace('_', ' ')}")
-                Text("Server: ${diagnostics.serverUrl ?: "Unknown"}")
-                val agentName = diagnostics.agentInfo?.name ?: "Unknown"
-                val agentVersion = diagnostics.agentInfo?.version ?: "Unknown"
-                Text("Server info: $agentName ($agentVersion)")
-                Text("Pending RPC requests: ${diagnostics.pendingRequestCount}")
+                Text(stringResource(R.string.common_connection, connectionStateLabel(connectionState)))
+                Text(stringResource(R.string.common_websocket, websocketStateLabel(diagnostics.websocketState)))
+                Text(stringResource(R.string.common_server, diagnostics.serverUrl ?: stringResource(R.string.common_unknown)))
+                val agentName = diagnostics.agentInfo?.name ?: stringResource(R.string.common_unknown)
+                val agentVersion = diagnostics.agentInfo?.version ?: stringResource(R.string.common_unknown)
+                Text(stringResource(R.string.common_server_info, agentName, agentVersion))
+                Text(stringResource(R.string.common_pending_rpc, diagnostics.pendingRequestCount))
                 if (showCancelSupport) {
-                    Text(
-                        "Cancel support: ${
-                            when (diagnostics.supportsSessionCancel) {
-                                true -> "Supported"
-                                false -> "Unsupported"
-                                null -> "Unknown"
-                            }
-                        }",
-                    )
+                    val cancelLabel = when (diagnostics.supportsSessionCancel) {
+                        true -> stringResource(R.string.common_supported)
+                        false -> stringResource(R.string.common_unsupported)
+                        null -> stringResource(R.string.common_unknown)
+                    }
+                    Text(stringResource(R.string.common_cancel_support, cancelLabel))
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text("Total tokens used: $totalTokensText")
-                Text("Usage percentage: $contextUsagePct")
-                Text("Cost spent: $costText")
+                Text(stringResource(R.string.common_total_tokens, totalTokensText))
+                Text(stringResource(R.string.common_usage_percentage, contextUsagePct))
+                Text(stringResource(R.string.common_cost_spent, costText))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text("Recent RPC Activity", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.common_recent_rpc), style = MaterialTheme.typography.titleSmall)
                 if (diagnostics.recentRpc.isEmpty()) {
                     Text(
-                        "No recent RPC activity",
+                        stringResource(R.string.common_no_recent_rpc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -100,10 +100,10 @@ fun ConnectionDiagnosticsDialog(
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text("Recent Errors", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.common_recent_errors), style = MaterialTheme.typography.titleSmall)
                 if (diagnostics.recentErrors.isEmpty()) {
                     Text(
-                        "No recent errors",
+                        stringResource(R.string.common_no_recent_errors),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -119,26 +119,37 @@ fun ConnectionDiagnosticsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text(stringResource(R.string.common_close))
             }
         },
     )
 }
 
-fun connectionStateLabel(state: AcpConnectionState): String =
+@Composable
+private fun websocketStateLabel(state: WebSocketState): String =
     when (state) {
-        is AcpConnectionState.Connecting -> "Connecting"
-        is AcpConnectionState.Connected -> "Connected"
-        is AcpConnectionState.Failed -> "Failed"
-        is AcpConnectionState.Disconnected -> "Disconnected"
+        WebSocketState.CONNECTING -> stringResource(R.string.common_connecting)
+        WebSocketState.OPEN -> stringResource(R.string.common_connected)
+        WebSocketState.CLOSED -> stringResource(R.string.common_disconnected)
+        WebSocketState.FAILED -> stringResource(R.string.common_failed)
     }
 
+@Composable
+fun connectionStateLabel(state: AcpConnectionState): String =
+    when (state) {
+        is AcpConnectionState.Connecting -> stringResource(R.string.common_connecting)
+        is AcpConnectionState.Connected -> stringResource(R.string.common_connected)
+        is AcpConnectionState.Failed -> stringResource(R.string.common_failed)
+        is AcpConnectionState.Disconnected -> stringResource(R.string.common_disconnected)
+    }
+
+@Composable
 private fun directionLabel(direction: RpcDirection): String =
     when (direction) {
-        RpcDirection.OutboundRequest -> "REQ"
-        RpcDirection.InboundResult -> "RES"
-        RpcDirection.InboundError -> "ERR"
-        RpcDirection.InboundNotification -> "NTF"
+        RpcDirection.OutboundRequest -> stringResource(R.string.common_rpc_direction_req)
+        RpcDirection.InboundResult -> stringResource(R.string.common_rpc_direction_res)
+        RpcDirection.InboundError -> stringResource(R.string.common_rpc_direction_err)
+        RpcDirection.InboundNotification -> stringResource(R.string.common_rpc_direction_ntf)
     }
 
 private fun formatDiagnosticsTime(timestampMs: Long): String =

@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.common.GoogleApiAvailability
@@ -61,6 +62,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
 
@@ -82,22 +84,28 @@ fun AddGatewayScreen(
     var stepIndex by rememberSaveable { mutableIntStateOf(0) }
     var showPairingCodeDialog by rememberSaveable { mutableStateOf(false) }
     var dialogPairingCode by rememberSaveable { mutableStateOf("") }
+    val stepRunTitle = stringResource(R.string.serverlist_add_gateway_step_run_title)
+    val stepRunBody = stringResource(R.string.serverlist_add_gateway_step_run_body)
+    val stepScanTitle = stringResource(R.string.serverlist_add_gateway_step_scan_title)
+    val stepScanBody = stringResource(R.string.serverlist_add_gateway_step_scan_body)
+    val stepAddTitle = stringResource(R.string.serverlist_add_gateway_step_add_title)
+    val stepAddBody = stringResource(R.string.serverlist_add_gateway_step_add_body)
     val steps =
         remember {
             listOf(
                 GatewayPairingStep(
-                    title = "Run ferngeist pair",
-                    body = "Install and run Ferngeist Gateway on your computer, then start pairing.",
+                    title = stepRunTitle,
+                    body = stepRunBody,
                     icon = Icons.Default.Computer,
                 ),
                 GatewayPairingStep(
-                    title = "Scan QR",
-                    body = "Scan the QR code, or paste the payload from the terminal.",
+                    title = stepScanTitle,
+                    body = stepScanBody,
                     icon = Icons.Default.QrCode2,
                 ),
                 GatewayPairingStep(
-                    title = "Add gateway",
-                    body = "Check the details, name the gateway, then save it.",
+                    title = stepAddTitle,
+                    body = stepAddBody,
                     icon = Icons.Default.Link,
                 ),
             )
@@ -150,10 +158,13 @@ fun AddGatewayScreen(
                         onNavigateBack()
                     }
                 }) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.serverlist_back_desc),
+                    )
                 }
                 Text(
-                    text = "Pair Ferngeist Gateway",
+                    text = stringResource(R.string.serverlist_add_gateway_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -162,7 +173,7 @@ fun AddGatewayScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Step ${stepIndex + 1} of ${steps.size}",
+                text = stringResource(R.string.serverlist_add_gateway_step_count, stepIndex + 1, steps.size),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -234,14 +245,18 @@ fun AddGatewayScreen(
                                 onScanQr = {
                                     val activity = context as? Activity
                                     if (activity == null) {
-                                        viewModel.showMessage("Cannot open scanner: not in an activity context")
+                                        viewModel.showMessage(
+                                            context.getString(R.string.serverlist_qr_error_no_activity),
+                                        )
                                         return@ImportPairingStep
                                     }
                                     val availability = GoogleApiAvailability.getInstance()
                                     val statusCode = availability.isGooglePlayServicesAvailable(activity)
                                     if (statusCode != com.google.android.gms.common.ConnectionResult.SUCCESS) {
                                         val msg = availability.getErrorString(statusCode)
-                                        viewModel.showMessage("Google Play Services unavailable: $msg")
+                                        viewModel.showMessage(
+                                            context.getString(R.string.serverlist_qr_error_play_services, msg),
+                                        )
                                         return@ImportPairingStep
                                     }
                                     val scanner =
@@ -249,7 +264,7 @@ fun AddGatewayScreen(
                                             GmsBarcodeScanning.getClient(activity)
                                         } catch (_: Exception) {
                                             viewModel.showMessage(
-                                                "Cannot open scanner on this device. Paste the pairing payload instead.",
+                                                context.getString(R.string.serverlist_qr_error_no_scanner),
                                             )
                                             return@ImportPairingStep
                                         }
@@ -260,16 +275,18 @@ fun AddGatewayScreen(
                                             .addOnSuccessListener { barcode: Barcode ->
                                                 val raw = barcode.rawValue.orEmpty()
                                                 if (raw.isBlank()) {
-                                                    viewModel.showMessage("QR code was empty")
+                                                    viewModel.showMessage(
+                                                        context.getString(R.string.serverlist_qr_error_empty),
+                                                    )
                                                     return@addOnSuccessListener
                                                 }
                                                 val parsed =
                                                     com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
-                                                        .parse(
-                                                            raw,
-                                                        )
+                                                        .parse(raw)
                                                 if (parsed == null) {
-                                                    viewModel.showMessage("QR does not contain a valid pairing payload")
+                                                    viewModel.showMessage(
+                                                        context.getString(R.string.serverlist_qr_error_invalid),
+                                                    )
                                                     return@addOnSuccessListener
                                                 }
                                                 viewModel.updatePairingQrPayload(raw)
@@ -277,12 +294,15 @@ fun AddGatewayScreen(
                                             }.addOnCanceledListener {
                                             }.addOnFailureListener { error: Exception ->
                                                 viewModel.showMessage(
-                                                    "QR scan failed: ${error.message ?: "unknown error"}",
+                                                    context.getString(
+                                                        R.string.serverlist_qr_error_scan_failed,
+                                                        error.message ?: context.getString(R.string.serverlist_error_unknown),
+                                                    ),
                                                 )
                                             }
                                     } catch (_: Exception) {
                                         viewModel.showMessage(
-                                            "Cannot start scanner on this device. Paste the pairing payload instead.",
+                                            context.getString(R.string.serverlist_qr_error_cannot_start),
                                         )
                                     }
                                 },
@@ -318,12 +338,7 @@ fun AddGatewayScreen(
                         when (stepIndex) {
                             0 -> stepIndex = 1
                             1 -> {
-                                stepIndex =
-                                    if (uiState.importedPairingPayload != null) {
-                                        2
-                                    } else {
-                                        2
-                                    }
+                                stepIndex = 2
                             }
                             else -> {
                                 if (uiState.importedPairingPayload != null) {
@@ -339,9 +354,14 @@ fun AddGatewayScreen(
                 ) {
                     Text(
                         when (stepIndex) {
-                            0 -> "Next"
-                            1 -> if (uiState.importedPairingPayload != null) "Next" else "Skip and add manually"
-                            else -> "Pair"
+                            0 -> stringResource(R.string.serverlist_add_gateway_next)
+                            1 ->
+                                if (uiState.importedPairingPayload != null) {
+                                    stringResource(R.string.serverlist_add_gateway_next)
+                                } else {
+                                    stringResource(R.string.serverlist_add_gateway_skip)
+                                }
+                            else -> stringResource(R.string.serverlist_add_gateway_pair)
                         },
                     )
                     if (stepIndex < steps.lastIndex) {
@@ -395,13 +415,13 @@ private fun PairingCodeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Enter pairing code") },
+        title = { Text(stringResource(R.string.serverlist_add_gateway_pairing_code_title)) },
         text = {
             OutlinedTextField(
                 value = code,
                 onValueChange = onCodeChange,
-                label = { Text("Pairing code") },
-                placeholder = { Text("000000") },
+                label = { Text(stringResource(R.string.serverlist_add_gateway_pairing_code_label)) },
+                placeholder = { Text(stringResource(R.string.serverlist_add_gateway_placeholder_code)) },
                 singleLine = true,
                 enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth(),
@@ -415,13 +435,13 @@ private fun PairingCodeDialog(
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Pair and save")
+                    Text(stringResource(R.string.serverlist_add_gateway_pair_save))
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isLoading) {
-                Text("Cancel")
+                Text(stringResource(R.string.serverlist_add_gateway_cancel))
             }
         },
     )
@@ -429,14 +449,12 @@ private fun PairingCodeDialog(
 
 @Composable
 private fun RunFerngeistPairStep() {
+    val instruction1 = stringResource(R.string.serverlist_add_gateway_instruction_1)
+    val instruction2 = stringResource(R.string.serverlist_add_gateway_instruction_2)
+    val instruction3 = stringResource(R.string.serverlist_add_gateway_instruction_3)
+    val instruction4 = stringResource(R.string.serverlist_add_gateway_instruction_4)
     OnboardingBulletList(
-        items =
-            listOf(
-                "If you do not have Ferngeist Gateway yet, download it from https://github.com/arafatamim/ferngeist-acp-gateway.",
-                "Open a terminal on the computer running Ferngeist Gateway.",
-                "Run `ferngeist-gateway pair`.",
-                "Keep that terminal open.",
-            ),
+        items = listOf(instruction1, instruction2, instruction3, instruction4),
     )
 
     ElevatedCard(
@@ -454,7 +472,7 @@ private fun RunFerngeistPairStep() {
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
-                text = "Command to run",
+                text = stringResource(R.string.serverlist_add_gateway_command_label),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -470,7 +488,7 @@ private fun RunFerngeistPairStep() {
                 )
             }
             Text(
-                text = "When the QR code appears, continue to the next step.",
+                text = stringResource(R.string.serverlist_add_gateway_scan_instruction),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -492,10 +510,13 @@ private fun EditGatewayScreen(
     Scaffold(
         topBar = {
             androidx.compose.material3.TopAppBar(
-                title = { Text("Edit Gateway") },
+                title = { Text(stringResource(R.string.serverlist_add_gateway_edit_title)) },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.serverlist_back_desc),
+                        )
                     }
                 },
             )
@@ -512,15 +533,15 @@ private fun EditGatewayScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             SectionCard(
-                title = "Gateway Details",
-                subtitle = "Update how this gateway is saved in Ferngeist.",
+                title = stringResource(R.string.serverlist_add_gateway_details_title),
+                subtitle = stringResource(R.string.serverlist_add_gateway_details_subtitle),
                 icon = Icons.Default.Computer,
             ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = viewModel::updateName,
-                    label = { Text("Name") },
-                    placeholder = { Text("Workstation") },
+                    label = { Text(stringResource(R.string.serverlist_add_gateway_name_label)) },
+                    placeholder = { Text(stringResource(R.string.serverlist_add_gateway_name_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -530,8 +551,8 @@ private fun EditGatewayScreen(
                 OutlinedTextField(
                     value = host,
                     onValueChange = viewModel::updateHost,
-                    label = { Text("Gateway host") },
-                    placeholder = { Text("192.168.1.42:5788") },
+                    label = { Text(stringResource(R.string.serverlist_add_gateway_host_label)) },
+                    placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
@@ -541,7 +562,7 @@ private fun EditGatewayScreen(
                     if (uiState.isCheckingStatus) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Check gateway")
+                        Text(stringResource(R.string.serverlist_add_gateway_check))
                     }
                 }
                 uiState.status?.let { status ->
@@ -553,7 +574,7 @@ private fun EditGatewayScreen(
                     if (uiState.isSaving) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Save gateway")
+                        Text(stringResource(R.string.serverlist_add_gateway_save))
                     }
                 }
             }
@@ -587,8 +608,8 @@ private fun ImportPairingStep(
             OutlinedTextField(
                 value = pairingQrPayload,
                 onValueChange = onUpdatePayload,
-                label = { Text("Pairing payload") },
-                placeholder = { Text("ferngeist-gateway://pair?scheme=...") },
+                label = { Text(stringResource(R.string.serverlist_add_gateway_payload_label)) },
+                placeholder = { Text(stringResource(R.string.serverlist_add_gateway_payload_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) },
             )
@@ -600,7 +621,7 @@ private fun ImportPairingStep(
             ) {
                 HorizontalDivider(modifier = Modifier.weight(1f))
                 Text(
-                    text = "OR",
+                    text = stringResource(R.string.serverlist_add_gateway_or),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 12.dp),
@@ -614,7 +635,7 @@ private fun ImportPairingStep(
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Scan QR")
+                Text(stringResource(R.string.serverlist_add_gateway_step_scan_title))
             }
 
             importedPayload?.let { payload ->
@@ -661,15 +682,15 @@ private fun ReviewGatewayStep(
             OutlinedTextField(
                 value = name,
                 onValueChange = onUpdateName,
-                label = { Text("Name") },
-                placeholder = { Text("Workstation") },
+                label = { Text(stringResource(R.string.serverlist_add_gateway_name_label)) },
+                placeholder = { Text(stringResource(R.string.serverlist_add_gateway_name_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
             OutlinedTextField(
                 value = deviceName,
                 onValueChange = onUpdateDeviceName,
-                label = { Text("This device name") },
+                label = { Text(stringResource(R.string.serverlist_add_gateway_device_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -677,15 +698,15 @@ private fun ReviewGatewayStep(
             OutlinedTextField(
                 value = host,
                 onValueChange = onUpdateHost,
-                label = { Text("Gateway host") },
-                placeholder = { Text("192.168.1.42:5788") },
+                label = { Text(stringResource(R.string.serverlist_add_gateway_host_label)) },
+                placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
             )
 
             Text(
-                text = "The payload usually fills these details for you.",
+                text = stringResource(R.string.serverlist_add_gateway_manual_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -694,7 +715,7 @@ private fun ReviewGatewayStep(
                 if (isCheckingStatus) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Check gateway")
+                    Text(stringResource(R.string.serverlist_add_gateway_check))
                 }
             }
 
@@ -715,13 +736,22 @@ private fun ImportedPayloadCard(payload: GatewayPairingPayload) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                "Pairing payload loaded",
+                stringResource(R.string.serverlist_add_gateway_imported_title),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text("${payload.scheme}://${payload.host}", style = MaterialTheme.typography.bodyMedium)
-            Text("Challenge ${payload.challengeId.take(10)}...", style = MaterialTheme.typography.bodySmall)
-            Text("Code ${payload.code}", style = MaterialTheme.typography.bodySmall)
+            Text(
+                stringResource(R.string.serverlist_gateway_url_format, payload.scheme, payload.host),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                stringResource(R.string.serverlist_add_gateway_challenge_label, payload.challengeId.take(10)),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                stringResource(R.string.serverlist_payload_code_label, payload.code),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
@@ -738,11 +768,18 @@ private fun GatewayStatusCard(status: GatewayStatus) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(status.name, fontWeight = FontWeight.SemiBold)
-            Text("Version ${status.version}", style = MaterialTheme.typography.bodySmall)
             Text(
-                "Remote: ${status.remote.mode ?: "local_only"}",
+                stringResource(R.string.serverlist_payload_version_label, status.version),
                 style = MaterialTheme.typography.bodySmall,
             )
+                Text(
+                    stringResource(
+                        R.string.serverlist_payload_remote_label,
+                    status.remote.mode?.let { gatewayRemoteModeLabel(it) }
+                        ?: stringResource(R.string.serverlist_payload_remote_local_only),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             status.remote.warning?.let {
                 Text(
                     text = it,
@@ -814,14 +851,14 @@ private fun GatewayProtocolSelector(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         GatewayProtocolOption(
-            label = "HTTP",
+            label = stringResource(R.string.serverlist_add_gateway_http),
             code = "http",
             isSelected = selected.equals("http", ignoreCase = true) || selected.equals("ws", ignoreCase = true),
             onClick = { onSelect("http") },
             modifier = Modifier.weight(1f),
         )
         GatewayProtocolOption(
-            label = "HTTPS",
+            label = stringResource(R.string.serverlist_add_gateway_https),
             code = "https",
             isSelected = selected.equals("https", ignoreCase = true) || selected.equals("wss", ignoreCase = true),
             onClick = { onSelect("https") },

@@ -60,12 +60,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 
 @OptIn(
@@ -108,8 +110,8 @@ internal fun ServerCard(
                     tint = MaterialTheme.colorScheme.error,
                 )
             },
-            title = { Text("Delete Server") },
-            text = { Text("Remove \"${server.name}\" and all its saved sessions?") },
+            title = { Text(stringResource(R.string.serverlist_card_delete_title)) },
+            text = { Text(stringResource(R.string.serverlist_card_delete_body, server.name)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -117,12 +119,12 @@ internal fun ServerCard(
                         onDelete()
                     },
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.serverlist_card_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.serverlist_cancel))
                 }
             },
             shape = RoundedCornerShape(28.dp),
@@ -205,14 +207,14 @@ internal fun ServerCard(
                 interactionSource = actionsMenuInteractionSource,
             ) {
                 DropdownMenuItem(
-                    text = { Text(if (server is LaunchableTarget.GatewayAgent) "Manage" else "Edit") },
+                    text = { Text(stringResource(if (server is LaunchableTarget.GatewayAgent) R.string.serverlist_card_manage else R.string.serverlist_card_edit)) },
                     onClick = {
                         showActionsMenu = false
                         onEdit()
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Delete") },
+                    text = { Text(stringResource(R.string.serverlist_card_delete)) },
                     onClick = {
                         showActionsMenu = false
                         showDeleteDialog = true
@@ -260,7 +262,7 @@ private fun ServerSubtitle(
 
             is LaunchableTarget.Manual -> {
                 Text(
-                    text = "${server.server.scheme}://${server.server.host}",
+                    text = stringResource(R.string.serverlist_gateway_url_format, server.server.scheme, server.server.host),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

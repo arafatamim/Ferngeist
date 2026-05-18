@@ -67,11 +67,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import com.tamimarafat.ferngeist.acp.bridge.session.displayValueLabel
 import com.tamimarafat.ferngeist.feature.chat.ChatState
@@ -295,7 +297,7 @@ internal fun ExpandedComposerContent(
                     ) {
                         if (messageText.isEmpty()) {
                             Text(
-                                text = "Type a message…",
+                                text = stringResource(R.string.chat_composer_hint),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
                             )
@@ -317,7 +319,7 @@ internal fun ExpandedComposerContent(
             IconButton(onClick = onClose) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Close composer",
+                    contentDescription = stringResource(R.string.chat_composer_close_desc),
                 )
             }
 
@@ -380,9 +382,9 @@ internal fun CollapsedComposerActions(
             PlainTooltip {
                 Text(
                     when {
-                        showStopAction && canCancelStreaming -> "Stop"
-                        showStopAction && !canCancelStreaming -> "Cancel unavailable"
-                        else -> "Chat"
+                        showStopAction && canCancelStreaming -> stringResource(R.string.chat_stop)
+                        showStopAction && !canCancelStreaming -> stringResource(R.string.chat_cancel_unavailable)
+                        else -> stringResource(R.string.chat_chat)
                     },
                 )
             }
@@ -440,7 +442,7 @@ internal fun ModeMenuButton(
     Box(modifier = modifier) {
         TooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-            tooltip = { PlainTooltip { Text("Mode") } },
+            tooltip = { PlainTooltip { Text(stringResource(R.string.chat_mode)) } },
             state = rememberTooltipState(),
         ) {
             TextButton(
@@ -471,7 +473,7 @@ internal fun ModeMenuButton(
                 val modeCount = availableModes.size
                 if (modeCount == 0) {
                     DropdownMenuItem(
-                        text = { Text("No modes available") },
+                        text = { Text(stringResource(R.string.chat_no_modes_available)) },
                         onClick = { onExpandedChange(false) },
                         enabled = false,
                     )
@@ -524,14 +526,14 @@ internal fun ToolbarOptionsButton(
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text("Options") } },
+        tooltip = { PlainTooltip { Text(stringResource(R.string.chat_options)) } },
         state = rememberTooltipState(),
     ) {
         Box {
             IconButton(onClick = { onExpandedChange(true) }) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Options",
+                    contentDescription = stringResource(R.string.chat_options),
                 )
             }
             DropdownMenuPopup(
@@ -545,7 +547,7 @@ internal fun ToolbarOptionsButton(
                     val hasConfigOptions = configOptions.isNotEmpty()
                     if (commandsAdvertised) {
                         DropdownMenuItem(
-                            text = { Text("Commands") },
+                            text = { Text(stringResource(R.string.chat_commands)) },
                             onClick = {
                                 onExpandedChange(false)
                                 onShowCommands()
@@ -576,7 +578,7 @@ internal fun ToolbarOptionsButton(
 
                     if (!commandsAdvertised && !hasConfigOptions) {
                         DropdownMenuItem(
-                            text = { Text("No options available") },
+                            text = { Text(stringResource(R.string.chat_no_options_available)) },
                             onClick = { onExpandedChange(false) },
                             enabled = false,
                         )
@@ -617,10 +619,11 @@ internal fun ConfigOptionMenuItem(
 /**
  * Extension to get a user-friendly subtitle for a config option in the dropdown.
  */
+@Composable
 internal fun SessionConfigOption.dropdownSubtitle(): String =
     when (this) {
-        is SessionConfigOption.BooleanOption -> if (currentValue) "Enabled" else "Disabled"
-        else -> displayValueLabel() ?: "Not selected"
+        is SessionConfigOption.BooleanOption -> if (currentValue) stringResource(R.string.chat_enabled) else stringResource(R.string.chat_disabled)
+        else -> displayValueLabel() ?: stringResource(R.string.chat_not_selected)
     }
 
 /**
@@ -649,7 +652,7 @@ internal fun PrimaryComposerActionButton(
     ) {
         Icon(
             imageVector = if (showStopAction && canCancelStreaming) Icons.Default.Stop else chatIcon,
-            contentDescription = if (showStopAction && canCancelStreaming) "Stop" else "Send",
+            contentDescription = if (showStopAction && canCancelStreaming) stringResource(R.string.chat_stop_desc) else stringResource(R.string.chat_send_desc),
         )
     }
 }

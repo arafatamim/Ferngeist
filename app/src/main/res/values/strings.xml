@@ -11,4 +11,10 @@
     <string name="notification_failed_title">Connection Failed</string>
     <string name="notification_failed_text">Could not connect to agent server</string>
     <string name="notification_action_disconnect">Disconnect</string>
+    <string name="battery_opt_title">Keep Ferngeist Connected</string>
+    <string name="battery_opt_body">Android may restrict Ferngeist in the background, causing the agent connection to drop. Disabling battery optimization helps keep your session alive.</string>
+    <string name="battery_opt_not_now">Not now</string>
+    <string name="battery_opt_open_settings">Open Settings</string>
+    <string name="notification_agent_fallback">agent</string>
+    <string name="app_untitled_session">Untitled Session</string>
 </resources>

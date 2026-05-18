@@ -38,10 +38,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.R
 
 /**
  * Shows paired gateways only. Launchable gateway-backed agents are
@@ -61,10 +63,10 @@ fun GatewayListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ferngeist Gateways") },
+                title = { Text(stringResource(R.string.serverlist_gateway_list_title)) },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.serverlist_back_desc))
                     }
                 },
             )
@@ -124,13 +126,13 @@ private fun GatewayCard(
             ) {
                 Text(gateway.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = "${gateway.scheme}://${gateway.host}",
+                    text = stringResource(R.string.serverlist_gateway_url_format, gateway.scheme, gateway.host),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 gateway.gatewayRemoteMode?.let {
                     Text(
-                        text = "Remote mode: $it",
+                        text = stringResource(R.string.serverlist_gateway_list_remote_mode, gatewayRemoteModeLabel(it)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -147,14 +149,14 @@ private fun GatewayCard(
                 interactionSource = interactionSource,
             ) {
                 DropdownMenuItem(
-                    text = { Text("Edit") },
+                    text = { Text(stringResource(R.string.serverlist_gateway_list_edit)) },
                     onClick = {
                         showActionsMenu = false
                         onEditGateway()
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Delete") },
+                    text = { Text(stringResource(R.string.serverlist_gateway_list_delete)) },
                     onClick = {
                         showActionsMenu = false
                         onDeleteGateway()

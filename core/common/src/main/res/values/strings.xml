@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_save">Save</string>
+    <string name="common_close">Close</string>
+    <string name="common_ok">OK</string>
+    <string name="common_edit">Edit</string>
+
+    <!-- Connection status labels -->
+    <string name="common_connecting">Connecting</string>
+    <string name="common_connected">Connected</string>
+    <string name="common_disconnected">Disconnected</string>
+    <string name="common_failed">Failed</string>
+    <string name="common_na">N/A</string>
+    <string name="common_unknown">Unknown</string>
+    <string name="common_unsupported">Unsupported</string>
+    <string name="common_supported">Supported</string>
+
+    <!-- Connection diagnostics -->
+    <string name="common_connection_status">Connection Status: %1$s</string>
+    <string name="common_connection_diagnostics">Connection Diagnostics</string>
+    <string name="common_connection">Connection: %1$s</string>
+    <string name="common_websocket">WebSocket: %1$s</string>
+    <string name="common_server">Server: %1$s</string>
+    <string name="common_server_info">Server info: %1$s (%2$s)</string>
+    <string name="common_pending_rpc">Pending RPC requests: %1$d</string>
+    <string name="common_cancel_support">Cancel support: %1$s</string>
+    <string name="common_total_tokens">Total tokens used: %1$s</string>
+    <string name="common_usage_percentage">Usage percentage: %1$s</string>
+    <string name="common_cost_spent">Cost spent: %1$s</string>
+    <string name="common_recent_rpc">Recent RPC Activity</string>
+    <string name="common_no_recent_rpc">No recent RPC activity</string>
+    <string name="common_recent_errors">Recent Errors</string>
+    <string name="common_no_recent_errors">No recent errors</string>
+    <string name="common_connection_status_desc">Connection status</string>
+
+    <!-- Context usage tooltip -->
+    <string name="common_context_used">%1$s used of %2$s context</string>
+    <string name="common_cost_amount">%1$s spent</string>
+
+    <!-- RPC direction labels -->
+    <string name="common_rpc_direction_req">REQ</string>
+    <string name="common_rpc_direction_res">RES</string>
+    <string name="common_rpc_direction_err">ERR</string>
+    <string name="common_rpc_direction_ntf">NTF</string>
+</resources>

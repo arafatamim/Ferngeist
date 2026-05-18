@@ -2,33 +2,32 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularWavyProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -49,13 +48,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
@@ -70,8 +67,11 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.UsageState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun ChatScreenDialogs(
@@ -224,7 +224,7 @@ private fun ChatLoadError(
                 modifier = Modifier.width(320.dp),
             )
             OutlinedButton(onClick = onRetry) {
-                Text("Retry")
+                Text(stringResource(R.string.chat_retry))
             }
         }
     }
@@ -286,7 +286,7 @@ internal fun List<ChatMessage>.latestPendingPermissionRequest(): PendingPermissi
             PendingPermissionRequest(
                 toolCallId = toolCallId,
                 requestId = toolCall.permissionRequestId,
-                title = toolCall.title.ifBlank { "Permission Request" },
+                title = toolCall.title,
                 kind = toolCall.kind,
                 options = permissionOptions,
             )
@@ -338,23 +338,23 @@ private fun PermissionRequestSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Permission Required",
+                text = stringResource(R.string.chat_permission_title),
                 style = MaterialTheme.typography.titleLarge,
             )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = request.title,
+                    text = request.title.ifBlank { stringResource(R.string.chat_permission_request) },
                     style = MaterialTheme.typography.titleMedium,
                 )
                 request.kind?.let { kind ->
                     Text(
-                        text = kind.name.lowercase(),
+                        text = toolKindLabel(kind),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Text(
-                    text = "The agent is waiting for your approval before it can continue.",
+                    text = stringResource(R.string.chat_permission_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -374,7 +374,7 @@ private fun PermissionRequestSheet(
                                 style = MaterialTheme.typography.bodyLarge,
                             )
                             Text(
-                                text = option.kind,
+                                text = permissionKindLabel(option.kind),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -386,7 +386,7 @@ private fun PermissionRequestSheet(
                 onClick = { onDenyPermission(request.toolCallId) },
                 modifier = Modifier.align(Alignment.End),
             ) {
-                Text("Deny")
+                Text(stringResource(R.string.chat_deny))
             }
         }
     }
@@ -411,21 +411,23 @@ private fun ToolCallDetailsSheet(
                     .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            val defaultToolCallLabel = stringResource(R.string.chat_tool_call)
+            val toolCallSheetTitle = toolCall.title.ifBlank { defaultToolCallLabel }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = toolCall.title.ifBlank { "Tool Call" },
+                    text = toolCallSheetTitle,
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 toolCall.kind?.let { kind ->
                     Text(
-                        text = kind.name.lowercase(),
+                        text = toolKindLabel(kind),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                     )
                 }
                 toolCall.status?.let { status ->
                     Text(
-                        text = status.name.lowercase().replace('_', ' '),
+                        text = toolCallStatusLabel(status),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -434,7 +436,7 @@ private fun ToolCallDetailsSheet(
 
             if (!toolCall.permissionOptions.isNullOrEmpty()) {
                 Text(
-                    text = "Awaiting permission response",
+                    text = stringResource(R.string.chat_awaiting_permission),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -470,7 +472,7 @@ private fun ToolCallDetailsSheet(
                     )
                 } else {
                     Text(
-                        text = "No tool output.",
+                        text = stringResource(R.string.chat_no_tool_output),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -499,7 +501,7 @@ private fun ThoughtDetailsSheet(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Reasoning",
+                    text = stringResource(R.string.chat_reasoning),
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
@@ -526,8 +528,8 @@ private fun PickerSheet(
     recentItems: List<PickerItem> = emptyList(),
     onItemClick: (value: String) -> Unit,
     onDismiss: () -> Unit,
-    emptyText: String = "No items.",
-    noResultsText: String = "No matching items.",
+    emptyText: String = "",
+    noResultsText: String = "",
     searchPlaceholder: String = "",
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -584,7 +586,7 @@ private fun PickerSheet(
                             .fillMaxWidth()
                             .padding(bottom = 16.dp),
                         singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.chat_search_desc)) },
                         placeholder = { Text(searchPlaceholder) },
                         shape = RoundedCornerShape(28.dp),
                     )
@@ -606,7 +608,7 @@ private fun PickerSheet(
                     ) {
                         if (showRecentSection) {
                             Text(
-                                text = "Recent",
+                                text = stringResource(R.string.chat_recent),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(vertical = 4.dp),
@@ -618,7 +620,7 @@ private fun PickerSheet(
                             Spacer(modifier = Modifier.height(16.dp))
 
                             Text(
-                                text = "All items",
+                                text = stringResource(R.string.chat_all_items),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(vertical = 4.dp),
@@ -672,7 +674,7 @@ private fun PickerItemRow(
         if (selectedValue != null && item.value == selectedValue) {
             Icon(
                 Icons.Filled.Check,
-                contentDescription = "Selected",
+                contentDescription = stringResource(R.string.chat_selected_desc),
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
@@ -728,9 +730,9 @@ private fun SelectConfigOptionSheet(
             }
         },
         onDismiss = onDismiss,
-        emptyText = "No values available from agent.",
-        noResultsText = "No matching models.",
-        searchPlaceholder = "Search ${option.name.lowercase()}",
+        emptyText = stringResource(R.string.chat_picker_no_values),
+        noResultsText = stringResource(R.string.chat_picker_no_models),
+        searchPlaceholder = stringResource(R.string.chat_search_placeholder, option.name),
     )
 }
 
@@ -764,7 +766,7 @@ private fun CommandsSheet(
             }
     }
     PickerSheet(
-        title = "Commands",
+        title = stringResource(R.string.chat_commands_sheet_title),
         items = commands.map { cmd ->
             PickerItem(
                 id = cmd.name,
@@ -781,8 +783,8 @@ private fun CommandsSheet(
             }
         },
         onDismiss = onDismiss,
-        emptyText = "No commands advertised by the server.",
-        noResultsText = "No matching commands.",
-        searchPlaceholder = "search commands",
+        emptyText = stringResource(R.string.chat_commands_empty),
+        noResultsText = stringResource(R.string.chat_commands_no_results),
+        searchPlaceholder = stringResource(R.string.chat_commands_search_hint),
     )
 }

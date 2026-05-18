@@ -18,8 +18,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
+import com.tamimarafat.ferngeist.feature.chat.R
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ToolCallContent
 
@@ -59,7 +61,7 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
                 ) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Tool output image (${block.mimeType})",
+                        contentDescription = stringResource(R.string.chat_tool_output_image, block.mimeType),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 300.dp)
@@ -69,7 +71,7 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
                 }
             } else {
                 Text(
-                    text = "Failed to decode image (${block.mimeType})",
+                    text = stringResource(R.string.chat_failed_decode_image, block.mimeType),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -78,7 +80,7 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
 
         is ContentBlock.Audio -> {
             Text(
-                text = "Audio content (${block.mimeType})",
+                text = stringResource(R.string.chat_audio_content, block.mimeType),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 4.dp),
@@ -147,7 +149,7 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
                         )
                         resource.mimeType?.let { mimeType ->
                             Text(
-                                text = "Binary resource ($mimeType)",
+                                text = stringResource(R.string.chat_binary_resource, mimeType),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -162,7 +164,7 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
 @Composable
 internal fun TerminalRenderer(terminal: ToolCallContent.Terminal) {
     Text(
-        text = "Terminal output (${terminal.terminalId})",
+        text = stringResource(R.string.chat_terminal_output, terminal.terminalId),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(vertical = 4.dp),

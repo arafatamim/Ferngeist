@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -336,6 +337,7 @@ fun FerngeistNavHost() {
                 val serverNameArg = backStackEntry.arguments?.getString("name")
                 val openCreateSessionDialog = backStackEntry.arguments?.getBoolean("create") == true
                 val viewModel: SessionListViewModel = hiltViewModel()
+                val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
 
                 val server by viewModel.server.collectAsState()
                 SessionListScreen(
@@ -346,7 +348,7 @@ fun FerngeistNavHost() {
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChat = { sessionId, cwd, updatedAt, title ->
                         val encodedCwd = Uri.encode(cwd)
-                        val encodedTitle = Uri.encode(title ?: "Untitled Session")
+                        val encodedTitle = Uri.encode(title ?: fallbackSessionTitle)
                         val updatedAtParam = updatedAt ?: -1L
                         navController.navigate(
                             "chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=$updatedAtParam&title=$encodedTitle",
@@ -381,7 +383,7 @@ fun FerngeistNavHost() {
                     ),
             ) { backStackEntry ->
                 val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
-                val title = Uri.decode(backStackEntry.arguments?.getString("title") ?: "Untitled Session")
+                val title = Uri.decode(backStackEntry.arguments?.getString("title") ?: stringResource(R.string.app_untitled_session))
                 ChatScreen(
                     sessionId = sessionId,
                     sessionTitle = title,

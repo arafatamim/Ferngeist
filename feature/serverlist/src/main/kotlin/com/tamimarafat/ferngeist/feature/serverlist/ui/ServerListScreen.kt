@@ -67,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -212,7 +213,7 @@ fun ServerListScreen(
                         }
                     },
                     icon = { Icon(Icons.Default.Devices, contentDescription = null) },
-                    text = { Text(if (hasGateways) "Add using paired gateway" else "Pair Ferngeist Gateway") },
+                    text = { Text(if (hasGateways) stringResource(R.string.serverlist_add_paired_btn) else stringResource(R.string.serverlist_add_gateway_btn)) },
                 )
                 FloatingActionButtonMenuItem(
                     onClick = {
@@ -220,7 +221,7 @@ fun ServerListScreen(
                         onNavigateToAddServer()
                     },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Add agent manually") },
+                    text = { Text(stringResource(R.string.serverlist_add_agent_btn)) },
                 )
             }
         },
@@ -273,6 +274,7 @@ private fun LaunchRiskConsentDialog(
     var acknowledgedRisk by rememberSaveable(pending.serverId) { mutableStateOf(false) }
     val riskLines =
         launchRiskLines(
+            res = LocalContext.current.resources,
             serverName = pending.serverName,
             agentId = pending.agentId,
             gatewayHost = pending.gatewayHost,
@@ -280,7 +282,7 @@ private fun LaunchRiskConsentDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Run agent on gateway?") },
+        title = { Text(stringResource(R.string.serverlist_launch_risk_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 riskLines.forEach { line ->
@@ -299,7 +301,7 @@ private fun LaunchRiskConsentDialog(
                         onCheckedChange = { acknowledgedRisk = it },
                     )
                     Text(
-                        text = "I understand and want to continue.",
+                        text = stringResource(R.string.serverlist_launch_risk_accept),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -310,12 +312,12 @@ private fun LaunchRiskConsentDialog(
                 enabled = acknowledgedRisk,
                 onClick = onConfirm,
             ) {
-                Text("Continue")
+                Text(stringResource(R.string.serverlist_continue))
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.serverlist_cancel))
             }
         },
     )
@@ -336,7 +338,7 @@ private fun ServerListTopBar(
         )
 
     LargeTopAppBar(
-        title = { Text(text = "Ferngeist", style = titleStyle) },
+        title = { Text(text = stringResource(R.string.serverlist_title), style = titleStyle) },
         actions = {
             AnimatedVisibility(
                 visible = collapse > 0.5f,
@@ -372,7 +374,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Ferngeist is an Android client for Agent Client Protocol (ACP) servers, allowing you to interact with coding agents directly from your mobile device.",
+                    text = stringResource(R.string.serverlist_about_body),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Column(
@@ -396,7 +398,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("OK")
+                    Text(stringResource(R.string.serverlist_ok))
             }
         },
     )
@@ -427,7 +429,7 @@ private fun PendingAuthenticationDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Authenticate ${pendingAuthentication.serverName}") },
+        title = { Text(stringResource(R.string.serverlist_auth_title, pendingAuthentication.serverName)) },
         text = {
             Column(
                 modifier =
@@ -438,7 +440,7 @@ private fun PendingAuthenticationDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "The agent \"${pendingAuthentication.agentName}\" requires ACP authentication before sessions can be opened.",
+                    text = stringResource(R.string.serverlist_auth_body, pendingAuthentication.agentName),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 pendingAuthentication.authErrorMessage?.let { message ->
@@ -474,7 +476,7 @@ private fun PendingAuthenticationDialog(
                             ) {
                                 Text(text = method.name, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    text = method.description ?: "Type: ${method.type}",
+                                    text = method.description ?: stringResource(R.string.serverlist_auth_method_fallback, method.type),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -509,12 +511,12 @@ private fun PendingAuthenticationDialog(
                     }
                 },
             ) {
-                Text(if (isManualEnvAuth) "Reconnect" else "Authenticate")
+                Text(if (isManualEnvAuth) stringResource(R.string.serverlist_auth_reconnect) else stringResource(R.string.serverlist_auth_authenticate))
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.serverlist_auth_cancel))
             }
         },
     )
@@ -535,7 +537,7 @@ private fun AuthenticationMethodDetails(
     }
     if (method.args.isNotEmpty()) {
         Text(
-            text = "Command: ${method.args.joinToString(" ")}",
+            text = stringResource(R.string.serverlist_auth_cmd, method.args.joinToString(" ")),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -545,7 +547,7 @@ private fun AuthenticationMethodDetails(
     }
     if (!isGatewayBacked) {
         Text(
-            text = "Set these environment variables before launching the agent, then reconnect to retry authentication.",
+            text = stringResource(R.string.serverlist_auth_env_instructions),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -557,7 +559,7 @@ private fun AuthenticationMethodDetails(
                         append(" -> ")
                         append(envVar.name)
                         if (envVar.optional) {
-                            append(" (optional)")
+                            append(stringResource(R.string.serverlist_auth_optional_suffix))
                         }
                     },
                 style = MaterialTheme.typography.bodySmall,
@@ -576,7 +578,7 @@ private fun AuthenticationMethodDetails(
                     buildString {
                         append(envVar.label ?: envVar.name)
                         if (envVar.optional) {
-                            append(" (optional)")
+                            append(stringResource(R.string.serverlist_auth_optional_suffix))
                         }
                     },
                 )
@@ -629,12 +631,12 @@ private fun EmptyServerList(onAddServer: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "No agents yet",
+                text = stringResource(R.string.serverlist_empty_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Add an agent manually or pair a gateway to build your launch list.",
+                text = stringResource(R.string.serverlist_empty_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -647,7 +649,7 @@ private fun EmptyServerList(onAddServer: () -> Unit) {
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Add agent")
+                Text(stringResource(R.string.serverlist_empty_action))
             }
         }
     }
