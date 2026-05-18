@@ -1,4 +1,40 @@
 
+## [0.7.0] - 2026-05-18
+
+### Features
+
+- *(sessionlist)* Add recent working directory history ([f9aa6b3](https://github.com/arafatamim/Ferngeist/commit/f9aa6b3eea7753681c5c452eba002a7b5b1cd24b))
+- *(chat)* Migrate tool call output to structured content + extract renderers ([ee0a304](https://github.com/arafatamim/Ferngeist/commit/ee0a3041345292d940ed8030b0ef85f7684fd2fe))
+- *(chat)* Enhance tool call display with raw input and selectable content ([7b2436c](https://github.com/arafatamim/Ferngeist/commit/7b2436c915c812e5a43b96bf05725b1bb1bd1abc))
+- *(chat)* Introduce unified diff rendering for tool call content ([66cdb78](https://github.com/arafatamim/Ferngeist/commit/66cdb78bf894c32babb06be0a5c49cbb1111c304))
+- *(chat)* Add context usage indicator ([f2ddc65](https://github.com/arafatamim/Ferngeist/commit/f2ddc65caeae19740c329d01bb616530196bde66))
+- *(chat)* Add tooltips to mode selection menu ([69cc71f](https://github.com/arafatamim/Ferngeist/commit/69cc71f5db22881d1e7889069c5783522cfa5ed3))
+- *(chat)* Replace configuration picker dialog with bottom sheet ([e7a69ca](https://github.com/arafatamim/Ferngeist/commit/e7a69cae3fd9a4f3c2d1ff3225100f51383911bd))
+- *(chat)* Upgrade command handling and unify selection UI ([7bd3be4](https://github.com/arafatamim/Ferngeist/commit/7bd3be49cfd4c45d2627b638db35f0818cf635d0))
+- *(chat)* Implement recent selections for commands and configuration options ([ca561bc](https://github.com/arafatamim/Ferngeist/commit/ca561bcbdb8b5dd27dd90cdb3b0e70311798a412))
+- Implement comprehensive localization and externalize strings ([beacbd2](https://github.com/arafatamim/Ferngeist/commit/beacbd2cfedc5480dcba336d00a91edbdc99e6ea))
+- *(i18n)* Add Spanish (es) translations ([d029d9a](https://github.com/arafatamim/Ferngeist/commit/d029d9abb759c872d63746870eeca4ce3ca72b10))
+- *(i18n)* Add Portuguese (pt) translations ([a4340b2](https://github.com/arafatamim/Ferngeist/commit/a4340b20456f19db24b4ea4afc8702c75ae0aa77))
+- *(i18n)* Add Bengali (bn) translations ([701260f](https://github.com/arafatamim/Ferngeist/commit/701260f2bb6bd0a27834a955d948a083823ef98c))
+- *(i18n)* Add Russian (ru) translation strings ([09a2b5c](https://github.com/arafatamim/Ferngeist/commit/09a2b5c2c7be0d9e506235d024fbd91e5a9a363f))
+- *(i18n)* Introduce Simplified Chinese (zh) translations ([a78cb91](https://github.com/arafatamim/Ferngeist/commit/a78cb9111922a2cc61d35420b0dcdaf100ce62a1))
+
+### Fixes
+
+- *(service)* Use remote messaging foreground type ([be423c4](https://github.com/arafatamim/Ferngeist/commit/be423c4966c8455b838689e9b7f63a1b1f175778))
+- *(chat)* Remove fallback session creation on load timeout ([4374810](https://github.com/arafatamim/Ferngeist/commit/4374810e2eafeb75f4d465733ebf4566af47c8ea))
+
+### Maintenance
+
+- *(release)* Add CHANGELOG and update cliff config ([765a1a1](https://github.com/arafatamim/Ferngeist/commit/765a1a1b3663949c833d2c35a8cc3a7ce7afee5e))
+- *(onboarding)* Remove leftover onboarding files ([19cbe9f](https://github.com/arafatamim/Ferngeist/commit/19cbe9fa9b414088bf653593e6f9aba7b1ff8368))
+
+### Refactoring
+
+- *(prefs)* Use DataStore for preferences ([0ddaa48](https://github.com/arafatamim/Ferngeist/commit/0ddaa48953c2e857b5b925dd5bda4d062f79fac6))
+- *(chat)* Use SDK ToolKind and ToolCallStatus enums instead of strings ([4d2bdd6](https://github.com/arafatamim/Ferngeist/commit/4d2bdd64a2dd0b355dca3d18ae05ba6038fa0359))
+- *(acp-bridge)* Generalize session usage cost tracking ([224fc3a](https://github.com/arafatamim/Ferngeist/commit/224fc3a1ca9ec568c044aea685f6cfd8ad70610e))
+- *(chat)* Robust auto-scroll system and UI component refactor ([e233af3](https://github.com/arafatamim/Ferngeist/commit/e233af356ec794f4d021754c11630d3c329c9334))
 ## [0.6.0] - 2026-05-10
 
 ### Documentation
