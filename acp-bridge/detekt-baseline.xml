@@ -28,8 +28,6 @@
     <ID>ReturnCount:AcpConnectionManager.kt:AcpConnectionManager$suspend fun loadSession: SessionBridge?</ID>
     <ID>ReturnCount:AcpErrorFormatting.kt:private fun formatJsonRpcErrorMessage: String</ID>
     <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$fun parseIsoOrMillis: Long?</ID>
-    <ID>ReturnCount:SessionConfigModels.kt:SessionConfigCompatibility$private fun annotateCategory: SessionConfigOption</ID>
-    <ID>ReturnCount:SessionConfigModels.kt:SessionConfigCompatibility$private fun inferCategory: SessionConfigCategory?</ID>
     <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
     <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun updateToolCallPermission: List&lt;ChatMessage&gt;</ID>
     <ID>TooGenericExceptionCaught:AcpTransportClient.kt:AcpTransportClient$error: Exception</ID>

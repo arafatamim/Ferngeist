@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.ConcurrentHashMap
 
@@ -12,6 +13,15 @@ internal class AcpSessionRegistry {
     private val pendingPermissionRequests = ConcurrentHashMap<String, PendingPermissionRequest>()
 
     fun getBridge(sessionId: String): SessionBridge? = sessionBridges[sessionId]
+
+    /**
+     * Returns the session as a [SessionPort].
+     *
+     * This is the public accessor for external consumers (e.g. [ChatSessionCoordinator]).
+     * Internal callers that need bridge-specific methods ([emitEvent], [beginHydration],
+     * etc.) should use [getBridge] instead.
+     */
+    fun getPort(sessionId: String): SessionPort? = sessionBridges[sessionId]
 
     fun storeBridge(
         sessionId: String,

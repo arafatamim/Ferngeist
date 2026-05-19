@@ -1,33 +1,48 @@
-package com.tamimarafat.ferngeist.acp.bridge.session
+﻿package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
-import kotlinx.serialization.json.JsonElement
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.serialization.json.JsonElement
 
 /**
- * SessionBridge is the UI-facing handle to a single ACP session.
+ * SessionBridge is the UI-facing handle to a single ACP session, implementing [SessionPort].
  *
- * It owns a [SessionRuntime] (state engine) and forwards user actions to the
+ * It owns a [SessionStateEngine] (the runtime) and forwards user actions to the
  * [AcpConnectionManager]. Events from the SDK are fed into the runtime via [emitEvent],
  * and a separate [events] SharedFlow allows collectors to observe all events in order.
  *
- * The bridge does not directly implement any session interface yet; that is the next
- * architectural step (SessionPort). For now, it serves as the adapter between transport
- * (AcpConnectionManager) and state (SessionRuntime).
+ * ## Interface contract
+ * SessionBridge implements [SessionPort] so the chat layer never imports the concrete
+ * type. Methods that are NOT on [SessionPort] — [emitEvent], [beginHydration],
+ * [completeHydration], [failHydration], [markReady] — are called exclusively by
+ * [AcpConnectionManager] (which retains a [SessionBridge] reference internally).
+ *
+ * ## Lifecycle
+ * An internal event scope CoroutineScope backs [modelSelectionEvents] (the filtered
+ * flow exposed via [SessionPort.modelSelectionEvents]). That scope is cancelled in
+ * [close], which is called by [AcpSessionRegistry.clearSession] or
+ * [AcpSessionRegistry.clearAll] when the session is torn down.
  */
 class SessionBridge(
-    val sessionId: String,
+    override val sessionId: String,
     private val connectionManager: AcpConnectionManager?,
-) {
-    private val runtime = SessionRuntime(sessionId = sessionId)
-    val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
+) : SessionPort {
+    internal val runtime: SessionStateEngine = SessionRuntime(sessionId = sessionId)
+    override val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
 
     // Replay must be large because session/load history often arrives as many chunk events
     // before ChatViewModel attaches its collector.
@@ -37,6 +52,18 @@ class SessionBridge(
             extraBufferCapacity = 2048,
         )
     val events: SharedFlow<AppSessionEvent> = _events.asSharedFlow()
+
+    private val eventScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Narrow, purpose-built flow of [AppSessionEvent.ModelSelectionConfirmed] events, exposed
+     * via [SessionPort.modelSelectionEvents] so consumers can react to model changes without
+     * importing the concrete bridge type.
+     */
+    override val modelSelectionEvents: SharedFlow<AppSessionEvent.ModelSelectionConfirmed> =
+        _events.filterIsInstance<AppSessionEvent.ModelSelectionConfirmed>()
+            .shareIn(eventScope, SharingStarted.Eagerly, replay = 1)
+
     private val traceTag = "TSBridge"
 
     suspend fun emitEvent(event: AppSessionEvent) {
@@ -61,9 +88,9 @@ class SessionBridge(
         runtime.markReady()
     }
 
-    suspend fun sendPrompt(
+    override suspend fun sendPrompt(
         text: String,
-        images: List<Pair<String, String>> = emptyList(),
+        images: List<Pair<String, String>>,
     ) {
         runtime.onLocalPromptStarted(text, images)
         try {
@@ -74,7 +101,7 @@ class SessionBridge(
         }
     }
 
-    suspend fun cancel() {
+    override suspend fun cancel() {
         connectionManager?.cancelSession(sessionId)
         runtime.onLocalCancel()
     }
@@ -90,7 +117,7 @@ class SessionBridge(
      * cases. Extracting this into the policy centralizes config compatibility logic and reduces
      * branching in the bridge.
      */
-    suspend fun setConfigOption(
+    override suspend fun setConfigOption(
         optionId: String,
         value: SessionConfigValue,
     ) {
@@ -101,10 +128,12 @@ class SessionBridge(
                 connectionManager?.setSessionMode(sessionId, action.modeId)
                 runtime.onEvent(action.event)
             }
+
             is SessionConfigPolicy.DispatchAction.SetLegacyModel -> {
                 connectionManager?.setSessionModel(sessionId, action.modelId)
                 runtime.onEvent(action.event)
             }
+
             is SessionConfigPolicy.DispatchAction.SetNativeConfig -> {
                 connectionManager?.setSessionConfigOption(sessionId, action.optionId, action.value)
                 runtime.onEvent(action.event)
@@ -112,24 +141,24 @@ class SessionBridge(
         }
     }
 
-    suspend fun grantPermission(
+    override suspend fun grantPermission(
         toolCallId: String,
         optionId: String,
     ) {
         connectionManager?.respondPermissionSelected(sessionId, toolCallId, optionId)
     }
 
-    suspend fun denyPermission(toolCallId: String) {
+    override suspend fun denyPermission(toolCallId: String) {
         connectionManager?.respondPermissionCancelled(sessionId, toolCallId)
     }
 
+    /**
+     * Cancels the internal [eventScope], stopping the [modelSelectionEvents] shared flow.
+     * Called by [AcpSessionRegistry] when the session is removed. After close, no further
+     * events will be emitted through [modelSelectionEvents].
+     */
     fun close() {
-        // Intentionally empty: SessionBridge doesn't directly own resources that need
-        // explicit synchronous teardown. SDK sessions and transport resources are
-        // managed by AcpConnectionManager / AcpTransportClient and removed via
-        // AcpSessionRegistry.clearSession. This method exists as a lifecycle hook
-        // so callers (for example AcpSessionRegistry) may invoke it if future
-        // cleanup is required.
+        eventScope.cancel()
     }
 
     private fun debug(message: String) {
@@ -257,3 +286,4 @@ data class SessionPermissionOption(
     val label: String,
     val kind: String? = null,
 )
+

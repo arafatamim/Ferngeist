@@ -22,12 +22,12 @@ import kotlinx.coroutines.sync.withLock
  * legacy modes, etc.). Config option changes use [SessionConfigPolicy] to centralize
  * compatibility logic between native and legacy options.
  *
- * Design note: After Phase 2 of the architecture plan, this class will implement
- * [SessionStateEngine] and its public surface will become an interface.
+ * Implements [SessionStateEngine] to provide a clean interface for the connection
+ * and bridge layers without exposing internal implementation details.
  */
 class SessionRuntime(
     private val sessionId: String,
-) {
+) : SessionStateEngine {
     companion object {
         private const val TAG = "TSRuntime"
     }
@@ -56,9 +56,9 @@ class SessionRuntime(
                 loadState = SessionLoadState.READY,
             ),
         )
-    val snapshot: StateFlow<SessionSnapshot> = _snapshot.asStateFlow()
+    override val snapshot: StateFlow<SessionSnapshot> = _snapshot.asStateFlow()
 
-    suspend fun beginHydration() {
+    override suspend fun beginHydration() {
         mutex.withLock {
             debug("beginHydration: clearing buffered/live snapshot view")
             buffered = RuntimeData()
@@ -75,7 +75,7 @@ class SessionRuntime(
         }
     }
 
-    suspend fun completeHydration() {
+    override suspend fun completeHydration() {
         mutex.withLock {
             debug(
                 "completeHydration: committing buffered messages=${buffered.messages.size}, " +
@@ -90,7 +90,7 @@ class SessionRuntime(
         }
     }
 
-    suspend fun failHydration(error: String?) {
+    override suspend fun failHydration(error: String?) {
         mutex.withLock {
             debug("failHydration: error=${error ?: "unknown"}")
             _snapshot.value =
@@ -102,7 +102,7 @@ class SessionRuntime(
         }
     }
 
-    suspend fun markReady() {
+    override suspend fun markReady() {
         mutex.withLock {
             if (_snapshot.value.loadState == SessionLoadState.HYDRATING) {
                 debug("markReady: ignored while HYDRATING")
@@ -113,7 +113,7 @@ class SessionRuntime(
         }
     }
 
-    suspend fun onEvent(event: AppSessionEvent) {
+    override suspend fun onEvent(event: AppSessionEvent) {
         mutex.withLock {
             val seq = ++eventSeq
             val loadState = _snapshot.value.loadState
@@ -135,7 +135,7 @@ class SessionRuntime(
         }
     }
 
-    suspend fun onLocalPromptStarted(
+    override suspend fun onLocalPromptStarted(
         text: String,
         images: List<Pair<String, String>>,
     ) {
@@ -162,7 +162,7 @@ class SessionRuntime(
         }
     }
 
-    suspend fun onPromptSendFailed() {
+    override suspend fun onPromptSendFailed() {
         mutex.withLock {
             debug("onPromptSendFailed: finishing local streaming placeholder")
             live =
@@ -174,7 +174,7 @@ class SessionRuntime(
         }
     }
 
-    suspend fun onLocalCancel() {
+    override suspend fun onLocalCancel() {
         mutex.withLock {
             debug("onLocalCancel: finishing local streaming placeholder")
             live =
