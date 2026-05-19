@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.tamimarafat.ferngeist.data.database"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         consumerProguardFiles("consumer-rules.pro")

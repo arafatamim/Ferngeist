@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.tamimarafat.ferngeist.core.common"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 30

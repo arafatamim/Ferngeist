@@ -1,5 +1,6 @@
 [versions]
 agp = "9.1.1"
+diffKotlin = "0.0.5"
 kotlin = "2.3.21"
 ksp = "2.3.6"
 coreKtx = "1.18.0"
@@ -11,15 +12,15 @@ lifecycleRuntimeKtx = "2.10.0"
 lifecycleViewmodelKtx = "2.10.0"
 lifecycleViewmodelCompose = "2.10.0"
 activityCompose = "1.13.0"
-composeBom = "2026.04.01"
+composeBom = "2026.05.00"
 
 # Serialization
 kotlinxSerializationJson = "1.11.0"
 
 # Coroutines
-kotlinxCoroutinesCore = "1.10.2"
-kotlinxCoroutinesAndroid = "1.10.2"
-kotlinxCoroutinesTest = "1.10.2"
+kotlinxCoroutinesCore = "1.11.0"
+kotlinxCoroutinesAndroid = "1.11.0"
+kotlinxCoroutinesTest = "1.11.0"
 
 # Room
 room = "2.8.4"
@@ -35,16 +36,16 @@ navigationCompose = "2.9.8"
 playServicesCodeScanner = "16.1.0"
 
 # ACP Kotlin SDK
-acp = "0.20.1"
+acp = "0.22.0"
 
 # Ktor
-ktor = "3.4.3"
+ktor = "3.5.0"
 
 # Turbine for Flow testing
 turbine = "1.2.1"
 mockk = "1.14.9"
-material3 = "1.5.0-alpha18"
-markdownRenderer = "0.40.2"
+material3 = "1.5.0-alpha19"
+markdownRenderer = "0.41.0"
 annotationJvm = "1.10.0"
 datastorePreferences = "1.2.1"
 
@@ -69,6 +70,7 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+diff-kotlin = { module = "io.github.baole:diff-kotlin", version.ref = "diffKotlin" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

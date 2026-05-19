@@ -46,12 +46,12 @@ kotlin {
 
 android {
     namespace = "com.tamimarafat.ferngeist"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.tamimarafat.ferngeist"
         minSdk = 30
-        targetSdk = 36
+        targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersionName
 

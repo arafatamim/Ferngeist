@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.tamimarafat.ferngeist.feature.chat"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 30
@@ -54,13 +54,14 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
+    debugImplementation(libs.androidx.ui.tooling)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.multiplatform.markdown.renderer)
     implementation(libs.multiplatform.markdown.renderer.m3)
 
     // Diff
-    implementation("io.github.baole:diff-kotlin:0.0.4")
+    implementation(libs.diff.kotlin)
 
     // Hilt Setup
     implementation(libs.hilt.android)
