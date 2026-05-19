@@ -11,6 +11,17 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
+/**
+ * SessionBridge is the UI-facing handle to a single ACP session.
+ *
+ * It owns a [SessionRuntime] (state engine) and forwards user actions to the
+ * [AcpConnectionManager]. Events from the SDK are fed into the runtime via [emitEvent],
+ * and a separate [events] SharedFlow allows collectors to observe all events in order.
+ *
+ * The bridge does not directly implement any session interface yet; that is the next
+ * architectural step (SessionPort). For now, it serves as the adapter between transport
+ * (AcpConnectionManager) and state (SessionRuntime).
+ */
 class SessionBridge(
     val sessionId: String,
     private val connectionManager: AcpConnectionManager?,
@@ -68,36 +79,35 @@ class SessionBridge(
         runtime.onLocalCancel()
     }
 
+    /**
+     * Updates a configuration option on the session.
+     *
+     * This method delegates all routing logic to [SessionConfigPolicy.mapToDispatchAction],
+     * which decides whether the option is a legacy mode, legacy model, or native config, and
+     * returns the corresponding RPC call and optimistic event to emit.
+     *
+     * The previous implementation contained a 30-line when-branch directly handling the three
+     * cases. Extracting this into the policy centralizes config compatibility logic and reduces
+     * branching in the bridge.
+     */
     suspend fun setConfigOption(
         optionId: String,
         value: SessionConfigValue,
     ) {
         val option = snapshot.value.configOptions.firstOrNull { it.id == optionId }
-        when (option?.origin) {
-            SessionConfigOrigin.LegacyMode -> {
-                val modeId = (value as? SessionConfigValue.StringValue)?.value ?: return
-                connectionManager?.setSessionMode(sessionId, modeId)
-                runtime.onEvent(AppSessionEvent.ModeChanged(modeId))
+        val action = SessionConfigPolicy.mapToDispatchAction(option, value) ?: return
+        when (action) {
+            is SessionConfigPolicy.DispatchAction.SetLegacyMode -> {
+                connectionManager?.setSessionMode(sessionId, action.modeId)
+                runtime.onEvent(action.event)
             }
-
-            SessionConfigOrigin.LegacyModel -> {
-                val modelId = (value as? SessionConfigValue.StringValue)?.value ?: return
-                // Stand-in for missing SDK client event support: legacy session/set_model does
-                // not surface a first-class CurrentModelUpdate notification to the client, so
-                // Ferngeist confirms the selection optimistically and lets config_option_update
-                // become the source of truth when the agent exposes model via config options.
-                connectionManager?.setSessionModel(sessionId, modelId)
-                runtime.onEvent(AppSessionEvent.ModelSelectionConfirmed(modelId))
+            is SessionConfigPolicy.DispatchAction.SetLegacyModel -> {
+                connectionManager?.setSessionModel(sessionId, action.modelId)
+                runtime.onEvent(action.event)
             }
-
-            else -> {
-                connectionManager?.setSessionConfigOption(sessionId, optionId, value)
-                runtime.onEvent(
-                    AppSessionEvent.ConfigOptionValueChanged(
-                        optionId = optionId,
-                        value = value,
-                    ),
-                )
+            is SessionConfigPolicy.DispatchAction.SetNativeConfig -> {
+                connectionManager?.setSessionConfigOption(sessionId, action.optionId, action.value)
+                runtime.onEvent(action.event)
             }
         }
     }

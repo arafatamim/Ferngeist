@@ -6,6 +6,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * Tests for the centralized [SessionConfigPolicy].
+ *
+ * This class replaced the old `SessionConfigCompatibility` object tests. All compatibility
+ * logic (category inference, synthetic option generation, value application, and dispatch
+ * mapping) is now exercised here.
+ */
 class SessionConfigCompatibilityTest {
     @Test
     fun `resolve infers mode category for native option matching legacy modes`() {
@@ -22,7 +29,7 @@ class SessionConfigCompatibilityTest {
             )
 
         val resolved =
-            SessionConfigCompatibility.resolve(
+            SessionConfigPolicy.resolveEffectiveOptions(
                 nativeOptions = listOf(nativeOption),
                 legacyModes =
                     LegacyModeState(
@@ -44,7 +51,7 @@ class SessionConfigCompatibilityTest {
     @Test
     fun `resolve synthesizes legacy model option when native config options are absent`() {
         val resolved =
-            SessionConfigCompatibility.resolve(
+            SessionConfigPolicy.resolveEffectiveOptions(
                 nativeOptions = emptyList(),
                 legacyModes = null,
                 legacyModel =

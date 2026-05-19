@@ -10,7 +10,20 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Owns canonical transcript/session state for one ACP session.
- * All mutations are serialized through [mutex] so event ordering is deterministic.
+ *
+ * SessionRuntime is the single source of truth for a session's UI state. All mutations
+ * are serialized through [mutex] to ensure deterministic event ordering. It maintains
+ * two copies of state:
+ * - [live]: the currently visible state (published to [snapshot])
+ * - [buffered]: state accumulated during hydration (session/load replay)
+ *
+ * Events from the SDK arrive via [onEvent] and are reduced using [SessionMessageReducer]
+ * for message changes and a side-field [when] block for auxiliary state (usage, commands,
+ * legacy modes, etc.). Config option changes use [SessionConfigPolicy] to centralize
+ * compatibility logic between native and legacy options.
+ *
+ * Design note: After Phase 2 of the architecture plan, this class will implement
+ * [SessionStateEngine] and its public surface will become an interface.
  */
 class SessionRuntime(
     private val sessionId: String,
@@ -19,6 +32,7 @@ class SessionRuntime(
         private const val TAG = "TSRuntime"
     }
 
+    /** Internal state snapshot. All fields are immutable; [reduce] produces new instances. */
     private data class RuntimeData(
         val messages: List<ChatMessage> = emptyList(),
         val isStreaming: Boolean = false,
@@ -172,6 +186,17 @@ class SessionRuntime(
         }
     }
 
+    /**
+     * Pure function that reduces an event onto the current state.
+     *
+     * Message list changes are delegated to [SessionMessageReducer.handleEvent].
+     * Side-field updates (usage, commands, config options, legacy mode/model) are handled
+     * directly here. The branching is straightforward: each event type updates exactly one
+     * field or a small related group.
+     *
+     * Config option value changes use [SessionConfigPolicy.applyValueChange] to ensure
+     * type-safe updates without duplicating the origin-handling logic.
+     */
     private fun reduce(
         current: RuntimeData,
         event: AppSessionEvent,
@@ -224,12 +249,10 @@ class SessionRuntime(
                 nativeConfigOptions = event.options
             }
             is AppSessionEvent.ConfigOptionValueChanged -> {
+                // Delegate to the central policy for type-safe value mutation.
                 nativeConfigOptions =
                     nativeConfigOptions.map { option ->
-                        option.withUpdatedValue(
-                            optionId = event.optionId,
-                            value = event.value,
-                        )
+                        SessionConfigPolicy.applyValueChange(option, event.optionId, event.value)
                     }
             }
             is AppSessionEvent.LegacyModelOptionsUpdated -> {
@@ -261,12 +284,23 @@ class SessionRuntime(
         )
     }
 
+    /**
+     * Publishes the [live] state to the [_snapshot] StateFlow after resolving the effective
+     * config options list.
+     *
+     * Config resolution via [SessionConfigPolicy.resolveEffectiveOptions] unifies native
+     * options with synthetic legacy mode/model options. This ensures the UI always sees a
+     * complete set of options regardless of what the agent provides natively.
+     *
+     * The snapshot's `configOptions` field contains the resolved list; `nativeConfigOptions`
+     * stays internal to the runtime.
+     */
     private fun publishLive(
         loadState: SessionLoadState,
         error: String?,
     ) {
         val effectiveConfigOptions =
-            SessionConfigCompatibility.resolve(
+            SessionConfigPolicy.resolveEffectiveOptions(
                 nativeOptions = live.nativeConfigOptions,
                 legacyModes = live.legacyModes,
                 legacyModel = live.legacyModel,
@@ -307,8 +341,7 @@ class SessionRuntime(
             is AppSessionEvent.ModesUpdated -> "modes=${event.modes.size} current=${event.currentModeId}"
             is AppSessionEvent.ConfigOptionsUpdated -> "configOptions=${event.options.size}"
             is AppSessionEvent.ConfigOptionValueChanged -> "optionId=${event.optionId} value=${event.value}"
-            is AppSessionEvent.LegacyModelOptionsUpdated ->
-                "legacyModels=${event.choices.size} current=${event.currentModelId}"
+            is AppSessionEvent.LegacyModelOptionsUpdated -> "legacyModels=${event.choices.size} current=${event.currentModelId}"
             is AppSessionEvent.ModelSelectionConfirmed -> "modelId=${event.modelId}"
             is AppSessionEvent.PlanUpdated -> "entries=${event.entries.size}"
             is AppSessionEvent.UsageUpdated -> "usageTotal=${event.totalTokens} context=${event.contextWindowTokens}"
@@ -321,23 +354,5 @@ class SessionRuntime(
 
     private fun debug(message: String) {
         runCatching { android.util.Log.d(TAG, "[$sessionId] $message") }
-    }
-}
-
-private fun SessionConfigOption.withUpdatedValue(
-    optionId: String,
-    value: SessionConfigValue,
-): SessionConfigOption {
-    if (id != optionId) return this
-    return when (this) {
-        is SessionConfigOption.Select ->
-            copy(
-                currentValue = (value as? SessionConfigValue.StringValue)?.value ?: currentValue,
-            )
-        is SessionConfigOption.BooleanOption ->
-            copy(
-                currentValue = (value as? SessionConfigValue.BoolValue)?.value ?: currentValue,
-            )
-        is SessionConfigOption.Unknown -> copy(currentValue = value)
     }
 }
