@@ -279,4 +279,23 @@ class SessionMessageReducerTest {
         assertEquals(2, second.last().segments.last().planEntries?.size)
         assertEquals(PlanEntryStatus.IN_PROGRESS, second.last().segments.last().planEntries?.get(0)?.status)
     }
+
+    @Test
+    fun `append=false user message is deduplicated when assistant streaming placeholder follows`() {
+        val withUser =
+            SessionMessageReducer.handleEvent(
+                emptyList(),
+                AppSessionEvent.UserMessage("hello"),
+            )
+        val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
+
+        val updated =
+            SessionMessageReducer.handleEvent(
+                withAssistantPlaceholder,
+                AppSessionEvent.UserMessage(text = "hello", append = false),
+            )
+
+        val userMessageCount = updated.count { it.role == ChatMessage.Role.USER }
+        assertEquals(1, userMessageCount)
+    }
 }

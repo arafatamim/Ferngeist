@@ -170,12 +170,8 @@ internal class SessionGateway(
 
         orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/prompt")
 
-        bridge.emitEvent(
-            AppSessionEvent.UserMessage(
-                text = content,
-                timestampMs = System.currentTimeMillis(),
-            ),
-        )
+        // User message already added optimistically by onLocalPromptStarted; omitted here to
+        // avoid duplication.
 
         val blocks = mutableListOf<ContentBlock>()
         if (content.isNotEmpty()) {

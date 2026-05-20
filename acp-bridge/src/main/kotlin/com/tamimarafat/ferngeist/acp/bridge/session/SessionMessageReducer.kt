@@ -41,6 +41,7 @@ object SessionMessageReducer {
         }
 
     fun startStreaming(messages: List<ChatMessage>): List<ChatMessage> {
+        // Idempotent: avoid stacking placeholder bubbles when called repeatedly
         if (messages.isNotEmpty() &&
             messages.last().role == ChatMessage.Role.ASSISTANT &&
             messages.last().isStreaming
@@ -63,6 +64,7 @@ object SessionMessageReducer {
         text: String,
         images: List<ChatImageData>,
     ): List<ChatMessage> {
+        // Optimistic insertion: the UI gets an immediate user bubble before the server round-trip
         if (text.isBlank() && images.isEmpty()) return messages
         return messages +
             ChatMessage(
@@ -83,7 +85,10 @@ object SessionMessageReducer {
         val mutableMessages = messages.toMutableList()
         val lastMessage = mutableMessages.lastOrNull()
 
+        // append=true: server echo via UserMessageChunk — dedup against the user message or
+        // the streaming placeholder that follows it
         if (append) {
+            // Exact-match dedup when the last message is already a USER bubble
             if (lastMessage?.role == ChatMessage.Role.USER) {
                 if (lastMessage.content == text) return messages
                 mutableMessages[mutableMessages.lastIndex] =
@@ -91,6 +96,8 @@ object SessionMessageReducer {
                 return mutableMessages
             }
 
+            // Server echo dedup: when the assistant placeholder is still empty (no content, no
+            // segments), the echoed chunk matches the user text that's one message back
             val previousMessage =
                 if (mutableMessages.size >=
                     2
@@ -111,11 +118,29 @@ object SessionMessageReducer {
                 }
             }
         } else {
+            // append=false: local optimistic insertion (or redundant source) — dedup against the
+            // last USER bubble or against a streaming placeholder whose preceding USER matches
             if (lastMessage?.role == ChatMessage.Role.USER && lastMessage.content == text) {
+                return messages
+            }
+            val previousMessage =
+                if (mutableMessages.size >= 2) {
+                    mutableMessages[mutableMessages.lastIndex - 1]
+                } else {
+                    null
+                }
+            if (lastMessage?.role == ChatMessage.Role.ASSISTANT &&
+                lastMessage.isStreaming &&
+                lastMessage.content.isBlank() &&
+                lastMessage.segments.isEmpty() &&
+                previousMessage?.role == ChatMessage.Role.USER &&
+                previousMessage.content == text
+            ) {
                 return messages
             }
         }
 
+        // A new user message arriving means any running assistant turn is obsolete — close it
         val lastStreamingIndex =
             mutableMessages.indexOfLast {
                 it.role == ChatMessage.Role.ASSISTANT && it.isStreaming
@@ -145,8 +170,10 @@ object SessionMessageReducer {
         val lastMessage = mutableMessages.lastOrNull()
         val targetIndex =
             if (lastMessage?.role == ChatMessage.Role.ASSISTANT) {
+                // Reuse the last assistant bubble when chunks arrive in sequence
                 mutableMessages.lastIndex
             } else {
+                // First chunk of a new turn — seed a fresh assistant bubble
                 val newMessage =
                     ChatMessage(
                         role = ChatMessage.Role.ASSISTANT,
@@ -160,6 +187,8 @@ object SessionMessageReducer {
         val message = mutableMessages[targetIndex]
         val segments = message.segments.toMutableList()
 
+        // Coalesce consecutive segments of the same kind (e.g. two MESSAGE chunks from
+        // interleaved tool calls) into one segment instead of stacking many tiny entries
         val textSegmentIndex =
             if (
                 segments.isNotEmpty() &&
@@ -178,6 +207,7 @@ object SessionMessageReducer {
             segments.add(AssistantSegment(id = UUID.randomUUID().toString(), kind = kind, text = text))
         }
 
+        // Derive the flat content string from MESSAGE segments for backward-compatible access
         val updatedContent =
             segments
                 .filter { it.kind == AssistantSegment.Kind.MESSAGE }
@@ -218,6 +248,7 @@ object SessionMessageReducer {
         val message = mutableMessages[targetIndex]
         val segments = message.segments.toMutableList()
 
+        // Plans are a log: each update replaces the preceding plan segment rather than stacking
         val existingPlanIndex = segments.indexOfLast { it.kind == AssistantSegment.Kind.PLAN }
         if (existingPlanIndex != -1) {
             segments[existingPlanIndex] =
@@ -260,6 +291,7 @@ object SessionMessageReducer {
         val lastMessage = mutableMessages.lastOrNull()
         val targetIndex =
             if (lastMessage?.role == ChatMessage.Role.ASSISTANT && lastMessage.isStreaming) {
+                // Attach to the actively streaming bubble rather than creating a new message
                 mutableMessages.lastIndex
             } else {
                 mutableMessages.add(
@@ -275,6 +307,7 @@ object SessionMessageReducer {
         val message = mutableMessages[targetIndex]
         val segments = message.segments.toMutableList()
 
+        // Idempotent guard: a ToolCallStarted with the same id from replay must not duplicate
         if (segments.any { it.kind == AssistantSegment.Kind.TOOL_CALL && it.toolCall?.toolCallId == toolCallId }) {
             return messages
         }
@@ -309,6 +342,8 @@ object SessionMessageReducer {
                     it.segments.any { segment -> segment.toolCall?.toolCallId == incomingToolCallId }
             }
         if (index == -1) {
+            // Out-of-order event: ToolCallUpdated arrived before ToolCallStarted. Bootstrap a
+            // ToolCallStarted entry first and then apply the update on top
             return upsertToolCall(
                 messages,
                 AppSessionEvent.ToolCallStarted(
@@ -426,6 +461,8 @@ object SessionMessageReducer {
                             oldToolCall?.copy(
                                 permissionOptions = null,
                                 permissionRequestId = null,
+                                // A PENDING tool call that had a permission request transitions to
+                                // IN_PROGRESS once permission is granted (or denied)
                                 status =
                                     if (oldToolCall.status == ToolCallStatus.PENDING &&
                                         oldToolCall.permissionRequestId != null
@@ -445,6 +482,8 @@ object SessionMessageReducer {
     }
 
     fun finishStreaming(messages: List<ChatMessage>): List<ChatMessage> {
+        // TurnComplete can arrive for the last streaming message in any position (the order of
+        // prompt events is not guaranteed to be sequential)
         val index = messages.indexOfLast { it.isStreaming }
         if (index == -1) return messages
 
