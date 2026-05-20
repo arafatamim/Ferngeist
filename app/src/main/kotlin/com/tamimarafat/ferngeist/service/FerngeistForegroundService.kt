@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -78,6 +79,13 @@ class FerngeistForegroundService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+        }
+
+        if (connectionManager.connectionState.value !is AcpConnectionState.Connected &&
+            connectionManager.connectionState.value !is AcpConnectionState.Connecting
+        ) {
+            stopSelf()
+            return START_NOT_STICKY
         }
 
         if (!isStarted) {
