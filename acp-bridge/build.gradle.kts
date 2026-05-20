@@ -30,14 +30,14 @@ dependencies {
     // === ACP Kotlin SDK ===
     api(libs.acp)
     api(libs.acp.model)
-    implementation(libs.acp.ktor.client)
+    implementation(libs.acp.ktor)
 
     // === Ktor ===
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.websockets)
 
-    // === Android-specific ===
+    // === Coroutines ===
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
@@ -47,7 +47,6 @@ dependencies {
     // === Internal ===
     implementation(project(":core:model"))
     implementation(project(":gateway-client"))
-    implementation(libs.androidx.annotation.jvm)
 
     // === Testing ===
     testImplementation(libs.turbine)

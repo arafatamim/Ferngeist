@@ -1,7 +1,7 @@
 package com.tamimarafat.ferngeist.feature.serverlist
 
 import app.cash.turbine.test
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
+import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
@@ -81,7 +81,7 @@ class ServerListViewModelTest {
         coEvery { connectionManager.connect(any()) } returns true
         coEvery { connectionManager.initialize() } returns AcpInitializeResult.Ready(
             agentInfo = AgentInfo("Test Agent", "1.0"),
-            agentCapabilities = AcpAgentCapabilities(),
+            agentCapabilities = AgentCapabilities(),
             authMethods = emptyList()
         )
 
@@ -141,7 +141,7 @@ class ServerListViewModelTest {
             coEvery { connectionManager.connect(any()) } returns true
             coEvery { connectionManager.initialize() } returns AcpInitializeResult.Ready(
                 agentInfo = AgentInfo("Test Agent", "1.0"),
-                agentCapabilities = AcpAgentCapabilities(),
+                agentCapabilities = AgentCapabilities(),
                 authMethods = emptyList()
             )
 
@@ -185,7 +185,7 @@ class ServerListViewModelTest {
             coEvery { connectionManager.connect(any()) } returns true
             coEvery { connectionManager.initialize() } returns AcpInitializeResult.Ready(
                 agentInfo = AgentInfo("Test Agent", "1.0"),
-                agentCapabilities = AcpAgentCapabilities(),
+                agentCapabilities = AgentCapabilities(),
                 authMethods = emptyList()
             )
 

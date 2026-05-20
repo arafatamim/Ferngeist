@@ -12,7 +12,7 @@ lifecycleRuntimeKtx = "2.10.0"
 lifecycleViewmodelKtx = "2.10.0"
 lifecycleViewmodelCompose = "2.10.0"
 activityCompose = "1.13.0"
-composeBom = "2026.05.00"
+composeBom = "2026.05.01"
 
 # Serialization
 kotlinxSerializationJson = "1.11.0"
@@ -44,9 +44,8 @@ ktor = "3.5.0"
 # Turbine for Flow testing
 turbine = "1.2.1"
 mockk = "1.14.9"
-material3 = "1.5.0-alpha19"
+material3 = "1.5.0-alpha20"
 markdownRenderer = "0.41.0"
-annotationJvm = "1.10.0"
 datastorePreferences = "1.2.1"
 
 [libraries]
@@ -92,7 +91,7 @@ hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-com
 # ACP Kotlin SDK
 acp = { group = "com.agentclientprotocol", name = "acp", version.ref = "acp" }
 acp-model = { group = "com.agentclientprotocol", name = "acp-model", version.ref = "acp" }
-acp-ktor-client = { group = "com.agentclientprotocol", name = "acp-ktor-client", version.ref = "acp" }
+acp-ktor = { group = "com.agentclientprotocol", name = "acp-ktor", version.ref = "acp" }
 
 # Ktor
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
@@ -105,7 +104,6 @@ turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 multiplatform-markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer", version.ref = "markdownRenderer" }
 multiplatform-markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
-androidx-annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 
 [plugins]

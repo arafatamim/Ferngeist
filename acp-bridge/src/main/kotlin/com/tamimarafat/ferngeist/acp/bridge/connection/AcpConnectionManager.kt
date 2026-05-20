@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
@@ -50,7 +51,7 @@ class AcpConnectionManager(
     val events: SharedFlow<AcpManagerEvent> = orchestra.events
 
     /** Agent capabilities reported during initialization. */
-    val agentCapabilities: StateFlow<AcpAgentCapabilities?> = orchestra.agentCapabilities
+    val agentCapabilities: StateFlow<AgentCapabilities?> = orchestra.agentCapabilities
 
     /** Agent metadata (name, version) from initialization. */
     val agentInfo: StateFlow<AgentInfo?> = orchestra.agentInfo

@@ -1,18 +1,22 @@
 package com.tamimarafat.ferngeist.acp.bridge
 
 import app.cash.turbine.test
+import com.agentclientprotocol.annotations.UnstableApi
+import com.agentclientprotocol.model.AgentCapabilities
+import com.agentclientprotocol.model.McpCapabilities
+import com.agentclientprotocol.model.PromptCapabilities
+import com.agentclientprotocol.model.SessionCapabilities
+import com.agentclientprotocol.model.SessionListCapabilities
+import com.agentclientprotocol.model.SessionResumeCapabilities
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.tamimarafat.ferngeist.acp.bridge.connection.PermissionFlow
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpDiagnosticsStore
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpMcpCapabilities
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpPromptCapabilities
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpSessionCapabilities
+import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
@@ -325,14 +329,15 @@ class AcpErrorFormattingTest {
 }
 
 class AcpAgentCapabilitiesTest {
+    @OptIn(UnstableApi::class)
     @Test
     fun `display labels include advertised capabilities`() {
         val capabilities =
-            AcpAgentCapabilities(
+            AgentCapabilities(
                 loadSession = true,
-                prompt = AcpPromptCapabilities(image = true, embeddedContext = true),
-                mcp = AcpMcpCapabilities(http = true),
-                session = AcpSessionCapabilities(list = true, resume = true),
+                promptCapabilities = PromptCapabilities(image = true, embeddedContext = true),
+                mcpCapabilities = McpCapabilities(http = true),
+                sessionCapabilities = SessionCapabilities(list = SessionListCapabilities(), resume = SessionResumeCapabilities()),
             )
 
         assertEquals(
@@ -341,8 +346,9 @@ class AcpAgentCapabilitiesTest {
         )
     }
 
+    @OptIn(UnstableApi::class)
     @Test
     fun `display labels are empty when nothing is advertised`() {
-        assertTrue(AcpAgentCapabilities().displayLabels().isEmpty())
+        assertTrue(AgentCapabilities().displayLabels().isEmpty())
     }
 }

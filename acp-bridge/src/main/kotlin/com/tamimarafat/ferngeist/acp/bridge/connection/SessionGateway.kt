@@ -17,6 +17,7 @@ import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.SessionModeId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
+import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
@@ -282,6 +283,10 @@ internal class SessionGateway(
                 "session/set_config_option",
             )
             val response = session.setConfigOption(SessionConfigId(optionId), value.toSdkValue())
+            // NOTE: Mirror the authoritative response to the bridge even when the server
+            // does not emit a separate config_option_update notification. The SDK updates
+            // session.configOptions StateFlow from this same response internally, but we
+            // don't observe it reactively — see registerSession() for the rationale.
             emitToBridge(
                 sessionId,
                 AppSessionEvent.ConfigOptionsUpdated(
@@ -427,6 +432,10 @@ internal class SessionGateway(
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
 
+        // NOTE: We read mode/model/config once from the SDK's ClientSession StateFlows
+        // rather than observing them reactively, so all initial state lands in the bridge
+        // replay buffer before markReady(). If the SDK adds a CurrentModelUpdate notify
+        // type in a future version, reactive collection could replace the one-shot read.
         if (session.modesSupported) {
             val modes = session.availableModes.map {
                 SessionMode(
@@ -532,10 +541,10 @@ internal class SessionGateway(
         return sessionRegistry.getPort(sessionId)
     }
 
-    /** Checks if a JSON-RPC error means the session is already loaded (code -32602 + "already loaded"). */
+    /** Checks if a JSON-RPC error means the session is already loaded (Invalid params + "already loaded"). */
     private fun isSessionAlreadyLoadedError(error: Throwable): Boolean {
-        val rpcError = error as? JsonRpcException
-        if (rpcError?.code != -32602) return false
+        val rpcError = error as? JsonRpcException ?: return false
+        if (rpcError.code != JsonRpcErrorCode.INVALID_PARAMS.code) return false
         return rpcError.message.contains("already loaded", ignoreCase = true)
     }
 
@@ -556,9 +565,9 @@ internal class SessionGateway(
 
     /** Checks whether an error is "Method not found: session/cancel" – the server lacks cancel support. */
     private fun isUnsupportedSessionCancel(error: Throwable): Boolean {
-        val message = error.message.orEmpty()
-        return message.contains("Method not found", ignoreCase = true) &&
-            message.contains("session/cancel", ignoreCase = true)
+        val rpcError = error as? JsonRpcException ?: return false
+        if (rpcError.code != JsonRpcErrorCode.METHOD_NOT_FOUND.code) return false
+        return rpcError.message.contains("session/cancel", ignoreCase = true)
     }
 
     /** Converts a Ferngeist [SessionConfigValue] to the SDK's wire format. */

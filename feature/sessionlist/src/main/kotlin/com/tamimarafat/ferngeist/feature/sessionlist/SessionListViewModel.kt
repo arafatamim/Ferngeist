@@ -3,7 +3,8 @@ package com.tamimarafat.ferngeist.feature.sessionlist
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
+import com.agentclientprotocol.annotations.UnstableApi
+import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
@@ -123,7 +124,7 @@ class SessionListViewModel
                         is AcpConnectionState.Failed -> ChatConnectionState.Failed(state.error.message)
                     }
                 }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChatConnectionState.Disconnected)
-        val agentCapabilities: StateFlow<AcpAgentCapabilities?> =
+        val agentCapabilities: StateFlow<AgentCapabilities?> =
             connectionManager.agentCapabilities
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
         val connectionDiagnostics: StateFlow<ChatConnectionDiagnostics> =
@@ -150,6 +151,7 @@ class SessionListViewModel
         /**
          * Refreshes the session list, handling auth gating and capability checks.
          */
+        @OptIn(UnstableApi::class)
         fun refreshSessions() {
             viewModelScope.launch {
                 if (!connectionManager.isConnected) {
@@ -158,7 +160,7 @@ class SessionListViewModel
                 }
 
                 val capabilities = connectionManager.agentCapabilities.value
-                if (capabilities != null && !capabilities.session.list) {
+                if (capabilities != null && capabilities.sessionCapabilities.list == null) {
                     _isLoading.value = false
                     return@launch
                 }

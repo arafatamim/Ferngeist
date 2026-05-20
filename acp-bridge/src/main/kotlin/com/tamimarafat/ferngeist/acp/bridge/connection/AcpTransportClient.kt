@@ -9,9 +9,6 @@ import com.agentclientprotocol.model.AuthMethodId
 import com.agentclientprotocol.model.ClientCapabilities
 import com.agentclientprotocol.model.FileSystemCapability
 import com.agentclientprotocol.model.Implementation
-import com.agentclientprotocol.model.McpCapabilities
-import com.agentclientprotocol.model.PromptCapabilities
-import com.agentclientprotocol.model.SessionCapabilities
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.transport.WebSocketTransport
@@ -88,12 +85,11 @@ internal class AcpTransportClient(
                     name = info.implementation?.name?.takeIf { it.isNotBlank() } ?: "Agent",
                     version = info.implementation?.version?.takeIf { it.isNotBlank() } ?: "unknown",
                 )
-            val agentCapabilities = mapAgentCapabilities(info.capabilities)
             val authMethods = info.authMethods.map(::mapAuthMethod)
             val result =
                 AcpInitializeResult.Ready(
                     agentInfo = mapped,
-                    agentCapabilities = agentCapabilities,
+                    agentCapabilities = info.capabilities,
                     authMethods = authMethods,
                 )
 
@@ -182,6 +178,10 @@ internal class AcpTransportClient(
                         headers.append("Authorization", "Bearer $it")
                     }
                 }
+            // NOTE: Manual transport/Protocol setup instead of the SDK's
+            // HttpClient.acpProtocolOnClientWebSocket() because Protocol.transport
+            // is private — we need onError/onClose for reconnection (lines 199-215).
+            // Switch to the extension if a future SDK exposes Protocol.transport publicly.
             val transport =
                 WebSocketTransport(
                     parentScope = webSocketSession,
@@ -346,32 +346,4 @@ internal class AcpTransportClient(
                 )
         }
 
-    private fun mapAgentCapabilities(capabilities: AgentCapabilities): AcpAgentCapabilities =
-        AcpAgentCapabilities(
-            loadSession = capabilities.loadSession,
-            prompt = mapPromptCapabilities(capabilities.promptCapabilities),
-            mcp = mapMcpCapabilities(capabilities.mcpCapabilities),
-            session = mapSessionCapabilities(capabilities.sessionCapabilities),
-        )
-
-    private fun mapPromptCapabilities(capabilities: PromptCapabilities): AcpPromptCapabilities =
-        AcpPromptCapabilities(
-            audio = capabilities.audio,
-            embeddedContext = capabilities.embeddedContext,
-            image = capabilities.image,
-        )
-
-    private fun mapMcpCapabilities(capabilities: McpCapabilities): AcpMcpCapabilities =
-        AcpMcpCapabilities(
-            http = capabilities.http,
-            sse = capabilities.sse,
-        )
-
-    @OptIn(UnstableApi::class)
-    private fun mapSessionCapabilities(capabilities: SessionCapabilities): AcpSessionCapabilities =
-        AcpSessionCapabilities(
-            fork = capabilities.fork != null,
-            list = capabilities.list != null,
-            resume = capabilities.resume != null,
-        )
 }

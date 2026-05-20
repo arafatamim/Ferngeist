@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAgentCapabilities
+import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
@@ -110,7 +110,7 @@ class AcpChatSessionFacade(
     private var bridgeObserverJobs: List<Job> = emptyList()
     private var bridgeRecoveryJob: Job? = null
     private var pendingModelSelectionId: String? = null
-    private var currentAcpCapabilities: AcpAgentCapabilities? = null
+    private var currentAcpCapabilities: AgentCapabilities? = null
     private var shouldRecoverBridge: Boolean = false
     private val bridgeOperationMutex = Mutex()
 
@@ -254,7 +254,7 @@ class AcpChatSessionFacade(
         }
 
         val capabilities = connectionManager.agentCapabilities.value
-        if (images.isNotEmpty() && capabilities != null && !capabilities.prompt.image) {
+        if (images.isNotEmpty() && capabilities != null && !capabilities.promptCapabilities.image) {
             _operationError.emit(
                 ChatOperationError("This agent does not advertise image prompt support.", false),
             )
@@ -660,10 +660,10 @@ class AcpChatSessionFacade(
             lastUpdatedAtMs = diag.lastUpdatedAtMs,
         )
 
-    private fun mapCapabilities(caps: AcpAgentCapabilities): ChatAgentCapabilities =
+    private fun mapCapabilities(caps: AgentCapabilities): ChatAgentCapabilities =
         ChatAgentCapabilities(
-            canSendImages = caps.prompt.image,
-            supportsEmbeddedContext = caps.prompt.embeddedContext,
+            canSendImages = caps.promptCapabilities.image,
+            supportsEmbeddedContext = caps.promptCapabilities.embeddedContext,
         )
 
     private fun mapSnapshot(snapshot: SessionSnapshot): ChatSessionSnapshot =

@@ -2,6 +2,9 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
+import com.agentclientprotocol.model.AgentCapabilities
+import com.agentclientprotocol.protocol.JsonRpcException
+import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -34,8 +37,8 @@ internal class ConnectionOrchestrator(
     val events: SharedFlow<AcpManagerEvent> = _events.asSharedFlow()
 
     /** Agent capabilities reported during initialization — prompt support, features, etc. */
-    private val _agentCapabilities = MutableStateFlow<AcpAgentCapabilities?>(null)
-    val agentCapabilities: StateFlow<AcpAgentCapabilities?> = _agentCapabilities.asStateFlow()
+    private val _agentCapabilities = MutableStateFlow<AgentCapabilities?>(null)
+    val agentCapabilities: StateFlow<AgentCapabilities?> = _agentCapabilities.asStateFlow()
 
     /** Agent metadata (name, version) from initialization. */
     private val _agentInfo = MutableStateFlow<AgentInfo?>(null)
@@ -177,7 +180,8 @@ internal class ConnectionOrchestrator(
     }
 
     private fun isAuthenticationRequiredError(error: Throwable): Boolean {
-        val rpcError = error as? com.agentclientprotocol.protocol.JsonRpcException
+        val rpcError = error as? JsonRpcException
+        if (rpcError?.code == JsonRpcErrorCode.AUTH_REQUIRED.code) return true
         val message = buildString {
             append(error.message.orEmpty())
             if (rpcError != null) {

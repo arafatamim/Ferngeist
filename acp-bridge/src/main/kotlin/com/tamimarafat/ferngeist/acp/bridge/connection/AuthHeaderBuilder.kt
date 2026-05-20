@@ -1,5 +1,8 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import com.agentclientprotocol.annotations.UnstableApi
+import com.agentclientprotocol.model.AgentCapabilities
+
 data class AcpConnectionConfig(
     val scheme: String = "ws",
     val host: String,
@@ -55,58 +58,35 @@ class AcpAuthenticationRequiredException(
     val challenge: AcpAuthChallenge,
 ) : IllegalStateException(challenge.message)
 
-data class AcpAgentCapabilities(
-    val loadSession: Boolean = false,
-    val prompt: AcpPromptCapabilities = AcpPromptCapabilities(),
-    val mcp: AcpMcpCapabilities = AcpMcpCapabilities(),
-    val session: AcpSessionCapabilities = AcpSessionCapabilities(),
-) {
-    fun displayLabels(): List<String> =
-        buildList {
-            if (loadSession) add("Load")
-            if (prompt.image) add("Images")
-            if (prompt.embeddedContext) add("Context")
-            if (prompt.audio) add("Audio")
-            if (mcp.http) add("MCP HTTP")
-            if (mcp.sse) add("MCP SSE")
-            if (session.list) add("List")
-            if (session.resume) add("Resume")
-            if (session.fork) add("Fork")
-        }
-}
-
-data class AcpPromptCapabilities(
-    val audio: Boolean = false,
-    val embeddedContext: Boolean = false,
-    val image: Boolean = false,
-)
-
-data class AcpMcpCapabilities(
-    val http: Boolean = false,
-    val sse: Boolean = false,
-)
-
-data class AcpSessionCapabilities(
-    val fork: Boolean = false,
-    val list: Boolean = false,
-    val resume: Boolean = false,
-)
+@OptIn(UnstableApi::class)
+fun AgentCapabilities.displayLabels(): List<String> =
+    buildList {
+        if (loadSession) add("Load")
+        if (promptCapabilities.image) add("Images")
+        if (promptCapabilities.embeddedContext) add("Context")
+        if (promptCapabilities.audio) add("Audio")
+        if (mcpCapabilities.http) add("MCP HTTP")
+        if (mcpCapabilities.sse) add("MCP SSE")
+        if (sessionCapabilities.list != null) add("List")
+        if (sessionCapabilities.resume != null) add("Resume")
+        if (sessionCapabilities.fork != null) add("Fork")
+    }
 
 sealed interface AcpInitializeResult {
     val agentInfo: AgentInfo
-    val agentCapabilities: AcpAgentCapabilities
+    val agentCapabilities: AgentCapabilities
     val authMethods: List<AcpAuthMethodInfo>
 
     data class Ready(
         override val agentInfo: AgentInfo,
-        override val agentCapabilities: AcpAgentCapabilities,
+        override val agentCapabilities: AgentCapabilities,
         override val authMethods: List<AcpAuthMethodInfo>,
         val authenticatedMethodId: String? = null,
     ) : AcpInitializeResult
 
     data class AuthenticationRequired(
         override val agentInfo: AgentInfo,
-        override val agentCapabilities: AcpAgentCapabilities,
+        override val agentCapabilities: AgentCapabilities,
         override val authMethods: List<AcpAuthMethodInfo>,
         val authErrorMessage: String? = null,
     ) : AcpInitializeResult

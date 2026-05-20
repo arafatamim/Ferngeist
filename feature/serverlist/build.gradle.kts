@@ -59,7 +59,6 @@ dependencies {
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.ktor.client.core)
     implementation(libs.play.services.code.scanner)
 
     // Hilt Setup
