@@ -114,6 +114,10 @@ class SessionListViewModel
 
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+        // NOTE: Separate from _isLoading so PullToRefreshDefaults.LoadingIndicator
+        // only shows on user-pull, not on initial load with cached sessions.
+        private val _refreshing = MutableStateFlow(false)
+        val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
         val connectionState: StateFlow<ChatConnectionState> =
             connectionManager.connectionState
                 .map { state ->
@@ -150,35 +154,38 @@ class SessionListViewModel
 
         /**
          * Refreshes the session list, handling auth gating and capability checks.
+         *
+         * @param isUserInitiated true when triggered by pull-to-refresh gesture;
+         *   sets [refreshing] so the pull indicator shows only on user drag.
          */
         @OptIn(UnstableApi::class)
-        fun refreshSessions() {
+        fun refreshSessions(isUserInitiated: Boolean = false) {
             viewModelScope.launch {
-                if (!connectionManager.isConnected) {
-                    _isLoading.value = false
-                    return@launch
-                }
+                try {
+                    if (!connectionManager.isConnected) return@launch
 
-                val capabilities = connectionManager.agentCapabilities.value
-                if (capabilities != null && capabilities.sessionCapabilities.list == null) {
-                    _isLoading.value = false
-                    return@launch
-                }
+                    val capabilities = connectionManager.agentCapabilities.value
+                    if (capabilities != null && capabilities.sessionCapabilities.list == null) return@launch
 
-                _isLoading.value = true
-                val settings = sessionSettingsRepository.getSettingsBlocking(serverId)
-                val cwd = settings?.cwd?.trim()?.ifBlank { null }
-                runCatching {
-                    connectionManager.listSessions(cwd = cwd)
-                }.onSuccess { remoteSessions ->
-                    replaceSessions(remoteSessions)
-                }.onFailure { error ->
-                    if (handleAuthenticationRequired(error, PendingAuthAction.RefreshSessions)) {
-                        return@launch
+                    if (isUserInitiated) _refreshing.value = true
+                    _isLoading.value = true
+                    val settings = sessionSettingsRepository.getSettingsBlocking(serverId)
+                    val cwd = settings?.cwd?.trim()?.ifBlank { null }
+                    runCatching {
+                        connectionManager.listSessions(cwd = cwd)
+                    }.onSuccess { remoteSessions ->
+                        replaceSessions(remoteSessions)
+                    }.onFailure { error ->
+                        if (handleAuthenticationRequired(error, PendingAuthAction.RefreshSessions)) {
+                            return@launch
+                        }
+                        _events.emit(SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to load sessions")))
                     }
-                    _events.emit(SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to load sessions")))
+                } finally {
+                    // Centralised cleanup replaces 3 duplicated _isLoading = false sites.
+                    _isLoading.value = false
+                    _refreshing.value = false
                 }
-                _isLoading.value = false
             }
         }
 

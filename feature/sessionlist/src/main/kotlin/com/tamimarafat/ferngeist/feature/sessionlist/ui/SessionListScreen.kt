@@ -161,8 +161,10 @@ fun SessionListScreen(
             pendingAuthentication?.serverId,
             pendingAuthentication?.pendingAction,
         ) { mutableStateMapOf<String, String>() }
+    // Separate flag: PullToRefreshDefaults.LoadingIndicator only shows on user-pull,
+    // not on initial load when cached sessions exist (isLoading alone would trigger it).
+    val isRefreshing by viewModel.refreshing.collectAsState()
     val pullToRefreshState = rememberPullToRefreshState()
-    val showRefreshingIndicator = isLoading && sessions.isNotEmpty()
     val supportsSessionList = agentCapabilities?.sessionCapabilities?.list != null
     val serverName = resolveServerDisplayName(
         navArgName,
@@ -271,8 +273,8 @@ fun SessionListScreen(
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
                 .pullToRefresh(
                     state = pullToRefreshState,
-                    isRefreshing = showRefreshingIndicator,
-                    onRefresh = viewModel::refreshSessions,
+                    isRefreshing = isRefreshing,
+                    onRefresh = { viewModel.refreshSessions(isUserInitiated = true) },
                 )
         } else {
             Modifier
@@ -513,7 +515,7 @@ fun SessionListScreen(
         if (supportsSessionList) {
             PullToRefreshDefaults.LoadingIndicator(
                 state = pullToRefreshState,
-                isRefreshing = showRefreshingIndicator,
+                isRefreshing = isRefreshing,
                 modifier =
                     Modifier
                         .align(Alignment.TopCenter)
