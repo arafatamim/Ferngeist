@@ -3,12 +3,14 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -19,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -33,7 +36,9 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 ) {
                     SelectionContainer {
                         Text(
@@ -41,6 +46,8 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(12.dp),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            softWrap = false,
+                            overflow = TextOverflow.Visible,
                         )
                     }
             }

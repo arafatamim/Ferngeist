@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
 import io.github.diff.DeltaType
@@ -102,48 +106,56 @@ internal fun DiffRenderer(diff: ToolCallContent.Diff) {
         result
     }
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            text = diff.path,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
+    SelectionContainer {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            Text(
+                text = diff.path,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 4.dp),
+                softWrap = false,
+                overflow = TextOverflow.Visible,
+            )
 
-        rows.forEach { row ->
-            val (prefix, bgColor, textColor) = when (row) {
-                is LineDiffRow.Delete -> Triple(
-                    "- ",
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                    MaterialTheme.colorScheme.error,
-                )
-                is LineDiffRow.Insert -> Triple(
-                    "+ ",
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                // MaterialTheme lacks this particular green; hardcode instead of adding a theme color for a single use.
-                    Color(0xFF43A047),
-                )
-                is LineDiffRow.Equal -> Triple(
-                    "  ",
-                    Color.Transparent,
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                )
-            }
+            rows.forEach { row ->
+                val (prefix, bgColor, textColor) = when (row) {
+                    is LineDiffRow.Delete -> Triple(
+                        "- ",
+                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                        MaterialTheme.colorScheme.error,
+                    )
+                    is LineDiffRow.Insert -> Triple(
+                        "+ ",
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    // MaterialTheme lacks this particular green; hardcode instead of adding a theme color for a single use.
+                        Color(0xFF43A047),
+                    )
+                    is LineDiffRow.Equal -> Triple(
+                        "  ",
+                        Color.Transparent,
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    )
+                }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(bgColor)
-                    .padding(horizontal = 4.dp, vertical = 1.dp),
-            ) {
-                Text(
-                    text = "$prefix${row.text}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    color = textColor,
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(bgColor)
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                ) {
+                    Text(
+                        text = "$prefix${row.text}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = textColor,
+                        softWrap = false,
+                        overflow = TextOverflow.Visible,
+                    )
+                }
             }
         }
     }
