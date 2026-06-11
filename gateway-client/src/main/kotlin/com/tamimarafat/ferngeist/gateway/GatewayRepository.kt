@@ -35,6 +35,7 @@ interface GatewayRepository {
         host: String,
         gatewayCredential: String,
         runtimeId: String,
+        sessionMode: String? = null,
     ): GatewayConnectResponse
 
     suspend fun restartRuntime(
@@ -65,4 +66,24 @@ interface GatewayRepository {
         host: String,
         gatewayCredential: String,
     ): GatewayPairingResult
+
+    suspend fun resumeSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        sessionId: String,
+    ): GatewaySessionResumeResponse
+
+    suspend fun listGatewaySessions(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ): List<GatewaySessionSummary>
+
+    suspend fun closeSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        sessionId: String,
+    )
 }

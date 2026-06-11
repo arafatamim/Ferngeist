@@ -88,6 +88,12 @@ data class GatewayConnectResponse(
     @SerialName("websocketPath")
     val webSocketPath: String,
     val bearerToken: String,
+    @SerialName("tokenExpiresAt")
+    val tokenExpiresAt: String? = null,
+    @SerialName("sessionId")
+    val sessionId: String? = null,
+    @SerialName("attachToken")
+    val attachToken: String? = null,
 )
 
 @Serializable
@@ -122,4 +128,28 @@ data class GatewayPairStatusResponse(
     @SerialName("completedDevice") val completedDevice: String? = null,
     @SerialName("completedDeviceId") val completedDeviceId: String? = null,
     @SerialName("completedDeviceExpiresAt") val completedDeviceExpiresAt: String? = null,
+)
+
+@Serializable
+data class GatewayConnectRequest(
+    @SerialName("sessionMode") val sessionMode: String? = null,
+)
+
+@Serializable
+data class GatewaySessionResumeResponse(
+    @SerialName("attachToken") val attachToken: String,
+)
+
+@Serializable
+data class GatewaySessionListResponse(
+    val sessions: List<GatewaySessionSummary>,
+)
+
+@Serializable
+data class GatewaySessionSummary(
+    @SerialName("sessionId") val sessionId: String,
+    @SerialName("runtimeId") val runtimeId: String,
+    @SerialName("agentId") val agentId: String,
+    val status: String,
+    @SerialName("createdAt") val createdAt: String? = null,
 )

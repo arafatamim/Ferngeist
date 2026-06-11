@@ -5,6 +5,7 @@ import io.ktor.client.request.accept
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.delete
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsText
@@ -108,6 +109,7 @@ class GatewayRepositoryImpl
             host: String,
             gatewayCredential: String,
             runtimeId: String,
+            sessionMode: String?,
         ): GatewayConnectResponse =
             httpClient.postJson(
                 json = json,
@@ -118,7 +120,61 @@ class GatewayRepositoryImpl
                 "runtimes",
                 runtimeId,
                 "connect",
+                body = sessionMode?.let {
+                    json.encodeToString(GatewayConnectRequest(sessionMode = it))
+                },
             )
+
+        override suspend fun resumeSession(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            sessionId: String,
+        ): GatewaySessionResumeResponse =
+            httpClient.postJson(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "sessions",
+                sessionId,
+                "resume",
+            )
+
+        override suspend fun listGatewaySessions(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+        ): List<GatewaySessionSummary> {
+            val response =
+                httpClient.getJson<GatewaySessionListResponse>(
+                    json = json,
+                    scheme = scheme,
+                    host = host,
+                    bearerToken = gatewayCredential,
+                    "v1",
+                    "sessions",
+                )
+            return response.sessions
+        }
+
+        override suspend fun closeSession(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            sessionId: String,
+        ) {
+            httpClient.deleteJsonUnit(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "sessions",
+                sessionId,
+            )
+        }
 
         override suspend fun restartRuntime(
             scheme: String,
@@ -289,6 +345,39 @@ private suspend inline fun <reified T> HttpClient.postJson(
         )
     }
     return json.decodeFromString(response.bodyAsText())
+}
+
+private suspend fun HttpClient.deleteJsonUnit(
+    json: Json,
+    scheme: String,
+    host: String,
+    bearerToken: String? = null,
+    vararg segments: String,
+) {
+    val endpoint = buildGatewayEndpoint(scheme, host, *segments)
+    val authHeaders =
+        bearerToken?.takeIf { it.isNotBlank() }?.let {
+            GatewayProofAuth.buildAuthHeaders(
+                gatewayCredential = it,
+                method = "DELETE",
+                endpoint = endpoint,
+                body = null,
+            )
+        }
+    val response =
+        delete {
+            url(endpoint)
+            accept(ContentType.Application.Json)
+            authHeaders?.let { applyGatewayAuthHeaders(it) }
+        }
+    if (!response.status.isSuccess()) {
+        throw gatewayRequestException(
+            response.status.value,
+            response.status.description,
+            endpoint,
+            response.bodyAsText(),
+        )
+    }
 }
 
 private fun buildGatewayEndpoint(
