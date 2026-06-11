@@ -15,6 +15,7 @@ import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,10 +48,22 @@ class FerngeistForegroundService : Service() {
         const val ACTION_STOP = "com.tamimarafat.ferngeist.ACTION_STOP_FOREGROUND"
         const val ACTION_DISCONNECT = "com.tamimarafat.ferngeist.ACTION_DISCONNECT"
         const val ERROR_NOTIFICATION_ID = 2
+
+        // Extras carried by the notification's content intent so MainActivity can
+        // deep-link straight to the active chat session.
+        const val EXTRA_SERVER_ID = "com.tamimarafat.ferngeist.extra.SERVER_ID"
+        const val EXTRA_SESSION_ID = "com.tamimarafat.ferngeist.extra.SESSION_ID"
+        const val EXTRA_CWD = "com.tamimarafat.ferngeist.extra.CWD"
+        const val EXTRA_TITLE = "com.tamimarafat.ferngeist.extra.TITLE"
+
+        private const val CONTENT_INTENT_REQUEST_CODE = 1
     }
 
     @Inject
     lateinit var connectionManager: AcpConnectionManager
+
+    @Inject
+    lateinit var activeChatStore: ActiveChatStore
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var observationJob: Job? = null
@@ -146,6 +159,15 @@ class FerngeistForegroundService : Service() {
                             updateNotification(connectionManager.connectionState.value)
                         }
                 }
+                launch {
+                    // Keep the notification's deep-link target in sync with the
+                    // chat the user is currently viewing.
+                    activeChatStore.activeChat
+                        .collect {
+                            if (!isStarted) return@collect
+                            updateNotification(connectionManager.connectionState.value)
+                        }
+                }
             }
     }
 
@@ -168,13 +190,7 @@ class FerngeistForegroundService : Service() {
         val displayName = connectionManager.currentConnectionConfig()?.serverDisplayName
             ?: connectionManager.agentInfo.value?.name
         val errorText = state.error.message ?: getString(R.string.notification_failed_text)
-        val contentIntent =
-            PendingIntent.getActivity(
-                this,
-                0,
-                Intent(this, MainActivity::class.java),
-                PendingIntent.FLAG_IMMUTABLE,
-            )
+        val contentIntent = buildContentIntent()
         val notification =
             NotificationCompat
                 .Builder(this, CHANNEL_ID)
@@ -186,6 +202,31 @@ class FerngeistForegroundService : Service() {
                 .build()
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(ERROR_NOTIFICATION_ID, notification)
+    }
+
+    /**
+     * Builds the notification's tap target. When a chat session is active it
+     * carries deep-link extras so [MainActivity] navigates straight to that chat;
+     * otherwise it opens the app's default screen. [PendingIntent.FLAG_UPDATE_CURRENT]
+     * keeps the extras current as the active chat changes.
+     */
+    private fun buildContentIntent(): PendingIntent {
+        val intent =
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                activeChatStore.activeChat.value?.let { chat ->
+                    putExtra(EXTRA_SERVER_ID, chat.serverId)
+                    putExtra(EXTRA_SESSION_ID, chat.sessionId)
+                    putExtra(EXTRA_CWD, chat.cwd)
+                    putExtra(EXTRA_TITLE, chat.title)
+                }
+            }
+        return PendingIntent.getActivity(
+            this,
+            CONTENT_INTENT_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
     }
 
     private fun buildNotification(
@@ -209,13 +250,7 @@ class FerngeistForegroundService : Service() {
                         getString(R.string.notification_disconnected_text)
             }
 
-        val contentIntent =
-            PendingIntent.getActivity(
-                this,
-                0,
-                Intent(this, MainActivity::class.java),
-                PendingIntent.FLAG_IMMUTABLE,
-            )
+        val contentIntent = buildContentIntent()
 
         val disconnectIntent =
             PendingIntent.getService(

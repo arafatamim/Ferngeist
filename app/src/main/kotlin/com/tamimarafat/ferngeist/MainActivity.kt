@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -63,8 +64,11 @@ import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
 import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
 import com.tamimarafat.ferngeist.service.BatteryOptimizationHelper
 import com.tamimarafat.ferngeist.service.BatteryOptimizationPreferences
+import com.tamimarafat.ferngeist.service.FerngeistForegroundService
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The single-activity entry point for Ferngeist.
@@ -74,9 +78,20 @@ import dagger.hilt.android.AndroidEntryPoint
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    // Latest launch/notification intent, exposed to the nav host so a notification
+    // tap can deep-link to the active chat on both cold start and warm resume.
+    private val latestIntent = MutableStateFlow<Intent?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        latestIntent.value = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        latestIntent.value = intent
         enableEdgeToEdge(
             statusBarStyle =
                 SystemBarStyle.auto(
@@ -95,7 +110,10 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    FerngeistNavHost()
+                    FerngeistNavHost(
+                        latestIntent = latestIntent,
+                        onIntentConsumed = { latestIntent.value = null },
+                    )
                 }
             }
         }
@@ -117,10 +135,31 @@ class MainActivity : ComponentActivity() {
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun FerngeistNavHost() {
+fun FerngeistNavHost(
+    latestIntent: StateFlow<Intent?> = MutableStateFlow(null),
+    onIntentConsumed: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val navSpring = spring<IntOffset>()
     val navFadeSpring = spring<Float>()
+
+    // Deep-link a connection-notification tap to the active chat session.
+    val pendingIntent by latestIntent.collectAsState()
+    LaunchedEffect(pendingIntent) {
+        val intent = pendingIntent ?: return@LaunchedEffect
+        val serverId = intent.getStringExtra(FerngeistForegroundService.EXTRA_SERVER_ID)
+        val sessionId = intent.getStringExtra(FerngeistForegroundService.EXTRA_SESSION_ID)
+        if (serverId != null && sessionId != null) {
+            val cwd = intent.getStringExtra(FerngeistForegroundService.EXTRA_CWD) ?: "/"
+            val title = intent.getStringExtra(FerngeistForegroundService.EXTRA_TITLE).orEmpty()
+            navController.navigate(
+                "chat/$serverId/$sessionId?cwd=${Uri.encode(cwd)}&updatedAt=-1&title=${Uri.encode(title)}",
+            ) {
+                launchSingleTop = true
+            }
+        }
+        onIntentConsumed()
+    }
 
     val context = LocalContext.current
     val batteryPrefs = remember(context) { BatteryOptimizationPreferences(context) }

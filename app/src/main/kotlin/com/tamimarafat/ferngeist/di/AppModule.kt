@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRepositoryImpl
@@ -126,10 +127,11 @@ object AppModule {
     @Singleton
     fun provideAcpConnectionManager(
         @ApplicationContext context: Context,
+        gatewayRepository: GatewayRepository,
     ): AcpConnectionManager {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         val connectivityObserver = AndroidConnectivityObserver(context)
-        return AcpConnectionManager(connectivityObserver, scope)
+        return AcpConnectionManager(connectivityObserver, gatewayRepository, scope)
     }
 
     /** Supplies the chat-session facade factory backed by ACP. */
@@ -147,6 +149,11 @@ object AppModule {
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,
         )
+
+    /** Tracks the most recently opened chat so the connection notification can deep-link to it. */
+    @Provides
+    @Singleton
+    fun provideActiveChatStore(): ActiveChatStore = ActiveChatStore()
 
     /** Provides a shared JSON configuration for network and persistence layers. */
     @Provides
