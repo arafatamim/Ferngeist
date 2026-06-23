@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.facade.PaseoBackend
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -28,12 +29,17 @@ import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -70,6 +76,7 @@ sealed interface PendingAuthAction {
  *
  * Converts ACP transport state into chat-domain diagnostics for UI rendering.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SessionListViewModel
     @Inject
@@ -79,6 +86,7 @@ class SessionListViewModel
         private val launchableTargetRepository: LaunchableTargetRepository,
         private val sessionRepository: SessionRepository,
         private val connectionManager: AcpConnectionManager,
+        private val paseoBackend: PaseoBackend,
         private val gatewayRepository: GatewayRepository,
         private val authEnvValueStore: AuthEnvValueStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
@@ -118,28 +126,43 @@ class SessionListViewModel
         // only shows on user-pull, not on initial load with cached sessions.
         private val _refreshing = MutableStateFlow(false)
         val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+        // Paseo targets reflect the Paseo daemon connection; all other targets use the ACP transport.
         val connectionState: StateFlow<ChatConnectionState> =
-            connectionManager.connectionState
-                .map { state ->
-                    when (state) {
-                        is AcpConnectionState.Disconnected -> ChatConnectionState.Disconnected
-                        is AcpConnectionState.Connecting -> ChatConnectionState.Connecting
-                        is AcpConnectionState.Connected -> ChatConnectionState.Connected
-                        is AcpConnectionState.Failed -> ChatConnectionState.Failed(state.error.message)
+            server
+                .flatMapLatest { target ->
+                    if (target is LaunchableTarget.Paseo) {
+                        paseoBackend.connectionState
+                    } else {
+                        connectionManager.connectionState.map { state ->
+                            when (state) {
+                                is AcpConnectionState.Disconnected -> ChatConnectionState.Disconnected
+                                is AcpConnectionState.Connecting -> ChatConnectionState.Connecting
+                                is AcpConnectionState.Connected -> ChatConnectionState.Connected
+                                is AcpConnectionState.Failed -> ChatConnectionState.Failed(state.error.message)
+                            }
+                        }
                     }
                 }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChatConnectionState.Disconnected)
         val agentCapabilities: StateFlow<AgentCapabilities?> =
-            connectionManager.agentCapabilities
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+            server
+                .flatMapLatest { target ->
+                    if (target is LaunchableTarget.Paseo) flowOf(null) else connectionManager.agentCapabilities
+                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
         val connectionDiagnostics: StateFlow<ChatConnectionDiagnostics> =
-            connectionManager.diagnostics
-                .map { diagnostics ->
-                    ChatConnectionDiagnostics(
-                        serverUrl = diagnostics.serverUrl,
-                        pendingRequestCount = diagnostics.pendingRequestCount,
-                        recentErrors = diagnostics.recentErrors.map { it.message },
-                        lastUpdatedAtMs = diagnostics.lastUpdatedAtMs,
-                    )
+            server
+                .flatMapLatest { target ->
+                    if (target is LaunchableTarget.Paseo) {
+                        paseoBackend.diagnostics
+                    } else {
+                        connectionManager.diagnostics.map { diagnostics ->
+                            ChatConnectionDiagnostics(
+                                serverUrl = diagnostics.serverUrl,
+                                pendingRequestCount = diagnostics.pendingRequestCount,
+                                recentErrors = diagnostics.recentErrors.map { it.message },
+                                lastUpdatedAtMs = diagnostics.lastUpdatedAtMs,
+                            )
+                        }
+                    }
                 }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChatConnectionDiagnostics())
 
         private val _events = MutableSharedFlow<SessionListEvent>()
@@ -149,7 +172,12 @@ class SessionListViewModel
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
 
         init {
-            refreshSessions()
+            // Wait for the target to resolve so the Paseo branch can self-connect (the ACP path
+            // is already connected by the server list before navigation).
+            viewModelScope.launch {
+                server.filterNotNull().first()
+                refreshSessions()
+            }
         }
 
         /**
@@ -161,6 +189,10 @@ class SessionListViewModel
         @OptIn(UnstableApi::class)
         fun refreshSessions(isUserInitiated: Boolean = false) {
             viewModelScope.launch {
+                (server.value as? LaunchableTarget.Paseo)?.let { paseoTarget ->
+                    refreshPaseoSessions(paseoTarget, isUserInitiated)
+                    return@launch
+                }
                 try {
                     if (!connectionManager.isConnected) return@launch
 
@@ -194,6 +226,10 @@ class SessionListViewModel
          */
         fun createSession(cwd: String) {
             viewModelScope.launch {
+                (server.value as? LaunchableTarget.Paseo)?.let { paseoTarget ->
+                    createPaseoSession(paseoTarget, cwd)
+                    return@launch
+                }
                 _isLoading.value = true
                 val normalizedCwd = cwd.trim().ifBlank { "/" }
                 runCatching {
@@ -230,6 +266,76 @@ class SessionListViewModel
                 }
                 _isLoading.value = false
             }
+        }
+
+        /** Paseo equivalent of [refreshSessions]: connects the daemon and lists its agents. */
+        private suspend fun refreshPaseoSessions(
+            target: LaunchableTarget.Paseo,
+            isUserInitiated: Boolean,
+        ) {
+            try {
+                if (isUserInitiated) _refreshing.value = true
+                _isLoading.value = true
+                if (!paseoBackend.ensureConnected(target.paseoSource)) {
+                    _events.emit(
+                        SessionListEvent.ShowError("Could not connect to Paseo daemon ${target.paseoSource.name}."),
+                    )
+                    return
+                }
+                val settings = sessionSettingsRepository.getSettingsBlocking(serverId)
+                val cwd = settings?.cwd?.trim()?.ifBlank { null }
+                runCatching {
+                    paseoBackend.listSessions(target.paseoSource, target.binding.provider, cwd)
+                }.onSuccess { replaceSessions(it) }
+                    .onFailure { error ->
+                        _events.emit(SessionListEvent.ShowError(error.message ?: "Failed to load sessions"))
+                    }
+            } finally {
+                _isLoading.value = false
+                _refreshing.value = false
+            }
+        }
+
+        /** Paseo equivalent of [createSession]: creates an agent on the daemon and opens it. */
+        private suspend fun createPaseoSession(
+            target: LaunchableTarget.Paseo,
+            cwd: String,
+        ) {
+            _isLoading.value = true
+            val normalizedCwd = cwd.trim().ifBlank { target.binding.cwd.ifBlank { "~" } }
+            runCatching {
+                paseoBackend.createSession(
+                    source = target.paseoSource,
+                    provider = target.binding.provider,
+                    cwd = normalizedCwd,
+                    model = target.binding.preferredModelId,
+                )
+            }.onSuccess { port ->
+                if (port == null) {
+                    _events.emit(SessionListEvent.ShowError("Failed to create a new session"))
+                } else {
+                    val summary =
+                        SessionSummary(
+                            id = port.sessionId,
+                            title = null,
+                            cwd = normalizedCwd,
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                    sessionRepository.upsertSession(serverId, summary)
+                    _events.emit(
+                        SessionListEvent.NavigateToChat(
+                            serverId = serverId,
+                            sessionId = summary.id,
+                            cwd = summary.cwd ?: "/",
+                            updatedAt = summary.updatedAt,
+                            title = summary.title,
+                        ),
+                    )
+                }
+            }.onFailure { error ->
+                _events.emit(SessionListEvent.ShowError(error.message ?: "Failed to create a new session"))
+            }
+            _isLoading.value = false
         }
 
         /**
@@ -331,6 +437,8 @@ class SessionListViewModel
                             }
 
                             is LaunchableTarget.GatewayAgent -> false
+                            // Paseo has no ACP env-var auth flow; this path is not reached.
+                            is LaunchableTarget.Paseo -> false
                         }
                     }
                 if (!connected) {
