@@ -55,6 +55,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen
+import com.tamimarafat.ferngeist.feature.serverlist.ui.AddPaseoScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayAgentsScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayListScreen
@@ -254,6 +255,7 @@ fun FerngeistNavHost(
                 ServerListScreen(
                     onNavigateToAddServer = { navController.navigate("add_server") },
                     onNavigateToPairGateway = { navController.navigate("add_gateway") },
+                    onNavigateToPairPaseo = { navController.navigate("add_paseo") },
                     onNavigateToGateways = { navController.navigate("gateways") },
                     onNavigateToEditServer = { server ->
                         when (server) {
@@ -262,6 +264,8 @@ fun FerngeistNavHost(
                                     "gateway_agents/${server.gatewaySource.id}",
                                 )
                             is LaunchableTarget.Manual -> navController.navigate("edit_server/${server.id}")
+                            // Paseo targets have no dedicated edit screen yet.
+                            is LaunchableTarget.Paseo -> Unit
                         }
                     },
                     onNavigateToSessions = { serverId, serverName, _, openCreateSessionDialog ->
@@ -320,6 +324,12 @@ fun FerngeistNavHost(
                 AddGatewayScreen(
                     onNavigateBack = { navController.popBackStack() },
                     viewModel = viewModel,
+                )
+            }
+
+            composable("add_paseo") {
+                AddPaseoScreen(
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
 

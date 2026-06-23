@@ -7,11 +7,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.acp.bridge.facade.DispatchingChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.acp.bridge.facade.PaseoBackend
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
+import com.tamimarafat.ferngeist.core.model.repository.PaseoAgentBindingRepository
+import com.tamimarafat.ferngeist.core.model.repository.PaseoSourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
@@ -21,9 +25,12 @@ import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRep
 import com.tamimarafat.ferngeist.data.database.repository.GatewaySourceRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetSessionSettingsRepositoryImpl
+import com.tamimarafat.ferngeist.data.database.repository.PaseoAgentBindingRepositoryImpl
+import com.tamimarafat.ferngeist.data.database.repository.PaseoSourceRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.ServerRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.SessionRepositoryImpl
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.notification.PaseoAttentionNotifier
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -62,6 +69,8 @@ object AppModule {
                 MIGRATION_8_9,
                 MIGRATION_9_10,
                 MIGRATION_10_11,
+                MIGRATION_12_13,
+                MIGRATION_13_14,
             ).fallbackToDestructiveMigration(false)
             .build()
 
@@ -87,18 +96,36 @@ object AppModule {
     fun provideGatewayAgentBindingRepository(database: FerngeistDatabase): GatewayAgentBindingRepository =
         GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao())
 
-    /** Combines server + gateway repositories into a launchable target registry. */
+    /** Binds the Paseo source repository backed by Room. */
+    @Provides
+    @Singleton
+    fun providePaseoSourceRepository(
+        database: FerngeistDatabase,
+        credentialEncryptor: CredentialEncryptor,
+    ): PaseoSourceRepository = PaseoSourceRepositoryImpl(database.paseoSourceDao(), credentialEncryptor)
+
+    /** Binds Paseo agent bindings stored in the database. */
+    @Provides
+    @Singleton
+    fun providePaseoAgentBindingRepository(database: FerngeistDatabase): PaseoAgentBindingRepository =
+        PaseoAgentBindingRepositoryImpl(database.paseoAgentBindingDao())
+
+    /** Combines server + gateway + Paseo repositories into a launchable target registry. */
     @Provides
     @Singleton
     fun provideLaunchableTargetRepository(
         serverRepository: ServerRepository,
         gatewaySourceRepository: GatewaySourceRepository,
         gatewayAgentBindingRepository: GatewayAgentBindingRepository,
+        paseoSourceRepository: PaseoSourceRepository,
+        paseoAgentBindingRepository: PaseoAgentBindingRepository,
     ): LaunchableTargetRepository =
         LaunchableTargetRepositoryImpl(
             serverRepository = serverRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayAgentBindingRepository = gatewayAgentBindingRepository,
+            paseoSourceRepository = paseoSourceRepository,
+            paseoAgentBindingRepository = paseoAgentBindingRepository,
         )
 
     /** Binds the session repository backed by Room. */
@@ -134,20 +161,56 @@ object AppModule {
         return AcpConnectionManager(connectivityObserver, gatewayRepository, scope)
     }
 
-    /** Supplies the chat-session facade factory backed by ACP. */
+    /** ACP-backed facade factory (Manual ACP + legacy Gateway targets). */
     @Provides
     @Singleton
-    fun provideChatSessionFacadeFactory(
+    fun provideAcpChatSessionFacadeFactory(
         connectionManager: AcpConnectionManager,
         launchableTargetRepository: LaunchableTargetRepository,
         gatewaySourceRepository: GatewaySourceRepository,
         gatewayRepository: GatewayRepository,
-    ): ChatSessionFacadeFactory =
+    ): AcpChatSessionFacadeFactory =
         AcpChatSessionFacadeFactory(
             connectionManager = connectionManager,
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,
+        )
+
+    /**
+     * The single Paseo backend (one shared connection manager). Used both as the Paseo
+     * chat facade factory and by the server/session-list screens for connection state and
+     * session listing/creation. Wires `attention_required` events to local notifications.
+     */
+    @Provides
+    @Singleton
+    fun providePaseoBackend(
+        launchableTargetRepository: LaunchableTargetRepository,
+        attentionNotifier: PaseoAttentionNotifier,
+    ): PaseoBackend =
+        PaseoBackend(
+            launchableTargetRepository = launchableTargetRepository,
+            appVersion = "ferngeist-android",
+        ).also { backend ->
+            backend.setAttentionListener { attention -> attentionNotifier.notify(attention) }
+        }
+
+    /**
+     * The chat-session facade factory. Dispatches by target type: Manual ACP / Gateway →
+     * ACP facade; Paseo → Paseo facade. The Gateway is fully superseded by Paseo for new
+     * targets; the ACP path is retained for Manual endpoints.
+     */
+    @Provides
+    @Singleton
+    fun provideChatSessionFacadeFactory(
+        acpFactory: AcpChatSessionFacadeFactory,
+        paseoBackend: PaseoBackend,
+        launchableTargetRepository: LaunchableTargetRepository,
+    ): ChatSessionFacadeFactory =
+        DispatchingChatSessionFacadeFactory(
+            acpFactory = acpFactory,
+            paseoFactory = paseoBackend,
+            launchableTargetRepository = launchableTargetRepository,
         )
 
     /** Tracks the most recently opened chat so the connection notification can deep-link to it. */
@@ -490,6 +553,94 @@ private val MIGRATION_10_11 =
             // which point CredentialEncryptor.encrypt() encrypts and persists them.
             // Users who never edit a saved server after this migration will retain plaintext
             // credentials in the database backup.
+        }
+    }
+
+private val MIGRATION_12_13 =
+    object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `paseo_sources` (
+                  `id` TEXT NOT NULL,
+                  `name` TEXT NOT NULL,
+                  `mode` TEXT NOT NULL,
+                  `scheme` TEXT NOT NULL,
+                  `host` TEXT NOT NULL,
+                  `password` TEXT NOT NULL,
+                  `serverId` TEXT NOT NULL,
+                  `daemonPublicKeyB64` TEXT NOT NULL,
+                  `relayEndpoint` TEXT NOT NULL,
+                  `relayUseTls` INTEGER NOT NULL,
+                  PRIMARY KEY(`id`)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `paseo_agent_bindings` (
+                  `id` TEXT NOT NULL,
+                  `name` TEXT NOT NULL,
+                  `paseoSourceId` TEXT NOT NULL,
+                  `provider` TEXT NOT NULL,
+                  `cwd` TEXT NOT NULL,
+                  `preferredModelId` TEXT,
+                  `preferredAuthMethodId` TEXT,
+                  PRIMARY KEY(`id`),
+                  FOREIGN KEY(`paseoSourceId`) REFERENCES `paseo_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_paseo_agent_bindings_paseoSourceId` " +
+                    "ON `paseo_agent_bindings` (`paseoSourceId`)",
+            )
+        }
+    }
+
+private val MIGRATION_13_14 =
+    object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // paseo_sources gained relay columns (mode + serverId/daemonPublicKeyB64/relayEndpoint/
+            // relayUseTls). The Paseo tables hold only re-pairable connection data, so recreate them.
+            db.execSQL("DROP TABLE IF EXISTS `paseo_agent_bindings`")
+            db.execSQL("DROP TABLE IF EXISTS `paseo_sources`")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `paseo_sources` (
+                  `id` TEXT NOT NULL,
+                  `name` TEXT NOT NULL,
+                  `mode` TEXT NOT NULL,
+                  `scheme` TEXT NOT NULL,
+                  `host` TEXT NOT NULL,
+                  `password` TEXT NOT NULL,
+                  `serverId` TEXT NOT NULL,
+                  `daemonPublicKeyB64` TEXT NOT NULL,
+                  `relayEndpoint` TEXT NOT NULL,
+                  `relayUseTls` INTEGER NOT NULL,
+                  PRIMARY KEY(`id`)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `paseo_agent_bindings` (
+                  `id` TEXT NOT NULL,
+                  `name` TEXT NOT NULL,
+                  `paseoSourceId` TEXT NOT NULL,
+                  `provider` TEXT NOT NULL,
+                  `cwd` TEXT NOT NULL,
+                  `preferredModelId` TEXT,
+                  `preferredAuthMethodId` TEXT,
+                  PRIMARY KEY(`id`),
+                  FOREIGN KEY(`paseoSourceId`) REFERENCES `paseo_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_paseo_agent_bindings_paseoSourceId` " +
+                    "ON `paseo_agent_bindings` (`paseoSourceId`)",
+            )
         }
     }
 
