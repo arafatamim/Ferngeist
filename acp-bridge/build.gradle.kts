@@ -44,6 +44,10 @@ dependencies {
     // === JSON ===
     implementation(libs.kotlinx.serialization.json)
 
+    // === Crypto (Paseo relay E2EE: NaCl box / Curve25519 + XSalsa20-Poly1305) ===
+    implementation("com.goterl:lazysodium-android:5.1.0@aar")
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
+
     // === Internal ===
     implementation(project(":core:model"))
     implementation(project(":gateway-client"))
