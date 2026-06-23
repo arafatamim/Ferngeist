@@ -276,6 +276,22 @@ private fun ServerSubtitle(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+
+            is LaunchableTarget.Paseo -> {
+                Icon(
+                    imageVector = Icons.Default.Devices,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = server.paseoSource.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

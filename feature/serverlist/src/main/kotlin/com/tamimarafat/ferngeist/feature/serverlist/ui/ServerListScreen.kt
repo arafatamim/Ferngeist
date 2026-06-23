@@ -99,6 +99,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 fun ServerListScreen(
     onNavigateToAddServer: () -> Unit,
     onNavigateToPairGateway: () -> Unit,
+    onNavigateToPairPaseo: () -> Unit,
     onNavigateToGateways: () -> Unit,
     onNavigateToEditServer: (LaunchableTarget) -> Unit,
     onNavigateToSessions: (String, String, List<SessionSummary>, Boolean) -> Unit,
@@ -229,6 +230,14 @@ fun ServerListScreen(
                     },
                     icon = { Icon(Icons.Default.Devices, contentDescription = stringResource(R.string.serverlist_add_gateway_btn)) },
                     text = { Text(if (hasGateways) stringResource(R.string.serverlist_add_paired_btn) else stringResource(R.string.serverlist_add_gateway_btn)) },
+                )
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        showAddMenu = false
+                        onNavigateToPairPaseo()
+                    },
+                    icon = { Icon(Icons.Default.Devices, contentDescription = "Pair Paseo daemon") },
+                    text = { Text("Pair Paseo daemon") },
                 )
                 FloatingActionButtonMenuItem(
                     onClick = {

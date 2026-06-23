@@ -148,6 +148,13 @@ class ServerListViewModel
          */
         fun connectAndOpenServer(server: LaunchableTarget) {
             viewModelScope.launch {
+                // Paseo targets connect through the Paseo facade (created on the chat screen),
+                // not the ACP transport — navigate straight to the connected-server view.
+                if (server is LaunchableTarget.Paseo) {
+                    openConnectedServer(server.id, server.name)
+                    return@launch
+                }
+
                 // REUSE GUARD: If already connected to this server (and no pending auth), skip re-connection
                 if (_uiState.value.connectedServerState?.serverId == server.id &&
                     connectionManager.isConnected &&
@@ -213,6 +220,8 @@ class ServerListViewModel
                     when (server) {
                         is LaunchableTarget.GatewayAgent -> buildGatewayLaunchContext(server)
                         is LaunchableTarget.Manual -> Result.success<GatewayLaunchContext?>(null)
+                        // Unreachable: Paseo targets return early above.
+                        is LaunchableTarget.Paseo -> Result.success<GatewayLaunchContext?>(null)
                     }
 
                 val launchContext =
@@ -242,6 +251,9 @@ class ServerListViewModel
                             error(
                                 "Gateway-backed targets must launch through the gateway runtime flow",
                             )
+
+                        is LaunchableTarget.Paseo ->
+                            error("Paseo targets launch through the Paseo facade, not the ACP transport")
                     }
 
                 val connected =
