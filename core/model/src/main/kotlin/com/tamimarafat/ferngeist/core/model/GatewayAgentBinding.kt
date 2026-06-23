@@ -31,4 +31,13 @@ sealed interface LaunchableTarget {
         override val name: String = binding.name
         override val preferredAuthMethodId: String? = binding.preferredAuthMethodId
     }
+
+    data class Paseo(
+        val binding: PaseoAgentBinding,
+        val paseoSource: PaseoSource,
+    ) : LaunchableTarget {
+        override val id: String = binding.id
+        override val name: String = binding.name
+        override val preferredAuthMethodId: String? = binding.preferredAuthMethodId
+    }
 }

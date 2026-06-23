@@ -4,6 +4,8 @@ import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
+import com.tamimarafat.ferngeist.core.model.PaseoAgentBinding
+import com.tamimarafat.ferngeist.core.model.PaseoSource
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +46,32 @@ interface GatewayAgentBindingRepository {
     suspend fun getBinding(id: String): GatewayAgentBinding?
 
     suspend fun getBindingsForGateway(gatewayId: String): List<GatewayAgentBinding>
+}
+
+interface PaseoSourceRepository {
+    fun getSources(): Flow<List<PaseoSource>>
+
+    suspend fun addSource(source: PaseoSource)
+
+    suspend fun updateSource(source: PaseoSource)
+
+    suspend fun deleteSource(id: String)
+
+    suspend fun getSource(id: String): PaseoSource?
+}
+
+interface PaseoAgentBindingRepository {
+    fun getBindings(): Flow<List<PaseoAgentBinding>>
+
+    suspend fun addBinding(binding: PaseoAgentBinding)
+
+    suspend fun updateBinding(binding: PaseoAgentBinding)
+
+    suspend fun deleteBinding(id: String)
+
+    suspend fun getBinding(id: String): PaseoAgentBinding?
+
+    suspend fun getBindingsForSource(sourceId: String): List<PaseoAgentBinding>
 }
 
 interface LaunchableTargetRepository {
