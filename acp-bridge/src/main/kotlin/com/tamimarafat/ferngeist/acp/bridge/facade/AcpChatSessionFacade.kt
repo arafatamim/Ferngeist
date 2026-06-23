@@ -372,6 +372,12 @@ class AcpChatSessionFacade(
                         ),
                     )
                 }
+                is LaunchableTarget.Paseo -> {
+                    // Paseo targets are routed to PaseoChatSessionFacade by the dispatching
+                    // factory and never reach the ACP facade; guard defensively.
+                    _loadFailed.emit("Paseo targets are not handled by the ACP transport.")
+                    return false
+                }
             }
         if (!connected) return false
         return when (val result = connectionManager.initialize()) {
