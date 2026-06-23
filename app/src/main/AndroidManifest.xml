@@ -39,6 +39,23 @@
             android:name=".service.FerngeistForegroundService"
             android:foregroundServiceType="remoteMessaging"
             android:exported="false" />
+
+        <service
+            android:name=".push.FerngeistMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Channel + icon used when FCM displays a "notification" message itself
+             (app in background). Foreground data messages are handled in code. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="ferngeist_push" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
     </application>
 
 </manifest>

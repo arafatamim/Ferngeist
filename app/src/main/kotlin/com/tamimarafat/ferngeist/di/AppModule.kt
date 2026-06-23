@@ -24,6 +24,8 @@ import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetSessio
 import com.tamimarafat.ferngeist.data.database.repository.ServerRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.SessionRepositoryImpl
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.push.PushTokenRegistrar
+import com.tamimarafat.ferngeist.push.PushTokenStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -62,6 +64,8 @@ object AppModule {
                 MIGRATION_8_9,
                 MIGRATION_9_10,
                 MIGRATION_10_11,
+                MIGRATION_11_12,
+                MIGRATION_12_13,
             ).fallbackToDestructiveMigration(false)
             .build()
 
@@ -154,6 +158,21 @@ object AppModule {
     @Provides
     @Singleton
     fun provideActiveChatStore(): ActiveChatStore = ActiveChatStore()
+
+    /** Registers this device's FCM push token with every paired gateway. */
+    @Provides
+    @Singleton
+    fun providePushTokenRegistrar(
+        gatewayRepository: GatewayRepository,
+        gatewaySourceRepository: GatewaySourceRepository,
+        pushTokenStore: PushTokenStore,
+    ): PushTokenRegistrar =
+        PushTokenRegistrar(
+            gatewayRepository = gatewayRepository,
+            gatewaySourceRepository = gatewaySourceRepository,
+            pushTokenStore = pushTokenStore,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        )
 
     /** Provides a shared JSON configuration for network and persistence layers. */
     @Provides
@@ -478,6 +497,31 @@ private val MIGRATION_8_9 =
             )
             db.execSQL("DROP TABLE `gateway_agent_bindings`")
             db.execSQL("ALTER TABLE `gateway_agent_bindings_new` RENAME TO `gateway_agent_bindings`")
+        }
+    }
+
+// Repairs a previously-missing step: the database version was bumped 11 -> 12 during the
+// "rename helper to gateway" refactor without a registered migration, which crashed any
+// upgrade from a v11 database. The rename was code-only (no schema change), so this is a
+// no-op that simply makes the migration chain valid again.
+private val MIGRATION_11_12 =
+    object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // No schema change.
+        }
+    }
+
+private val MIGRATION_12_13 =
+    object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Adds the gateway-owned identifier used to translate push payloads' serverId
+            // back to the local GatewaySource.id for deep-linking.
+            db.execSQL(
+                """
+                ALTER TABLE `gateway_sources`
+                ADD COLUMN `gatewayId` TEXT
+                """.trimIndent(),
+            )
         }
     }
 

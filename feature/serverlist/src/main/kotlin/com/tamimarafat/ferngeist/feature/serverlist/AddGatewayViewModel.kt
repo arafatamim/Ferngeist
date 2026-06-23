@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.resolveLocalId
 import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
 import com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -173,12 +174,17 @@ class AddGatewayViewModel
                         deviceName = _deviceName.value.trim().ifBlank { defaultDeviceName() },
                     )
                 }.onSuccess { pairing ->
+                    // Re-pairing a known gateway must reuse its existing local id, not
+                    // mint a new UUID — otherwise chats/sessions opened under the old id
+                    // are orphaned and push deep-links/suppression stop matching.
+                    val existingId = pairing.gatewayId?.let { gatewaySourceRepository.resolveLocalId(it) }
                     val gateway =
                         GatewaySource(
                             id =
-                                java.util.UUID
-                                    .randomUUID()
-                                    .toString(),
+                                existingId
+                                    ?: java.util.UUID
+                                        .randomUUID()
+                                        .toString(),
                             name = gatewayName,
                             scheme = _scheme.value,
                             host = gatewayHost,
@@ -188,6 +194,7 @@ class AddGatewayViewModel
                                 _uiState.value.status
                                     ?.remote
                                     ?.mode,
+                            gatewayId = pairing.gatewayId,
                         )
                     gatewaySourceRepository.addGateway(gateway)
                     _uiState.value = _uiState.value.copy(isSaving = false)
@@ -277,18 +284,24 @@ class AddGatewayViewModel
                     )
                 }.onSuccess { pairing ->
                     val gatewayStatus = _uiState.value.status
+                    // Reuse the existing local id for this gatewayId (or the edit-mode id)
+                    // so a re-pair updates in place instead of orphaning existing chats.
+                    val existingId = pairing.gatewayId?.let { gatewaySourceRepository.resolveLocalId(it) }
                     val gateway =
                         GatewaySource(
                             id =
-                                initialServerId ?: java.util.UUID
-                                    .randomUUID()
-                                    .toString(),
+                                initialServerId
+                                    ?: existingId
+                                    ?: java.util.UUID
+                                        .randomUUID()
+                                        .toString(),
                             name = gatewayName,
                             scheme = _scheme.value,
                             host = gatewayHost,
                             gatewayCredential = pairing.gatewayCredential,
                             gatewayCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
                             gatewayRemoteMode = gatewayStatus?.remote?.mode,
+                            gatewayId = pairing.gatewayId,
                         )
                     gatewaySourceRepository.addGateway(gateway)
                     _uiState.value = _uiState.value.copy(isSaving = false)

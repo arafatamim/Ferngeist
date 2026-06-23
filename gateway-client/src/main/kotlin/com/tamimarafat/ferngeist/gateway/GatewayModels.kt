@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.gateway
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -33,6 +35,10 @@ data class GatewayPairCompleteResponse(
     @SerialName("deviceName") val deviceName: String,
     val token: String,
     @SerialName("expiresAt") val expiresAt: String,
+    // Stable, gateway-owned identifier for this gateway. Push payloads reference it as
+    // their `serverId`; the client maps it back to the local GatewaySource.id to deep-link.
+    // Nullable for back-compat with gateways that predate the field.
+    @SerialName("gatewayId") val gatewayId: String? = null,
 )
 
 data class GatewayPairingResult(
@@ -40,6 +46,7 @@ data class GatewayPairingResult(
     val deviceName: String,
     val gatewayCredential: String,
     val expiresAt: String,
+    val gatewayId: String? = null,
 )
 
 @Serializable
@@ -138,6 +145,16 @@ data class GatewayConnectRequest(
 @Serializable
 data class GatewaySessionResumeResponse(
     @SerialName("attachToken") val attachToken: String,
+)
+
+@Serializable
+data class GatewayPushTokenRequest(
+    val token: String,
+    // Always emit platform, even when it equals the default, so the gateway never
+    // has to infer it (the shared Json has encodeDefaults = false).
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val platform: String = "android",
 )
 
 @Serializable

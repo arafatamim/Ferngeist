@@ -14,4 +14,8 @@ data class GatewaySource(
     val gatewayCredential: String,
     val gatewayCredentialExpiresAt: Long? = null,
     val gatewayRemoteMode: String? = null,
+    // Gateway-owned identifier returned at pairing. Push payloads reference this as their
+    // `serverId`; it's translated back to [id] for in-app deep-linking. Null for gateways
+    // paired before the field existed (deep-links degrade to opening the app).
+    val gatewayId: String? = null,
 )

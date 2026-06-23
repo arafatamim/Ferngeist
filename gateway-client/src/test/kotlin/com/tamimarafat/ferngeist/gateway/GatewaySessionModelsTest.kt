@@ -85,6 +85,7 @@ class GatewaySessionModelsTest {
             override suspend fun resumeSession(scheme: String, host: String, gatewayCredential: String, sessionId: String): GatewaySessionResumeResponse = TODO()
             override suspend fun listGatewaySessions(scheme: String, host: String, gatewayCredential: String): List<GatewaySessionSummary> = TODO()
             override suspend fun closeSession(scheme: String, host: String, gatewayCredential: String, sessionId: String) = TODO()
+            override suspend fun registerPushToken(scheme: String, host: String, gatewayCredential: String, token: String, platform: String) = TODO()
         }
         assertNotNull(impl)
     }

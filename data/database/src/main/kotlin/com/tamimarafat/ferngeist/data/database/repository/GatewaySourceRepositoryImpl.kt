@@ -54,6 +54,13 @@ class GatewaySourceRepositoryImpl(
         }
     }
 
+    override suspend fun getGatewayByGatewayId(gatewayId: String): GatewaySource? {
+        return withContext(Dispatchers.IO) {
+            val entity = gatewayDao.getGatewayByGatewayId(gatewayId) ?: return@withContext null
+            toDomainOrCleanUp(entity)
+        }
+    }
+
     private suspend fun toDomainOrCleanUp(entity: GatewaySourceEntity): GatewaySource? {
         val credKey = CredentialEncryptor.gatewayCredentialKey(entity.id)
         return try {
@@ -65,6 +72,7 @@ class GatewaySourceRepositoryImpl(
                 gatewayCredential = credentialEncryptor.decrypt(entity.gatewayCredential, credKey),
                 gatewayCredentialExpiresAt = entity.gatewayCredentialExpiresAt,
                 gatewayRemoteMode = entity.gatewayRemoteMode,
+                gatewayId = entity.gatewayId,
             )
         } catch (_: CredentialEncryptor.CredentialUnavailableException) {
             scope.launch {
@@ -85,6 +93,7 @@ class GatewaySourceRepositoryImpl(
             gatewayCredential = credentialEncryptor.encrypt(gatewayCredential, credKey),
             gatewayCredentialExpiresAt = gatewayCredentialExpiresAt,
             gatewayRemoteMode = gatewayRemoteMode,
+            gatewayId = gatewayId,
         )
     }
 }

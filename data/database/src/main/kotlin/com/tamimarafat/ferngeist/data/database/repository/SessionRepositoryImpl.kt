@@ -22,6 +22,19 @@ class SessionRepositoryImpl(
             }
         }
 
+    override suspend fun getSession(
+        serverId: String,
+        sessionId: String,
+    ): SessionSummary? =
+        sessionDao.getSessionById(sessionId)?.let { entity ->
+            SessionSummary(
+                id = entity.sessionId,
+                title = entity.title,
+                cwd = entity.cwd,
+                updatedAt = entity.updatedAt,
+            )
+        }
+
     override suspend fun upsertSession(
         serverId: String,
         summary: SessionSummary,

@@ -30,7 +30,14 @@ interface GatewaySourceRepository {
     suspend fun deleteGateway(id: String)
 
     suspend fun getGateway(id: String): GatewaySource?
+
+    /** Resolves a gateway by its gateway-owned id (as carried in push payloads). */
+    suspend fun getGatewayByGatewayId(gatewayId: String): GatewaySource?
 }
+
+/** Resolves the local ID from a gateway-owned ID (as carried in push payloads). */
+suspend fun GatewaySourceRepository.resolveLocalId(gatewayId: String): String? =
+    getGatewayByGatewayId(gatewayId)?.id
 
 interface GatewayAgentBindingRepository {
     fun getBindings(): Flow<List<GatewayAgentBinding>>
@@ -61,6 +68,11 @@ interface LaunchableTargetRepository {
 
 interface SessionRepository {
     fun getSessions(serverId: String): Flow<List<SessionSummary>>
+
+    suspend fun getSession(
+        serverId: String,
+        sessionId: String,
+    ): SessionSummary?
 
     suspend fun upsertSession(
         serverId: String,

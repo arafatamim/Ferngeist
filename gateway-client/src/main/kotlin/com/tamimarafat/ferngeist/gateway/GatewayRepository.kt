@@ -86,4 +86,17 @@ interface GatewayRepository {
         gatewayCredential: String,
         sessionId: String,
     )
+
+    /**
+     * Registers (or refreshes) this device's FCM push token with the gateway so it
+     * can deliver background notifications. The gateway identifies the device from
+     * the proof-authed [gatewayCredential]; the body carries only the token + platform.
+     */
+    suspend fun registerPushToken(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        token: String,
+        platform: String = "android",
+    )
 }

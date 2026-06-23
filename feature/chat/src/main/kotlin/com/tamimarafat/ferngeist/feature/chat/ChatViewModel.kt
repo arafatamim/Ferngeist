@@ -56,6 +56,7 @@ class ChatViewModel
         private val sessionUpdatedAt: Long? = savedStateHandle.get<Long>("updatedAt")?.takeIf { it > 0L }
         private val sessionTitle: String =
             savedStateHandle.get<String>("title")?.let { Uri.decode(it) }.orEmpty()
+        private val gatewayId: String? = savedStateHandle.get<String>("gatewayId")?.let { Uri.decode(it) }
         private val sessionFacade: ChatSessionFacade =
             sessionFacadeFactory.create(
                 scope = viewModelScope,
@@ -182,8 +183,15 @@ class ChatViewModel
             // Record this as the active chat so the connection notification deep-links
             // back here instead of dropping the user on the home screen.
             activeChatStore.setActiveChat(
-                ActiveChat(serverId = serverId, sessionId = sessionId, cwd = cwd, title = sessionTitle),
+                ActiveChat(
+                    serverId = serverId,
+                    sessionId = sessionId,
+                    cwd = cwd,
+                    title = sessionTitle,
+                    gatewayId = gatewayId,
+                ),
             )
+            resolveSessionTitle()
             viewModelScope.launch {
                 val snapshot = chatScrollStateStore.restore(serverId, sessionId)
                 updateState { copy(restoredScrollSnapshot = snapshot) }
@@ -215,6 +223,35 @@ class ChatViewModel
             viewModelScope.launch {
                 sessionFacade.diagnostics.collect { diagnostics ->
                     updateState { copy(connectionDiagnostics = diagnostics) }
+                }
+            }
+        }
+
+        /**
+         * Populates [ChatState.title] for the app bar. The deep-link path (push
+         * notification tap) can't carry the real session name, so the nav-arg
+         * `title` is blank and we look it up from the local session store. When the
+         * nav arg already has a title (session list → chat) we use that and skip the
+         * lookup to avoid a stale read.
+         */
+        private fun resolveSessionTitle() {
+            if (sessionTitle.isNotBlank()) {
+                updateState { copy(title = sessionTitle) }
+                return
+            }
+            viewModelScope.launch {
+                val resolved = sessionRepository.getSession(serverId, sessionId)?.title
+                if (resolved != null) {
+                    updateState { copy(title = resolved) }
+                    activeChatStore.setActiveChat(
+                        ActiveChat(
+                            serverId = serverId,
+                            sessionId = sessionId,
+                            cwd = cwd,
+                            title = resolved,
+                            gatewayId = gatewayId,
+                        ),
+                    )
                 }
             }
         }
@@ -258,6 +295,10 @@ class ChatViewModel
         override fun onCleared() {
             markdownStateStore.reset()
             sessionCoordinator.clear()
+            // Drop the active-chat record when the user leaves this chat, so push
+            // suppression keys off the session actually on screen rather than the last
+            // one opened. clearIfCurrent() no-ops if another chat is already active.
+            activeChatStore.clearIfCurrent(sessionId)
             super.onCleared()
         }
 
@@ -300,6 +341,7 @@ class ChatViewModel
 /** UI state for the chat screen. */
 data class ChatState(
     val serverId: String = "",
+    val title: String? = null,
     val messages: List<ChatMessage> = emptyList(),
     val markdownStates: Map<String, MarkdownRenderState> = emptyMap(),
     val restoredScrollSnapshot: ChatScrollSnapshot? = null,

@@ -132,27 +132,77 @@ class ChatViewModelTest {
             )
         }
 
+    @Test
+    fun `resolves title from session repository when nav arg title is blank`() =
+        runTest {
+            val sessionRepository =
+                FakeSessionRepository().apply {
+                    getSessionResult =
+                        SessionSummary(
+                            id = "session_1",
+                            title = "Refactoring auth module",
+                        )
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    sessionRepository = sessionRepository,
+                )
+            advanceUntilIdle()
+
+            assertTrue(sessionRepository.getSessionCalls == 1)
+            assertTrue(viewModel.state.value.title == "Refactoring auth module")
+        }
+
+    @Test
+    fun `leaves title as null when nav arg and repository have no title`() =
+        runTest {
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                )
+            advanceUntilIdle()
+
+            assertTrue(viewModel.state.value.title == null)
+        }
+
     /** Creates a view model with in-memory test doubles. */
     private fun createViewModel(
         chatScrollStateStore: ChatScrollStateStore = InMemoryChatScrollStateStore(),
-    ): ChatViewModel {
-        val handle =
+        savedStateHandle: SavedStateHandle =
             SavedStateHandle(
                 mapOf(
                     "serverId" to "server_1",
                     "sessionId" to "session_1",
                     "cwd" to "/",
                 ),
-            )
+            ),
+        sessionRepository: SessionRepository = FakeSessionRepository(),
+    ): ChatViewModel {
         val facadeFactory =
             FakeChatSessionFacadeFactory()
         return ChatViewModel(
             sessionFacadeFactory = facadeFactory,
-            sessionRepository = FakeSessionRepository(),
+            sessionRepository = sessionRepository,
             chatScrollStateStore = chatScrollStateStore,
             recentSelectionStore = FakeRecentSelectionStore(),
             activeChatStore = ActiveChatStore(),
-            savedStateHandle = handle,
+            savedStateHandle = savedStateHandle,
         )
     }
 }
@@ -243,7 +293,18 @@ private class FakeChatSessionFacadeFactory : ChatSessionFacadeFactory {
 
 /** In-memory session repository stub. */
 private class FakeSessionRepository : SessionRepository {
+    var getSessionResult: SessionSummary? = null
+    var getSessionCalls: Int = 0
+
     override fun getSessions(serverId: String): Flow<List<SessionSummary>> = emptyFlow()
+
+    override suspend fun getSession(
+        serverId: String,
+        sessionId: String,
+    ): SessionSummary? {
+        getSessionCalls += 1
+        return getSessionResult
+    }
 
     override suspend fun upsertSession(
         serverId: String,

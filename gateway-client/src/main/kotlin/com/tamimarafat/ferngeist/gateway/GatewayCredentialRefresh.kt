@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import kotlinx.coroutines.CancellationException
 import java.time.Instant
 
 private const val GATEWAY_REFRESH_WINDOW_MS = 24L * 60L * 60L * 1000L
@@ -23,13 +24,15 @@ suspend fun refreshGatewaySourceIfNeeded(
                 host = gatewaySource.host,
                 gatewayCredential = gatewaySource.gatewayCredential,
             )
-        } catch (_: IllegalStateException) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             return gatewaySource
         }
     val updated =
         gatewaySource.copy(
             gatewayCredential = refreshed.gatewayCredential,
             gatewayCredentialExpiresAt = refreshed.expiresAt.toEpochMillisOrNull(),
+            gatewayId = refreshed.gatewayId ?: gatewaySource.gatewayId,
         )
     gatewaySourceRepository.updateGateway(updated)
     return updated

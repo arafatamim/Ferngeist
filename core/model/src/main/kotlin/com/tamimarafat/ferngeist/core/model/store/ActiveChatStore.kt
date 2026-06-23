@@ -11,6 +11,7 @@ data class ActiveChat(
     val sessionId: String,
     val cwd: String,
     val title: String,
+    val gatewayId: String? = null,
 )
 
 /**

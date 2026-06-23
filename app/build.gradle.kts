@@ -8,6 +8,13 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// Firebase is optional. The google-services plugin only runs when a real
+// google-services.json is present, so the project still builds (and CI passes)
+// without one — FCM simply stays inert until the file is added. See docs/fcm-setup.md.
+if (file("google-services.json").exists()) {
+    apply(plugin = libs.plugins.google.services.get().pluginId)
+}
+
 val appVersionName =
     providers
         .exec {
@@ -96,6 +103,13 @@ android {
     lint {
         lintConfig = file("lint.xml")
     }
+    testOptions {
+        unitTests {
+            // Let stubbed Android framework calls (e.g. android.util.Log) return
+            // defaults instead of throwing in JVM unit tests.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -113,6 +127,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -138,7 +153,14 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
 
+    // Firebase Cloud Messaging (push notifications). Compiles without
+    // google-services.json; stays inert at runtime until one is added.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

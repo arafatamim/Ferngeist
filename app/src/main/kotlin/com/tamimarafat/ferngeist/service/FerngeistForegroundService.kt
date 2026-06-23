@@ -55,6 +55,7 @@ class FerngeistForegroundService : Service() {
         const val EXTRA_SESSION_ID = "com.tamimarafat.ferngeist.extra.SESSION_ID"
         const val EXTRA_CWD = "com.tamimarafat.ferngeist.extra.CWD"
         const val EXTRA_TITLE = "com.tamimarafat.ferngeist.extra.TITLE"
+        const val EXTRA_GATEWAY_ID = "com.tamimarafat.ferngeist.extra.GATEWAY_ID"
 
         private const val CONTENT_INTENT_REQUEST_CODE = 1
     }

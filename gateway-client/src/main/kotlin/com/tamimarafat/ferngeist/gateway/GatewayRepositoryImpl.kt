@@ -176,6 +176,25 @@ class GatewayRepositoryImpl
             )
         }
 
+        override suspend fun registerPushToken(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            token: String,
+            platform: String,
+        ) {
+            httpClient.postJsonUnit(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "devices",
+                "push-token",
+                body = json.encodeToString(GatewayPushTokenRequest(token = token, platform = platform)),
+            )
+        }
+
         override suspend fun restartRuntime(
             scheme: String,
             host: String,
@@ -247,6 +266,7 @@ class GatewayRepositoryImpl
                 deviceName = response.deviceName,
                 gatewayCredential = GatewayProofAuth.encodeStoredCredential(response.token, proofKey.privateKey),
                 expiresAt = response.expiresAt,
+                gatewayId = response.gatewayId,
             )
         }
 
@@ -270,6 +290,7 @@ class GatewayRepositoryImpl
                 deviceName = response.deviceName,
                 gatewayCredential = GatewayProofAuth.rotateStoredCredential(gatewayCredential, response.token),
                 expiresAt = response.expiresAt,
+                gatewayId = response.gatewayId,
             )
         }
     }
@@ -345,6 +366,44 @@ private suspend inline fun <reified T> HttpClient.postJson(
         )
     }
     return json.decodeFromString(response.bodyAsText())
+}
+
+private suspend fun HttpClient.postJsonUnit(
+    json: Json,
+    scheme: String,
+    host: String,
+    bearerToken: String? = null,
+    vararg segments: String,
+    body: String? = null,
+) {
+    val endpoint = buildGatewayEndpoint(scheme, host, *segments)
+    val authHeaders =
+        bearerToken?.takeIf { it.isNotBlank() }?.let {
+            GatewayProofAuth.buildAuthHeaders(
+                gatewayCredential = it,
+                method = "POST",
+                endpoint = endpoint,
+                body = body,
+            )
+        }
+    val response =
+        post {
+            url(endpoint)
+            accept(ContentType.Application.Json)
+            contentType(ContentType.Application.Json)
+            authHeaders?.let { applyGatewayAuthHeaders(it) }
+            if (body != null) {
+                setBody(body)
+            }
+        }
+    if (!response.status.isSuccess()) {
+        throw gatewayRequestException(
+            response.status.value,
+            response.status.description,
+            endpoint,
+            response.bodyAsText(),
+        )
+    }
 }
 
 private suspend fun HttpClient.deleteJsonUnit(

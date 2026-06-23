@@ -16,6 +16,9 @@ interface GatewaySourceDao {
     @Query("SELECT * FROM gateway_sources WHERE id = :id")
     suspend fun getGatewayById(id: String): GatewaySourceEntity?
 
+    @Query("SELECT * FROM gateway_sources WHERE gatewayId = :gatewayId ORDER BY id LIMIT 1")
+    suspend fun getGatewayByGatewayId(gatewayId: String): GatewaySourceEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGateway(gateway: GatewaySourceEntity)
 

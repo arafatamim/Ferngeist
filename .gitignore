@@ -4,6 +4,9 @@
 **/build/
 /build/
 local.properties
+
+## Firebase (per-developer config; see docs/fcm-setup.md)
+app/google-services.json
 /captures/
 .externalNativeBuild/
 .cxx/
