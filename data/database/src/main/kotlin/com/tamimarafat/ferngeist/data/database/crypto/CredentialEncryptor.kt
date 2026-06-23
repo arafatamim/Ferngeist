@@ -139,5 +139,7 @@ class CredentialEncryptor(
         fun serverTokenKey(serverId: String) = "server_token:$serverId"
 
         fun gatewayCredentialKey(gatewayId: String) = "gateway_credential:$gatewayId"
+
+        fun paseoPasswordKey(sourceId: String) = "paseo_password:$sourceId"
     }
 }
