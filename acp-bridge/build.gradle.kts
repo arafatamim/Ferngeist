@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // === Internal ===
+    implementation(libs.kotlinx.collections.immutable)
     implementation(project(":core:model"))
     implementation(project(":gateway-client"))
 

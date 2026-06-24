@@ -3,6 +3,8 @@ package com.tamimarafat.ferngeist.feature.chat
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -31,7 +33,7 @@ class MarkdownStateStoreTest {
                     id = "message_1",
                     text = "unused fallback",
                     segments =
-                        listOf(
+                        persistentListOf(
                             AssistantSegment(
                                 id = "segment_1",
                                 kind = AssistantSegment.Kind.MESSAGE,
@@ -145,7 +147,7 @@ class MarkdownStateStoreTest {
     private fun assistantMessage(
         id: String,
         text: String,
-        segments: List<AssistantSegment> = emptyList(),
+        segments: PersistentList<AssistantSegment> = persistentListOf(),
     ): ChatMessage =
         ChatMessage(
             id = id,

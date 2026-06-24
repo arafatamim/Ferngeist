@@ -4,22 +4,21 @@ import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
-import kotlinx.serialization.Serializable
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.serialization.json.JsonElement
 import java.util.UUID
 
-@Serializable
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: Role = Role.USER,
     val content: String = "",
-    val segments: List<AssistantSegment> = emptyList(),
+    val segments: PersistentList<AssistantSegment> = persistentListOf(),
     val isStreaming: Boolean = false,
     val isError: Boolean = false,
     val images: List<ChatImageData> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
 ) {
-    @Serializable
     enum class Role {
         USER,
         ASSISTANT,
@@ -27,7 +26,6 @@ data class ChatMessage(
     }
 }
 
-@Serializable
 data class AssistantSegment(
     val id: String = UUID.randomUUID().toString(),
     val kind: Kind = Kind.MESSAGE,
@@ -35,7 +33,6 @@ data class AssistantSegment(
     val toolCall: ToolCallDisplay? = null,
     val planEntries: List<PlanEntry>? = null,
 ) {
-    @Serializable
     enum class Kind {
         MESSAGE,
         THOUGHT,
@@ -44,7 +41,6 @@ data class AssistantSegment(
     }
 }
 
-@Serializable
 data class ToolCallDisplay(
     val toolCallId: String? = null,
     val title: String = "",
@@ -57,14 +53,12 @@ data class ToolCallDisplay(
     val permissionRequestId: String? = null,
 )
 
-@Serializable
 data class AcpPermissionOption(
     val id: String,
     val label: String,
     val kind: String,
 )
 
-@Serializable
 data class ChatImageData(
     val base64: String,
     val mimeType: String = "image/jpeg",

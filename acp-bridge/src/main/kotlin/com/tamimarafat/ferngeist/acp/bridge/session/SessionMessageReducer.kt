@@ -8,6 +8,8 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.mutate
 import java.util.UUID
 
 object SessionMessageReducer {
@@ -185,37 +187,30 @@ object SessionMessageReducer {
             }
 
         val message = mutableMessages[targetIndex]
-        val segments = message.segments.toMutableList()
 
         // Coalesce consecutive segments of the same kind (e.g. two MESSAGE chunks from
-        // interleaved tool calls) into one segment instead of stacking many tiny entries
-        val textSegmentIndex =
-            if (
-                segments.isNotEmpty() &&
-                segments.last().kind == kind &&
-                segments.last().toolCall == null
-            ) {
-                segments.lastIndex
-            } else {
-                -1
+        // interleaved tool calls) into one segment instead of stacking many tiny entries.
+        // The PersistentList.mutate builder shares structure when no mutation occurs and
+        // otherwise appends in O(log n) instead of copying the segment list on every chunk.
+        val newSegments: PersistentList<AssistantSegment> =
+            message.segments.mutate { segments ->
+                val last = segments.lastOrNull()
+                if (last != null && last.kind == kind && last.toolCall == null) {
+                    segments[segments.lastIndex] = last.copy(text = last.text + text)
+                } else {
+                    segments.add(AssistantSegment(id = UUID.randomUUID().toString(), kind = kind, text = text))
+                }
             }
-
-        if (textSegmentIndex != -1) {
-            val existing = segments[textSegmentIndex]
-            segments[textSegmentIndex] = existing.copy(text = existing.text + text)
-        } else {
-            segments.add(AssistantSegment(id = UUID.randomUUID().toString(), kind = kind, text = text))
-        }
 
         // Derive the flat content string from MESSAGE segments for backward-compatible access
         val updatedContent =
-            segments
+            newSegments
                 .filter { it.kind == AssistantSegment.Kind.MESSAGE }
                 .joinToString("") { it.text }
 
         mutableMessages[targetIndex] =
             message.copy(
-                segments = segments,
+                segments = newSegments,
                 content = updatedContent,
                 isStreaming = true,
             )
@@ -246,35 +241,37 @@ object SessionMessageReducer {
             }
 
         val message = mutableMessages[targetIndex]
-        val segments = message.segments.toMutableList()
 
         // Plans are a log: each update replaces the preceding plan segment rather than stacking
-        val existingPlanIndex = segments.indexOfLast { it.kind == AssistantSegment.Kind.PLAN }
-        if (existingPlanIndex != -1) {
-            segments[existingPlanIndex] =
-                segments[existingPlanIndex].copy(
-                    text = "",
-                    planEntries = entries,
-                )
-        } else {
-            segments.add(
-                AssistantSegment(
-                    id = UUID.randomUUID().toString(),
-                    kind = AssistantSegment.Kind.PLAN,
-                    text = "",
-                    planEntries = entries,
-                ),
-            )
-        }
+        val newSegments: PersistentList<AssistantSegment> =
+            message.segments.mutate { segments ->
+                val existingPlanIndex = segments.indexOfLast { it.kind == AssistantSegment.Kind.PLAN }
+                if (existingPlanIndex != -1) {
+                    segments[existingPlanIndex] =
+                        segments[existingPlanIndex].copy(
+                            text = "",
+                            planEntries = entries,
+                        )
+                } else {
+                    segments.add(
+                        AssistantSegment(
+                            id = UUID.randomUUID().toString(),
+                            kind = AssistantSegment.Kind.PLAN,
+                            text = "",
+                            planEntries = entries,
+                        ),
+                    )
+                }
+            }
 
         val updatedContent =
-            segments
+            newSegments
                 .filter { it.kind == AssistantSegment.Kind.MESSAGE }
                 .joinToString("") { it.text }
 
         mutableMessages[targetIndex] =
             message.copy(
-                segments = segments,
+                segments = newSegments,
                 content = updatedContent,
                 isStreaming = true,
             )
@@ -305,10 +302,10 @@ object SessionMessageReducer {
             }
 
         val message = mutableMessages[targetIndex]
-        val segments = message.segments.toMutableList()
 
-        // Idempotent guard: a ToolCallStarted with the same id from replay must not duplicate
-        if (segments.any { it.kind == AssistantSegment.Kind.TOOL_CALL && it.toolCall?.toolCallId == toolCallId }) {
+        // Idempotent guard: a ToolCallStarted with the same id from replay must not duplicate.
+        // `any` reads only — PersistentList supports it without conversion.
+        if (message.segments.any { it.kind == AssistantSegment.Kind.TOOL_CALL && it.toolCall?.toolCallId == toolCallId }) {
             return messages
         }
 
@@ -325,9 +322,8 @@ object SessionMessageReducer {
                         rawInput = event.rawInput,
                     ),
             )
-        segments.add(newSegment)
-
-        mutableMessages[targetIndex] = message.copy(segments = segments)
+        val newSegments = message.segments.adding(newSegment)
+        mutableMessages[targetIndex] = message.copy(segments = newSegments)
         return mutableMessages
     }
 
@@ -360,31 +356,37 @@ object SessionMessageReducer {
 
         val mutableMessages = messages.toMutableList()
         val message = mutableMessages[index]
-        val segments = message.segments.toMutableList()
 
+        // Find the matching tool call segment by linear scan. The report flags this as
+        // item #3.3 (O(n) tool call lookup) — to be addressed by maintaining a
+        // toolCallId -> (messageIndex, segmentIndex) index on RuntimeData.
         val segmentIndex =
-            segments.indexOfLast {
+            message.segments.indexOfLast {
                 it.kind == AssistantSegment.Kind.TOOL_CALL &&
                     it.toolCall?.toolCallId == incomingToolCallId
             }
         if (segmentIndex != -1) {
-            val oldSegment = segments[segmentIndex]
-            val oldToolCall = oldSegment.toolCall
-            segments[segmentIndex] =
-                oldSegment.copy(
-                    toolCall =
-                        oldToolCall?.copy(
-                            content = event.content ?: oldToolCall.content,
-                            status = event.status ?: oldToolCall.status,
-                            title = event.title ?: oldToolCall.title.ifBlank { "Tool Call" },
-                            kind = event.kind ?: oldToolCall.kind,
-                            rawInput = event.rawInput ?: oldToolCall.rawInput,
-                            rawOutput = event.rawOutput ?: oldToolCall.rawOutput,
-                        ),
-                )
+            val newSegments: PersistentList<AssistantSegment> =
+                message.segments.mutate { segments ->
+                    val oldSegment = segments[segmentIndex]
+                    val oldToolCall = oldSegment.toolCall
+                    segments[segmentIndex] =
+                        oldSegment.copy(
+                            toolCall =
+                                oldToolCall?.copy(
+                                    content = event.content ?: oldToolCall.content,
+                                    status = event.status ?: oldToolCall.status,
+                                    title = event.title ?: oldToolCall.title.ifBlank { "Tool Call" },
+                                    kind = event.kind ?: oldToolCall.kind,
+                                    rawInput = event.rawInput ?: oldToolCall.rawInput,
+                                    rawOutput = event.rawOutput ?: oldToolCall.rawOutput,
+                                ),
+                        )
+                }
+            mutableMessages[index] = message.copy(segments = newSegments)
+        } else {
+            mutableMessages[index] = message
         }
-
-        mutableMessages[index] = message.copy(segments = segments)
         return mutableMessages
     }
 
@@ -411,32 +413,34 @@ object SessionMessageReducer {
 
         val mutable = withTool.toMutableList()
         val message = mutable[index]
-        val segments = message.segments.toMutableList()
         val segmentIndex =
-            segments.indexOfLast {
+            message.segments.indexOfLast {
                 it.kind == AssistantSegment.Kind.TOOL_CALL && it.toolCall?.toolCallId == event.toolCallId
             }
         if (segmentIndex == -1) return withTool
-        val oldSegment = segments[segmentIndex]
+        val oldSegment = message.segments[segmentIndex]
         val oldToolCall = oldSegment.toolCall ?: return withTool
-        segments[segmentIndex] =
-            oldSegment.copy(
-                toolCall =
-                    oldToolCall.copy(
-                        title = oldToolCall.title.ifBlank { event.title ?: "Permission Request" },
-                        status = ToolCallStatus.PENDING,
-                        permissionRequestId = event.requestId,
-                        permissionOptions =
-                            event.options.map {
-                                AcpPermissionOption(
-                                    id = it.id,
-                                    label = it.label,
-                                    kind = it.kind ?: "unknown",
-                                )
-                            },
-                    ),
-            )
-        mutable[index] = message.copy(segments = segments)
+        val newSegments: PersistentList<AssistantSegment> =
+            message.segments.mutate { segments ->
+                segments[segmentIndex] =
+                    oldSegment.copy(
+                        toolCall =
+                            oldToolCall.copy(
+                                title = oldToolCall.title.ifBlank { event.title ?: "Permission Request" },
+                                status = ToolCallStatus.PENDING,
+                                permissionRequestId = event.requestId,
+                                permissionOptions =
+                                    event.options.map {
+                                        AcpPermissionOption(
+                                            id = it.id,
+                                            label = it.label,
+                                            kind = it.kind ?: "unknown",
+                                        )
+                                    },
+                            ),
+                    )
+            }
+        mutable[index] = message.copy(segments = newSegments)
         return mutable
     }
 
@@ -452,32 +456,34 @@ object SessionMessageReducer {
         if (index == -1) return messages
         val mutable = messages.toMutableList()
         val message = mutable[index]
-        val segments =
-            message.segments.map { segment ->
-                if (segment.kind == AssistantSegment.Kind.TOOL_CALL && segment.toolCall?.toolCallId == toolCallId) {
-                    val oldToolCall = segment.toolCall
-                    segment.copy(
-                        toolCall =
-                            oldToolCall?.copy(
-                                permissionOptions = null,
-                                permissionRequestId = null,
-                                // A PENDING tool call that had a permission request transitions to
-                                // IN_PROGRESS once permission is granted (or denied)
-                                status =
-                                    if (oldToolCall.status == ToolCallStatus.PENDING &&
-                                        oldToolCall.permissionRequestId != null
-                                    ) {
-                                        ToolCallStatus.IN_PROGRESS
-                                    } else {
-                                        oldToolCall.status
-                                    },
-                            ),
-                    )
-                } else {
-                    segment
+        val newSegments: PersistentList<AssistantSegment> =
+            message.segments.mutate { segments ->
+                for (i in segments.indices) {
+                    val segment = segments[i]
+                    if (segment.kind == AssistantSegment.Kind.TOOL_CALL && segment.toolCall?.toolCallId == toolCallId) {
+                        val oldToolCall = segment.toolCall
+                        segments[i] =
+                            segment.copy(
+                                toolCall =
+                                    oldToolCall?.copy(
+                                        permissionOptions = null,
+                                        permissionRequestId = null,
+                                        // A PENDING tool call that had a permission request transitions to
+                                        // IN_PROGRESS once permission is granted (or denied)
+                                        status =
+                                            if (oldToolCall.status == ToolCallStatus.PENDING &&
+                                                oldToolCall.permissionRequestId != null
+                                            ) {
+                                                ToolCallStatus.IN_PROGRESS
+                                            } else {
+                                                oldToolCall.status
+                                            },
+                                    ),
+                            )
+                    }
                 }
             }
-        mutable[index] = message.copy(segments = segments)
+        mutable[index] = message.copy(segments = newSegments)
         return mutable
     }
 
