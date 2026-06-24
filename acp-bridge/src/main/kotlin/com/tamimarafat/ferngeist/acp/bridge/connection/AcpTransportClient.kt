@@ -24,6 +24,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 internal class AcpTransportClient(
     private val connectivityObserver: ConnectivityObserver,
@@ -35,6 +36,7 @@ internal class AcpTransportClient(
 ) {
     companion object {
         private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 20_000L
+        private const val MAX_RECONNECT_DELAY_MS = 30_000L
     }
 
     private var reconnectJob: Job? = null
@@ -366,9 +368,12 @@ internal class AcpTransportClient(
             scope.launch {
                 val config = currentConfig ?: return@launch
                 while (sdkClient == null) {
-                    awaitConnectivityForReconnect()
                     reconnectAttempts++
-                    delay((1000L * reconnectAttempts).coerceAtMost(5000L))
+                    // Linear backoff with ±50% jitter to prevent thundering-herd reconnects
+                    // when many clients retry against the same gateway. Capped at 30s.
+                    val baseDelayMs = 1000L * reconnectAttempts
+                    val jitteredDelayMs = (baseDelayMs * (0.5 + Random.nextDouble())).toLong()
+                    delay(jitteredDelayMs.coerceAtMost(MAX_RECONNECT_DELAY_MS))
 
                     val reconnected = if (config.isResilientSession) {
                         connectSessionResume(config, resetState, scheduleReconnectOnFailure = false)
