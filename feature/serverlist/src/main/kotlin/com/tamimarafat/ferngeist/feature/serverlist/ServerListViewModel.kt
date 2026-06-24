@@ -65,6 +65,15 @@ data class ServerListUiState(
     val pendingLaunchConsent: PendingLaunchConsent? = null,
 )
 
+data class RecentSession(
+    val sessionId: String,
+    val title: String,
+    val serverId: String,
+    val target: LaunchableTarget,
+    val cwd: String?,
+    val updatedAt: Long?,
+)
+
 data class PendingAuthentication(
     val serverId: String,
     val serverName: String,
@@ -94,6 +103,8 @@ private data class GatewayLaunchContext(
 
 private const val LOG_TAG = "ServerListViewModel"
 
+private const val RECENT_SESSIONS_LIMIT = 5
+
 @HiltViewModel
 class ServerListViewModel
     @Inject
@@ -122,6 +133,30 @@ class ServerListViewModel
 
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+        val recentSessions: StateFlow<List<RecentSession>> =
+            sessionRepository
+                .getRecentSessions(RECENT_SESSIONS_LIMIT)
+                .map { summaries ->
+                    summaries
+                        .filter { summary ->
+                            summary.serverId.isNotBlank().also { valid ->
+                                if (!valid) Log.w(LOG_TAG, "Skipping session ${summary.id}: blank serverId")
+                            }
+                        }
+                        .mapNotNull { summary ->
+                            val target = launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
+                            RecentSession(
+                                sessionId = summary.id,
+                                title = summary.title ?: "Untitled session",
+                                serverId = summary.serverId,
+                                target = target,
+                                cwd = summary.cwd,
+                                updatedAt = summary.updatedAt,
+                            )
+                        }
+                }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         private val _uiState = MutableStateFlow(ServerListUiState())
         val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()

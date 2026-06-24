@@ -56,6 +56,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayAgentsScreen
@@ -168,7 +169,7 @@ fun FerngeistNavHost(
                 if (target.title.isNotBlank()) "&title=${Uri.encode(target.title)}" else ""
             navController.navigate(
                 "chat/${target.serverId}/${target.sessionId}" +
-                    "?cwd=${Uri.encode(target.cwd)}&updatedAt=-1$titleParam$gatewayIdParam",
+                    "?cwd=${Uri.encode(target.cwd)}$titleParam$gatewayIdParam",
             ) {
                 launchSingleTop = true
             }
@@ -283,6 +284,13 @@ fun FerngeistNavHost(
                         val encodedName = Uri.encode(serverName)
                         navController.navigate(
                             "sessions/$serverId?create=$openCreateSessionDialog&name=$encodedName",
+                        )
+                    },
+                    onResumeSession = { session ->
+                        val encodedCwd = Uri.encode(session.cwd ?: "")
+                        val encodedTitle = Uri.encode(session.title)
+                        navController.navigate(
+                            "chat/${session.serverId}/${session.sessionId}?cwd=$encodedCwd&title=$encodedTitle",
                         )
                     },
                     viewModel = viewModel,

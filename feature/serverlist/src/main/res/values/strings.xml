@@ -25,6 +25,9 @@
     <string name="serverlist_empty_action">Add agent</string>
     <string name="serverlist_fab_add">Add server or gateway</string>
     <string name="serverlist_fab_close">Close menu</string>
+    <string name="serverlist_resume_sessions">Resume sessions</string>
+    <string name="serverlist_section_agents">Your agents</string>
+    <string name="serverlist_continue_resume_desc">Resume session</string>
 
     <string name="serverlist_card_from_gateway">From gateway</string>
     <string name="serverlist_gateway_qr_label">QR pairing payload</string>

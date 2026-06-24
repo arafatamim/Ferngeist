@@ -17,9 +17,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,6 +89,7 @@ internal fun ServerCard(
     onDelete: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    modifier: Modifier = Modifier,
 ) {
     val connectionState =
         remember(
@@ -141,17 +144,29 @@ internal fun ServerCard(
                 connectionState.isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
                 else -> MaterialTheme.colorScheme.surfaceContainer
             },
-        animationSpec = tween(400),
+        // Color is a non-spatial effect: spring without bounce.
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "containerColor",
     )
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    val cardInteractionSource = remember { MutableInteractionSource() }
+    val pressed by cardInteractionSource.collectIsPressedAsState()
+    val cardCorner by animateDpAsState(
+        targetValue = if (pressed) 12.dp else 24.dp,
+        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+        label = "cardCorner",
+    )
+    val cardShape = RoundedCornerShape(cardCorner)
+
+    Box(modifier = modifier.fillMaxWidth()) {
         Card(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(cardShape)
                     .combinedClickable(
+                        interactionSource = cardInteractionSource,
+                        indication = LocalIndication.current,
                         enabled = !connectionState.isConnecting,
                         onClick = onClick,
                         onLongClick = { showActionsMenu = true },
@@ -160,7 +175,7 @@ internal fun ServerCard(
                     .semantics {
                         contentDescription = server.name
                     },
-            shape = RoundedCornerShape(24.dp),
+            shape = cardShape,
             colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
         ) {
             Column(
@@ -233,7 +248,7 @@ internal fun ServerCard(
 }
 
 @Composable
-private fun ServerSubtitle(
+internal fun ServerSubtitle(
     server: LaunchableTarget,
     hasSavedAuthMethod: Boolean,
 ) {
