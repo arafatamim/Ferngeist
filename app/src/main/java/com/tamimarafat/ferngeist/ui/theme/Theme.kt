@@ -2,7 +2,9 @@ package com.tamimarafat.ferngeist.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -33,6 +35,7 @@ private val LightColorScheme =
      */
     )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FerngeistTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -51,8 +54,10 @@ fun FerngeistTheme(
             else -> LightColorScheme
         }
 
-    MaterialTheme(
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
+        // Physics-based motion as the app-wide default (springs over fixed-duration easing).
+        motionScheme = MotionScheme.expressive(),
         typography = Typography,
         content = content,
     )
