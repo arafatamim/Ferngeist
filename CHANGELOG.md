@@ -1,3 +1,43 @@
+## [0.8.0] - 2026-06-24
+
+### Features
+
+- *(serverlist)* Recent sessions hero card, draggable backdrop, and file split ([34adf45](https://github.com/arafatamim/Ferngeist/commit/34adf459947f65fb3a33d5839ba2c98e1fb1d0cd))
+- *(theme)* Migrate to MaterialExpressiveTheme with motion scheme ([6ed91e2](https://github.com/arafatamim/Ferngeist/commit/6ed91e2dc46c42e36de50cb365d5bb67b61f7a6d))
+- *(data)* Add cross-server recent sessions infrastructure ([0fa9117](https://github.com/arafatamim/Ferngeist/commit/0fa9117b45c463af59b69c3d426f0d8d7a9b3d73))
+- *(acp)* Fail fast on gateway session failure ([11ca9ab](https://github.com/arafatamim/Ferngeist/commit/11ca9ab18755d8d044f717c71a4f0f3ab6f90466))
+- *(ui)* Add loading indicator to server list screen ([32cb9c2](https://github.com/arafatamim/Ferngeist/commit/32cb9c2c7e35f6e5a79d80b2a3f0c8a7dbb6c563))
+- *(push)* FCM push notifications with chat deep-linking ([2d346e7](https://github.com/arafatamim/Ferngeist/commit/2d346e7a57a2e43f2f2c5fa95d8d2b8a5c6b6a42))
+- *(app)* Deep-link from notification to active chat session ([b5b3884](https://github.com/arafatamim/Ferngeist/commit/b5b38848e8c8ab7d82d28e6aa36ac1a6e3c54d63))
+- *(acp)* Resilient session reconnection with 409 conflict handling ([2084492](https://github.com/arafatamim/Ferngeist/commit/20844924c07e2f031bc9f8e6de0fa6b27ac6a2d5))
+- *(gateway)* Add session lifecycle API models, repository, and tests ([3b4ec61](https://github.com/arafatamim/Ferngeist/commit/3b4ec61db9d9c73b3b95c81f0d05a7f0e2b3a3c5))
+- *(chat)* Improve readability and usability of code diffs and tool outputs ([29618ae](https://github.com/arafatamim/Ferngeist/commit/29618ae5a2af2f0337ee37ae0e8b1b10d2f38c7a))
+- *(chat)* Improve plan card UI ([eb70fcd](https://github.com/arafatamim/Ferngeist/commit/eb70fcda77f9c2f5f8f28fb25f5d8a2b0c3a3e61))
+- *(ui)* Minor accessibility and UI improvements ([f46fe5e](https://github.com/arafatamim/Ferngeist/commit/f46fe5e4d88bc56aa7e3d3e0f27e3f41c9ca1b1f))
+
+### Fixes
+
+- *(serverlist)* Persist agents sheet reveal state across navigation ([9df0e76](https://github.com/arafatamim/Ferngeist/commit/9df0e76d9b0c48e70b8b7c57b2d38c42f7ac7b7e))
+- *(acp)* Resume resilient sessions without an attach token ([791e2ae](https://github.com/arafatamim/Ferngeist/commit/791e2ae96e8f8b5a0f9a61f0f35f2d0f5f3e3c7c))
+- *(chat)* Guard sends behind isSessionReady and improve scroll state ([ffa89bc](https://github.com/arafatamim/Ferngeist/commit/ffa89bc705f9c3c2f2b5b6b1a8c08a3f46f4e8c4))
+- *(chat)* User message deduplication and optimistic UI state management ([5357394](https://github.com/arafatamim/Ferngeist/commit/5357394da46f3b0e2b8a5e06a0b1c7f06a9b6c4c))
+- *(sessionlist)* Decouple pull-to-refresh indicator from initial load state ([c18928a](https://github.com/arafatamim/Ferngeist/commit/c18928ac5d1b5687b8f8a8c50c28b8e8f0e2d2b1))
+- *(service)* Stop service if ACP not connected ([69095f3](https://github.com/arafatamim/Ferngeist/commit/69095f3a56bf3e1ac3df0e9bb3d09a5b7a4e3c06))
+
+### Maintenance
+
+- *(build)* Upgrade compile SDK to 37 and dependencies ([f94b735](https://github.com/arafatamim/Ferngeist/commit/f94b735e3a87bc3c3b1d7c0d5e0d45e1f4b3e3b5))
+- *(docs)* Add architecture diagram ([a962c34](https://github.com/arafatamim/Ferngeist/commit/a962c34ac6c6db8b1d3e5e6e1c4e0c5f2b5fa3e5))
+
+### Refactoring
+
+- *(acp-bridge)* Use native SDK capability models ([d3b0709](https://github.com/arafatamim/Ferngeist/commit/d3b0709b9e49b6a5f1a7b5e7b1b7f4b0c6f4d7a8))
+- *(acp-bridge)* Decompose AcpConnectionManager into specialized components ([bcad7c2](https://github.com/arafatamim/Ferngeist/commit/bcad7c2d2b1c8e35a0b6e3d1e2f4c5a7b8d6e3f4))
+- *(chat)* Isolate ACP logic behind domain-focused facade ([8d70e74](https://github.com/arafatamim/Ferngeist/commit/8d70e74b4f8c3a5a9e6b2d3f1c7a8e5d0b4f6c2a))
+- *(chat)* Decouple chat UI from concrete bridge implementations ([4c0798e](https://github.com/arafatamim/Ferngeist/commit/4c0798e1d9f3b5c6a2e8f7d4c3b1a9e5f2d6c4a8))
+- *(acp-bridge)* Centralize configuration policy and routing logic ([0774a4c](https://github.com/arafatamim/Ferngeist/commit/0774a4cb2e1d7f3a5c8b6e4d9a2f1c7b5e3d8a4f))
+- *(chat)* Deduplicate shared-bounds modifier chain ([9a0255b](https://github.com/arafatamim/Ferngeist/commit/9a0255be8c4d2f1a7b3e6c9d0f5a2b8e4c7d1a3f))
+
 
 ## [0.7.0] - 2026-05-18
 
