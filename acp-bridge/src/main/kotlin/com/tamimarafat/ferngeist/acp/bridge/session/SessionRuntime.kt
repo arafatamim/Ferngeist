@@ -36,6 +36,7 @@ class SessionRuntime(
     private data class RuntimeData(
         val messages: List<ChatMessage> = emptyList(),
         val isStreaming: Boolean = false,
+        val toolCallIndex: Map<String, ToolCallLocation> = emptyMap(),
         val usage: SessionUsage? = null,
         val availableCommands: List<CommandInfo> = emptyList(),
         val commandsAdvertised: Boolean = false,
@@ -202,6 +203,7 @@ class SessionRuntime(
         event: AppSessionEvent,
     ): RuntimeData {
         var messages = current.messages
+        var toolCallIndex = current.toolCallIndex
         var isStreaming = current.isStreaming
         var usage = current.usage
         var availableCommands = current.availableCommands
@@ -210,11 +212,19 @@ class SessionRuntime(
         var legacyModes = current.legacyModes
         var legacyModel = current.legacyModel
 
-        messages =
+        // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
+        // which owns both the message list and the tool-call index
+        val fromReducer =
             when (event) {
-                is AppSessionEvent.SessionLoadComplete -> SessionMessageReducer.finishStreaming(messages)
-                else -> SessionMessageReducer.handleEvent(messages, event)
+                is AppSessionEvent.SessionLoadComplete -> null
+                else -> SessionMessageReducer.handleEvent(messages, toolCallIndex, event)
             }
+        if (fromReducer == null) {
+            messages = SessionMessageReducer.finishStreaming(messages)
+        } else {
+            messages = fromReducer.messages
+            toolCallIndex = fromReducer.toolCallIndex
+        }
 
         when (event) {
             is AppSessionEvent.TurnComplete -> isStreaming = false
@@ -274,6 +284,7 @@ class SessionRuntime(
         val derivedStreaming = isStreaming || messages.any { it.isStreaming }
         return current.copy(
             messages = messages,
+            toolCallIndex = toolCallIndex,
             isStreaming = derivedStreaming,
             usage = usage,
             availableCommands = availableCommands,

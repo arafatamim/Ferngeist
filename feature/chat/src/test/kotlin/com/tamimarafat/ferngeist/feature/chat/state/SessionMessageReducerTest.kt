@@ -6,10 +6,11 @@ import com.agentclientprotocol.model.PlanEntryStatus
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
-import kotlinx.serialization.json.JsonPrimitive
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMessageReducer
+import com.tamimarafat.ferngeist.acp.bridge.session.ToolCallLocation
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -17,11 +18,26 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SessionMessageReducerTest {
+    /**
+     * Thread the (messages, tool-call index) pair through a single event. Most tests don't care
+     * about the returned index, but the helpers keep every call correct without inlining the
+     * pair-destructuring at every site.
+     */
+    private fun apply(
+        messages: List<ChatMessage>,
+        index: Map<String, ToolCallLocation>,
+        event: AppSessionEvent,
+    ): Pair<List<ChatMessage>, Map<String, ToolCallLocation>> {
+        val r = SessionMessageReducer.handleEvent(messages, index, event)
+        return r.messages to r.toolCallIndex
+    }
+
     @Test
     fun `tool call update falls back to rawOutput when output missing`() {
-        val started =
-            SessionMessageReducer.handleEvent(
+        val (started, startedIdx) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_1",
                     title = "Read",
@@ -30,9 +46,10 @@ class SessionMessageReducerTest {
                 ),
             )
 
-        val updated =
-            SessionMessageReducer.handleEvent(
+        val (updated, _) =
+            apply(
                 started,
+                startedIdx,
                 AppSessionEvent.ToolCallUpdated(
                     toolCallId = "tool_1",
                     status = ToolCallStatus.COMPLETED,
@@ -56,9 +73,10 @@ class SessionMessageReducerTest {
 
     @Test
     fun `tool call started is deduplicated for replayed ids`() {
-        val first =
-            SessionMessageReducer.handleEvent(
+        val (first, firstIdx) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_replay",
                     title = "Replay",
@@ -66,9 +84,10 @@ class SessionMessageReducerTest {
                     status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
-        val second =
-            SessionMessageReducer.handleEvent(
+        val (second, _) =
+            apply(
                 first,
+                firstIdx,
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_replay",
                     title = "Replay",
@@ -96,9 +115,10 @@ class SessionMessageReducerTest {
                 ),
             )
 
-        val updated =
-            SessionMessageReducer.handleEvent(
+        val (updated, _) =
+            apply(
                 leaked,
+                emptyMap(),
                 AppSessionEvent.UserMessage("next prompt"),
             )
 
@@ -109,14 +129,16 @@ class SessionMessageReducerTest {
 
     @Test
     fun `user message chunks append into a single user bubble`() {
-        val first =
-            SessionMessageReducer.handleEvent(
+        val (first, _) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.UserMessage(text = "he", append = true),
             )
-        val second =
-            SessionMessageReducer.handleEvent(
+        val (second, _) =
+            apply(
                 first,
+                emptyMap(),
                 AppSessionEvent.UserMessage(text = "y", append = true),
             )
 
@@ -127,16 +149,18 @@ class SessionMessageReducerTest {
 
     @Test
     fun `echoed user chunk is ignored when assistant placeholder is already streaming`() {
-        val withUser =
-            SessionMessageReducer.handleEvent(
+        val (withUser, _) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.UserMessage("hello"),
             )
         val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
-        val updated =
-            SessionMessageReducer.handleEvent(
+        val (updated, _) =
+            apply(
                 withAssistantPlaceholder,
+                emptyMap(),
                 AppSessionEvent.UserMessage(text = "hello", append = true),
             )
 
@@ -154,9 +178,10 @@ class SessionMessageReducerTest {
                 ),
             )
 
-        val completed =
-            SessionMessageReducer.handleEvent(
+        val (completed, _) =
+            apply(
                 withStream,
+                emptyMap(),
                 AppSessionEvent.TurnComplete("end_turn"),
             )
 
@@ -165,24 +190,28 @@ class SessionMessageReducerTest {
 
     @Test
     fun `agent chunks continue appending after turn complete if no new user turn started`() {
-        val chunk1 =
-            SessionMessageReducer.handleEvent(
+        val (chunk1, _) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.AgentMessage("how"),
             )
-        val chunk2 =
-            SessionMessageReducer.handleEvent(
+        val (chunk2, _) =
+            apply(
                 chunk1,
+                emptyMap(),
                 AppSessionEvent.AgentMessage(" are"),
             )
-        val completed =
-            SessionMessageReducer.handleEvent(
+        val (completed, _) =
+            apply(
                 chunk2,
+                emptyMap(),
                 AppSessionEvent.TurnComplete("end_turn"),
             )
-        val resumedChunk =
-            SessionMessageReducer.handleEvent(
+        val (resumedChunk, _) =
+            apply(
                 completed,
+                emptyMap(),
                 AppSessionEvent.AgentMessage(" you?"),
             )
 
@@ -192,14 +221,16 @@ class SessionMessageReducerTest {
 
     @Test
     fun `message chunks append to existing message segment even if tool update was interleaved`() {
-        val first =
-            SessionMessageReducer.handleEvent(
+        val (first, _) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.AgentMessage("hello"),
             )
-        val withTool =
-            SessionMessageReducer.handleEvent(
+        val (withTool, _) =
+            apply(
                 first,
+                emptyMap(),
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_1",
                     title = "Read",
@@ -207,9 +238,10 @@ class SessionMessageReducerTest {
                     status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
-        val second =
-            SessionMessageReducer.handleEvent(
+        val (second, _) =
+            apply(
                 withTool,
+                emptyMap(),
                 AppSessionEvent.AgentMessage(" world"),
             )
 
@@ -218,14 +250,16 @@ class SessionMessageReducerTest {
 
     @Test
     fun `message segment order follows server event order when tool call is interleaved`() {
-        val first =
-            SessionMessageReducer.handleEvent(
+        val (first, _) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.AgentMessage("hello"),
             )
-        val withTool =
-            SessionMessageReducer.handleEvent(
+        val (withTool, _) =
+            apply(
                 first,
+                emptyMap(),
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_order",
                     title = "Read",
@@ -233,9 +267,10 @@ class SessionMessageReducerTest {
                     status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
-        val second =
-            SessionMessageReducer.handleEvent(
+        val (second, _) =
+            apply(
                 withTool,
+                emptyMap(),
                 AppSessionEvent.AgentMessage(" world"),
             )
 
@@ -250,9 +285,10 @@ class SessionMessageReducerTest {
 
     @Test
     fun `plan entries replace existing plan segment on each update`() {
-        val first =
-            SessionMessageReducer.handleEvent(
+        val (first, _) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.PlanUpdated(
                     entries = listOf(
                         PlanEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.PENDING),
@@ -264,9 +300,10 @@ class SessionMessageReducerTest {
         assertEquals(AssistantSegment.Kind.PLAN, first.last().segments.last().kind)
         assertEquals(1, first.last().segments.last().planEntries?.size)
 
-        val second =
-            SessionMessageReducer.handleEvent(
+        val (second, _) =
+            apply(
                 first,
+                emptyMap(),
                 AppSessionEvent.PlanUpdated(
                     entries = listOf(
                         PlanEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.IN_PROGRESS),
@@ -282,16 +319,18 @@ class SessionMessageReducerTest {
 
     @Test
     fun `append=false user message is deduplicated when assistant streaming placeholder follows`() {
-        val withUser =
-            SessionMessageReducer.handleEvent(
+        val (withUser, _) =
+            apply(
                 emptyList(),
+                emptyMap(),
                 AppSessionEvent.UserMessage("hello"),
             )
         val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
-        val updated =
-            SessionMessageReducer.handleEvent(
+        val (updated, _) =
+            apply(
                 withAssistantPlaceholder,
+                emptyMap(),
                 AppSessionEvent.UserMessage(text = "hello", append = false),
             )
 

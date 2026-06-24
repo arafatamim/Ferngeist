@@ -12,35 +12,78 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.mutate
 import java.util.UUID
 
+/**
+ * Location of a tool call segment inside the message list.
+ *
+ * Together with a [Map] keyed by `toolCallId`, this gives O(1) lookup for tool
+ * call updates/permissions instead of the O(messages × segments) scan the
+ * reducer used to do.
+ */
+data class ToolCallLocation(
+    val messageIndex: Int,
+    val segmentIndex: Int,
+)
+
+/**
+ * Result of reducing a single event: the updated message list plus the
+ * (mostly unchanged) tool call index. Sub-handlers that don't touch tool
+ * calls return the same index they were given; sub-handlers that do
+ * ([upsertToolCall], [updateToolCall], [updateToolCallPermission],
+ * [clearToolCallPermission]) return a precisely updated copy.
+ */
+data class ReducerResult(
+    val messages: List<ChatMessage>,
+    val toolCallIndex: Map<String, ToolCallLocation>,
+)
+
 object SessionMessageReducer {
     fun handleEvent(
         messages: List<ChatMessage>,
+        toolCallIndex: Map<String, ToolCallLocation>,
         event: AppSessionEvent,
-    ): List<ChatMessage> =
-        when (event) {
-            is AppSessionEvent.UserMessage -> appendUserText(messages, event.text, event.append, event.timestampMs)
-            is AppSessionEvent.AgentMessage ->
-                appendText(
-                    messages,
-                    event.text,
-                    AssistantSegment.Kind.MESSAGE,
-                    event.timestampMs,
-                )
-            is AppSessionEvent.AgentThought ->
-                appendText(
-                    messages,
-                    event.text,
-                    AssistantSegment.Kind.THOUGHT,
-                    event.timestampMs,
-                )
-            is AppSessionEvent.ToolCallStarted -> upsertToolCall(messages, event)
-            is AppSessionEvent.ToolCallUpdated -> updateToolCall(messages, event)
-            is AppSessionEvent.ToolPermissionRequested -> updateToolCallPermission(messages, event)
-            is AppSessionEvent.ToolPermissionResolved -> clearToolCallPermission(messages, event.toolCallId)
-            is AppSessionEvent.PlanUpdated -> updatePlan(messages, event.entries, event.timestampMs)
-            is AppSessionEvent.TurnComplete -> finishStreaming(messages)
-            else -> messages
-        }
+    ): ReducerResult = when (event) {
+        is AppSessionEvent.UserMessage ->
+            ReducerResult(
+                messages = appendUserText(messages, event.text, event.append, event.timestampMs),
+                toolCallIndex = toolCallIndex,
+            )
+        is AppSessionEvent.AgentMessage ->
+            appendText(
+                messages,
+                toolCallIndex,
+                event.text,
+                AssistantSegment.Kind.MESSAGE,
+                event.timestampMs,
+            )
+        is AppSessionEvent.AgentThought ->
+            appendText(
+                messages,
+                toolCallIndex,
+                event.text,
+                AssistantSegment.Kind.THOUGHT,
+                event.timestampMs,
+            )
+        is AppSessionEvent.ToolCallStarted ->
+            upsertToolCall(messages, toolCallIndex, event)
+        is AppSessionEvent.ToolCallUpdated ->
+            updateToolCall(messages, toolCallIndex, event)
+        is AppSessionEvent.ToolPermissionRequested ->
+            updateToolCallPermission(messages, toolCallIndex, event)
+        is AppSessionEvent.ToolPermissionResolved ->
+            clearToolCallPermission(messages, toolCallIndex, event.toolCallId)
+        is AppSessionEvent.PlanUpdated ->
+            ReducerResult(
+                messages = updatePlan(messages, event.entries, event.timestampMs),
+                toolCallIndex = toolCallIndex,
+            )
+        is AppSessionEvent.TurnComplete ->
+            ReducerResult(
+                messages = finishStreaming(messages),
+                toolCallIndex = toolCallIndex,
+            )
+        else ->
+            ReducerResult(messages = messages, toolCallIndex = toolCallIndex)
+    }
 
     fun startStreaming(messages: List<ChatMessage>): List<ChatMessage> {
         // Idempotent: avoid stacking placeholder bubbles when called repeatedly
@@ -162,11 +205,12 @@ object SessionMessageReducer {
 
     private fun appendText(
         messages: List<ChatMessage>,
+        toolCallIndex: Map<String, ToolCallLocation>,
         text: String,
         kind: AssistantSegment.Kind,
         timestampMs: Long?,
-    ): List<ChatMessage> {
-        if (text.isEmpty()) return messages
+    ): ReducerResult {
+        if (text.isEmpty()) return ReducerResult(messages, toolCallIndex)
         val mutableMessages = messages.toMutableList()
 
         val lastMessage = mutableMessages.lastOrNull()
@@ -214,7 +258,7 @@ object SessionMessageReducer {
                 content = updatedContent,
                 isStreaming = true,
             )
-        return mutableMessages
+        return ReducerResult(mutableMessages, toolCallIndex)
     }
 
     private fun updatePlan(
@@ -280,11 +324,19 @@ object SessionMessageReducer {
 
     private fun upsertToolCall(
         messages: List<ChatMessage>,
+        toolCallIndex: Map<String, ToolCallLocation>,
         event: AppSessionEvent.ToolCallStarted,
-    ): List<ChatMessage> {
-        val mutableMessages = messages.toMutableList()
+    ): ReducerResult {
         val toolCallId = event.toolCallId.ifBlank { "tool_${UUID.randomUUID()}" }
 
+        // Idempotent: a ToolCallStarted with an id already known to the index (replay,
+        // out-of-order bootstrap from updateToolCall) must not duplicate the segment
+        val existing = toolCallIndex[toolCallId]
+        if (existing != null) {
+            return ReducerResult(messages, toolCallIndex)
+        }
+
+        val mutableMessages = messages.toMutableList()
         val lastMessage = mutableMessages.lastOrNull()
         val targetIndex =
             if (lastMessage?.role == ChatMessage.Role.ASSISTANT && lastMessage.isStreaming) {
@@ -302,12 +354,7 @@ object SessionMessageReducer {
             }
 
         val message = mutableMessages[targetIndex]
-
-        // Idempotent guard: a ToolCallStarted with the same id from replay must not duplicate.
-        // `any` reads only — PersistentList supports it without conversion.
-        if (message.segments.any { it.kind == AssistantSegment.Kind.TOOL_CALL && it.toolCall?.toolCallId == toolCallId }) {
-            return messages
-        }
+        val newSegmentIndex = message.segments.size
 
         val newSegment =
             AssistantSegment(
@@ -324,105 +371,98 @@ object SessionMessageReducer {
             )
         val newSegments = message.segments.adding(newSegment)
         mutableMessages[targetIndex] = message.copy(segments = newSegments)
-        return mutableMessages
+        val newIndex = toolCallIndex + (toolCallId to ToolCallLocation(targetIndex, newSegmentIndex))
+        return ReducerResult(mutableMessages, newIndex)
     }
 
     private fun updateToolCall(
         messages: List<ChatMessage>,
+        toolCallIndex: Map<String, ToolCallLocation>,
         event: AppSessionEvent.ToolCallUpdated,
-    ): List<ChatMessage> {
+    ): ReducerResult {
         val incomingToolCallId = event.toolCallId.ifBlank { "tool_${UUID.randomUUID()}" }
-        val index =
-            messages.indexOfLast {
-                it.role == ChatMessage.Role.ASSISTANT &&
-                    it.segments.any { segment -> segment.toolCall?.toolCallId == incomingToolCallId }
-            }
-        if (index == -1) {
+        val location = toolCallIndex[incomingToolCallId]
+        if (location == null) {
             // Out-of-order event: ToolCallUpdated arrived before ToolCallStarted. Bootstrap a
-            // ToolCallStarted entry first and then apply the update on top
-            return upsertToolCall(
-                messages,
-                AppSessionEvent.ToolCallStarted(
-                    toolCallId = incomingToolCallId,
-                    title = event.title ?: "Tool Call",
-                    kind = event.kind,
-                    status = event.status,
-                    rawInput = event.rawInput,
-                ),
-            ).let { withTool ->
-                updateToolCall(withTool, event.copy(toolCallId = incomingToolCallId))
-            }
+            // ToolCallStarted entry first and then apply the update on top. The bootstrap
+            // populates the index, so the recursive call resolves in O(1).
+            val bootstrapped =
+                upsertToolCall(
+                    messages,
+                    toolCallIndex,
+                    AppSessionEvent.ToolCallStarted(
+                        toolCallId = incomingToolCallId,
+                        title = event.title ?: "Tool Call",
+                        kind = event.kind,
+                        status = event.status,
+                        rawInput = event.rawInput,
+                    ),
+                )
+            return updateToolCall(
+                bootstrapped.messages,
+                bootstrapped.toolCallIndex,
+                event.copy(toolCallId = incomingToolCallId),
+            )
         }
 
+        val messageIndex = location.messageIndex
+        val segmentIndex = location.segmentIndex
         val mutableMessages = messages.toMutableList()
-        val message = mutableMessages[index]
+        val message = mutableMessages[messageIndex]
 
-        // Find the matching tool call segment by linear scan. The report flags this as
-        // item #3.3 (O(n) tool call lookup) — to be addressed by maintaining a
-        // toolCallId -> (messageIndex, segmentIndex) index on RuntimeData.
-        val segmentIndex =
-            message.segments.indexOfLast {
-                it.kind == AssistantSegment.Kind.TOOL_CALL &&
-                    it.toolCall?.toolCallId == incomingToolCallId
+        val newSegments: PersistentList<AssistantSegment> =
+            message.segments.mutate { segments ->
+                val oldSegment = segments[segmentIndex]
+                val oldToolCall = oldSegment.toolCall
+                segments[segmentIndex] =
+                    oldSegment.copy(
+                        toolCall =
+                            oldToolCall?.copy(
+                                content = event.content ?: oldToolCall.content,
+                                status = event.status ?: oldToolCall.status,
+                                title = event.title ?: oldToolCall.title.ifBlank { "Tool Call" },
+                                kind = event.kind ?: oldToolCall.kind,
+                                rawInput = event.rawInput ?: oldToolCall.rawInput,
+                                rawOutput = event.rawOutput ?: oldToolCall.rawOutput,
+                            ),
+                    )
             }
-        if (segmentIndex != -1) {
-            val newSegments: PersistentList<AssistantSegment> =
-                message.segments.mutate { segments ->
-                    val oldSegment = segments[segmentIndex]
-                    val oldToolCall = oldSegment.toolCall
-                    segments[segmentIndex] =
-                        oldSegment.copy(
-                            toolCall =
-                                oldToolCall?.copy(
-                                    content = event.content ?: oldToolCall.content,
-                                    status = event.status ?: oldToolCall.status,
-                                    title = event.title ?: oldToolCall.title.ifBlank { "Tool Call" },
-                                    kind = event.kind ?: oldToolCall.kind,
-                                    rawInput = event.rawInput ?: oldToolCall.rawInput,
-                                    rawOutput = event.rawOutput ?: oldToolCall.rawOutput,
-                                ),
-                        )
-                }
-            mutableMessages[index] = message.copy(segments = newSegments)
-        } else {
-            mutableMessages[index] = message
-        }
-        return mutableMessages
+        mutableMessages[messageIndex] = message.copy(segments = newSegments)
+        return ReducerResult(mutableMessages, toolCallIndex)
     }
 
     private fun updateToolCallPermission(
         messages: List<ChatMessage>,
+        toolCallIndex: Map<String, ToolCallLocation>,
         event: AppSessionEvent.ToolPermissionRequested,
-    ): List<ChatMessage> {
-        val withTool =
-            upsertToolCall(
-                messages,
-                AppSessionEvent.ToolCallStarted(
-                    toolCallId = event.toolCallId,
-                    title = event.title ?: "Permission Request",
-                    kind = ToolKind.OTHER,
-                    status = ToolCallStatus.PENDING,
-                ),
-            )
-        val index =
-            withTool.indexOfLast {
-                it.role == ChatMessage.Role.ASSISTANT &&
-                    it.segments.any { segment -> segment.toolCall?.toolCallId == event.toolCallId }
+    ): ReducerResult {
+        // Ensure the tool call exists. Permission requests can arrive before the
+        // corresponding ToolCallStarted (e.g. when a permission UI is shown immediately).
+        val bootstrapped =
+            if (toolCallIndex.containsKey(event.toolCallId)) {
+                ReducerResult(messages, toolCallIndex)
+            } else {
+                upsertToolCall(
+                    messages,
+                    toolCallIndex,
+                    AppSessionEvent.ToolCallStarted(
+                        toolCallId = event.toolCallId,
+                        title = event.title ?: "Permission Request",
+                        kind = ToolKind.OTHER,
+                        status = ToolCallStatus.PENDING,
+                    ),
+                )
             }
-        if (index == -1) return withTool
 
-        val mutable = withTool.toMutableList()
-        val message = mutable[index]
-        val segmentIndex =
-            message.segments.indexOfLast {
-                it.kind == AssistantSegment.Kind.TOOL_CALL && it.toolCall?.toolCallId == event.toolCallId
-            }
-        if (segmentIndex == -1) return withTool
-        val oldSegment = message.segments[segmentIndex]
-        val oldToolCall = oldSegment.toolCall ?: return withTool
+        val location = bootstrapped.toolCallIndex[event.toolCallId] ?: return bootstrapped
+        val mutableMessages = bootstrapped.messages.toMutableList()
+        val message = mutableMessages[location.messageIndex]
+        val oldSegment = message.segments[location.segmentIndex]
+        val oldToolCall = oldSegment.toolCall ?: return bootstrapped
+
         val newSegments: PersistentList<AssistantSegment> =
             message.segments.mutate { segments ->
-                segments[segmentIndex] =
+                segments[location.segmentIndex] =
                     oldSegment.copy(
                         toolCall =
                             oldToolCall.copy(
@@ -440,51 +480,44 @@ object SessionMessageReducer {
                             ),
                     )
             }
-        mutable[index] = message.copy(segments = newSegments)
-        return mutable
+        mutableMessages[location.messageIndex] = message.copy(segments = newSegments)
+        return ReducerResult(mutableMessages, bootstrapped.toolCallIndex)
     }
 
     private fun clearToolCallPermission(
         messages: List<ChatMessage>,
+        toolCallIndex: Map<String, ToolCallLocation>,
         toolCallId: String,
-    ): List<ChatMessage> {
-        val index =
-            messages.indexOfLast {
-                it.role == ChatMessage.Role.ASSISTANT &&
-                    it.segments.any { segment -> segment.toolCall?.toolCallId == toolCallId }
-            }
-        if (index == -1) return messages
-        val mutable = messages.toMutableList()
-        val message = mutable[index]
+    ): ReducerResult {
+        val location = toolCallIndex[toolCallId] ?: return ReducerResult(messages, toolCallIndex)
+        val mutableMessages = messages.toMutableList()
+        val message = mutableMessages[location.messageIndex]
+        val oldSegment = message.segments[location.segmentIndex]
+        val oldToolCall = oldSegment.toolCall ?: return ReducerResult(messages, toolCallIndex)
+
         val newSegments: PersistentList<AssistantSegment> =
             message.segments.mutate { segments ->
-                for (i in segments.indices) {
-                    val segment = segments[i]
-                    if (segment.kind == AssistantSegment.Kind.TOOL_CALL && segment.toolCall?.toolCallId == toolCallId) {
-                        val oldToolCall = segment.toolCall
-                        segments[i] =
-                            segment.copy(
-                                toolCall =
-                                    oldToolCall?.copy(
-                                        permissionOptions = null,
-                                        permissionRequestId = null,
-                                        // A PENDING tool call that had a permission request transitions to
-                                        // IN_PROGRESS once permission is granted (or denied)
-                                        status =
-                                            if (oldToolCall.status == ToolCallStatus.PENDING &&
-                                                oldToolCall.permissionRequestId != null
-                                            ) {
-                                                ToolCallStatus.IN_PROGRESS
-                                            } else {
-                                                oldToolCall.status
-                                            },
-                                    ),
-                            )
-                    }
-                }
+                segments[location.segmentIndex] =
+                    oldSegment.copy(
+                        toolCall =
+                            oldToolCall.copy(
+                                permissionOptions = null,
+                                permissionRequestId = null,
+                                // A PENDING tool call that had a permission request transitions to
+                                // IN_PROGRESS once permission is granted (or denied)
+                                status =
+                                    if (oldToolCall.status == ToolCallStatus.PENDING &&
+                                        oldToolCall.permissionRequestId != null
+                                    ) {
+                                        ToolCallStatus.IN_PROGRESS
+                                    } else {
+                                        oldToolCall.status
+                                    },
+                            ),
+                    )
             }
-        mutable[index] = message.copy(segments = newSegments)
-        return mutable
+        mutableMessages[location.messageIndex] = message.copy(segments = newSegments)
+        return ReducerResult(mutableMessages, toolCallIndex)
     }
 
     fun finishStreaming(messages: List<ChatMessage>): List<ChatMessage> {
