@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.PlanVariant
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.StopReason
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
@@ -72,6 +73,17 @@ internal object AcpSessionUpdateMapper {
                 AppSessionEvent.SessionInfoUpdated(
                     title = update.title,
                     updatedAt = update.updatedAt,
+                )
+            is SessionUpdate.PlanRemoved ->
+                AppSessionEvent.PlanUpdated(entries = emptyList())
+            is SessionUpdate.PlanUpdateV2 ->
+                AppSessionEvent.PlanUpdated(
+                    entries =
+                        if (update.plan is PlanVariant.Items) {
+                            (update.plan as PlanVariant.Items).entries
+                        } else {
+                            emptyList()
+                        },
                 )
             is SessionUpdate.UnknownSessionUpdate -> AppSessionEvent.Unknown(update.toString())
         }

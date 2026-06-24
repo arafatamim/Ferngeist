@@ -1,18 +1,18 @@
 [versions]
-agp = "9.1.1"
+agp = "9.2.1"
 diffKotlin = "0.0.5"
 kotlin = "2.3.21"
 ksp = "2.3.6"
-coreKtx = "1.18.0"
+coreKtx = "1.19.0"
 coreSplashScreen = "1.2.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
-lifecycleRuntimeKtx = "2.10.0"
-lifecycleViewmodelKtx = "2.10.0"
-lifecycleViewmodelCompose = "2.10.0"
+lifecycleRuntimeKtx = "2.11.0"
+lifecycleViewmodelKtx = "2.11.0"
+lifecycleViewmodelCompose = "2.11.0"
 activityCompose = "1.13.0"
-composeBom = "2026.05.01"
+composeBom = "2026.06.00"
 
 # Serialization
 kotlinxSerializationJson = "1.11.0"
@@ -36,20 +36,20 @@ navigationCompose = "2.9.8"
 playServicesCodeScanner = "16.1.0"
 
 # Firebase / FCM
-firebaseBom = "34.4.0"
-googleServices = "4.4.3"
+firebaseBom = "34.15.0"
+googleServices = "4.5.0"
 
 # ACP Kotlin SDK
-acp = "0.22.0"
+acp = "0.24.0"
 
 # Ktor
 ktor = "3.5.0"
 
 # Turbine for Flow testing
 turbine = "1.2.1"
-mockk = "1.14.9"
-material3 = "1.5.0-alpha20"
-markdownRenderer = "0.41.0"
+mockk = "1.14.11"
+material3 = "1.5.0-alpha22"
+markdownRenderer = "0.43.0"
 datastorePreferences = "1.2.1"
 
 [libraries]
