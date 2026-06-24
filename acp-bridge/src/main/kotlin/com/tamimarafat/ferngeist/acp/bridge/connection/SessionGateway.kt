@@ -25,7 +25,13 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 /**
  * Owns session-level ACP protocol operations for all active sessions.
@@ -46,8 +52,10 @@ internal class SessionGateway(
     private val orchestra: ConnectionOrchestrator,
     private val permissionFlow: PermissionFlow,
     private val bridgeFactory: (String) -> SessionBridge,
+    private val scope: CoroutineScope,
 ) {
     private val sessionRegistry = AcpSessionRegistry()
+    private val observerJobs = ConcurrentHashMap<String, List<Job>>()
 
     /**
      * Creates a new ACP session and returns a [SessionPort] for the chat layer.
@@ -428,10 +436,13 @@ internal class SessionGateway(
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
 
-        // NOTE: We read mode/model/config once from the SDK's ClientSession StateFlows
-        // rather than observing them reactively, so all initial state lands in the bridge
-        // replay buffer before markReady(). If the SDK adds a CurrentModelUpdate notify
-        // type in a future version, reactive collection could replace the one-shot read.
+        // One-shot initial reads of availableModes/availableModels (plain List, not
+        // StateFlow, so the SDK doesn't expose change notifications for them) and
+        // of currentMode/currentModel/configOptions. The initial values land in the
+        // bridge replay buffer before markReady(). After that, we reactively collect
+        // currentMode/currentModel/configOptions with drop(1) to skip the initial
+        // emission (already mirrored above) and forward subsequent changes to the
+        // bridge so the UI updates when the agent mutates them mid-session.
         if (session.modesSupported) {
             val modes = session.availableModes.map {
                 SessionMode(
@@ -487,7 +498,74 @@ internal class SessionGateway(
         }
 
         bridge.markReady()
+        startReactiveObservers(session)
         return bridge
+    }
+
+    /**
+     * Subscribes to the [ClientSession] StateFlows that can change after the
+     * session is registered: [currentMode], [currentModel], [configOptions].
+     * Each subscriber runs in [scope] and is cancelled in [clearSessionState].
+     *
+     * `drop(1)` skips the current value, which was already emitted into the
+     * bridge replay buffer by [registerSession]'s one-shot reads.
+     */
+    @OptIn(UnstableApi::class)
+    private fun startReactiveObservers(session: ClientSession) {
+        val sessionId = session.sessionId.value
+        val jobs = mutableListOf<Job>()
+
+        if (session.modesSupported) {
+            val availableModesSnapshot = session.availableModes
+            jobs +=
+                session.currentMode
+                    .drop(1)
+                    .onEach { newModeId ->
+                        emitToBridge(
+                            sessionId,
+                            AppSessionEvent.ModesUpdated(
+                                modes = availableModesSnapshot.map { mode ->
+                                    SessionMode(
+                                        id = mode.id.value,
+                                        name = mode.name,
+                                        description = mode.description,
+                                    )
+                                },
+                                currentModeId = newModeId.value,
+                            ),
+                        )
+                    }.launchIn(scope)
+        }
+
+        if (session.modelsSupported) {
+            jobs +=
+                session.currentModel
+                    .drop(1)
+                    .onEach { newModelId ->
+                        emitToBridge(
+                            sessionId,
+                            AppSessionEvent.ModelSelectionConfirmed(newModelId.value),
+                        )
+                    }.launchIn(scope)
+        }
+
+        if (session.configOptionsSupported) {
+            jobs +=
+                session.configOptions
+                    .drop(1)
+                    .onEach { newOptions ->
+                        emitToBridge(
+                            sessionId,
+                            AppSessionEvent.ConfigOptionsUpdated(
+                                options = newOptions.map(AcpSessionUpdateMapper::mapSdkConfigOption),
+                            ),
+                        )
+                    }.launchIn(scope)
+        }
+
+        if (jobs.isNotEmpty()) {
+            observerJobs[sessionId] = jobs
+        }
     }
 
     /**
@@ -516,17 +594,23 @@ internal class SessionGateway(
         )
     }
 
-    /** Clears all bridges, SDK sessions, and pending permissions. */
+    /** Clears all bridges, SDK sessions, pending permissions, and reactive observers. */
     private fun clearAllSessionState(closeBridges: Boolean) {
+        observerJobs.values.forEach { jobs -> jobs.forEach { it.cancel() } }
+        observerJobs.clear()
         sessionRegistry.clearAll(closeBridges = closeBridges)
         permissionFlow.cancelAll()
     }
 
-    /** Clears a single session: SDK session, bridge, and its pending permissions. */
+    /**
+     * Clears a single session: SDK session, bridge, its pending permissions, and
+     * the reactive observers launched by [startReactiveObservers].
+     */
     private fun clearSessionState(
         sessionId: String,
         closeBridge: Boolean,
     ) {
+        observerJobs.remove(sessionId)?.forEach { it.cancel() }
         sessionRegistry.clearSession(sessionId, closeBridge = closeBridge)
         permissionFlow.cancelForSession(sessionId)
     }
