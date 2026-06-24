@@ -2,8 +2,6 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -37,7 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
-import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
 
 // region: ChatTopBar
 
@@ -211,17 +209,7 @@ internal fun ChatTopBarTitle(
                     Modifier
                         .then(
                             if (ownsSharedTitleBounds) {
-                                Modifier.sharedBounds(
-                                    sharedContentState =
-                                        rememberSharedContentState(
-                                            key = SessionTitleSharedBoundsKey(sessionId),
-                                        ),
-                                    animatedVisibilityScope = animatedContentScope,
-                                    enter = fadeIn(),
-                                    exit = fadeOut(),
-                                    resizeMode =
-                                        SharedTransitionScope.ResizeMode.scaleToBounds(),
-                                )
+                                Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)
                             } else {
                                 Modifier
                             },
@@ -259,17 +247,7 @@ internal fun ChatTopBarTitle(
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                             .then(
                                 if (ownsSharedTitleBounds) {
-                                    Modifier.sharedBounds(
-                                        sharedContentState =
-                                            rememberSharedContentState(
-                                                key = SessionTitleSharedBoundsKey(sessionId),
-                                            ),
-                                        animatedVisibilityScope = animatedContentScope,
-                                        enter = fadeIn(),
-                                        exit = fadeOut(),
-                                        resizeMode =
-                                            SharedTransitionScope.ResizeMode.scaleToBounds(),
-                                    )
+                                    Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)
                                 } else {
                                     Modifier
                                 },
