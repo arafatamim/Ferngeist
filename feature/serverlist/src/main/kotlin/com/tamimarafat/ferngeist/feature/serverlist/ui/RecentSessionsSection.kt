@@ -53,8 +53,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,11 +102,20 @@ internal fun AgentsBackdrop(
     val maxTopOverscrollPx = with(density) { sheetOverhang.toPx() }
     var topZonePx by remember { mutableIntStateOf(0) } // hero + gap above the sheet
     var recentsPx by remember { mutableIntStateOf(0) } // hidden recents block height
+    val sheetRevealed = rememberSaveable { mutableStateOf(false) }
     val sheetOffset = remember { Animatable(0f) } // 0 = covering recents, recentsPx = fully revealed
     val canReveal = olderSessions.isNotEmpty()
 
-    LaunchedEffect(recentsPx) {
-        if (sheetOffset.value > recentsPx) sheetOffset.snapTo(recentsPx.toFloat())
+    LaunchedEffect(recentsPx, sheetRevealed.value, canReveal) {
+        when {
+            !canReveal -> sheetRevealed.value = false
+            sheetRevealed.value && recentsPx > 0 -> sheetOffset.animateTo(
+                recentsPx.toFloat(),
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            )
+            !sheetRevealed.value && sheetOffset.value > 0f -> sheetOffset.snapTo(0f)
+            sheetOffset.value > recentsPx -> sheetOffset.snapTo(recentsPx.toFloat())
+        }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -185,6 +196,7 @@ internal fun AgentsBackdrop(
                                         } else {
                                             0f
                                         }
+                                    sheetRevealed.value = (target > 0f)
                                     scope.launch {
                                         // Critically damped: the elastic feel lives in the drag-time
                                         // rubber-band; the return settles cleanly to the edge with no
