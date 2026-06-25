@@ -35,7 +35,7 @@ internal class AcpTransportClient(
     private val emitManagerEvent: suspend (AcpManagerEvent) -> Unit,
 ) {
     companion object {
-        private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 20_000L
+        private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 15_000L
         private const val MAX_RECONNECT_DELAY_MS = 30_000L
     }
 

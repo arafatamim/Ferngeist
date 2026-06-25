@@ -6,8 +6,10 @@ import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.mikepenz.markdown.model.State as MarkdownRenderState
+import java.util.concurrent.Executors
 
 /**
  * Maintains a cached set of parsed markdown states for assistant messages.
@@ -36,6 +39,11 @@ internal class MarkdownStateStore(
         private const val MARKDOWN_BATCH_SIZE = 24
         private const val MARKDOWN_STATE_EMIT_INTERVAL_MS = 120L
     }
+
+    // Dedicated dispatcher isolates markdown parsing from shared Default pool
+    // (Room queries, image decoding, etc.) to prevent CPU contention.
+    private val markdownDispatcher: CoroutineDispatcher =
+        Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
     private var initialHydrated: Boolean = false
     private val markdownStateCache = linkedMapOf<String, MarkdownEntry>()
@@ -80,6 +88,7 @@ internal class MarkdownStateStore(
         markdownStateCache.clear()
         pendingMarkdownQueue.clear()
         markdownParsingKeys.clear()
+        (markdownDispatcher as? kotlinx.coroutines.ExecutorCoroutineDispatcher)?.close()
     }
 
     /**
@@ -232,9 +241,10 @@ internal class MarkdownStateStore(
 
     /**
      * Parses markdown text and returns the first non-loading state.
+     * Uses dedicated dispatcher to avoid competing with UI/DB work on Default pool.
      */
     private suspend fun parse(text: String): MarkdownRenderState =
-        withContext(Dispatchers.Default) {
+        withContext(markdownDispatcher) {
             parseMarkdownFlow(text)
                 .first { it !is MarkdownRenderState.Loading }
         }
