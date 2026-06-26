@@ -6,7 +6,9 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -121,15 +123,19 @@ internal class ConnectionOrchestrator(
         return runCatching {
             // client.listSessions returns a cold, finite Flow; .toList() collects
             // all items into memory — safe because the server returns a bounded set.
-            @OptIn(UnstableApi::class) client.listSessions(cwd = cwd).toList().map { sessionInfo ->
-                SessionSummary(
-                    id = sessionInfo.sessionId.value,
-                    title = sessionInfo.title,
-                    cwd = sessionInfo.cwd,
-                    updatedAt = AcpSessionUpdateMapper.parseIsoOrMillis(sessionInfo.updatedAt),
-                )
+            @OptIn(UnstableApi::class)
+            withTimeout(30_000L) {
+                client.listSessions(cwd = cwd).toList().map { sessionInfo ->
+                    SessionSummary(
+                        id = sessionInfo.sessionId.value,
+                        title = sessionInfo.title,
+                        cwd = sessionInfo.cwd,
+                        updatedAt = AcpSessionUpdateMapper.parseIsoOrMillis(sessionInfo.updatedAt),
+                    )
+                }
             }
         }.getOrElse {
+            if (it is CancellationException && it !is kotlinx.coroutines.TimeoutCancellationException) throw it
             toAuthRequiredException(it)?.let { error -> throw error }
             diagnosticsStore.appendError(
                 "session/list",

@@ -21,9 +21,12 @@ import io.ktor.client.request.url
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.IOException
 import kotlin.random.Random
 
 internal class AcpTransportClient(
@@ -37,6 +40,11 @@ internal class AcpTransportClient(
     companion object {
         private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 15_000L
         private const val MAX_RECONNECT_DELAY_MS = 30_000L
+        // Bounds the WebSocket upgrade handshake. Without this, a peer that accepts
+        // the TCP socket but never completes the upgrade (or a dead agent behind a
+        // gateway) parks connect() forever — the initialize()/listSessions() timeouts
+        // never get reached because they run after the handshake.
+        private const val WEB_SOCKET_CONNECT_TIMEOUT_MS = 30_000L
     }
 
     private var reconnectJob: Job? = null
@@ -93,20 +101,22 @@ internal class AcpTransportClient(
         return runCatching {
             diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "initialize")
             val info =
-                client.initialize(
-                    clientInfo =
-                        ClientInfo(
-                            capabilities =
-                                ClientCapabilities(
-                                    fs =
-                                        FileSystemCapability(
-                                            readTextFile = false,
-                                            writeTextFile = false,
-                                        ),
-                                ),
-                            implementation = Implementation(name = "Ferngeist", version = "1.0.0"),
-                        ),
-                )
+                withTimeout(30_000L) {
+                    client.initialize(
+                        clientInfo =
+                            ClientInfo(
+                                capabilities =
+                                    ClientCapabilities(
+                                        fs =
+                                            FileSystemCapability(
+                                                readTextFile = false,
+                                                writeTextFile = false,
+                                            ),
+                                    ),
+                                implementation = Implementation(name = "Ferngeist", version = "1.0.0"),
+                            ),
+                    )
+                }
 
             val mapped =
                 AgentInfo(
@@ -125,7 +135,7 @@ internal class AcpTransportClient(
             scope.launch { emitManagerEvent(AcpManagerEvent.Initialized(result)) }
             result
         }.getOrElse { error ->
-            if (error is CancellationException) throw error
+            if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) throw error
             diagnosticsStore.appendError("initialize", formatAcpErrorMessage(error, "Initialization failed"))
             scope.launch { emitManagerEvent(AcpManagerEvent.Error(error)) }
             null
@@ -309,12 +319,31 @@ internal class AcpTransportClient(
 
         // Reuse the shared HttpClient rather than spinning up a new CIO
         // engine + websocket plugin on every reconnect.
+        //
+        // The handshake is bounded by WEB_SOCKET_CONNECT_TIMEOUT_MS. The
+        // TimeoutCancellationException is converted into a plain IOException here so
+        // connectInternal's catch treats it as a real connection failure (it rethrows
+        // bare CancellationExceptions, which would otherwise cancel the caller before
+        // it can clear the connecting spinner).
         val webSocketSession =
-            acquireHttpClient().webSocketSession {
-                url(wsUrl)
-                bearerToken?.takeIf { it.isNotBlank() }?.let {
-                    headers.append("Authorization", "Bearer $it")
+            try {
+                withTimeout(WEB_SOCKET_CONNECT_TIMEOUT_MS) {
+                    acquireHttpClient().webSocketSession {
+                        url(wsUrl)
+                        bearerToken?.takeIf { it.isNotBlank() }?.let {
+                            headers.append("Authorization", "Bearer $it")
+                        }
+                    }
                 }
+            } catch (_: TimeoutCancellationException) {
+                // Deliberately NOT chaining the TimeoutCancellationException as the cause:
+                // isCancellationLikeError() scans the cause chain for CancellationException
+                // and would otherwise downgrade this to a silent disconnect instead of a
+                // surfaced failure with reconnect.
+                throw IOException(
+                    "Connection timed out after ${WEB_SOCKET_CONNECT_TIMEOUT_MS / 1000}s. " +
+                        "The server accepted the connection but did not complete the handshake.",
+                )
             }
         // NOTE: Manual transport/Protocol setup instead of the SDK's
         // HttpClient.acpProtocolOnClientWebSocket() because Protocol.transport
