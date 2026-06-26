@@ -66,6 +66,7 @@ object AppModule {
                 MIGRATION_10_11,
                 MIGRATION_11_12,
                 MIGRATION_12_13,
+                MIGRATION_13_14,
             ).fallbackToDestructiveMigration(false)
             .build()
 
@@ -522,6 +523,13 @@ private val MIGRATION_12_13 =
                 ADD COLUMN `gatewayId` TEXT
                 """.trimIndent(),
             )
+        }
+    }
+
+private val MIGRATION_13_14 =
+    object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // No schema change — version bump only
         }
     }
 
