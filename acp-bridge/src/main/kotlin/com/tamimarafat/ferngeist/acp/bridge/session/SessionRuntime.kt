@@ -82,10 +82,18 @@ class SessionRuntime(
                 "completeHydration: committing buffered messages=${buffered.messages.size}, " +
                     "bufferedStreaming=${buffered.isStreaming}",
             )
+            // session/load never replays a TurnComplete, so every assistant bubble built by
+            // the reducer is left isStreaming=true. Finalize ALL of them (not just the last)
+            // so a loaded transcript can never carry a stray streaming flag — and derive the
+            // snapshot flag from the messages instead of hard-coding it, keeping the two in sync.
+            val finalizedMessages =
+                buffered.messages.map { message ->
+                    if (message.isStreaming) message.copy(isStreaming = false) else message
+                }
             live =
                 buffered.copy(
-                    messages = SessionMessageReducer.finishStreaming(buffered.messages),
-                    isStreaming = false,
+                    messages = finalizedMessages,
+                    isStreaming = finalizedMessages.any { it.isStreaming },
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
