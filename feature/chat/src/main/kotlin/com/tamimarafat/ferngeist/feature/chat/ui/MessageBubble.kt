@@ -35,6 +35,8 @@ import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -79,6 +81,7 @@ import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.markdownDimens
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
@@ -97,6 +100,7 @@ fun MessageBubble(
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onStreamLayoutSettled: () -> Unit = {},
+    onRetryMessage: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
@@ -128,6 +132,9 @@ fun MessageBubble(
                 UserMessageContent(
                     message = message,
                     textColor = contentColor,
+                    onRetry = if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
+                        { onRetryMessage(message.clientId ?: message.id) }
+                    } else null,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 )
             }
@@ -149,6 +156,7 @@ fun MessageBubble(
 private fun UserMessageContent(
     message: ChatMessage,
     textColor: Color,
+    onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -166,9 +174,85 @@ private fun UserMessageContent(
             Spacer(modifier = Modifier.height(8.dp))
             ImageAttachments(message.images)
         }
+
+        // Status badge for non-SENT delivery states
+        if (message.role == ChatMessage.Role.USER &&
+            message.status != MessageDeliveryStatus.SENT
+        ) {
+            Spacer(modifier = Modifier.height(6.dp))
+            DeliveryStatusBadge(
+                status = message.status,
+                onRetry = onRetry,
+            )
+        }
     }
 }
 
+
+/**
+ * Small themed badge indicating the delivery status of a user message.
+ *
+ * - [MessageDeliveryStatus.QUEUED]: clock/schedule icon tinted with [MaterialTheme.colorScheme.outline].
+ * - [MessageDeliveryStatus.SENDING]: an expressive [LoadingIndicator] in [MaterialTheme.colorScheme.primary].
+ * - [MessageDeliveryStatus.FAILED]: error icon with [MaterialTheme.colorScheme.errorContainer] background,
+ *   tappable to trigger [onRetry].
+ * - [MessageDeliveryStatus.SENT]: not rendered (the caller skips this composable entirely).
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun DeliveryStatusBadge(
+    status: MessageDeliveryStatus,
+    onRetry: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    when (status) {
+        MessageDeliveryStatus.QUEUED -> {
+            Icon(
+                imageVector = Icons.Rounded.Schedule,
+                contentDescription = stringResource(R.string.chat_status_queued),
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = modifier.size(14.dp),
+            )
+        }
+        MessageDeliveryStatus.SENDING -> {
+            LoadingIndicator(
+                modifier = modifier.size(14.dp),
+            )
+        }
+        MessageDeliveryStatus.FAILED -> {
+            Row(
+                modifier = modifier
+                    .then(
+                        if (onRetry != null) {
+                            Modifier.clickable { onRetry() }
+                        } else Modifier,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ErrorOutline,
+                        contentDescription = stringResource(R.string.chat_status_failed),
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .size(14.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.chat_status_retry),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        MessageDeliveryStatus.SENT -> { /* never rendered */ }
+    }
+}
 @Composable
 private fun AssistantMessageContent(
     message: ChatMessage,

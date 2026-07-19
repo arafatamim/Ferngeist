@@ -224,4 +224,10 @@
     <string name="chat_error_unknown">unknown error</string>
     <string name="chat_error_send_failed">Send failed</string>
     <string name="chat_scroll_to_bottom">Scroll to bottom</string>
+
+    <!-- Message delivery status badges -->
+    <string name="chat_status_queued">Queued</string>
+    <string name="chat_status_sending">Sending</string>
+    <string name="chat_status_failed">Failed to send</string>
+    <string name="chat_status_retry">Tap to retry</string>
 </resources>

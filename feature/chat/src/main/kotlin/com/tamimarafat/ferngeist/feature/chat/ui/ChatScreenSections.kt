@@ -180,6 +180,7 @@ internal fun ChatScreenBody(
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onStreamLayoutSettled: () -> Unit = {},
+    onRetryMessage: ((String) -> Unit)? = null,
 ) {
     when {
         state.isLoading && state.messages.isEmpty() -> {
@@ -209,6 +210,7 @@ internal fun ChatScreenBody(
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 onStreamLayoutSettled = onStreamLayoutSettled,
+                onRetryMessage = onRetryMessage,
             )
         }
     }
@@ -258,10 +260,14 @@ private fun ChatMessageList(
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onStreamLayoutSettled: () -> Unit = {},
+    onRetryMessage: ((String) -> Unit)? = null,
 ) {
+    val allMessages = remember(state.messages, state.pendingMessages) {
+        state.messages + state.pendingMessages
+    }
     var windowSize by rememberSaveable(state.serverId) { mutableStateOf(INITIAL_WINDOW) }
-    val windowed = remember(state.messages, windowSize) {
-        state.messages.takeLast(windowSize)
+    val windowed = remember(allMessages, windowSize) {
+        allMessages.takeLast(windowSize)
     }
 
     LazyColumn(
@@ -273,7 +279,7 @@ private fun ChatMessageList(
         contentPadding = PaddingValues(start = 16.dp, top = listTopPadding + 8.dp, end = 16.dp, bottom = 0.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (windowSize < state.messages.size) {
+        if (windowSize < allMessages.size) {
             item(key = "__load_older") {
                 OutlinedButton(
                     onClick = { windowSize += WINDOW_STEP },
@@ -305,6 +311,7 @@ private fun ChatMessageList(
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 onStreamLayoutSettled = onStreamLayoutSettled,
+                onRetryMessage = onRetryMessage,
             )
         }
         item(key = "__chat_bottom_spacer") {

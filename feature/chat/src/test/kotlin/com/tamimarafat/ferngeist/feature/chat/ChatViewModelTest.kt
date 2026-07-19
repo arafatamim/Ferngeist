@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
@@ -31,6 +32,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -67,7 +69,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `send message without active session emits session not ready error`() =
+    fun `send message without active session enqueues the message`() =
         runTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -78,8 +80,11 @@ class ChatViewModelTest {
                 viewModel.dispatch(ChatIntent.SendMessage("hello"))
                 advanceUntilIdle()
 
-                val effect = awaitItem() as ChatEffect.ShowError
-                assertTrue(effect.message.contains("Session is not ready", ignoreCase = true))
+                // Message is queued, not sent — no error effect is emitted
+                val state = viewModel.state.value
+                assertEquals(1, state.pendingMessages.size)
+                assertEquals("hello", state.pendingMessages[0].content)
+                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
                 cancelAndIgnoreRemainingEvents()
             }
         }
