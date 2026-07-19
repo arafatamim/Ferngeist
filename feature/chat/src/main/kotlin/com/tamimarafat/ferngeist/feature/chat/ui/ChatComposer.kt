@@ -749,7 +749,7 @@ private fun ImageThumbnailRow(
     ) {
         itemsIndexed(
             items = images,
-            key = { index, _ -> index },
+            key = { _, image -> image.base64 },
         ) { index, image ->
             ImageThumbnailItem(
                 image = image,

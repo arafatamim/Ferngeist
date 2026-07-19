@@ -119,8 +119,21 @@ fun ChatScreen(
             val newImages = uris.mapNotNull { uri ->
                 ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
             }
+            val droppedCount = uris.size - newImages.size
             val combined = (selectedImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
+            val cappedCount = (selectedImages.size + newImages.size) - combined.size
             selectedImages = combined
+
+            val message = when {
+                droppedCount > 0 && cappedCount > 0 ->
+                    context.getString(R.string.chat_images_dropped_capped, droppedCount, ImageAttachmentHelper.MAX_IMAGES)
+                droppedCount > 0 ->
+                    context.getString(R.string.chat_images_dropped, droppedCount)
+                cappedCount > 0 ->
+                    context.getString(R.string.chat_images_capped, ImageAttachmentHelper.MAX_IMAGES)
+                else -> null
+            }
+            message?.let { snackbarHostState.showSnackbar(it) }
         }
     }
     val density = LocalDensity.current
