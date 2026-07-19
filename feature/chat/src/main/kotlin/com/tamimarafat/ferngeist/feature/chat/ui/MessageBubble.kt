@@ -1,5 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -98,6 +102,8 @@ fun MessageBubble(
     onToolCallClick: (String) -> Unit,
     onStreamLayoutSettled: () -> Unit = {},
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCurrentMatchMessage: Boolean = false,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
     val contentColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
@@ -129,6 +135,8 @@ fun MessageBubble(
                     message = message,
                     textColor = contentColor,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    searchQuery = searchQuery,
+                    isCurrentMatchMessage = isCurrentMatchMessage,
                 )
             }
         } else {
@@ -139,26 +147,44 @@ fun MessageBubble(
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 modifier = Modifier.fillMaxWidth(),
+                searchQuery = searchQuery,
+                isCurrentMatchMessage = isCurrentMatchMessage,
             )
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun UserMessageContent(
     message: ChatMessage,
     textColor: Color,
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCurrentMatchMessage: Boolean = false,
 ) {
+    val highlightBg =
+        if (isCurrentMatchMessage) {
+            MaterialTheme.colorScheme.tertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        }
+
     Column(modifier = modifier) {
         // Text content
         if (message.content.isNotBlank()) {
-            Text(
-                text = message.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = textColor,
-            )
+            if (searchQuery.isNotBlank()) {
+                val annotated = buildHighlightedText(message.content, searchQuery, highlightBg, textColor)
+                Text(
+                    text = annotated,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Text(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = textColor,
+                )
+            }
         }
 
         // Images
@@ -177,7 +203,16 @@ private fun AssistantMessageContent(
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCurrentMatchMessage: Boolean = false,
 ) {
+    val highlightBg =
+        if (isCurrentMatchMessage) {
+            MaterialTheme.colorScheme.tertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        }
+
     Column(modifier = modifier) {
         // Render segments in order
         message.segments.forEach { segment ->
@@ -185,9 +220,20 @@ private fun AssistantMessageContent(
                 when (segment.kind) {
                     AssistantSegment.Kind.MESSAGE -> {
                         if (segment.text.isNotBlank()) {
-                            MarkdownText(
-                                state = markdownStates[segment.id],
-                            )
+                            if (searchQuery.isNotBlank()) {
+                                val annotated = buildHighlightedText(
+                                    segment.text, searchQuery, highlightBg,
+                                    MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    text = annotated,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            } else {
+                                MarkdownText(
+                                    state = markdownStates[segment.id],
+                                )
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
@@ -235,6 +281,7 @@ private fun AssistantMessageContent(
     }
 }
 
+
 @Composable
 private fun MarkdownText(
     state: MarkdownRenderState?,
@@ -267,7 +314,6 @@ private fun MarkdownText(
         }
     }
 }
-
 @Composable
 private fun ThoughtBubble(
     isStreaming: Boolean,
@@ -572,6 +618,50 @@ private fun toolKindIcon(kind: ToolKind?): ImageVector = when (kind) {
     ToolKind.SWITCH_MODE -> Icons.Rounded.Settings
     ToolKind.OTHER -> Icons.Rounded.Build
     null -> Icons.AutoMirrored.Rounded.Help
+}
+
+/**
+ * Builds an [AnnotatedString] that highlights every case-insensitive occurrence of
+ * [query] in [text] using [highlightBg] as a background [SpanStyle], leaving
+ * non-matching runs in [defaultColor].
+ *
+ * Matches are non-overlapping; after a match the scan resumes after the match end.
+ */
+private fun buildHighlightedText(
+    text: String,
+    query: String,
+    highlightBg: Color,
+    defaultColor: Color,
+): AnnotatedString = buildAnnotatedString {
+    val lowerText = text.lowercase()
+    val lowerQuery = query.trim().lowercase()
+    if (lowerQuery.isEmpty()) {
+        withStyle(SpanStyle(color = defaultColor)) { append(text) }
+        return@buildAnnotatedString
+    }
+
+    var currentIdx = 0
+    while (currentIdx < text.length) {
+        val found = lowerText.indexOf(lowerQuery, currentIdx)
+        if (found == -1) {
+            // No more matches — write the rest in default color
+            withStyle(SpanStyle(color = defaultColor)) {
+                append(text.substring(currentIdx))
+            }
+            break
+        }
+        // Write text before match
+        if (found > currentIdx) {
+            withStyle(SpanStyle(color = defaultColor)) {
+                append(text.substring(currentIdx, found))
+            }
+        }
+        // Write highlighted match
+        withStyle(SpanStyle(background = highlightBg, color = defaultColor)) {
+            append(text.substring(found, found + lowerQuery.length))
+        }
+        currentIdx = found + lowerQuery.length
+    }
 }
 
 @Composable

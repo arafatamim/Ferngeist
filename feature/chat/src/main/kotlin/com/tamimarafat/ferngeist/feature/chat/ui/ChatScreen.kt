@@ -269,9 +269,27 @@ fun ChatScreen(
 
                 is com.tamimarafat.ferngeist.feature.chat.ChatEffect.NavigateBack ->
                     onNavigateBack()
+
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ScrollToSearchMatch -> {
+                    coroutineScope.launch {
+                        scrollHandle.listState.animateScrollToItem(effect.messageIndex)
+                    }
+                }
             }
         }
     }
+
+    // --- Search match auto-scroll: when matches are recomputed and there is at least one,
+    //     scroll to the first match once. ---
+    LaunchedEffect(state.searchMatches, state.isSearchActive) {
+        if (state.isSearchActive && state.searchMatches.isNotEmpty()) {
+            val firstMatch = state.searchMatches.first()
+            scrollHandle.listState.animateScrollToItem(firstMatch.messageIndex)
+        }
+    }
+    // --- Search state ---
+    val searchMatchCount = state.searchMatches.size
+    val currentMatchDisplayIndex = if (searchMatchCount > 0) state.currentMatchIndex + 1 else 0
 
     // Auto-focus the text field when the composer expands
     LaunchedEffect(composerExpanded) {
@@ -323,6 +341,15 @@ fun ChatScreen(
                                 scrollBehavior.state.heightOffset = 0f
                             }
                         },
+                        isSearchActive = state.isSearchActive,
+                        searchQuery = state.searchQuery,
+                        searchMatchCount = searchMatchCount,
+                        currentMatchIndex = state.currentMatchIndex,
+                        onToggleSearch = { viewModel.dispatch(ChatIntent.ToggleSearch) },
+                        onSearchQueryChange = { viewModel.dispatch(ChatIntent.UpdateSearchQuery(it)) },
+                        onNextMatch = { viewModel.dispatch(ChatIntent.NextSearchMatch) },
+                        onPreviousMatch = { viewModel.dispatch(ChatIntent.PreviousSearchMatch) },
+                        onCloseSearch = { viewModel.dispatch(ChatIntent.CloseSearch) },
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
                     )
@@ -386,6 +413,7 @@ fun ChatScreen(
                             selectedToolCallSegmentId = segmentId
                         },
                         onStreamLayoutSettled = scrollHandle.onStreamLayoutSettled,
+                        forceFullWindow = state.isSearchActive,
                     )
 
                     SnackbarHost(

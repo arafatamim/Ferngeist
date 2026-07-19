@@ -180,6 +180,7 @@ internal fun ChatScreenBody(
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onStreamLayoutSettled: () -> Unit = {},
+    forceFullWindow: Boolean = false,
 ) {
     when {
         state.isLoading && state.messages.isEmpty() -> {
@@ -209,6 +210,7 @@ internal fun ChatScreenBody(
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 onStreamLayoutSettled = onStreamLayoutSettled,
+                forceFullWindow = forceFullWindow,
             )
         }
     }
@@ -258,11 +260,16 @@ private fun ChatMessageList(
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onStreamLayoutSettled: () -> Unit = {},
+    forceFullWindow: Boolean = false,
 ) {
     var windowSize by rememberSaveable(state.serverId) { mutableStateOf(INITIAL_WINDOW) }
-    val windowed = remember(state.messages, windowSize) {
-        state.messages.takeLast(windowSize)
+    val effectiveWindowSize = if (forceFullWindow) state.messages.size else windowSize
+    val windowed = remember(state.messages, effectiveWindowSize) {
+        state.messages.takeLast(effectiveWindowSize)
     }
+
+    val currentMatch = state.searchMatches.getOrNull(state.currentMatchIndex)
+    val searchQuery = if (state.isSearchActive) state.searchQuery else ""
 
     LazyColumn(
         state = listState,
@@ -273,7 +280,7 @@ private fun ChatMessageList(
         contentPadding = PaddingValues(start = 16.dp, top = listTopPadding + 8.dp, end = 16.dp, bottom = 0.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (windowSize < state.messages.size) {
+        if (effectiveWindowSize < state.messages.size) {
             item(key = "__load_older") {
                 OutlinedButton(
                     onClick = { windowSize += WINDOW_STEP },
@@ -305,6 +312,8 @@ private fun ChatMessageList(
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 onStreamLayoutSettled = onStreamLayoutSettled,
+                searchQuery = searchQuery,
+                isCurrentMatchMessage = message.id == currentMatch?.messageId,
             )
         }
         item(key = "__chat_bottom_spacer") {

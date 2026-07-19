@@ -313,6 +313,67 @@ class ChatViewModel
                 is ChatIntent.GrantPermission -> sessionCoordinator.grantPermission(intent.toolCallId, intent.optionId)
                 is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
                 is ChatIntent.RetryLoad -> sessionCoordinator.loadSession()
+                is ChatIntent.ToggleSearch -> handleToggleSearch()
+                is ChatIntent.UpdateSearchQuery -> handleUpdateSearchQuery(intent.query)
+                is ChatIntent.NextSearchMatch -> handleNextSearchMatch()
+                is ChatIntent.PreviousSearchMatch -> handlePreviousSearchMatch()
+                is ChatIntent.CloseSearch -> handleCloseSearch()
+            }
+        }
+
+        private fun handleToggleSearch() {
+            val currentlyActive = state.value.isSearchActive
+            updateState {
+                copy(
+                    isSearchActive = !currentlyActive,
+                    searchQuery = if (currentlyActive) "" else searchQuery,
+                    searchMatches = if (currentlyActive) emptyList() else searchMatches,
+                    currentMatchIndex = 0,
+                )
+            }
+        }
+
+        private fun handleUpdateSearchQuery(query: String) {
+            val matches = findTranscriptMatches(state.value.messages, query)
+            updateState {
+                copy(
+                    searchQuery = query,
+                    searchMatches = matches,
+                    currentMatchIndex = if (matches.isNotEmpty()) 0 else 0,
+                )
+            }
+        }
+
+        private fun handleNextSearchMatch() {
+            val current = state.value
+            val newIndex = nextMatchIndex(current.currentMatchIndex, current.searchMatches.size)
+            updateState { copy(currentMatchIndex = newIndex) }
+            val match = current.searchMatches.getOrNull(newIndex) ?: return
+            emitScrollEffect(match.messageIndex)
+        }
+
+        private fun handlePreviousSearchMatch() {
+            val current = state.value
+            val newIndex = previousMatchIndex(current.currentMatchIndex, current.searchMatches.size)
+            updateState { copy(currentMatchIndex = newIndex) }
+            val match = current.searchMatches.getOrNull(newIndex) ?: return
+            emitScrollEffect(match.messageIndex)
+        }
+
+        private fun handleCloseSearch() {
+            updateState {
+                copy(
+                    isSearchActive = false,
+                    searchQuery = "",
+                    searchMatches = emptyList(),
+                    currentMatchIndex = 0,
+                )
+            }
+        }
+
+        private fun emitScrollEffect(messageIndex: Int) {
+            viewModelScope.launch {
+                emitEffect(ChatEffect.ScrollToSearchMatch(messageIndex))
             }
         }
 
@@ -358,6 +419,10 @@ data class ChatState(
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
     val error: String? = null,
+    val isSearchActive: Boolean = false,
+    val searchQuery: String = "",
+    val searchMatches: List<TranscriptMatch> = emptyList(),
+    val currentMatchIndex: Int = 0,
 )
 
 /** User intents emitted from the chat UI. */
@@ -384,6 +449,20 @@ sealed interface ChatIntent {
     ) : ChatIntent
 
     data object RetryLoad : ChatIntent
+
+    // region: Transcript Search
+
+    data object ToggleSearch : ChatIntent
+
+    data class UpdateSearchQuery(val query: String) : ChatIntent
+
+    data object NextSearchMatch : ChatIntent
+
+    data object PreviousSearchMatch : ChatIntent
+
+    data object CloseSearch : ChatIntent
+
+    // endregion
 }
 
 /** One-shot effects emitted to the UI layer (snackbar, navigation, etc.). */
@@ -391,4 +470,7 @@ sealed interface ChatEffect {
     data class ShowError(val message: String) : ChatEffect
     data class ShowMessage(val message: String) : ChatEffect
     data object NavigateBack : ChatEffect
+
+    /** Requests the UI layer to scroll to the message at [messageIndex] in the full list. */
+    data class ScrollToSearchMatch(val messageIndex: Int) : ChatEffect
 }

@@ -19,6 +19,13 @@
 
     <!-- Chat Top Bar -->
     <string name="chat_back_desc">Back</string>
+    <!-- Transcript Search -->
+    <string name="chat_search_toggle_desc">Search transcript</string>
+    <string name="chat_search_input_desc">Search transcript text</string>
+    <string name="chat_search_next_desc">Next match</string>
+    <string name="chat_search_prev_desc">Previous match</string>
+    <string name="chat_search_close_desc">Close search</string>
+    <string name="chat_search_no_matches">No matches</string>
 
     <!-- Message Bubble -->
     <string name="chat_reasoning">Reasoning</string>
