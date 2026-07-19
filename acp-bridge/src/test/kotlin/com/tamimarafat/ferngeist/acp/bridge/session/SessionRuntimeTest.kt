@@ -313,4 +313,28 @@ class SessionRuntimeTest {
             assertEquals(SessionLoadState.READY, snapshot.loadState)
             assertEquals("Hydrated Chat", snapshot.title)
         }
+
+    @Test
+    fun title_in_live_preserved_when_buffered_title_is_null_on_rehydration() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+
+            // First session: title established via SessionInfoUpdated
+            runtime.onEvent(
+                AppSessionEvent.SessionInfoUpdated(
+                    title = "Existing Title",
+                    updatedAt = null,
+                ),
+            )
+            assertEquals("Existing Title", runtime.snapshot.value.title)
+
+            // Reconnect: beginHydration -> completeHydration (buffered has no title)
+            runtime.beginHydration()
+            assertEquals(SessionLoadState.HYDRATING, runtime.snapshot.value.loadState)
+            runtime.completeHydration()
+
+            val snapshot = runtime.snapshot.value
+            assertEquals(SessionLoadState.READY, snapshot.loadState)
+            assertEquals("Existing Title", snapshot.title)
+        }
 }
