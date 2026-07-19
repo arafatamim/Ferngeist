@@ -256,4 +256,61 @@ class SessionRuntimeTest {
                     .first { it.id == "safe_mode" }
             assertTrue(safeMode.currentValue)
         }
+
+    @Test
+    fun session_info_updated_stores_title_in_snapshot() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+
+            runtime.onEvent(
+                AppSessionEvent.SessionInfoUpdated(
+                    title = "My Chat Session",
+                    updatedAt = "2026-07-19T12:00:00Z",
+                ),
+            )
+
+            val snapshot = runtime.snapshot.value
+            assertEquals("My Chat Session", snapshot.title)
+        }
+
+    @Test
+    fun session_info_updated_with_null_title_preserves_existing_title() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+
+            runtime.onEvent(
+                AppSessionEvent.SessionInfoUpdated(
+                    title = "Original Title",
+                    updatedAt = null,
+                ),
+            )
+            runtime.onEvent(
+                AppSessionEvent.SessionInfoUpdated(
+                    title = null,
+                    updatedAt = null,
+                ),
+            )
+
+            val snapshot = runtime.snapshot.value
+            assertEquals("Original Title", snapshot.title)
+        }
+
+    @Test
+    fun session_info_updated_survives_hydration_boundary() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+
+            runtime.beginHydration()
+            runtime.onEvent(
+                AppSessionEvent.SessionInfoUpdated(
+                    title = "Hydrated Chat",
+                    updatedAt = null,
+                ),
+            )
+            runtime.completeHydration()
+
+            val snapshot = runtime.snapshot.value
+            assertEquals(SessionLoadState.READY, snapshot.loadState)
+            assertEquals("Hydrated Chat", snapshot.title)
+        }
 }

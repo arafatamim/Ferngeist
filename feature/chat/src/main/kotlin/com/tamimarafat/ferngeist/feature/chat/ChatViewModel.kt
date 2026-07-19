@@ -290,6 +290,33 @@ class ChatViewModel
                         },
                 )
             }
+
+            // Apply the server-provided session title when the current session has no title yet.
+            // The server emits SessionInfoUpdate after the first assistant response completes;
+            // this title is the canonical session name and should not overwrite an existing one.
+            val serverTitle = snapshot.title
+            if (!serverTitle.isNullOrBlank() && state.value.title.isNullOrBlank()) {
+                updateState { copy(title = serverTitle) }
+                activeChatStore.setActiveChat(
+                    ActiveChat(
+                        serverId = serverId,
+                        sessionId = sessionId,
+                        cwd = cwd,
+                        title = serverTitle,
+                        gatewayId = gatewayId,
+                    ),
+                )
+                sessionRepository.upsertSession(
+                    serverId = serverId,
+                    summary =
+                        SessionSummary(
+                            id = sessionId,
+                            title = serverTitle,
+                            cwd = cwd,
+                            serverId = serverId,
+                        ),
+                )
+            }
         }
 
         override fun onCleared() {

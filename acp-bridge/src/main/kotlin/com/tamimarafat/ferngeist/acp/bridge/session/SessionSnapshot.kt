@@ -29,4 +29,5 @@ data class SessionSnapshot(
     val commandsAdvertised: Boolean = false,
     val configOptions: List<SessionConfigOption> = emptyList(),
     val error: String? = null,
+    val title: String? = null,
 )
