@@ -339,7 +339,7 @@ class ChatViewModel
                 copy(
                     searchQuery = query,
                     searchMatches = matches,
-                    currentMatchIndex = if (matches.isNotEmpty()) 0 else 0,
+                    currentMatchIndex = 0,
                 )
             }
         }

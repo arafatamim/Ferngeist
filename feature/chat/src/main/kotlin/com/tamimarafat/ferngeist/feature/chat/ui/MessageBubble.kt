@@ -87,6 +87,7 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.TranscriptMatch
 import kotlin.random.Random
 import com.mikepenz.markdown.model.State as MarkdownRenderState
 import kotlinx.collections.immutable.ImmutableMap
@@ -103,7 +104,7 @@ fun MessageBubble(
     onStreamLayoutSettled: () -> Unit = {},
     modifier: Modifier = Modifier,
     searchQuery: String = "",
-    isCurrentMatchMessage: Boolean = false,
+    currentMatch: TranscriptMatch? = null,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
     val contentColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
@@ -136,7 +137,7 @@ fun MessageBubble(
                     textColor = contentColor,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     searchQuery = searchQuery,
-                    isCurrentMatchMessage = isCurrentMatchMessage,
+                    currentMatch = currentMatch,
                 )
             }
         } else {
@@ -148,7 +149,7 @@ fun MessageBubble(
                 onToolCallClick = onToolCallClick,
                 modifier = Modifier.fillMaxWidth(),
                 searchQuery = searchQuery,
-                isCurrentMatchMessage = isCurrentMatchMessage,
+                currentMatch = currentMatch,
             )
         }
     }
@@ -160,20 +161,24 @@ private fun UserMessageContent(
     textColor: Color,
     modifier: Modifier = Modifier,
     searchQuery: String = "",
-    isCurrentMatchMessage: Boolean = false,
+    currentMatch: TranscriptMatch? = null,
 ) {
-    val highlightBg =
-        if (isCurrentMatchMessage) {
-            MaterialTheme.colorScheme.tertiaryContainer
-        } else {
-            MaterialTheme.colorScheme.primaryContainer
-        }
+    val restingHighlight = MaterialTheme.colorScheme.secondaryContainer
+    val currentHighlight = MaterialTheme.colorScheme.tertiaryContainer
+    val currentMatchStart = if (currentMatch?.messageId == message.id) currentMatch.matchStart else null
 
     Column(modifier = modifier) {
         // Text content
         if (message.content.isNotBlank()) {
             if (searchQuery.isNotBlank()) {
-                val annotated = buildHighlightedText(message.content, searchQuery, highlightBg, textColor)
+                val annotated = buildHighlightedText(
+                    text = message.content,
+                    query = searchQuery,
+                    restingHighlight = restingHighlight,
+                    currentHighlight = currentHighlight,
+                    currentMatchStart = currentMatchStart,
+                    defaultColor = textColor,
+                )
                 Text(
                     text = annotated,
                     style = MaterialTheme.typography.bodyMedium,
@@ -204,14 +209,11 @@ private fun AssistantMessageContent(
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     searchQuery: String = "",
-    isCurrentMatchMessage: Boolean = false,
+    currentMatch: TranscriptMatch? = null,
 ) {
-    val highlightBg =
-        if (isCurrentMatchMessage) {
-            MaterialTheme.colorScheme.tertiaryContainer
-        } else {
-            MaterialTheme.colorScheme.primaryContainer
-        }
+    val restingHighlight = MaterialTheme.colorScheme.primaryContainer
+    val currentHighlight = MaterialTheme.colorScheme.tertiaryContainer
+    val currentMatchStart = if (currentMatch?.messageId == message.id) currentMatch.matchStart else null
 
     Column(modifier = modifier) {
         // Render segments in order
@@ -222,8 +224,12 @@ private fun AssistantMessageContent(
                         if (segment.text.isNotBlank()) {
                             if (searchQuery.isNotBlank()) {
                                 val annotated = buildHighlightedText(
-                                    segment.text, searchQuery, highlightBg,
-                                    MaterialTheme.colorScheme.onSurface,
+                                    text = segment.text,
+                                    query = searchQuery,
+                                    restingHighlight = restingHighlight,
+                                    currentHighlight = currentHighlight,
+                                    currentMatchStart = currentMatchStart,
+                                    defaultColor = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
                                     text = annotated,
@@ -622,15 +628,18 @@ private fun toolKindIcon(kind: ToolKind?): ImageVector = when (kind) {
 
 /**
  * Builds an [AnnotatedString] that highlights every case-insensitive occurrence of
- * [query] in [text] using [highlightBg] as a background [SpanStyle], leaving
- * non-matching runs in [defaultColor].
+ * [query] in [text] using [restingHighlight] as a background [SpanStyle] for
+ * non-current matches and [currentHighlight] for the match at [currentMatchStart],
+ * leaving non-matching runs in [defaultColor].
  *
  * Matches are non-overlapping; after a match the scan resumes after the match end.
  */
 private fun buildHighlightedText(
     text: String,
     query: String,
-    highlightBg: Color,
+    restingHighlight: Color,
+    currentHighlight: Color,
+    currentMatchStart: Int?,
     defaultColor: Color,
 ): AnnotatedString = buildAnnotatedString {
     val lowerText = text.lowercase()
@@ -656,8 +665,9 @@ private fun buildHighlightedText(
                 append(text.substring(currentIdx, found))
             }
         }
-        // Write highlighted match
-        withStyle(SpanStyle(background = highlightBg, color = defaultColor)) {
+        // Write highlighted match — use current emphasis if this is the active occurrence
+        val bg = if (currentMatchStart != null && found == currentMatchStart) currentHighlight else restingHighlight
+        withStyle(SpanStyle(background = bg, color = defaultColor)) {
             append(text.substring(found, found + lowerQuery.length))
         }
         currentIdx = found + lowerQuery.length

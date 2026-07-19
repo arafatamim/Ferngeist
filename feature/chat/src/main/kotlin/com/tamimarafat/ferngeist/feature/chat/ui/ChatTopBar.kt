@@ -21,7 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
@@ -110,7 +110,7 @@ internal fun ChatTopBar(
     val bottomShadow = Color.Transparent
     val searchFocusRequester = remember { FocusRequester() }
 
-    SideEffect {
+    LaunchedEffect(isSearchActive) {
         if (isSearchActive) {
             searchFocusRequester.requestFocus()
         }

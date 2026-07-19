@@ -72,7 +72,7 @@ fun findTranscriptMatches(
                     matchEnd = found + lowerQuery.length,
                 ),
             )
-            from = found + 1
+            from = found + lowerQuery.length
         }
     }
     return results

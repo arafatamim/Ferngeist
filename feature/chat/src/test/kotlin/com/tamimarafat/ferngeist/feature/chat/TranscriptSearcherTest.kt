@@ -132,6 +132,15 @@ class TranscriptSearcherTest {
         assertEquals(TranscriptMatch(messageId = "m1", messageIndex = 0, matchStart = 5, matchEnd = 11), matches[0])
     }
 
+
+    @Test
+    fun `yields non-overlapping match for self-overlapping query`() {
+        val messages = listOf(userMessage("banana", id = "m1"))
+        val matches = findTranscriptMatches(messages, "ana")
+        // "ana" at index 1 ("b[ana]na") — only one match, not two overlapping
+        assertEquals(1, matches.size)
+        assertEquals(TranscriptMatch(messageId = "m1", messageIndex = 0, matchStart = 1, matchEnd = 4), matches[0])
+    }
     // endregion
 
     // region: nextMatchIndex / previousMatchIndex

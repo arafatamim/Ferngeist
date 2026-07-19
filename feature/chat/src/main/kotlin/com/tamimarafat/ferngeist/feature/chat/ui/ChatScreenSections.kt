@@ -313,7 +313,7 @@ private fun ChatMessageList(
                 onToolCallClick = onToolCallClick,
                 onStreamLayoutSettled = onStreamLayoutSettled,
                 searchQuery = searchQuery,
-                isCurrentMatchMessage = message.id == currentMatch?.messageId,
+                currentMatch = currentMatch,
             )
         }
         item(key = "__chat_bottom_spacer") {
