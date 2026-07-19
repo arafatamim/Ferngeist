@@ -95,6 +95,7 @@ class SessionRuntime(
                 buffered.copy(
                     messages = finalizedMessages,
                     isStreaming = finalizedMessages.any { it.isStreaming },
+                    title = buffered.title ?: live.title,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }

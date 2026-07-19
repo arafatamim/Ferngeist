@@ -81,6 +81,13 @@ interface SessionRepository {
         summary: SessionSummary,
     )
 
+    /** Persists a session title without replacing the entire row. */
+    suspend fun updateSessionTitle(
+        serverId: String,
+        sessionId: String,
+        title: String,
+    )
+
     suspend fun deleteSession(
         serverId: String,
         sessionId: String,
