@@ -6,8 +6,9 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-
 /**
  * Pure helpers for converting image bytes into [ChatImageData], shared between
  * the photo-picker path in the composer and the unit-test harness.
@@ -65,17 +66,16 @@ object ImageAttachmentHelper {
 
     /**
      * Reads the bytes and MIME type of [uri] from [contentResolver], then
-     * delegates to [encodeImageBytes]. Runs synchronously on the calling
-     * thread; callers MUST invoke this off the main thread.
+     * delegates to [encodeImageBytes] on [Dispatchers.IO].
      */
     suspend fun uriToChatImageData(
         contentResolver: ContentResolver,
         uri: Uri,
-    ): ChatImageData? {
+    ): ChatImageData? = withContext(Dispatchers.IO) {
         val bytes: ByteArray = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: return null
+            ?: return@withContext null
         val mimeType = contentResolver.getType(uri) ?: "image/*"
-        return encodeImageBytes(bytes, mimeType)
+        encodeImageBytes(bytes, mimeType)
     }
 
     // -- internal --

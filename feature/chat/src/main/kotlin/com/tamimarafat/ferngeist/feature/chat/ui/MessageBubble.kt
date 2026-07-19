@@ -1,10 +1,17 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.animation.core.tween
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -496,12 +503,31 @@ private fun ImageAttachments(
 
 @Composable
 private fun ImageAttachmentItem(image: ChatImageData) {
-    val bitmap = remember(image.base64) {
-        runCatching {
-            val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                ?.asImageBitmap()
-        }.getOrNull()
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, image.base64) {
+        value = withContext(Dispatchers.Default) {
+            runCatching {
+                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                val boundsOpts = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
+
+                if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
+
+                val sampleSize = ImageAttachmentHelper.computeSampleSize(
+                    outWidth = boundsOpts.outWidth,
+                    outHeight = boundsOpts.outHeight,
+                    maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
+                )
+
+                val bitmap = BitmapFactory.decodeByteArray(
+                    bytes, 0, bytes.size,
+                    BitmapFactory.Options().apply { inSampleSize = sampleSize },
+                ) ?: return@withContext null
+
+                bitmap.asImageBitmap()
+            }.getOrNull()
+        }
     }
 
     Surface(
@@ -509,9 +535,10 @@ private fun ImageAttachmentItem(image: ChatImageData) {
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        if (bitmap != null) {
+        val currentBitmap = bitmap
+        if (currentBitmap != null) {
             Image(
-                bitmap = bitmap,
+                bitmap = currentBitmap,
                 contentDescription = stringResource(R.string.chat_image_desc),
                 modifier = Modifier
                     .fillMaxWidth()
