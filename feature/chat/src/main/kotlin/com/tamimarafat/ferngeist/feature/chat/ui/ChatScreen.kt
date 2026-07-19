@@ -182,7 +182,9 @@ fun ChatScreen(
         }
 
     // --- Messages & selections ---
-    val renderedMessages = state.messages
+    val renderedMessages = remember(state.messages, state.pendingMessages) {
+        state.messages + state.pendingMessages
+    }
     val selectedThought =
         remember(renderedMessages, selectedThoughtSegmentId) {
             renderedMessages.thoughtForSegment(selectedThoughtSegmentId)
@@ -232,10 +234,10 @@ fun ChatScreen(
         )
 
     // --- Send message (composer) ---
-    // Only send when the session bridge is active. If it isn't (e.g. disconnected),
-    // leave the text in the composer instead of dispatching a send that would fail.
+    // When the session is ready the message is sent immediately; otherwise it is
+    // queued in the offline queue and delivered once connectivity returns.
     val sendMessage: () -> Unit = {
-        if (messageText.isNotBlank() && state.isSessionReady) {
+        if (messageText.isNotBlank()) {
             viewModel.dispatch(ChatIntent.SendMessage(messageText))
             scrollHandle.onSendMessage()
             messageText = ""
@@ -386,6 +388,9 @@ fun ChatScreen(
                             selectedToolCallSegmentId = segmentId
                         },
                         onStreamLayoutSettled = scrollHandle.onStreamLayoutSettled,
+                        onRetryMessage = { clientId ->
+                            viewModel.dispatch(ChatIntent.RetryMessage(clientId))
+                        },
                     )
 
                     SnackbarHost(
