@@ -46,6 +46,14 @@ class SessionRepositoryImpl(
         )
     }
 
+    override suspend fun updateSessionTitle(
+        serverId: String,
+        sessionId: String,
+        title: String,
+    ) {
+        sessionDao.updateSessionTitle(sessionId = sessionId, serverId = serverId, title = title)
+    }
+
     override suspend fun deleteSession(
         serverId: String,
         sessionId: String,
