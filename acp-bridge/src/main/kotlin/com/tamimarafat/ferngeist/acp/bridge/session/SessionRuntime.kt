@@ -43,6 +43,7 @@ class SessionRuntime(
         val nativeConfigOptions: List<SessionConfigOption> = emptyList(),
         val legacyModes: LegacyModeState? = null,
         val legacyModel: LegacyModelState? = null,
+        val title: String? = null,
     )
 
     private val mutex = Mutex()
@@ -94,6 +95,7 @@ class SessionRuntime(
                 buffered.copy(
                     messages = finalizedMessages,
                     isStreaming = finalizedMessages.any { it.isStreaming },
+                    title = buffered.title ?: live.title,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -219,6 +221,7 @@ class SessionRuntime(
         var nativeConfigOptions = current.nativeConfigOptions
         var legacyModes = current.legacyModes
         var legacyModel = current.legacyModel
+        var title = current.title
 
         // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
         // which owns both the message list and the tool-call index
@@ -286,6 +289,9 @@ class SessionRuntime(
                     legacyModel = legacyModel.copy(currentModelId = selectedModel)
                 }
             }
+            is AppSessionEvent.SessionInfoUpdated -> {
+                title = event.title ?: title
+            }
             else -> Unit
         }
 
@@ -300,6 +306,7 @@ class SessionRuntime(
             nativeConfigOptions = nativeConfigOptions,
             legacyModes = legacyModes,
             legacyModel = legacyModel,
+            title = title,
         )
     }
 
@@ -338,6 +345,7 @@ class SessionRuntime(
                 availableCommands = live.availableCommands,
                 commandsAdvertised = live.commandsAdvertised,
                 configOptions = effectiveConfigOptions,
+                title = live.title,
                 error = error,
             )
         debug(

@@ -127,6 +127,7 @@ data class ChatSessionSnapshot(
     val commandsAdvertised: Boolean,
     val error: String?,
     val usage: UsageState?,
+    val title: String? = null,
 )
 
 data class UsageState(

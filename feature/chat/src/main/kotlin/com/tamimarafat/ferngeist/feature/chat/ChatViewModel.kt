@@ -241,7 +241,7 @@ class ChatViewModel
             }
             viewModelScope.launch {
                 val resolved = sessionRepository.getSession(serverId, sessionId)?.title
-                if (resolved != null) {
+                if (!resolved.isNullOrBlank() && state.value.title.isNullOrBlank()) {
                     updateState { copy(title = resolved) }
                     activeChatStore.setActiveChat(
                         ActiveChat(
@@ -288,6 +288,29 @@ class ChatViewModel
                         } else {
                             null
                         },
+                )
+            }
+
+            // Apply the server-provided session title when the current session has no title yet.
+            // The server emits SessionInfoUpdate after the first assistant response completes;
+            // this title is the canonical session name and should not overwrite an existing one.
+            // Use a targeted UPDATE (not upsert) to preserve updatedAt and all other columns.
+            val serverTitle = snapshot.title
+            if (!serverTitle.isNullOrBlank() && state.value.title.isNullOrBlank()) {
+                updateState { copy(title = serverTitle) }
+                activeChatStore.setActiveChat(
+                    ActiveChat(
+                        serverId = serverId,
+                        sessionId = sessionId,
+                        cwd = cwd,
+                        title = serverTitle,
+                        gatewayId = gatewayId,
+                    ),
+                )
+                sessionRepository.updateSessionTitle(
+                    serverId = serverId,
+                    sessionId = sessionId,
+                    title = serverTitle,
                 )
             }
         }

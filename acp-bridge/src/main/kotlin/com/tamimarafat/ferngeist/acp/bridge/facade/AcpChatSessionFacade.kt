@@ -681,6 +681,7 @@ class AcpChatSessionFacade(
             availableCommands = snapshot.availableCommands.map { ChatCommand(it.name, it.description) },
             commandsAdvertised = snapshot.commandsAdvertised,
             error = snapshot.error,
+            title = snapshot.title,
             usage = snapshot.usage?.let {
                 UsageState(
                     promptTokens = it.promptTokens,

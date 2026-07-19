@@ -21,6 +21,9 @@ interface SessionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: SessionEntity)
 
+    @Query("UPDATE sessions SET title = :title WHERE sessionId = :sessionId AND serverId = :serverId")
+    suspend fun updateSessionTitle(sessionId: String, serverId: String, title: String)
+
     @Query("DELETE FROM sessions WHERE sessionId = :sessionId")
     suspend fun deleteSessionById(sessionId: String)
 
