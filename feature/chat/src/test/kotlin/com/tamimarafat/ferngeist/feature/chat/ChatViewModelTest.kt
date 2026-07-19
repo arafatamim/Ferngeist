@@ -3,15 +3,17 @@ package com.tamimarafat.ferngeist.feature.chat
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
-import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatLoadState
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
@@ -33,17 +35,20 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 
-/** Unit tests for ChatViewModel intent handling and initial state. */
+/** Unit tests for ChatViewModel intent handling, offline queue, and delivery confirmation. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    // region: Existing tests
 
     @Test
     fun `set config option without active session emits session not ready error`() =
@@ -69,7 +74,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `send message without active session emits session not ready error`() =
+    fun `send message without active session enqueues the message`() =
         runTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -80,8 +85,10 @@ class ChatViewModelTest {
                 viewModel.dispatch(ChatIntent.SendMessage("hello"))
                 advanceUntilIdle()
 
-                val effect = awaitItem() as ChatEffect.ShowError
-                assertTrue(effect.message.contains("Session is not ready", ignoreCase = true))
+                val state = viewModel.state.value
+                assertEquals(1, state.pendingMessages.size)
+                assertEquals("hello", state.pendingMessages[0].content)
+                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -183,6 +190,10 @@ class ChatViewModelTest {
             assertTrue(viewModel.state.value.title == null)
         }
 
+    // endregion
+
+    // region: Auto-title tests
+
     @Test
     fun `keeps existing non-blank nav arg title when server title arrives in snapshot`() =
         runTest {
@@ -222,6 +233,7 @@ class ChatViewModelTest {
             assertEquals("Existing DB Title", viewModel.state.value.title)
             assertTrue(sessionRepository.updateTitleCalls.isEmpty())
         }
+
     @Test
     fun `applies and persists server title when current title is blank`() =
         runTest {
@@ -302,6 +314,267 @@ class ChatViewModelTest {
             assertEquals(1, secondCallCount)
         }
 
+    // endregion
+
+    // region: Offline queue tests
+
+    @Test
+    fun `sessionReady flushes all queued prompts in FIFO order`() = runTest {
+        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+        val viewModel = createViewModel(facadeFactory = facadeFactory)
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            viewModel.dispatch(ChatIntent.SendMessage("first"))
+            advanceUntilIdle()
+            viewModel.dispatch(ChatIntent.SendMessage("second"))
+            advanceUntilIdle()
+
+            var state = viewModel.state.value
+            assertEquals(2, state.pendingMessages.size)
+            assertEquals("first", state.pendingMessages[0].content)
+            assertEquals("second", state.pendingMessages[1].content)
+            assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
+            assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[1].status)
+
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            assertEquals(2, state.pendingMessages.size)
+            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
+            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[1].status)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `QUEUED transitions to SENDING then removed when reducer echo arrives`() = runTest {
+        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+        val viewModel = createViewModel(facadeFactory = facadeFactory)
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            viewModel.dispatch(ChatIntent.SendMessage("hello world"))
+            advanceUntilIdle()
+
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            var state = viewModel.state.value
+            assertEquals(1, state.pendingMessages.size)
+            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
+
+            val echo = ChatMessage(
+                id = "server-echo-1",
+                role = ChatMessage.Role.USER,
+                content = "hello world",
+                status = MessageDeliveryStatus.SENT,
+            )
+            val snapshot = ChatSessionSnapshot(
+                loadState = ChatLoadState.READY,
+                messages = listOf(echo),
+                isStreaming = false,
+                configOptions = emptyList(),
+                availableCommands = emptyList(),
+                commandsAdvertised = false,
+                error = null,
+                usage = null,
+            )
+            facadeFactory.lastFacade.value?.emitSnapshot(snapshot)
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            assertEquals(0, state.pendingMessages.size)
+            assertEquals(1, state.messages.size)
+            assertEquals("hello world", state.messages[0].content)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `QUEUED transitions to SENDING then FAILED when sendMessage returns false`() = runTest {
+        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = false) }
+        val viewModel = createViewModel(facadeFactory = facadeFactory)
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            viewModel.dispatch(ChatIntent.SendMessage("no bridge"))
+            advanceUntilIdle()
+
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals(1, state.pendingMessages.size)
+            assertEquals(MessageDeliveryStatus.FAILED, state.pendingMessages[0].status)
+            assertEquals("no bridge", state.pendingMessages[0].content)
+
+            val errorEffect = awaitItem()
+            assertTrue(errorEffect is ChatEffect.ShowError)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `SENDING bubble stays visible and is not removed by unrelated echo`() = runTest {
+        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+        val viewModel = createViewModel(facadeFactory = facadeFactory)
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            viewModel.dispatch(ChatIntent.SendMessage("my prompt"))
+            advanceUntilIdle()
+
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            val unrelatedEcho = ChatMessage(
+                id = "unrelated",
+                role = ChatMessage.Role.USER,
+                content = "something else",
+                status = MessageDeliveryStatus.SENT,
+            )
+            facadeFactory.lastFacade.value?.emitSnapshot(
+                ChatSessionSnapshot(
+                    loadState = ChatLoadState.READY,
+                    messages = listOf(unrelatedEcho),
+                    isStreaming = false,
+                    configOptions = emptyList(),
+                    availableCommands = emptyList(),
+                    commandsAdvertised = false,
+                    error = null,
+                    usage = null,
+                )
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals(1, state.pendingMessages.size)
+            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `retry resets FAILED to QUEUED then SENDING, echo removes bubble`() = runTest {
+        val sendResults = mutableListOf(false, true)
+        val facadeFactory = TestFacadeFactory {
+            TestFacade(sendResultProvider = { sendResults.removeFirstOrNull() ?: true })
+        }
+        val viewModel = createViewModel(facadeFactory = facadeFactory)
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            // Consume initial load error.
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            // Enqueue A and B while disconnected.
+            viewModel.dispatch(ChatIntent.SendMessage("A"))
+            advanceUntilIdle()
+            val clientIdA = checkNotNull(viewModel.state.value.pendingMessages[0].clientId)
+
+            viewModel.dispatch(ChatIntent.SendMessage("B"))
+            advanceUntilIdle()
+
+            // Session becomes ready -> flush: A fails (sendResult[0]=false), B succeeds.
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            var state = viewModel.state.value
+            val failedA = state.pendingMessages.firstOrNull { it.clientId == clientIdA }
+            assertNotNull(failedA)
+            assertEquals(MessageDeliveryStatus.FAILED, failedA!!.status)
+
+            val sendingB = state.pendingMessages.firstOrNull { it.content == "B" }
+            assertNotNull(sendingB)
+            assertEquals(MessageDeliveryStatus.SENDING, sendingB!!.status)
+
+            // Consume flush failure error from A.
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            // B's echo arrives -> B removed from pending, A remains FAILED.
+            val echoB = ChatMessage(
+                id = "echo-b",
+                role = ChatMessage.Role.USER,
+                content = "B",
+                status = MessageDeliveryStatus.SENT,
+            )
+            facadeFactory.lastFacade.value?.emitSnapshot(
+                ChatSessionSnapshot(
+                    loadState = ChatLoadState.READY,
+                    messages = listOf(echoB),
+                    isStreaming = false,
+                    configOptions = emptyList(),
+                    availableCommands = emptyList(),
+                    commandsAdvertised = false,
+                    error = null,
+                    usage = null,
+                )
+            )
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            assertEquals(1, state.pendingMessages.size)
+            assertEquals(MessageDeliveryStatus.FAILED, state.pendingMessages[0].status)
+            assertEquals("A", state.pendingMessages[0].content)
+            assertEquals("B", state.messages[0].content)
+
+            // Retry A: sendResults is empty so next send returns true (removeFirstOrNull ?: true).
+            viewModel.dispatch(ChatIntent.RetryMessage(clientIdA))
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            // A should be SENDING (reset FAILED -> QUEUED -> flush transitions to SENDING).
+            val retriedA = state.pendingMessages.firstOrNull { it.clientId == clientIdA }
+            assertNotNull(retriedA)
+            assertEquals(MessageDeliveryStatus.SENDING, retriedA!!.status)
+            assertEquals(1, state.pendingMessages.size)
+
+            // A's echo arrives -> A removed from pending, no duplicate in messages.
+            val echoA = ChatMessage(
+                id = "echo-a",
+                role = ChatMessage.Role.USER,
+                content = "A",
+                status = MessageDeliveryStatus.SENT,
+            )
+            facadeFactory.lastFacade.value?.emitSnapshot(
+                ChatSessionSnapshot(
+                    loadState = ChatLoadState.READY,
+                    messages = listOf(echoA),
+                    isStreaming = false,
+                    configOptions = emptyList(),
+                    availableCommands = emptyList(),
+                    commandsAdvertised = false,
+                    error = null,
+                    usage = null,
+                )
+            )
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            assertEquals(0, state.pendingMessages.size)
+            assertEquals(1, state.messages.size)
+            assertEquals("A", state.messages[0].content)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // endregion
+
     /** Creates a view model with in-memory test doubles. */
     private fun createViewModel(
         chatScrollStateStore: ChatScrollStateStore = InMemoryChatScrollStateStore(),
@@ -341,6 +614,80 @@ class MainDispatcherRule(
     }
 }
 
+/** Configurable [ChatSessionFacade] for offline-queue tests. */
+private class TestFacade(
+    private val sendResultProvider: () -> Boolean = { true },
+) : ChatSessionFacade {
+    constructor(sendResult: Boolean) : this({ sendResult })
+
+    private val _connectionState = MutableStateFlow<ChatConnectionState>(ChatConnectionState.Disconnected)
+    private val _diagnostics = MutableStateFlow(ChatConnectionDiagnostics())
+    private val _sessionSnapshot = MutableStateFlow<ChatSessionSnapshot?>(null)
+    private val _agentCapabilities = MutableStateFlow(ChatAgentCapabilities())
+    private val _loadFailed = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val _operationError = MutableSharedFlow<ChatOperationError>(extraBufferCapacity = 1)
+    private val _streamingCancelled = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _cancelUnsupported = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _sessionReady = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _modelUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    override val connectionState: StateFlow<ChatConnectionState> = _connectionState
+    override val diagnostics: StateFlow<ChatConnectionDiagnostics> = _diagnostics
+    override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = _sessionSnapshot
+    override val agentCapabilities: StateFlow<ChatAgentCapabilities> = _agentCapabilities
+    override val loadFailed: SharedFlow<String> = _loadFailed
+    override val operationError: SharedFlow<ChatOperationError> = _operationError
+    override val streamingCancelled: SharedFlow<Unit> = _streamingCancelled
+    override val cancelUnsupported: SharedFlow<Unit> = _cancelUnsupported
+    override val sessionReady: SharedFlow<Unit> = _sessionReady
+    override val modelUpdated: SharedFlow<Unit> = _modelUpdated
+
+    override suspend fun loadSession() {
+        _loadFailed.emit("Session not found")
+    }
+
+    override suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
+        val result = sendResultProvider()
+        if (!result) {
+            _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
+        }
+        return result
+    }
+
+    override suspend fun cancelStreaming() {
+        _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
+    }
+
+    override suspend fun setConfigOption(optionId: String, value: ChatConfigValue) {
+        _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
+    }
+
+    override suspend fun grantPermission(toolCallId: String, optionId: String) {}
+    override suspend fun denyPermission(toolCallId: String) {}
+    override fun clear() {}
+    override fun onConnectionStateChanged(connectionState: ChatConnectionState) {}
+
+    suspend fun emitSessionReady() { _sessionReady.emit(Unit) }
+    suspend fun emitSnapshot(snapshot: ChatSessionSnapshot) { _sessionSnapshot.emit(snapshot) }
+}
+
+private class TestFacadeFactory(
+    private val factory: () -> TestFacade,
+) : ChatSessionFacadeFactory {
+    val lastFacade = MutableStateFlow<TestFacade?>(null)
+
+    override fun create(
+        scope: CoroutineScope,
+        serverId: String,
+        sessionId: String,
+        cwd: String,
+    ): ChatSessionFacade {
+        val facade = factory()
+        lastFacade.value = facade
+        return facade
+    }
+}
+
 /**
  * Fake [ChatSessionFacade] that simulates a session that is never ready.
  * [loadSession] emits a load-failed error; all operations emit [operationError].
@@ -374,8 +721,9 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
         _loadFailed.emit("Session not found")
     }
 
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>) {
+    override suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
         _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
+        return false
     }
 
     override suspend fun cancelStreaming() {
@@ -387,11 +735,8 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
     }
 
     override suspend fun grantPermission(toolCallId: String, optionId: String) {}
-
     override suspend fun denyPermission(toolCallId: String) {}
-
     override fun clear() {}
-
     override fun onConnectionStateChanged(connectionState: ChatConnectionState) {}
 }
 

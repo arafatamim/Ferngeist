@@ -241,16 +241,19 @@ class AcpChatSessionFacade(
      *
      * If no bridge is attached yet, attempts a late-bound session load/create.
      * Image support is gated on the agent's capability advertisement.
+     *
+     * @return true when the payload was dispatched to a live session;
+     *         false when no bridge is available or the payload is unsupported.
      */
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>) {
-        if (text.isBlank() && images.isEmpty()) return
+    override suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
+        if (text.isBlank() && images.isEmpty()) return false
 
         val bridge = ensureSessionReadyForSend()
         if (bridge == null) {
             _operationError.emit(
                 ChatOperationError("Session is not ready. Please retry in a moment.", false),
             )
-            return
+            return false
         }
 
         val capabilities = connectionManager.agentCapabilities.value
@@ -258,7 +261,7 @@ class AcpChatSessionFacade(
             _operationError.emit(
                 ChatOperationError("This agent does not advertise image prompt support.", false),
             )
-            return
+            return false
         }
 
         val imagePairs = images.map { Pair(it.base64, it.mimeType) }
@@ -267,6 +270,7 @@ class AcpChatSessionFacade(
         } catch (error: Exception) {
             _operationError.emit(ChatOperationError(userFacingSendError(error), true))
         }
+        return true
     }
 
     /**
