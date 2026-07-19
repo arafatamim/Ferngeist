@@ -57,6 +57,11 @@ import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import kotlinx.coroutines.launch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 
 // region: ChatScreen
 
@@ -97,10 +102,27 @@ fun ChatScreen(
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
     var composerContentHeightPx by remember { mutableIntStateOf(0) }
     var messageText by remember { mutableStateOf("") }
+    var selectedImages by remember { mutableStateOf<List<ChatImageData>>(emptyList()) }
     var composerExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
+
+    // -- Photo picker for image attachments --
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(
+            maxItems = ImageAttachmentHelper.MAX_IMAGES,
+        ),
+    ) { uris: List<android.net.Uri> ->
+        coroutineScope.launch {
+            val newImages = uris.mapNotNull { uri ->
+                ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
+            }
+            val combined = (selectedImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
+            selectedImages = combined
+        }
+    }
     val density = LocalDensity.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     val navBottomPx = WindowInsets.navigationBars.getBottom(density)
@@ -235,10 +257,12 @@ fun ChatScreen(
     // Only send when the session bridge is active. If it isn't (e.g. disconnected),
     // leave the text in the composer instead of dispatching a send that would fail.
     val sendMessage: () -> Unit = {
-        if (messageText.isNotBlank() && state.isSessionReady) {
-            viewModel.dispatch(ChatIntent.SendMessage(messageText))
+        val hasContent = messageText.isNotBlank() || selectedImages.isNotEmpty()
+        if (hasContent && state.isSessionReady) {
+            viewModel.dispatch(ChatIntent.SendMessage(text = messageText, images = selectedImages))
             scrollHandle.onSendMessage()
             messageText = ""
+            selectedImages = emptyList()
             composerExpanded = false
             focusManager.clearFocus()
         }
@@ -455,6 +479,14 @@ fun ChatScreen(
                             onJumpToBottom = {
                                 coroutineScope.launch { scrollHandle.jumpToBottom() }
                             },
+                            canSendImages = state.canSendImages,
+                            selectedImages = selectedImages,
+                            onImagesChanged = { selectedImages = it },
+                            onAttachImages = { photoPickerLauncher.launch(
+                                PickVisualMediaRequest(
+                                    mediaType = ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                ),
+                            ) },
                         )
                     }
 
