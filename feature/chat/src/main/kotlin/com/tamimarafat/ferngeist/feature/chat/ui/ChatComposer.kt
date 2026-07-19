@@ -72,6 +72,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.DpOffset
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.asImageBitmap
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.allChoices
@@ -135,6 +152,10 @@ internal fun ChatComposerBar(
     onShowConfigOptionPicker: (String) -> Unit,
     showJumpToBottom: Boolean,
     onJumpToBottom: () -> Unit,
+    canSendImages: Boolean,
+    selectedImages: List<ChatImageData>,
+    onImagesChanged: (List<ChatImageData>) -> Unit,
+    onAttachImages: () -> Unit,
 ) {
     var showModeMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
@@ -213,6 +234,10 @@ internal fun ChatComposerBar(
                         }
                     },
                     onSend = onSend,
+                    canSendImages = canSendImages,
+                    selectedImages = selectedImages,
+                    onImagesChanged = onImagesChanged,
+                    onAttachImages = onAttachImages,
                 )
             } else {
                 CollapsedComposerActions(
@@ -259,6 +284,10 @@ internal fun ExpandedComposerContent(
     onClose: () -> Unit,
     onPrimaryAction: () -> Unit,
     onSend: () -> Unit,
+    canSendImages: Boolean,
+    selectedImages: List<ChatImageData>,
+    onImagesChanged: (List<ChatImageData>) -> Unit,
+    onAttachImages: () -> Unit,
 ) {
     Column(
         modifier =
@@ -268,6 +297,14 @@ internal fun ExpandedComposerContent(
                 .padding(top = 12.dp, bottom = 12.dp)
                 .alpha(inputAlpha),
     ) {
+
+        // -- Selected image thumbnails --
+        if (selectedImages.isNotEmpty()) {
+            ImageThumbnailRow(
+                images = selectedImages,
+                onRemove = { index -> onImagesChanged(selectedImages.toMutableList().also { it.removeAt(index) }) },
+            )
+        }
         val selectionColors =
             TextSelectionColors(
                 handleColor = MaterialTheme.colorScheme.onPrimary,
@@ -326,6 +363,16 @@ internal fun ExpandedComposerContent(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.chat_composer_close_desc),
                 )
+            }
+
+            if (canSendImages) {
+                IconButton(onClick = onAttachImages) {
+                    Icon(
+                        imageVector = Icons.Default.AddPhotoAlternate,
+                        contentDescription = stringResource(R.string.chat_attach_image_desc),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
             }
 
             PrimaryComposerActionButton(
@@ -681,5 +728,101 @@ internal fun PrimaryComposerActionButton(
             imageVector = if (showStopAction && canCancelStreaming) Icons.Default.Stop else chatIcon,
             contentDescription = if (showStopAction && canCancelStreaming) stringResource(R.string.chat_stop_desc) else stringResource(R.string.chat_send_desc),
         )
+    }
+}
+
+/**
+ * Horizontal scrolling row of attached-image thumbnails, each with a remove (x) affordance.
+ */
+@Composable
+private fun ImageThumbnailRow(
+    images: List<ChatImageData>,
+    onRemove: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp),
+    ) {
+        itemsIndexed(
+            items = images,
+            key = { _, image -> image.base64 },
+        ) { index, image ->
+            ImageThumbnailItem(
+                image = image,
+                onRemove = { onRemove(index) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImageThumbnailItem(
+    image: ChatImageData,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        val bitmap = remember(image.base64) {
+            runCatching {
+                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?.asImageBitmap()
+            }.getOrNull()
+        }
+
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
+            modifier = Modifier.size(56.dp),
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = stringResource(R.string.chat_image_desc),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(MaterialTheme.shapes.large),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddPhotoAlternate,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+        }
+
+        // Remove button — positioned top-end of the thumbnail
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 4.dp, y = (-4).dp)
+                .size(18.dp),
+        ) {
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.chat_remove_image_desc),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
     }
 }

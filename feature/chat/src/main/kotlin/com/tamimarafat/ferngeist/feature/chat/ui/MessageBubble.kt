@@ -1,10 +1,17 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
@@ -14,6 +21,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +66,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.runtime.key
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
@@ -591,31 +605,77 @@ private fun ImageAttachments(
 ) {
     Column(modifier = modifier) {
         images.forEach { image ->
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier.padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Image,
-                        contentDescription = stringResource(R.string.chat_image_desc),
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.chat_image_label, image.mimeType),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+            key(image.base64) {
+                ImageAttachmentItem(image)
             }
-            Spacer(modifier = Modifier.height(4.dp))
         }
     }
+}
+
+@Composable
+private fun ImageAttachmentItem(image: ChatImageData) {
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, image.base64) {
+        value = withContext(Dispatchers.Default) {
+            runCatching {
+                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                val boundsOpts = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
+
+                if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
+
+                val sampleSize = ImageAttachmentHelper.computeSampleSize(
+                    outWidth = boundsOpts.outWidth,
+                    outHeight = boundsOpts.outHeight,
+                    maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
+                )
+
+                val bitmap = BitmapFactory.decodeByteArray(
+                    bytes, 0, bytes.size,
+                    BitmapFactory.Options().apply { inSampleSize = sampleSize },
+                ) ?: return@withContext null
+
+                bitmap.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        val currentBitmap = bitmap
+        if (currentBitmap != null) {
+            Image(
+                bitmap = currentBitmap,
+                contentDescription = stringResource(R.string.chat_image_desc),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.FillWidth,
+            )
+        } else {
+            Row(
+                modifier = Modifier.padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Image,
+                    contentDescription = stringResource(R.string.chat_image_desc),
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.chat_image_label, image.mimeType),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(4.dp))
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
