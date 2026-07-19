@@ -170,8 +170,10 @@ interface ChatSessionFacade {
 
     /** Loads an existing session or creates a new one. Emits [loadFailed] on error. */
     suspend fun loadSession()
-    /** Sends a user message with optional inline images. */
-    suspend fun sendMessage(text: String, images: List<ChatImageData> = emptyList())
+    /** Sends a user message with optional inline images. Returns true if the message
+     * was dispatched to a live session; false when no bridge is available or the
+     * payload is unsupported by the current transport. */
+    suspend fun sendMessage(text: String, images: List<ChatImageData> = emptyList()): Boolean
     /** Requests a streaming cancel from the transport. */
     suspend fun cancelStreaming()
     /** Updates a session configuration option (mode, model, native config, etc.). */

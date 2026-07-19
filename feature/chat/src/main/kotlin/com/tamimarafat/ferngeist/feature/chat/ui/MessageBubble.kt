@@ -6,6 +6,14 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -205,52 +213,71 @@ private fun DeliveryStatusBadge(
     onRetry: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    when (status) {
-        MessageDeliveryStatus.QUEUED -> {
-            Icon(
-                imageVector = Icons.Rounded.Schedule,
-                contentDescription = stringResource(R.string.chat_status_queued),
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = modifier.size(14.dp),
-            )
-        }
-        MessageDeliveryStatus.SENDING -> {
-            LoadingIndicator(
-                modifier = modifier.size(14.dp),
-            )
-        }
-        MessageDeliveryStatus.FAILED -> {
-            Row(
-                modifier = modifier
-                    .then(
-                        if (onRetry != null) {
-                            Modifier.clickable { onRetry() }
-                        } else Modifier,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(4.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ErrorOutline,
-                        contentDescription = stringResource(R.string.chat_status_failed),
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                            .size(14.dp),
-                    )
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.chat_status_retry),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error,
+    val springSpec = spring<Float>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMedium,
+    )
+    AnimatedContent(
+        targetState = status,
+        transitionSpec = {
+            (fadeIn(springSpec) + scaleIn(
+                initialScale = 0.6f,
+                animationSpec = springSpec,
+            )) togetherWith (fadeOut(springSpec) + scaleOut(
+                targetScale = 0.6f,
+                animationSpec = springSpec,
+            ))
+        },
+        label = "DeliveryStatusBadge",
+        modifier = modifier,
+    ) { currentStatus ->
+        when (currentStatus) {
+            MessageDeliveryStatus.QUEUED -> {
+                Icon(
+                    imageVector = Icons.Rounded.Schedule,
+                    contentDescription = stringResource(R.string.chat_status_queued),
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(14.dp),
                 )
             }
+            MessageDeliveryStatus.SENDING -> {
+                LoadingIndicator(
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            MessageDeliveryStatus.FAILED -> {
+                Row(
+                    modifier = Modifier
+                        .then(
+                            if (onRetry != null) {
+                                Modifier.clickable { onRetry() }
+                            } else Modifier,
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ErrorOutline,
+                            contentDescription = stringResource(R.string.chat_status_failed),
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .size(14.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.chat_status_retry),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            MessageDeliveryStatus.SENT -> { /* never rendered */ }
         }
-        MessageDeliveryStatus.SENT -> { /* never rendered */ }
     }
 }
 @Composable

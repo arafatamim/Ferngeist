@@ -25,6 +25,8 @@ import com.tamimarafat.ferngeist.core.model.store.ActiveChat
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import com.mikepenz.markdown.model.State as MarkdownRenderState
 
@@ -152,6 +154,21 @@ class ChatViewModel
                                     )
                                 }
                             }
+                            // If an operation error arrives while a queued prompt is in-flight,
+                            // mark that prompt FAILED so it is visible for manual retry.
+                            inFlightClientId?.let { clientId ->
+                                inFlightClientId = null
+                                updateState {
+                                    val updated = pendingMessages.map { msg ->
+                                        if (msg.clientId == clientId &&
+                                            msg.status == MessageDeliveryStatus.SENDING
+                                        ) {
+                                            msg.copy(status = MessageDeliveryStatus.FAILED)
+                                        } else msg
+                                    }
+                                    copy(pendingMessages = updated)
+                                }
+                            }
                             emitEffect(ChatEffect.ShowError(message))
                         }
 
@@ -180,6 +197,13 @@ class ChatViewModel
             )
         /** Queue of locally-created prompts that have not been delivered to the server yet. */
         private val offlineQueue = OfflineQueue()
+
+        /** The clientId of the prompt currently being dispatched via [flushOfflineQueue].
+         *  Used to wire [onOperationError] back to the specific SENDING bubble. */
+        private var inFlightClientId: String? = null
+
+        /** Guards [flushOfflineQueue] so overlapping sessionReady/retry calls cannot interleave. */
+        private val flushMutex = Mutex()
 
         init {
             updateState { copy(serverId = serverId) }
@@ -241,7 +265,7 @@ class ChatViewModel
          * Populates [ChatState.title] for the app bar. The deep-link path (push
          * notification tap) can't carry the real session name, so the nav-arg
          * `title` is blank and we look it up from the local session store. When the
-         * nav arg already has a title (session list → chat) we use that and skip the
+         * nav arg already has a title (session list -> chat) we use that and skip the
          * lookup to avoid a stale read.
          */
         private fun resolveSessionTitle() {
@@ -268,6 +292,10 @@ class ChatViewModel
 
         /**
          * Applies a snapshot from the facade to UI state, keeping markdown hydration in sync.
+         *
+         * When the snapshot carries a USER message whose content+images match a
+         * pending SENDING bubble (the reducer echo), that pending bubble is removed
+         * because the echoed message in [messages] is the canonical delivery.
          */
         private suspend fun applySnapshot(snapshot: ChatSessionSnapshot) {
             val markdownProjection =
@@ -275,10 +303,37 @@ class ChatViewModel
                     messages = snapshot.messages,
                     loadState = snapshot.loadState,
                 )
+            // Reconcile SENDING pending bubbles with their reducer echo.
+            val pendingSending = state.value.pendingMessages.filter {
+                it.status == MessageDeliveryStatus.SENDING
+            }
+            val reconciled = if (pendingSending.isNotEmpty()) {
+                val echoClientIds = mutableSetOf<String>()
+                for (sending in pendingSending) {
+                    val echoed = snapshot.messages.firstOrNull {
+                        it.role == ChatMessage.Role.USER &&
+                            it.content == sending.content &&
+                            it.images == sending.images
+                    }
+                    if (echoed != null) {
+                        echoClientIds.add(sending.clientId ?: sending.id)
+                    }
+                }
+                if (echoClientIds.isEmpty()) {
+                    state.value.pendingMessages
+                } else {
+                    state.value.pendingMessages.filterNot {
+                        (it.clientId ?: it.id) in echoClientIds
+                    }
+                }
+            } else {
+                state.value.pendingMessages
+            }
             updateState {
                 val failed = snapshot.loadState == ChatLoadState.FAILED
                 copy(
                     messages = snapshot.messages,
+                    pendingMessages = reconciled,
                     markdownStates = markdownProjection.markdownStates,
                     isStreaming = snapshot.isStreaming,
                     usage = snapshot.usage,
@@ -321,7 +376,7 @@ class ChatViewModel
                     val canSendNow = state.value.isSessionReady &&
                         state.value.connectionState == ChatConnectionState.Connected
                     if (canSendNow) {
-                        sessionCoordinator.sendMessage(intent.text, intent.images)
+                        enqueueThenSend(intent.text, intent.images)
                     } else {
                         enqueuePrompt(intent.text, intent.images)
                     }
@@ -366,42 +421,83 @@ class ChatViewModel
         }
 
         /**
-         * Drains [offlineQueue] in FIFO order.
+         * Enqueues the prompt then immediately tries to send it while the session is ready.
+         * Used by [handleIntent] for the online-send path so the offline queue is always the
+         * source of truth and the flush path is uniform.
+         */
+        private suspend fun enqueueThenSend(text: String, images: List<ChatImageData>) {
+            if (text.isBlank() && images.isEmpty()) return
+            val clientId = java.util.UUID.randomUUID().toString()
+            val message = ChatMessage(
+                id = clientId,
+                role = ChatMessage.Role.USER,
+                content = text,
+                images = images,
+                status = MessageDeliveryStatus.QUEUED,
+                clientId = clientId,
+            )
+            val prompt = PendingPrompt(
+                clientId = clientId,
+                text = text,
+                images = images,
+            )
+            offlineQueue.enqueue(prompt)
+            updateState {
+                copy(pendingMessages = pendingMessages + message)
+            }
+            flushOfflineQueue()
+        }
+
+        /**
+         * Drains [offlineQueue] in FIFO order under [flushMutex].
          *
-         * Each pending prompt is removed from [ChatState.pendingMessages] BEFORE
-         * the send call so the reducer echo (which arrives via the snapshot during
-         * the send) is the sole user bubble — no duplicate.
-         * On failure the prompt is re-added with FAILED status for manual retry.
+         * Each prompt transitions QUEUED -> SENDING *without* being removed from
+         * [ChatState.pendingMessages].  The pending bubble stays visible until:
+         * - The reducer echo arrives via [applySnapshot] (SENT: the echo replaces it), or
+         * - [sendMessage] returns false (FAILED: no bridge), or
+         * - An [onOperationError] fires while the prompt is in-flight (FAILED).
          */
         private suspend fun flushOfflineQueue() {
-            while (!offlineQueue.isEmpty) {
-                val prompt = offlineQueue.dequeue() ?: break
-                updateState {
-                    copy(pendingMessages = pendingMessages.filterNot { it.clientId == prompt.clientId })
-                }
-                try {
-                    sessionCoordinator.sendMessage(prompt.text, prompt.images)
-                    // Snapshot echo from the reducer provides the SENT bubble.
-                } catch (e: Exception) {
-                    trace("flushOfflineQueue failed for ${prompt.clientId}: ${e.message}")
-                    val failedMessage = ChatMessage(
-                        id = prompt.clientId,
-                        role = ChatMessage.Role.USER,
-                        content = prompt.text,
-                        images = prompt.images,
-                        status = MessageDeliveryStatus.FAILED,
-                        clientId = prompt.clientId,
-                        createdAt = prompt.createdAt,
-                    )
+            flushMutex.withLock {
+                while (!offlineQueue.isEmpty) {
+                    val prompt = offlineQueue.dequeue() ?: break
+                    // Transition QUEUED -> SENDING, keep the bubble visible.
+                    inFlightClientId = prompt.clientId
                     updateState {
-                        copy(pendingMessages = pendingMessages + failedMessage)
+                        val updated = pendingMessages.map { msg ->
+                            if (msg.clientId == prompt.clientId &&
+                                msg.status == MessageDeliveryStatus.QUEUED
+                            ) {
+                                msg.copy(status = MessageDeliveryStatus.SENDING)
+                            } else msg
+                        }
+                        copy(pendingMessages = updated)
                     }
-                    emitEffect(ChatEffect.ShowError("Failed to send message: ${e.message}"))
+                    val dispatched = sessionCoordinator.sendMessage(prompt.text, prompt.images)
+                    inFlightClientId = null
+                    if (!dispatched) {
+                        // No bridge / not ready / unsupported -> mark FAILED immediately.
+                        updateState {
+                            val updated = pendingMessages.map { msg ->
+                                if (msg.clientId == prompt.clientId &&
+                                    msg.status == MessageDeliveryStatus.SENDING
+                                ) {
+                                    msg.copy(status = MessageDeliveryStatus.FAILED)
+                                } else msg
+                            }
+                            copy(pendingMessages = updated)
+                        }
+                        emitEffect(ChatEffect.ShowError("Failed to send message"))
+                    }
+                    // When dispatched=true, the bubble stays SENDING until the echoed
+                    // USER message appears in the snapshot (applySnapshot) or an
+                    // operationError fires.
                 }
             }
         }
 
-        /** Retries a single FAILED message by re-enqueueing it and flushing. */
+        /** Retries a single FAILED message by re-enqueueing it and flushing.
+         *  Other QUEUED prompts are preserved in FIFO order. */
         private suspend fun retryMessage(clientId: String) {
             val pendingMessage = state.value.pendingMessages.firstOrNull { it.clientId == clientId }
             if (pendingMessage == null || pendingMessage.status != MessageDeliveryStatus.FAILED) return
@@ -411,7 +507,8 @@ class ChatViewModel
                 text = pendingMessage.content,
                 images = pendingMessage.images,
             )
-            offlineQueue.clear()
+            // Remove existing queue entry for this clientId, then enqueue at the back.
+            offlineQueue.removeByClientId(clientId)
             offlineQueue.enqueue(prompt)
             flushOfflineQueue()
         }

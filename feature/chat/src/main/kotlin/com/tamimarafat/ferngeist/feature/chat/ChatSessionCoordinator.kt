@@ -79,9 +79,9 @@ internal class ChatSessionCoordinator(
         facade.loadSession()
     }
 
-    /** Sends a chat message via the facade. */
-    suspend fun sendMessage(text: String, images: List<ChatImageData>) {
-        facade.sendMessage(text, images)
+    /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
+    suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
+        return facade.sendMessage(text, images)
     }
 
     /** Requests a streaming cancellation. */
