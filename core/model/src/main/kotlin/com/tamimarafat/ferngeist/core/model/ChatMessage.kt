@@ -18,6 +18,8 @@ data class ChatMessage(
     val isError: Boolean = false,
     val images: List<ChatImageData> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
+    val status: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
+    val clientId: String? = null,
 ) {
     enum class Role {
         USER,

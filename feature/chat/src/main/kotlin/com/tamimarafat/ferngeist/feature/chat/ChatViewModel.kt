@@ -13,6 +13,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
+import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
@@ -177,6 +178,8 @@ class ChatViewModel
                         }
                     },
             )
+        /** Queue of locally-created prompts that have not been delivered to the server yet. */
+        private val offlineQueue = OfflineQueue()
 
         init {
             updateState { copy(serverId = serverId) }
@@ -218,6 +221,13 @@ class ChatViewModel
                                 },
                         )
                     }
+                }
+            }
+
+            // Flush offline queue when connection and session are both ready.
+            viewModelScope.launch {
+                sessionFacade.sessionReady.collect {
+                    flushOfflineQueue()
                 }
             }
             viewModelScope.launch {
@@ -307,14 +317,107 @@ class ChatViewModel
          */
         override suspend fun handleIntent(intent: ChatIntent) {
             when (intent) {
-                is ChatIntent.SendMessage -> sessionCoordinator.sendMessage(intent.text, intent.images)
+                is ChatIntent.SendMessage -> {
+                    val canSendNow = state.value.isSessionReady &&
+                        state.value.connectionState == ChatConnectionState.Connected
+                    if (canSendNow) {
+                        sessionCoordinator.sendMessage(intent.text, intent.images)
+                    } else {
+                        enqueuePrompt(intent.text, intent.images)
+                    }
+                }
                 is ChatIntent.CancelStreaming -> sessionCoordinator.cancelStreaming()
                 is ChatIntent.SetConfigOption -> sessionCoordinator.setConfigOption(intent.optionId, intent.value)
                 is ChatIntent.GrantPermission -> sessionCoordinator.grantPermission(intent.toolCallId, intent.optionId)
                 is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
                 is ChatIntent.RetryLoad -> sessionCoordinator.loadSession()
+                is ChatIntent.RetryMessage -> retryMessage(intent.clientId)
             }
         }
+
+
+        // region: Offline queue
+
+        /**
+         * Optimistically adds a user bubble with [MessageDeliveryStatus.QUEUED] and
+         * stores the prompt in [offlineQueue] for later delivery.
+         */
+        private fun enqueuePrompt(text: String, images: List<ChatImageData>) {
+            if (text.isBlank() && images.isEmpty()) return
+            val clientId = java.util.UUID.randomUUID().toString()
+            val message = ChatMessage(
+                id = clientId,
+                role = ChatMessage.Role.USER,
+                content = text,
+                images = images,
+                status = MessageDeliveryStatus.QUEUED,
+                clientId = clientId,
+            )
+            offlineQueue.enqueue(
+                PendingPrompt(
+                    clientId = clientId,
+                    text = text,
+                    images = images,
+                ),
+            )
+            updateState {
+                copy(pendingMessages = pendingMessages + message)
+            }
+        }
+
+        /**
+         * Drains [offlineQueue] in FIFO order.
+         *
+         * Each pending prompt is removed from [ChatState.pendingMessages] BEFORE
+         * the send call so the reducer echo (which arrives via the snapshot during
+         * the send) is the sole user bubble — no duplicate.
+         * On failure the prompt is re-added with FAILED status for manual retry.
+         */
+        private suspend fun flushOfflineQueue() {
+            while (!offlineQueue.isEmpty) {
+                val prompt = offlineQueue.dequeue() ?: break
+                updateState {
+                    copy(pendingMessages = pendingMessages.filterNot { it.clientId == prompt.clientId })
+                }
+                try {
+                    sessionCoordinator.sendMessage(prompt.text, prompt.images)
+                    // Snapshot echo from the reducer provides the SENT bubble.
+                } catch (e: Exception) {
+                    trace("flushOfflineQueue failed for ${prompt.clientId}: ${e.message}")
+                    val failedMessage = ChatMessage(
+                        id = prompt.clientId,
+                        role = ChatMessage.Role.USER,
+                        content = prompt.text,
+                        images = prompt.images,
+                        status = MessageDeliveryStatus.FAILED,
+                        clientId = prompt.clientId,
+                        createdAt = prompt.createdAt,
+                    )
+                    updateState {
+                        copy(pendingMessages = pendingMessages + failedMessage)
+                    }
+                    emitEffect(ChatEffect.ShowError("Failed to send message: ${e.message}"))
+                }
+            }
+        }
+
+        /** Retries a single FAILED message by re-enqueueing it and flushing. */
+        private suspend fun retryMessage(clientId: String) {
+            val pendingMessage = state.value.pendingMessages.firstOrNull { it.clientId == clientId }
+            if (pendingMessage == null || pendingMessage.status != MessageDeliveryStatus.FAILED) return
+
+            val prompt = PendingPrompt(
+                clientId = clientId,
+                text = pendingMessage.content,
+                images = pendingMessage.images,
+            )
+            offlineQueue.clear()
+            offlineQueue.enqueue(prompt)
+            flushOfflineQueue()
+        }
+
+
+        // endregion
 
         /**
          * Persists and mirrors the latest scroll snapshot for restore on re-entry.
@@ -343,6 +446,7 @@ data class ChatState(
     val serverId: String = "",
     val title: String? = null,
     val messages: List<ChatMessage> = emptyList(),
+    val pendingMessages: List<ChatMessage> = emptyList(),
     val markdownStates: Map<String, MarkdownRenderState> = emptyMap(),
     val restoredScrollSnapshot: ChatScrollSnapshot? = null,
     val isLoading: Boolean = false,
@@ -384,6 +488,9 @@ sealed interface ChatIntent {
     ) : ChatIntent
 
     data object RetryLoad : ChatIntent
+
+    /** Retry sending a previously failed (or queued) message identified by its [clientId]. */
+    data class RetryMessage(val clientId: String) : ChatIntent
 }
 
 /** One-shot effects emitted to the UI layer (snackbar, navigation, etc.). */
