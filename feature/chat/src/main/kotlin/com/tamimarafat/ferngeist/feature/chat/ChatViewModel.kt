@@ -510,6 +510,19 @@ class ChatViewModel
             // Remove existing queue entry for this clientId, then enqueue at the back.
             offlineQueue.removeByClientId(clientId)
             offlineQueue.enqueue(prompt)
+            // Reset the bubble's status from FAILED to QUEUED so flushOfflineQueue
+            // can transition it QUEUED -> SENDING and the echo-reconcile in
+            // applySnapshot can remove it on delivery confirmation.
+            updateState {
+                val updated = pendingMessages.map { msg ->
+                    if (msg.clientId == clientId &&
+                        msg.status == MessageDeliveryStatus.FAILED
+                    ) {
+                        msg.copy(status = MessageDeliveryStatus.QUEUED)
+                    } else msg
+                }
+                copy(pendingMessages = updated)
+            }
             flushOfflineQueue()
         }
 

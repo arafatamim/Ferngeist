@@ -343,17 +343,19 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `retry re-sends failed prompt while other QUEUED prompts stay queued`() = runTest {
+    fun `retry resets FAILED to QUEUED then SENDING, echo removes bubble`() = runTest {
         val sendResults = mutableListOf(false, true)
         val facadeFactory = TestFacadeFactory {
-            TestFacade(sendResultProvider = { sendResults.removeFirst() })
+            TestFacade(sendResultProvider = { sendResults.removeFirstOrNull() ?: true })
         }
         val viewModel = createViewModel(facadeFactory = facadeFactory)
         advanceUntilIdle()
 
         viewModel.effects.test {
+            // Consume initial load error.
             assertTrue(awaitItem() is ChatEffect.ShowError)
 
+            // Enqueue A and B while disconnected.
             viewModel.dispatch(ChatIntent.SendMessage("A"))
             advanceUntilIdle()
             val clientIdA = checkNotNull(viewModel.state.value.pendingMessages[0].clientId)
@@ -361,6 +363,7 @@ class ChatViewModelTest {
             viewModel.dispatch(ChatIntent.SendMessage("B"))
             advanceUntilIdle()
 
+            // Session becomes ready -> flush: A fails (sendResult[0]=false), B succeeds.
             facadeFactory.lastFacade.value?.emitSessionReady()
             advanceUntilIdle()
 
@@ -373,6 +376,10 @@ class ChatViewModelTest {
             assertNotNull(sendingB)
             assertEquals(MessageDeliveryStatus.SENDING, sendingB!!.status)
 
+            // Consume flush failure error from A.
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            // B's echo arrives -> B removed from pending, A remains FAILED.
             val echoB = ChatMessage(
                 id = "echo-b",
                 role = ChatMessage.Role.USER,
@@ -397,11 +404,44 @@ class ChatViewModelTest {
             assertEquals(1, state.pendingMessages.size)
             assertEquals(MessageDeliveryStatus.FAILED, state.pendingMessages[0].status)
             assertEquals("A", state.pendingMessages[0].content)
+            assertEquals("B", state.messages[0].content)
 
-            // Now retry A - sendResults is empty so next flush will use sendResult=true (after consuming false,true)
-            // Actually the list is already empty. Retry creates new flush but facade provider list is exhausted.
-            // This test just verifies FAILED state is preserved and others aren't harmed.
-            // For a full retry test we'd need a facade with mutable sendResult.
+            // Retry A: sendResults is empty so next send returns true (removeFirstOrNull ?: true).
+            viewModel.dispatch(ChatIntent.RetryMessage(clientIdA))
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            // A should be SENDING (reset FAILED -> QUEUED -> flush transitions to SENDING).
+            val retriedA = state.pendingMessages.firstOrNull { it.clientId == clientIdA }
+            assertNotNull(retriedA)
+            assertEquals(MessageDeliveryStatus.SENDING, retriedA!!.status)
+            assertEquals(1, state.pendingMessages.size)
+
+            // A's echo arrives -> A removed from pending, no duplicate in messages.
+            val echoA = ChatMessage(
+                id = "echo-a",
+                role = ChatMessage.Role.USER,
+                content = "A",
+                status = MessageDeliveryStatus.SENT,
+            )
+            facadeFactory.lastFacade.value?.emitSnapshot(
+                ChatSessionSnapshot(
+                    loadState = ChatLoadState.READY,
+                    messages = listOf(echoA),
+                    isStreaming = false,
+                    configOptions = emptyList(),
+                    availableCommands = emptyList(),
+                    commandsAdvertised = false,
+                    error = null,
+                    usage = null,
+                )
+            )
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            assertEquals(0, state.pendingMessages.size)
+            assertEquals(1, state.messages.size)
+            assertEquals("A", state.messages[0].content)
 
             cancelAndIgnoreRemainingEvents()
         }
