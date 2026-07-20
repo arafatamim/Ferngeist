@@ -398,6 +398,11 @@ internal class AcpTransportClient(
                 val config = currentConfig ?: return@launch
                 try {
                     while (sdkClient == null) {
+                        // Wait until the device is actually online before spending a retry.
+                        // This also resets the backoff counter when connectivity had dropped,
+                        // so the reconnect (and the offline-queue flush it triggers) fires
+                        // promptly once the network returns instead of idling out the 30s cap.
+                        awaitConnectivityForReconnect()
                         reconnectAttempts++
                         // Linear backoff with ±50% jitter to prevent thundering-herd reconnects
                         // when many clients retry against the same gateway. Capped at 30s.
