@@ -237,6 +237,16 @@ class AcpChatSessionFacade(
         }
     }
 
+    override suspend fun reconnect() {
+        bridgeOperationMutex.withLock {
+            shouldRecoverBridge = true
+            // Kick a connection attempt. On success the Connected state drives
+            // scheduleBridgeRecovery -> sessionReady -> offline-queue flush; on
+            // failure connect() has already armed the transport reconnect loop.
+            ensureConnectedAndInitialized()
+        }
+    }
+
     /**
      * Sends a user message through the active bridge.
      *

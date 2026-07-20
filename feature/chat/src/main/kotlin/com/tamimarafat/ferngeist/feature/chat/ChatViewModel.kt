@@ -26,6 +26,7 @@ import com.tamimarafat.ferngeist.core.model.store.ActiveChat
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -205,6 +206,7 @@ class ChatViewModel
 
         /** Guards [flushOfflineQueue] so overlapping sessionReady/retry calls cannot interleave. */
         private val flushMutex = Mutex()
+        private var reconnectKickJob: Job? = null
 
         init {
             updateState { copy(serverId = serverId) }
@@ -445,6 +447,18 @@ class ChatViewModel
             updateState {
                 copy(pendingMessages = pendingMessages + message)
             }
+            if (state.value.connectionState != ChatConnectionState.Connected) {
+                kickReconnect()
+            }
+        }
+
+        /**
+         * Ensures a single reconnect attempt is in flight so a prompt queued while
+         * offline has a path forward. The next enqueue re-triggers once this settles.
+         */
+        private fun kickReconnect() {
+            if (reconnectKickJob?.isActive == true) return
+            reconnectKickJob = viewModelScope.launch { sessionCoordinator.reconnect() }
         }
 
         /**

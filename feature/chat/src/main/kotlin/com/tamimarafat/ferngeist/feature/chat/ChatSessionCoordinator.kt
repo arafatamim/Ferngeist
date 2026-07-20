@@ -85,6 +85,12 @@ internal class ChatSessionCoordinator(
         return facade.sendMessage(text, images, files)
     }
 
+    /** Ensures the transport is (re)connecting so queued prompts can drain. */
+    suspend fun reconnect() {
+        facade.reconnect()
+    }
+
+
     /** Requests a streaming cancellation. */
     suspend fun cancelStreaming() {
         facade.cancelStreaming()

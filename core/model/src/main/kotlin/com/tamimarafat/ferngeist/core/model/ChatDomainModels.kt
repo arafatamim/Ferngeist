@@ -187,6 +187,12 @@ interface ChatSessionFacade {
     fun clear()
     /** Informs the facade of connection state transitions so it can schedule bridge recovery. */
     fun onConnectionStateChanged(connectionState: ChatConnectionState)
+    /**
+     * Ensures the transport is (re)connecting. Called when a prompt is queued while
+     * offline so the queued message has a path forward instead of waiting for an
+     * externally-driven reconnect. Idempotent and safe to call repeatedly.
+     */
+    suspend fun reconnect()
 }
 
 /**

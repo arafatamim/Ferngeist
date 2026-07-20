@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
@@ -92,6 +93,27 @@ class ChatViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test
+    fun `enqueueing a prompt while disconnected triggers a reconnect`() = runTest {
+        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+        val viewModel = createViewModel(facadeFactory = facadeFactory)
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            assertTrue(awaitItem() is ChatEffect.ShowError)
+
+            viewModel.dispatch(ChatIntent.SendMessage("offline msg"))
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals(1, state.pendingMessages.size)
+            assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
+            assertEquals(1, facadeFactory.lastFacade.value?.reconnectCount)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
     @Test
     fun `cancel streaming without active session emits session not ready error`() =
@@ -619,6 +641,9 @@ private class TestFacade(
     private val sendResultProvider: () -> Boolean = { true },
 ) : ChatSessionFacade {
     constructor(sendResult: Boolean) : this({ sendResult })
+    var reconnectCount = 0
+        private set
+
 
     private val _connectionState = MutableStateFlow<ChatConnectionState>(ChatConnectionState.Disconnected)
     private val _diagnostics = MutableStateFlow(ChatConnectionDiagnostics())
@@ -646,7 +671,7 @@ private class TestFacade(
         _loadFailed.emit("Session not found")
     }
 
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
+    override suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
         val result = sendResultProvider()
         if (!result) {
             _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
@@ -666,6 +691,8 @@ private class TestFacade(
     override suspend fun denyPermission(toolCallId: String) {}
     override fun clear() {}
     override fun onConnectionStateChanged(connectionState: ChatConnectionState) {}
+    override suspend fun reconnect() { reconnectCount++ }
+
 
     suspend fun emitSessionReady() { _sessionReady.emit(Unit) }
     suspend fun emitSnapshot(snapshot: ChatSessionSnapshot) { _sessionSnapshot.emit(snapshot) }
@@ -721,7 +748,7 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
         _loadFailed.emit("Session not found")
     }
 
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
+    override suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
         _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
         return false
     }
@@ -738,6 +765,8 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
     override suspend fun denyPermission(toolCallId: String) {}
     override fun clear() {}
     override fun onConnectionStateChanged(connectionState: ChatConnectionState) {}
+    override suspend fun reconnect() {}
+
 }
 
 /** Facade that immediately emits a pre-configured snapshot so [applySnapshot] is exercised. */
