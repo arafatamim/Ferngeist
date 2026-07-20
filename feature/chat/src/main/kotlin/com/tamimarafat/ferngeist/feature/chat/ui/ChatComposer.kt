@@ -80,6 +80,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.DpOffset
@@ -88,6 +90,8 @@ import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.asImageBitmap
+import com.tamimarafat.ferngeist.core.model.ChatFileData
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
@@ -155,7 +159,10 @@ internal fun ChatComposerBar(
     canSendImages: Boolean,
     selectedImages: List<ChatImageData>,
     onImagesChanged: (List<ChatImageData>) -> Unit,
-    onAttachImages: () -> Unit,
+    canSendFiles: Boolean,
+    selectedFiles: List<ChatFileData>,
+    onFilesChanged: (List<ChatFileData>) -> Unit,
+    onAttach: () -> Unit,
 ) {
     var showModeMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
@@ -165,7 +172,7 @@ internal fun ChatComposerBar(
     // Animates height between collapsed and expanded states
     val animatedHeight by animateDpAsState(
         targetValue = when {
-            composerExpanded && selectedImages.isNotEmpty() -> 210.dp
+            composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
             composerExpanded -> 142.dp
             else -> 62.dp
         },
@@ -241,7 +248,10 @@ internal fun ChatComposerBar(
                     canSendImages = canSendImages,
                     selectedImages = selectedImages,
                     onImagesChanged = onImagesChanged,
-                    onAttachImages = onAttachImages,
+                    canSendFiles = canSendFiles,
+                    selectedFiles = selectedFiles,
+                    onFilesChanged = onFilesChanged,
+                    onAttach = onAttach,
                 )
             } else {
                 CollapsedComposerActions(
@@ -291,7 +301,10 @@ internal fun ExpandedComposerContent(
     canSendImages: Boolean,
     selectedImages: List<ChatImageData>,
     onImagesChanged: (List<ChatImageData>) -> Unit,
-    onAttachImages: () -> Unit,
+    canSendFiles: Boolean,
+    selectedFiles: List<ChatFileData>,
+    onFilesChanged: (List<ChatFileData>) -> Unit,
+    onAttach: () -> Unit,
 ) {
     Column(
         modifier =
@@ -307,6 +320,12 @@ internal fun ExpandedComposerContent(
             ImageThumbnailRow(
                 images = selectedImages,
                 onRemove = { index -> onImagesChanged(selectedImages.toMutableList().also { it.removeAt(index) }) },
+            )
+        }
+        if (selectedFiles.isNotEmpty()) {
+            FileChipRow(
+                files = selectedFiles,
+                onRemove = { index -> onFilesChanged(selectedFiles.toMutableList().also { it.removeAt(index) }) },
             )
         }
         val selectionColors =
@@ -372,11 +391,11 @@ internal fun ExpandedComposerContent(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (canSendImages) {
-                    IconButton(onClick = onAttachImages) {
+                if (canSendImages || canSendFiles) {
+                    IconButton(onClick = onAttach) {
                         Icon(
-                            imageVector = Icons.Default.AddPhotoAlternate,
-                            contentDescription = stringResource(R.string.chat_attach_image_desc),
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = stringResource(R.string.chat_attach_desc),
                             tint = MaterialTheme.colorScheme.onPrimary,
                         )
                     }
@@ -763,6 +782,78 @@ private fun ImageThumbnailRow(
                 image = image,
                 onRemove = { onRemove(index) },
             )
+        }
+    }
+}
+
+/**
+ * Horizontal scrolling row of attached-file chips, each with a remove (x) affordance.
+ */
+@Composable
+private fun FileChipRow(
+    files: List<ChatFileData>,
+    onRemove: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp),
+    ) {
+        itemsIndexed(
+            items = files,
+            key = { index, file -> "${file.name}:$index" },
+        ) { index, file ->
+            FileChipItem(file = file, onRemove = { onRemove(index) })
+        }
+    }
+}
+
+@Composable
+private fun FileChipItem(
+    file: ChatFileData,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
+        modifier = modifier.height(56.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.InsertDriveFile,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.widthIn(max = 160.dp)) {
+                Text(
+                    text = file.name,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = FileAttachmentHelper.formatSize(file.sizeBytes),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.chat_remove_file_desc),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         }
     }
 }

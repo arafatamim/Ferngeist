@@ -16,11 +16,15 @@
     <string name="chat_not_selected">Not selected</string>
     <string name="chat_send_desc">Send</string>
     <string name="chat_stop_desc">Stop</string>
-    <string name="chat_attach_image_desc">Attach image</string>
+    <string name="chat_attach_desc">Attach file</string>
     <string name="chat_remove_image_desc">Remove image</string>
     <string name="chat_images_dropped">%1$d image(s) could not be decoded</string>
     <string name="chat_images_capped">Limited to %1$d images per message</string>
     <string name="chat_images_dropped_capped">Dropped %1$d undecodable image(s); limit is %2$d per message</string>
+    <string name="chat_attachments_unsupported">%1$d attachment(s) not supported by this agent</string>
+    <string name="chat_remove_file_desc">Remove file</string>
+    <string name="chat_files_too_large">%1$d file(s) exceeded the 10 MB limit</string>
+    <string name="chat_files_capped">Limited to %1$d files per message</string>
 
 
     <!-- Chat Top Bar -->

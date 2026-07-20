@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
@@ -313,7 +314,8 @@ class ChatViewModel
                     val echoed = snapshot.messages.firstOrNull {
                         it.role == ChatMessage.Role.USER &&
                             it.content == sending.content &&
-                            it.images == sending.images
+                            it.images == sending.images &&
+                            it.files == sending.files
                     }
                     if (echoed != null) {
                         echoClientIds.add(sending.clientId ?: sending.id)
@@ -399,9 +401,9 @@ class ChatViewModel
                     val canSendNow = state.value.isSessionReady &&
                         state.value.connectionState == ChatConnectionState.Connected
                     if (canSendNow) {
-                        enqueueThenSend(intent.text, intent.images)
+                        enqueueThenSend(intent.text, intent.images, intent.files)
                     } else {
-                        enqueuePrompt(intent.text, intent.images)
+                        enqueuePrompt(intent.text, intent.images, intent.files)
                     }
                 }
                 is ChatIntent.CancelStreaming -> sessionCoordinator.cancelStreaming()
@@ -420,14 +422,15 @@ class ChatViewModel
          * Optimistically adds a user bubble with [MessageDeliveryStatus.QUEUED] and
          * stores the prompt in [offlineQueue] for later delivery.
          */
-        private fun enqueuePrompt(text: String, images: List<ChatImageData>) {
-            if (text.isBlank() && images.isEmpty()) return
+        private fun enqueuePrompt(text: String, images: List<ChatImageData>, files: List<ChatFileData>) {
+            if (text.isBlank() && images.isEmpty() && files.isEmpty()) return
             val clientId = java.util.UUID.randomUUID().toString()
             val message = ChatMessage(
                 id = clientId,
                 role = ChatMessage.Role.USER,
                 content = text,
                 images = images,
+                files = files,
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -436,6 +439,7 @@ class ChatViewModel
                     clientId = clientId,
                     text = text,
                     images = images,
+                    files = files,
                 ),
             )
             updateState {
@@ -448,14 +452,15 @@ class ChatViewModel
          * Used by [handleIntent] for the online-send path so the offline queue is always the
          * source of truth and the flush path is uniform.
          */
-        private suspend fun enqueueThenSend(text: String, images: List<ChatImageData>) {
-            if (text.isBlank() && images.isEmpty()) return
+        private suspend fun enqueueThenSend(text: String, images: List<ChatImageData>, files: List<ChatFileData>) {
+            if (text.isBlank() && images.isEmpty() && files.isEmpty()) return
             val clientId = java.util.UUID.randomUUID().toString()
             val message = ChatMessage(
                 id = clientId,
                 role = ChatMessage.Role.USER,
                 content = text,
                 images = images,
+                files = files,
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -463,6 +468,7 @@ class ChatViewModel
                 clientId = clientId,
                 text = text,
                 images = images,
+                files = files,
             )
             offlineQueue.enqueue(prompt)
             updateState {
@@ -496,7 +502,7 @@ class ChatViewModel
                         }
                         copy(pendingMessages = updated)
                     }
-                    val dispatched = sessionCoordinator.sendMessage(prompt.text, prompt.images)
+                    val dispatched = sessionCoordinator.sendMessage(prompt.text, prompt.images, prompt.files)
                     inFlightClientId = null
                     if (!dispatched) {
                         // No bridge / not ready / unsupported -> mark FAILED immediately.
@@ -529,6 +535,7 @@ class ChatViewModel
                 clientId = clientId,
                 text = pendingMessage.content,
                 images = pendingMessage.images,
+                files = pendingMessage.files,
             )
             // Remove existing queue entry for this clientId, then enqueue at the back.
             offlineQueue.removeByClientId(clientId)
@@ -602,6 +609,7 @@ sealed interface ChatIntent {
     data class SendMessage(
         val text: String,
         val images: List<ChatImageData> = emptyList(),
+        val files: List<ChatFileData> = emptyList(),
     ) : ChatIntent
 
     data object CancelStreaming : ChatIntent

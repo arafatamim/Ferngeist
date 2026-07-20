@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
@@ -80,8 +81,8 @@ internal class ChatSessionCoordinator(
     }
 
     /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
-    suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
-        return facade.sendMessage(text, images)
+    suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
+        return facade.sendMessage(text, images, files)
     }
 
     /** Requests a streaming cancellation. */
