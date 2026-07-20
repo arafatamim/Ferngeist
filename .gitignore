@@ -5,6 +5,10 @@
 /build/
 local.properties
 
+## Signing keys (NEVER commit the release keystore)
+*.jks
+*.keystore
+
 ## Firebase (per-developer config; see docs/fcm-setup.md)
 app/google-services.json
 /captures/
