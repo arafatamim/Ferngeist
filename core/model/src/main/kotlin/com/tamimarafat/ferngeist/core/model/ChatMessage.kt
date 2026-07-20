@@ -17,6 +17,7 @@ data class ChatMessage(
     val isStreaming: Boolean = false,
     val isError: Boolean = false,
     val images: List<ChatImageData> = emptyList(),
+    val files: List<ChatFileData> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val status: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
     val clientId: String? = null,
@@ -64,4 +65,11 @@ data class AcpPermissionOption(
 data class ChatImageData(
     val base64: String,
     val mimeType: String = "image/jpeg",
+)
+
+data class ChatFileData(
+    val name: String,
+    val base64: String,
+    val mimeType: String,
+    val sizeBytes: Long,
 )

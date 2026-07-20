@@ -174,7 +174,7 @@ interface ChatSessionFacade {
     /** Sends a user message with optional inline images. Returns true if the message
      * was dispatched to a live session; false when no bridge is available or the
      * payload is unsupported by the current transport. */
-    suspend fun sendMessage(text: String, images: List<ChatImageData> = emptyList()): Boolean
+    suspend fun sendMessage(text: String, images: List<ChatImageData> = emptyList(), files: List<ChatFileData> = emptyList()): Boolean
     /** Requests a streaming cancel from the transport. */
     suspend fun cancelStreaming()
     /** Updates a session configuration option (mode, model, native config, etc.). */

@@ -7,6 +7,7 @@ import com.agentclientprotocol.common.ClientSessionOperations
 import com.agentclientprotocol.common.Event
 import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.RequestPermissionOutcome
@@ -25,6 +26,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CompletableDeferred
@@ -169,6 +171,7 @@ internal class SessionGateway(
         sessionId: String,
         content: String,
         images: List<ChatImageData> = emptyList(),
+        files: List<ChatFileData> = emptyList(),
     ) {
         val bridge = sessionRegistry.getBridge(sessionId) ?: throw IllegalStateException(
             "Session bridge missing for sessionId=$sessionId",
@@ -188,6 +191,15 @@ internal class SessionGateway(
         }
         for (image in images) {
             blocks += ContentBlock.Image(data = image.base64, mimeType = image.mimeType)
+        }
+        for (file in files) {
+            blocks += ContentBlock.Resource(
+                resource = EmbeddedResourceResource.BlobResourceContents(
+                    blob = file.base64,
+                    uri = "file:///${file.name}",
+                    mimeType = file.mimeType,
+                ),
+            )
         }
 
         // session.prompt returns a cold flow; .collect is terminal and suspends

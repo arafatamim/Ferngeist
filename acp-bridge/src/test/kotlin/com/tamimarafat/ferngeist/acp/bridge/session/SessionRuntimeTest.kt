@@ -391,7 +391,7 @@ class SessionRuntimeTest {
 
         // Simulate onLocalPromptStarted: optimistic user bubble + streaming assistant placeholder
         var messages =
-            SessionMessageReducer.appendLocalUserMessage(emptyList(), "hello", listOf(sampleImage))
+            SessionMessageReducer.appendLocalUserMessage(emptyList(), "hello", listOf(sampleImage), emptyList())
         assertEquals(1, messages.size)
         assertEquals("hello", messages[0].content)
         assertEquals(1, messages[0].images.size)
@@ -435,5 +435,43 @@ class SessionRuntimeTest {
         val assistantMsg = afterImageEcho.messages[1]
         assertEquals(ChatMessage.Role.ASSISTANT, assistantMsg.role)
         assertTrue("streaming placeholder must still be streaming", assistantMsg.isStreaming)
+    }
+    /** Regression: a file echo (empty-text blob resource chunk) must not duplicate the user bubble. */
+    @Test
+    fun live_send_file_echo_dedups_and_preserves_file() {
+        val sampleFile =
+            com.tamimarafat.ferngeist.core.model.ChatFileData(
+                name = "report.pdf",
+                base64 = "QUJD",
+                mimeType = "application/pdf",
+                sizeBytes = 3L,
+            )
+
+        var messages =
+            SessionMessageReducer.appendLocalUserMessage(emptyList(), "see attached", emptyList(), listOf(sampleFile))
+        assertEquals(1, messages.size)
+        assertEquals(1, messages[0].files.size)
+        assertEquals("report.pdf", messages[0].files[0].name)
+
+        messages = SessionMessageReducer.startStreaming(messages)
+        assertEquals(2, messages.size)
+
+        val afterFileEcho =
+            SessionMessageReducer.handleEvent(
+                messages,
+                emptyMap(),
+                AppSessionEvent.UserMessage(
+                    text = "",
+                    files = listOf(sampleFile),
+                    append = true,
+                ),
+            )
+
+        assertEquals("only one user bubble + one assistant placeholder", 2, afterFileEcho.messages.size)
+        val userMsg = afterFileEcho.messages[0]
+        assertEquals(ChatMessage.Role.USER, userMsg.role)
+        assertEquals(1, userMsg.files.size)
+        assertEquals("report.pdf", userMsg.files[0].name)
+        assertTrue(afterFileEcho.messages[1].isStreaming)
     }
 }
