@@ -105,6 +105,7 @@ fun ChatScreen(
     var selectedImages by remember { mutableStateOf<List<ChatImageData>>(emptyList()) }
     var composerExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    var imageFocusTrigger by remember { mutableIntStateOf(0) }
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -123,6 +124,7 @@ fun ChatScreen(
             val combined = (selectedImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
             val cappedCount = (selectedImages.size + newImages.size) - combined.size
             selectedImages = combined
+            imageFocusTrigger++
 
             val message = when {
                 droppedCount > 0 && cappedCount > 0 ->
@@ -313,7 +315,7 @@ fun ChatScreen(
     }
 
     // Auto-focus the text field when the composer expands
-    LaunchedEffect(composerExpanded) {
+    LaunchedEffect(composerExpanded, imageFocusTrigger) {
         if (composerExpanded) {
             focusRequester.requestFocus()
         }

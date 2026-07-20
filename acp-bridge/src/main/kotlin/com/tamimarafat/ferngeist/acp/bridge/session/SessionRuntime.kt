@@ -148,7 +148,7 @@ class SessionRuntime(
 
     override suspend fun onLocalPromptStarted(
         text: String,
-        images: List<Pair<String, String>>,
+        images: List<ChatImageData>,
     ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) {
@@ -156,12 +156,8 @@ class SessionRuntime(
                 return@withLock
             }
 
-            val mappedImages =
-                images.map { (base64, mimeType) ->
-                    ChatImageData(base64 = base64, mimeType = mimeType)
-                }
-            debug("onLocalPromptStarted textLen=${text.length}, images=${mappedImages.size}")
-            val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, text, mappedImages)
+            debug("onLocalPromptStarted textLen=${text.length}, images=${images.size}")
+            val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, text, images)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
             live =

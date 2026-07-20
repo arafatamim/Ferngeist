@@ -44,7 +44,7 @@ object SessionMessageReducer {
     ): ReducerResult = when (event) {
         is AppSessionEvent.UserMessage ->
             ReducerResult(
-                messages = appendUserText(messages, event.text, event.append, event.timestampMs),
+                messages = appendUserText(messages, event.text, event.images, event.append, event.timestampMs),
                 toolCallIndex = toolCallIndex,
             )
         is AppSessionEvent.AgentMessage ->
@@ -123,21 +123,28 @@ object SessionMessageReducer {
     private fun appendUserText(
         messages: List<ChatMessage>,
         text: String,
+        images: List<ChatImageData>,
         append: Boolean,
         timestampMs: Long?,
     ): List<ChatMessage> {
-        if (text.isEmpty()) return messages
+        if (text.isEmpty() && images.isEmpty()) return messages
         val mutableMessages = messages.toMutableList()
         val lastMessage = mutableMessages.lastOrNull()
 
         // append=true: server echo via UserMessageChunk — dedup against the user message or
         // the streaming placeholder that follows it
         if (append) {
-            // Exact-match dedup when the last message is already a USER bubble
+            // Exact-match dedup when the last message is already a USER bubble.
+            // Image chunks arrive as separate UserMessageChunks with empty text — merge
+            // images even when the text is empty or unchanged.
             if (lastMessage?.role == ChatMessage.Role.USER) {
-                if (lastMessage.content == text) return messages
+                val dedup = lastMessage.content == text && images.isEmpty()
+                if (dedup) return messages
                 mutableMessages[mutableMessages.lastIndex] =
-                    lastMessage.copy(content = lastMessage.content + text)
+                    lastMessage.copy(
+                        content = lastMessage.content + text,
+                        images = lastMessage.images + images,
+                    )
                 return mutableMessages
             }
 
@@ -199,6 +206,7 @@ object SessionMessageReducer {
             ChatMessage(
                 role = ChatMessage.Role.USER,
                 content = text,
+                images = images,
                 createdAt = timestampMs ?: System.currentTimeMillis(),
             )
     }

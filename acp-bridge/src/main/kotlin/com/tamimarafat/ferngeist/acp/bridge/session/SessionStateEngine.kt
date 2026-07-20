@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -20,7 +21,7 @@ interface SessionStateEngine {
 
     suspend fun onLocalPromptStarted(
         text: String,
-        images: List<Pair<String, String>>,
+        images: List<ChatImageData>,
     )
 
     suspend fun onPromptSendFailed()

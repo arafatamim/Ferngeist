@@ -264,9 +264,8 @@ class AcpChatSessionFacade(
             return false
         }
 
-        val imagePairs = images.map { Pair(it.base64, it.mimeType) }
         try {
-            bridge.sendPrompt(text, imagePairs)
+            bridge.sendPrompt(text, images)
         } catch (error: Exception) {
             _operationError.emit(ChatOperationError(userFacingSendError(error), true))
         }
@@ -615,15 +614,20 @@ class AcpChatSessionFacade(
         }?.also { attachSessionBridge(it) }
     }
 
-    /** Maps a send error to a user-facing message. */
+    /** Maps a send error to a concise, bounded user-facing message. */
     private fun userFacingSendError(error: Throwable): String {
         val detailedMessage = formatAcpErrorMessage(error, "Send failed")
         val raw = error.message.orEmpty()
-        return when {
+        val message = when {
             raw.contains("Request timeout", true) -> "Request timed out. Please try again."
             raw.contains("Invalid params", true) -> "Send failed due to an invalid request format."
             detailedMessage != "Send failed" -> detailedMessage
             else -> "Send failed due to an unknown error."
+        }
+        return if (message.length > MAX_SEND_ERROR_CHARS) {
+            message.take(MAX_SEND_ERROR_CHARS).trimEnd() + "…"
+        } else {
+            message
         }
     }
 
@@ -788,3 +792,6 @@ class AcpChatSessionFacade(
             is ChatConfigValue.UnknownValue -> SessionConfigValue.UnknownValue(chat.debugValue)
         }
 }
+
+/** Upper bound on a user-facing send-error string, so error payloads never flood the UI. */
+private const val MAX_SEND_ERROR_CHARS = 240

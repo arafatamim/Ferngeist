@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoiceGroup
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import java.time.Instant
 import java.time.OffsetDateTime
 
@@ -21,6 +22,7 @@ internal object AcpSessionUpdateMapper {
             is SessionUpdate.UserMessageChunk ->
                 AppSessionEvent.UserMessage(
                     text = extractText(update.content),
+                    images = listOfNotNull(extractImage(update.content)),
                     append = true,
                 )
             is SessionUpdate.AgentMessageChunk -> AppSessionEvent.AgentMessage(extractText(update.content))
@@ -112,12 +114,36 @@ internal object AcpSessionUpdateMapper {
         return runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
             ?: runCatching { OffsetDateTime.parse(raw).toInstant().toEpochMilli() }.getOrNull()
     }
-
     private fun extractText(content: ContentBlock): String =
         when (content) {
             is ContentBlock.Text -> content.text
-            else -> content.toString()
+            else -> ""
         }
+
+    private fun extractImage(content: ContentBlock): ChatImageData? {
+        if (content !is ContentBlock.Image) return null
+        val base64 = content.data.ifBlank { dataUriBase64(content.uri) }
+        if (base64.isBlank()) return null
+        val mimeType = content.mimeType.ifBlank { dataUriMimeType(content.uri) }.ifBlank { "image/*" }
+        return ChatImageData(base64 = base64, mimeType = mimeType)
+    }
+
+    /** Extracts the base64 payload from a `data:<mime>;base64,<payload>` URI, else "". */
+    private fun dataUriBase64(uri: String?): String {
+        val value = uri.orEmpty()
+        val marker = ";base64,"
+        val idx = value.indexOf(marker)
+        return if (value.startsWith("data:") && idx >= 0) value.substring(idx + marker.length) else ""
+    }
+
+    /** Extracts the media type from a `data:<mime>;base64,...` URI, else "". */
+    private fun dataUriMimeType(uri: String?): String {
+        val value = uri.orEmpty()
+        if (!value.startsWith("data:")) return ""
+        val idx = value.indexOf(";base64,")
+        val start = "data:".length
+        return if (idx > start) value.substring(start, idx) else ""
+    }
 
     @OptIn(UnstableApi::class)
     internal fun mapSdkConfigOption(sdkOption: com.agentclientprotocol.model.SessionConfigOption): SessionConfigOption =

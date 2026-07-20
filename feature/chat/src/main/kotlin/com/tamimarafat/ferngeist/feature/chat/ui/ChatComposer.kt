@@ -164,7 +164,11 @@ internal fun ChatComposerBar(
 
     // Animates height between collapsed and expanded states
     val animatedHeight by animateDpAsState(
-        targetValue = if (composerExpanded) 142.dp else 62.dp,
+        targetValue = when {
+            composerExpanded && selectedImages.isNotEmpty() -> 210.dp
+            composerExpanded -> 142.dp
+            else -> 62.dp
+        },
         animationSpec =
             spring(
                 dampingRatio = Spring.DampingRatioNoBouncy,
@@ -365,23 +369,27 @@ internal fun ExpandedComposerContent(
                 )
             }
 
-            if (canSendImages) {
-                IconButton(onClick = onAttachImages) {
-                    Icon(
-                        imageVector = Icons.Default.AddPhotoAlternate,
-                        contentDescription = stringResource(R.string.chat_attach_image_desc),
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                    )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (canSendImages) {
+                    IconButton(onClick = onAttachImages) {
+                        Icon(
+                            imageVector = Icons.Default.AddPhotoAlternate,
+                            contentDescription = stringResource(R.string.chat_attach_image_desc),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
                 }
-            }
 
-            PrimaryComposerActionButton(
-                showStopAction = showStopAction,
-                canCancelStreaming = canCancelStreaming,
-                // Only enable send if there's text, or if we are stopping a stream
-                enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
-                onClick = onPrimaryAction,
-            )
+                PrimaryComposerActionButton(
+                    showStopAction = showStopAction,
+                    canCancelStreaming = canCancelStreaming,
+                    // Only enable send if there's text, or if we are stopping a stream
+                    enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
+                    onClick = onPrimaryAction,
+                )
+            }
         }
     }
 }

@@ -25,6 +25,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -167,7 +168,7 @@ internal class SessionGateway(
     suspend fun sendSessionMessage(
         sessionId: String,
         content: String,
-        images: List<Pair<String, String>> = emptyList(),
+        images: List<ChatImageData> = emptyList(),
     ) {
         val bridge = sessionRegistry.getBridge(sessionId) ?: throw IllegalStateException(
             "Session bridge missing for sessionId=$sessionId",
@@ -185,8 +186,8 @@ internal class SessionGateway(
         if (content.isNotEmpty()) {
             blocks += ContentBlock.Text(content)
         }
-        for ((mimeType, data) in images) {
-            blocks += ContentBlock.Image(data = data, mimeType = mimeType)
+        for (image in images) {
+            blocks += ContentBlock.Image(data = image.base64, mimeType = image.mimeType)
         }
 
         // session.prompt returns a cold flow; .collect is terminal and suspends

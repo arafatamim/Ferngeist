@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -31,7 +32,7 @@ interface SessionPort {
     /** Sends a prompt message to the agent. Optionally includes inline image data. */
     suspend fun sendPrompt(
         text: String,
-        images: List<Pair<String, String>> = emptyList(),
+        images: List<ChatImageData> = emptyList(),
     )
 
     /** Cancels the current agent turn (streaming). */

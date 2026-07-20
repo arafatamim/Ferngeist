@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,6 +76,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -127,6 +129,7 @@ fun MessageBubble(
 ) {
     val isUser = message.role == ChatMessage.Role.USER
     val contentColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    var fullscreenImage by remember { mutableStateOf<ChatImageData?>(null) }
 
     Box(
         modifier = modifier
@@ -157,6 +160,7 @@ fun MessageBubble(
                     onRetry = if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
                         { onRetryMessage(message.clientId ?: message.id) }
                     } else null,
+                    onImageClick = { fullscreenImage = it },
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 )
             }
@@ -171,7 +175,15 @@ fun MessageBubble(
             )
         }
     }
+
+    fullscreenImage?.let { image ->
+        ImageFullscreenViewer(
+            image = image,
+            onDismiss = { fullscreenImage = null },
+        )
+    }
 }
+
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -179,6 +191,7 @@ private fun UserMessageContent(
     message: ChatMessage,
     textColor: Color,
     onRetry: (() -> Unit)? = null,
+    onImageClick: ((ChatImageData) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -194,7 +207,7 @@ private fun UserMessageContent(
         // Images
         if (message.images.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            ImageAttachments(message.images)
+            ImageAttachments(message.images, onImageClick = onImageClick)
         }
 
         // Status badge for non-SENT delivery states
@@ -601,19 +614,23 @@ private fun ToolCallCard(
 @Composable
 private fun ImageAttachments(
     images: List<ChatImageData>,
+    onImageClick: ((ChatImageData) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         images.forEach { image ->
             key(image.base64) {
-                ImageAttachmentItem(image)
+                ImageAttachmentItem(image = image, onClick = onImageClick?.let { cb -> { cb(image) } })
             }
         }
     }
 }
 
 @Composable
-private fun ImageAttachmentItem(image: ChatImageData) {
+private fun ImageAttachmentItem(
+    image: ChatImageData,
+    onClick: (() -> Unit)? = null,
+) {
     val bitmap by produceState<ImageBitmap?>(initialValue = null, image.base64) {
         value = withContext(Dispatchers.Default) {
             runCatching {
@@ -644,7 +661,9 @@ private fun ImageAttachmentItem(image: ChatImageData) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         val currentBitmap = bitmap
         if (currentBitmap != null) {
@@ -653,9 +672,10 @@ private fun ImageAttachmentItem(image: ChatImageData) {
                 contentDescription = stringResource(R.string.chat_image_desc),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 220.dp)
                     .padding(4.dp)
                     .clip(MaterialTheme.shapes.medium),
-                contentScale = ContentScale.FillWidth,
+                contentScale = ContentScale.Fit,
             )
         } else {
             Row(

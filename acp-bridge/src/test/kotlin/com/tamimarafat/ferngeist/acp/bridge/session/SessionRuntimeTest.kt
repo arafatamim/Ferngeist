@@ -6,6 +6,7 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -337,4 +338,102 @@ class SessionRuntimeTest {
             assertEquals(SessionLoadState.READY, snapshot.loadState)
             assertEquals("Existing Title", snapshot.title)
         }
+
+    @Test
+    fun restored_user_message_with_image_yields_chat_message_with_images() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+            runtime.beginHydration()
+
+            val sampleImage =
+                ChatImageData(
+                    base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+                    mimeType = "image/png",
+                )
+
+            // Simulate chunked restore: text chunk first, then image chunk
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    text = "Describe this image:",
+                    append = true,
+                ),
+            )
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    text = "",
+                    images = listOf(sampleImage),
+                    append = true,
+                ),
+            )
+
+            runtime.completeHydration()
+
+            val snapshot = runtime.snapshot.value
+            assertEquals(SessionLoadState.READY, snapshot.loadState)
+            assertEquals(1, snapshot.messages.size)
+
+            val message = snapshot.messages.single()
+            assertEquals(ChatMessage.Role.USER, message.role)
+            assertEquals("Describe this image:", message.content)
+            assertEquals(1, message.images.size)
+            assertEquals(sampleImage.base64, message.images[0].base64)
+            assertEquals(sampleImage.mimeType, message.images[0].mimeType)
+        }
+
+    /** Regression: live-send image echo must not duplicate the user bubble or kill the stream. */
+    @Test
+    fun live_send_image_echo_dedups_and_preserves_stream() {
+        val sampleImage =
+            ChatImageData(
+                base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+                mimeType = "image/png",
+            )
+
+        // Simulate onLocalPromptStarted: optimistic user bubble + streaming assistant placeholder
+        var messages =
+            SessionMessageReducer.appendLocalUserMessage(emptyList(), "hello", listOf(sampleImage))
+        assertEquals(1, messages.size)
+        assertEquals("hello", messages[0].content)
+        assertEquals(1, messages[0].images.size)
+
+        messages = SessionMessageReducer.startStreaming(messages)
+        assertEquals(2, messages.size)
+        assertEquals(ChatMessage.Role.ASSISTANT, messages[1].role)
+        assertTrue(messages[1].isStreaming)
+
+        // Server echoes text chunk — must dedup, not duplicate
+        val afterTextEcho =
+            SessionMessageReducer.handleEvent(
+                messages,
+                emptyMap(),
+                AppSessionEvent.UserMessage(text = "hello", append = true),
+            )
+        assertEquals(2, afterTextEcho.messages.size)
+        assertTrue(afterTextEcho.messages[1].isStreaming)
+
+        // Server echoes image chunk (empty text, image data) — must NOT create a duplicate,
+        // must NOT kill the streaming placeholder
+        val afterImageEcho =
+            SessionMessageReducer.handleEvent(
+                afterTextEcho.messages,
+                afterTextEcho.toolCallIndex,
+                AppSessionEvent.UserMessage(
+                    text = "",
+                    images = listOf(sampleImage),
+                    append = true,
+                ),
+            )
+
+        assertEquals("only one user bubble + one assistant placeholder", 2, afterImageEcho.messages.size)
+
+        val userMsg = afterImageEcho.messages[0]
+        assertEquals(ChatMessage.Role.USER, userMsg.role)
+        assertEquals("hello", userMsg.content)
+        assertEquals(1, userMsg.images.size)
+        assertEquals(sampleImage.base64, userMsg.images[0].base64)
+
+        val assistantMsg = afterImageEcho.messages[1]
+        assertEquals(ChatMessage.Role.ASSISTANT, assistantMsg.role)
+        assertTrue("streaming placeholder must still be streaming", assistantMsg.isStreaming)
+    }
 }

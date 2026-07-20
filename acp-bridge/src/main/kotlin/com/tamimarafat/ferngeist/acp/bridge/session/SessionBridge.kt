@@ -5,6 +5,7 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -105,7 +106,7 @@ class SessionBridge(
      */
     override suspend fun sendPrompt(
         text: String,
-        images: List<Pair<String, String>>,
+        images: List<ChatImageData>,
     ) {
         runtime.onLocalPromptStarted(text, images)
         try {
@@ -189,6 +190,7 @@ class SessionBridge(
 sealed interface AppSessionEvent {
     data class UserMessage(
         val text: String,
+        val images: List<ChatImageData> = emptyList(),
         val append: Boolean = false,
         val timestampMs: Long? = null,
     ) : AppSessionEvent
