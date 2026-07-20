@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +34,7 @@ interface SessionPort {
     suspend fun sendPrompt(
         text: String,
         images: List<ChatImageData> = emptyList(),
+        files: List<ChatFileData> = emptyList(),
     )
 
     /** Cancels the current agent turn (streaming). */

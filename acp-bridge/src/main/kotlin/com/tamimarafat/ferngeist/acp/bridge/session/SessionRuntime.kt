@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -149,6 +150,7 @@ class SessionRuntime(
     override suspend fun onLocalPromptStarted(
         text: String,
         images: List<ChatImageData>,
+        files: List<ChatFileData>,
     ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) {
@@ -156,8 +158,8 @@ class SessionRuntime(
                 return@withLock
             }
 
-            debug("onLocalPromptStarted textLen=${text.length}, images=${images.size}")
-            val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, text, images)
+            debug("onLocalPromptStarted textLen=${text.length}, images=${images.size}, files=${files.size}")
+            val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, text, images, files)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
             live =

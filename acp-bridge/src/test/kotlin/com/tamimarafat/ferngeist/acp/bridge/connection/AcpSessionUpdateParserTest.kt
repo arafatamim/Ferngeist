@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.ToolCallId
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
@@ -83,6 +84,27 @@ class AcpSessionUpdateParserTest {
         assertEquals(1, event.images.size)
         assertEquals("QUJD", event.images[0].base64)
         assertEquals("image/png", event.images[0].mimeType)
+    }
+
+    @Test
+    fun `user message chunk with blob resource yields file`() {
+        val update =
+            SessionUpdate.UserMessageChunk(
+                content =
+                    ContentBlock.Resource(
+                        resource = EmbeddedResourceResource.BlobResourceContents(
+                            blob = "QUJD",
+                            uri = "file:///report.pdf",
+                            mimeType = "application/pdf",
+                        ),
+                    ),
+            )
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+        assertEquals(1, event.files.size)
+        assertEquals("report.pdf", event.files[0].name)
+        assertEquals("QUJD", event.files[0].base64)
+        assertEquals("application/pdf", event.files[0].mimeType)
     }
 
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =

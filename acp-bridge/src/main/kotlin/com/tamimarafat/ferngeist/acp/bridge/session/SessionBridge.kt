@@ -5,6 +5,7 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -107,10 +108,11 @@ class SessionBridge(
     override suspend fun sendPrompt(
         text: String,
         images: List<ChatImageData>,
+        files: List<ChatFileData>,
     ) {
-        runtime.onLocalPromptStarted(text, images)
+        runtime.onLocalPromptStarted(text, images, files)
         try {
-            connectionManager?.sendSessionMessage(sessionId, text, images)
+            connectionManager?.sendSessionMessage(sessionId, text, images, files)
         } catch (t: Throwable) {
             runtime.onPromptSendFailed()
             throw t
@@ -191,6 +193,7 @@ sealed interface AppSessionEvent {
     data class UserMessage(
         val text: String,
         val images: List<ChatImageData> = emptyList(),
+        val files: List<ChatFileData> = emptyList(),
         val append: Boolean = false,
         val timestampMs: Long? = null,
     ) : AppSessionEvent

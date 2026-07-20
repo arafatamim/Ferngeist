@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.PlanVariant
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.StopReason
@@ -11,6 +12,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoiceGroup
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -23,6 +25,7 @@ internal object AcpSessionUpdateMapper {
                 AppSessionEvent.UserMessage(
                     text = extractText(update.content),
                     images = listOfNotNull(extractImage(update.content)),
+                    files = listOfNotNull(extractFiles(update.content)),
                     append = true,
                 )
             is SessionUpdate.AgentMessageChunk -> AppSessionEvent.AgentMessage(extractText(update.content))
@@ -126,6 +129,17 @@ internal object AcpSessionUpdateMapper {
         if (base64.isBlank()) return null
         val mimeType = content.mimeType.ifBlank { dataUriMimeType(content.uri) }.ifBlank { "image/*" }
         return ChatImageData(base64 = base64, mimeType = mimeType)
+    }
+
+    private fun extractFiles(content: ContentBlock): ChatFileData? {
+        if (content !is ContentBlock.Resource) return null
+        val resource = content.resource as? EmbeddedResourceResource.BlobResourceContents ?: return null
+        val blob = resource.blob
+        if (blob.isBlank()) return null
+        val name = resource.uri.substringAfterLast('/').ifBlank { "file" }
+        val mimeType = resource.mimeType?.takeIf { it.isNotBlank() } ?: "application/octet-stream"
+        val sizeBytes = blob.length.toLong() * 3L / 4L
+        return ChatFileData(name = name, base64 = blob, mimeType = mimeType, sizeBytes = sizeBytes)
     }
 
     /** Extracts the base64 payload from a `data:<mime>;base64,<payload>` URI, else "". */

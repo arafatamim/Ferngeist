@@ -15,6 +15,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -245,8 +246,8 @@ class AcpChatSessionFacade(
      * @return true when the payload was dispatched to a live session;
      *         false when no bridge is available or the payload is unsupported.
      */
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>): Boolean {
-        if (text.isBlank() && images.isEmpty()) return false
+    override suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
+        if (text.isBlank() && images.isEmpty() && files.isEmpty()) return false
 
         val bridge = ensureSessionReadyForSend()
         if (bridge == null) {
@@ -264,8 +265,15 @@ class AcpChatSessionFacade(
             return false
         }
 
+        if (files.isNotEmpty() && capabilities != null && !capabilities.promptCapabilities.embeddedContext) {
+            _operationError.emit(
+                ChatOperationError("This agent does not advertise file attachment support.", false),
+            )
+            return false
+        }
+
         try {
-            bridge.sendPrompt(text, images)
+            bridge.sendPrompt(text, images, files)
         } catch (error: Exception) {
             _operationError.emit(ChatOperationError(userFacingSendError(error), true))
         }

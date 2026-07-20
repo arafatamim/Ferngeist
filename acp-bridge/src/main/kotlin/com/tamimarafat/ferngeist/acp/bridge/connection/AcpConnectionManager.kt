@@ -4,6 +4,7 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.CoroutineScope
@@ -97,8 +98,9 @@ class AcpConnectionManager(
         sessionId: String,
         content: String,
         images: List<ChatImageData> = emptyList(),
+        files: List<ChatFileData> = emptyList(),
     ) {
-        gateway.sendSessionMessage(sessionId, content, images)
+        gateway.sendSessionMessage(sessionId, content, images, files)
     }
 
     suspend fun cancelSession(sessionId: String) {

@@ -5,6 +5,7 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
@@ -44,7 +45,7 @@ object SessionMessageReducer {
     ): ReducerResult = when (event) {
         is AppSessionEvent.UserMessage ->
             ReducerResult(
-                messages = appendUserText(messages, event.text, event.images, event.append, event.timestampMs),
+                messages = appendUserText(messages, event.text, event.images, event.files, event.append, event.timestampMs),
                 toolCallIndex = toolCallIndex,
             )
         is AppSessionEvent.AgentMessage ->
@@ -108,14 +109,16 @@ object SessionMessageReducer {
         messages: List<ChatMessage>,
         text: String,
         images: List<ChatImageData>,
+        files: List<ChatFileData>,
     ): List<ChatMessage> {
         // Optimistic insertion: the UI gets an immediate user bubble before the server round-trip
-        if (text.isBlank() && images.isEmpty()) return messages
+        if (text.isBlank() && images.isEmpty() && files.isEmpty()) return messages
         return messages +
             ChatMessage(
                 role = ChatMessage.Role.USER,
                 content = text,
                 images = images,
+                files = files,
                 createdAt = System.currentTimeMillis(),
             )
     }
@@ -124,10 +127,11 @@ object SessionMessageReducer {
         messages: List<ChatMessage>,
         text: String,
         images: List<ChatImageData>,
+        files: List<ChatFileData>,
         append: Boolean,
         timestampMs: Long?,
     ): List<ChatMessage> {
-        if (text.isEmpty() && images.isEmpty()) return messages
+        if (text.isEmpty() && images.isEmpty() && files.isEmpty()) return messages
         val mutableMessages = messages.toMutableList()
         val lastMessage = mutableMessages.lastOrNull()
 
@@ -138,12 +142,13 @@ object SessionMessageReducer {
             // Image chunks arrive as separate UserMessageChunks with empty text — merge
             // images even when the text is empty or unchanged.
             if (lastMessage?.role == ChatMessage.Role.USER) {
-                val dedup = lastMessage.content == text && images.isEmpty()
+                val dedup = lastMessage.content == text && images.isEmpty() && files.isEmpty()
                 if (dedup) return messages
                 mutableMessages[mutableMessages.lastIndex] =
                     lastMessage.copy(
                         content = lastMessage.content + text,
                         images = lastMessage.images + images,
+                        files = lastMessage.files + files,
                     )
                 return mutableMessages
             }
@@ -207,6 +212,7 @@ object SessionMessageReducer {
                 role = ChatMessage.Role.USER,
                 content = text,
                 images = images,
+                files = files,
                 createdAt = timestampMs ?: System.currentTimeMillis(),
             )
     }
