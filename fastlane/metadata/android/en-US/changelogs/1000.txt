@@ -1,0 +1,8 @@
+Attach and share your work — now with files.
+
+• New: attach any file to a chat — images, PDFs, code, and more
+• New: send images inline, with faster on-device processing
+• New: prompts you write while offline are queued and sent automatically when you reconnect
+• New: chats are titled automatically from your first message
+• More reliable attachment sending, with clearer error messages
+• Various stability and performance improvements

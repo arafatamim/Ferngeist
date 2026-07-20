@@ -1,0 +1,7 @@
+Faster, smoother, and more reliable.
+
+• New: jump-to-latest button in chat
+• Much quicker loading, scrolling, and rendering — especially in long conversations
+• Fixed chats getting stuck on a loading spinner
+• Steadier connections: no more hangs, clearer timeouts, and more reliable reconnects
+• Plenty of under-the-hood performance and stability improvements

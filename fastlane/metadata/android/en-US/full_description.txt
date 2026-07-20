@@ -1,0 +1,11 @@
+Ferngeist is a mobile client for coding agents that speak the Agent Client Protocol (ACP). Connect to your agents and chat with them from your phone — review changes, run tools, and follow along with rich, readable transcripts wherever you are.
+
+Features:
+• Chat with ACP-compatible coding agents on the go
+• Rich rendering of messages, reasoning, code diffs, and tool calls
+• Resilient sessions that survive disconnects and reconnect automatically
+• Optional Ferngeist ACP Gateway pairing to auto-detect local agents behind a single secure endpoint
+• Push notifications with deep links straight to the active chat
+• Fast, smooth, modern Material 3 interface
+
+Ferngeist is free and open source (MIT). Learn more and view the source at https://github.com/arafatamim/Ferngeist

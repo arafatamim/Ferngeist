@@ -1,0 +1,90 @@
+# Fastfile — Google Play deployment for Ferngeist.
+#
+# Prerequisites
+#   - bundle install                       (installs fastlane from the Gemfile)
+#   - A Play Console service-account JSON   (see fastlane/Appfile for how to provide it)
+#   - Release signing env vars, same ones app/build.gradle.kts reads:
+#       ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#
+# Common usage
+#   bundle exec fastlane build                       # signed .aab only, no upload
+#   bundle exec fastlane deploy                       # build + upload to the internal track
+#   bundle exec fastlane deploy track:production rollout:0.1
+#   bundle exec fastlane metadata                      # push store listing + changelogs, no binary
+#   bundle exec fastlane promote from:internal to:production
+#   bundle exec fastlane validate                      # dry-run the upload (validate_only)
+
+default_platform(:android)
+
+platform :android do
+  desc "Build a signed release App Bundle (.aab). Requires the ANDROID_KEYSTORE_* env vars."
+  lane :build do
+    ensure_release_signing
+    gradle(task: "clean")
+    gradle(task: "bundle", build_type: "Release")
+    UI.success("Built AAB: #{lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]}")
+  end
+
+  desc "Build and upload to Play. Options: track (default internal), rollout (e.g. 0.1 for a staged release)."
+  lane :deploy do |options|
+    track = options[:track] || "internal"
+    rollout = options[:rollout]&.to_s
+    build
+    upload_to_play_store(
+      track: track,
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      release_status: rollout ? "inProgress" : "completed",
+      rollout: rollout,
+      skip_upload_apk: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+    UI.success("Uploaded to '#{track}' track#{rollout ? " at #{(rollout.to_f * 100).round}% rollout" : ""}.")
+  end
+
+  desc "Push only the store listing + changelogs (no binary)."
+  lane :metadata do
+    upload_to_play_store(
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Promote an already-uploaded build between tracks. Options: from (default internal), to (default production)."
+  lane :promote do |options|
+    upload_to_play_store(
+      track: options[:from] || "internal",
+      track_promote_to: options[:to] || "production",
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Dry-run the Play upload without committing anything (validate_only)."
+  lane :validate do
+    build
+    upload_to_play_store(
+      track: "internal",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      validate_only: true,
+      skip_upload_apk: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  # Fail early with a clear message instead of producing an unsigned AAB that Play rejects.
+  private_lane :ensure_release_signing do
+    required = %w[ANDROID_KEYSTORE_PATH ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD]
+    missing = required.reject { |key| ENV[key].to_s.strip != "" }
+    unless missing.empty?
+      UI.user_error!("Missing release-signing env vars: #{missing.join(', ')}. " \
+        "These are the same ones app/build.gradle.kts reads to sign the release build.")
+    end
+  end
+end
