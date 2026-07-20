@@ -54,6 +54,37 @@ class AcpSessionUpdateParserTest {
         assertNotNull(tool.title)
     }
 
+    @Test
+    fun `user message chunk with inline image data yields image`() {
+        val update =
+            SessionUpdate.UserMessageChunk(
+                content = ContentBlock.Image(data = "QUJD", mimeType = "image/png"),
+            )
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+        assertEquals(1, event.images.size)
+        assertEquals("QUJD", event.images[0].base64)
+        assertEquals("image/png", event.images[0].mimeType)
+    }
+
+    @Test
+    fun `user message chunk with data uri image falls back to uri payload`() {
+        val update =
+            SessionUpdate.UserMessageChunk(
+                content =
+                    ContentBlock.Image(
+                        data = "",
+                        mimeType = "",
+                        uri = "data:image/png;base64,QUJD",
+                    ),
+            )
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+        assertEquals(1, event.images.size)
+        assertEquals("QUJD", event.images[0].base64)
+        assertEquals("image/png", event.images[0].mimeType)
+    }
+
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =
         requireNotNull(AcpSessionUpdateMapper.mapSessionUpdateToEvent(update))
 }

@@ -321,6 +321,23 @@ class AcpErrorFormattingTest {
     }
 
     @Test
+    fun `truncates oversized json rpc data so error payloads do not flood the ui`() {
+        val hugeBase64 = "A".repeat(5000)
+        val error =
+            JsonRpcException(
+                code = -32602,
+                message = "Invalid params",
+                data = kotlinx.serialization.json.JsonPrimitive(hugeBase64),
+            )
+
+        val formatted = formatAcpErrorMessage(error, "Request failed")
+
+        assertTrue(formatted.startsWith("Invalid params: "))
+        assertTrue(formatted.endsWith("… (truncated)"))
+        assertTrue("error text must stay bounded", formatted.length < 300)
+    }
+
+    @Test
     fun `formats cancellation errors using fallback instead of coroutine internals`() {
         val error = CancellationException("StandaloneCoroutine was cancelled")
 

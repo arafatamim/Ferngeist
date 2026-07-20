@@ -52,9 +52,17 @@ private fun formatJsonRpcErrorMessage(
     return "$message: $formattedData"
 }
 
+private const val MAX_ERROR_DATA_CHARS = 200
+
 private fun stringifyJsonRpcData(data: JsonElement?): String? =
     when (data) {
         null, JsonNull -> null
         is JsonPrimitive -> if (data.isString) data.content else data.toString()
         else -> data.toString()
-    }?.trim()?.takeIf { it.isNotEmpty() }
+    }?.trim()?.takeIf { it.isNotEmpty() }?.let { text ->
+        if (text.length > MAX_ERROR_DATA_CHARS) {
+            text.take(MAX_ERROR_DATA_CHARS).trimEnd() + "… (truncated)"
+        } else {
+            text
+        }
+    }
