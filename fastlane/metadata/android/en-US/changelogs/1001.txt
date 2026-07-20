@@ -1,0 +1,5 @@
+Reliability fixes for offline messaging.
+
+• Fixed: messages you send while offline now go out as soon as you're back online, instead of waiting
+• Faster reconnection when your connection comes back
+• Various stability improvements

@@ -1,4 +1,16 @@
 
+## [0.10.1] - 2026-07-20
+
+### Fixes
+
+- *(acp)* Reconnect on connectivity return so the offline queue drains ([2c07048](https://github.com/arafatamim/Ferngeist/commit/2c070483165c75ba01caded45f92c6859e7da5bd))
+- *(chat)* Trigger a reconnect when queuing a prompt while offline ([b21d033](https://github.com/arafatamim/Ferngeist/commit/b21d03307f36155aff61b8cca048b54f1a3ae7fe))
+
+### Maintenance
+
+- Gitignore signing keystores (\*.jks, \*.keystore) ([2a29d5b](https://github.com/arafatamim/Ferngeist/commit/2a29d5b6bdd910b31b8f71be21957d60bb8d07a4))
+- *(release)* Add fastlane Play Store deployment ([f13625c](https://github.com/arafatamim/Ferngeist/commit/f13625cdc65e34402b9993169f91d45a46b6961e))
+
 ## [0.7.0] - 2026-05-18
 
 ### Features
