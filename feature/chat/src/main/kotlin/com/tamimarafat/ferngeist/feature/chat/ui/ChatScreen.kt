@@ -58,10 +58,11 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import kotlinx.coroutines.launch
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 
 // region: ChatScreen
 
@@ -103,36 +104,57 @@ fun ChatScreen(
     var composerContentHeightPx by remember { mutableIntStateOf(0) }
     var messageText by remember { mutableStateOf("") }
     var selectedImages by remember { mutableStateOf<List<ChatImageData>>(emptyList()) }
+    var selectedFiles by remember { mutableStateOf<List<ChatFileData>>(emptyList()) }
     var composerExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     var imageFocusTrigger by remember { mutableIntStateOf(0) }
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
 
-    // -- Photo picker for image attachments --
+    // -- Unified attachment picker: any file; images are downscaled + previewed --
     val context = androidx.compose.ui.platform.LocalContext.current
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(
-            maxItems = ImageAttachmentHelper.MAX_IMAGES,
-        ),
+    val attachmentPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris: List<android.net.Uri> ->
         coroutineScope.launch {
-            val newImages = uris.mapNotNull { uri ->
-                ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
+            val newImages = mutableListOf<ChatImageData>()
+            val fileResults = mutableListOf<FileAttachmentHelper.Result>()
+            var imagesDropped = 0
+            var unsupportedCount = 0
+            for (uri in uris) {
+                val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true
+                when {
+                    isImage && state.canSendImages -> {
+                        val image = ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
+                        if (image != null) newImages += image else imagesDropped++
+                    }
+                    state.supportsEmbeddedContext ->
+                        fileResults += FileAttachmentHelper.uriToChatFileData(context.contentResolver, uri)
+                    else -> unsupportedCount++
+                }
             }
-            val droppedCount = uris.size - newImages.size
-            val combined = (selectedImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
-            val cappedCount = (selectedImages.size + newImages.size) - combined.size
-            selectedImages = combined
+            val newFiles = fileResults.filterIsInstance<FileAttachmentHelper.Result.Success>().map { it.file }
+            val tooLargeCount = fileResults.count { it is FileAttachmentHelper.Result.TooLarge }
+
+            val combinedImages = (selectedImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
+            val imagesCapped = (selectedImages.size + newImages.size) - combinedImages.size
+            val combinedFiles = (selectedFiles + newFiles).take(FileAttachmentHelper.MAX_FILES)
+            val filesCapped = (selectedFiles.size + newFiles.size) - combinedFiles.size
+            selectedImages = combinedImages
+            selectedFiles = combinedFiles
             imageFocusTrigger++
 
             val message = when {
-                droppedCount > 0 && cappedCount > 0 ->
-                    context.getString(R.string.chat_images_dropped_capped, droppedCount, ImageAttachmentHelper.MAX_IMAGES)
-                droppedCount > 0 ->
-                    context.getString(R.string.chat_images_dropped, droppedCount)
-                cappedCount > 0 ->
+                unsupportedCount > 0 ->
+                    context.getString(R.string.chat_attachments_unsupported, unsupportedCount)
+                tooLargeCount > 0 ->
+                    context.getString(R.string.chat_files_too_large, tooLargeCount)
+                imagesDropped > 0 ->
+                    context.getString(R.string.chat_images_dropped, imagesDropped)
+                imagesCapped > 0 ->
                     context.getString(R.string.chat_images_capped, ImageAttachmentHelper.MAX_IMAGES)
+                filesCapped > 0 ->
+                    context.getString(R.string.chat_files_capped, FileAttachmentHelper.MAX_FILES)
                 else -> null
             }
             message?.let { snackbarHostState.showSnackbar(it) }
@@ -274,12 +296,13 @@ fun ChatScreen(
     // When the session is ready the message is sent immediately; otherwise it is
     // queued in the offline queue and delivered once connectivity returns.
     val sendMessage: () -> Unit = {
-        val hasContent = messageText.isNotBlank() || selectedImages.isNotEmpty()
+        val hasContent = messageText.isNotBlank() || selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()
         if (hasContent) {
-            viewModel.dispatch(ChatIntent.SendMessage(text = messageText, images = selectedImages))
+            viewModel.dispatch(ChatIntent.SendMessage(text = messageText, images = selectedImages, files = selectedFiles))
             scrollHandle.onSendMessage()
             messageText = ""
             selectedImages = emptyList()
+            selectedFiles = emptyList()
             composerExpanded = false
             focusManager.clearFocus()
         }
@@ -502,11 +525,10 @@ fun ChatScreen(
                             canSendImages = state.canSendImages,
                             selectedImages = selectedImages,
                             onImagesChanged = { selectedImages = it },
-                            onAttachImages = { photoPickerLauncher.launch(
-                                PickVisualMediaRequest(
-                                    mediaType = ActivityResultContracts.PickVisualMedia.ImageOnly,
-                                ),
-                            ) },
+                            canSendFiles = state.supportsEmbeddedContext,
+                            selectedFiles = selectedFiles,
+                            onFilesChanged = { selectedFiles = it },
+                            onAttach = { attachmentPickerLauncher.launch(arrayOf("*/*")) },
                         )
                     }
 

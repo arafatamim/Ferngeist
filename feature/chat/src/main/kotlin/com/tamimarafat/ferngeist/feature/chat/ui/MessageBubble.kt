@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Help
 import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.rounded.Build
@@ -106,6 +108,7 @@ import com.mikepenz.markdown.model.markdownDimens
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
@@ -208,6 +211,12 @@ private fun UserMessageContent(
         if (message.images.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             ImageAttachments(message.images, onImageClick = onImageClick)
+        }
+
+        // Files
+        if (message.files.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            FileAttachments(message.files)
         }
 
         // Status badge for non-SENT delivery states
@@ -624,6 +633,56 @@ private fun ImageAttachments(
             }
         }
     }
+}
+
+@Composable
+private fun FileAttachments(
+    files: List<ChatFileData>,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        files.forEach { file ->
+            key("${file.name}:${file.sizeBytes}") {
+                FileAttachmentItem(file = file)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FileAttachmentItem(file: ChatFileData) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.InsertDriveFile,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = FileAttachmentHelper.formatSize(file.sizeBytes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(4.dp))
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 
 /**
@@ -12,6 +13,7 @@ data class PendingPrompt(
     val clientId: String,
     val text: String,
     val images: List<ChatImageData> = emptyList(),
+    val files: List<ChatFileData> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
 )
 
