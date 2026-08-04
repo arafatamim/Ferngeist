@@ -62,6 +62,7 @@ class FerngeistMessagingService : FirebaseMessagingService() {
         val title = data[FcmPayloadKeys.TITLE] ?: notification?.title ?: getString(R.string.push_default_title)
         val body = data[FcmPayloadKeys.BODY] ?: notification?.body ?: getString(R.string.push_default_body)
         val sessionId = data[FcmPayloadKeys.SESSION_ID]
+        val category = data[FcmPayloadKeys.CATEGORY]
 
         // The push carries the gateway-owned id; translate to the local server id that
         // navigation (and ActiveChatStore) use. Null when unknown/legacy → no deep-link.
@@ -90,12 +91,17 @@ class FerngeistMessagingService : FirebaseMessagingService() {
 
         ensurePushChannels(this)
 
+        // Progress pushes are throttled server-side to one per ~15s per session, so they
+        // should replace (not stack) the previous "Agent working" notification for that
+        // session. Other categories keep stacking via the incrementing id.
+        val notifyId = notificationIdFor(category, sessionId) { notificationId.incrementAndGet() }
+
         // Route urgent categories to the heads-up Alerts channel, routine ones to the quiet
         // Updates channel. On Android O+ the channel — not per-notification priority —
         // decides whether a push interrupts.
         val built =
             NotificationCompat
-                .Builder(this, pushChannelIdFor(data[FcmPayloadKeys.CATEGORY]))
+                .Builder(this, pushChannelIdFor(category))
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -105,7 +111,7 @@ class FerngeistMessagingService : FirebaseMessagingService() {
                 .build()
 
         getSystemService(NotificationManager::class.java)
-            .notify(notificationId.incrementAndGet(), built)
+            .notify(notifyId, built)
     }
 
     /** Builds the tap target, deep-linking to a chat when the (translated) ids resolve. */
@@ -138,5 +144,23 @@ class FerngeistMessagingService : FirebaseMessagingService() {
         // request codes likewise stop FLAG_UPDATE_CURRENT from clobbering extras.
         val notificationId = AtomicInteger(1000)
         val requestCode = AtomicInteger(2000)
+
+        // Progress pushes coalesce per session into a fixed id range so they replace
+        // (not stack) the previous "Agent working" notification for that session.
+        const val PROGRESS_NOTIFICATION_ID_BASE = 5000
+        const val PROGRESS_NOTIFICATION_ID_RANGE = 1000
     }
+
+    /**
+     * Picks the notification id for a push. `progress` pushes coalesce per session — the
+     * same session reuses a stable id so each new push replaces the previous "Agent working"
+     * notification instead of stacking. Everything else (including progress without a
+     * session id) falls back to [next].
+     */
+    internal fun notificationIdFor(category: String?, sessionId: String?, next: () -> Int): Int =
+        if (category == PUSH_CATEGORY_PROGRESS && sessionId != null) {
+            PROGRESS_NOTIFICATION_ID_BASE + (sessionId.hashCode() and Int.MAX_VALUE) % PROGRESS_NOTIFICATION_ID_RANGE
+        } else {
+            next()
+        }
 }

@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.R
 const val PUSH_CATEGORY_PERMISSION_REQUEST = "permission_request"
 const val PUSH_CATEGORY_AGENT_ERROR = "agent_error"
 const val PUSH_CATEGORY_AGENT_CRASH = "agent_crash"
+const val PUSH_CATEGORY_PROGRESS = "progress"
 
 /**
  * Heads-up channel for pushes that need attention (permission requests, errors, crashes).
