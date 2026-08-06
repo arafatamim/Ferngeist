@@ -6,8 +6,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -72,9 +74,15 @@ internal fun ChatTopBar(
     contextWindowTokens: Int?,
     costAmount: Double?,
     costCurrency: String?,
+    gitAdditions: Int,
+    gitDeletions: Int,
+    gitBranch: String?,
+    gitChangedFiles: Int,
     scrollBehavior: TopAppBarScrollBehavior,
     onNavigateBack: () -> Unit,
     onConnectionStatusClick: () -> Unit,
+    onGitStatusClick: () -> Unit,
+    onGitStatusLongPress: () -> Unit,
     onTitleClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
@@ -150,14 +158,29 @@ internal fun ChatTopBar(
                     }
                 },
             actions = {
-                ConnectionStatusPill(
-                    connectionState = connectionState,
-                    totalTokens = totalTokens,
-                    contextWindowTokens = contextWindowTokens,
-                    costAmount = costAmount,
-                    costCurrency = costCurrency,
-                    onClick = onConnectionStatusClick,
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (gitAdditions > 0 || gitDeletions > 0 || gitChangedFiles > 0) {
+                        GitStatusIndicatorButton(
+                            additions = gitAdditions,
+                            deletions = gitDeletions,
+                            branch = gitBranch,
+                            changedFiles = gitChangedFiles,
+                            onClick = onGitStatusClick,
+                            onLongPress = onGitStatusLongPress,
+                        )
+                    }
+                    ConnectionStatusPill(
+                        connectionState = connectionState,
+                        totalTokens = totalTokens,
+                        contextWindowTokens = contextWindowTokens,
+                        costAmount = costAmount,
+                        costCurrency = costCurrency,
+                        onClick = onConnectionStatusClick,
+                    )
+                }
             },
             collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
             expandedHeight =

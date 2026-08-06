@@ -187,6 +187,12 @@
     <string name="chat_permission_body">The agent is waiting for your approval before it can continue.</string>
     <string name="chat_deny">Deny</string>
     <string name="chat_no_tool_output">No tool output.</string>
+    <string name="chat_git_status_title">Git status</string>
+    <string name="chat_git_no_branch">(no branch)</string>
+    <string name="chat_git_files_changed">%1$d files changed</string>
+    <string name="chat_git_clean">Working tree is clean</string>
+    <string name="chat_git_binary">binary</string>
+    <string name="chat_git_status_desc">Git status details</string>
     <string name="chat_picker_empty">No items.</string>
     <string name="chat_picker_no_results">No matching items.</string>
     <string name="chat_search_desc">Search</string>

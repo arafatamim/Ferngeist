@@ -86,6 +86,9 @@ class GatewaySessionModelsTest {
             override suspend fun listGatewaySessions(scheme: String, host: String, gatewayCredential: String): List<GatewaySessionSummary> = TODO()
             override suspend fun closeSession(scheme: String, host: String, gatewayCredential: String, sessionId: String) = TODO()
             override suspend fun registerPushToken(scheme: String, host: String, gatewayCredential: String, token: String, platform: String) = TODO()
+            override suspend fun fetchWorkspaceFile(scheme: String, host: String, gatewayCredential: String, runtimeId: String, path: String): GatewayFileRead = TODO()
+            override suspend fun fetchGitStatus(scheme: String, host: String, gatewayCredential: String, runtimeId: String): GatewayGitStatus = TODO()
+            override suspend fun fetchGitDiff(scheme: String, host: String, gatewayCredential: String, runtimeId: String, path: String?): List<com.agentclientprotocol.model.ToolCallContent.Diff> = TODO()
         }
         assertNotNull(impl)
     }

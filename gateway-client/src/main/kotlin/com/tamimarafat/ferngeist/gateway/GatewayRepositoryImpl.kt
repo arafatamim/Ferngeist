@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.gateway
 
+import com.agentclientprotocol.model.EmbeddedResourceResource
+import com.agentclientprotocol.model.ToolCallContent
 import io.ktor.client.HttpClient
 import io.ktor.client.request.accept
 import io.ktor.client.request.get
@@ -13,6 +15,11 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 
 class GatewayRepositoryImpl
@@ -234,6 +241,104 @@ class GatewayRepositoryImpl
             return response.logs
         }
 
+        override suspend fun fetchWorkspaceFile(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            runtimeId: String,
+            path: String,
+        ): GatewayFileRead {
+            val endpoint =
+                buildGatewayEndpoint(
+                    scheme,
+                    host,
+                    segments = arrayOf("v1", "runtimes", runtimeId, "files"),
+                    query = mapOf("path" to path),
+                )
+            val authHeaders =
+                GatewayProofAuth.buildAuthHeaders(
+                    gatewayCredential = gatewayCredential,
+                    method = "GET",
+                    endpoint = endpoint,
+                    body = null,
+                )
+            val response =
+                httpClient.get {
+                    url(endpoint)
+                    accept(ContentType.Application.Json)
+                    authHeaders.let { applyGatewayAuthHeaders(it) }
+                }
+            if (!response.status.isSuccess()) {
+                throw gatewayRequestException(
+                    response.status.value,
+                    response.status.description,
+                    endpoint,
+                    response.bodyAsText(),
+                )
+            }
+            val body = response.bodyAsText()
+            val jsonElement = json.parseToJsonElement(body).jsonObject
+            val size = jsonElement["size"]?.jsonPrimitive?.intOrNull ?: 0
+            val truncated = jsonElement["truncated"]?.jsonPrimitive?.booleanOrNull ?: false
+            // The gateway returns the ACP TextResourceContents or BlobResourceContents
+            // shape (plus size/truncated extensions). The two are distinguished by the
+            // presence of `blob` (binary) vs `text`.
+            return if (jsonElement["blob"] != null) {
+                val contents = json.decodeFromJsonElement<EmbeddedResourceResource.BlobResourceContents>(jsonElement)
+                GatewayFileRead.Binary(contents, size, truncated)
+            } else {
+                val contents = json.decodeFromJsonElement<EmbeddedResourceResource.TextResourceContents>(jsonElement)
+                GatewayFileRead.Text(contents, size, truncated)
+            }
+        }
+
+        override suspend fun fetchGitStatus(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            runtimeId: String,
+        ): GatewayGitStatus =
+            httpClient.getJson(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                segments = arrayOf("v1", "runtimes", runtimeId, "git", "status"),
+            )
+
+        override suspend fun fetchGitDiff(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            runtimeId: String,
+            path: String?,
+        ): List<ToolCallContent.Diff> {
+            val segments = arrayOf("v1", "runtimes", runtimeId, "git", "diff")
+            val query = path?.takeIf { it.isNotBlank() }?.let { mapOf("path" to it) } ?: emptyMap()
+            return if (query.isEmpty()) {
+                // Whole-tree: gateway returns a JSON array of ToolCallContentDiff objects.
+                httpClient.getJson(
+                    json = json,
+                    scheme = scheme,
+                    host = host,
+                    bearerToken = gatewayCredential,
+                    segments = segments,
+                )
+            } else {
+                // Single file: gateway returns one ToolCallContentDiff object.
+                val single =
+                    httpClient.getJson<ToolCallContent.Diff>(
+                        json = json,
+                        scheme = scheme,
+                        host = host,
+                        bearerToken = gatewayCredential,
+                        segments = segments,
+                        query = query,
+                    )
+                listOf(single)
+            }
+        }
+
         override suspend fun completePairing(
             scheme: String,
             host: String,
@@ -301,8 +406,9 @@ private suspend inline fun <reified T> HttpClient.getJson(
     host: String,
     bearerToken: String? = null,
     vararg segments: String,
+    query: Map<String, String> = emptyMap(),
 ): T {
-    val endpoint = buildGatewayEndpoint(scheme, host, *segments)
+    val endpoint = buildGatewayEndpoint(scheme, host, segments = segments, query = query)
     val authHeaders =
         bearerToken?.takeIf { it.isNotBlank() }?.let {
             GatewayProofAuth.buildAuthHeaders(
@@ -443,10 +549,20 @@ private fun buildGatewayEndpoint(
     scheme: String,
     host: String,
     vararg segments: String,
+    query: Map<String, String> = emptyMap(),
 ): String {
     val normalizedScheme = normalizeControlScheme(scheme)
     val normalizedHost = normalizeGatewayHost(host)
-    return "$normalizedScheme://$normalizedHost/${segments.joinToString("/")}"
+    val path = segments.joinToString("/")
+    val base = "$normalizedScheme://$normalizedHost/$path"
+    if (query.isEmpty()) return base
+    val encodedQuery =
+        query.entries.joinToString("&") { (key, value) ->
+            val encodedKey = java.net.URLEncoder.encode(key, Charsets.UTF_8.name())
+            val encodedValue = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
+            "$encodedKey=$encodedValue"
+        }
+    return "$base?$encodedQuery"
 }
 
 private fun normalizeControlScheme(scheme: String): String =

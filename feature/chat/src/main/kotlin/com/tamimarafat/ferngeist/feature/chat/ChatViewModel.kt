@@ -18,12 +18,15 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.ActiveChat
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
+import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
@@ -46,6 +49,7 @@ class ChatViewModel
         private val chatScrollStateStore: ChatScrollStateStore,
         val recentSelectionStore: RecentSelectionStore,
         private val activeChatStore: ActiveChatStore,
+        private val gatewayRepository: GatewayRepository,
         savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(initialChatState()) {
 
@@ -262,6 +266,40 @@ class ChatViewModel
                     updateState { copy(connectionDiagnostics = diagnostics) }
                 }
             }
+            viewModelScope.launch {
+                sessionFacade.gatewayWorkspaceConnection.collect { connection ->
+                    updateState { copy(gatewayWorkspaceConnection = connection) }
+                    if (connection != null) refreshGitStatus(connection)
+                }
+            }
+        }
+
+        /**
+         * Fetches the git status for a gateway-backed working tree and stores line-based
+         * add/delete totals in [ChatState.gitDiffStats]. The gateway returns per-file
+         * `added`/`removed` counts (from `git diff --numstat`, with untracked files counted
+         * from disk), so the totals are git's own authoritative numbers.
+         *
+         * Errors keep the previous value so a transient poll failure does not clear the
+         * indicator.
+         */
+        private fun refreshGitStatus(connection: GatewayWorkspaceConnection) {
+            viewModelScope.launch {
+                runCatching {
+                    val status = gatewayRepository.fetchGitStatus(
+                        scheme = connection.scheme,
+                        host = connection.host,
+                        gatewayCredential = connection.gatewayCredential,
+                        runtimeId = connection.runtimeId,
+                    )
+                    GitDiffStats(
+                        additions = status.changed.sumOf { it.added },
+                        deletions = status.changed.sumOf { it.removed },
+                    ).let { stats ->
+                        updateState { copy(gitStatus = status, gitDiffStats = stats) }
+                    }
+                }
+            }
         }
 
         /**
@@ -407,6 +445,7 @@ class ChatViewModel
                     } else {
                         enqueuePrompt(intent.text, intent.images, intent.files)
                     }
+                    state.value.gatewayWorkspaceConnection?.let { refreshGitStatus(it) }
                 }
                 is ChatIntent.CancelStreaming -> sessionCoordinator.cancelStreaming()
                 is ChatIntent.SetConfigOption -> sessionCoordinator.setConfigOption(intent.optionId, intent.value)
@@ -414,6 +453,8 @@ class ChatViewModel
                 is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
                 is ChatIntent.RetryLoad -> sessionCoordinator.loadSession()
                 is ChatIntent.RetryMessage -> retryMessage(intent.clientId)
+                is ChatIntent.RefreshGitStatus ->
+                    state.value.gatewayWorkspaceConnection?.let { refreshGitStatus(it) }
             }
         }
 
@@ -615,6 +656,9 @@ data class ChatState(
     val commandsAdvertised: Boolean = false,
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
+    val gatewayWorkspaceConnection: GatewayWorkspaceConnection? = null,
+    val gitStatus: GatewayGitStatus? = null,
+    val gitDiffStats: GitDiffStats? = null,
     val error: String? = null,
 )
 
@@ -646,6 +690,9 @@ sealed interface ChatIntent {
 
     /** Retry sending a previously failed (or queued) message identified by its [clientId]. */
     data class RetryMessage(val clientId: String) : ChatIntent
+
+    /** Re-fetch the git status for the gateway-backed working tree (e.g. after a send). */
+    data object RefreshGitStatus : ChatIntent
 }
 
 /** One-shot effects emitted to the UI layer (snackbar, navigation, etc.). */

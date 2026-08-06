@@ -14,11 +14,15 @@ import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
+import com.tamimarafat.ferngeist.gateway.GatewayFileRead
+import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -610,6 +614,7 @@ class ChatViewModelTest {
             ),
         sessionRepository: SessionRepository = FakeSessionRepository(),
         facadeFactory: ChatSessionFacadeFactory = FakeChatSessionFacadeFactory(),
+        gatewayRepository: GatewayRepository = FakeGatewayRepository(),
     ): ChatViewModel {
         return ChatViewModel(
             sessionFacadeFactory = facadeFactory,
@@ -617,6 +622,7 @@ class ChatViewModelTest {
             chatScrollStateStore = chatScrollStateStore,
             recentSelectionStore = FakeRecentSelectionStore(),
             activeChatStore = ActiveChatStore(),
+            gatewayRepository = gatewayRepository,
             savedStateHandle = savedStateHandle,
         )
     }
@@ -649,6 +655,7 @@ private class TestFacade(
     private val _diagnostics = MutableStateFlow(ChatConnectionDiagnostics())
     private val _sessionSnapshot = MutableStateFlow<ChatSessionSnapshot?>(null)
     private val _agentCapabilities = MutableStateFlow(ChatAgentCapabilities())
+    private val _gatewayWorkspaceConnection = MutableStateFlow<GatewayWorkspaceConnection?>(null)
     private val _loadFailed = MutableSharedFlow<String>(extraBufferCapacity = 1)
     private val _operationError = MutableSharedFlow<ChatOperationError>(extraBufferCapacity = 1)
     private val _streamingCancelled = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -660,6 +667,7 @@ private class TestFacade(
     override val diagnostics: StateFlow<ChatConnectionDiagnostics> = _diagnostics
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = _sessionSnapshot
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = _agentCapabilities
+    override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> = _gatewayWorkspaceConnection
     override val loadFailed: SharedFlow<String> = _loadFailed
     override val operationError: SharedFlow<ChatOperationError> = _operationError
     override val streamingCancelled: SharedFlow<Unit> = _streamingCancelled
@@ -724,6 +732,7 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
     private val _diagnostics = MutableStateFlow(ChatConnectionDiagnostics())
     protected val _sessionSnapshot = MutableStateFlow<ChatSessionSnapshot?>(null)
     private val _agentCapabilities = MutableStateFlow(ChatAgentCapabilities())
+    private val _gatewayWorkspaceConnection = MutableStateFlow<GatewayWorkspaceConnection?>(null)
 
     private val _loadFailed = MutableSharedFlow<String>(extraBufferCapacity = 1)
     private val _operationError = MutableSharedFlow<ChatOperationError>(extraBufferCapacity = 1)
@@ -736,6 +745,7 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
     override val diagnostics: StateFlow<ChatConnectionDiagnostics> = _diagnostics
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = _sessionSnapshot
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = _agentCapabilities
+    override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> = _gatewayWorkspaceConnection
 
     override val loadFailed: SharedFlow<String> = _loadFailed
     override val operationError: SharedFlow<ChatOperationError> = _operationError
@@ -878,4 +888,25 @@ private class FakeRecentSelectionStore : RecentSelectionStore {
     override suspend fun addSelection(key: String, value: String) {}
 
     override suspend fun clearByPrefix(prefix: String) {}
+}
+
+/** No-op [GatewayRepository] for chat view-model tests. */
+private class FakeGatewayRepository : GatewayRepository {
+    override suspend fun fetchStatus(scheme: String, host: String) = TODO()
+    override suspend fun startPairing(scheme: String, host: String) = TODO()
+    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String) = TODO()
+    override suspend fun fetchAgents(scheme: String, host: String, gatewayCredential: String) = TODO()
+    override suspend fun startAgent(scheme: String, host: String, gatewayCredential: String, agentId: String) = TODO()
+    override suspend fun connectRuntime(scheme: String, host: String, gatewayCredential: String, runtimeId: String, sessionMode: String?) = TODO()
+    override suspend fun restartRuntime(scheme: String, host: String, gatewayCredential: String, runtimeId: String, envVars: Map<String, String>) = TODO()
+    override suspend fun fetchRuntimeLogs(scheme: String, host: String, gatewayCredential: String, runtimeId: String) = TODO()
+    override suspend fun completePairing(scheme: String, host: String, challengeId: String, code: String, deviceName: String) = TODO()
+    override suspend fun refreshCredential(scheme: String, host: String, gatewayCredential: String) = TODO()
+    override suspend fun resumeSession(scheme: String, host: String, gatewayCredential: String, sessionId: String) = TODO()
+    override suspend fun listGatewaySessions(scheme: String, host: String, gatewayCredential: String) = TODO()
+    override suspend fun closeSession(scheme: String, host: String, gatewayCredential: String, sessionId: String) = Unit
+    override suspend fun registerPushToken(scheme: String, host: String, gatewayCredential: String, token: String, platform: String) = Unit
+    override suspend fun fetchWorkspaceFile(scheme: String, host: String, gatewayCredential: String, runtimeId: String, path: String): GatewayFileRead = TODO()
+    override suspend fun fetchGitStatus(scheme: String, host: String, gatewayCredential: String, runtimeId: String): GatewayGitStatus = TODO()
+    override suspend fun fetchGitDiff(scheme: String, host: String, gatewayCredential: String, runtimeId: String, path: String?): List<com.agentclientprotocol.model.ToolCallContent.Diff> = TODO()
 }

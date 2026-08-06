@@ -33,6 +33,7 @@ import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
@@ -87,6 +88,11 @@ class AcpChatSessionFacade(
     private val _agentCapabilities =
         MutableStateFlow(ChatAgentCapabilities())
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = _agentCapabilities.asStateFlow()
+
+    // ---- Gateway workspace ----
+    private val _gatewayWorkspaceConnection = MutableStateFlow<GatewayWorkspaceConnection?>(null)
+    override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> =
+        _gatewayWorkspaceConnection.asStateFlow()
 
     // ---- Events (one-shot) ----
     // SharedFlow is used for one-off signals so repeated emissions are not lost.
@@ -363,6 +369,7 @@ class AcpChatSessionFacade(
         cancelBridgeRecovery()
         invalidateActiveBridge()
         clearBridgeObservers()
+        _gatewayWorkspaceConnection.value = null
     }
 
     // ---- Internal ----
@@ -373,6 +380,19 @@ class AcpChatSessionFacade(
      */
     private suspend fun ensureConnectedAndInitialized(): Boolean {
         if (connectionManager.isConnected) {
+            // Already connected — restore the gateway workspace connection from the live
+            // config so the diff indicator works when resuming into an open session.
+            connectionManager.currentConnectionConfig()
+                ?.takeIf { it.gatewayCredential != null && it.gatewayRuntimeId != null }
+                ?.let { config ->
+                    _gatewayWorkspaceConnection.value =
+                        GatewayWorkspaceConnection(
+                            runtimeId = config.gatewayRuntimeId!!,
+                            scheme = config.gatewayScheme ?: "http",
+                            host = config.gatewayHost ?: config.host,
+                            gatewayCredential = config.gatewayCredential!!,
+                        )
+                }
             publishCapabilities()
             return true
         }
@@ -457,7 +477,15 @@ class AcpChatSessionFacade(
                 gatewayScheme = refreshedSource.scheme,
                 gatewayHost = refreshedSource.host,
                 gatewayCredential = refreshedSource.gatewayCredential,
-            )
+            ).also {
+                _gatewayWorkspaceConnection.value =
+                    GatewayWorkspaceConnection(
+                        runtimeId = runtime.id,
+                        scheme = refreshedSource.scheme,
+                        host = refreshedSource.host,
+                        gatewayCredential = refreshedSource.gatewayCredential,
+                    )
+            }
         } catch (error: Throwable) {
             _loadFailed.emit(
                 "Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}",

@@ -3,6 +3,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularWavyProgressIndicator
@@ -34,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -47,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -63,6 +68,7 @@ import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.allChoices
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
+import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -71,6 +77,8 @@ import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.gateway.GatewayChangedFile
+import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.collections.immutable.ImmutableMap
@@ -563,6 +571,266 @@ private fun ThoughtDetailsSheet(
             ContentBlockRenderer(
                 block = ContentBlock.Text(thought),
             )
+        }
+    }
+}
+
+/**
+ * Modal bottom sheet showing the git working-tree status in detail: branch,
+ * ahead/behind, aggregate added/deleted line totals, and a per-file list with the
+ * porcelain status letter and per-file line counts — the standard layout most git
+ * UIs use. Opened by long-pressing the git status pill in the chat top bar.
+ */
+@Composable
+internal fun GitStatusSheet(
+    status: GatewayGitStatus,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val additions = status.changed.sumOf { it.added }
+    val deletions = status.changed.sumOf { it.removed }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            // Header: title + branch pill + ahead/behind
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(R.string.chat_git_status_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    // Branch pill + ahead/behind (like git branch -v)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(percent = 50),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Text(
+                                text = status.branch.ifBlank { stringResource(R.string.chat_git_no_branch) },
+                                style = MaterialTheme.typography.labelMedium,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
+                        if (status.ahead > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowUpward,
+                                    contentDescription = null,
+                                    tint = LocalGitSemanticColors.current.added,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Text(
+                                    text = status.ahead.toString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = LocalGitSemanticColors.current.added,
+                                )
+                            }
+                        }
+                        if (status.behind > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Text(
+                                    text = status.behind.toString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Summary card: aggregate line totals + diff-blocks proportion
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (additions > 0) {
+                            Text(
+                                text = "+$additions",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = LocalGitSemanticColors.current.added,
+                            )
+                        }
+                        if (deletions > 0) {
+                            Text(
+                                text = "-$deletions",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = LocalGitSemanticColors.current.deleted,
+                            )
+                        }
+                        DiffBlocks(additions = additions, deletions = deletions)
+                    }
+                    Text(
+                        text = stringResource(R.string.chat_git_files_changed, status.changed.size),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Per-file list
+            if (status.changed.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.chat_git_clean),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp),
+                )
+            } else {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    status.changed.forEach { file ->
+                        ChangedFileRow(file = file)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun ChangedFileRow(file: GatewayChangedFile) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Status badge (porcelain letter). Modified/renamed use neutral theme
+            // roles, while added/deleted use the fixed git semantic colors so the
+            // green=add / red=delete meaning survives any theme configuration.
+            val gitColors = LocalGitSemanticColors.current
+            val statusColor =
+                when (file.status) {
+                    "M" -> MaterialTheme.colorScheme.secondary
+                    "A" -> gitColors.added
+                    "R" -> MaterialTheme.colorScheme.tertiary
+                    "?" -> MaterialTheme.colorScheme.onSurfaceVariant
+                    "D" -> gitColors.deleted
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            val statusBg =
+                when (file.status) {
+                    "D" -> gitColors.deleted.copy(alpha = 0.15f)
+                    "M" -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                    "A" -> gitColors.added.copy(alpha = 0.15f)
+                    "R" -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+                    "?" -> MaterialTheme.colorScheme.surfaceVariant
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = statusBg,
+            ) {
+                Text(
+                    text = file.status,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = statusColor,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                )
+            }
+
+            Text(
+                text = file.path,
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.StartEllipsis,
+                modifier = Modifier.weight(1f),
+            )
+
+            if (file.binary) {
+                Text(
+                    text = stringResource(R.string.chat_git_binary),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                // Reuse the diff-blocks visual (proportion of additions vs deletions)
+                // with compact +N / -M counts, matching the top-bar indicator.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (file.added > 0) {
+                        Text(
+                            text = "+${file.added}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = LocalGitSemanticColors.current.added,
+                        )
+                    }
+                    DiffBlocks(
+                        additions = file.added,
+                        deletions = file.removed,
+                        showEmpty = false,
+                    )
+                    if (file.removed > 0) {
+                        Text(
+                            text = "-${file.removed}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = LocalGitSemanticColors.current.deleted,
+                        )
+                    }
+                }
+            }
         }
     }
 }

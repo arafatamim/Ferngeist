@@ -34,6 +34,9 @@ dependencies {
     // === Core ===
     implementation(projects.core.model)
 
+    // === ACP SDK (shared schema types for workspace responses) ===
+    implementation(libs.acp.model)
+
     // === Android ===
     implementation(libs.androidx.core.ktx)
 

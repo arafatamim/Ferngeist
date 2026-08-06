@@ -170,3 +170,39 @@ data class GatewaySessionSummary(
     val status: String,
     @SerialName("createdAt") val createdAt: String? = null,
 )
+
+/**
+ * Text file read response from `GET /v1/runtimes/{id}/files`. The gateway returns the ACP
+ * SDK's [com.agentclientprotocol.model.EmbeddedResourceResource.TextResourceContents] shape
+ * directly; the gateway's `size`/`truncated` extensions are carried alongside.
+ */
+sealed interface GatewayFileRead {
+    data class Text(
+        val contents: com.agentclientprotocol.model.EmbeddedResourceResource.TextResourceContents,
+        val size: Int,
+        val truncated: Boolean = false,
+    ) : GatewayFileRead
+
+    data class Binary(
+        val contents: com.agentclientprotocol.model.EmbeddedResourceResource.BlobResourceContents,
+        val size: Int,
+        val truncated: Boolean = false,
+    ) : GatewayFileRead
+}
+
+@Serializable
+data class GatewayChangedFile(
+    val path: String,
+    val status: String,
+    val added: Int = 0,
+    val removed: Int = 0,
+    val binary: Boolean = false,
+)
+
+@Serializable
+data class GatewayGitStatus(
+    val branch: String = "",
+    val ahead: Int = 0,
+    val behind: Int = 0,
+    val changed: List<GatewayChangedFile> = emptyList(),
+)

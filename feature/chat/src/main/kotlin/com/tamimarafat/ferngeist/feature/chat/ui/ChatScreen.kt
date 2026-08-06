@@ -101,6 +101,7 @@ fun ChatScreen(
     var selectedToolCallSegmentId by remember { mutableStateOf<String?>(null) }
     var showCommandsDialog by remember { mutableStateOf(false) }
     var showConnectionStatusDialog by remember { mutableStateOf(false) }
+    var showGitStatusSheet by remember { mutableStateOf(false) }
     var composerContentHeightPx by remember { mutableIntStateOf(0) }
     var messageText by remember { mutableStateOf("") }
     var selectedImages by remember { mutableStateOf<List<ChatImageData>>(emptyList()) }
@@ -239,6 +240,14 @@ fun ChatScreen(
         remember(modeOption) {
             modeOption?.displayValueLabel()?.uppercase() ?: defaultModeLabel
         }
+
+    // --- Git status indicator (gateway-backed working tree) ---
+    // Reuses the diff-blocks visual from the edit tool-call summary. Counts are
+    // line-based (+N = added lines, -M = deleted lines), fetched from the gateway's
+    // git diff endpoint and summed across the whole working tree (untracked files
+    // counted as additions from their contents).
+    val gitAdditions = state.gitDiffStats?.additions ?: 0
+    val gitDeletions = state.gitDiffStats?.deletions ?: 0
 
     // --- Messages & selections ---
     val renderedMessages = remember(state.messages, state.pendingMessages) {
@@ -379,9 +388,15 @@ fun ChatScreen(
                         contextWindowTokens = state.usage?.contextWindowTokens,
                         costAmount = state.usage?.costAmount,
                         costCurrency = state.usage?.costCurrency,
+                        gitAdditions = gitAdditions,
+                        gitDeletions = gitDeletions,
+                        gitBranch = state.gitStatus?.branch,
+                        gitChangedFiles = state.gitStatus?.changed?.size ?: 0,
                         scrollBehavior = scrollBehavior,
                         onNavigateBack = onNavigateBack,
                         onConnectionStatusClick = { showConnectionStatusDialog = true },
+                        onGitStatusClick = { showGitStatusSheet = true },
+                        onGitStatusLongPress = { viewModel.dispatch(ChatIntent.RefreshGitStatus) },
                         onTitleClick = {
                             coroutineScope.launch {
                                 scrollHandle.jumpToTop()
@@ -435,6 +450,15 @@ fun ChatScreen(
                         onDismissCommands = { showCommandsDialog = false },
                         onCommandClick = sendCommand,
                     )
+
+                    if (showGitStatusSheet) {
+                        state.gitStatus?.let { status ->
+                            GitStatusSheet(
+                                status = status,
+                                onDismiss = { showGitStatusSheet = false },
+                            )
+                        }
+                    }
 
                     ChatScreenBody(
                         state = state,

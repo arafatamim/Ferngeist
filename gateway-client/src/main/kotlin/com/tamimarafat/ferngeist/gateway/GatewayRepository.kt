@@ -99,4 +99,39 @@ interface GatewayRepository {
         token: String,
         platform: String = "android",
     )
+
+    /**
+     * Reads a file inside a runtime's project directory. [path] is relative to the
+     * agent's cwd (captured from the ACP session/new params.cwd) and must not escape it.
+     * The response is the ACP SDK's resource-contents shape (text or binary).
+     */
+    suspend fun fetchWorkspaceFile(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+        path: String,
+    ): GatewayFileRead
+
+    /** Returns the git branch, ahead/behind, and changed files for a runtime's project directory. */
+    suspend fun fetchGitStatus(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+    ): GatewayGitStatus
+
+    /**
+     * Returns the diff entries for a runtime's project directory as the ACP SDK's
+     * [com.agentclientprotocol.model.ToolCallContent.Diff] shape. With [path] set the gateway
+     * returns a single object (wrapped here as a one-element list); with [path] null it returns
+     * the whole-tree array. [oldText] is null for new/untracked files.
+     */
+    suspend fun fetchGitDiff(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+        path: String? = null,
+    ): List<com.agentclientprotocol.model.ToolCallContent.Diff>
 }

@@ -118,6 +118,18 @@ data class ChatAgentCapabilities(
     val supportsEmbeddedContext: Boolean = false,
 )
 
+/**
+ * The connection details a chat needs to reach its agent's workspace through the
+ * gateway REST API (file reads, git status/diff). Null for non-gateway (manual)
+ * chats, which have no gateway workspace.
+ */
+data class GatewayWorkspaceConnection(
+    val runtimeId: String,
+    val scheme: String,
+    val host: String,
+    val gatewayCredential: String,
+)
+
 data class ChatSessionSnapshot(
     val loadState: ChatLoadState,
     val messages: List<ChatMessage>,
@@ -160,6 +172,9 @@ interface ChatSessionFacade {
     val sessionSnapshot: StateFlow<ChatSessionSnapshot?>
     /** Advertised agent capabilities (image prompt, embedded context, etc.). */
     val agentCapabilities: StateFlow<ChatAgentCapabilities>
+    /** Gateway workspace connection details (runtime id, host, credential), or null
+     * when the chat targets a direct (non-gateway) server. */
+    val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?>
 
     // One-shot event streams (not state snapshots):
     val loadFailed: SharedFlow<String>
