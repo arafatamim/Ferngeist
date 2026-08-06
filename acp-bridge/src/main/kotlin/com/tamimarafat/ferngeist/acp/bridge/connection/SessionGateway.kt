@@ -642,15 +642,18 @@ internal class SessionGateway(
      * Checks whether an error means the session is already loaded on the agent.
      *
      * Agents surface this differently — a [JsonRpcException] with varying error
-     * codes, or a plain message-only exception — so we match on the message
-     * anywhere in the cause chain rather than a specific type or code. For gateway
-     * sessions the gateway recovers from this transparently; this remains the
-     * fallback for direct (Manual) connections to an agent that keeps the session
-     * loaded.
+     * codes, or a plain message-only exception. We first fast-path on the
+     * JSON-RPC error code: a [JsonRpcException] with code
+     * [JsonRpcErrorCode.INVALID_PARAMS] means the session is already loaded when
+     * the agent signals it via a standard JSON-RPC error. Otherwise we fall back
+     * to matching the message anywhere in the cause chain. For gateway sessions
+     * the gateway recovers from this transparently; this remains the fallback
+     * for direct (Manual) connections to an agent that keeps the session loaded.
      */
-    private fun isSessionAlreadyLoadedError(error: Throwable): Boolean =
+    internal fun isSessionAlreadyLoadedError(error: Throwable): Boolean =
         generateSequence(error as Throwable?) { it.cause }.any {
-            it.message?.contains("already loaded", ignoreCase = true) == true
+            it is JsonRpcException && it.code == JsonRpcErrorCode.INVALID_PARAMS.code ||
+                it.message?.contains("already loaded", ignoreCase = true) == true
         }
 
     /**
