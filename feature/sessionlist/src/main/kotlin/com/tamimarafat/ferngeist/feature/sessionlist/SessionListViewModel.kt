@@ -214,7 +214,7 @@ class SessionListViewModel
                             SessionListEvent.NavigateToChat(
                                 serverId = serverId,
                                 sessionId = summary.id,
-                                cwd = summary.cwd ?: "/",
+                                cwd = summary.cwd ?: "",
                                 updatedAt = summary.updatedAt,
                                 title = summary.title,
                             ),

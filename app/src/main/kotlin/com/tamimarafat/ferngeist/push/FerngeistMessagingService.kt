@@ -126,7 +126,7 @@ class FerngeistMessagingService : FirebaseMessagingService() {
                 if (localServerId != null && sessionId != null) {
                     putExtra(FerngeistForegroundService.EXTRA_SERVER_ID, localServerId)
                     putExtra(FerngeistForegroundService.EXTRA_SESSION_ID, sessionId)
-                    putExtra(FerngeistForegroundService.EXTRA_CWD, data[FcmPayloadKeys.CWD] ?: "/")
+                    putExtra(FerngeistForegroundService.EXTRA_CWD, data[FcmPayloadKeys.CWD] ?: "")
                     putExtra(FerngeistForegroundService.EXTRA_GATEWAY_ID, data[FcmPayloadKeys.SERVER_ID])
                 }
             }

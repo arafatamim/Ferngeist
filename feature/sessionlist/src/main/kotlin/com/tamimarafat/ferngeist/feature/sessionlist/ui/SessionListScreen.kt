@@ -481,7 +481,7 @@ fun SessionListScreen(
                                     onClick = {
                                         onNavigateToChat(
                                             session.id,
-                                            session.cwd ?: "/",
+                                            session.cwd ?: "",
                                             session.updatedAt,
                                             session.title,
                                         )

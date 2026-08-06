@@ -87,7 +87,7 @@ class AcpConnectionManager(
 
     suspend fun listSessions(cwd: String? = null): List<SessionSummary> = orchestra.listSessions(cwd)
 
-    suspend fun createSession(cwd: String = "/"): SessionPort? = gateway.createSession(cwd)
+    suspend fun createSession(cwd: String = ""): SessionPort? = gateway.createSession(cwd)
 
     suspend fun loadSession(
         sessionId: String,

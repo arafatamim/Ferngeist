@@ -68,7 +68,11 @@ internal class SessionGateway(
      * Auth-required errors are re-thrown so the facade can prompt re-auth; other
      * errors are recorded in diagnostics and null is returned.
      */
-    suspend fun createSession(cwd: String = "/"): SessionPort? {
+    suspend fun createSession(cwd: String = ""): SessionPort? {
+        if (cwd.isBlank()) {
+            orchestra.diagnosticsStore.appendError("session/new", "Refusing to create session: blank cwd")
+            return null
+        }
         val client = orchestra.sdkClient ?: return null
         return runCatching {
             orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/new")
