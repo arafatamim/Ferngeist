@@ -57,7 +57,7 @@ class ChatViewModel
 
         private val serverId: String = savedStateHandle["serverId"] ?: error("serverId is required")
         private val sessionId: String = savedStateHandle["sessionId"] ?: error("sessionId is required")
-        private val cwd: String = savedStateHandle["cwd"] ?: ""
+        val cwd: String = savedStateHandle["cwd"] ?: ""
         private val sessionUpdatedAt: Long? = savedStateHandle.get<Long>("updatedAt")?.takeIf { it > 0L }
         private val sessionTitle: String =
             savedStateHandle.get<String>("title")?.let { Uri.decode(it) }.orEmpty()

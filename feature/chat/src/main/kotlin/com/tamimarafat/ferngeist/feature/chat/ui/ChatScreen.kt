@@ -372,6 +372,7 @@ fun ChatScreen(
                     ChatTopBar(
                         sessionId = sessionId,
                         sessionTitle = state.title ?: sessionTitle,
+                        cwd = viewModel.cwd,
                         activeModel = activeModel,
                         connectionState = state.connectionState,
                         totalTokens = state.usage?.totalTokens,

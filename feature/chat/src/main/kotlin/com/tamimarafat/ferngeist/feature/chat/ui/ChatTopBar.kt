@@ -3,8 +3,11 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,13 +19,19 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TwoRowsTopAppBar
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -36,6 +45,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
 import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
+import kotlinx.coroutines.launch
 
 // region: ChatTopBar
 
@@ -55,6 +65,7 @@ import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
 internal fun ChatTopBar(
     sessionId: String,
     sessionTitle: String,
+    cwd: String?,
     activeModel: String?,
     connectionState: ChatConnectionState,
     totalTokens: Int?,
@@ -113,6 +124,8 @@ internal fun ChatTopBar(
                     collapsedFraction = collapsedFraction,
                     sessionId = sessionId,
                     sessionTitle = sessionTitle,
+                    cwd = cwd,
+                    model = activeModel,
                     onTitleClick = onTitleClick,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -173,13 +186,19 @@ internal fun ChatTopBar(
  * The shared-bounds transition for the session title is assigned to whichever
  * visual form owns the majority of the crossfade — ownership flips at 50%.
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(
+    ExperimentalSharedTransitionApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class,
+)
 @Composable
 internal fun ChatTopBarTitle(
     expanded: Boolean,
     collapsedFraction: Float,
     sessionId: String,
     sessionTitle: String,
+    cwd: String?,
+    model: String?,
     onTitleClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
@@ -193,66 +212,125 @@ internal fun ChatTopBarTitle(
         } else {
             collapsedFraction >= 0.5f
         }
+    val tooltipState = rememberTooltipState()
+    val scope = rememberCoroutineScope()
+    val showTitleTooltip: () -> Unit = {
+        scope.launch { tooltipState.show() }
+    }
 
-    if (expanded) {
-        with(sharedTransitionScope) {
-            Text(
-                text = sessionTitle,
-                style =
-                    MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                    ),
-                maxLines = 2,
-                softWrap = true,
-                overflow = TextOverflow.MiddleEllipsis,
-                modifier =
-                    Modifier
-                        .then(
-                            if (ownsSharedTitleBounds) {
-                                Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)
-                            } else {
-                                Modifier
-                            },
-                        ).clickable(onClick = onTitleClick)
-                        .semantics {
-                            contentDescription = sessionTitle
-                        },
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberRichTooltipPositionProvider(),
+        tooltip = {
+            RichTooltip(
+                title = {
+                    Text(
+                        text = sessionTitle,
+                        style =
+                            MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                            ),
+                    )
+                },
+                text = {
+                    Column {
+                        cwd?.takeIf { it.isNotBlank() }?.let { value ->
+                            Text(
+                                text = value,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                    ),
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                        model?.takeIf { it.isNotBlank() }?.let { value ->
+                            Text(
+                                text = value,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                    ),
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                },
             )
-        }
-    } else {
-        Surface(
-            shape = RoundedCornerShape(percent = 50),
-            tonalElevation = 0.dp,
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(percent = 50))
-                    .clickable(onClick = onTitleClick)
-                    .semantics {
-                        contentDescription = sessionTitle
-                    },
-        ) {
+        },
+        state = tooltipState,
+    ) {
+        if (expanded) {
             with(sharedTransitionScope) {
                 Text(
                     text = sessionTitle,
                     style =
-                        MaterialTheme.typography.titleSmall.copy(
+                        MaterialTheme.typography.titleLarge.copy(
                             fontFamily = FontFamily.Monospace,
                         ),
-                    maxLines = 1,
+                    maxLines = 2,
+                    softWrap = true,
                     overflow = TextOverflow.MiddleEllipsis,
                     modifier =
                         Modifier
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
                             .then(
                                 if (ownsSharedTitleBounds) {
                                     Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)
                                 } else {
                                     Modifier
                                 },
-                            ),
+                            ).combinedClickable(
+                                onClick = {
+                                    tooltipState.dismiss()
+                                    onTitleClick()
+                                },
+                                onLongClick = showTitleTooltip,
+                            )
+                            .semantics {
+                                contentDescription = sessionTitle
+                            },
                 )
+            }
+        } else {
+            Surface(
+                shape = RoundedCornerShape(percent = 50),
+                tonalElevation = 0.dp,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(percent = 50))
+                        .combinedClickable(
+                            onClick = {
+                                tooltipState.dismiss()
+                                onTitleClick()
+                            },
+                            onLongClick = showTitleTooltip,
+                        )
+                        .semantics {
+                            contentDescription = sessionTitle
+                        },
+            ) {
+                with(sharedTransitionScope) {
+                    Text(
+                        text = sessionTitle,
+                        style =
+                            MaterialTheme.typography.titleSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                            ),
+                        maxLines = 1,
+                        overflow = TextOverflow.MiddleEllipsis,
+                        modifier =
+                            Modifier
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .then(
+                                    if (ownsSharedTitleBounds) {
+                                        Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                    )
+                }
             }
         }
     }
