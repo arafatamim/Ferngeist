@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 internal class AcpSessionRegistry(
     private val scope: CoroutineScope,
+    private val shouldCloseSdkSession: () -> Boolean = { true },
 ) {
     private val sessionBridges = ConcurrentHashMap<String, SessionBridge>()
     private val sdkSessions = ConcurrentHashMap<String, ClientSession>()
@@ -56,7 +57,9 @@ internal class AcpSessionRegistry(
         closeBridge: Boolean,
     ) {
         val sdkSession = sdkSessions.remove(sessionId)
-        sdkSession?.let { scope.launch { it.close() } }
+        if (sdkSession != null && shouldCloseSdkSession()) {
+            scope.launch { sdkSession.close() }
+        }
         if (closeBridge) {
             sessionBridges.remove(sessionId)?.close()
         } else {

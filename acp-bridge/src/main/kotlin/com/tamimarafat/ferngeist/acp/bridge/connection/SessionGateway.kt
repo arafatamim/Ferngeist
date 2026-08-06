@@ -57,7 +57,7 @@ internal class SessionGateway(
     private val bridgeFactory: (String) -> SessionBridge,
     private val scope: CoroutineScope,
 ) {
-    private val sessionRegistry = AcpSessionRegistry(scope)
+    private val sessionRegistry = AcpSessionRegistry(scope, ::shouldCloseSdkSession)
     private val observerJobs = ConcurrentHashMap<String, List<Job>>()
 
     /**
@@ -631,6 +631,16 @@ internal class SessionGateway(
         sessionRegistry.clearSession(sessionId, closeBridge = closeBridge)
         permissionFlow.cancelForSession(sessionId)
     }
+
+    /**
+     * Whether the SDK session's `close()` should be invoked when it is cleared
+     * from the registry. Only close sessions when the agent advertises the
+     * `session/close` capability; otherwise closing would error out (the method
+     * is not implemented by the agent) and leave the agent-side session running.
+     */
+    @OptIn(UnstableApi::class)
+    private fun shouldCloseSdkSession(): Boolean =
+        orchestra.agentCapabilities.value?.sessionCapabilities?.close != null
 
     /** Returns a loaded session port if the SDK session exists in the registry. */
     private fun getLoadedSession(sessionId: String): SessionPort? {
