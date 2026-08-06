@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.push
 import android.util.Log
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CoroutineScope
@@ -78,6 +79,13 @@ class PushTokenRegistrar(
                 gatewayCredential = refreshed.gatewayCredential,
                 token = token,
             )
+        } catch (error: GatewayCredentialExpiredException) {
+            // The credential is dead and cannot be refreshed. Clear it so the
+            // gateway disappears from the list (the user can re-pair); retrying
+            // the push registration forever would just keep 401ing.
+            registered.remove(key)
+            gatewaySourceRepository.deleteGateway(refreshed.id)
+            Log.w(TAG, "Gateway credential expired, removed gateway ${refreshed.name}", error)
         } catch (e: Exception) {
             // Drop the key so the next emission retries this gateway.
             registered.remove(key)

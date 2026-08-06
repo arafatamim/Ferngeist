@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -64,7 +65,18 @@ class GatewayAgentsViewModel
                         )
                     return@launch
                 }
-                val gateway = refreshGatewaySourceIfNeeded(storedGateway, gatewayRepository, gatewaySourceRepository)
+                val gateway =
+                    try {
+                        refreshGatewaySourceIfNeeded(storedGateway, gatewayRepository, gatewaySourceRepository)
+                    } catch (error: GatewayCredentialExpiredException) {
+                        gatewaySourceRepository.deleteGateway(gatewayId)
+                        _uiState.value =
+                            GatewayAgentsUiState(
+                                isLoading = false,
+                                loadError = "Gateway credential expired. Please pair this gateway again.",
+                            )
+                        return@launch
+                    }
 
                 _uiState.value =
                     _uiState.value.copy(
@@ -73,6 +85,8 @@ class GatewayAgentsViewModel
                         loadError = null,
                     )
                 runCatching {
+                    // Verify protocol compatibility before touching the agent API.
+                    gatewayRepository.fetchStatus(gateway.scheme, gateway.host)
                     gatewayRepository.fetchAgents(gateway.scheme, gateway.host, gateway.gatewayCredential)
                 }.onSuccess { agents ->
                     _uiState.value =

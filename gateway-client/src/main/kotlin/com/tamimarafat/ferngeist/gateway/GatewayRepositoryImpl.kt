@@ -41,6 +41,10 @@ class GatewayRepositoryImpl
                     "v1",
                     "status",
                 )
+            // The status endpoint is the unauthenticated handshake every flow goes
+            // through (pairing, opening a gateway, reconnect); gate on protocol
+            // compatibility here so mismatches surface clearly instead of as 404/422s.
+            response.requireSupportedProtocol()
             return response
         }
 
@@ -380,16 +384,37 @@ class GatewayRepositoryImpl
             host: String,
             gatewayCredential: String,
         ): GatewayPairingResult {
-            val response =
-                httpClient.postJson<GatewayPairCompleteResponse>(
-                    json = json,
-                    scheme = scheme,
-                    host = host,
-                    bearerToken = gatewayCredential,
-                    "v1",
-                    "auth",
-                    "refresh",
+            val endpoint =
+                buildGatewayEndpoint(
+                    scheme,
+                    host,
+                    segments = arrayOf("v1", "auth", "refresh"),
                 )
+            val response =
+                try {
+                    httpClient.postJson<GatewayPairCompleteResponse>(
+                        json = json,
+                        scheme = scheme,
+                        host = host,
+                        bearerToken = gatewayCredential,
+                        "v1",
+                        "auth",
+                        "refresh",
+                    )
+                } catch (error: GatewayRequestException) {
+                    if (error.statusCode == 401) {
+                        // The gateway refused to refresh the credential: it has
+                        // expired and is past the grace window (or legacy bearer
+                        // credentials are disabled). The stored credential is
+                        // dead — surface a typed error so callers can clear it
+                        // and prompt re-pairing instead of failing opaquely later.
+                        throw GatewayCredentialExpiredException(
+                            endpoint = endpoint,
+                            gatewayResponse = error.message,
+                        )
+                    }
+                    throw error
+                }
             return GatewayPairingResult(
                 deviceId = response.deviceId,
                 deviceName = response.deviceName,
@@ -581,12 +606,32 @@ private fun normalizeGatewayHost(host: String): String =
         .removePrefix("wss://")
         .trimEnd('/')
 
+/**
+ * Thrown when a gateway refresh fails because the stored credential has expired
+ * and is no longer recoverable (past the gateway's grace window, or legacy
+ * bearer credentials disabled). The credential is dead; the caller should clear
+ * it and prompt the user to re-pair.
+ */
+class GatewayCredentialExpiredException(
+    val endpoint: String,
+    val gatewayResponse: String? = null,
+) : IllegalStateException(
+        "The gateway credential has expired and cannot be refreshed. " +
+            "Re-pair this gateway to continue. ($endpoint)",
+    )
+
+/** Thrown for any non-success gateway API response; carries the HTTP status code. */
+class GatewayRequestException(
+    val statusCode: Int,
+    override val message: String,
+) : IllegalStateException(message)
+
 private fun gatewayRequestException(
     statusCode: Int,
     statusDescription: String,
     endpoint: String,
     responseBody: String,
-): IllegalStateException {
+): GatewayRequestException {
     val normalizedBody = responseBody.trim()
     val statusLine = "$statusCode ${statusDescription.ifBlank { "unknown" }}".trim()
     val message =
@@ -617,7 +662,7 @@ private fun gatewayRequestException(
                 }
             }
         }
-    return IllegalStateException(message)
+    return GatewayRequestException(statusCode = statusCode, message = message)
 }
 
 private fun io.ktor.client.request.HttpRequestBuilder.applyGatewayAuthHeaders(headers: GatewayAuthHeaders) {

@@ -24,6 +24,12 @@ suspend fun refreshGatewaySourceIfNeeded(
                 host = gatewaySource.host,
                 gatewayCredential = gatewaySource.gatewayCredential,
             )
+        } catch (error: GatewayCredentialExpiredException) {
+            // The credential is dead (expired past the gateway's grace window, or
+            // legacy bearer credentials disabled). Swallowing this would leave the
+            // app stuck with a credential every authed call 401s on; propagate so
+            // callers can clear it and prompt re-pairing.
+            throw error
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             return gatewaySource

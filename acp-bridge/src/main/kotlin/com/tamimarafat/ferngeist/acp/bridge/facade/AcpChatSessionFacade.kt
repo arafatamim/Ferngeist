@@ -35,8 +35,10 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
+import com.tamimarafat.ferngeist.gateway.requireSupportedProtocol
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -486,6 +488,15 @@ class AcpChatSessionFacade(
                         gatewayCredential = refreshedSource.gatewayCredential,
                     )
             }
+        } catch (error: GatewayCredentialExpiredException) {
+            // The stored credential is dead (expired past the gateway's grace
+            // window). Clear it and surface the pairing flow instead of failing
+            // opaquely on every reconnect.
+            gatewaySourceRepository.deleteGateway(gatewaySource.id)
+            _loadFailed.emit(
+                "Gateway credential expired for ${target.name}. Please pair this gateway again.",
+            )
+            null
         } catch (error: Throwable) {
             _loadFailed.emit(
                 "Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}",

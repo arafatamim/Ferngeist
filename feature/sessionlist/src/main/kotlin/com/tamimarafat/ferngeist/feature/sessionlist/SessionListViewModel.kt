@@ -23,6 +23,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSe
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
@@ -429,12 +430,23 @@ class SessionListViewModel
                     return
                 }
             val gatewaySource =
-                withContext(Dispatchers.IO) {
-                    refreshGatewaySourceIfNeeded(
-                        gatewayTarget.gatewaySource,
-                        gatewayRepository,
-                        gatewaySourceRepository,
-                    )
+                try {
+                    withContext(Dispatchers.IO) {
+                        refreshGatewaySourceIfNeeded(
+                            gatewayTarget.gatewaySource,
+                            gatewayRepository,
+                            gatewaySourceRepository,
+                        )
+                    }
+                } catch (error: GatewayCredentialExpiredException) {
+                    withContext(Dispatchers.IO) {
+                        gatewaySourceRepository.deleteGateway(gatewayTarget.gatewaySource.id)
+                    }
+                    _pendingAuthentication.update {
+                        it?.copy(authErrorMessage = "Gateway credential expired. Please pair this gateway again.")
+                    }
+                    _isLoading.value = false
+                    return
                 }
             if (gatewaySource.gatewayCredential.isBlank()) {
                 _pendingAuthentication.update {

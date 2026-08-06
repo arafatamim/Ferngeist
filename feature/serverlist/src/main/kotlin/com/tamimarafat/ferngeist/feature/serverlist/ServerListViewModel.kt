@@ -23,6 +23,7 @@ import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
@@ -574,12 +575,28 @@ class ServerListViewModel
                     return
                 }
             val gatewaySource =
-                withContext(Dispatchers.IO) {
-                    refreshGatewaySourceIfNeeded(
-                        gatewayTarget.gatewaySource,
-                        gatewayRepository,
-                        gatewaySourceRepository,
-                    )
+                try {
+                    withContext(Dispatchers.IO) {
+                        refreshGatewaySourceIfNeeded(
+                            gatewayTarget.gatewaySource,
+                            gatewayRepository,
+                            gatewaySourceRepository,
+                        )
+                    }
+                } catch (error: GatewayCredentialExpiredException) {
+                    // The stored credential is dead — clear it so the user is
+                    // forced through the pairing flow again.
+                    withContext(Dispatchers.IO) {
+                        gatewaySourceRepository.deleteGateway(gatewayTarget.gatewaySource.id)
+                    }
+                    _uiState.update {
+                        it.copy(
+                            connectingServerId = null,
+                            pendingAuthentication =
+                                pending.copy(authErrorMessage = "Gateway credential expired. Please pair this gateway again."),
+                        )
+                    }
+                    return
                 }
             if (gatewaySource.gatewayCredential.isBlank()) {
                 _uiState.update {
@@ -847,8 +864,17 @@ class ServerListViewModel
             server: LaunchableTarget.GatewayAgent,
         ): Result<GatewayLaunchContext> {
             val gatewaySource =
-                withContext(Dispatchers.IO) {
-                    refreshGatewaySourceIfNeeded(server.gatewaySource, gatewayRepository, gatewaySourceRepository)
+                try {
+                    withContext(Dispatchers.IO) {
+                        refreshGatewaySourceIfNeeded(server.gatewaySource, gatewayRepository, gatewaySourceRepository)
+                    }
+                } catch (error: GatewayCredentialExpiredException) {
+                    withContext(Dispatchers.IO) {
+                        gatewaySourceRepository.deleteGateway(server.gatewaySource.id)
+                    }
+                    return Result.failure(
+                        IllegalStateException("Gateway credential expired. Please pair this gateway again."),
+                    )
                 }
             if (gatewaySource.gatewayCredential.isBlank()) {
                 return Result.failure(IllegalStateException("Gateway is not paired"))
@@ -923,8 +949,17 @@ class ServerListViewModel
             val runtimeHint =
                 runCatching {
                     val refreshedSource =
-                        withContext(Dispatchers.IO) {
-                            refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
+                        try {
+                            withContext(Dispatchers.IO) {
+                                refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
+                            }
+                        } catch (error: GatewayCredentialExpiredException) {
+                            // The credential is dead — clear it so the next launch
+                            // surfaces the pairing flow instead of opaque 401s.
+                            withContext(Dispatchers.IO) {
+                                gatewaySourceRepository.deleteGateway(gatewaySource.id)
+                            }
+                            throw error
                         }
                     gatewayRepository.fetchRuntimeLogs(
                         scheme = refreshedSource.scheme,
