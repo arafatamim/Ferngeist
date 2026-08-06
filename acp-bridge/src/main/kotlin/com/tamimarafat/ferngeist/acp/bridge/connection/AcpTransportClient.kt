@@ -418,6 +418,12 @@ internal class AcpTransportClient(
 
                         if (reconnected) {
                             initialize()
+                            // ACP auth state is per-connection: a fresh socket after reconnect
+                            // has no authenticated session, so re-run authentication with the
+                            // stored preferred method before session ops resume.
+                            currentConfig?.preferredAuthMethodId?.let { methodId ->
+                                authenticate(methodId)
+                            }
                             break
                         }
                     }
