@@ -455,6 +455,13 @@ fun ChatScreen(
                         state.gitStatus?.let { status ->
                             GitStatusSheet(
                                 status = status,
+                                gitFileDiff = state.gitFileDiff,
+                                gitFileDiffPath = state.gitFileDiffPath,
+                                isGitFileDiffLoading = state.isGitFileDiffLoading,
+                                gitFileDiffError = state.gitFileDiffError,
+                                onLoadGitDiff = { path ->
+                                    viewModel.dispatch(ChatIntent.LoadGitDiff(path))
+                                },
                                 onDismiss = { showGitStatusSheet = false },
                             )
                         }

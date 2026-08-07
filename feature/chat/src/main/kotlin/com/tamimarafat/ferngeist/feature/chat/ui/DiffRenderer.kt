@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -29,7 +32,10 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,149 +50,202 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
 import io.github.diff.DeltaType
 import io.github.diff.generatePatch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+internal fun isDirectoryPath(path: String): Boolean = path.endsWith('/')
+
+/** Returns the last path segment of a file path, or the full path when it ends in '/'. */
+internal fun fileNameOf(path: String): String =
+    path.substringAfterLast('/', missingDelimiterValue = path)
+        .ifEmpty { path }
 
 private const val MAX_DIFF_ROWS = 500
+private const val DIFF_CONTEXT_LINES = 5
 
 /**
  * Renders a unified-diff view for a single file change.
  *
  * Computes the diff between [diff.oldText] and [diff.newText] using the
- * java-diff-utils patch generator, then displays the file path header
- * followed by color-coded insert/delete/equal lines.
+ * java-diff-utils patch generator, then displays changed hunks with five
+ * unchanged context lines around each hunk. Unchanged regions between hunks
+ * are collapsed to an omission row.
  *
  * @param diff The tool call diff containing old and new text content.
  */
 @Composable
-internal fun DiffRenderer(diff: ToolCallContent.Diff) {
-    val rows = remember(diff.oldText, diff.newText) {
-        val oldLines = diff.oldText?.lines() ?: emptyList()
-        val newLines = diff.newText.lines()
-        val result = mutableListOf<LineDiffRow>()
-
-        if (oldLines.isEmpty()) {
-            // Entirely new file — all lines are insertions.
-            newLines.forEach { line -> result.add(LineDiffRow.Insert(line)) }
-        } else {
-            val patch = generatePatch {
-                original = oldLines
-                revised = newLines
-            }
-
-            // Walk through old/new arrays emitting equals, deletes, and inserts.
-            var oldPos = 0
-            var newPos = 0
-
-            for (delta in patch.getDeltas()) {
-                val sourceChunk = delta.source
-                val targetChunk = delta.target
-                // Emit any equal lines that precede this delta chunk.
-                val equalCount = sourceChunk.position - oldPos
-                for (i in 0 until equalCount) {
-                    result.add(LineDiffRow.Equal(oldLines[oldPos + i]))
-                }
-                oldPos = sourceChunk.position
-                newPos += equalCount
-
-                when (delta.type) {
-                    DeltaType.DELETE -> {
-                        for (line in sourceChunk.lines) {
-                            result.add(LineDiffRow.Delete(line))
-                        }
-                        oldPos += sourceChunk.lines.size
-                    }
-                    DeltaType.INSERT -> {
-                        for (line in targetChunk.lines) {
-                            result.add(LineDiffRow.Insert(line))
-                        }
-                        newPos += targetChunk.lines.size
-                    }
-                    // A change is rendered as delete-then-insert.
-                    DeltaType.CHANGE -> {
-                        for (line in sourceChunk.lines) {
-                            result.add(LineDiffRow.Delete(line))
-                        }
-                        for (line in targetChunk.lines) {
-                            result.add(LineDiffRow.Insert(line))
-                        }
-                        oldPos += sourceChunk.lines.size
-                        newPos += targetChunk.lines.size
-                    }
-                    // EQUAL deltas handled by positional emit before each non-equal delta — no per-delta action needed.
-                    DeltaType.EQUAL -> {}
-                }
-            }
-
-            // Emit any trailing equal lines after the last delta.
-            for (i in oldPos until oldLines.size) {
-                result.add(LineDiffRow.Equal(oldLines[i]))
-            }
-        }
-
-        // Cap rows to prevent excessive layout work for huge diffs.
-        if (result.size > MAX_DIFF_ROWS) {
-            val truncated = result.take(MAX_DIFF_ROWS).toMutableList()
-            truncated.add(LineDiffRow.Equal("… ${result.size - MAX_DIFF_ROWS} more lines"))
-            truncated
-        } else {
-            result
+internal fun DiffRenderer(
+    diff: ToolCallContent.Diff,
+    modifier: Modifier = Modifier,
+) {
+    val rows by produceState<List<LineDiffRow>?>(
+        initialValue = null,
+        key1 = diff.oldText,
+        key2 = diff.newText,
+    ) {
+        value = withContext(Dispatchers.Default) {
+            buildDiffRows(diff.oldText, diff.newText)
         }
     }
 
     SelectionContainer {
-        Column(
-            modifier = Modifier
+        LazyColumn(
+            modifier = modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
         ) {
-            Text(
-                text = diff.path,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 4.dp),
-                softWrap = false,
-                overflow = TextOverflow.Visible,
-            )
+            item(key = "path") {
+                Text(
+                    text = diff.path,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                    softWrap = false,
+                    overflow = TextOverflow.Visible,
+                )
+            }
 
-            rows.forEach { row ->
-                val (prefix, bgColor, textColor) = when (row) {
-                    is LineDiffRow.Delete -> Triple(
-                        "- ",
-                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                        MaterialTheme.colorScheme.error,
-                    )
-                    is LineDiffRow.Insert -> Triple(
-                        "+ ",
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                    // MaterialTheme lacks this particular green; hardcode instead of adding a theme color for a single use.
-                        Color(0xFF43A047),
-                    )
-                    is LineDiffRow.Equal -> Triple(
-                        "  ",
-                        Color.Transparent,
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    )
+            if (rows == null) {
+                item(key = "loading") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularWavyProgressIndicator(modifier = Modifier.size(48.dp))
+                    }
                 }
+            } else {
+                itemsIndexed(
+                    items = rows.orEmpty(),
+                    key = { index, _ -> "row-$index" },
+                ) { _, row ->
+                    val (prefix, bgColor, textColor) = when (row) {
+                        is LineDiffRow.Delete -> Triple(
+                            "- ",
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                            MaterialTheme.colorScheme.error,
+                        )
+                        is LineDiffRow.Insert -> Triple(
+                            "+ ",
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            // MaterialTheme lacks this particular green; hardcode instead of adding a theme color for a single use.
+                            Color(0xFF43A047),
+                        )
+                        is LineDiffRow.Equal -> Triple(
+                            "  ",
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        )
+                        is LineDiffRow.Omitted -> Triple(
+                            "  ",
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(bgColor)
-                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                ) {
-                    Text(
-                        text = "$prefix${row.text}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        color = textColor,
-                        softWrap = false,
-                        overflow = TextOverflow.Visible,
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(bgColor)
+                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                    ) {
+                        Text(
+                            text = "$prefix${row.text}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = textColor,
+                            softWrap = false,
+                            overflow = TextOverflow.Visible,
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * Builds the visible portion of a unified diff: changed rows, five equal rows
+ * of context around each changed region, and omission rows between distant
+ * regions. An unchanged file has no diff rows to display.
+ */
+internal fun buildDiffRows(oldText: String?, newText: String): List<LineDiffRow> {
+    val oldLines = oldText?.lines() ?: emptyList()
+    val newLines = newText.lines()
+    val fullRows = mutableListOf<LineDiffRow>()
+
+    if (oldLines.isEmpty()) {
+        newLines.forEach { line -> fullRows.add(LineDiffRow.Insert(line)) }
+    } else {
+        val patch = generatePatch {
+            original = oldLines
+            revised = newLines
+        }
+        var oldPos = 0
+        for (delta in patch.getDeltas()) {
+            val sourceChunk = delta.source
+            val targetChunk = delta.target
+            val equalCount = sourceChunk.position - oldPos
+            for (i in 0 until equalCount) {
+                fullRows.add(LineDiffRow.Equal(oldLines[oldPos + i]))
+            }
+            oldPos = sourceChunk.position
+            when (delta.type) {
+                DeltaType.DELETE -> {
+                    sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
+                    oldPos += sourceChunk.lines.size
+                }
+                DeltaType.INSERT -> {
+                    targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
+                }
+                DeltaType.CHANGE -> {
+                    sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
+                    targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
+                    oldPos += sourceChunk.lines.size
+                }
+                // Equal runs are emitted positionally before each non-equal delta.
+                DeltaType.EQUAL -> Unit
+            }
+        }
+
+        for (i in oldPos until oldLines.size) {
+            fullRows.add(LineDiffRow.Equal(oldLines[i]))
+        }
+    }
+
+    val changedIndexes = fullRows.indices.filter { fullRows[it].isChanged }
+    if (changedIndexes.isEmpty()) return emptyList()
+
+    val ranges = changedIndexes
+        .map { index ->
+            (index - DIFF_CONTEXT_LINES).coerceAtLeast(0)..
+                (index + DIFF_CONTEXT_LINES).coerceAtMost(fullRows.lastIndex)
+        }
+        .fold(mutableListOf<IntRange>()) { merged, range ->
+            val previous = merged.lastOrNull()
+            if (previous != null && range.first <= previous.last + 1) {
+                merged[merged.lastIndex] = previous.first..maxOf(previous.last, range.last)
+            } else {
+                merged.add(range)
+            }
+            merged
+        }
+
+    val visibleRows = mutableListOf<LineDiffRow>()
+    ranges.forEachIndexed { index, range ->
+        if (index > 0) visibleRows.add(LineDiffRow.Omitted("…"))
+        visibleRows.addAll(fullRows.subList(range.first, range.last + 1))
+    }
+    return if (visibleRows.size > MAX_DIFF_ROWS) {
+        visibleRows.take(MAX_DIFF_ROWS).toMutableList().apply {
+            add(LineDiffRow.Omitted("… ${visibleRows.size - MAX_DIFF_ROWS} more lines"))
+        }
+    } else {
+        visibleRows
+    }
+}
 /**
  * Result of proportionally mapping additions and deletions onto a fixed
  * number of visual blocks (5 total).
@@ -536,7 +595,11 @@ internal fun GitStatusIndicatorButton(
  * @property text The line content (without the +/- prefix).
  */
 internal sealed class LineDiffRow(val text: String) {
+    val isChanged: Boolean
+        get() = this is Delete || this is Insert
+
     class Delete(text: String) : LineDiffRow(text)
     class Insert(text: String) : LineDiffRow(text)
     class Equal(text: String) : LineDiffRow(text)
+    class Omitted(text: String) : LineDiffRow(text)
 }

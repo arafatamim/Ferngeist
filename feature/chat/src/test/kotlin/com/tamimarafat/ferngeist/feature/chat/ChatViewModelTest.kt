@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -23,6 +24,7 @@ import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.gateway.GatewayFileRead
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,6 +43,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -601,6 +604,195 @@ class ChatViewModelTest {
 
     // endregion
 
+    // region: LoadGitDiff tests
+
+    @Test
+    fun `LoadGitDiff sets loading then loaded state with the first returned diff and records the path`() =
+        runTest {
+            val connection =
+                GatewayWorkspaceConnection(
+                    runtimeId = "rt-1",
+                    scheme = "http",
+                    host = "10.0.0.2:5788",
+                    gatewayCredential = "plain-token",
+                )
+            val diff =
+                ToolCallContent.Diff(
+                    oldText = "val old = 1\n",
+                    newText = "val new = 1\n",
+                    path = "src/Main.kt",
+                )
+            val gate = CompletableDeferred<Unit>()
+            val gatewayRepository =
+                FakeGatewayRepository().apply {
+                    fetchGitDiffResult = listOf(diff)
+                    fetchGitDiffGate = gate
+                }
+            val viewModel =
+                createViewModelWithGatewayConnection(
+                    connection = connection,
+                    gatewayRepository = gatewayRepository,
+                )
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.LoadGitDiff("src/Main.kt"))
+            advanceUntilIdle()
+
+            // The fetch is still in flight, so the loading transition is observable.
+            var state = viewModel.state.value
+            assertTrue(state.isGitFileDiffLoading)
+            assertEquals("src/Main.kt", state.gitFileDiffPath)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            state = viewModel.state.value
+            assertFalse(state.isGitFileDiffLoading)
+            assertEquals("src/Main.kt", state.gitFileDiffPath)
+            assertEquals(diff, state.gitFileDiff?.single())
+            assertEquals(
+                "src/Main.kt",
+                gatewayRepository.gitDiffRequests.single().first,
+            )
+        }
+
+    @Test
+    fun `LoadGitDiff with repository exception retains the requested path, clears diff, and exposes a nonblank error`() =
+        runTest {
+            val connection =
+                GatewayWorkspaceConnection(
+                    runtimeId = "rt-1",
+                    scheme = "http",
+                    host = "10.0.0.2:5788",
+                    gatewayCredential = "plain-token",
+                )
+            val gatewayRepository =
+                FakeGatewayRepository().apply {
+                    fetchGitDiffError = IllegalStateException("gateway unreachable")
+                }
+            val viewModel =
+                createViewModelWithGatewayConnection(
+                    connection = connection,
+                    gatewayRepository = gatewayRepository,
+                )
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.LoadGitDiff("src/Main.kt"))
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals("src/Main.kt", state.gitFileDiffPath)
+            assertNull(state.gitFileDiff)
+            assertFalse(state.isGitFileDiffLoading)
+            assertTrue(state.gitFileDiffError.isNullOrBlank().not())
+            assertEquals(
+                "src/Main.kt",
+                gatewayRepository.gitDiffRequests.single().first,
+            )
+        }
+
+    @Test
+    fun `LoadGitDiff without a gateway workspace connection retains the path, clears diff, and exposes a nonblank error`() =
+        runTest {
+            val gatewayRepository = FakeGatewayRepository()
+            val viewModel = createViewModel(gatewayRepository = gatewayRepository)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.LoadGitDiff("src/Main.kt"))
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals("src/Main.kt", state.gitFileDiffPath)
+            assertNull(state.gitFileDiff)
+            assertFalse(state.isGitFileDiffLoading)
+            assertTrue(state.gitFileDiffError.isNullOrBlank().not())
+            // No fetch is attempted when there is no connection to fetch through.
+            assertTrue(gatewayRepository.gitDiffRequests.isEmpty())
+        }
+
+    @Test
+    fun `stale LoadGitDiff response cannot overwrite the latest requested path`() =
+        runTest {
+            val connection =
+                GatewayWorkspaceConnection(
+                    runtimeId = "rt-1",
+                    scheme = "http",
+                    host = "10.0.0.2:5788",
+                    gatewayCredential = "plain-token",
+                )
+            val staleDiff =
+                ToolCallContent.Diff(
+                    oldText = "val old = 1\n",
+                    newText = "val stale = 1\n",
+                    path = "src/Stale.kt",
+                )
+            val latestDiff =
+                ToolCallContent.Diff(
+                    oldText = "val old = 2\n",
+                    newText = "val latest = 2\n",
+                    path = "src/Latest.kt",
+                )
+            val staleGate = CompletableDeferred<Unit>()
+            val latestGate = CompletableDeferred<Unit>()
+            val gatewayRepository =
+                FakeGatewayRepository().apply {
+                    fetchGitDiffGates["src/Stale.kt"] = staleGate
+                    fetchGitDiffGates["src/Latest.kt"] = latestGate
+                    fetchGitDiffResults["src/Stale.kt"] = listOf(staleDiff)
+                    fetchGitDiffResults["src/Latest.kt"] = listOf(latestDiff)
+                }
+            val viewModel =
+                createViewModelWithGatewayConnection(
+                    connection = connection,
+                    gatewayRepository = gatewayRepository,
+                )
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.LoadGitDiff("src/Stale.kt"))
+            advanceUntilIdle()
+
+            // The first request is in flight; a second, newer request supersedes it.
+            viewModel.dispatch(ChatIntent.LoadGitDiff("src/Latest.kt"))
+            advanceUntilIdle()
+            assertEquals("src/Latest.kt", viewModel.state.value.gitFileDiffPath)
+            assertTrue(viewModel.state.value.isGitFileDiffLoading)
+
+            // The latest request completes first and its diff becomes the state.
+            latestGate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals("src/Latest.kt", viewModel.state.value.gitFileDiffPath)
+            assertEquals(latestDiff, viewModel.state.value.gitFileDiff?.single())
+
+            // The stale request then completes; it must NOT overwrite the newer state.
+            staleGate.complete(Unit)
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertFalse(state.isGitFileDiffLoading)
+            assertEquals("src/Latest.kt", state.gitFileDiffPath)
+            assertEquals(latestDiff, state.gitFileDiff?.single())
+            assertTrue(state.gitFileDiffError.isNullOrBlank())
+        }
+
+    /** Creates a view model whose gateway workspace connection is already [connection]. */
+    private suspend fun createViewModelWithGatewayConnection(
+        connection: GatewayWorkspaceConnection,
+        gatewayRepository: GatewayRepository = FakeGatewayRepository(),
+    ): ChatViewModel {
+        val facadeFactory = FakeChatSessionFacadeFactory()
+        val viewModel =
+            createViewModel(
+                gatewayRepository = gatewayRepository,
+                facadeFactory = facadeFactory,
+            )
+        // The facade is created synchronously inside ChatViewModel's constructor, so it is
+        // available here to emit the connection from the test's coroutine context.
+        facadeFactory.lastFacade.value?.emitGatewayWorkspaceConnection(connection)
+        return viewModel
+    }
+
+    // endregion
+
     /** Creates a view model with in-memory test doubles. */
     private fun createViewModel(
         chatScrollStateStore: ChatScrollStateStore = InMemoryChatScrollStateStore(),
@@ -777,6 +969,11 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
     override fun onConnectionStateChanged(connectionState: ChatConnectionState) {}
     override suspend fun reconnect() {}
 
+    /** Emits a gateway workspace connection to the view model's init collector. */
+    suspend fun emitGatewayWorkspaceConnection(connection: GatewayWorkspaceConnection) {
+        _gatewayWorkspaceConnection.value = connection
+    }
+
 }
 
 /** Facade that immediately emits a pre-configured snapshot so [applySnapshot] is exercised. */
@@ -892,6 +1089,16 @@ private class FakeRecentSelectionStore : RecentSelectionStore {
 
 /** No-op [GatewayRepository] for chat view-model tests. */
 private class FakeGatewayRepository : GatewayRepository {
+    var fetchGitDiffError: Throwable? = null
+    var fetchGitDiffResult: List<ToolCallContent.Diff> = emptyList()
+    /** When set, [fetchGitDiff] suspends until the gate completes, so tests can observe the loading state. */
+    var fetchGitDiffGate: CompletableDeferred<Unit>? = null
+    /** Per-path gates for [fetchGitDiff], keyed by requested path; take precedence over [fetchGitDiffGate]. */
+    val fetchGitDiffGates: MutableMap<String, CompletableDeferred<Unit>> = mutableMapOf()
+    /** Per-path results for [fetchGitDiff], keyed by requested path; take precedence over [fetchGitDiffResult]. */
+    val fetchGitDiffResults: MutableMap<String, List<ToolCallContent.Diff>> = mutableMapOf()
+    val gitDiffRequests: MutableList<Pair<String?, GatewayWorkspaceConnection>> = mutableListOf()
+
     override suspend fun fetchStatus(scheme: String, host: String) = TODO()
     override suspend fun startPairing(scheme: String, host: String) = TODO()
     override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String) = TODO()
@@ -908,5 +1115,18 @@ private class FakeGatewayRepository : GatewayRepository {
     override suspend fun registerPushToken(scheme: String, host: String, gatewayCredential: String, token: String, platform: String) = Unit
     override suspend fun fetchWorkspaceFile(scheme: String, host: String, gatewayCredential: String, runtimeId: String, path: String): GatewayFileRead = TODO()
     override suspend fun fetchGitStatus(scheme: String, host: String, gatewayCredential: String, runtimeId: String): GatewayGitStatus = TODO()
-    override suspend fun fetchGitDiff(scheme: String, host: String, gatewayCredential: String, runtimeId: String, path: String?): List<com.agentclientprotocol.model.ToolCallContent.Diff> = TODO()
+
+    override suspend fun fetchGitDiff(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+        path: String?,
+    ): List<ToolCallContent.Diff> {
+        gitDiffRequests.add(path to GatewayWorkspaceConnection(runtimeId, scheme, host, gatewayCredential))
+        path?.let { fetchGitDiffGates[it] }?.await()
+        fetchGitDiffGate?.await()
+        fetchGitDiffError?.let { throw it }
+        return path?.let { fetchGitDiffResults[it] } ?: fetchGitDiffResult
+    }
 }

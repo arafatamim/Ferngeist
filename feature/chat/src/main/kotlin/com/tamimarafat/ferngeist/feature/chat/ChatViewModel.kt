@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatCommand
@@ -28,6 +29,7 @@ import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
@@ -212,6 +214,21 @@ class ChatViewModel
         private val flushMutex = Mutex()
         private var reconnectKickJob: Job? = null
 
+        /**
+         * In-flight [ChatIntent.LoadGitDiff] fetch. Cancelling it on a newer request
+         * (and checking it after the suspend call) guarantees a stale response can
+         * never overwrite the state a newer request set.
+         */
+        private var gitFileDiffJob: Job? = null
+
+        /**
+         * Serializes [ChatIntent.LoadGitDiff] request setup (job cancellation, state
+         * initialization, job assignment) and the post-fetch identity check, so rapid
+         * intents cannot race through those steps. `withLock` keeps the holder
+         * cancellable, and the identity guard inside the lock retains latest-wins.
+         */
+        private val gitFileDiffMutex = Mutex()
+
         init {
             updateState { copy(serverId = serverId) }
             // Record this as the active chat so the connection notification deep-links
@@ -299,6 +316,92 @@ class ChatViewModel
                         updateState { copy(gitStatus = status, gitDiffStats = stats) }
                     }
                 }
+            }
+        }
+
+        /**
+         * Fetches the unified diff for a single file in the gateway-backed working
+         * tree and stores it in [ChatState.gitFileDiff] (the UI renders the first
+         * item). The gateway returns a one-element list for a given [path].
+         *
+         * On exception the requested path is retained so the UI can retry the same
+         * file, the diff is cleared, and a nonblank error is exposed.
+         */
+        private suspend fun loadGitFileDiff(path: String) {
+            val connection = state.value.gatewayWorkspaceConnection
+            if (connection == null) {
+                // No gateway backing the working tree, so the diff cannot be fetched.
+                // Cancel any in-flight request (a stale response must not overwrite
+                // this error) and retain the path so the UI can retry once a
+                // connection is available. The setup is serialized so a concurrent
+                // request cannot slip its job assignment between the cancel and the
+                // state write.
+                gitFileDiffMutex.withLock {
+                    gitFileDiffJob?.cancel()
+                    gitFileDiffJob = null
+                    updateState {
+                        copy(
+                            gitFileDiffPath = path,
+                            isGitFileDiffLoading = false,
+                            gitFileDiff = null,
+                            gitFileDiffError =
+                                "No gateway workspace connection to load git diff for $path",
+                        )
+                    }
+                }
+                return
+            }
+            gitFileDiffMutex.withLock {
+                gitFileDiffJob?.cancel()
+                updateState {
+                    copy(
+                        gitFileDiffPath = path,
+                        isGitFileDiffLoading = true,
+                        gitFileDiffError = null,
+                        gitFileDiff = null,
+                    )
+                }
+                gitFileDiffJob =
+                    viewModelScope.launch {
+                        // Identity check: only the job currently stored in [gitFileDiffJob]
+                        // may write state, so a stale response can never replace a newer one.
+                        // Both the check and the state write are inside the lock so a newer
+                        // request cannot interleave between them.
+                        val currentJob = coroutineContext[Job]
+                        val result =
+                            runCatching {
+                                gatewayRepository.fetchGitDiff(
+                                    scheme = connection.scheme,
+                                    host = connection.host,
+                                    gatewayCredential = connection.gatewayCredential,
+                                    runtimeId = connection.runtimeId,
+                                    path = path,
+                                )
+                            }
+                        gitFileDiffMutex.withLock {
+                            if (currentJob != gitFileDiffJob) return@withLock
+                            result.onSuccess { diffs ->
+                                updateState {
+                                    copy(
+                                        gitFileDiff = diffs,
+                                        isGitFileDiffLoading = false,
+                                        gitFileDiffError = null,
+                                    )
+                                }
+                            }.onFailure { throwable ->
+                                if (throwable is CancellationException) return@withLock
+                                updateState {
+                                    copy(
+                                        gitFileDiff = null,
+                                        isGitFileDiffLoading = false,
+                                        gitFileDiffError =
+                                            throwable.message?.takeIf { it.isNotBlank() }
+                                                ?: "Failed to load git diff for $path",
+                                    )
+                                }
+                            }
+                        }
+                    }
             }
         }
 
@@ -455,6 +558,7 @@ class ChatViewModel
                 is ChatIntent.RetryMessage -> retryMessage(intent.clientId)
                 is ChatIntent.RefreshGitStatus ->
                     state.value.gatewayWorkspaceConnection?.let { refreshGitStatus(it) }
+                is ChatIntent.LoadGitDiff -> loadGitFileDiff(intent.path)
             }
         }
 
@@ -659,6 +763,10 @@ data class ChatState(
     val gatewayWorkspaceConnection: GatewayWorkspaceConnection? = null,
     val gitStatus: GatewayGitStatus? = null,
     val gitDiffStats: GitDiffStats? = null,
+    val gitFileDiff: List<ToolCallContent.Diff>? = null,
+    val gitFileDiffPath: String? = null,
+    val isGitFileDiffLoading: Boolean = false,
+    val gitFileDiffError: String? = null,
     val error: String? = null,
 )
 
@@ -693,6 +801,9 @@ sealed interface ChatIntent {
 
     /** Re-fetch the git status for the gateway-backed working tree (e.g. after a send). */
     data object RefreshGitStatus : ChatIntent
+
+    /** Load the unified diff for a single changed file from the gateway-backed working tree. */
+    data class LoadGitDiff(val path: String) : ChatIntent
 }
 
 /** One-shot effects emitted to the UI layer (snackbar, navigation, etc.). */
