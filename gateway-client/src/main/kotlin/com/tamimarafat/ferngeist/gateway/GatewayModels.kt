@@ -9,6 +9,8 @@ import kotlinx.serialization.Serializable
 data class GatewayStatus(
     val name: String,
     val version: String,
+    @SerialName("protocolVersion")
+    val protocolVersion: String? = null,
     val remote: GatewayRemoteStatus,
 )
 
@@ -206,3 +208,42 @@ data class GatewayGitStatus(
     val behind: Int = 0,
     val changed: List<GatewayChangedFile> = emptyList(),
 )
+
+/**
+ * The gateway-to-client protocol version this client is built against. The gateway
+ * reports its own protocol version in [GatewayStatus.protocolVersion]; a mismatch
+ * means the two sides may not agree on the API surface (endpoints, payload shapes),
+ * so the client surfaces a clear error instead of failing opaquely on a 404/422.
+ */
+object GatewayProtocol {
+    /** The current protocol version (see gateway `internal/api/server.go`). */
+    const val CURRENT = "v1"
+
+    /**
+     * All gateway protocol versions this client can talk to. The current version is
+     * [CURRENT]; older stable versions remain supported so a gateway that has not been
+     * updated yet keeps working (the client may simply not use newer endpoints).
+     */
+    val SUPPORTED: Set<String> = setOf(CURRENT, "v1alpha1")
+}
+
+/** Thrown when a gateway's reported protocol version is incompatible with this client. */
+class GatewayProtocolMismatchException(
+    val gatewayVersion: String?,
+    val supportedVersions: Set<String> = GatewayProtocol.SUPPORTED,
+) : IllegalStateException(
+        "This gateway uses protocol version \"$gatewayVersion\", but this app supports " +
+            supportedVersions.joinToString(", ") { "\"$it\"" } +
+            ". Update the gateway daemon to continue.",
+    )
+
+/**
+ * Validates a gateway status against the supported protocol versions, throwing
+ * [GatewayProtocolMismatchException] on mismatch. A gateway that omits the field
+ * (older build) is treated as a mismatch rather than silently assumed compatible.
+ */
+fun GatewayStatus.requireSupportedProtocol() {
+    if (protocolVersion !in GatewayProtocol.SUPPORTED) {
+        throw GatewayProtocolMismatchException(protocolVersion)
+    }
+}

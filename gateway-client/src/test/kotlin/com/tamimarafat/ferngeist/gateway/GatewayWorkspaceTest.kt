@@ -238,4 +238,66 @@ class GatewayWorkspaceTest {
                 assertTrue(e.message.orEmpty().contains("not a git repository"))
             }
         }
+
+    @Test
+    fun `fetchStatus accepts a matching protocol version`() =
+        runTest {
+            val repo =
+                repoCapturing(
+                    responseBody =
+                        """{"name":"gw","version":"dev","protocolVersion":"v1","remote":{"configured":true}}""",
+                )
+
+            val status = repo.fetchStatus("http", "10.0.0.2:5788")
+
+            assertEquals("v1", status.protocolVersion)
+        }
+
+    @Test
+    fun `fetchStatus accepts the legacy v1alpha1 protocol version`() =
+        runTest {
+            val repo =
+                repoCapturing(
+                    responseBody =
+                        """{"name":"gw","version":"old","protocolVersion":"v1alpha1","remote":{"configured":true}}""",
+                )
+
+            val status = repo.fetchStatus("http", "10.0.0.2:5788")
+
+            assertEquals("v1alpha1", status.protocolVersion)
+        }
+
+    @Test
+    fun `fetchStatus rejects an unsupported protocol version`() =
+        runTest {
+            val repo =
+                repoCapturing(
+                    responseBody =
+                        """{"name":"gw","version":"old","protocolVersion":"v0","remote":{"configured":true}}""",
+                )
+
+            try {
+                repo.fetchStatus("http", "10.0.0.2:5788")
+                fail("expected GatewayProtocolMismatchException")
+            } catch (e: GatewayProtocolMismatchException) {
+                assertTrue(e.message.orEmpty().contains("v0"))
+                assertTrue(e.message.orEmpty().contains("v1"))
+            }
+        }
+
+    @Test
+    fun `fetchStatus rejects a gateway that omits the protocol version`() =
+        runTest {
+            val repo =
+                repoCapturing(
+                    responseBody = """{"name":"gw","version":"old","remote":{"configured":true}}""",
+                )
+
+            try {
+                repo.fetchStatus("http", "10.0.0.2:5788")
+                fail("expected GatewayProtocolMismatchException")
+            } catch (e: GatewayProtocolMismatchException) {
+                assertTrue(e.message.orEmpty().contains("null"))
+            }
+        }
 }

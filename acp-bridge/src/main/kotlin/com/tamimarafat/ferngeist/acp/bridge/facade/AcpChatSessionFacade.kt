@@ -450,6 +450,10 @@ class AcpChatSessionFacade(
         return try {
             val refreshedSource =
                 refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
+            // Gate on protocol compatibility before any agent/runtime calls so a
+            // mismatched gateway surfaces a clear error instead of an opaque failure.
+            gatewayRepository.fetchStatus(refreshedSource.scheme, refreshedSource.host)
+                .requireSupportedProtocol()
             val runtime =
                 gatewayRepository.startAgent(
                     scheme = refreshedSource.scheme,
