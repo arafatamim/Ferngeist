@@ -71,14 +71,23 @@ private const val DIFF_CONTEXT_LINES = 5
  * unchanged context lines around each hunk. Unchanged regions between hunks
  * are collapsed to an omission row.
  *
+ * When [scrollable] is true the rows are rendered in their own lazy vertical
+ * list (the git status sheet's detail body, which owns its scrolling). When
+ * false — e.g. nested inside an outer scroll container like the tool-call
+ * details sheet — the rows render eagerly inside a plain column so the
+ * composable never places a vertically scrollable container under unbounded
+ * height. Hunk computation stays async on [Dispatchers.Default] in both cases.
+ *
  * @param diff The tool call diff containing old and new text content.
+ * @param scrollable Whether the diff owns its vertical scrolling.
  */
 @Composable
 internal fun DiffRenderer(
     diff: ToolCallContent.Diff,
     modifier: Modifier = Modifier,
+    scrollable: Boolean = true,
 ) {
-    val rows by produceState<List<LineDiffRow>?>(
+    val rowsState = produceState<List<LineDiffRow>?>(
         initialValue = null,
         key1 = diff.oldText,
         key2 = diff.newText,
@@ -87,82 +96,112 @@ internal fun DiffRenderer(
             buildDiffRows(diff.oldText, diff.newText)
         }
     }
+    val rows = rowsState.value
 
     SelectionContainer {
-        LazyColumn(
-            modifier = modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-        ) {
-            item(key = "path") {
-                Text(
-                    text = diff.path,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                    softWrap = false,
-                    overflow = TextOverflow.Visible,
-                )
-            }
-
-            if (rows == null) {
-                item(key = "loading") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularWavyProgressIndicator(modifier = Modifier.size(48.dp))
+        if (scrollable) {
+            LazyColumn(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                item(key = "path") {
+                    DiffPathHeader(diff.path)
+                }
+                if (rows == null) {
+                    item(key = "loading") {
+                        DiffLoadingRow()
+                    }
+                } else {
+                    itemsIndexed(
+                        items = rows,
+                        key = { index, _ -> "row-$index" },
+                    ) { _, row ->
+                        DiffRowItem(row)
                     }
                 }
-            } else {
-                itemsIndexed(
-                    items = rows.orEmpty(),
-                    key = { index, _ -> "row-$index" },
-                ) { _, row ->
-                    val (prefix, bgColor, textColor) = when (row) {
-                        is LineDiffRow.Delete -> Triple(
-                            "- ",
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                            MaterialTheme.colorScheme.error,
-                        )
-                        is LineDiffRow.Insert -> Triple(
-                            "+ ",
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                            // MaterialTheme lacks this particular green; hardcode instead of adding a theme color for a single use.
-                            Color(0xFF43A047),
-                        )
-                        is LineDiffRow.Equal -> Triple(
-                            "  ",
-                            Color.Transparent,
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        )
-                        is LineDiffRow.Omitted -> Triple(
-                            "  ",
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(bgColor)
-                            .padding(horizontal = 4.dp, vertical = 1.dp),
-                    ) {
-                        Text(
-                            text = "$prefix${row.text}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            color = textColor,
-                            softWrap = false,
-                            overflow = TextOverflow.Visible,
-                        )
-                    }
+            }
+        } else {
+            Column(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                DiffPathHeader(diff.path)
+                if (rows == null) {
+                    DiffLoadingRow()
+                } else {
+                    rows.forEach { row -> DiffRowItem(row) }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DiffPathHeader(path: String) {
+    Text(
+        text = path,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(bottom = 4.dp),
+        softWrap = false,
+        overflow = TextOverflow.Visible,
+    )
+}
+
+@Composable
+private fun DiffLoadingRow() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularWavyProgressIndicator(modifier = Modifier.size(48.dp))
+    }
+}
+
+@Composable
+private fun DiffRowItem(row: LineDiffRow) {
+    val (prefix, bgColor, textColor) = when (row) {
+        is LineDiffRow.Delete -> Triple(
+            "- ",
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+            MaterialTheme.colorScheme.error,
+        )
+        is LineDiffRow.Insert -> Triple(
+            "+ ",
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+            // MaterialTheme lacks this particular green; hardcode instead of adding a theme color for a single use.
+            Color(0xFF43A047),
+        )
+        is LineDiffRow.Equal -> Triple(
+            "  ",
+            Color.Transparent,
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+        is LineDiffRow.Omitted -> Triple(
+            "  ",
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bgColor)
+            .padding(horizontal = 4.dp, vertical = 1.dp),
+    ) {
+        Text(
+            text = "$prefix${row.text}",
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            color = textColor,
+            softWrap = false,
+            overflow = TextOverflow.Visible,
+        )
     }
 }
 

@@ -524,7 +524,9 @@ private fun ToolCallDetailsSheet(
                     when (tc) {
                         is ToolCallContent.Content -> ContentBlockRenderer(tc.content)
                         is ToolCallContent.Diff -> {
-                            DiffRenderer(tc)
+                            // Nested inside the sheet's vertical scroll column,
+                            // so render rows eagerly without an inner lazy list.
+                            DiffRenderer(tc, scrollable = false)
                         }
 
                         is ToolCallContent.Terminal -> TerminalRenderer(tc)
