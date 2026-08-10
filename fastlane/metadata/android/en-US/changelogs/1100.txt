@@ -1,0 +1,6 @@
+• New: live git status in the chat top bar — tap to browse changed files and view diffs inline
+• New: gateway sessions re-pair automatically when credentials expire
+• New: long-press a session title to see the full title, folder, and model
+• Fixed: sessions no longer created with a blank working directory
+• Fixed: more reliable reconnection after network changes
+• Various stability and performance improvements
