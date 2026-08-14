@@ -2,37 +2,48 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
@@ -62,43 +73,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.DpOffset
-import android.graphics.BitmapFactory
-import android.util.Base64
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.graphics.asImageBitmap
-import com.tamimarafat.ferngeist.core.model.ChatFileData
-import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
-import com.tamimarafat.ferngeist.core.model.ChatImageData
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
+import com.tamimarafat.ferngeist.core.model.ChatFileData
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.allChoices
 import com.tamimarafat.ferngeist.core.model.displayValueLabel
-import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.R
 
 /**
  * Main entry point for the chat composer UI.
@@ -171,11 +167,12 @@ internal fun ChatComposerBar(
 
     // Animates height between collapsed and expanded states
     val animatedHeight by animateDpAsState(
-        targetValue = when {
-            composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
-            composerExpanded -> 142.dp
-            else -> 62.dp
-        },
+        targetValue =
+            when {
+                composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
+                composerExpanded -> 142.dp
+                else -> 62.dp
+            },
         animationSpec =
             spring(
                 dampingRatio = Spring.DampingRatioNoBouncy,
@@ -314,7 +311,6 @@ internal fun ExpandedComposerContent(
                 .padding(top = 12.dp, bottom = 12.dp)
                 .alpha(inputAlpha),
     ) {
-
         // -- Selected image thumbnails --
         if (selectedImages.isNotEmpty()) {
             ImageThumbnailRow(
@@ -596,7 +592,10 @@ internal fun ModeMenuButton(
                         val description = mode.description
                         if (!description.isNullOrBlank()) {
                             TooltipBox(
-                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+                                positionProvider =
+                                    TooltipDefaults.rememberTooltipPositionProvider(
+                                        TooltipAnchorPosition.Above,
+                                    ),
                                 tooltip = { PlainTooltip { Text(description) } },
                                 state = rememberTooltipState(),
                             ) { item() }
@@ -723,7 +722,14 @@ internal fun ConfigOptionMenuItem(
 @Composable
 internal fun ChatConfigOption.dropdownSubtitle(): String =
     when (this) {
-        is ChatConfigOption.BooleanOption -> if (currentValue) stringResource(R.string.chat_enabled) else stringResource(R.string.chat_disabled)
+        is ChatConfigOption.BooleanOption ->
+            if (currentValue) {
+                stringResource(
+                    R.string.chat_enabled,
+                )
+            } else {
+                stringResource(R.string.chat_disabled)
+            }
         else -> displayValueLabel() ?: stringResource(R.string.chat_not_selected)
     }
 
@@ -753,7 +759,14 @@ internal fun PrimaryComposerActionButton(
     ) {
         Icon(
             imageVector = if (showStopAction && canCancelStreaming) Icons.Default.Stop else chatIcon,
-            contentDescription = if (showStopAction && canCancelStreaming) stringResource(R.string.chat_stop_desc) else stringResource(R.string.chat_send_desc),
+            contentDescription =
+                if (showStopAction &&
+                    canCancelStreaming
+                ) {
+                    stringResource(R.string.chat_stop_desc)
+                } else {
+                    stringResource(R.string.chat_send_desc)
+                },
         )
     }
 }
@@ -768,9 +781,10 @@ private fun ImageThumbnailRow(
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 4.dp),
     ) {
@@ -796,9 +810,10 @@ private fun FileChipRow(
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 4.dp),
     ) {
@@ -865,13 +880,15 @@ private fun ImageThumbnailItem(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier) {
-        val bitmap = remember(image.base64) {
-            runCatching {
-                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    ?.asImageBitmap()
-            }.getOrNull()
-        }
+        val bitmap =
+            remember(image.base64) {
+                runCatching {
+                    val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                    BitmapFactory
+                        .decodeByteArray(bytes, 0, bytes.size)
+                        ?.asImageBitmap()
+                }.getOrNull()
+            }
 
         Surface(
             shape = MaterialTheme.shapes.large,
@@ -882,9 +899,10 @@ private fun ImageThumbnailItem(
                 Image(
                     bitmap = bitmap,
                     contentDescription = stringResource(R.string.chat_image_desc),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(MaterialTheme.shapes.large),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .clip(MaterialTheme.shapes.large),
                     contentScale = ContentScale.Crop,
                 )
             } else {
@@ -906,10 +924,11 @@ private fun ImageThumbnailItem(
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 4.dp, y = (-4).dp)
-                .size(18.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(18.dp),
         ) {
             IconButton(
                 onClick = onRemove,

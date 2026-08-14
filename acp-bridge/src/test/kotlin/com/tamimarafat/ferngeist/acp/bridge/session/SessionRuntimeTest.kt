@@ -5,8 +5,8 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
-import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -112,7 +112,12 @@ class SessionRuntimeTest {
 
             val tool = segments[1].toolCall
             assertEquals(ToolCallStatus.COMPLETED, tool?.status)
-            assertEquals("ok", (tool?.content?.first() as? ToolCallContent.Content)?.content?.let { (it as? ContentBlock.Text)?.text })
+            assertEquals(
+                "ok",
+                (tool?.content?.first() as? ToolCallContent.Content)?.content?.let {
+                    (it as? ContentBlock.Text)?.text
+                },
+            )
             assertFalse(message.isStreaming)
         }
 
@@ -142,7 +147,14 @@ class SessionRuntimeTest {
             runtime.beginHydration()
 
             runtime.onEvent(AppSessionEvent.CommandsUpdated(listOf(CommandInfo("init"), CommandInfo("status"))))
-            runtime.onEvent(AppSessionEvent.UsageUpdated(totalTokens = 99, contextWindowTokens = 4096, costAmount = 0.12, costCurrency = "USD"))
+            runtime.onEvent(
+                AppSessionEvent.UsageUpdated(
+                    totalTokens = 99,
+                    contextWindowTokens = 4096,
+                    costAmount = 0.12,
+                    costCurrency = "USD",
+                ),
+            )
 
             runtime.completeHydration()
 
@@ -347,7 +359,9 @@ class SessionRuntimeTest {
 
             val sampleImage =
                 ChatImageData(
-                    base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+                    base64 =
+                        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42m" +
+                            "P8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
                     mimeType = "image/png",
                 )
 
@@ -385,7 +399,8 @@ class SessionRuntimeTest {
     fun live_send_image_echo_dedups_and_preserves_stream() {
         val sampleImage =
             ChatImageData(
-                base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+                base64 =
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
                 mimeType = "image/png",
             )
 
@@ -436,6 +451,7 @@ class SessionRuntimeTest {
         assertEquals(ChatMessage.Role.ASSISTANT, assistantMsg.role)
         assertTrue("streaming placeholder must still be streaming", assistantMsg.isStreaming)
     }
+
     /** Regression: a file echo (empty-text blob resource chunk) must not duplicate the user bubble. */
     @Test
     fun live_send_file_echo_dedups_and_preserves_file() {

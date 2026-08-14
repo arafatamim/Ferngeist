@@ -62,30 +62,36 @@ fun ImageFullscreenViewer(
     onDismiss: () -> Unit,
 ) {
     val bitmap by produceState<ImageBitmap?>(initialValue = null, image.base64) {
-        value = withContext(Dispatchers.Default) {
-            runCatching {
-                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-                val boundsOpts = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
-                }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
+        value =
+            withContext(Dispatchers.Default) {
+                runCatching {
+                    val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                    val boundsOpts =
+                        BitmapFactory.Options().apply {
+                            inJustDecodeBounds = true
+                        }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
 
-                if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
+                    if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
 
-                val sampleSize = ImageAttachmentHelper.computeSampleSize(
-                    outWidth = boundsOpts.outWidth,
-                    outHeight = boundsOpts.outHeight,
-                    maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
-                )
+                    val sampleSize =
+                        ImageAttachmentHelper.computeSampleSize(
+                            outWidth = boundsOpts.outWidth,
+                            outHeight = boundsOpts.outHeight,
+                            maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
+                        )
 
-                val bitmap = BitmapFactory.decodeByteArray(
-                    bytes, 0, bytes.size,
-                    BitmapFactory.Options().apply { inSampleSize = sampleSize },
-                ) ?: return@withContext null
+                    val bitmap =
+                        BitmapFactory.decodeByteArray(
+                            bytes,
+                            0,
+                            bytes.size,
+                            BitmapFactory.Options().apply { inSampleSize = sampleSize },
+                        ) ?: return@withContext null
 
-                bitmap.asImageBitmap()
-            }.getOrNull()
-        }
+                    bitmap.asImageBitmap()
+                }.getOrNull()
+            }
     }
 
     var visible by remember { mutableStateOf(false) }
@@ -93,28 +99,32 @@ fun ImageFullscreenViewer(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-        ),
+        properties =
+            DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+            ),
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(spring(stiffness = Spring.StiffnessLow)) +
-                scaleIn(initialScale = 0.94f, animationSpec = spring(stiffness = Spring.StiffnessLow)),
-            exit = fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
-                scaleOut(targetScale = 0.94f, animationSpec = spring(stiffness = Spring.StiffnessMedium)),
+            enter =
+                fadeIn(spring(stiffness = Spring.StiffnessLow)) +
+                    scaleIn(initialScale = 0.94f, animationSpec = spring(stiffness = Spring.StiffnessLow)),
+            exit =
+                fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
+                    scaleOut(targetScale = 0.94f, animationSpec = spring(stiffness = Spring.StiffnessMedium)),
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.94f))
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick = onDismiss,
-                    ),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.94f))
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = onDismiss,
+                        ),
                 contentAlignment = Alignment.Center,
             ) {
                 val currentBitmap = bitmap
@@ -122,20 +132,22 @@ fun ImageFullscreenViewer(
                     Image(
                         bitmap = currentBitmap,
                         contentDescription = stringResource(R.string.chat_image_desc),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .statusBarsPadding()
-                            .padding(24.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .statusBarsPadding()
+                                .padding(24.dp),
                         contentScale = ContentScale.Fit,
                     )
                 }
 
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .statusBarsPadding()
-                        .padding(12.dp),
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(12.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,

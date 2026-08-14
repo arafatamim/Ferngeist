@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<!-- Translations intentionally deferred for chat_* strings. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <!-- Chat Composer -->
     <string name="chat_composer_hint">Type a message…</string>
     <string name="chat_composer_close_desc">Close composer</string>
@@ -18,13 +19,31 @@
     <string name="chat_stop_desc">Stop</string>
     <string name="chat_attach_desc">Attach file</string>
     <string name="chat_remove_image_desc">Remove image</string>
-    <string name="chat_images_dropped">%1$d image(s) could not be decoded</string>
-    <string name="chat_images_capped">Limited to %1$d images per message</string>
-    <string name="chat_images_dropped_capped">Dropped %1$d undecodable image(s); limit is %2$d per message</string>
-    <string name="chat_attachments_unsupported">%1$d attachment(s) not supported by this agent</string>
+    <plurals name="chat_images_dropped_capped">
+        <item quantity="one">Dropped %1$d undecodable image; limit is %2$d per message</item>
+        <item quantity="other">Dropped %1$d undecodable images; limit is %2$d per message</item>
+    </plurals>
+    <plurals name="chat_images_dropped">
+        <item quantity="one">%1$d image could not be decoded</item>
+        <item quantity="other">%1$d images could not be decoded</item>
+    </plurals>
+    <plurals name="chat_images_capped">
+        <item quantity="one">Limited to %1$d image per message</item>
+        <item quantity="other">Limited to %1$d images per message</item>
+    </plurals>
+    <plurals name="chat_attachments_unsupported">
+        <item quantity="one">%1$d attachment not supported by this agent</item>
+        <item quantity="other">%1$d attachments not supported by this agent</item>
+    </plurals>
     <string name="chat_remove_file_desc">Remove file</string>
-    <string name="chat_files_too_large">%1$d file(s) exceeded the 10 MB limit</string>
-    <string name="chat_files_capped">Limited to %1$d files per message</string>
+    <plurals name="chat_files_too_large">
+        <item quantity="one">%1$d file exceeded the 10 MB limit</item>
+        <item quantity="other">%1$d files exceeded the 10 MB limit</item>
+    </plurals>
+    <plurals name="chat_files_capped">
+        <item quantity="one">Limited to %1$d file per message</item>
+        <item quantity="other">Limited to %1$d files per message</item>
+    </plurals>
 
 
     <!-- Chat Top Bar -->
@@ -191,7 +210,10 @@
     <string name="chat_no_tool_output">No tool output.</string>
     <string name="chat_git_status_title">Git status</string>
     <string name="chat_git_no_branch">(no branch)</string>
-    <string name="chat_git_files_changed">%1$d files changed</string>
+    <plurals name="chat_git_files_changed">
+        <item quantity="one">%1$d file changed</item>
+        <item quantity="other">%1$d files changed</item>
+    </plurals>
     <string name="chat_git_clean">Working tree is clean</string>
     <string name="chat_git_binary">binary</string>
     <string name="chat_git_status_desc">Git status details</string>

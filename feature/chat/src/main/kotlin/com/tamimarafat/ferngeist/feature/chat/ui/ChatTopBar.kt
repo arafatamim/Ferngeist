@@ -2,9 +2,8 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,23 +30,23 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TwoRowsTopAppBar
 import androidx.compose.material3.rememberTooltipState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.model.ChatConnectionState
-import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
 import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
+import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.feature.chat.R
 import kotlinx.coroutines.launch
 
 // region: ChatTopBar
@@ -301,7 +300,11 @@ internal fun ChatTopBarTitle(
                         Modifier
                             .then(
                                 if (ownsSharedTitleBounds) {
-                                    Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)
+                                    Modifier.sessionTitleSharedBounds(
+                                        sessionId,
+                                        sharedTransitionScope,
+                                        animatedContentScope,
+                                    )
                                 } else {
                                     Modifier
                                 },
@@ -311,8 +314,7 @@ internal fun ChatTopBarTitle(
                                     onTitleClick()
                                 },
                                 onLongClick = showTitleTooltip,
-                            )
-                            .semantics {
+                            ).semantics {
                                 contentDescription = sessionTitle
                             },
                 )
@@ -332,8 +334,7 @@ internal fun ChatTopBarTitle(
                                 onTitleClick()
                             },
                             onLongClick = showTitleTooltip,
-                        )
-                        .semantics {
+                        ).semantics {
                             contentDescription = sessionTitle
                         },
             ) {
@@ -351,7 +352,11 @@ internal fun ChatTopBarTitle(
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .then(
                                     if (ownsSharedTitleBounds) {
-                                        Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)
+                                        Modifier.sessionTitleSharedBounds(
+                                            sessionId,
+                                            sharedTransitionScope,
+                                            animatedContentScope,
+                                        )
                                     } else {
                                         Modifier
                                     },

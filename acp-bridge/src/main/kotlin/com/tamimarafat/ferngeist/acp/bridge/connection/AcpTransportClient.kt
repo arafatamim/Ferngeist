@@ -1,10 +1,8 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
-import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientInfo
-import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.AuthMethod
 import com.agentclientprotocol.model.AuthMethodId
 import com.agentclientprotocol.model.ClientCapabilities
@@ -13,6 +11,7 @@ import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.transport.WebSocketTransport
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
@@ -23,9 +22,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.io.IOException
 import kotlin.random.Random
 
@@ -40,6 +39,7 @@ internal class AcpTransportClient(
     companion object {
         private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 15_000L
         private const val MAX_RECONNECT_DELAY_MS = 30_000L
+
         // Bounds the WebSocket upgrade handshake. Without this, a peer that accepts
         // the TCP socket but never completes the upgrade (or a dead agent behind a
         // gateway) parks connect() forever — the initialize()/listSessions() timeouts
@@ -224,14 +224,15 @@ internal class AcpTransportClient(
         if (config.isResilientSession && config.attachToken == null) {
             return connectSessionResume(config, resetState, scheduleReconnectOnFailure)
         }
-        val (wsUrl, diagnosticsUrl) = if (config.isResilientSession) {
-            val sid = config.sessionId!!
-            val att = config.attachToken!!
-            val base = rawEndpointUrl.substringBefore('?')
-            "$base?sessionId=$sid&attachToken=$att" to "$base?sessionId=$sid&attachToken=***"
-        } else {
-            rawEndpointUrl to rawEndpointUrl
-        }
+        val (wsUrl, diagnosticsUrl) =
+            if (config.isResilientSession) {
+                val sid = config.sessionId!!
+                val att = config.attachToken!!
+                val base = rawEndpointUrl.substringBefore('?')
+                "$base?sessionId=$sid&attachToken=$att" to "$base?sessionId=$sid&attachToken=***"
+            } else {
+                rawEndpointUrl to rawEndpointUrl
+            }
         return try {
             establishSession(
                 wsUrl = wsUrl,
@@ -274,12 +275,13 @@ internal class AcpTransportClient(
         val gatewayCredential = config.gatewayCredential ?: return false
 
         try {
-            val resumeResponse = gatewayRepo.resumeSession(
-                scheme = gatewayScheme,
-                host = gatewayHost,
-                gatewayCredential = gatewayCredential,
-                sessionId = sessionId,
-            )
+            val resumeResponse =
+                gatewayRepo.resumeSession(
+                    scheme = gatewayScheme,
+                    host = gatewayHost,
+                    gatewayCredential = gatewayCredential,
+                    sessionId = sessionId,
+                )
             currentConfig = config.copy(attachToken = resumeResponse.attachToken)
             val rawEndpointUrl = config.webSocketUrl ?: "${config.scheme}://${config.host}"
             val base = rawEndpointUrl.substringBefore('?')
@@ -410,11 +412,12 @@ internal class AcpTransportClient(
                         val jitteredDelayMs = (baseDelayMs * (0.5 + Random.nextDouble())).toLong()
                         delay(jitteredDelayMs.coerceAtMost(MAX_RECONNECT_DELAY_MS))
 
-                        val reconnected = if (config.isResilientSession) {
-                            connectSessionResume(config, resetState, scheduleReconnectOnFailure = false)
-                        } else {
-                            connectInternal(config, resetState, scheduleReconnectOnFailure = false)
-                        }
+                        val reconnected =
+                            if (config.isResilientSession) {
+                                connectSessionResume(config, resetState, scheduleReconnectOnFailure = false)
+                            } else {
+                                connectInternal(config, resetState, scheduleReconnectOnFailure = false)
+                            }
 
                         if (reconnected) {
                             initialize()
@@ -516,5 +519,4 @@ internal class AcpTransportClient(
                     type = method.type,
                 )
         }
-
 }

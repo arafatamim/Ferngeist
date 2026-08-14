@@ -36,7 +36,8 @@ object PushNotificationPolicy {
         // Session ids are unique, so a session match is already conclusive; still require the
         // gateway to match when both ids are known, to guard against any id reuse. A null on
         // either side (unresolved) falls back to the conclusive session match.
-        if (targetGatewayId != null && activeChatGatewayId != null &&
+        if (targetGatewayId != null &&
+            activeChatGatewayId != null &&
             activeChatGatewayId != targetGatewayId
         ) {
             return false

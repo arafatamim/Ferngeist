@@ -37,7 +37,6 @@ import org.junit.Test
  */
 @OptIn(UnstableApi::class)
 internal class AcpSessionRegistryTest {
-
     private class RecordingClientSession : ClientSession {
         var closeCalled: Boolean = false
 
@@ -46,8 +45,10 @@ internal class AcpSessionRegistryTest {
         override val client: Client get() = error("unused")
         override val operations: ClientSessionOperations get() = error("unused")
 
-        override suspend fun prompt(content: List<ContentBlock>, _meta: JsonElement?): Flow<Event> =
-            error("unused")
+        override suspend fun prompt(
+            content: List<ContentBlock>,
+            _meta: JsonElement?,
+        ): Flow<Event> = error("unused")
 
         override suspend fun cancel() {
             error("unused")

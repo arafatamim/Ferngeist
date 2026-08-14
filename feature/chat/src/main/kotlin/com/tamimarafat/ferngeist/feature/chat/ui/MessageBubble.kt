@@ -1,33 +1,22 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
-import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.compose.foundation.Image
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,20 +36,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Help
 import androidx.compose.material.icons.filled.CheckBox
-import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -69,25 +58,31 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
-import androidx.compose.runtime.key
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -107,17 +102,19 @@ import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.markdownDimens
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
-import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 import com.mikepenz.markdown.model.State as MarkdownRenderState
-import kotlinx.collections.immutable.ImmutableMap
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toPersistentMap
 
 @Composable
 fun MessageBubble(
@@ -126,43 +123,52 @@ fun MessageBubble(
     showStreamingIndicator: Boolean,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
     onStreamLayoutSettled: () -> Unit = {},
     onRetryMessage: ((String) -> Unit)? = null,
-    modifier: Modifier = Modifier,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
     val contentColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     var fullscreenImage by remember { mutableStateOf<ChatImageData?>(null) }
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (showStreamingIndicator) Modifier.onSizeChanged { onStreamLayoutSettled() }
-                else Modifier,
-            ),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .then(
+                    if (showStreamingIndicator) {
+                        Modifier.onSizeChanged { onStreamLayoutSettled() }
+                    } else {
+                        Modifier
+                    },
+                ),
         contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         if (isUser) {
             ElevatedCard(
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = contentColor,
-                ),
-                shape = RoundedCornerShape(
-                    topStart = 20.dp,
-                    topEnd = 20.dp,
-                    bottomStart = 20.dp,
-                    bottomEnd = 8.dp,
-                ),
+                colors =
+                    CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = contentColor,
+                    ),
+                shape =
+                    RoundedCornerShape(
+                        topStart = 20.dp,
+                        topEnd = 20.dp,
+                        bottomStart = 20.dp,
+                        bottomEnd = 8.dp,
+                    ),
                 modifier = Modifier.widthIn(max = 420.dp),
             ) {
                 UserMessageContent(
                     message = message,
                     textColor = contentColor,
-                    onRetry = if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
-                        { onRetryMessage(message.clientId ?: message.id) }
-                    } else null,
+                    onRetry =
+                        if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
+                            { onRetryMessage(message.clientId ?: message.id) }
+                        } else {
+                            null
+                        },
                     onImageClick = { fullscreenImage = it },
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 )
@@ -187,15 +193,14 @@ fun MessageBubble(
     }
 }
 
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun UserMessageContent(
     message: ChatMessage,
     textColor: Color,
+    modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null,
     onImageClick: ((ChatImageData) -> Unit)? = null,
-    modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         // Text content
@@ -232,7 +237,6 @@ private fun UserMessageContent(
     }
 }
 
-
 /**
  * Small themed badge indicating the delivery status of a user message.
  *
@@ -249,20 +253,27 @@ private fun DeliveryStatusBadge(
     onRetry: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val springSpec = spring<Float>(
-        dampingRatio = Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessMedium,
-    )
+    val springSpec =
+        spring<Float>(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        )
     AnimatedContent(
         targetState = status,
         transitionSpec = {
-            (fadeIn(springSpec) + scaleIn(
-                initialScale = 0.6f,
-                animationSpec = springSpec,
-            )) togetherWith (fadeOut(springSpec) + scaleOut(
-                targetScale = 0.6f,
-                animationSpec = springSpec,
-            ))
+            (
+                fadeIn(springSpec) +
+                    scaleIn(
+                        initialScale = 0.6f,
+                        animationSpec = springSpec,
+                    )
+            ) togetherWith (
+                fadeOut(springSpec) +
+                    scaleOut(
+                        targetScale = 0.6f,
+                        animationSpec = springSpec,
+                    )
+            )
         },
         label = "DeliveryStatusBadge",
         modifier = modifier,
@@ -283,12 +294,15 @@ private fun DeliveryStatusBadge(
             }
             MessageDeliveryStatus.FAILED -> {
                 Row(
-                    modifier = Modifier
-                        .then(
-                            if (onRetry != null) {
-                                Modifier.clickable { onRetry() }
-                            } else Modifier,
-                        ),
+                    modifier =
+                        Modifier
+                            .then(
+                                if (onRetry != null) {
+                                    Modifier.clickable { onRetry() }
+                                } else {
+                                    Modifier
+                                },
+                            ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Surface(
@@ -299,9 +313,10 @@ private fun DeliveryStatusBadge(
                             imageVector = Icons.Rounded.ErrorOutline,
                             contentDescription = stringResource(R.string.chat_status_failed),
                             tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                .size(14.dp),
+                            modifier =
+                                Modifier
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .size(14.dp),
                         )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
@@ -316,6 +331,7 @@ private fun DeliveryStatusBadge(
         }
     }
 }
+
 @Composable
 private fun AssistantMessageContent(
     message: ChatMessage,
@@ -387,27 +403,29 @@ private fun MarkdownText(
     state: MarkdownRenderState?,
     modifier: Modifier = Modifier,
 ) {
-    val compactTypography = markdownTypography(
-        h1 = MaterialTheme.typography.titleLarge,
-        h2 = MaterialTheme.typography.titleMedium,
-        h3 = MaterialTheme.typography.titleSmall,
-        h4 = MaterialTheme.typography.bodyLarge,
-        h5 = MaterialTheme.typography.bodyMedium,
-        h6 = MaterialTheme.typography.bodySmall,
-        text = MaterialTheme.typography.bodyMedium,
-        paragraph = MaterialTheme.typography.bodyMedium,
-        list = MaterialTheme.typography.bodyMedium,
-        bullet = MaterialTheme.typography.bodyMedium,
-        ordered = MaterialTheme.typography.bodyMedium,
-    )
+    val compactTypography =
+        markdownTypography(
+            h1 = MaterialTheme.typography.titleLarge,
+            h2 = MaterialTheme.typography.titleMedium,
+            h3 = MaterialTheme.typography.titleSmall,
+            h4 = MaterialTheme.typography.bodyLarge,
+            h5 = MaterialTheme.typography.bodyMedium,
+            h6 = MaterialTheme.typography.bodySmall,
+            text = MaterialTheme.typography.bodyMedium,
+            paragraph = MaterialTheme.typography.bodyMedium,
+            list = MaterialTheme.typography.bodyMedium,
+            bullet = MaterialTheme.typography.bodyMedium,
+            ordered = MaterialTheme.typography.bodyMedium,
+        )
     if (state != null) {
         SelectionContainer {
             Markdown(
                 state = state,
                 typography = compactTypography,
-                animations = markdownAnimations(
-                    animateTextSize = { this },
-                ),
+                animations =
+                    markdownAnimations(
+                        animateTextSize = { this },
+                    ),
                 dimens = markdownDimens(),
                 modifier = modifier.fillMaxWidth(),
             )
@@ -422,28 +440,38 @@ private fun ThoughtBubble(
     modifier: Modifier = Modifier,
 ) {
     val baseColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val textBrush = rememberShimmerTextBrush(
-        isActive = isStreaming,
-        baseColor = baseColor,
-        labelPrefix = "reasoning",
-    )
+    val textBrush =
+        rememberShimmerTextBrush(
+            isActive = isStreaming,
+            baseColor = baseColor,
+            labelPrefix = "reasoning",
+        )
 
     val reasoningDesc = stringResource(R.string.chat_reasoning_desc)
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .semantics {
-                contentDescription = reasoningDesc
-            },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .semantics {
+                    contentDescription = reasoningDesc
+                },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = if (isStreaming) stringResource(R.string.chat_reasoning) else stringResource(R.string.chat_show_reasoning),
-            style = MaterialTheme.typography.bodySmall.copy(
-                brush = textBrush,
-            ),
+            text =
+                if (isStreaming) {
+                    stringResource(
+                        R.string.chat_reasoning,
+                    )
+                } else {
+                    stringResource(R.string.chat_show_reasoning)
+                },
+            style =
+                MaterialTheme.typography.bodySmall.copy(
+                    brush = textBrush,
+                ),
             modifier = Modifier.padding(vertical = 4.dp),
         )
         Spacer(modifier = Modifier.width(4.dp))
@@ -463,10 +491,11 @@ private fun PlanBubble(
 ) {
     if (entries.isEmpty()) return
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
         shape = RoundedCornerShape(8.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
@@ -482,19 +511,36 @@ private fun PlanBubble(
                 ) {
                     Icon(
                         imageVector = if (isCompleted) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                        contentDescription = if (isCompleted) stringResource(R.string.chat_completed_desc) else stringResource(R.string.chat_plan_desc),
-                        tint = if (isInProgress) MaterialTheme.colorScheme.primary
-                        else if (isPending) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-                        else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f),
+                        contentDescription =
+                            if (isCompleted) {
+                                stringResource(
+                                    R.string.chat_completed_desc,
+                                )
+                            } else {
+                                stringResource(R.string.chat_plan_desc)
+                            },
+                        tint =
+                            if (isInProgress) {
+                                MaterialTheme.colorScheme.primary
+                            } else if (isPending) {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                            },
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = entry.content,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isPending) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-                        else if (isInProgress) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f),
+                        color =
+                            if (isPending) {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                            } else if (isInProgress) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                            },
                         fontWeight = if (isInProgress) FontWeight.Medium else null,
                         textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
                         modifier = Modifier.weight(1f),
@@ -516,65 +562,70 @@ private fun ToolCallCard(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-        ),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            ),
         shape = CardDefaults.shape,
         modifier = modifier.fillMaxWidth(),
     ) {
         Column {
             // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onClick() }
-                    .semantics {
-                        contentDescription = toolCall.title + " " + (toolCall.status?.name?.lowercase() ?: "unknown")
-                    }
-                    .padding(12.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onClick() }
+                        .semantics {
+                            contentDescription =
+                                toolCall.title + " " + (toolCall.status?.name?.lowercase() ?: "unknown")
+                        }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Status badge
                 toolCall.status?.let { status ->
                     when (status) {
-                        ToolCallStatus.PENDING, ToolCallStatus.IN_PROGRESS -> ContainedLoadingIndicator(
-                            polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
-                            containerShape = MaterialTheme.shapes.medium,
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(32.dp),
-                        )
+                        ToolCallStatus.PENDING, ToolCallStatus.IN_PROGRESS ->
+                            ContainedLoadingIndicator(
+                                polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
+                                containerShape = MaterialTheme.shapes.medium,
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(32.dp),
+                            )
 
-                        ToolCallStatus.COMPLETED -> Surface(
-                            modifier = Modifier.size(32.dp),
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.primary,
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    modifier = Modifier.size(20.dp),
-                                    imageVector = toolKindIcon(toolCall.kind),
-                                    contentDescription = stringResource(R.string.chat_completed_desc),
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                )
+                        ToolCallStatus.COMPLETED ->
+                            Surface(
+                                modifier = Modifier.size(32.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.primary,
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        modifier = Modifier.size(20.dp),
+                                        imageVector = toolKindIcon(toolCall.kind),
+                                        contentDescription = stringResource(R.string.chat_completed_desc),
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                }
                             }
-                        }
 
-                        ToolCallStatus.FAILED -> Surface(
-                            modifier = Modifier.size(32.dp),
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.error,
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    modifier = Modifier.size(20.dp),
-                                    imageVector = Icons.Rounded.Error,
-                                    contentDescription = stringResource(R.string.chat_error_desc),
-                                    tint = MaterialTheme.colorScheme.onError,
-                                )
+                        ToolCallStatus.FAILED ->
+                            Surface(
+                                modifier = Modifier.size(32.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.error,
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        modifier = Modifier.size(20.dp),
+                                        imageVector = Icons.Rounded.Error,
+                                        contentDescription = stringResource(R.string.chat_error_desc),
+                                        tint = MaterialTheme.colorScheme.onError,
+                                    )
+                                }
                             }
-                        }
                     }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
@@ -623,8 +674,8 @@ private fun ToolCallCard(
 @Composable
 private fun ImageAttachments(
     images: List<ChatImageData>,
-    onImageClick: ((ChatImageData) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onImageClick: ((ChatImageData) -> Unit)? = null,
 ) {
     Column(modifier = modifier) {
         images.forEach { image ->
@@ -691,49 +742,57 @@ private fun ImageAttachmentItem(
     onClick: (() -> Unit)? = null,
 ) {
     val bitmap by produceState<ImageBitmap?>(initialValue = null, image.base64) {
-        value = withContext(Dispatchers.Default) {
-            runCatching {
-                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-                val boundsOpts = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
-                }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
+        value =
+            withContext(Dispatchers.Default) {
+                runCatching {
+                    val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                    val boundsOpts =
+                        BitmapFactory.Options().apply {
+                            inJustDecodeBounds = true
+                        }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
 
-                if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
+                    if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
 
-                val sampleSize = ImageAttachmentHelper.computeSampleSize(
-                    outWidth = boundsOpts.outWidth,
-                    outHeight = boundsOpts.outHeight,
-                    maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
-                )
+                    val sampleSize =
+                        ImageAttachmentHelper.computeSampleSize(
+                            outWidth = boundsOpts.outWidth,
+                            outHeight = boundsOpts.outHeight,
+                            maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
+                        )
 
-                val bitmap = BitmapFactory.decodeByteArray(
-                    bytes, 0, bytes.size,
-                    BitmapFactory.Options().apply { inSampleSize = sampleSize },
-                ) ?: return@withContext null
+                    val bitmap =
+                        BitmapFactory.decodeByteArray(
+                            bytes,
+                            0,
+                            bytes.size,
+                            BitmapFactory.Options().apply { inSampleSize = sampleSize },
+                        ) ?: return@withContext null
 
-                bitmap.asImageBitmap()
-            }.getOrNull()
-        }
+                    bitmap.asImageBitmap()
+                }.getOrNull()
+            }
     }
 
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         val currentBitmap = bitmap
         if (currentBitmap != null) {
             Image(
                 bitmap = currentBitmap,
                 contentDescription = stringResource(R.string.chat_image_desc),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 220.dp)
-                    .padding(4.dp)
-                    .clip(MaterialTheme.shapes.medium),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .padding(4.dp)
+                        .clip(MaterialTheme.shapes.medium),
                 contentScale = ContentScale.Fit,
             )
         } else {
@@ -763,18 +822,20 @@ private fun StreamingIndicator(
     streamKey: String,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val spinnerVerb = remember(streamKey) {
-        val verbs = context.resources.getStringArray(R.array.chat_spinner_verbs)
-        verbs[Random.nextInt(verbs.size)]
-    }
+    val resources = LocalResources.current
+    val spinnerVerb =
+        remember(streamKey) {
+            val verbs = resources.getStringArray(R.array.chat_spinner_verbs)
+            verbs[Random.nextInt(verbs.size)]
+        }
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
     val baseColor = LocalContentColor.current.copy(alpha = 0.8f)
-    val textBrush = rememberShimmerTextBrush(
-        isActive = true,
-        baseColor = baseColor,
-        labelPrefix = "spinnerVerb",
-    )
+    val textBrush =
+        rememberShimmerTextBrush(
+            isActive = true,
+            baseColor = baseColor,
+            labelPrefix = "spinnerVerb",
+        )
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -786,43 +847,45 @@ private fun StreamingIndicator(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = stringResource(R.string.chat_streaming_indicator, spinnerVerb),
-            style = MaterialTheme.typography.bodySmall.copy(
-                brush = textBrush,
-            ),
+            style =
+                MaterialTheme.typography.bodySmall.copy(
+                    brush = textBrush,
+                ),
         )
     }
 }
 
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-private val LOADING_SHAPES = listOf(
-    MaterialShapes.Oval,
-    MaterialShapes.ClamShell,
-    MaterialShapes.Diamond,
-    MaterialShapes.VerySunny,
-    MaterialShapes.Cookie4Sided,
-    MaterialShapes.SoftBurst,
-    MaterialShapes.SoftBoom,
-    MaterialShapes.Flower,
-    MaterialShapes.PuffyDiamond,
-    MaterialShapes.Bun,
-)
+private val LOADING_SHAPES =
+    listOf(
+        MaterialShapes.Oval,
+        MaterialShapes.ClamShell,
+        MaterialShapes.Diamond,
+        MaterialShapes.VerySunny,
+        MaterialShapes.Cookie4Sided,
+        MaterialShapes.SoftBurst,
+        MaterialShapes.SoftBoom,
+        MaterialShapes.Flower,
+        MaterialShapes.PuffyDiamond,
+        MaterialShapes.Bun,
+    )
 
 private fun pickLoadingPolygons(seedKey: String) = LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(6)
 
-private fun toolKindIcon(kind: ToolKind?): ImageVector = when (kind) {
-    ToolKind.READ -> Icons.Rounded.Search
-    ToolKind.EDIT -> Icons.Rounded.Edit
-    ToolKind.DELETE -> Icons.Rounded.Delete
-    ToolKind.MOVE -> Icons.AutoMirrored.Rounded.ArrowForward
-    ToolKind.SEARCH -> Icons.Rounded.Search
-    ToolKind.EXECUTE -> Icons.Rounded.PlayArrow
-    ToolKind.THINK -> Icons.Rounded.Refresh
-    ToolKind.FETCH -> Icons.Rounded.CloudDownload
-    ToolKind.SWITCH_MODE -> Icons.Rounded.Settings
-    ToolKind.OTHER -> Icons.Rounded.Build
-    null -> Icons.AutoMirrored.Rounded.Help
-}
+private fun toolKindIcon(kind: ToolKind?): ImageVector =
+    when (kind) {
+        ToolKind.READ -> Icons.Rounded.Search
+        ToolKind.EDIT -> Icons.Rounded.Edit
+        ToolKind.DELETE -> Icons.Rounded.Delete
+        ToolKind.MOVE -> Icons.AutoMirrored.Rounded.ArrowForward
+        ToolKind.SEARCH -> Icons.Rounded.Search
+        ToolKind.EXECUTE -> Icons.Rounded.PlayArrow
+        ToolKind.THINK -> Icons.Rounded.Refresh
+        ToolKind.FETCH -> Icons.Rounded.CloudDownload
+        ToolKind.SWITCH_MODE -> Icons.Rounded.Settings
+        ToolKind.OTHER -> Icons.Rounded.Build
+        null -> Icons.AutoMirrored.Rounded.Help
+    }
 
 @Composable
 private fun rememberShimmerTextBrush(
@@ -831,27 +894,31 @@ private fun rememberShimmerTextBrush(
     labelPrefix: String,
 ): Brush {
     val shimmerTransition = rememberInfiniteTransition(label = "${labelPrefix}Shimmer")
-    val shimmerOffset = if (isActive) {
-        shimmerTransition.animateFloat(
-            initialValue = -200f,
-            targetValue = 600f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1400, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "${labelPrefix}ShimmerOffset",
-        ).value
-    } else {
-        0f
-    }
+    val shimmerOffset =
+        if (isActive) {
+            shimmerTransition
+                .animateFloat(
+                    initialValue = -200f,
+                    targetValue = 600f,
+                    animationSpec =
+                        infiniteRepeatable(
+                            animation = tween(durationMillis = 1400, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart,
+                        ),
+                    label = "${labelPrefix}ShimmerOffset",
+                ).value
+        } else {
+            0f
+        }
 
     return if (isActive) {
         Brush.linearGradient(
-            colors = listOf(
-                baseColor.copy(alpha = 0.45f),
-                baseColor.copy(alpha = 0.95f),
-                baseColor.copy(alpha = 0.45f),
-            ),
+            colors =
+                listOf(
+                    baseColor.copy(alpha = 0.45f),
+                    baseColor.copy(alpha = 0.95f),
+                    baseColor.copy(alpha = 0.45f),
+                ),
             start = Offset(shimmerOffset - 200f, 0f),
             end = Offset(shimmerOffset, 0f),
         )
@@ -865,23 +932,24 @@ private fun rememberShimmerTextBrush(
 private fun PlanBubblePreview() {
     Surface {
         PlanBubble(
-            entries = listOf(
-                PlanEntry(
-                    content = "Analyze the existing codebase structure",
-                    priority = PlanEntryPriority.HIGH,
-                    status = PlanEntryStatus.COMPLETED,
+            entries =
+                listOf(
+                    PlanEntry(
+                        content = "Analyze the existing codebase structure",
+                        priority = PlanEntryPriority.HIGH,
+                        status = PlanEntryStatus.COMPLETED,
+                    ),
+                    PlanEntry(
+                        content = "Identify components that need refactoring",
+                        priority = PlanEntryPriority.HIGH,
+                        status = PlanEntryStatus.IN_PROGRESS,
+                    ),
+                    PlanEntry(
+                        content = "Create unit tests for critical functions",
+                        priority = PlanEntryPriority.MEDIUM,
+                        status = PlanEntryStatus.PENDING,
+                    ),
                 ),
-                PlanEntry(
-                    content = "Identify components that need refactoring",
-                    priority = PlanEntryPriority.HIGH,
-                    status = PlanEntryStatus.IN_PROGRESS,
-                ),
-                PlanEntry(
-                    content = "Create unit tests for critical functions",
-                    priority = PlanEntryPriority.MEDIUM,
-                    status = PlanEntryStatus.PENDING,
-                ),
-            ),
         )
     }
 }
@@ -893,114 +961,128 @@ private fun ToolCallCardPreview() {
         Surface(modifier = Modifier.padding(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "list_files (READ · IN_PROGRESS)",
-                        kind = ToolKind.READ,
-                        status = ToolCallStatus.IN_PROGRESS,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "search_code (READ · COMPLETED)",
-                        kind = ToolKind.READ,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "search (SEARCH · COMPLETED)",
-                        kind = ToolKind.SEARCH,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "edit_file (EDIT · COMPLETED)",
-                        kind = ToolKind.EDIT,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "delete_file (DELETE · FAILED)",
-                        kind = ToolKind.DELETE,
-                        status = ToolCallStatus.FAILED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "move_file (MOVE · COMPLETED)",
-                        kind = ToolKind.MOVE,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "run_tests (EXECUTE · COMPLETED)",
-                        kind = ToolKind.EXECUTE,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "think (THINK · COMPLETED)",
-                        kind = ToolKind.THINK,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "fetch_data (FETCH · FAILED)",
-                        kind = ToolKind.FETCH,
-                        status = ToolCallStatus.FAILED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "switch (SWITCH_MODE · COMPLETED)",
-                        kind = ToolKind.SWITCH_MODE,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "other_action (OTHER · COMPLETED)",
-                        kind = ToolKind.OTHER,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "unknown (null · COMPLETED)",
-                        kind = null,
-                        status = ToolCallStatus.COMPLETED,
-                    ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall = ToolCallDisplay(
-                        title = "delete_file (DELETE · PENDING · permissions)",
-                        kind = ToolKind.DELETE,
-                        status = ToolCallStatus.PENDING,
-                        permissionOptions = listOf(
-                            AcpPermissionOption(
-                                id = "1",
-                                label = "Allow",
-                                kind = "allow_once",
-                            ),
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "list_files (READ · IN_PROGRESS)",
+                            kind = ToolKind.READ,
+                            status = ToolCallStatus.IN_PROGRESS,
                         ),
-                    ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "search_code (READ · COMPLETED)",
+                            kind = ToolKind.READ,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "search (SEARCH · COMPLETED)",
+                            kind = ToolKind.SEARCH,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "edit_file (EDIT · COMPLETED)",
+                            kind = ToolKind.EDIT,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "delete_file (DELETE · FAILED)",
+                            kind = ToolKind.DELETE,
+                            status = ToolCallStatus.FAILED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "move_file (MOVE · COMPLETED)",
+                            kind = ToolKind.MOVE,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "run_tests (EXECUTE · COMPLETED)",
+                            kind = ToolKind.EXECUTE,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "think (THINK · COMPLETED)",
+                            kind = ToolKind.THINK,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "fetch_data (FETCH · FAILED)",
+                            kind = ToolKind.FETCH,
+                            status = ToolCallStatus.FAILED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "switch (SWITCH_MODE · COMPLETED)",
+                            kind = ToolKind.SWITCH_MODE,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "other_action (OTHER · COMPLETED)",
+                            kind = ToolKind.OTHER,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "unknown (null · COMPLETED)",
+                            kind = null,
+                            status = ToolCallStatus.COMPLETED,
+                        ),
+                    onClick = {},
+                )
+                ToolCallCard(
+                    toolCall =
+                        ToolCallDisplay(
+                            title = "delete_file (DELETE · PENDING · permissions)",
+                            kind = ToolKind.DELETE,
+                            status = ToolCallStatus.PENDING,
+                            permissionOptions =
+                                listOf(
+                                    AcpPermissionOption(
+                                        id = "1",
+                                        label = "Allow",
+                                        kind = "allow_once",
+                                    ),
+                                ),
+                        ),
                     onClick = {},
                 )
             }

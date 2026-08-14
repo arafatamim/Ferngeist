@@ -58,7 +58,10 @@ class GatewayPushTokenRegistrationTest {
 
             val body = (request.body as TextContent).text
             assertEquals(
-                json.encodeToString(GatewayPushTokenRequest.serializer(), GatewayPushTokenRequest("fcm-abc", "android")),
+                json.encodeToString(
+                    GatewayPushTokenRequest.serializer(),
+                    GatewayPushTokenRequest("fcm-abc", "android"),
+                ),
                 body,
             )
             assertEquals("""{"token":"fcm-abc","platform":"android"}""", body)

@@ -2,17 +2,21 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>CyclomaticComplexMethod:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
     <ID>FunctionNaming:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
+    <ID>FunctionNaming:ConnectionStatusPill.kt:@Composable private fun DonutRing</ID>
+    <ID>FunctionNaming:ConnectionStatusPill.kt:@ExperimentalMaterial3Api @Composable fun ConnectionStatusPill</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable fun ErrorStateCard</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun MaterialExpressivePreview</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Preview(name = "Empty state (dark)", showBackground = true, backgroundColor = 0xFF000000) @Composable private fun ErrorStateCardEmptyDarkPreview</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Preview(name = "Empty state (light)", showBackground = true) @Composable private fun ErrorStateCardEmptyPreview</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Preview(name = "Error state (light)", showBackground = true) @Composable private fun ErrorStateCardErrorPreview</ID>
     <ID>LongMethod:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
-    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:12</ID>
-    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000.0</ID>
+    <ID>LongMethod:ConnectionStatusPill.kt:@ExperimentalMaterial3Api @Composable fun ConnectionStatusPill</ID>
+    <ID>LongMethod:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable fun ErrorStateCard</ID>
     <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000L</ID>
-    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000.0</ID>
     <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000L</ID>
-    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000_000.0</ID>
     <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000_000L</ID>
     <ID>MagicNumber:ConnectionDiagnosticsUi.kt:8</ID>
-    <ID>MaxLineLength:ConnectionDiagnosticsUi.kt:text = "${formatDiagnosticsTime(entry.timestampMs)} ${directionLabel(entry.direction)} ${entry.method}$rpcIdText$summaryText"</ID>
+    <ID>MagicNumber:ErrorStateCard.kt:0.85f</ID>
   </CurrentIssues>
 </SmellBaseline>

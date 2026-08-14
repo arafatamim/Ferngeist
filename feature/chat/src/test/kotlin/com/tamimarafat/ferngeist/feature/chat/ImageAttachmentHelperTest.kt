@@ -5,7 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ImageAttachmentHelperTest {
-
     // -- encodeImageBytes edge cases --
 
     @Test

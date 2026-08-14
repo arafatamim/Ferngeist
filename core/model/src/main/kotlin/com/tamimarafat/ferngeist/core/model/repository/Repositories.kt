@@ -36,8 +36,7 @@ interface GatewaySourceRepository {
 }
 
 /** Resolves the local ID from a gateway-owned ID (as carried in push payloads). */
-suspend fun GatewaySourceRepository.resolveLocalId(gatewayId: String): String? =
-    getGatewayByGatewayId(gatewayId)?.id
+suspend fun GatewaySourceRepository.resolveLocalId(gatewayId: String): String? = getGatewayByGatewayId(gatewayId)?.id
 
 interface GatewayAgentBindingRepository {
     fun getBindings(): Flow<List<GatewayAgentBinding>>

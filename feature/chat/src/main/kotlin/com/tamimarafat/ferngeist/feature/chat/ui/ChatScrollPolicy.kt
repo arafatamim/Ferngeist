@@ -80,7 +80,9 @@ internal sealed class ScrollDecision {
     data object SnapToBottom : ScrollDecision()
 
     /** Wait [delayMs] then scroll to bottom. */
-    data class DelayedFollow(val delayMs: Long) : ScrollDecision()
+    data class DelayedFollow(
+        val delayMs: Long,
+    ) : ScrollDecision()
 
     /** Multi-pass scroll for user-initiated send (3 passes, 32ms apart). */
     data object SendFollow : ScrollDecision()
@@ -114,6 +116,9 @@ internal class ChatScrollPolicy(
     private val clock: () -> Long = { SystemClock.uptimeMillis() },
 ) {
     private var _state: AutoScrollState = AutoScrollState.Following
+
+    /** Current auto-scroll state snapshot. */
+    val state: AutoScrollState get() = _state
 
     /** Snapshot of current following state. */
     val isFollowing: Boolean get() = _state is AutoScrollState.Following
@@ -238,8 +243,11 @@ internal class ChatScrollPolicy(
      */
     fun markRestored(isFollowing: Boolean): ScrollDecision {
         _state =
-            if (isFollowing) AutoScrollState.Following
-            else AutoScrollState.PausedByUser
+            if (isFollowing) {
+                AutoScrollState.Following
+            } else {
+                AutoScrollState.PausedByUser
+            }
         skipNextInsetsFollow = true
         return if (isFollowing) {
             ScrollDecision.DelayedFollow(AutoScrollConfig.INITIAL_FOLLOW_SETTLE_MS)

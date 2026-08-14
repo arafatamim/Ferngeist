@@ -68,7 +68,10 @@ fun GatewayListScreen(
                 title = { Text(stringResource(R.string.serverlist_gateway_list_title)) },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.serverlist_back_desc))
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.serverlist_back_desc),
+                        )
                     }
                 },
             )
@@ -120,8 +123,7 @@ private fun GatewayCard(
                     .combinedClickable(
                         onClick = onOpenGatewayAgents,
                         onLongClick = { showActionsMenu = true },
-                    )
-                    .semantics {
+                    ).semantics {
                         contentDescription = gateway.name
                     },
         ) {

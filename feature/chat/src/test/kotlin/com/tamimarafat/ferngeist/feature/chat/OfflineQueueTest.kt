@@ -4,13 +4,11 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OfflineQueueTest {
-
     // region: Enqueue / Dequeue
 
     @Test
@@ -148,11 +146,12 @@ class OfflineQueueTest {
 
     @Test
     fun `pending prompt carries clientId linking it to the UI message`() {
-        val prompt = PendingPrompt(
-            clientId = "client-42",
-            text = "Hello",
-            images = listOf(ChatImageData(base64 = "abc", mimeType = "image/png")),
-        )
+        val prompt =
+            PendingPrompt(
+                clientId = "client-42",
+                text = "Hello",
+                images = listOf(ChatImageData(base64 = "abc", mimeType = "image/png")),
+            )
         assertEquals("client-42", prompt.clientId)
         assertEquals("Hello", prompt.text)
         assertEquals(1, prompt.images.size)
@@ -161,23 +160,25 @@ class OfflineQueueTest {
 
     @Test
     fun `ChatMessage default status is SENT for loaded history`() {
-        val msg = com.tamimarafat.ferngeist.core.model.ChatMessage(
-            role = com.tamimarafat.ferngeist.core.model.ChatMessage.Role.ASSISTANT,
-            content = "server response",
-        )
+        val msg =
+            com.tamimarafat.ferngeist.core.model.ChatMessage(
+                role = com.tamimarafat.ferngeist.core.model.ChatMessage.Role.ASSISTANT,
+                content = "server response",
+            )
         assertEquals(MessageDeliveryStatus.SENT, msg.status)
         assertNull(msg.clientId)
     }
 
     @Test
     fun `ChatMessage can be constructed with QUEUED status and clientId`() {
-        val msg = com.tamimarafat.ferngeist.core.model.ChatMessage(
-            id = "msg-1",
-            role = com.tamimarafat.ferngeist.core.model.ChatMessage.Role.USER,
-            content = "offline message",
-            status = MessageDeliveryStatus.QUEUED,
-            clientId = "client-1",
-        )
+        val msg =
+            com.tamimarafat.ferngeist.core.model.ChatMessage(
+                id = "msg-1",
+                role = com.tamimarafat.ferngeist.core.model.ChatMessage.Role.USER,
+                content = "offline message",
+                status = MessageDeliveryStatus.QUEUED,
+                clientId = "client-1",
+            )
         assertEquals(MessageDeliveryStatus.QUEUED, msg.status)
         assertEquals("client-1", msg.clientId)
     }

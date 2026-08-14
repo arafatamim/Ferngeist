@@ -62,7 +62,12 @@ fun ConnectionDiagnosticsDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(stringResource(R.string.common_connection, connectionStateLabel(connectionState)))
-                Text(stringResource(R.string.common_server, diagnostics.serverUrl ?: stringResource(R.string.common_unknown)))
+                Text(
+                    stringResource(
+                        R.string.common_server,
+                        diagnostics.serverUrl ?: stringResource(R.string.common_unknown),
+                    ),
+                )
                 Text(stringResource(R.string.common_pending_rpc, diagnostics.pendingRequestCount))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text(stringResource(R.string.common_total_tokens, totalTokensText))

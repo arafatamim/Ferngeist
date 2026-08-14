@@ -2,12 +2,15 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ConstructorParameterNaming:ServerListViewModel.kt:PendingAuthentication$val GatewayRuntime: PendingGatewayRuntime? = null</ID>
     <ID>CyclomaticComplexMethod:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddGatewayScreen</ID>
     <ID>CyclomaticComplexMethod:AddGatewayViewModel.kt:AddGatewayViewModel$fun saveGateway</ID>
     <ID>CyclomaticComplexMethod:GatewayAgentsScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun GatewayAgentsScreen</ID>
-    <ID>CyclomaticComplexMethod:ServerListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
+    <ID>CyclomaticComplexMethod:RecentSessionsSection.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable internal fun AgentsBackdrop</ID>
+    <ID>CyclomaticComplexMethod:ServerListDialogs.kt:@Composable internal fun PendingAuthenticationDialog</ID>
+    <ID>CyclomaticComplexMethod:ServerListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ServerListScreen</ID>
     <ID>CyclomaticComplexMethod:ServerListViewModel.kt:ServerListViewModel$fun connectAndOpenServer</ID>
+    <ID>CyclomaticComplexMethod:ServerListViewModel.kt:ServerListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>ExplicitItLambdaParameter:ServerListViewModel.kt:ServerListViewModel${ it -&gt; PendingGatewayRuntime(runtimeId = it.runtimeId) }</ID>
     <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun GatewayProtocolOption</ID>
     <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun GatewayProtocolSelector</ID>
     <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun GatewayStatusCard</ID>
@@ -26,60 +29,51 @@
     <ID>FunctionNaming:AddServerScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun AddServerScreen</ID>
     <ID>FunctionNaming:GatewayAgentsScreen.kt:@Composable private fun CompactAgentChip</ID>
     <ID>FunctionNaming:GatewayAgentsScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun GatewayAgentsScreen</ID>
+    <ID>FunctionNaming:GatewayAgentsScreen.kt:@androidx.compose.ui.tooling.preview.Preview(name = "Gateway agents error", showBackground = true) @OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun GatewayAgentsErrorPreview</ID>
     <ID>FunctionNaming:GatewayListScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun GatewayListScreen</ID>
     <ID>FunctionNaming:GatewayListScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable private fun GatewayCard</ID>
-    <ID>FunctionNaming:ServerCard.kt:@Composable private fun ServerSubtitle</ID>
-    <ID>FunctionNaming:ServerCard.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun ServerCard</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@Composable internal fun SectionHeader</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ContinueSessionCard</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class) @Composable internal fun RecentSessionCard</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable internal fun AgentsBackdrop</ID>
+    <ID>FunctionNaming:ServerCard.kt:@Composable internal fun ServerSubtitle</ID>
+    <ID>FunctionNaming:ServerCard.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ServerCard</ID>
     <ID>FunctionNaming:ServerCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun ConnectingTitleIndicator</ID>
-    <ID>FunctionNaming:ServerListScreen.kt:@Composable private fun AboutDialog</ID>
-    <ID>FunctionNaming:ServerListScreen.kt:@Composable private fun AuthenticationMethodDetails</ID>
-    <ID>FunctionNaming:ServerListScreen.kt:@Composable private fun EmptyServerList</ID>
-    <ID>FunctionNaming:ServerListScreen.kt:@Composable private fun LaunchRiskConsentDialog</ID>
-    <ID>FunctionNaming:ServerListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
-    <ID>FunctionNaming:ServerListScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun ServerListTopBar</ID>
-    <ID>FunctionNaming:ServerListScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun ServerListScreen</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable internal fun AboutDialog</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable internal fun LaunchRiskConsentDialog</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable internal fun PendingAuthenticationDialog</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun ServerListTopBar</ID>
+    <ID>FunctionNaming:ServerListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ServerListScreen</ID>
+    <ID>FunctionNaming:ServerListScreen.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun EmptyServerList</ID>
     <ID>LargeClass:ServerListViewModel.kt:ServerListViewModel : ViewModel</ID>
+    <ID>LongMethod:AddGatewayScreen.kt:@Composable private fun ReviewGatewayStep</ID>
     <ID>LongMethod:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddGatewayScreen</ID>
     <ID>LongMethod:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun EditGatewayScreen</ID>
+    <ID>LongMethod:AddGatewayViewModel.kt:AddGatewayViewModel$fun pairAndSaveWithCode</ID>
     <ID>LongMethod:AddGatewayViewModel.kt:AddGatewayViewModel$fun saveGateway</ID>
     <ID>LongMethod:AddServerScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun AddServerScreen</ID>
     <ID>LongMethod:GatewayAgentsScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun GatewayAgentsScreen</ID>
     <ID>LongMethod:GatewayListScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable private fun GatewayCard</ID>
-    <ID>LongMethod:ServerCard.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun ServerCard</ID>
-    <ID>LongMethod:ServerListScreen.kt:@Composable private fun AuthenticationMethodDetails</ID>
-    <ID>LongMethod:ServerListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
-    <ID>LongMethod:ServerListScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun ServerListScreen</ID>
+    <ID>LongMethod:RecentSessionsSection.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ContinueSessionCard</ID>
+    <ID>LongMethod:RecentSessionsSection.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class) @Composable internal fun RecentSessionCard</ID>
+    <ID>LongMethod:RecentSessionsSection.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable internal fun AgentsBackdrop</ID>
+    <ID>LongMethod:ServerCard.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ServerCard</ID>
+    <ID>LongMethod:ServerListDialogs.kt:@Composable internal fun PendingAuthenticationDialog</ID>
+    <ID>LongMethod:ServerListDialogs.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>LongMethod:ServerListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ServerListScreen</ID>
     <ID>LongMethod:ServerListViewModel.kt:ServerListViewModel$fun connectAndOpenServer</ID>
     <ID>LongMethod:ServerListViewModel.kt:ServerListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
     <ID>MagicNumber:AddGatewayScreen.kt:10</ID>
-    <ID>MagicNumber:GatewayListViewModel.kt:GatewayListViewModel$5000</ID>
-    <ID>MagicNumber:ServerCard.kt:400</ID>
-    <ID>MagicNumber:ServerCard.kt:4200</ID>
-    <ID>MagicNumber:ServerListViewModel.kt:ServerListViewModel$5000</ID>
-    <ID>MaxLineLength:AddGatewayScreen.kt:"If you do not have Ferngeist Gateway yet, download it from https://github.com/arafatamim/ferngeist-acp-gateway."</ID>
-    <ID>MaxLineLength:AddGatewayScreen.kt:val parsed = com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser.parse(raw)</ID>
-    <ID>MaxLineLength:AddGatewayScreen.kt:viewModel.showMessage("Cannot open scanner on this device. Paste the pairing payload instead.")</ID>
-    <ID>MaxLineLength:AddGatewayScreen.kt:viewModel.showMessage("Cannot start scanner on this device. Paste the pairing payload instead.")</ID>
-    <ID>MaxLineLength:AddGatewayViewModel.kt:AddGatewayViewModel$_events.emit(AddGatewayEvent.ShowError("Gateway could not be loaded. The credential may be corrupted. Please remove and re-pair."))</ID>
-    <ID>MaxLineLength:AddGatewayViewModel.kt:AddGatewayViewModel$viewModelScope.launch { emitError("Pairing payload is invalid. Scan the QR from `ferngeist pair` or paste the full payload.") }</ID>
-    <ID>MaxLineLength:AddServerScreen.kt:text = "Ferngeist negotiates ACP authentication after connect using the auth methods advertised by the agent."</ID>
-    <ID>MaxLineLength:AddServerViewModel.kt:AddServerViewModel$_events.emit(AddServerEvent.ShowError("Server could not be loaded. The credential may be corrupted. Please remove and re-add the server."))</ID>
-    <ID>MaxLineLength:GatewayAgentsScreen.kt:"${agent.displayName} will be added to your main agent list and can then be launched from the server screen."</ID>
-    <ID>MaxLineLength:GatewayAgentsScreen.kt:Text(agent.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)</ID>
-    <ID>MaxLineLength:GatewayAgentsScreen.kt:Text(agent.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
-    <ID>MaxLineLength:GatewayAgentsScreen.kt:Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
-    <ID>MaxLineLength:ServerListScreen.kt:text = "Ferngeist is an Android client for Agent Client Protocol (ACP) servers, allowing you to interact with coding agents directly from your mobile device."</ID>
-    <ID>MaxLineLength:ServerListScreen.kt:text = "Set these environment variables before launching the agent, then reconnect to retry authentication."</ID>
-    <ID>MaxLineLength:ServerListScreen.kt:text = "The agent \"${pendingAuthentication.agentName}\" requires ACP authentication before sessions can be opened."</ID>
-    <ID>MaxLineLength:ServerListViewModel.kt:ServerListViewModel$is LaunchableTarget.GatewayAgent -&gt; error("Gateway-backed targets must launch through the gateway runtime flow")</ID>
-    <ID>MaxLineLength:ServerListViewModel.kt:ServerListViewModel$pendingAuthentication = pending.copy(authErrorMessage = "Gateway was not found for ${server.name}.")</ID>
-    <ID>MaxLineLength:ServerListViewModel.kt:ServerListViewModel$pendingAuthentication = pending.copy(authErrorMessage = "Server was removed before authentication could complete.")</ID>
-    <ID>MaxLineLength:ServerListViewModel.kt:ServerListViewModel$pendingAuthentication = pending.copy(authErrorMessage = error.message ?: "Failed to restart ${server.name}.")</ID>
+    <ID>MagicNumber:EncryptedAuthEnvValueStore.kt:AndroidKeystoreCipherProvider$256</ID>
+    <ID>MaxLineLength:AddServerViewModel.kt:AddServerViewModel$"Server could not be loaded. The credential may be corrupted. Please remove and re-add the server."</ID>
     <ID>ReturnCount:ServerListViewModel.kt:ServerListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>ReturnCount:ServerListViewModel.kt:ServerListViewModel$private suspend fun buildGatewayLaunchContext: Result&lt;GatewayLaunchContext&gt;</ID>
     <ID>ReturnCount:ServerListViewModel.kt:ServerListViewModel$private suspend fun buildInitializeFailureMessage: String</ID>
+    <ID>SwallowedException:GatewayAgentsViewModel.kt:GatewayAgentsViewModel$error: GatewayCredentialExpiredException</ID>
+    <ID>SwallowedException:ServerListViewModel.kt:ServerListViewModel$error: GatewayCredentialExpiredException</ID>
     <ID>TooManyFunctions:AddGatewayScreen.kt:com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen.kt</ID>
     <ID>TooManyFunctions:AddGatewayViewModel.kt:AddGatewayViewModel : ViewModel</ID>
     <ID>TooManyFunctions:ServerListViewModel.kt:ServerListViewModel : ViewModel</ID>
-    <ID>VariableNaming:ServerListViewModel.kt:ServerListViewModel$val GatewayRuntime = pending.GatewayRuntime ?: return</ID>
   </CurrentIssues>
 </SmellBaseline>

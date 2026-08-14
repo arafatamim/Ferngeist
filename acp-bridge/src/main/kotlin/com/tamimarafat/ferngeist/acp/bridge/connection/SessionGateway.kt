@@ -28,13 +28,13 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Owns session-level ACP protocol operations for all active sessions.
@@ -76,10 +76,11 @@ internal class SessionGateway(
         val client = orchestra.sdkClient ?: return null
         return runCatching {
             orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/new")
-            val session = client.newSession(
-                sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
-                operationsFactory = operationsFactory,
-            )
+            val session =
+                client.newSession(
+                    sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
+                    operationsFactory = operationsFactory,
+                )
             registerSession(session)
         }.getOrElse {
             orchestra.toAuthRequiredException(it)?.let { error -> throw error }
@@ -108,25 +109,28 @@ internal class SessionGateway(
     ): SessionPort? {
         getLoadedSession(sessionId)?.let { existing -> return existing }
 
-        val client = orchestra.sdkClient ?: run {
-            orchestra.logError("loadSession: sdkClient is NULL, returning null")
-            return null
-        }
+        val client =
+            orchestra.sdkClient ?: run {
+                orchestra.logError("loadSession: sdkClient is NULL, returning null")
+                return null
+            }
         orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/load")
         return runCatching {
             // Store bridge before client.loadSession() so BridgeSessionOperations
             // notify() callbacks during loading have a target for history buffering.
-            val bridge = sessionRegistry.getBridge(sessionId)
-                ?: bridgeFactory(sessionId).also {
-                    sessionRegistry.storeBridge(sessionId, it)
-                }
+            val bridge =
+                sessionRegistry.getBridge(sessionId)
+                    ?: bridgeFactory(sessionId).also {
+                        sessionRegistry.storeBridge(sessionId, it)
+                    }
             bridge.beginHydration()
 
-            val session = client.loadSession(
-                sessionId = SessionId(sessionId),
-                sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
-                operationsFactory = operationsFactory,
-            )
+            val session =
+                client.loadSession(
+                    sessionId = SessionId(sessionId),
+                    sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
+                    operationsFactory = operationsFactory,
+                )
             val registeredBridge = registerSession(session)
             registeredBridge.completeHydration()
             registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
@@ -142,8 +146,9 @@ internal class SessionGateway(
                     return existing
                 }
 
-                val message = "This session is already active elsewhere. " +
-                    "Reconnect or open a new session instead."
+                val message =
+                    "This session is already active elsewhere. " +
+                        "Reconnect or open a new session instead."
                 sessionRegistry.getBridge(sessionId)?.failHydration(message)
                 clearSessionState(sessionId, closeBridge = true)
                 orchestra.diagnosticsStore.appendError("session/load", message)
@@ -177,12 +182,14 @@ internal class SessionGateway(
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
     ) {
-        val bridge = sessionRegistry.getBridge(sessionId) ?: throw IllegalStateException(
-            "Session bridge missing for sessionId=$sessionId",
-        )
-        val session = sessionRegistry.getSdkSession(sessionId) ?: throw IllegalStateException(
-            "SDK session missing for sessionId=$sessionId",
-        )
+        val bridge =
+            sessionRegistry.getBridge(sessionId) ?: throw IllegalStateException(
+                "Session bridge missing for sessionId=$sessionId",
+            )
+        val session =
+            sessionRegistry.getSdkSession(sessionId) ?: throw IllegalStateException(
+                "SDK session missing for sessionId=$sessionId",
+            )
 
         orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/prompt")
 
@@ -197,13 +204,15 @@ internal class SessionGateway(
             blocks += ContentBlock.Image(data = image.base64, mimeType = image.mimeType)
         }
         for (file in files) {
-            blocks += ContentBlock.Resource(
-                resource = EmbeddedResourceResource.BlobResourceContents(
-                    blob = file.base64,
-                    uri = "file:///${file.name}",
-                    mimeType = file.mimeType,
-                ),
-            )
+            blocks +=
+                ContentBlock.Resource(
+                    resource =
+                        EmbeddedResourceResource.BlobResourceContents(
+                            blob = file.base64,
+                            uri = "file:///${file.name}",
+                            mimeType = file.mimeType,
+                        ),
+                )
         }
 
         // session.prompt returns a cold flow; .collect is terminal and suspends
@@ -254,7 +263,10 @@ internal class SessionGateway(
     }
 
     /** Sets the session's active mode via `session/set_mode` RPC. */
-    suspend fun setSessionMode(sessionId: String, modeId: String) {
+    suspend fun setSessionMode(
+        sessionId: String,
+        modeId: String,
+    ) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_mode")
@@ -269,7 +281,10 @@ internal class SessionGateway(
 
     /** Sets the session's legacy model via `session/set_model` RPC (unstable ACP API). */
     @OptIn(UnstableApi::class)
-    suspend fun setSessionModel(sessionId: String, modelId: String) {
+    suspend fun setSessionModel(
+        sessionId: String,
+        modelId: String,
+    ) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_model")
@@ -311,9 +326,10 @@ internal class SessionGateway(
             emitToBridge(
                 sessionId,
                 AppSessionEvent.ConfigOptionsUpdated(
-                    options = response.configOptions.map(
-                        AcpSessionUpdateMapper::mapSdkConfigOption,
-                    ),
+                    options =
+                        response.configOptions.map(
+                            AcpSessionUpdateMapper::mapSdkConfigOption,
+                        ),
                 ),
             )
         }.onFailure {
@@ -372,9 +388,10 @@ internal class SessionGateway(
     // Ferngeist's AppSessionEvent stream. Each registered session gets an
     // instance of BridgeSessionOperations.
 
-    private val operationsFactory = ClientOperationsFactory { sessionId, _ ->
-        createBridgeSessionOperations(sessionId.value)
-    }
+    private val operationsFactory =
+        ClientOperationsFactory { sessionId, _ ->
+            createBridgeSessionOperations(sessionId.value)
+        }
 
     private fun createBridgeSessionOperations(sessionId: String): ClientSessionOperations =
         BridgeSessionOperations(sessionId)
@@ -404,13 +421,14 @@ internal class SessionGateway(
                 deferred = deferred,
             )
 
-            val options = permissions.map {
-                SessionPermissionOption(
-                    id = it.optionId.value,
-                    label = it.name,
-                    kind = it.kind.name.lowercase(),
-                )
-            }
+            val options =
+                permissions.map {
+                    SessionPermissionOption(
+                        id = it.optionId.value,
+                        label = it.name,
+                        kind = it.kind.name.lowercase(),
+                    )
+                }
 
             emitToBridge(
                 sessionId,
@@ -448,8 +466,9 @@ internal class SessionGateway(
      *         methods ([emitEvent], [markReady], hydration lifecycle).
      */
     private suspend fun registerSession(session: ClientSession): SessionBridge {
-        val bridge = sessionRegistry.getBridge(session.sessionId.value)
-            ?: bridgeFactory(session.sessionId.value)
+        val bridge =
+            sessionRegistry.getBridge(session.sessionId.value)
+                ?: bridgeFactory(session.sessionId.value)
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
 
@@ -461,13 +480,14 @@ internal class SessionGateway(
         // emission (already mirrored above) and forward subsequent changes to the
         // bridge so the UI updates when the agent mutates them mid-session.
         if (session.modesSupported) {
-            val modes = session.availableModes.map {
-                SessionMode(
-                    id = it.id.value,
-                    name = it.name,
-                    description = it.description,
-                )
-            }
+            val modes =
+                session.availableModes.map {
+                    SessionMode(
+                        id = it.id.value,
+                        name = it.name,
+                        description = it.description,
+                    )
+                }
             emitToBridge(
                 session.sessionId.value,
                 AppSessionEvent.ModesUpdated(
@@ -477,16 +497,18 @@ internal class SessionGateway(
             )
         }
 
-        @OptIn(UnstableApi::class) if (session.modelsSupported) {
+        @OptIn(UnstableApi::class)
+        if (session.modelsSupported) {
             val current = session.currentModel.value.value
-            val modelChoices = session.availableModels.map { model ->
-                SessionConfigChoice(
-                    id = model.modelId.value,
-                    label = model.name,
-                    value = model.modelId.value,
-                    description = model.description,
-                )
-            }
+            val modelChoices =
+                session.availableModels.map { model ->
+                    SessionConfigChoice(
+                        id = model.modelId.value,
+                        label = model.name,
+                        value = model.modelId.value,
+                        description = model.description,
+                    )
+                }
             emitToBridge(
                 session.sessionId.value,
                 AppSessionEvent.LegacyModelOptionsUpdated(
@@ -503,13 +525,15 @@ internal class SessionGateway(
             )
         }
 
-        @OptIn(UnstableApi::class) if (session.configOptionsSupported) {
+        @OptIn(UnstableApi::class)
+        if (session.configOptionsSupported) {
             emitToBridge(
                 session.sessionId.value,
                 AppSessionEvent.ConfigOptionsUpdated(
-                    options = session.configOptions.value.map(
-                        AcpSessionUpdateMapper::mapSdkConfigOption,
-                    ),
+                    options =
+                        session.configOptions.value.map(
+                            AcpSessionUpdateMapper::mapSdkConfigOption,
+                        ),
                 ),
             )
         }
@@ -541,13 +565,14 @@ internal class SessionGateway(
                         emitToBridge(
                             sessionId,
                             AppSessionEvent.ModesUpdated(
-                                modes = availableModesSnapshot.map { mode ->
-                                    SessionMode(
-                                        id = mode.id.value,
-                                        name = mode.name,
-                                        description = mode.description,
-                                    )
-                                },
+                                modes =
+                                    availableModesSnapshot.map { mode ->
+                                        SessionMode(
+                                            id = mode.id.value,
+                                            name = mode.name,
+                                            description = mode.description,
+                                        )
+                                    },
                                 currentModeId = newModeId.value,
                             ),
                         )
@@ -640,7 +665,9 @@ internal class SessionGateway(
      */
     @OptIn(UnstableApi::class)
     private fun shouldCloseSdkSession(): Boolean =
-        orchestra.agentCapabilities.value?.sessionCapabilities?.close != null
+        orchestra.agentCapabilities.value
+            ?.sessionCapabilities
+            ?.close != null
 
     /** Returns a loaded session port if the SDK session exists in the registry. */
     private fun getLoadedSession(sessionId: String): SessionPort? {
@@ -662,7 +689,8 @@ internal class SessionGateway(
      */
     internal fun isSessionAlreadyLoadedError(error: Throwable): Boolean =
         generateSequence(error as Throwable?) { it.cause }.any {
-            it is JsonRpcException && it.code == JsonRpcErrorCode.INVALID_PARAMS.code ||
+            it is JsonRpcException &&
+                it.code == JsonRpcErrorCode.INVALID_PARAMS.code ||
                 it.message?.contains("already loaded", ignoreCase = true) == true
         }
 
@@ -690,9 +718,10 @@ internal class SessionGateway(
 
     /** Converts a Ferngeist [SessionConfigValue] to the SDK's wire format. */
     @OptIn(UnstableApi::class)
-    private fun SessionConfigValue.toSdkValue(): SessionConfigOptionValue = when (this) {
-        is SessionConfigValue.StringValue -> SessionConfigOptionValue.of(value)
-        is SessionConfigValue.BoolValue -> SessionConfigOptionValue.of(value)
-        is SessionConfigValue.UnknownValue -> error("Unsupported config option value: $this")
-    }
+    private fun SessionConfigValue.toSdkValue(): SessionConfigOptionValue =
+        when (this) {
+            is SessionConfigValue.StringValue -> SessionConfigOptionValue.of(value)
+            is SessionConfigValue.BoolValue -> SessionConfigOptionValue.of(value)
+            is SessionConfigValue.UnknownValue -> error("Unsupported config option value: $this")
+        }
 }

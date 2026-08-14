@@ -4,7 +4,11 @@ import kotlinx.coroutines.flow.Flow
 
 interface RecentSelectionStore {
     fun getRecentSelections(key: String): Flow<List<String>>
-    suspend fun addSelection(key: String, value: String)
+
+    suspend fun addSelection(
+        key: String,
+        value: String,
+    )
 
     /**
      * Removes all stored entries whose full DataStore key starts with [prefix].

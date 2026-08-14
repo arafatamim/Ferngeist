@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- About & Legal -->
     <string name="about">О Ferngeist</string>
     <string name="privacy_policy">Политика конфиденциальности</string>
@@ -200,5 +200,5 @@
     <string name="serverlist_gateway_url_format">%1$s://%2$s</string>
 
     <!-- Add Server - CLI Example -->
-    <string name="serverlist_add_server_stdio_example">npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769</string>
+    <string name="serverlist_add_server_stdio_example" tools:ignore="TypographyDashes">npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769</string>
 </resources>

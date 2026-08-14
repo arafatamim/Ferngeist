@@ -7,11 +7,9 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -48,8 +45,8 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -61,7 +58,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -69,7 +65,6 @@ import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
-import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 
 @OptIn(
@@ -164,8 +159,6 @@ fun ServerListScreen(
         )
     }
 
-
-
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false })
     }
@@ -195,7 +188,12 @@ fun ServerListScreen(
                             label = "fabRotation",
                         )
                         val fabTint by animateColorAsState(
-                            targetValue = if (showAddMenu) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                            targetValue =
+                                if (showAddMenu) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
                             // Color is a non-spatial effect: spring without bounce.
                             animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
                             label = "fabTint",
@@ -204,7 +202,14 @@ fun ServerListScreen(
                             modifier = Modifier.graphicsLayer { rotationZ = fabRotation },
                             imageVector = Icons.Default.Add,
                             tint = fabTint,
-                            contentDescription = if (showAddMenu) stringResource(R.string.serverlist_fab_close) else stringResource(R.string.serverlist_fab_add),
+                            contentDescription =
+                                if (showAddMenu) {
+                                    stringResource(
+                                        R.string.serverlist_fab_close,
+                                    )
+                                } else {
+                                    stringResource(R.string.serverlist_fab_add)
+                                },
                         )
                     }
                 },
@@ -218,15 +223,35 @@ fun ServerListScreen(
                             onNavigateToPairGateway()
                         }
                     },
-                    icon = { Icon(Icons.Default.Devices, contentDescription = stringResource(R.string.serverlist_add_gateway_btn)) },
-                    text = { Text(if (hasGateways) stringResource(R.string.serverlist_add_paired_btn) else stringResource(R.string.serverlist_add_gateway_btn)) },
+                    icon = {
+                        Icon(
+                            Icons.Default.Devices,
+                            contentDescription = stringResource(R.string.serverlist_add_gateway_btn),
+                        )
+                    },
+                    text = {
+                        Text(
+                            if (hasGateways) {
+                                stringResource(
+                                    R.string.serverlist_add_paired_btn,
+                                )
+                            } else {
+                                stringResource(R.string.serverlist_add_gateway_btn)
+                            },
+                        )
+                    },
                 )
                 FloatingActionButtonMenuItem(
                     onClick = {
                         showAddMenu = false
                         onNavigateToAddServer()
                     },
-                    icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.serverlist_add_agent_btn)) },
+                    icon = {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = stringResource(R.string.serverlist_add_agent_btn),
+                        )
+                    },
                     text = { Text(stringResource(R.string.serverlist_add_agent_btn)) },
                 )
             }

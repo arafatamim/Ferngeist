@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
+<!-- Cleartext is deliberate: Ferngeist connects to user-supplied, self-hosted
+     gateway servers (see GatewaySource.scheme, default "http"/"ws") which run
+     on arbitrary LAN IPs/ports. Such hosts cannot be enumerated in a
+     domain-config allowlist, so base cleartext must be permitted. -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="InsecureBaseConfiguration">
     <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

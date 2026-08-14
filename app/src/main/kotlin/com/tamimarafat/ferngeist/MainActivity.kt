@@ -7,10 +7,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.SystemBarStyle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
@@ -46,7 +46,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
-import kotlinx.coroutines.flow.first
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.push.FcmPayloadKeys
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -56,7 +55,6 @@ import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
-import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayAgentsScreen
@@ -72,6 +70,7 @@ import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 /**
@@ -423,7 +422,9 @@ fun FerngeistNavHost(
             }
 
             composable(
-                route = "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}&gatewayId={gatewayId}",
+                route =
+                    "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}" +
+                        "&gatewayId={gatewayId}",
                 arguments =
                     listOf(
                         navArgument("serverId") { type = NavType.StringType },
@@ -450,7 +451,10 @@ fun FerngeistNavHost(
                     ),
             ) { backStackEntry ->
                 val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
-                val title = Uri.decode(backStackEntry.arguments?.getString("title") ?: stringResource(R.string.app_untitled_session))
+                val title =
+                    Uri.decode(
+                        backStackEntry.arguments?.getString("title") ?: stringResource(R.string.app_untitled_session),
+                    )
                 ChatScreen(
                     sessionId = sessionId,
                     sessionTitle = title,
@@ -471,7 +475,6 @@ private data class ChatDeepLinkTarget(
     val title: String,
     val gatewayId: String?,
 )
-
 
 private suspend fun resolveChatDeepLink(
     intent: Intent,

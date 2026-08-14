@@ -61,11 +61,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -171,8 +171,7 @@ internal fun ServerCard(
                         onClick = onClick,
                         onLongClick = { showActionsMenu = true },
                         role = Role.Button,
-                    )
-                    .semantics {
+                    ).semantics {
                         contentDescription = server.name
                     },
             shape = cardShape,
@@ -199,15 +198,17 @@ internal fun ServerCard(
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.sharedBounds(
-                                    sharedContentState = rememberSharedContentState(
-                                        key = ServerNameSharedBoundsKey(server.id),
+                                modifier =
+                                    Modifier.sharedBounds(
+                                        sharedContentState =
+                                            rememberSharedContentState(
+                                                key = ServerNameSharedBoundsKey(server.id),
+                                            ),
+                                        animatedVisibilityScope = animatedContentScope,
+                                        enter = fadeIn(),
+                                        exit = fadeOut(),
+                                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                                     ),
-                                    animatedVisibilityScope = animatedContentScope,
-                                    enter = fadeIn(),
-                                    exit = fadeOut(),
-                                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                                ),
                             )
                         }
                         Spacer(modifier = Modifier.height(2.dp))
@@ -229,7 +230,17 @@ internal fun ServerCard(
                 interactionSource = actionsMenuInteractionSource,
             ) {
                 DropdownMenuItem(
-                    text = { Text(stringResource(if (server is LaunchableTarget.GatewayAgent) R.string.serverlist_card_manage else R.string.serverlist_card_edit)) },
+                    text = {
+                        Text(
+                            stringResource(
+                                if (server is LaunchableTarget.GatewayAgent) {
+                                    R.string.serverlist_card_manage
+                                } else {
+                                    R.string.serverlist_card_edit
+                                },
+                            ),
+                        )
+                    },
                     onClick = {
                         showActionsMenu = false
                         onEdit()
@@ -257,12 +268,12 @@ internal fun ServerSubtitle(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (hasSavedAuthMethod) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = stringResource(R.string.serverlist_add_server_stored_auth),
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = stringResource(R.string.serverlist_add_server_stored_auth),
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         when (server) {
@@ -284,7 +295,12 @@ internal fun ServerSubtitle(
 
             is LaunchableTarget.Manual -> {
                 Text(
-                    text = stringResource(R.string.serverlist_gateway_url_format, server.server.scheme, server.server.host),
+                    text =
+                        stringResource(
+                            R.string.serverlist_gateway_url_format,
+                            server.server.scheme,
+                            server.server.host,
+                        ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

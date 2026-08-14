@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.data.database.crypto
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
@@ -104,26 +105,30 @@ class CredentialEncryptor(
 
     @RequiresApi(Build.VERSION_CODES.M)
     @Synchronized
+    // TrulyRandom: AndroidKeyStore never uses an app-seeded SecureRandom; minSdk 30
+    // (API 23+) makes the legacy pre-4.3 SecureRandom seeding concern moot.
+    @SuppressLint("TrulyRandom")
     private fun getOrCreateSecretKey(): SecretKey {
         if (keyStore.containsAlias(KEY_ALIAS)) {
             val entry = keyStore.getEntry(KEY_ALIAS, null) as KeyStore.SecretKeyEntry
             return entry.secretKey
         }
-        return KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_AES,
-            ANDROID_KEYSTORE,
-        ).apply {
-            init(
-                KeyGenParameterSpec.Builder(
-                    KEY_ALIAS,
-                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+        return KeyGenerator
+            .getInstance(
+                KeyProperties.KEY_ALGORITHM_AES,
+                ANDROID_KEYSTORE,
+            ).apply {
+                init(
+                    KeyGenParameterSpec
+                        .Builder(
+                            KEY_ALIAS,
+                            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                        ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setKeySize(AES_KEY_SIZE_BITS)
+                        .build(),
                 )
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(AES_KEY_SIZE_BITS)
-                    .build(),
-            )
-        }.generateKey()
+            }.generateKey()
     }
 
     companion object {

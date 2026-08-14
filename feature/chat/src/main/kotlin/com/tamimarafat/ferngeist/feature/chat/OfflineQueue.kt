@@ -26,7 +26,6 @@ data class PendingPrompt(
  * a confined dispatcher).  This class holds no coroutine state of its own.
  */
 class OfflineQueue {
-
     private val prompts = ArrayDeque<PendingPrompt>()
 
     /** Number of prompts waiting to be flushed. */
@@ -54,8 +53,7 @@ class OfflineQueue {
      * Removes every prompt whose [PendingPrompt.clientId] equals [clientId].
      * Returns true if at least one prompt was removed.
      */
-    fun removeByClientId(clientId: String): Boolean =
-        prompts.removeAll { it.clientId == clientId }
+    fun removeByClientId(clientId: String): Boolean = prompts.removeAll { it.clientId == clientId }
 
     /** Clears all pending prompts. */
     fun clear() {

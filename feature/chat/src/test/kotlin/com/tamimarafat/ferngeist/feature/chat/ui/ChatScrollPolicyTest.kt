@@ -6,14 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatScrollPolicyTest {
-
-    private fun policyWithClock(
-        startMs: Long = 500L,
-    ): Pair<ChatScrollPolicy, () -> Long> {
+    private fun policyWithClock(startMs: Long = 500L): Pair<ChatScrollPolicy, () -> Long> {
         var now = startMs
         val clock = { now }
         val policy = ChatScrollPolicy(clock)
-        return policy to { now += 1; now }
+        return policy to {
+            now += 1
+            now
+        }
     }
 
     @Test

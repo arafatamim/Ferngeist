@@ -22,9 +22,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,11 +78,9 @@ fun CwdDialog(
                                         .combinedClickable(
                                             onClick = { onCwdDialogValueChange(cwd) },
                                             onLongClick = { onRemoveRecentCwd(cwd) },
-                                        )
-                                        .semantics {
+                                        ).semantics {
                                             contentDescription = cwd
-                                        }
-                                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                                        }.padding(vertical = 6.dp, horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
@@ -98,9 +96,10 @@ fun CwdDialog(
                                     softWrap = true,
                                     maxLines = 1,
                                     modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                    ),
+                                    style =
+                                        MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                        ),
                                 )
                             }
                         }

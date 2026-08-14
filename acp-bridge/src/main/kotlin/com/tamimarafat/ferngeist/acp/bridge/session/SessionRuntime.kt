@@ -366,7 +366,8 @@ class SessionRuntime(
             is AppSessionEvent.ModesUpdated -> "modes=${event.modes.size} current=${event.currentModeId}"
             is AppSessionEvent.ConfigOptionsUpdated -> "configOptions=${event.options.size}"
             is AppSessionEvent.ConfigOptionValueChanged -> "optionId=${event.optionId} value=${event.value}"
-            is AppSessionEvent.LegacyModelOptionsUpdated -> "legacyModels=${event.choices.size} current=${event.currentModelId}"
+            is AppSessionEvent.LegacyModelOptionsUpdated ->
+                "legacyModels=${event.choices.size} current=${event.currentModelId}"
             is AppSessionEvent.ModelSelectionConfirmed -> "modelId=${event.modelId}"
             is AppSessionEvent.PlanUpdated -> "entries=${event.entries.size}"
             is AppSessionEvent.UsageUpdated -> "usageTotal=${event.totalTokens} context=${event.contextWindowTokens}"

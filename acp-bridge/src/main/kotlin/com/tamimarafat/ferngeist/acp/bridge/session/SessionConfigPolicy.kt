@@ -122,8 +122,16 @@ internal object SessionConfigPolicy {
      *         or null if the option is invalid (e.g., missing modeId for a legacy mode option).
      */
     sealed interface DispatchAction {
-        data class SetLegacyMode(val modeId: String, val event: AppSessionEvent.ModeChanged) : DispatchAction
-        data class SetLegacyModel(val modelId: String, val event: AppSessionEvent.ModelSelectionConfirmed) : DispatchAction
+        data class SetLegacyMode(
+            val modeId: String,
+            val event: AppSessionEvent.ModeChanged,
+        ) : DispatchAction
+
+        data class SetLegacyModel(
+            val modelId: String,
+            val event: AppSessionEvent.ModelSelectionConfirmed,
+        ) : DispatchAction
+
         data class SetNativeConfig(
             val optionId: String,
             val value: SessionConfigValue,
@@ -146,7 +154,12 @@ internal object SessionConfigPolicy {
                 val modelId = (value as? SessionConfigValue.StringValue)?.value ?: return null
                 DispatchAction.SetLegacyModel(modelId, AppSessionEvent.ModelSelectionConfirmed(modelId))
             }
-            else -> DispatchAction.SetNativeConfig(resolvedOption.id, value, AppSessionEvent.ConfigOptionValueChanged(resolvedOption.id, value))
+            else ->
+                DispatchAction.SetNativeConfig(
+                    resolvedOption.id,
+                    value,
+                    AppSessionEvent.ConfigOptionValueChanged(resolvedOption.id, value),
+                )
         }
     }
 

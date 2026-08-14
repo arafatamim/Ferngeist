@@ -54,9 +54,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.common.GoogleApiAvailability
@@ -82,6 +83,7 @@ fun AddGatewayScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val resources = LocalResources.current
 
     var stepIndex by rememberSaveable { mutableIntStateOf(0) }
     var showPairingCodeDialog by rememberSaveable { mutableStateOf(false) }
@@ -248,7 +250,7 @@ fun AddGatewayScreen(
                                     val activity = context as? Activity
                                     if (activity == null) {
                                         viewModel.showMessage(
-                                            context.getString(R.string.serverlist_qr_error_no_activity),
+                                            resources.getString(R.string.serverlist_qr_error_no_activity),
                                         )
                                         return@ImportPairingStep
                                     }
@@ -257,7 +259,7 @@ fun AddGatewayScreen(
                                     if (statusCode != com.google.android.gms.common.ConnectionResult.SUCCESS) {
                                         val msg = availability.getErrorString(statusCode)
                                         viewModel.showMessage(
-                                            context.getString(R.string.serverlist_qr_error_play_services, msg),
+                                            resources.getString(R.string.serverlist_qr_error_play_services, msg),
                                         )
                                         return@ImportPairingStep
                                     }
@@ -266,7 +268,7 @@ fun AddGatewayScreen(
                                             GmsBarcodeScanning.getClient(activity)
                                         } catch (_: Exception) {
                                             viewModel.showMessage(
-                                                context.getString(R.string.serverlist_qr_error_no_scanner),
+                                                resources.getString(R.string.serverlist_qr_error_no_scanner),
                                             )
                                             return@ImportPairingStep
                                         }
@@ -278,7 +280,7 @@ fun AddGatewayScreen(
                                                 val raw = barcode.rawValue.orEmpty()
                                                 if (raw.isBlank()) {
                                                     viewModel.showMessage(
-                                                        context.getString(R.string.serverlist_qr_error_empty),
+                                                        resources.getString(R.string.serverlist_qr_error_empty),
                                                     )
                                                     return@addOnSuccessListener
                                                 }
@@ -287,7 +289,7 @@ fun AddGatewayScreen(
                                                         .parse(raw)
                                                 if (parsed == null) {
                                                     viewModel.showMessage(
-                                                        context.getString(R.string.serverlist_qr_error_invalid),
+                                                        resources.getString(R.string.serverlist_qr_error_invalid),
                                                     )
                                                     return@addOnSuccessListener
                                                 }
@@ -295,16 +297,19 @@ fun AddGatewayScreen(
                                                 viewModel.applyPairingPayload()
                                             }.addOnCanceledListener {
                                             }.addOnFailureListener { error: Exception ->
+                                                val errorDetail =
+                                                    error.message
+                                                        ?: resources.getString(R.string.serverlist_error_unknown)
                                                 viewModel.showMessage(
-                                                    context.getString(
+                                                    resources.getString(
                                                         R.string.serverlist_qr_error_scan_failed,
-                                                        error.message ?: context.getString(R.string.serverlist_error_unknown),
+                                                        errorDetail,
                                                     ),
                                                 )
                                             }
                                     } catch (_: Exception) {
                                         viewModel.showMessage(
-                                            context.getString(R.string.serverlist_qr_error_cannot_start),
+                                            resources.getString(R.string.serverlist_qr_error_cannot_start),
                                         )
                                     }
                                 },
@@ -557,7 +562,12 @@ private fun EditGatewayScreen(
                     placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Link, contentDescription = stringResource(R.string.serverlist_add_server_host_label)) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Link,
+                            contentDescription = stringResource(R.string.serverlist_add_server_host_label),
+                        )
+                    },
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(onClick = viewModel::checkStatus, enabled = !uiState.isCheckingStatus) {
@@ -613,7 +623,12 @@ private fun ImportPairingStep(
                 label = { Text(stringResource(R.string.serverlist_add_gateway_payload_label)) },
                 placeholder = { Text(stringResource(R.string.serverlist_add_gateway_payload_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = stringResource(R.string.serverlist_gateway_qr_label)) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.QrCode2,
+                        contentDescription = stringResource(R.string.serverlist_gateway_qr_label),
+                    )
+                },
             )
 
             Row(
@@ -704,7 +719,12 @@ private fun ReviewGatewayStep(
                 placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Link, contentDescription = stringResource(R.string.serverlist_add_server_host_label)) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Link,
+                        contentDescription = stringResource(R.string.serverlist_add_server_host_label),
+                    )
+                },
             )
 
             Text(
@@ -774,14 +794,14 @@ private fun GatewayStatusCard(status: GatewayStatus) {
                 stringResource(R.string.serverlist_payload_version_label, status.version),
                 style = MaterialTheme.typography.bodySmall,
             )
-                Text(
-                    stringResource(
-                        R.string.serverlist_payload_remote_label,
+            Text(
+                stringResource(
+                    R.string.serverlist_payload_remote_label,
                     status.remote.mode?.let { gatewayRemoteModeLabel(it) }
                         ?: stringResource(R.string.serverlist_payload_remote_local_only),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                ),
+                style = MaterialTheme.typography.bodySmall,
+            )
             status.remote.warning?.let {
                 Text(
                     text = it,
@@ -902,11 +922,12 @@ private fun GatewayProtocolOption(
         color = containerColor,
         contentColor = contentColor,
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-        modifier = modifier
-            .height(52.dp)
-            .semantics {
-                contentDescription = label
-            },
+        modifier =
+            modifier
+                .height(52.dp)
+                .semantics {
+                    contentDescription = label
+                },
     ) {
         Row(
             modifier =

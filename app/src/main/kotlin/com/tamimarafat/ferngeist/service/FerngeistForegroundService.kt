@@ -5,7 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -39,9 +38,7 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class FerngeistForegroundService : Service() {
-
     companion object {
-
         const val CHANNEL_ID = "ferngeist_connection"
         const val NOTIFICATION_ID = 1
         const val ACTION_START = "com.tamimarafat.ferngeist.ACTION_START_FOREGROUND"
@@ -190,8 +187,9 @@ class FerngeistForegroundService : Service() {
      * [onStartCommand].
      */
     private fun postErrorNotification(state: AcpConnectionState.Failed) {
-        val displayName = connectionManager.currentConnectionConfig()?.serverDisplayName
-            ?: connectionManager.agentInfo.value?.name
+        val displayName =
+            connectionManager.currentConnectionConfig()?.serverDisplayName
+                ?: connectionManager.agentInfo.value?.name
         val errorText = state.error.message ?: getString(R.string.notification_failed_text)
         val contentIntent = buildContentIntent()
         val notification =
@@ -241,7 +239,10 @@ class FerngeistForegroundService : Service() {
             when (state) {
                 is AcpConnectionState.Connected ->
                     getString(R.string.notification_connected_title) to
-                        getString(R.string.notification_connected_text, displayName ?: getString(R.string.notification_agent_fallback))
+                        getString(
+                            R.string.notification_connected_text,
+                            displayName ?: getString(R.string.notification_agent_fallback),
+                        )
                 is AcpConnectionState.Connecting ->
                     getString(R.string.notification_connecting_title) to
                         getString(R.string.notification_connecting_text)

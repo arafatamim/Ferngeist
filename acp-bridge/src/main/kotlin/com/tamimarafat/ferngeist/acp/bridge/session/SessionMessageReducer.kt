@@ -42,49 +42,58 @@ object SessionMessageReducer {
         messages: List<ChatMessage>,
         toolCallIndex: Map<String, ToolCallLocation>,
         event: AppSessionEvent,
-    ): ReducerResult = when (event) {
-        is AppSessionEvent.UserMessage ->
-            ReducerResult(
-                messages = appendUserText(messages, event.text, event.images, event.files, event.append, event.timestampMs),
-                toolCallIndex = toolCallIndex,
-            )
-        is AppSessionEvent.AgentMessage ->
-            appendText(
-                messages,
-                toolCallIndex,
-                event.text,
-                AssistantSegment.Kind.MESSAGE,
-                event.timestampMs,
-            )
-        is AppSessionEvent.AgentThought ->
-            appendText(
-                messages,
-                toolCallIndex,
-                event.text,
-                AssistantSegment.Kind.THOUGHT,
-                event.timestampMs,
-            )
-        is AppSessionEvent.ToolCallStarted ->
-            upsertToolCall(messages, toolCallIndex, event)
-        is AppSessionEvent.ToolCallUpdated ->
-            updateToolCall(messages, toolCallIndex, event)
-        is AppSessionEvent.ToolPermissionRequested ->
-            updateToolCallPermission(messages, toolCallIndex, event)
-        is AppSessionEvent.ToolPermissionResolved ->
-            clearToolCallPermission(messages, toolCallIndex, event.toolCallId)
-        is AppSessionEvent.PlanUpdated ->
-            ReducerResult(
-                messages = updatePlan(messages, event.entries, event.timestampMs),
-                toolCallIndex = toolCallIndex,
-            )
-        is AppSessionEvent.TurnComplete ->
-            ReducerResult(
-                messages = finishStreaming(messages),
-                toolCallIndex = toolCallIndex,
-            )
-        else ->
-            ReducerResult(messages = messages, toolCallIndex = toolCallIndex)
-    }
+    ): ReducerResult =
+        when (event) {
+            is AppSessionEvent.UserMessage ->
+                ReducerResult(
+                    messages =
+                        appendUserText(
+                            messages,
+                            event.text,
+                            event.images,
+                            event.files,
+                            event.append,
+                            event.timestampMs,
+                        ),
+                    toolCallIndex = toolCallIndex,
+                )
+            is AppSessionEvent.AgentMessage ->
+                appendText(
+                    messages,
+                    toolCallIndex,
+                    event.text,
+                    AssistantSegment.Kind.MESSAGE,
+                    event.timestampMs,
+                )
+            is AppSessionEvent.AgentThought ->
+                appendText(
+                    messages,
+                    toolCallIndex,
+                    event.text,
+                    AssistantSegment.Kind.THOUGHT,
+                    event.timestampMs,
+                )
+            is AppSessionEvent.ToolCallStarted ->
+                upsertToolCall(messages, toolCallIndex, event)
+            is AppSessionEvent.ToolCallUpdated ->
+                updateToolCall(messages, toolCallIndex, event)
+            is AppSessionEvent.ToolPermissionRequested ->
+                updateToolCallPermission(messages, toolCallIndex, event)
+            is AppSessionEvent.ToolPermissionResolved ->
+                clearToolCallPermission(messages, toolCallIndex, event.toolCallId)
+            is AppSessionEvent.PlanUpdated ->
+                ReducerResult(
+                    messages = updatePlan(messages, event.entries, event.timestampMs),
+                    toolCallIndex = toolCallIndex,
+                )
+            is AppSessionEvent.TurnComplete ->
+                ReducerResult(
+                    messages = finishStreaming(messages),
+                    toolCallIndex = toolCallIndex,
+                )
+            else ->
+                ReducerResult(messages = messages, toolCallIndex = toolCallIndex)
+        }
 
     fun startStreaming(messages: List<ChatMessage>): List<ChatMessage> {
         // Idempotent: avoid stacking placeholder bubbles when called repeatedly

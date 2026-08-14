@@ -115,6 +115,7 @@ class SessionListViewModel
 
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
         // NOTE: Separate from _isLoading so PullToRefreshDefaults.LoadingIndicator
         // only shows on user-pull, not on initial load with cached sessions.
         private val _refreshing = MutableStateFlow(false)
@@ -180,7 +181,9 @@ class SessionListViewModel
                         if (handleAuthenticationRequired(error, PendingAuthAction.RefreshSessions)) {
                             return@launch
                         }
-                        _events.emit(SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to load sessions")))
+                        _events.emit(
+                            SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to load sessions")),
+                        )
                     }
                 } finally {
                     // Centralised cleanup replaces 3 duplicated _isLoading = false sites.
@@ -304,8 +307,9 @@ class SessionListViewModel
          * For manual env-var auth Ferngeist cannot inject credentials into the
          * external process, so the user restarts it outside the app and this method
          * reconnects before retrying the blocked session action.
+         *
+         * Reconnects to a manual ACP server after the user applied env vars.
          */
-        /** Reconnects to a manual ACP server after the user applied env vars. */
         fun reconnectPendingAuthentication() {
             viewModelScope.launch {
                 val pending = _pendingAuthentication.value ?: return@launch

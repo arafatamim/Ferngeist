@@ -14,8 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -38,7 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -60,7 +58,7 @@ internal fun LaunchRiskConsentDialog(
     var acknowledgedRisk by rememberSaveable(pending.serverId) { mutableStateOf(false) }
     val riskLines =
         launchRiskLines(
-            res = LocalContext.current.resources,
+            res = LocalResources.current,
             serverName = pending.serverName,
             agentId = pending.agentId,
             gatewayHost = pending.gatewayHost,
@@ -170,7 +168,7 @@ internal fun AboutDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.serverlist_ok))
+                Text(stringResource(R.string.serverlist_ok))
             }
         },
     )
@@ -248,7 +246,9 @@ internal fun PendingAuthenticationDialog(
                             ) {
                                 Text(text = method.name, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    text = method.description ?: stringResource(R.string.serverlist_auth_method_fallback, method.type),
+                                    text =
+                                        method.description
+                                            ?: stringResource(R.string.serverlist_auth_method_fallback, method.type),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -283,7 +283,15 @@ internal fun PendingAuthenticationDialog(
                     }
                 },
             ) {
-                Text(if (isManualEnvAuth) stringResource(R.string.serverlist_auth_reconnect) else stringResource(R.string.serverlist_auth_authenticate))
+                Text(
+                    if (isManualEnvAuth) {
+                        stringResource(
+                            R.string.serverlist_auth_reconnect,
+                        )
+                    } else {
+                        stringResource(R.string.serverlist_auth_authenticate)
+                    },
+                )
             }
         },
         dismissButton = {

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,12 +50,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
@@ -86,7 +84,7 @@ fun GatewayAgentsScreen(
     pendingAddAgent?.let { agent ->
         var acknowledgedRisk by rememberSaveable(agent.id) { mutableStateOf(false) }
         val gatewayHost = uiState.gateway?.host.orEmpty()
-        val riskLines = addAgentRiskLines(LocalContext.current.resources, agent, gatewayHost)
+        val riskLines = addAgentRiskLines(LocalResources.current, agent, gatewayHost)
         AlertDialog(
             onDismissRequest = { pendingAddAgent = null },
             title = { Text(stringResource(R.string.serverlist_gateway_agents_add_title)) },
@@ -142,7 +140,10 @@ fun GatewayAgentsScreen(
                 title = { Text(uiState.gateway?.name ?: stringResource(R.string.serverlist_gateway_agents_title)) },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.serverlist_back_desc))
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.serverlist_back_desc),
+                        )
                     }
                 },
             )
@@ -204,7 +205,8 @@ fun GatewayAgentsScreen(
                             .clip(RoundedCornerShape(24.dp))
                             .then(
                                 if (canAdd) {
-                                    Modifier.clickable { pendingAddAgent = agent }
+                                    Modifier
+                                        .clickable { pendingAddAgent = agent }
                                         .semantics {
                                             contentDescription = agent.displayName
                                         }
@@ -248,8 +250,26 @@ fun GatewayAgentsScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            CompactAgentChip(label = if (agent.detected) stringResource(R.string.serverlist_gateway_agents_detected) else stringResource(R.string.serverlist_gateway_agents_not_detected))
-                            CompactAgentChip(label = if (agent.manifestValid) stringResource(R.string.serverlist_gateway_agents_valid) else stringResource(R.string.serverlist_gateway_agents_invalid))
+                            CompactAgentChip(
+                                label =
+                                    if (agent.detected) {
+                                        stringResource(
+                                            R.string.serverlist_gateway_agents_detected,
+                                        )
+                                    } else {
+                                        stringResource(R.string.serverlist_gateway_agents_not_detected)
+                                    },
+                            )
+                            CompactAgentChip(
+                                label =
+                                    if (agent.manifestValid) {
+                                        stringResource(
+                                            R.string.serverlist_gateway_agents_valid,
+                                        )
+                                    } else {
+                                        stringResource(R.string.serverlist_gateway_agents_invalid)
+                                    },
+                            )
                             agent.runtimeStatus?.let { CompactAgentChip(label = it) }
                             if (alreadyAdded) {
                                 CompactAgentChip(

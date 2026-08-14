@@ -63,7 +63,8 @@ class SessionBridge(
      * importing the concrete bridge type.
      */
     override val modelSelectionEvents: SharedFlow<AppSessionEvent.ModelSelectionConfirmed> =
-        _events.filterIsInstance<AppSessionEvent.ModelSelectionConfirmed>()
+        _events
+            .filterIsInstance<AppSessionEvent.ModelSelectionConfirmed>()
             .shareIn(eventScope, SharingStarted.WhileSubscribed(), replay = 1)
 
     private val traceTag = "TSBridge"
@@ -311,4 +312,3 @@ data class SessionPermissionOption(
     val label: String,
     val kind: String? = null,
 )
-

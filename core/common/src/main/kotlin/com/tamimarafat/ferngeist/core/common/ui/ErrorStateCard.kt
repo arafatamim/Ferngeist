@@ -93,21 +93,23 @@ fun ErrorStateCard(
     // System "Remove animations" (animator duration scale = 0) → snap, no motion.
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
-    val reduceMotion = remember(context) {
-        if (isPreview) {
-            false
-        } else {
-            android.provider.Settings.Global.getFloat(
-                context.contentResolver,
-                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
-                1f,
-            ) == 0f
+    val reduceMotion =
+        remember(context) {
+            if (isPreview) {
+                false
+            } else {
+                android.provider.Settings.Global.getFloat(
+                    context.contentResolver,
+                    android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                    1f,
+                ) == 0f
+            }
         }
-    }
-    val springSpec = spring<Float>(
-        dampingRatio = if (reduceMotion) Spring.DampingRatioNoBouncy else Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessMedium,
-    )
+    val springSpec =
+        spring<Float>(
+            dampingRatio = if (reduceMotion) Spring.DampingRatioNoBouncy else Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        )
     val medallionScale by animateFloatAsState(
         targetValue = if (entered) 1f else 0.9f,
         animationSpec = springSpec,

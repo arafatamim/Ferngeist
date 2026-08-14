@@ -4,7 +4,6 @@ import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import kotlinx.coroutines.CoroutineScope
@@ -27,22 +26,38 @@ internal class ChatSessionCoordinator(
     interface Callbacks {
         /** Emitted before any snapshot is delivered. */
         suspend fun onLoadStarted()
+
         /** Called for every session snapshot update. */
         suspend fun onSnapshot(snapshot: ChatSessionSnapshot)
+
         /** Emitted when the session has finished loading and is ready for use. */
         suspend fun onSessionReady()
+
         /** Persists newly created session metadata. */
-        suspend fun onSessionStored(sessionId: String, cwd: String, updatedAt: Long)
+        suspend fun onSessionStored(
+            sessionId: String,
+            cwd: String,
+            updatedAt: Long,
+        )
+
         /** Surfaces a fatal load error to the UI. */
         suspend fun onLoadFailed(message: String)
+
         /** Surfaces a non-fatal operational error to the UI. */
-        suspend fun onOperationError(message: String, stopStreaming: Boolean)
+        suspend fun onOperationError(
+            message: String,
+            stopStreaming: Boolean,
+        )
+
         /** Emitted when a streaming cancel completes. */
         suspend fun onStreamingCancelled()
+
         /** Emitted when the server does not support cancellation. */
         suspend fun onCancelUnsupported()
+
         /** Emitted when a model change is confirmed by the server. */
         suspend fun onModelUpdated()
+
         /** Updates UI capability flags (images, embedded context, etc.). */
         suspend fun onCapabilitiesChanged(capabilities: ChatAgentCapabilities)
     }
@@ -81,15 +96,16 @@ internal class ChatSessionCoordinator(
     }
 
     /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
-    suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
-        return facade.sendMessage(text, images, files)
-    }
+    suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean = facade.sendMessage(text, images, files)
 
     /** Ensures the transport is (re)connecting so queued prompts can drain. */
     suspend fun reconnect() {
         facade.reconnect()
     }
-
 
     /** Requests a streaming cancellation. */
     suspend fun cancelStreaming() {
@@ -97,12 +113,18 @@ internal class ChatSessionCoordinator(
     }
 
     /** Updates a session configuration option. */
-    suspend fun setConfigOption(optionId: String, value: ChatConfigValue) {
+    suspend fun setConfigOption(
+        optionId: String,
+        value: ChatConfigValue,
+    ) {
         facade.setConfigOption(optionId, value)
     }
 
     /** Grants a permission prompt for a tool call. */
-    suspend fun grantPermission(toolCallId: String, optionId: String) {
+    suspend fun grantPermission(
+        toolCallId: String,
+        optionId: String,
+    ) {
         facade.grantPermission(toolCallId, optionId)
     }
 

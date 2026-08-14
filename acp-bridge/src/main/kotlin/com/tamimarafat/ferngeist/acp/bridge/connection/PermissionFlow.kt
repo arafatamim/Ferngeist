@@ -19,15 +19,17 @@ internal class PermissionFlow {
             )
     }
 
-    fun takePending(toolCallId: String): PendingPermissionRequest? =
-        pendingPermissionRequests.remove(toolCallId)
+    fun takePending(toolCallId: String): PendingPermissionRequest? = pendingPermissionRequests.remove(toolCallId)
 
     // Explicit iterator with remove() to avoid ConcurrentModificationException
     // from mutating the ConcurrentHashMap during iteration.
     fun cancelAll() {
         val iterator = pendingPermissionRequests.entries.iterator()
         while (iterator.hasNext()) {
-            iterator.next().value.deferred.cancel()
+            iterator
+                .next()
+                .value.deferred
+                .cancel()
             iterator.remove()
         }
     }

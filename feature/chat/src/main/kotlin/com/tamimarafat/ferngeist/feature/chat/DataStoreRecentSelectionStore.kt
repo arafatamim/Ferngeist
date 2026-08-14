@@ -17,6 +17,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val MAX_RECENT = 5
+
 /**
  * Internal DataStore key prefix used for all recent-selection entries.
  *
@@ -60,7 +61,6 @@ class DataStoreRecentSelectionStore
         @ApplicationContext private val context: Context,
         private val json: Json,
     ) : RecentSelectionStore {
-
         override fun getRecentSelections(key: String): Flow<List<String>> =
             context.recentSelectionDataStore.data.map { prefs ->
                 prefs[stringPreferencesKey(STORE_KEY_PREFIX + key)]
@@ -74,12 +74,16 @@ class DataStoreRecentSelectionStore
          * If the current stored list already contains the value, it is moved to the front
          * (MRU bumping) rather than appended.
          */
-        override suspend fun addSelection(key: String, value: String) {
+        override suspend fun addSelection(
+            key: String,
+            value: String,
+        ) {
             context.recentSelectionDataStore.edit { prefs ->
                 val prefKey = stringPreferencesKey(STORE_KEY_PREFIX + key)
-                val current = prefs[prefKey]
-                    ?.let { json.decodeFromString<List<String>>(it) }
-                    ?: emptyList()
+                val current =
+                    prefs[prefKey]
+                        ?.let { json.decodeFromString<List<String>>(it) }
+                        ?: emptyList()
                 val updated = (listOf(value) + current.filter { it != value }).take(MAX_RECENT)
                 prefs[prefKey] = json.encodeToString(updated)
             }

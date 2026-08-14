@@ -144,9 +144,9 @@ class ServerListViewModel
                             summary.serverId.isNotBlank().also { valid ->
                                 if (!valid) Log.w(LOG_TAG, "Skipping session ${summary.id}: blank serverId")
                             }
-                        }
-                        .mapNotNull { summary ->
-                            val target = launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
+                        }.mapNotNull { summary ->
+                            val target =
+                                launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
                             RecentSession(
                                 sessionId = summary.id,
                                 title = summary.title ?: "Untitled session",
@@ -156,8 +156,7 @@ class ServerListViewModel
                                 updatedAt = summary.updatedAt,
                             )
                         }
-                }
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         private val _uiState = MutableStateFlow(ServerListUiState())
         val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
@@ -593,7 +592,9 @@ class ServerListViewModel
                         it.copy(
                             connectingServerId = null,
                             pendingAuthentication =
-                                pending.copy(authErrorMessage = "Gateway credential expired. Please pair this gateway again."),
+                                pending.copy(
+                                    authErrorMessage = "Gateway credential expired. Please pair this gateway again.",
+                                ),
                         )
                     }
                     return
@@ -854,9 +855,7 @@ class ServerListViewModel
         /**
          * Gateway agents need a two-stage launch: start or reuse the gateway
          * runtime, then request a runtime-scoped ACP WebSocket handoff.
-         */
-
-        /**
+         *
          * Starts the selected gateway-backed agent and converts the gateway handoff
          * response into an ACP connection config Ferngeist can reconnect with later.
          */
@@ -994,7 +993,10 @@ class ServerListViewModel
             }
         }
 
-        private suspend fun openConnectedServer(serverId: String, serverName: String) {
+        private suspend fun openConnectedServer(
+            serverId: String,
+            serverName: String,
+        ) {
             _events.emit(
                 ServerListEvent.NavigateToSessions(
                     serverId = serverId,

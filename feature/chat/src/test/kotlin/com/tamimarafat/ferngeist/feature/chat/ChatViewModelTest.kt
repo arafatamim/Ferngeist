@@ -7,8 +7,8 @@ import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
-import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatFileData
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
@@ -102,25 +102,26 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `enqueueing a prompt while disconnected triggers a reconnect`() = runTest {
-        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
-        val viewModel = createViewModel(facadeFactory = facadeFactory)
-        advanceUntilIdle()
-
-        viewModel.effects.test {
-            assertTrue(awaitItem() is ChatEffect.ShowError)
-
-            viewModel.dispatch(ChatIntent.SendMessage("offline msg"))
+    fun `enqueueing a prompt while disconnected triggers a reconnect`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
-            val state = viewModel.state.value
-            assertEquals(1, state.pendingMessages.size)
-            assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
-            assertEquals(1, facadeFactory.lastFacade.value?.reconnectCount)
+            viewModel.effects.test {
+                assertTrue(awaitItem() is ChatEffect.ShowError)
 
-            cancelAndIgnoreRemainingEvents()
+                viewModel.dispatch(ChatIntent.SendMessage("offline msg"))
+                advanceUntilIdle()
+
+                val state = viewModel.state.value
+                assertEquals(1, state.pendingMessages.size)
+                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
+                assertEquals(1, facadeFactory.lastFacade.value?.reconnectCount)
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
-    }
 
     @Test
     fun `cancel streaming without active session emits session not ready error`() =
@@ -348,259 +349,274 @@ class ChatViewModelTest {
     // region: Offline queue tests
 
     @Test
-    fun `sessionReady flushes all queued prompts in FIFO order`() = runTest {
-        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
-        val viewModel = createViewModel(facadeFactory = facadeFactory)
-        advanceUntilIdle()
-
-        viewModel.effects.test {
-            assertTrue(awaitItem() is ChatEffect.ShowError)
-
-            viewModel.dispatch(ChatIntent.SendMessage("first"))
-            advanceUntilIdle()
-            viewModel.dispatch(ChatIntent.SendMessage("second"))
+    fun `sessionReady flushes all queued prompts in FIFO order`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
-            var state = viewModel.state.value
-            assertEquals(2, state.pendingMessages.size)
-            assertEquals("first", state.pendingMessages[0].content)
-            assertEquals("second", state.pendingMessages[1].content)
-            assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
-            assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[1].status)
+            viewModel.effects.test {
+                assertTrue(awaitItem() is ChatEffect.ShowError)
 
-            facadeFactory.lastFacade.value?.emitSessionReady()
-            advanceUntilIdle()
+                viewModel.dispatch(ChatIntent.SendMessage("first"))
+                advanceUntilIdle()
+                viewModel.dispatch(ChatIntent.SendMessage("second"))
+                advanceUntilIdle()
 
-            state = viewModel.state.value
-            assertEquals(2, state.pendingMessages.size)
-            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
-            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[1].status)
+                var state = viewModel.state.value
+                assertEquals(2, state.pendingMessages.size)
+                assertEquals("first", state.pendingMessages[0].content)
+                assertEquals("second", state.pendingMessages[1].content)
+                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
+                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[1].status)
 
-            cancelAndIgnoreRemainingEvents()
+                facadeFactory.lastFacade.value?.emitSessionReady()
+                advanceUntilIdle()
+
+                state = viewModel.state.value
+                assertEquals(2, state.pendingMessages.size)
+                assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
+                assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[1].status)
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
-    }
 
     @Test
-    fun `QUEUED transitions to SENDING then removed when reducer echo arrives`() = runTest {
-        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
-        val viewModel = createViewModel(facadeFactory = facadeFactory)
-        advanceUntilIdle()
-
-        viewModel.effects.test {
-            assertTrue(awaitItem() is ChatEffect.ShowError)
-
-            viewModel.dispatch(ChatIntent.SendMessage("hello world"))
+    fun `QUEUED transitions to SENDING then removed when reducer echo arrives`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
-            facadeFactory.lastFacade.value?.emitSessionReady()
-            advanceUntilIdle()
+            viewModel.effects.test {
+                assertTrue(awaitItem() is ChatEffect.ShowError)
 
-            var state = viewModel.state.value
-            assertEquals(1, state.pendingMessages.size)
-            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
+                viewModel.dispatch(ChatIntent.SendMessage("hello world"))
+                advanceUntilIdle()
 
-            val echo = ChatMessage(
-                id = "server-echo-1",
-                role = ChatMessage.Role.USER,
-                content = "hello world",
-                status = MessageDeliveryStatus.SENT,
-            )
-            val snapshot = ChatSessionSnapshot(
-                loadState = ChatLoadState.READY,
-                messages = listOf(echo),
-                isStreaming = false,
-                configOptions = emptyList(),
-                availableCommands = emptyList(),
-                commandsAdvertised = false,
-                error = null,
-                usage = null,
-            )
-            facadeFactory.lastFacade.value?.emitSnapshot(snapshot)
-            advanceUntilIdle()
+                facadeFactory.lastFacade.value?.emitSessionReady()
+                advanceUntilIdle()
 
-            state = viewModel.state.value
-            assertEquals(0, state.pendingMessages.size)
-            assertEquals(1, state.messages.size)
-            assertEquals("hello world", state.messages[0].content)
+                var state = viewModel.state.value
+                assertEquals(1, state.pendingMessages.size)
+                assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
 
-            cancelAndIgnoreRemainingEvents()
+                val echo =
+                    ChatMessage(
+                        id = "server-echo-1",
+                        role = ChatMessage.Role.USER,
+                        content = "hello world",
+                        status = MessageDeliveryStatus.SENT,
+                    )
+                val snapshot =
+                    ChatSessionSnapshot(
+                        loadState = ChatLoadState.READY,
+                        messages = listOf(echo),
+                        isStreaming = false,
+                        configOptions = emptyList(),
+                        availableCommands = emptyList(),
+                        commandsAdvertised = false,
+                        error = null,
+                        usage = null,
+                    )
+                facadeFactory.lastFacade.value?.emitSnapshot(snapshot)
+                advanceUntilIdle()
+
+                state = viewModel.state.value
+                assertEquals(0, state.pendingMessages.size)
+                assertEquals(1, state.messages.size)
+                assertEquals("hello world", state.messages[0].content)
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
-    }
 
     @Test
-    fun `QUEUED transitions to SENDING then FAILED when sendMessage returns false`() = runTest {
-        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = false) }
-        val viewModel = createViewModel(facadeFactory = facadeFactory)
-        advanceUntilIdle()
-
-        viewModel.effects.test {
-            assertTrue(awaitItem() is ChatEffect.ShowError)
-
-            viewModel.dispatch(ChatIntent.SendMessage("no bridge"))
+    fun `QUEUED transitions to SENDING then FAILED when sendMessage returns false`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = false) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
-            facadeFactory.lastFacade.value?.emitSessionReady()
-            advanceUntilIdle()
+            viewModel.effects.test {
+                assertTrue(awaitItem() is ChatEffect.ShowError)
 
-            val state = viewModel.state.value
-            assertEquals(1, state.pendingMessages.size)
-            assertEquals(MessageDeliveryStatus.FAILED, state.pendingMessages[0].status)
-            assertEquals("no bridge", state.pendingMessages[0].content)
+                viewModel.dispatch(ChatIntent.SendMessage("no bridge"))
+                advanceUntilIdle()
 
-            val errorEffect = awaitItem()
-            assertTrue(errorEffect is ChatEffect.ShowError)
+                facadeFactory.lastFacade.value?.emitSessionReady()
+                advanceUntilIdle()
 
-            cancelAndIgnoreRemainingEvents()
+                val state = viewModel.state.value
+                assertEquals(1, state.pendingMessages.size)
+                assertEquals(MessageDeliveryStatus.FAILED, state.pendingMessages[0].status)
+                assertEquals("no bridge", state.pendingMessages[0].content)
+
+                val errorEffect = awaitItem()
+                assertTrue(errorEffect is ChatEffect.ShowError)
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
-    }
 
     @Test
-    fun `SENDING bubble stays visible and is not removed by unrelated echo`() = runTest {
-        val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
-        val viewModel = createViewModel(facadeFactory = facadeFactory)
-        advanceUntilIdle()
-
-        viewModel.effects.test {
-            assertTrue(awaitItem() is ChatEffect.ShowError)
-
-            viewModel.dispatch(ChatIntent.SendMessage("my prompt"))
+    fun `SENDING bubble stays visible and is not removed by unrelated echo`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
-            facadeFactory.lastFacade.value?.emitSessionReady()
-            advanceUntilIdle()
+            viewModel.effects.test {
+                assertTrue(awaitItem() is ChatEffect.ShowError)
 
-            val unrelatedEcho = ChatMessage(
-                id = "unrelated",
-                role = ChatMessage.Role.USER,
-                content = "something else",
-                status = MessageDeliveryStatus.SENT,
-            )
-            facadeFactory.lastFacade.value?.emitSnapshot(
-                ChatSessionSnapshot(
-                    loadState = ChatLoadState.READY,
-                    messages = listOf(unrelatedEcho),
-                    isStreaming = false,
-                    configOptions = emptyList(),
-                    availableCommands = emptyList(),
-                    commandsAdvertised = false,
-                    error = null,
-                    usage = null,
+                viewModel.dispatch(ChatIntent.SendMessage("my prompt"))
+                advanceUntilIdle()
+
+                facadeFactory.lastFacade.value?.emitSessionReady()
+                advanceUntilIdle()
+
+                val unrelatedEcho =
+                    ChatMessage(
+                        id = "unrelated",
+                        role = ChatMessage.Role.USER,
+                        content = "something else",
+                        status = MessageDeliveryStatus.SENT,
+                    )
+                facadeFactory.lastFacade.value?.emitSnapshot(
+                    ChatSessionSnapshot(
+                        loadState = ChatLoadState.READY,
+                        messages = listOf(unrelatedEcho),
+                        isStreaming = false,
+                        configOptions = emptyList(),
+                        availableCommands = emptyList(),
+                        commandsAdvertised = false,
+                        error = null,
+                        usage = null,
+                    ),
                 )
-            )
-            advanceUntilIdle()
+                advanceUntilIdle()
 
-            val state = viewModel.state.value
-            assertEquals(1, state.pendingMessages.size)
-            assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
+                val state = viewModel.state.value
+                assertEquals(1, state.pendingMessages.size)
+                assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
 
-            cancelAndIgnoreRemainingEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
         }
-    }
 
     @Test
-    fun `retry resets FAILED to QUEUED then SENDING, echo removes bubble`() = runTest {
-        val sendResults = mutableListOf(false, true)
-        val facadeFactory = TestFacadeFactory {
-            TestFacade(sendResultProvider = { sendResults.removeFirstOrNull() ?: true })
-        }
-        val viewModel = createViewModel(facadeFactory = facadeFactory)
-        advanceUntilIdle()
-
-        viewModel.effects.test {
-            // Consume initial load error.
-            assertTrue(awaitItem() is ChatEffect.ShowError)
-
-            // Enqueue A and B while disconnected.
-            viewModel.dispatch(ChatIntent.SendMessage("A"))
-            advanceUntilIdle()
-            val clientIdA = checkNotNull(viewModel.state.value.pendingMessages[0].clientId)
-
-            viewModel.dispatch(ChatIntent.SendMessage("B"))
+    fun `retry resets FAILED to QUEUED then SENDING, echo removes bubble`() =
+        runTest {
+            val sendResults = mutableListOf(false, true)
+            val facadeFactory =
+                TestFacadeFactory {
+                    TestFacade(sendResultProvider = { sendResults.removeFirstOrNull() ?: true })
+                }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
-            // Session becomes ready -> flush: A fails (sendResult[0]=false), B succeeds.
-            facadeFactory.lastFacade.value?.emitSessionReady()
-            advanceUntilIdle()
+            viewModel.effects.test {
+                // Consume initial load error.
+                assertTrue(awaitItem() is ChatEffect.ShowError)
 
-            var state = viewModel.state.value
-            val failedA = state.pendingMessages.firstOrNull { it.clientId == clientIdA }
-            assertNotNull(failedA)
-            assertEquals(MessageDeliveryStatus.FAILED, failedA!!.status)
+                // Enqueue A and B while disconnected.
+                viewModel.dispatch(ChatIntent.SendMessage("A"))
+                advanceUntilIdle()
+                val clientIdA =
+                    checkNotNull(
+                        viewModel.state.value.pendingMessages[0]
+                            .clientId,
+                    )
 
-            val sendingB = state.pendingMessages.firstOrNull { it.content == "B" }
-            assertNotNull(sendingB)
-            assertEquals(MessageDeliveryStatus.SENDING, sendingB!!.status)
+                viewModel.dispatch(ChatIntent.SendMessage("B"))
+                advanceUntilIdle()
 
-            // Consume flush failure error from A.
-            assertTrue(awaitItem() is ChatEffect.ShowError)
+                // Session becomes ready -> flush: A fails (sendResult[0]=false), B succeeds.
+                facadeFactory.lastFacade.value?.emitSessionReady()
+                advanceUntilIdle()
 
-            // B's echo arrives -> B removed from pending, A remains FAILED.
-            val echoB = ChatMessage(
-                id = "echo-b",
-                role = ChatMessage.Role.USER,
-                content = "B",
-                status = MessageDeliveryStatus.SENT,
-            )
-            facadeFactory.lastFacade.value?.emitSnapshot(
-                ChatSessionSnapshot(
-                    loadState = ChatLoadState.READY,
-                    messages = listOf(echoB),
-                    isStreaming = false,
-                    configOptions = emptyList(),
-                    availableCommands = emptyList(),
-                    commandsAdvertised = false,
-                    error = null,
-                    usage = null,
+                var state = viewModel.state.value
+                val failedA = state.pendingMessages.firstOrNull { it.clientId == clientIdA }
+                assertNotNull(failedA)
+                assertEquals(MessageDeliveryStatus.FAILED, failedA!!.status)
+
+                val sendingB = state.pendingMessages.firstOrNull { it.content == "B" }
+                assertNotNull(sendingB)
+                assertEquals(MessageDeliveryStatus.SENDING, sendingB!!.status)
+
+                // Consume flush failure error from A.
+                assertTrue(awaitItem() is ChatEffect.ShowError)
+
+                // B's echo arrives -> B removed from pending, A remains FAILED.
+                val echoB =
+                    ChatMessage(
+                        id = "echo-b",
+                        role = ChatMessage.Role.USER,
+                        content = "B",
+                        status = MessageDeliveryStatus.SENT,
+                    )
+                facadeFactory.lastFacade.value?.emitSnapshot(
+                    ChatSessionSnapshot(
+                        loadState = ChatLoadState.READY,
+                        messages = listOf(echoB),
+                        isStreaming = false,
+                        configOptions = emptyList(),
+                        availableCommands = emptyList(),
+                        commandsAdvertised = false,
+                        error = null,
+                        usage = null,
+                    ),
                 )
-            )
-            advanceUntilIdle()
+                advanceUntilIdle()
 
-            state = viewModel.state.value
-            assertEquals(1, state.pendingMessages.size)
-            assertEquals(MessageDeliveryStatus.FAILED, state.pendingMessages[0].status)
-            assertEquals("A", state.pendingMessages[0].content)
-            assertEquals("B", state.messages[0].content)
+                state = viewModel.state.value
+                assertEquals(1, state.pendingMessages.size)
+                assertEquals(MessageDeliveryStatus.FAILED, state.pendingMessages[0].status)
+                assertEquals("A", state.pendingMessages[0].content)
+                assertEquals("B", state.messages[0].content)
 
-            // Retry A: sendResults is empty so next send returns true (removeFirstOrNull ?: true).
-            viewModel.dispatch(ChatIntent.RetryMessage(clientIdA))
-            advanceUntilIdle()
+                // Retry A: sendResults is empty so next send returns true (removeFirstOrNull ?: true).
+                viewModel.dispatch(ChatIntent.RetryMessage(clientIdA))
+                advanceUntilIdle()
 
-            state = viewModel.state.value
-            // A should be SENDING (reset FAILED -> QUEUED -> flush transitions to SENDING).
-            val retriedA = state.pendingMessages.firstOrNull { it.clientId == clientIdA }
-            assertNotNull(retriedA)
-            assertEquals(MessageDeliveryStatus.SENDING, retriedA!!.status)
-            assertEquals(1, state.pendingMessages.size)
+                state = viewModel.state.value
+                // A should be SENDING (reset FAILED -> QUEUED -> flush transitions to SENDING).
+                val retriedA = state.pendingMessages.firstOrNull { it.clientId == clientIdA }
+                assertNotNull(retriedA)
+                assertEquals(MessageDeliveryStatus.SENDING, retriedA!!.status)
+                assertEquals(1, state.pendingMessages.size)
 
-            // A's echo arrives -> A removed from pending, no duplicate in messages.
-            val echoA = ChatMessage(
-                id = "echo-a",
-                role = ChatMessage.Role.USER,
-                content = "A",
-                status = MessageDeliveryStatus.SENT,
-            )
-            facadeFactory.lastFacade.value?.emitSnapshot(
-                ChatSessionSnapshot(
-                    loadState = ChatLoadState.READY,
-                    messages = listOf(echoA),
-                    isStreaming = false,
-                    configOptions = emptyList(),
-                    availableCommands = emptyList(),
-                    commandsAdvertised = false,
-                    error = null,
-                    usage = null,
+                // A's echo arrives -> A removed from pending, no duplicate in messages.
+                val echoA =
+                    ChatMessage(
+                        id = "echo-a",
+                        role = ChatMessage.Role.USER,
+                        content = "A",
+                        status = MessageDeliveryStatus.SENT,
+                    )
+                facadeFactory.lastFacade.value?.emitSnapshot(
+                    ChatSessionSnapshot(
+                        loadState = ChatLoadState.READY,
+                        messages = listOf(echoA),
+                        isStreaming = false,
+                        configOptions = emptyList(),
+                        availableCommands = emptyList(),
+                        commandsAdvertised = false,
+                        error = null,
+                        usage = null,
+                    ),
                 )
-            )
-            advanceUntilIdle()
+                advanceUntilIdle()
 
-            state = viewModel.state.value
-            assertEquals(0, state.pendingMessages.size)
-            assertEquals(1, state.messages.size)
-            assertEquals("A", state.messages[0].content)
+                state = viewModel.state.value
+                assertEquals(0, state.pendingMessages.size)
+                assertEquals(1, state.messages.size)
+                assertEquals("A", state.messages[0].content)
 
-            cancelAndIgnoreRemainingEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
         }
-    }
 
     // endregion
 
@@ -657,7 +673,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `LoadGitDiff with repository exception retains the requested path, clears diff, and exposes a nonblank error`() =
+    fun `LoadGitDiff with repository exception retains path, clears diff, shows nonblank error`() =
         runTest {
             val connection =
                 GatewayWorkspaceConnection(
@@ -692,7 +708,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `LoadGitDiff without a gateway workspace connection retains the path, clears diff, and exposes a nonblank error`() =
+    fun `LoadGitDiff without gateway workspace keeps path, clears diff, shows nonblank error`() =
         runTest {
             val gatewayRepository = FakeGatewayRepository()
             val viewModel = createViewModel(gatewayRepository = gatewayRepository)
@@ -761,7 +777,11 @@ class ChatViewModelTest {
             latestGate.complete(Unit)
             advanceUntilIdle()
             assertEquals("src/Latest.kt", viewModel.state.value.gitFileDiffPath)
-            assertEquals(latestDiff, viewModel.state.value.gitFileDiff?.single())
+            assertEquals(
+                latestDiff,
+                viewModel.state.value.gitFileDiff
+                    ?.single(),
+            )
 
             // The stale request then completes; it must NOT overwrite the newer state.
             staleGate.complete(Unit)
@@ -807,8 +827,8 @@ class ChatViewModelTest {
         sessionRepository: SessionRepository = FakeSessionRepository(),
         facadeFactory: ChatSessionFacadeFactory = FakeChatSessionFacadeFactory(),
         gatewayRepository: GatewayRepository = FakeGatewayRepository(),
-    ): ChatViewModel {
-        return ChatViewModel(
+    ): ChatViewModel =
+        ChatViewModel(
             sessionFacadeFactory = facadeFactory,
             sessionRepository = sessionRepository,
             chatScrollStateStore = chatScrollStateStore,
@@ -817,7 +837,6 @@ class ChatViewModelTest {
             gatewayRepository = gatewayRepository,
             savedStateHandle = savedStateHandle,
         )
-    }
 }
 
 /** JUnit rule that swaps the main dispatcher for tests. */
@@ -839,9 +858,9 @@ private class TestFacade(
     private val sendResultProvider: () -> Boolean = { true },
 ) : ChatSessionFacade {
     constructor(sendResult: Boolean) : this({ sendResult })
+
     var reconnectCount = 0
         private set
-
 
     private val _connectionState = MutableStateFlow<ChatConnectionState>(ChatConnectionState.Disconnected)
     private val _diagnostics = MutableStateFlow(ChatConnectionDiagnostics())
@@ -871,7 +890,11 @@ private class TestFacade(
         _loadFailed.emit("Session not found")
     }
 
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
+    override suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean {
         val result = sendResultProvider()
         if (!result) {
             _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
@@ -883,19 +906,35 @@ private class TestFacade(
         _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
     }
 
-    override suspend fun setConfigOption(optionId: String, value: ChatConfigValue) {
+    override suspend fun setConfigOption(
+        optionId: String,
+        value: ChatConfigValue,
+    ) {
         _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
     }
 
-    override suspend fun grantPermission(toolCallId: String, optionId: String) {}
+    override suspend fun grantPermission(
+        toolCallId: String,
+        optionId: String,
+    ) {}
+
     override suspend fun denyPermission(toolCallId: String) {}
+
     override fun clear() {}
+
     override fun onConnectionStateChanged(connectionState: ChatConnectionState) {}
-    override suspend fun reconnect() { reconnectCount++ }
 
+    override suspend fun reconnect() {
+        reconnectCount++
+    }
 
-    suspend fun emitSessionReady() { _sessionReady.emit(Unit) }
-    suspend fun emitSnapshot(snapshot: ChatSessionSnapshot) { _sessionSnapshot.emit(snapshot) }
+    suspend fun emitSessionReady() {
+        _sessionReady.emit(Unit)
+    }
+
+    suspend fun emitSnapshot(snapshot: ChatSessionSnapshot) {
+        _sessionSnapshot.emit(snapshot)
+    }
 }
 
 private class TestFacadeFactory(
@@ -950,7 +989,11 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
         _loadFailed.emit("Session not found")
     }
 
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
+    override suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean {
         _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
         return false
     }
@@ -959,21 +1002,30 @@ private open class FakeChatSessionFacade : ChatSessionFacade {
         _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
     }
 
-    override suspend fun setConfigOption(optionId: String, value: ChatConfigValue) {
+    override suspend fun setConfigOption(
+        optionId: String,
+        value: ChatConfigValue,
+    ) {
         _operationError.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
     }
 
-    override suspend fun grantPermission(toolCallId: String, optionId: String) {}
+    override suspend fun grantPermission(
+        toolCallId: String,
+        optionId: String,
+    ) {}
+
     override suspend fun denyPermission(toolCallId: String) {}
+
     override fun clear() {}
+
     override fun onConnectionStateChanged(connectionState: ChatConnectionState) {}
+
     override suspend fun reconnect() {}
 
     /** Emits a gateway workspace connection to the view model's init collector. */
     suspend fun emitGatewayWorkspaceConnection(connection: GatewayWorkspaceConnection) {
         _gatewayWorkspaceConnection.value = connection
     }
-
 }
 
 /** Facade that immediately emits a pre-configured snapshot so [applySnapshot] is exercised. */
@@ -1082,7 +1134,10 @@ private class InMemoryChatScrollStateStore : ChatScrollStateStore {
 private class FakeRecentSelectionStore : RecentSelectionStore {
     override fun getRecentSelections(key: String): Flow<List<String>> = emptyFlow()
 
-    override suspend fun addSelection(key: String, value: String) {}
+    override suspend fun addSelection(
+        key: String,
+        value: String,
+    ) {}
 
     override suspend fun clearByPrefix(prefix: String) {}
 }
@@ -1091,30 +1146,125 @@ private class FakeRecentSelectionStore : RecentSelectionStore {
 private class FakeGatewayRepository : GatewayRepository {
     var fetchGitDiffError: Throwable? = null
     var fetchGitDiffResult: List<ToolCallContent.Diff> = emptyList()
+
     /** When set, [fetchGitDiff] suspends until the gate completes, so tests can observe the loading state. */
     var fetchGitDiffGate: CompletableDeferred<Unit>? = null
+
     /** Per-path gates for [fetchGitDiff], keyed by requested path; take precedence over [fetchGitDiffGate]. */
     val fetchGitDiffGates: MutableMap<String, CompletableDeferred<Unit>> = mutableMapOf()
+
     /** Per-path results for [fetchGitDiff], keyed by requested path; take precedence over [fetchGitDiffResult]. */
     val fetchGitDiffResults: MutableMap<String, List<ToolCallContent.Diff>> = mutableMapOf()
     val gitDiffRequests: MutableList<Pair<String?, GatewayWorkspaceConnection>> = mutableListOf()
 
-    override suspend fun fetchStatus(scheme: String, host: String) = TODO()
-    override suspend fun startPairing(scheme: String, host: String) = TODO()
-    override suspend fun getPairingStatus(scheme: String, host: String, challengeId: String) = TODO()
-    override suspend fun fetchAgents(scheme: String, host: String, gatewayCredential: String) = TODO()
-    override suspend fun startAgent(scheme: String, host: String, gatewayCredential: String, agentId: String) = TODO()
-    override suspend fun connectRuntime(scheme: String, host: String, gatewayCredential: String, runtimeId: String, sessionMode: String?) = TODO()
-    override suspend fun restartRuntime(scheme: String, host: String, gatewayCredential: String, runtimeId: String, envVars: Map<String, String>) = TODO()
-    override suspend fun fetchRuntimeLogs(scheme: String, host: String, gatewayCredential: String, runtimeId: String) = TODO()
-    override suspend fun completePairing(scheme: String, host: String, challengeId: String, code: String, deviceName: String) = TODO()
-    override suspend fun refreshCredential(scheme: String, host: String, gatewayCredential: String) = TODO()
-    override suspend fun resumeSession(scheme: String, host: String, gatewayCredential: String, sessionId: String) = TODO()
-    override suspend fun listGatewaySessions(scheme: String, host: String, gatewayCredential: String) = TODO()
-    override suspend fun closeSession(scheme: String, host: String, gatewayCredential: String, sessionId: String) = Unit
-    override suspend fun registerPushToken(scheme: String, host: String, gatewayCredential: String, token: String, platform: String) = Unit
-    override suspend fun fetchWorkspaceFile(scheme: String, host: String, gatewayCredential: String, runtimeId: String, path: String): GatewayFileRead = TODO()
-    override suspend fun fetchGitStatus(scheme: String, host: String, gatewayCredential: String, runtimeId: String): GatewayGitStatus = TODO()
+    override suspend fun fetchStatus(
+        scheme: String,
+        host: String,
+    ) = TODO()
+
+    override suspend fun startPairing(
+        scheme: String,
+        host: String,
+    ) = TODO()
+
+    override suspend fun getPairingStatus(
+        scheme: String,
+        host: String,
+        challengeId: String,
+    ) = TODO()
+
+    override suspend fun fetchAgents(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ) = TODO()
+
+    override suspend fun startAgent(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+    ) = TODO()
+
+    override suspend fun connectRuntime(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+        sessionMode: String?,
+    ) = TODO()
+
+    override suspend fun restartRuntime(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+        envVars: Map<String, String>,
+    ) = TODO()
+
+    override suspend fun fetchRuntimeLogs(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+    ) = TODO()
+
+    override suspend fun completePairing(
+        scheme: String,
+        host: String,
+        challengeId: String,
+        code: String,
+        deviceName: String,
+    ) = TODO()
+
+    override suspend fun refreshCredential(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ) = TODO()
+
+    override suspend fun resumeSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        sessionId: String,
+    ) = TODO()
+
+    override suspend fun listGatewaySessions(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ) = TODO()
+
+    override suspend fun closeSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        sessionId: String,
+    ) = Unit
+
+    override suspend fun registerPushToken(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        token: String,
+        platform: String,
+    ) = Unit
+
+    override suspend fun fetchWorkspaceFile(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+        path: String,
+    ): GatewayFileRead = TODO()
+
+    override suspend fun fetchGitStatus(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        runtimeId: String,
+    ): GatewayGitStatus = TODO()
 
     override suspend fun fetchGitDiff(
         scheme: String,

@@ -54,6 +54,7 @@ class AddGatewayViewModel
         val pairingQrPayload: StateFlow<String> = _pairingQrPayload.asStateFlow()
 
         private val _pairingCode = MutableStateFlow("")
+        val pairingCode: StateFlow<String> = _pairingCode.asStateFlow()
 
         private val _uiState = MutableStateFlow(AddGatewayUiState())
         val uiState: StateFlow<AddGatewayUiState> = _uiState.asStateFlow()

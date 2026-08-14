@@ -4,10 +4,10 @@ import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ToolCallContent
 import io.ktor.client.HttpClient
 import io.ktor.client.request.accept
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
-import io.ktor.client.request.delete
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsText
@@ -131,9 +131,10 @@ class GatewayRepositoryImpl
                 "runtimes",
                 runtimeId,
                 "connect",
-                body = sessionMode?.let {
-                    json.encodeToString(GatewayConnectRequest(sessionMode = it))
-                },
+                body =
+                    sessionMode?.let {
+                        json.encodeToString(GatewayConnectRequest(sessionMode = it))
+                    },
             )
 
         override suspend fun resumeSession(

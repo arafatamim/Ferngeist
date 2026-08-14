@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="about">Sobre o Ferngeist</string>
     <string name="privacy_policy">Política de privacidade</string>
     <string name="privacy_policy_url">https://arafatamim.github.io/Ferngeist/privacy_policy.html</string>
@@ -182,5 +182,5 @@
 
     <string name="serverlist_gateway_url_format">%1$s://%2$s</string>
 
-    <string name="serverlist_add_server_stdio_example">npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769</string>
+    <string name="serverlist_add_server_stdio_example" tools:ignore="TypographyDashes">npx -y stdio-to-ws \"npx @qwen-code/qwen-code@latest --acp\" --port 8769</string>
 </resources>

@@ -12,15 +12,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -57,11 +54,11 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TwoRowsTopAppBar
-import androidx.compose.material3.toShape
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -94,15 +91,15 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
-import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
+import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
-import com.tamimarafat.ferngeist.feature.sessionlist.R
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -123,7 +120,8 @@ import kotlin.math.max
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
-    ExperimentalSharedTransitionApi::class, UnstableApi::class,
+    ExperimentalSharedTransitionApi::class,
+    UnstableApi::class,
 )
 @Composable
 fun SessionListScreen(
@@ -170,11 +168,12 @@ fun SessionListScreen(
     val isRefreshing by viewModel.refreshing.collectAsState()
     val pullToRefreshState = rememberPullToRefreshState()
     val supportsSessionList = agentCapabilities?.sessionCapabilities?.list != null
-    val serverName = resolveServerDisplayName(
-        navArgName,
-        loadedName,
-        stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_topbar_title),
-    )
+    val serverName =
+        resolveServerDisplayName(
+            navArgName,
+            loadedName,
+            stringResource(R.string.sessionlist_topbar_title),
+        )
     val hasCwd = !currentCwd.isNullOrBlank()
     val cwdAlpha by animateFloatAsState(
         targetValue = if (hasCwd) 1f else 0f,
@@ -229,12 +228,15 @@ fun SessionListScreen(
                 showCwdDialog = false
                 viewModel.updateCurrentCwd(cwdDialogValue)
             },
-            onClear = if (currentCwd != null) {
-                {
-                    showCwdDialog = false
-                    viewModel.updateCurrentCwd("")
-                }
-            } else null,
+            onClear =
+                if (currentCwd != null) {
+                    {
+                        showCwdDialog = false
+                        viewModel.updateCurrentCwd("")
+                    }
+                } else {
+                    null
+                },
             onDismiss = { showCwdDialog = false },
             onRemoveRecentCwd = viewModel::removeRecentCwd,
         )
@@ -309,9 +311,10 @@ fun SessionListScreen(
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .heightIn(min = 20.dp)
-                                    .alpha(cwdAlpha),
+                                modifier =
+                                    Modifier
+                                        .heightIn(min = 20.dp)
+                                        .alpha(cwdAlpha),
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.FolderOpen,
@@ -336,7 +339,10 @@ fun SessionListScreen(
                         FilledTonalIconButton(onClick = onNavigateBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_back_desc),
+                                contentDescription =
+                                    stringResource(
+                                        R.string.sessionlist_back_desc,
+                                    ),
                             )
                         }
                     },
@@ -346,7 +352,15 @@ fun SessionListScreen(
                                 TooltipDefaults.rememberTooltipPositionProvider(
                                     TooltipAnchorPosition.Above,
                                 ),
-                            tooltip = { PlainTooltip { Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_cwd_tooltip)) } },
+                            tooltip = {
+                                PlainTooltip {
+                                    Text(
+                                        stringResource(
+                                            R.string.sessionlist_cwd_tooltip,
+                                        ),
+                                    )
+                                }
+                            },
                             state = rememberTooltipState(),
                         ) {
                             FilledTonalIconButton(
@@ -357,7 +371,10 @@ fun SessionListScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.FolderOpen,
-                                    contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_cwd_desc),
+                                    contentDescription =
+                                        stringResource(
+                                            R.string.sessionlist_cwd_desc,
+                                        ),
                                 )
                             }
                         }
@@ -381,7 +398,10 @@ fun SessionListScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_new_session_desc),
+                        contentDescription =
+                            stringResource(
+                                R.string.sessionlist_new_session_desc,
+                            ),
                     )
                 }
             },
@@ -417,9 +437,10 @@ fun SessionListScreen(
                     val zoneId = ZoneId.systemDefault()
                     val today = LocalDate.now(zoneId)
                     val locale = LocalLocale.current
-                    val dateFormatter = remember(locale) {
-                        SimpleDateFormat("MMMM d, yyyy", locale.platformLocale)
-                    }
+                    val dateFormatter =
+                        remember(locale) {
+                            SimpleDateFormat("MMMM d, yyyy", locale.platformLocale)
+                        }
                     val sortedSessions =
                         sessions.sortedWith(
                             compareByDescending<SessionSummary> { it.updatedAt ?: Long.MIN_VALUE }
@@ -440,8 +461,17 @@ fun SessionListScreen(
                             // Show "Today" / "Yesterday" for recent dates, formatted date otherwise.
                             val label =
                                 when (sessionDate) {
-                                    today -> stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_today)
-                                    today.minusDays(1) -> stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_yesterday)
+                                    today ->
+                                        stringResource(
+                                            R.string.sessionlist_today,
+                                        )
+                                    today.minusDays(
+                                        1,
+                                    ),
+                                    ->
+                                        stringResource(
+                                            R.string.sessionlist_yesterday,
+                                        )
                                     else -> {
                                         val epoch =
                                             max(
@@ -455,7 +485,11 @@ fun SessionListScreen(
                         }
                     val unknownSessions = sortedSessions.filter { it.updatedAt == null }
                     if (unknownSessions.isNotEmpty()) {
-                        groupedSessions[stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_unknown_date)] =
+                        groupedSessions[
+                            stringResource(
+                                R.string.sessionlist_unknown_date,
+                            ),
+                        ] =
                             unknownSessions
                     }
 
@@ -497,11 +531,12 @@ fun SessionListScreen(
                         }
                         item {
                             Text(
-                                text = LocalResources.current.getQuantityString(
-                                    com.tamimarafat.ferngeist.feature.sessionlist.R.plurals.sessionlist_session_count,
-                                    sessions.size,
-                                    sessions.size,
-                                ),
+                                text =
+                                    LocalResources.current.getQuantityString(
+                                        R.plurals.sessionlist_session_count,
+                                        sessions.size,
+                                        sessions.size,
+                                    ),
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
@@ -566,7 +601,7 @@ private fun PendingAuthenticationDialog(
         title = {
             Text(
                 stringResource(
-                    com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_title,
+                    R.string.sessionlist_auth_title,
                     pendingAuthentication.serverName,
                 ),
             )
@@ -581,10 +616,11 @@ private fun PendingAuthenticationDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = stringResource(
-                        com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_body,
-                        pendingAuthentication.agentName,
-                    ),
+                    text =
+                        stringResource(
+                            R.string.sessionlist_auth_body,
+                            pendingAuthentication.agentName,
+                        ),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 pendingAuthentication.authErrorMessage?.let { message ->
@@ -620,10 +656,11 @@ private fun PendingAuthenticationDialog(
                             ) {
                                 Text(text = method.name, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    text = method.description ?: stringResource(
-                                        com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_method_fallback,
-                                        method.type,
-                                    ),
+                                    text =
+                                        method.description ?: stringResource(
+                                            R.string.sessionlist_auth_method_fallback,
+                                            method.type,
+                                        ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -660,15 +697,21 @@ private fun PendingAuthenticationDialog(
                 },
             ) {
                 Text(
-                    if (isManualEnvAuth) stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_reconnect) else stringResource(
-                        com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_authenticate,
-                    ),
+                    if (isManualEnvAuth) {
+                        stringResource(
+                            R.string.sessionlist_auth_reconnect,
+                        )
+                    } else {
+                        stringResource(
+                            R.string.sessionlist_auth_authenticate,
+                        )
+                    },
                 )
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
-                Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_cancel))
+                Text(stringResource(R.string.sessionlist_auth_cancel))
             }
         },
     )
@@ -697,10 +740,11 @@ private fun AuthenticationMethodDetails(
     }
     if (method.args.isNotEmpty()) {
         Text(
-            text = stringResource(
-                com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_terminal_cmd,
-                method.args.joinToString(" "),
-            ),
+            text =
+                stringResource(
+                    R.string.sessionlist_auth_terminal_cmd,
+                    method.args.joinToString(" "),
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -710,7 +754,10 @@ private fun AuthenticationMethodDetails(
     }
     if (!isGatewayBacked) {
         Text(
-            text = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_env_instructions),
+            text =
+                stringResource(
+                    R.string.sessionlist_auth_env_instructions,
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -722,7 +769,11 @@ private fun AuthenticationMethodDetails(
                         append(" -> ")
                         append(envVar.name)
                         if (envVar.optional) {
-                            append(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_optional_suffix))
+                            append(
+                                stringResource(
+                                    R.string.sessionlist_auth_optional_suffix,
+                                ),
+                            )
                         }
                     },
                 style = MaterialTheme.typography.bodySmall,
@@ -741,7 +792,11 @@ private fun AuthenticationMethodDetails(
                     buildString {
                         append(envVar.label ?: envVar.name)
                         if (envVar.optional) {
-                            append(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_optional_suffix))
+                            append(
+                                stringResource(
+                                    R.string.sessionlist_auth_optional_suffix,
+                                ),
+                            )
                         }
                     },
                 )
@@ -789,8 +844,7 @@ private fun SessionCard(
                         enter = fadeIn(),
                         exit = fadeOut(),
                         resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                    )
-                    .fillMaxWidth()
+                    ).fillMaxWidth()
                     .clip(CardDefaults.shape)
                     .clickable(onClick = onClick),
             colors =
@@ -808,8 +862,11 @@ private fun SessionCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = session.title
-                            ?: stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_untitled),
+                        text =
+                            session.title
+                                ?: stringResource(
+                                    R.string.sessionlist_untitled,
+                                ),
                         style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
                         maxLines = 1,
                         overflow = TextOverflow.MiddleEllipsis,
@@ -856,18 +913,22 @@ private fun EmptySessionList(
         contentAlignment = Alignment.Center,
     ) {
         ErrorStateCard(
-            headline = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_title),
+            headline = stringResource(R.string.sessionlist_empty_title),
             body =
                 if (supportsSessionList) {
-                    stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_listed)
+                    stringResource(
+                        R.string.sessionlist_empty_subtitle_listed,
+                    )
                 } else {
-                    stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_offline)
+                    stringResource(
+                        R.string.sessionlist_empty_subtitle_offline,
+                    )
                 },
             icon = Icons.Rounded.Forum,
             medallionContainer = MaterialTheme.colorScheme.primaryContainer,
             medallionContent = MaterialTheme.colorScheme.onPrimaryContainer,
             medallionShape = MaterialShapes.Cookie9Sided.toShape(),
-            ctaLabel = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_action),
+            ctaLabel = stringResource(R.string.sessionlist_empty_action),
             onCta = onCreateSession,
             ctaIsHero = true,
             modifier = Modifier.padding(24.dp),
@@ -898,9 +959,10 @@ private fun SessionListTopBarTitle(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    val sharedContentState = with(sharedTransitionScope) {
-        rememberSharedContentState(key = ServerNameSharedBoundsKey(serverId))
-    }
+    val sharedContentState =
+        with(sharedTransitionScope) {
+            rememberSharedContentState(key = ServerNameSharedBoundsKey(serverId))
+        }
     val ownsSharedTitleBounds =
         if (expanded) {
             collapsedFraction < 0.5f

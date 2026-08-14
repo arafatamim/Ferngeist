@@ -3,12 +3,14 @@
   <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>MagicNumber:GatewayProofAuth.kt:GatewayProofAuth$1000</ID>
-    <ID>MagicNumber:GatewayRepositoryImpl.kt:404</ID>
-    <ID>MaxLineLength:GatewayRepositoryImpl.kt:GatewayRepositoryImpl$override suspend</ID>
-    <ID>MaxLineLength:GatewayRepositoryImpl.kt:private</ID>
-    <ID>MaxLineLength:GatewayRepositoryImpl.kt:throw gatewayRequestException(response.status.value, response.status.description, endpoint, response.bodyAsText())</ID>
+    <ID>MaxLineLength:GatewayCredentialRefreshTest.kt:GatewayCredentialRefreshTest$"""{"deviceId":"d","deviceName":"n","token":"new-token","expiresAt":"2099-01-01T00:00:00Z","scopes":["read"]}"""</ID>
     <ID>ReturnCount:GatewayCredentialRefresh.kt:suspend fun refreshGatewaySourceIfNeeded: GatewaySource</ID>
     <ID>ReturnCount:GatewayPairingPayload.kt:GatewayPairingPayloadParser$private fun parseJson: GatewayPairingPayload?</ID>
     <ID>ReturnCount:GatewayPairingPayload.kt:GatewayPairingPayloadParser$private fun parseUri: GatewayPairingPayload?</ID>
+    <ID>SwallowedException:GatewayRepositoryImpl.kt:GatewayRepositoryImpl$error: GatewayRequestException</ID>
+    <ID>TooGenericExceptionCaught:GatewayCredentialRefresh.kt:e: Exception</ID>
+    <ID>TooManyFunctions:GatewayRepository.kt:GatewayRepository</ID>
+    <ID>TooManyFunctions:GatewayRepositoryImpl.kt:GatewayRepositoryImpl : GatewayRepository</ID>
+    <ID>UnusedParameter:GatewayRepositoryImpl.kt:json: Json</ID>
   </CurrentIssues>
 </SmellBaseline>

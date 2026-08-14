@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -41,28 +43,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
-import com.tamimarafat.ferngeist.core.model.allChoices
-import com.tamimarafat.ferngeist.core.model.displayValueLabel
-import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
-import com.tamimarafat.ferngeist.feature.chat.ChatIntent
-import com.tamimarafat.ferngeist.feature.chat.R
-import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
-import kotlinx.coroutines.launch
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import com.tamimarafat.ferngeist.core.model.allChoices
+import com.tamimarafat.ferngeist.core.model.displayValueLabel
+import com.tamimarafat.ferngeist.feature.chat.ChatIntent
+import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.R
+import kotlinx.coroutines.launch
 
 // region: ChatScreen
 
@@ -114,53 +115,68 @@ fun ChatScreen(
 
     // -- Unified attachment picker: any file; images are downscaled + previewed --
     val context = androidx.compose.ui.platform.LocalContext.current
-    val attachmentPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris: List<android.net.Uri> ->
-        coroutineScope.launch {
-            val newImages = mutableListOf<ChatImageData>()
-            val fileResults = mutableListOf<FileAttachmentHelper.Result>()
-            var imagesDropped = 0
-            var unsupportedCount = 0
-            for (uri in uris) {
-                val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true
-                when {
-                    isImage && state.canSendImages -> {
-                        val image = ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
-                        if (image != null) newImages += image else imagesDropped++
+    val resources = LocalResources.current
+    val attachmentPickerLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenMultipleDocuments(),
+        ) { uris: List<android.net.Uri> ->
+            coroutineScope.launch {
+                val newImages = mutableListOf<ChatImageData>()
+                val fileResults = mutableListOf<FileAttachmentHelper.Result>()
+                var imagesDropped = 0
+                var unsupportedCount = 0
+                for (uri in uris) {
+                    val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true
+                    when {
+                        isImage && state.canSendImages -> {
+                            val image = ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
+                            if (image != null) newImages += image else imagesDropped++
+                        }
+                        state.supportsEmbeddedContext ->
+                            fileResults += FileAttachmentHelper.uriToChatFileData(context.contentResolver, uri)
+                        else -> unsupportedCount++
                     }
-                    state.supportsEmbeddedContext ->
-                        fileResults += FileAttachmentHelper.uriToChatFileData(context.contentResolver, uri)
-                    else -> unsupportedCount++
                 }
-            }
-            val newFiles = fileResults.filterIsInstance<FileAttachmentHelper.Result.Success>().map { it.file }
-            val tooLargeCount = fileResults.count { it is FileAttachmentHelper.Result.TooLarge }
+                val newFiles = fileResults.filterIsInstance<FileAttachmentHelper.Result.Success>().map { it.file }
+                val tooLargeCount = fileResults.count { it is FileAttachmentHelper.Result.TooLarge }
 
-            val combinedImages = (selectedImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
-            val imagesCapped = (selectedImages.size + newImages.size) - combinedImages.size
-            val combinedFiles = (selectedFiles + newFiles).take(FileAttachmentHelper.MAX_FILES)
-            val filesCapped = (selectedFiles.size + newFiles.size) - combinedFiles.size
-            selectedImages = combinedImages
-            selectedFiles = combinedFiles
-            imageFocusTrigger++
+                val combinedImages = (selectedImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
+                val imagesCapped = (selectedImages.size + newImages.size) - combinedImages.size
+                val combinedFiles = (selectedFiles + newFiles).take(FileAttachmentHelper.MAX_FILES)
+                val filesCapped = (selectedFiles.size + newFiles.size) - combinedFiles.size
+                selectedImages = combinedImages
+                selectedFiles = combinedFiles
+                imageFocusTrigger++
 
-            val message = when {
-                unsupportedCount > 0 ->
-                    context.getString(R.string.chat_attachments_unsupported, unsupportedCount)
-                tooLargeCount > 0 ->
-                    context.getString(R.string.chat_files_too_large, tooLargeCount)
-                imagesDropped > 0 ->
-                    context.getString(R.string.chat_images_dropped, imagesDropped)
-                imagesCapped > 0 ->
-                    context.getString(R.string.chat_images_capped, ImageAttachmentHelper.MAX_IMAGES)
-                filesCapped > 0 ->
-                    context.getString(R.string.chat_files_capped, FileAttachmentHelper.MAX_FILES)
-                else -> null
+                val message =
+                    when {
+                        unsupportedCount > 0 ->
+                            resources.getQuantityString(
+                                R.plurals.chat_attachments_unsupported,
+                                unsupportedCount,
+                                unsupportedCount,
+                            )
+                        tooLargeCount > 0 ->
+                            resources.getQuantityString(R.plurals.chat_files_too_large, tooLargeCount, tooLargeCount)
+                        imagesDropped > 0 ->
+                            resources.getQuantityString(R.plurals.chat_images_dropped, imagesDropped, imagesDropped)
+                        imagesCapped > 0 ->
+                            resources.getQuantityString(
+                                R.plurals.chat_images_capped,
+                                ImageAttachmentHelper.MAX_IMAGES,
+                                ImageAttachmentHelper.MAX_IMAGES,
+                            )
+                        filesCapped > 0 ->
+                            resources.getQuantityString(
+                                R.plurals.chat_files_capped,
+                                FileAttachmentHelper.MAX_FILES,
+                                FileAttachmentHelper.MAX_FILES,
+                            )
+                        else -> null
+                    }
+                message?.let { snackbarHostState.showSnackbar(it) }
             }
-            message?.let { snackbarHostState.showSnackbar(it) }
         }
-    }
     val density = LocalDensity.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     val navBottomPx = WindowInsets.navigationBars.getBottom(density)
@@ -173,33 +189,36 @@ fun ChatScreen(
     val containerSize = LocalWindowInfo.current.containerSize
     val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
 
-    val screenWidthDp = remember(density, containerSize) {
-        with(density) { containerSize.width.toDp() }
-    }
+    val screenWidthDp =
+        remember(density, containerSize) {
+            with(density) { containerSize.width.toDp() }
+        }
 
     // Bottom padding for message list: composer height + system insets + floating offset + 36dp
-    val listBottomPadding = remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
-        if (!showComposerToolbar) {
-            0.dp
-        } else {
-            composerContentHeightDp +
-                systemBottomInsetDp +
-                FloatingToolbarDefaults.ScreenOffset +
-                36.dp
+    val listBottomPadding =
+        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
+            if (!showComposerToolbar) {
+                0.dp
+            } else {
+                composerContentHeightDp +
+                    systemBottomInsetDp +
+                    FloatingToolbarDefaults.ScreenOffset +
+                    36.dp
+            }
         }
-    }
 
     // Snackbar also needs to sit above the composer bar but with less extra padding (16dp)
-    val snackbarBottomPadding = remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
-        if (!showComposerToolbar) {
-            0.dp
-        } else {
-            composerContentHeightDp +
-                systemBottomInsetDp +
-                FloatingToolbarDefaults.ScreenOffset +
-                16.dp
+    val snackbarBottomPadding =
+        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
+            if (!showComposerToolbar) {
+                0.dp
+            } else {
+                composerContentHeightDp +
+                    systemBottomInsetDp +
+                    FloatingToolbarDefaults.ScreenOffset +
+                    16.dp
+            }
         }
-    }
 
     // --- Derived values from config options ---
     val activeModel =
@@ -250,9 +269,10 @@ fun ChatScreen(
     val gitDeletions = state.gitDiffStats?.deletions ?: 0
 
     // --- Messages & selections ---
-    val renderedMessages = remember(state.messages, state.pendingMessages) {
-        state.messages + state.pendingMessages
-    }
+    val renderedMessages =
+        remember(state.messages, state.pendingMessages) {
+            state.messages + state.pendingMessages
+        }
     val selectedThought =
         remember(renderedMessages, selectedThoughtSegmentId) {
             renderedMessages.thoughtForSegment(selectedThoughtSegmentId)
@@ -307,7 +327,9 @@ fun ChatScreen(
     val sendMessage: () -> Unit = {
         val hasContent = messageText.isNotBlank() || selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()
         if (hasContent) {
-            viewModel.dispatch(ChatIntent.SendMessage(text = messageText, images = selectedImages, files = selectedFiles))
+            viewModel.dispatch(
+                ChatIntent.SendMessage(text = messageText, images = selectedImages, files = selectedFiles),
+            )
             scrollHandle.onSendMessage()
             messageText = ""
             selectedImages = emptyList()
@@ -563,7 +585,6 @@ fun ChatScreen(
                             onAttach = { attachmentPickerLauncher.launch(arrayOf("*/*")) },
                         )
                     }
-
                 }
             }
         }

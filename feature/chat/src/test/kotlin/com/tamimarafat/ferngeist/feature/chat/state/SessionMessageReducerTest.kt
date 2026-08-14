@@ -290,31 +290,77 @@ class SessionMessageReducerTest {
                 emptyList(),
                 emptyMap(),
                 AppSessionEvent.PlanUpdated(
-                    entries = listOf(
-                        PlanEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.PENDING),
-                    ),
+                    entries =
+                        listOf(
+                            PlanEntry(
+                                content = "Step 1",
+                                priority = PlanEntryPriority.HIGH,
+                                status = PlanEntryStatus.PENDING,
+                            ),
+                        ),
                 ),
             )
 
         assertEquals(1, first.last().segments.size)
-        assertEquals(AssistantSegment.Kind.PLAN, first.last().segments.last().kind)
-        assertEquals(1, first.last().segments.last().planEntries?.size)
+        assertEquals(
+            AssistantSegment.Kind.PLAN,
+            first
+                .last()
+                .segments
+                .last()
+                .kind,
+        )
+        assertEquals(
+            1,
+            first
+                .last()
+                .segments
+                .last()
+                .planEntries
+                ?.size,
+        )
 
         val (second, _) =
             apply(
                 first,
                 emptyMap(),
                 AppSessionEvent.PlanUpdated(
-                    entries = listOf(
-                        PlanEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.IN_PROGRESS),
-                        PlanEntry(content = "Step 2", priority = PlanEntryPriority.MEDIUM, status = PlanEntryStatus.PENDING),
-                    ),
+                    entries =
+                        listOf(
+                            PlanEntry(
+                                content = "Step 1",
+                                priority = PlanEntryPriority.HIGH,
+                                status = PlanEntryStatus.IN_PROGRESS,
+                            ),
+                            PlanEntry(
+                                content = "Step 2",
+                                priority = PlanEntryPriority.MEDIUM,
+                                status = PlanEntryStatus.PENDING,
+                            ),
+                        ),
                 ),
             )
 
         assertEquals(1, second.last().segments.size)
-        assertEquals(2, second.last().segments.last().planEntries?.size)
-        assertEquals(PlanEntryStatus.IN_PROGRESS, second.last().segments.last().planEntries?.get(0)?.status)
+        assertEquals(
+            2,
+            second
+                .last()
+                .segments
+                .last()
+                .planEntries
+                ?.size,
+        )
+        assertEquals(
+            PlanEntryStatus.IN_PROGRESS,
+            second
+                .last()
+                .segments
+                .last()
+                .planEntries
+                ?.get(0)
+                ?.status,
+        )
     }
 
     @Test

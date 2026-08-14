@@ -27,8 +27,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -85,10 +85,14 @@ fun AddServerScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(
-                            if (viewModel.isEditMode) R.string.serverlist_add_server_title_edit
-                            else R.string.serverlist_add_server_title_new,
-                        ),
+                        text =
+                            stringResource(
+                                if (viewModel.isEditMode) {
+                                    R.string.serverlist_add_server_title_edit
+                                } else {
+                                    R.string.serverlist_add_server_title_new
+                                },
+                            ),
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
@@ -304,15 +308,26 @@ fun AddServerScreen(
                 }
                 Icon(
                     Icons.Default.Save,
-                    contentDescription = if (viewModel.isEditMode) stringResource(R.string.serverlist_add_server_btn_update) else stringResource(R.string.serverlist_add_server_btn_add),
+                    contentDescription =
+                        if (viewModel.isEditMode) {
+                            stringResource(
+                                R.string.serverlist_add_server_btn_update,
+                            )
+                        } else {
+                            stringResource(R.string.serverlist_add_server_btn_add)
+                        },
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(
-                        if (viewModel.isEditMode) R.string.serverlist_add_server_btn_update
-                        else R.string.serverlist_add_server_btn_add,
-                    ),
+                    text =
+                        stringResource(
+                            if (viewModel.isEditMode) {
+                                R.string.serverlist_add_server_btn_update
+                            } else {
+                                R.string.serverlist_add_server_btn_add
+                            },
+                        ),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )

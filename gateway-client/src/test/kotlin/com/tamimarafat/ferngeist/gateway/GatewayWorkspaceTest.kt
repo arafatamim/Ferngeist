@@ -196,7 +196,9 @@ class GatewayWorkspaceTest {
         runTest {
             val repo =
                 repoCapturing(
-                    responseBody = """{"blob":"AAECAw==","uri":"file:///repo/clip.png","mimeType":"image/png","size":4,"truncated":false}""",
+                    responseBody =
+                        """{"blob":"AAECAw==","uri":"file:///repo/clip.png",""" +
+                            """"mimeType":"image/png","size":4,"truncated":false}""",
                 )
 
             val file = repo.fetchWorkspaceFile("http", "10.0.0.2:5788", "plain-token", "rt-1", "clip.png")
@@ -214,7 +216,11 @@ class GatewayWorkspaceTest {
             val proof = GatewayProofAuth.generateProofKey()
             val credential = GatewayProofAuth.encodeStoredCredential("tok-1", proof.privateKey)
             var captured: HttpRequestData? = null
-            val repo = repoCapturing(responseBody = """{"branch":"main","ahead":0,"behind":0,"changed":[]}""") { captured = it }
+            val repo =
+                repoCapturing(responseBody = """{"branch":"main","ahead":0,"behind":0,"changed":[]}""") {
+                    captured =
+                        it
+                }
 
             repo.fetchGitStatus("http", "10.0.0.2:5788", credential, "rt-1")
 

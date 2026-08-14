@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SessionListScreenNameResolverTest {
-
     @Test
     fun `resolveServerDisplayName returns loadedName when it is non-blank`() {
         assertEquals("My Server", resolveServerDisplayName(navArgName = "from arg", loadedName = "My Server"))

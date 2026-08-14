@@ -4,7 +4,6 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -35,8 +33,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -51,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,9 +57,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -70,30 +69,29 @@ import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
-import com.tamimarafat.ferngeist.core.model.ChatConnectionState
-import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
-import com.tamimarafat.ferngeist.core.model.ChatCommand
-import com.tamimarafat.ferngeist.core.model.ChatConfigOption
-import com.tamimarafat.ferngeist.core.model.allChoices
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
+import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.ChatCommand
+import com.tamimarafat.ferngeist.core.model.ChatConfigOption
+import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
+import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
+import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.core.model.allChoices
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
-import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.gateway.GatewayChangedFile
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import com.mikepenz.markdown.model.State as MarkdownRenderState
-import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
@@ -274,13 +272,15 @@ private fun ChatMessageList(
     onStreamLayoutSettled: () -> Unit = {},
     onRetryMessage: ((String) -> Unit)? = null,
 ) {
-    val allMessages = remember(state.messages, state.pendingMessages) {
-        state.messages + state.pendingMessages
-    }
-    var windowSize by rememberSaveable(state.serverId) { mutableStateOf(INITIAL_WINDOW) }
-    val windowed = remember(allMessages, windowSize) {
-        allMessages.takeLast(windowSize)
-    }
+    val allMessages =
+        remember(state.messages, state.pendingMessages) {
+            state.messages + state.pendingMessages
+        }
+    var windowSize by rememberSaveable(state.serverId) { mutableIntStateOf(INITIAL_WINDOW) }
+    val windowed =
+        remember(allMessages, windowSize) {
+            allMessages.takeLast(windowSize)
+        }
 
     LazyColumn(
         state = listState,
@@ -295,27 +295,29 @@ private fun ChatMessageList(
             item(key = "__load_older") {
                 OutlinedButton(
                     onClick = { windowSize += WINDOW_STEP },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
                 ) {
                     Text(text = "Load earlier messages")
                 }
             }
         }
         items(items = windowed, key = { it.id }) { message ->
-            val messageMarkdown = remember(message, state.markdownStates) {
-                if (message.role != ChatMessage.Role.ASSISTANT) {
-                    persistentMapOf<String, MarkdownRenderState>()
-                } else {
-                    buildMap {
-                        message.segments.forEach { seg ->
-                            state.markdownStates[seg.id]?.let { put(seg.id, it) }
-                        }
-                        state.markdownStates[message.id]?.let { put(message.id, it) }
-                    }.toPersistentMap()
+            val messageMarkdown =
+                remember(message, state.markdownStates) {
+                    if (message.role != ChatMessage.Role.ASSISTANT) {
+                        persistentMapOf<String, MarkdownRenderState>()
+                    } else {
+                        buildMap {
+                            message.segments.forEach { seg ->
+                                state.markdownStates[seg.id]?.let { put(seg.id, it) }
+                            }
+                            state.markdownStates[message.id]?.let { put(message.id, it) }
+                        }.toPersistentMap()
+                    }
                 }
-            }
             MessageBubble(
                 message = message,
                 markdownStates = messageMarkdown,
@@ -778,8 +780,14 @@ private fun GitStatusListContent(
                     }
                     DiffBlocks(additions = additions, deletions = deletions)
                 }
+                val resources = LocalResources.current
                 Text(
-                    text = stringResource(R.string.chat_git_files_changed, status.changed.size),
+                    text =
+                        resources.getQuantityString(
+                            R.plurals.chat_git_files_changed,
+                            status.changed.size,
+                            status.changed.size,
+                        ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1016,8 +1024,7 @@ private fun ChangedFileRow(
                                 .clickable(
                                     role = Role.Button,
                                     onClick = onClick,
-                                )
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                                ).padding(horizontal = 12.dp, vertical = 10.dp)
                         },
                     ),
             verticalAlignment = Alignment.CenterVertically,
@@ -1136,9 +1143,10 @@ private fun PickerSheet(
     var query by remember { mutableStateOf("") }
 
     val recentValues = remember(recentItems) { recentItems.map { it.value }.toSet() }
-    val remainingItems = remember(items, recentValues) {
-        items.filter { it.value !in recentValues }
-    }
+    val remainingItems =
+        remember(items, recentValues) {
+            items.filter { it.value !in recentValues }
+        }
     val showRecentSection = recentItems.isNotEmpty() && query.isBlank()
     val searchPool = remember(remainingItems, recentItems) { recentItems + remainingItems }
 
@@ -1161,9 +1169,10 @@ private fun PickerSheet(
         sheetState = sheetState,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
         ) {
             Text(
                 text = title,
@@ -1180,11 +1189,17 @@ private fun PickerSheet(
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
                         singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.chat_search_desc)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = stringResource(R.string.chat_search_desc),
+                            )
+                        },
                         placeholder = { Text(searchPlaceholder) },
                         shape = RoundedCornerShape(28.dp),
                     )
@@ -1198,10 +1213,11 @@ private fun PickerSheet(
                 } else {
                     val displayItems = if (showRecentSection) remainingItems else filteredOptions
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState()),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false)
+                                .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         if (showRecentSection) {
@@ -1245,16 +1261,16 @@ private fun PickerItemRow(
     onDismiss: () -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                onItemClick(item.value)
-                scope.launch {
-                    sheetState.hide()
-                    onDismiss()
-                }
-            }
-            .padding(vertical = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onItemClick(item.value)
+                    scope.launch {
+                        sheetState.hide()
+                        onDismiss()
+                    }
+                }.padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -1293,32 +1309,37 @@ private fun SelectConfigOptionSheet(
     val storageKey = remember(option.id, serverId) { "config_option:$serverId:${option.id}" }
     val allChoices = remember(option) { option.allChoices() }
     val enableRecents = allChoices.size >= 10
-    val recentValues by recentSelectionStore.getRecentSelections(storageKey)
+    val recentValues by recentSelectionStore
+        .getRecentSelections(storageKey)
         .collectAsState(initial = emptyList())
-    val recentItems = remember(recentValues, allChoices, enableRecents) {
-        if (!enableRecents) emptyList()
-        else
-            recentValues.mapNotNull { val_ ->
-                allChoices.find { it.value == val_ }?.let { choice ->
-                    PickerItem(
-                        id = choice.id,
-                        label = choice.label,
-                        value = choice.value,
-                        description = choice.description,
-                    )
+    val recentItems =
+        remember(recentValues, allChoices, enableRecents) {
+            if (!enableRecents) {
+                emptyList()
+            } else {
+                recentValues.mapNotNull { val_ ->
+                    allChoices.find { it.value == val_ }?.let { choice ->
+                        PickerItem(
+                            id = choice.id,
+                            label = choice.label,
+                            value = choice.value,
+                            description = choice.description,
+                        )
+                    }
                 }
             }
-    }
+        }
     PickerSheet(
         title = option.name,
-        items = allChoices.map { choice ->
-            PickerItem(
-                id = choice.id,
-                label = choice.label,
-                value = choice.value,
-                description = choice.description,
-            )
-        },
+        items =
+            allChoices.map { choice ->
+                PickerItem(
+                    id = choice.id,
+                    label = choice.label,
+                    value = choice.value,
+                    description = choice.description,
+                )
+            },
         selectedValue = option.currentValue,
         recentItems = recentItems,
         onItemClick = { value ->
@@ -1347,32 +1368,37 @@ private fun CommandsSheet(
     // Without it, serverId "abc" would also wipe recents for serverId "abcd".
     val storageKey = "commands:$serverId:"
     val enableRecents = commands.size >= 10
-    val recentNames by recentSelectionStore.getRecentSelections(storageKey)
+    val recentNames by recentSelectionStore
+        .getRecentSelections(storageKey)
         .collectAsState(initial = emptyList())
-    val recentItems = remember(recentNames, commands, enableRecents) {
-        if (!enableRecents) emptyList()
-        else
-            recentNames.mapNotNull { name ->
-                commands.find { it.name == name }?.let { cmd ->
-                    PickerItem(
-                        id = cmd.name,
-                        label = cmd.name,
-                        value = cmd.name,
-                        description = cmd.description,
-                    )
+    val recentItems =
+        remember(recentNames, commands, enableRecents) {
+            if (!enableRecents) {
+                emptyList()
+            } else {
+                recentNames.mapNotNull { name ->
+                    commands.find { it.name == name }?.let { cmd ->
+                        PickerItem(
+                            id = cmd.name,
+                            label = cmd.name,
+                            value = cmd.name,
+                            description = cmd.description,
+                        )
+                    }
                 }
             }
-    }
+        }
     PickerSheet(
         title = stringResource(R.string.chat_commands_sheet_title),
-        items = commands.map { cmd ->
-            PickerItem(
-                id = cmd.name,
-                label = cmd.name,
-                value = cmd.name,
-                description = cmd.description,
-            )
-        },
+        items =
+            commands.map { cmd ->
+                PickerItem(
+                    id = cmd.name,
+                    label = cmd.name,
+                    value = cmd.name,
+                    description = cmd.description,
+                )
+            },
         recentItems = recentItems,
         onItemClick = { value ->
             onCommandClick(value)

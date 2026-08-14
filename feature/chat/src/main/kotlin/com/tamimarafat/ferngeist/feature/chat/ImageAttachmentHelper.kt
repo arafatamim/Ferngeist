@@ -9,12 +9,12 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+
 /**
  * Pure helpers for converting image bytes into [ChatImageData], shared between
  * the photo-picker path in the composer and the unit-test harness.
  */
 object ImageAttachmentHelper {
-
     /** Maximum number of images a user can attach per message. */
     const val MAX_IMAGES = 5
 
@@ -33,30 +33,39 @@ object ImageAttachmentHelper {
      * @return [ChatImageData] with a Base64-NO_WRAP JPEG payload, or `null` if
      *         the input cannot be decoded as a bitmap.
      */
-    fun encodeImageBytes(bytes: ByteArray, mimeType: String): ChatImageData? {
-        val decodeOptions = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
+    fun encodeImageBytes(
+        bytes: ByteArray,
+        mimeType: String,
+    ): ChatImageData? {
+        val decodeOptions =
+            BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions)
 
         if (decodeOptions.outWidth <= 0 || decodeOptions.outHeight <= 0) return null
 
-        val sampleSize = computeSampleSize(
-            outWidth = decodeOptions.outWidth,
-            outHeight = decodeOptions.outHeight,
-            maxDimension = MAX_IMAGE_DIMENSION,
-        )
+        val sampleSize =
+            computeSampleSize(
+                outWidth = decodeOptions.outWidth,
+                outHeight = decodeOptions.outHeight,
+                maxDimension = MAX_IMAGE_DIMENSION,
+            )
 
-        val bitmap = BitmapFactory.decodeByteArray(
-            bytes, 0, bytes.size,
-            BitmapFactory.Options().apply { inSampleSize = sampleSize },
-        ) ?: return null
+        val bitmap =
+            BitmapFactory.decodeByteArray(
+                bytes,
+                0,
+                bytes.size,
+                BitmapFactory.Options().apply { inSampleSize = sampleSize },
+            ) ?: return null
 
-        val jpegBytes = ByteArrayOutputStream().use { stream ->
-            bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)
-            if (!bitmap.isRecycled) bitmap.recycle()
-            stream.toByteArray()
-        }
+        val jpegBytes =
+            ByteArrayOutputStream().use { stream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)
+                if (!bitmap.isRecycled) bitmap.recycle()
+                stream.toByteArray()
+            }
 
         val base64 = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
         return ChatImageData(base64 = base64, mimeType = "image/jpeg")
@@ -71,17 +80,23 @@ object ImageAttachmentHelper {
     suspend fun uriToChatImageData(
         contentResolver: ContentResolver,
         uri: Uri,
-    ): ChatImageData? = withContext(Dispatchers.IO) {
-        val bytes: ByteArray = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: return@withContext null
-        val mimeType = contentResolver.getType(uri) ?: "image/*"
-        encodeImageBytes(bytes, mimeType)
-    }
+    ): ChatImageData? =
+        withContext(Dispatchers.IO) {
+            val bytes: ByteArray =
+                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: return@withContext null
+            val mimeType = contentResolver.getType(uri) ?: "image/*"
+            encodeImageBytes(bytes, mimeType)
+        }
 
     // -- internal --
 
     /** Returns the largest power-of-two sample size that keeps the image within [maxDimension]. */
-    internal fun computeSampleSize(outWidth: Int, outHeight: Int, maxDimension: Int): Int {
+    internal fun computeSampleSize(
+        outWidth: Int,
+        outHeight: Int,
+        maxDimension: Int,
+    ): Int {
         var sampleSize = 1
         while (outWidth / sampleSize > maxDimension || outHeight / sampleSize > maxDimension) {
             sampleSize *= 2

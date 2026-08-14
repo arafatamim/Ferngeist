@@ -157,7 +157,11 @@ class FerngeistMessagingService : FirebaseMessagingService() {
      * notification instead of stacking. Everything else (including progress without a
      * session id) falls back to [next].
      */
-    internal fun notificationIdFor(category: String?, sessionId: String?, next: () -> Int): Int =
+    internal fun notificationIdFor(
+        category: String?,
+        sessionId: String?,
+        next: () -> Int,
+    ): Int =
         if (category == PUSH_CATEGORY_PROGRESS && sessionId != null) {
             PROGRESS_NOTIFICATION_ID_BASE + (sessionId.hashCode() and Int.MAX_VALUE) % PROGRESS_NOTIFICATION_ID_RANGE
         } else {

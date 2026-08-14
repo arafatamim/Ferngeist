@@ -1,4 +1,5 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingTranslation">
     <string name="app_name">Ferngeist</string>
     <string name="notification_channel_name">Connection</string>
     <string name="notification_channel_description">Shows the status of the active agent connection</string>

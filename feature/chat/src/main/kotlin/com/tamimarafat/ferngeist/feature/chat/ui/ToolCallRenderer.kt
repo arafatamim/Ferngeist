@@ -24,29 +24,30 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
-import com.tamimarafat.ferngeist.feature.chat.R
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.feature.chat.R
 
 private const val MAX_TEXT_CHARS = 5000
-
 
 @Composable
 internal fun ContentBlockRenderer(block: ContentBlock) {
     when (block) {
         is ContentBlock.Text -> {
-            val text = if (block.text.length > MAX_TEXT_CHARS) {
-                block.text.substring(0, MAX_TEXT_CHARS) + "… (truncated)"
-            } else {
-                block.text
-            }
+            val text =
+                if (block.text.length > MAX_TEXT_CHARS) {
+                    block.text.substring(0, MAX_TEXT_CHARS) + "… (truncated)"
+                } else {
+                    block.text
+                }
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 shape = MaterialTheme.shapes.medium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
             ) {
                 SelectionContainer {
                     Text(
@@ -62,12 +63,13 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
         }
 
         is ContentBlock.Image -> {
-            val bitmap = remember(block.data) {
-                runCatching {
-                    val bytes = Base64.decode(block.data, Base64.DEFAULT)
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                }.getOrNull()
-            }
+            val bitmap =
+                remember(block.data) {
+                    runCatching {
+                        val bytes = Base64.decode(block.data, Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    }.getOrNull()
+                }
             if (bitmap != null) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -77,10 +79,11 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = stringResource(R.string.chat_tool_output_image, block.mimeType),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 300.dp)
-                            .padding(8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 300.dp)
+                                .padding(8.dp),
                         contentScale = ContentScale.Fit,
                     )
                 }
@@ -104,9 +107,10 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
 
         is ContentBlock.ResourceLink -> {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
             ) {
                 Text(
                     text = block.name,
@@ -154,9 +158,10 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
 
                 is EmbeddedResourceResource.BlobResourceContents -> {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
                     ) {
                         Text(
                             text = resource.uri,

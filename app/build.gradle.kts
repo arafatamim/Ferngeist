@@ -12,7 +12,12 @@ plugins {
 // google-services.json is present, so the project still builds (and CI passes)
 // without one — FCM simply stays inert until the file is added. See docs/fcm-setup.md.
 if (file("google-services.json").exists()) {
-    apply(plugin = libs.plugins.google.services.get().pluginId)
+    apply(
+        plugin =
+            libs.plugins.google.services
+                .get()
+                .pluginId,
+    )
 }
 
 val appVersionName =

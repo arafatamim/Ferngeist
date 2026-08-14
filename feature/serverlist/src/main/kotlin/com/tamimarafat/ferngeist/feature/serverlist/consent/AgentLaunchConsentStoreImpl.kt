@@ -45,7 +45,9 @@ class AgentLaunchConsentStoreImpl
             withContext(Dispatchers.IO) {
                 dataStore.edit { prefs ->
                     val prefixed = consentKeyName(prefix)
-                    prefs.asMap().keys
+                    prefs
+                        .asMap()
+                        .keys
                         .filter { it.name.startsWith(prefixed) }
                         .forEach { prefs.remove(it) }
                 }

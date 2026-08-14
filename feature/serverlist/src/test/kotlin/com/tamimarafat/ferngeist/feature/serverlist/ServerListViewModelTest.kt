@@ -39,7 +39,7 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServerListViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
-    
+
     private val gatewaySourceRepository = mockk<GatewaySourceRepository>(relaxed = true)
     private val launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true)
     private val sessionRepository = mockk<SessionRepository>(relaxed = true)
@@ -60,7 +60,7 @@ class ServerListViewModelTest {
         // Mock Dispatchers.IO to use our test dispatcher
         // (Note: Requires mockk-static for Dispatchers if not using a library like CoroutineTestRule that handles it,
         // but simple way here is to just be aware of it)
-        
+
         every { connectionManager.connectionState } returns connectionStateFlow
         every { connectionManager.events } returns eventsFlow
     }
@@ -71,79 +71,85 @@ class ServerListViewModelTest {
     }
 
     @Test
-    fun `connectAndOpenServer should reuse existing connection if same server is already connected`() = runTest(testDispatcher) {
-        val serverId = UUID.randomUUID().toString()
-        val server = LaunchableTarget.Manual(
-            server = ServerConfig(id = serverId, name = "Test Server", host = "localhost")
-        )
-        
-        // Mock initialize success to allow first connection to complete
-        coEvery { connectionManager.connect(any()) } returns true
-        coEvery { connectionManager.initialize() } returns AcpInitializeResult.Ready(
-            agentInfo = AgentInfo("Test Agent", "1.0"),
-            agentCapabilities = AgentCapabilities(),
-            authMethods = emptyList()
-        )
+    fun `connectAndOpenServer should reuse existing connection if same server is already connected`() =
+        runTest(testDispatcher) {
+            val serverId = UUID.randomUUID().toString()
+            val server =
+                LaunchableTarget.Manual(
+                    server = ServerConfig(id = serverId, name = "Test Server", host = "localhost"),
+                )
 
-        val viewModel = createViewModel()
-        
-        viewModel.events.test {
-            // 1. Establish initial connection
-            viewModel.connectAndOpenServer(server)
-            advanceUntilIdle()
+            // Mock initialize success to allow first connection to complete
+            coEvery { connectionManager.connect(any()) } returns true
+            coEvery { connectionManager.initialize() } returns
+                AcpInitializeResult.Ready(
+                    agentInfo = AgentInfo("Test Agent", "1.0"),
+                    agentCapabilities = AgentCapabilities(),
+                    authMethods = emptyList(),
+                )
 
-            // Verify it connected once
-            coVerify(exactly = 1) { connectionManager.connect(any()) }
-            
-            // Should have navigated
-            val firstEvent = awaitItem()
-            assertTrue(
-                "Expected NavigateToSessions(serverId=$serverId) after first connect, got $firstEvent",
-                firstEvent is com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent.NavigateToSessions &&
-                    firstEvent.serverId == serverId,
-            )
+            val viewModel = createViewModel()
 
-            // 2. Setup "already connected" state for second call
-            connectionStateFlow.value = AcpConnectionState.Connected
-            every { connectionManager.isConnected } returns true
+            viewModel.events.test {
+                // 1. Establish initial connection
+                viewModel.connectAndOpenServer(server)
+                advanceUntilIdle()
 
-            // 3. Second call with same server
-            viewModel.connectAndOpenServer(server)
-            advanceUntilIdle()
+                // Verify it connected once
+                coVerify(exactly = 1) { connectionManager.connect(any()) }
 
-            // Verify that connect was NOT called again during the second attempt.
-            coVerify(exactly = 1) { connectionManager.connect(any()) }
+                // Should have navigated
+                val firstEvent = awaitItem()
+                assertTrue(
+                    "Expected NavigateToSessions(serverId=$serverId) after first connect, got $firstEvent",
+                    firstEvent is com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent.NavigateToSessions &&
+                        firstEvent.serverId == serverId,
+                )
 
-            // Should have navigated AGAIN (instantly)
-            val secondEvent = awaitItem()
-            assertTrue(
-                "Expected NavigateToSessions(serverId=$serverId) on reuse, got $secondEvent",
-                secondEvent is com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent.NavigateToSessions &&
-                    secondEvent.serverId == serverId,
-            )
+                // 2. Setup "already connected" state for second call
+                connectionStateFlow.value = AcpConnectionState.Connected
+                every { connectionManager.isConnected } returns true
 
-            cancelAndIgnoreRemainingEvents()
+                // 3. Second call with same server
+                viewModel.connectAndOpenServer(server)
+                advanceUntilIdle()
+
+                // Verify that connect was NOT called again during the second attempt.
+                coVerify(exactly = 1) { connectionManager.connect(any()) }
+
+                // Should have navigated AGAIN (instantly)
+                val secondEvent = awaitItem()
+                assertTrue(
+                    "Expected NavigateToSessions(serverId=$serverId) on reuse, got $secondEvent",
+                    secondEvent is com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent.NavigateToSessions &&
+                        secondEvent.serverId == serverId,
+                )
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
-    }
 
     @Test
     fun `connectAndOpenServer should skip reuse guard when different server is already connected`() =
         runTest(testDispatcher) {
             val serverAId = UUID.randomUUID().toString()
             val serverBId = UUID.randomUUID().toString()
-            val serverA = LaunchableTarget.Manual(
-                server = ServerConfig(id = serverAId, name = "Server A", host = "localhost")
-            )
-            val serverB = LaunchableTarget.Manual(
-                server = ServerConfig(id = serverBId, name = "Server B", host = "localhost")
-            )
+            val serverA =
+                LaunchableTarget.Manual(
+                    server = ServerConfig(id = serverAId, name = "Server A", host = "localhost"),
+                )
+            val serverB =
+                LaunchableTarget.Manual(
+                    server = ServerConfig(id = serverBId, name = "Server B", host = "localhost"),
+                )
 
             coEvery { connectionManager.connect(any()) } returns true
-            coEvery { connectionManager.initialize() } returns AcpInitializeResult.Ready(
-                agentInfo = AgentInfo("Test Agent", "1.0"),
-                agentCapabilities = AgentCapabilities(),
-                authMethods = emptyList()
-            )
+            coEvery { connectionManager.initialize() } returns
+                AcpInitializeResult.Ready(
+                    agentInfo = AgentInfo("Test Agent", "1.0"),
+                    agentCapabilities = AgentCapabilities(),
+                    authMethods = emptyList(),
+                )
 
             val viewModel = createViewModel()
 
@@ -178,16 +184,18 @@ class ServerListViewModelTest {
     fun `connectAndOpenServer should skip reuse guard when not connected`() =
         runTest(testDispatcher) {
             val serverId = UUID.randomUUID().toString()
-            val server = LaunchableTarget.Manual(
-                server = ServerConfig(id = serverId, name = "Test Server", host = "localhost")
-            )
+            val server =
+                LaunchableTarget.Manual(
+                    server = ServerConfig(id = serverId, name = "Test Server", host = "localhost"),
+                )
 
             coEvery { connectionManager.connect(any()) } returns true
-            coEvery { connectionManager.initialize() } returns AcpInitializeResult.Ready(
-                agentInfo = AgentInfo("Test Agent", "1.0"),
-                agentCapabilities = AgentCapabilities(),
-                authMethods = emptyList()
-            )
+            coEvery { connectionManager.initialize() } returns
+                AcpInitializeResult.Ready(
+                    agentInfo = AgentInfo("Test Agent", "1.0"),
+                    agentCapabilities = AgentCapabilities(),
+                    authMethods = emptyList(),
+                )
 
             val viewModel = createViewModel()
 
@@ -210,16 +218,17 @@ class ServerListViewModelTest {
             }
         }
 
-    private fun createViewModel() = ServerListViewModel(
-        gatewaySourceRepository,
-        launchableTargetRepository,
-        sessionRepository,
-        connectionManager,
-        gatewayRepository,
-        authEnvValueStore,
-        agentLaunchConsentStore,
-        sessionSettingsRepository,
-        recentCwdStore,
-        recentSelectionStore,
-    )
+    private fun createViewModel() =
+        ServerListViewModel(
+            gatewaySourceRepository,
+            launchableTargetRepository,
+            sessionRepository,
+            connectionManager,
+            gatewayRepository,
+            authEnvValueStore,
+            agentLaunchConsentStore,
+            sessionSettingsRepository,
+            recentCwdStore,
+            recentSelectionStore,
+        )
 }

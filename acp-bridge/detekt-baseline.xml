@@ -3,39 +3,57 @@
   <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>ComplexCondition:SessionMessageReducer.kt:SessionMessageReducer$lastMessage?.role == ChatMessage.Role.ASSISTANT &amp;&amp; lastMessage.isStreaming &amp;&amp; lastMessage.content.isBlank() &amp;&amp; lastMessage.segments.isEmpty() &amp;&amp; previousMessage?.role == ChatMessage.Role.USER</ID>
+    <ID>ComplexCondition:SessionMessageReducer.kt:SessionMessageReducer$lastMessage?.role == ChatMessage.Role.ASSISTANT &amp;&amp; lastMessage.isStreaming &amp;&amp; lastMessage.content.isBlank() &amp;&amp; lastMessage.segments.isEmpty() &amp;&amp; previousMessage?.role == ChatMessage.Role.USER &amp;&amp; previousMessage.content == text</ID>
+    <ID>CyclomaticComplexMethod:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$@OptIn(UnstableApi::class) fun mapSessionUpdateToEvent: AppSessionEvent?</ID>
+    <ID>CyclomaticComplexMethod:AcpTransportClient.kt:AcpTransportClient$@OptIn(UnstableApi::class) private suspend fun connectInternal: Boolean</ID>
     <ID>CyclomaticComplexMethod:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
     <ID>CyclomaticComplexMethod:SessionRuntime.kt:SessionRuntime$private fun reduce: RuntimeData</ID>
     <ID>CyclomaticComplexMethod:SessionRuntime.kt:SessionRuntime$private fun summarizeEvent: String</ID>
-    <ID>LongMethod:AcpTransportClient.kt:AcpTransportClient$private suspend fun connectInternal: Boolean</ID>
+    <ID>LargeClass:AcpChatSessionFacade.kt:AcpChatSessionFacade : ChatSessionFacade</ID>
+    <ID>LongMethod:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun loadSession</ID>
+    <ID>LongMethod:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun buildGatewayConnectionConfig: AcpConnectionConfig?</ID>
+    <ID>LongMethod:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$@OptIn(UnstableApi::class) fun mapSessionUpdateToEvent: AppSessionEvent?</ID>
+    <ID>LongMethod:SessionGateway.kt:SessionGateway$private suspend fun registerSession: SessionBridge</ID>
+    <ID>LongMethod:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
     <ID>LongMethod:SessionRuntime.kt:SessionRuntime$private fun reduce: RuntimeData</ID>
-    <ID>MagicNumber:AcpConnectionManager.kt:AcpConnectionManager$32602</ID>
-    <ID>MagicNumber:AcpDiagnosticsStore.kt:AcpDiagnosticsStore$20</ID>
-    <ID>MagicNumber:AcpDiagnosticsStore.kt:AcpDiagnosticsStore$40</ID>
+    <ID>LoopWithTooManyJumpStatements:AcpChatSessionFacade.kt:AcpChatSessionFacade$while</ID>
     <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$1000L</ID>
     <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$1_000_000_000L</ID>
     <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$9_999_999_999L</ID>
-    <ID>MagicNumber:AcpTransportClient.kt:AcpTransportClient$1000L</ID>
-    <ID>MagicNumber:AcpTransportClient.kt:AcpTransportClient$5000L</ID>
-    <ID>MaxLineLength:AcpConnectionManager.kt:AcpConnectionManager$diagnosticsStore.appendError("session/load", "Session is already loaded locally. Reusing the active session.")</ID>
-    <ID>MaxLineLength:AcpConnectionManager.kt:AcpConnectionManager$diagnosticsStore.appendError("session/set_config_option", formatAcpErrorMessage(it, "Set config option failed"))</ID>
-    <ID>MaxLineLength:AcpConnectionManager.kt:AcpConnectionManager$suspend</ID>
-    <ID>MaxLineLength:AcpTransportClient.kt:AcpTransportClient$val client = sdkClient ?: return AcpAuthenticateResult.Failure("Authentication is unavailable because the server connection is closed.")</ID>
-    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$is AppSessionEvent.AgentMessage -&gt; appendText(messages, event.text, AssistantSegment.Kind.MESSAGE, event.timestampMs)</ID>
-    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$is AppSessionEvent.AgentThought -&gt; appendText(messages, event.text, AssistantSegment.Kind.THOUGHT, event.timestampMs)</ID>
-    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$is AppSessionEvent.PlanUpdated -&gt; appendText(messages, event.content, AssistantSegment.Kind.PLAN, event.timestampMs)</ID>
-    <ID>MaxLineLength:SessionMessageReducer.kt:SessionMessageReducer$val previousMessage = if (mutableMessages.size &gt;= 2) mutableMessages[mutableMessages.lastIndex - 1] else null</ID>
-    <ID>ReturnCount:AcpConnectionManager.kt:AcpConnectionManager$private fun toAuthRequiredException: AcpAuthenticationRequiredException?</ID>
-    <ID>ReturnCount:AcpConnectionManager.kt:AcpConnectionManager$suspend fun loadSession: SessionBridge?</ID>
+    <ID>MagicNumber:ConnectionOrchestrator.kt:ConnectionOrchestrator$30_000L</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun cancelStreaming</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun loadSession</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun sendMessage: Boolean</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun ensureConnectedAndInitialized: Boolean</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun ensureSessionReadyForSend: SessionPort?</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun recoverSessionBridge: SessionPort?</ID>
     <ID>ReturnCount:AcpErrorFormatting.kt:private fun formatJsonRpcErrorMessage: String</ID>
     <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$fun parseIsoOrMillis: Long?</ID>
+    <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$private fun extractFiles: ChatFileData?</ID>
+    <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$private fun extractImage: ChatImageData?</ID>
+    <ID>ReturnCount:AcpTransportClient.kt:AcpTransportClient$@OptIn(UnstableApi::class) private suspend fun connectInternal: Boolean</ID>
+    <ID>ReturnCount:AcpTransportClient.kt:AcpTransportClient$private suspend fun connectSessionResume: Boolean</ID>
+    <ID>ReturnCount:ConnectionOrchestrator.kt:ConnectionOrchestrator$internal fun toAuthRequiredException: AcpAuthenticationRequiredException?</ID>
+    <ID>ReturnCount:SessionConfigPolicy.kt:SessionConfigPolicy$fun mapToDispatchAction: DispatchAction?</ID>
+    <ID>ReturnCount:SessionConfigPolicy.kt:SessionConfigPolicy$private fun annotateCategory: SessionConfigOption</ID>
+    <ID>ReturnCount:SessionConfigPolicy.kt:SessionConfigPolicy$private fun inferCategory: SessionConfigCategory?</ID>
+    <ID>ReturnCount:SessionGateway.kt:SessionGateway$private fun isUnsupportedSessionCancel: Boolean</ID>
+    <ID>ReturnCount:SessionGateway.kt:SessionGateway$suspend fun createSession: SessionPort?</ID>
+    <ID>ReturnCount:SessionGateway.kt:SessionGateway$suspend fun loadSession: SessionPort?</ID>
     <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
-    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun updateToolCallPermission: List&lt;ChatMessage&gt;</ID>
+    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun clearToolCallPermission: ReducerResult</ID>
+    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun updateToolCallPermission: ReducerResult</ID>
+    <ID>SwallowedException:AcpChatSessionFacade.kt:AcpChatSessionFacade$error: GatewayCredentialExpiredException</ID>
+    <ID>TooGenericExceptionCaught:AcpChatSessionFacade.kt:AcpChatSessionFacade$error: Exception</ID>
+    <ID>TooGenericExceptionCaught:AcpChatSessionFacade.kt:AcpChatSessionFacade$error: Throwable</ID>
     <ID>TooGenericExceptionCaught:AcpTransportClient.kt:AcpTransportClient$error: Exception</ID>
     <ID>TooGenericExceptionCaught:SessionBridge.kt:SessionBridge$t: Throwable</ID>
+    <ID>TooManyFunctions:AcpChatSessionFacade.kt:AcpChatSessionFacade : ChatSessionFacade</ID>
     <ID>TooManyFunctions:AcpConnectionManager.kt:AcpConnectionManager</ID>
-    <ID>TooManyFunctions:AcpSessionRegistry.kt:AcpSessionRegistry</ID>
     <ID>TooManyFunctions:AcpTransportClient.kt:AcpTransportClient</ID>
-    <ID>TooManyFunctions:SessionBridge.kt:SessionBridge</ID>
-    <ID>TooManyFunctions:SessionRuntime.kt:SessionRuntime</ID>
+    <ID>TooManyFunctions:ConnectionOrchestrator.kt:ConnectionOrchestrator</ID>
+    <ID>TooManyFunctions:SessionBridge.kt:SessionBridge : SessionPort</ID>
+    <ID>TooManyFunctions:SessionGateway.kt:SessionGateway</ID>
+    <ID>TooManyFunctions:SessionRuntime.kt:SessionRuntime : SessionStateEngine</ID>
   </CurrentIssues>
 </SmellBaseline>

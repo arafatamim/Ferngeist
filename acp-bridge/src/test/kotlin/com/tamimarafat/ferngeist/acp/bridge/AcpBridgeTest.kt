@@ -5,19 +5,19 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.McpCapabilities
 import com.agentclientprotocol.model.PromptCapabilities
+import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.SessionCapabilities
 import com.agentclientprotocol.model.SessionListCapabilities
 import com.agentclientprotocol.model.SessionResumeCapabilities
-import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.protocol.JsonRpcException
-import com.tamimarafat.ferngeist.acp.bridge.connection.PermissionFlow
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpDiagnosticsStore
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
-import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.connection.PermissionFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
@@ -356,7 +356,11 @@ class AcpAgentCapabilitiesTest {
                 loadSession = true,
                 promptCapabilities = PromptCapabilities(image = true, embeddedContext = true),
                 mcpCapabilities = McpCapabilities(http = true),
-                sessionCapabilities = SessionCapabilities(list = SessionListCapabilities(), resume = SessionResumeCapabilities()),
+                sessionCapabilities =
+                    SessionCapabilities(
+                        list = SessionListCapabilities(),
+                        resume = SessionResumeCapabilities(),
+                    ),
             )
 
         assertEquals(

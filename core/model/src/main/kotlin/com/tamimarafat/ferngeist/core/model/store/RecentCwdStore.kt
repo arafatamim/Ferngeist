@@ -14,10 +14,16 @@ interface RecentCwdStore {
     fun getRecentCwds(targetId: String): Flow<List<String>>
 
     /** Adds or bumps [cwd] to the top of the [targetId] list. No-ops on blank input. */
-    suspend fun addCwd(targetId: String, cwd: String)
+    suspend fun addCwd(
+        targetId: String,
+        cwd: String,
+    )
 
     /** Removes [cwd] from the [targetId] list. No-op if not present. */
-    suspend fun removeCwd(targetId: String, cwd: String)
+    suspend fun removeCwd(
+        targetId: String,
+        cwd: String,
+    )
 
     /** Removes all entries for [targetId]. */
     suspend fun clear(targetId: String)

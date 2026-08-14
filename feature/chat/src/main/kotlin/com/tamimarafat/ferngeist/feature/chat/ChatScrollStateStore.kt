@@ -41,7 +41,6 @@ class DataStoreChatScrollStateStore
     constructor(
         @ApplicationContext private val context: Context,
     ) : ChatScrollStateStore {
-
         override suspend fun restore(
             serverId: String,
             sessionId: String,

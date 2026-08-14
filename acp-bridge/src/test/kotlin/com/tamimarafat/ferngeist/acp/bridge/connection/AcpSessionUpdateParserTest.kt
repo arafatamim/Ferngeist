@@ -92,11 +92,12 @@ class AcpSessionUpdateParserTest {
             SessionUpdate.UserMessageChunk(
                 content =
                     ContentBlock.Resource(
-                        resource = EmbeddedResourceResource.BlobResourceContents(
-                            blob = "QUJD",
-                            uri = "file:///report.pdf",
-                            mimeType = "application/pdf",
-                        ),
+                        resource =
+                            EmbeddedResourceResource.BlobResourceContents(
+                                blob = "QUJD",
+                                uri = "file:///report.pdf",
+                                mimeType = "application/pdf",
+                            ),
                     ),
             )
 

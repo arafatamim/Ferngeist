@@ -8,7 +8,6 @@ import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 internal class ConnectionOrchestrator(
     private val connectivityObserver: ConnectivityObserver,
@@ -60,14 +60,15 @@ internal class ConnectionOrchestrator(
      * Lightweight wrapper around the SDK's raw transport (TCP or WebSocket).
      * Owns connection lifecycle, reconnection, and diagnostics reporting.
      */
-    private val transportClient = AcpTransportClient(
-        connectivityObserver = connectivityObserver,
-        gatewayRepository = gatewayRepository,
-        scope = scope,
-        diagnosticsStore = diagnosticsStore,
-        updateConnectionState = { state -> _connectionState.value = state },
-        emitManagerEvent = { event -> _events.emit(event) },
-    )
+    private val transportClient =
+        AcpTransportClient(
+            connectivityObserver = connectivityObserver,
+            gatewayRepository = gatewayRepository,
+            scope = scope,
+            diagnosticsStore = diagnosticsStore,
+            updateConnectionState = { state -> _connectionState.value = state },
+            emitManagerEvent = { event -> _events.emit(event) },
+        )
 
     // Bridge between the one-shot event stream (emitted by AcpTransportClient)
     // and the StateFlow-based reactive state exposed to consumers. Without this
@@ -166,13 +167,12 @@ internal class ConnectionOrchestrator(
         runCatching { android.util.Log.d(TRACE_TAG, message) }
     }
 
-    internal fun toAuthRequiredException(
-        error: Throwable,
-    ): AcpAuthenticationRequiredException? {
+    internal fun toAuthRequiredException(error: Throwable): AcpAuthenticationRequiredException? {
         if (!isAuthenticationRequiredError(error)) return null
-        val challenge = currentAuthChallenge(
-            message = formatAcpErrorMessage(error, "Authentication required"),
-        ) ?: return null
+        val challenge =
+            currentAuthChallenge(
+                message = formatAcpErrorMessage(error, "Authentication required"),
+            ) ?: return null
         diagnosticsStore.appendError("authentication", challenge.message)
         return AcpAuthenticationRequiredException(challenge)
     }
@@ -190,13 +190,14 @@ internal class ConnectionOrchestrator(
     private fun isAuthenticationRequiredError(error: Throwable): Boolean {
         val rpcError = error as? JsonRpcException
         if (rpcError?.code == JsonRpcErrorCode.AUTH_REQUIRED.code) return true
-        val message = buildString {
-            append(error.message.orEmpty())
-            if (rpcError != null) {
-                append(' ')
-                append(rpcError.data?.toString().orEmpty())
+        val message =
+            buildString {
+                append(error.message.orEmpty())
+                if (rpcError != null) {
+                    append(' ')
+                    append(rpcError.data?.toString().orEmpty())
+                }
             }
-        }
         return message.contains("auth_required", ignoreCase = true) ||
             message.contains("authentication required", ignoreCase = true) ||
             message.contains("requires authentication", ignoreCase = true)

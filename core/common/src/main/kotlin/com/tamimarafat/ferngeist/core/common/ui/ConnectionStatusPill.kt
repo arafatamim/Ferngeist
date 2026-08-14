@@ -1,7 +1,5 @@
 package com.tamimarafat.ferngeist.core.common.ui
 
-import java.text.NumberFormat
-
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -28,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -35,7 +34,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
-import androidx.compose.ui.platform.LocalLocale
+import java.text.NumberFormat
 
 /**
  * Compact connection status button with a tooltip for usage/cost details.
@@ -67,12 +66,13 @@ fun ConnectionStatusPill(
                     Column {
                         Text(stringResource(R.string.common_context_used, formattedUsed, formattedWindow))
                         costAmount?.let { amount ->
-                            val costFmt = NumberFormat.getCurrencyInstance(LocalLocale.current.platformLocale).apply {
-                                costCurrency?.let {
-                                    runCatching { currency = java.util.Currency.getInstance(it) }
+                            val costFmt =
+                                NumberFormat.getCurrencyInstance(LocalLocale.current.platformLocale).apply {
+                                    costCurrency?.let {
+                                        runCatching { currency = java.util.Currency.getInstance(it) }
+                                    }
+                                    maximumFractionDigits = 2
                                 }
-                                maximumFractionDigits = 2
-                            }
                             Text(stringResource(R.string.common_cost_amount, costFmt.format(amount)))
                         }
                     }
@@ -84,9 +84,10 @@ fun ConnectionStatusPill(
         FilledTonalButton(
             onClick = onClick,
             shape = CircleShape,
-            colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            ),
+            colors =
+                ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                ),
             elevation = ButtonDefaults.filledTonalButtonElevation(defaultElevation = 0.dp),
             contentPadding = PaddingValues(12.dp),
             modifier =
@@ -107,8 +108,9 @@ fun ConnectionStatusPill(
                 is ChatConnectionState.Connected ->
                     if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
                         val ratio by animateFloatAsState(
-                            targetValue = (totalTokens.toFloat() / contextWindowTokens.toFloat())
-                                .coerceIn(0f, 1f),
+                            targetValue =
+                                (totalTokens.toFloat() / contextWindowTokens.toFloat())
+                                    .coerceIn(0f, 1f),
                             animationSpec = tween(500),
                         )
                         DonutRing(
@@ -160,11 +162,12 @@ private fun DonutRing(
     modifier: Modifier = Modifier,
 ) {
     // Shift to error colour when the context window is nearly full.
-    val arcColor = if (ratio > 0.95f) {
-        MaterialTheme.colorScheme.error
-    } else {
-        MaterialTheme.colorScheme.primary
-    }
+    val arcColor =
+        if (ratio > 0.95f) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.primary
+        }
     val ringColor = MaterialTheme.colorScheme.outlineVariant
     // 16dp canvas inside a 40dp button with 12dp content padding leaves
     // enough room for a readable 3dp ring.
@@ -173,10 +176,11 @@ private fun DonutRing(
         // Square the size so the ring is a perfect circle regardless of
         // minor constraint asymmetry.
         val aSize = Size(size.minDimension, size.minDimension)
-        val topLeft = Offset(
-            (size.width - aSize.width) / 2f,
-            (size.height - aSize.height) / 2f,
-        )
+        val topLeft =
+            Offset(
+                (size.width - aSize.width) / 2f,
+                (size.height - aSize.height) / 2f,
+            )
         // Background: full grey ring.
         drawArc(
             color = ringColor,

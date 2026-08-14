@@ -15,11 +15,6 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
-import com.tamimarafat.ferngeist.core.model.ChatFileData
-import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
@@ -29,12 +24,17 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.ChatFileData
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
@@ -73,7 +73,6 @@ class AcpChatSessionFacade(
     private val sessionLoadTimeoutMs: Long = 20_000L,
     private val bridgeRecoveryRetryDelayMs: Long = 3_000L,
 ) : ChatSessionFacade {
-
     // ---- Connection state mirroring ----
     private val _connectionState =
         MutableStateFlow<ChatConnectionState>(ChatConnectionState.Disconnected)
@@ -175,7 +174,7 @@ class AcpChatSessionFacade(
             if (capabilities != null && !capabilities.loadSession) {
                 shouldRecoverBridge = false
                 _loadFailed.emit(
-                    "This agent does not advertise session/load support."
+                    "This agent does not advertise session/load support.",
                 )
                 return
             }
@@ -189,7 +188,7 @@ class AcpChatSessionFacade(
                 } catch (_: AcpAuthenticationRequiredException) {
                     _loadFailed.emit(
                         "ACP authentication is required for this server. " +
-                            "Return to the session list and authenticate first."
+                            "Return to the session list and authenticate first.",
                     )
                     return
                 } catch (_: TimeoutCancellationException) {
@@ -206,7 +205,9 @@ class AcpChatSessionFacade(
                             _sessionReady.emit(Unit)
                             _operationError.emit(
                                 ChatOperationError(
-                                    message = "The ACP bridge process restarted while loading this session. Opened a new live session.",
+                                    message =
+                                        "The ACP bridge process restarted while loading this session. " +
+                                            "Opened a new live session.",
                                     stopStreaming = false,
                                 ),
                             )
@@ -264,7 +265,11 @@ class AcpChatSessionFacade(
      * @return true when the payload was dispatched to a live session;
      *         false when no bridge is available or the payload is unsupported.
      */
-    override suspend fun sendMessage(text: String, images: List<ChatImageData>, files: List<ChatFileData>): Boolean {
+    override suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean {
         if (text.isBlank() && images.isEmpty() && files.isEmpty()) return false
 
         val bridge = ensureSessionReadyForSend()
@@ -331,7 +336,10 @@ class AcpChatSessionFacade(
      * Tracks pending model selections so the UI can show a confirmation toast
      * only when the server confirms the user's chosen model ID.
      */
-    override suspend fun setConfigOption(optionId: String, value: ChatConfigValue) {
+    override suspend fun setConfigOption(
+        optionId: String,
+        value: ChatConfigValue,
+    ) {
         val bridge = sessionBridge
         if (bridge == null) {
             _operationError.emit(
@@ -357,7 +365,10 @@ class AcpChatSessionFacade(
     }
 
     /** Forwards a permission grant to the active bridge. */
-    override suspend fun grantPermission(toolCallId: String, optionId: String) {
+    override suspend fun grantPermission(
+        toolCallId: String,
+        optionId: String,
+    ) {
         sessionBridge?.grantPermission(toolCallId, optionId)
     }
 
@@ -384,7 +395,8 @@ class AcpChatSessionFacade(
         if (connectionManager.isConnected) {
             // Already connected — restore the gateway workspace connection from the live
             // config so the diff indicator works when resuming into an open session.
-            connectionManager.currentConnectionConfig()
+            connectionManager
+                .currentConnectionConfig()
                 ?.takeIf { it.gatewayCredential != null && it.gatewayRuntimeId != null }
                 ?.let { config ->
                     _gatewayWorkspaceConnection.value =
@@ -439,9 +451,7 @@ class AcpChatSessionFacade(
      * Builds a connection config for a gateway-backed agent by starting a fresh
      * runtime on the gateway and obtaining the WebSocket handoff.
      */
-    private suspend fun buildGatewayConnectionConfig(
-        target: LaunchableTarget.GatewayAgent,
-    ): AcpConnectionConfig? {
+    private suspend fun buildGatewayConnectionConfig(target: LaunchableTarget.GatewayAgent): AcpConnectionConfig? {
         val gatewaySource = target.gatewaySource
         if (gatewaySource.gatewayCredential.isBlank()) {
             _loadFailed.emit("Gateway is not paired for ${target.name}.")
@@ -452,7 +462,8 @@ class AcpChatSessionFacade(
                 refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
             // Gate on protocol compatibility before any agent/runtime calls so a
             // mismatched gateway surfaces a clear error instead of an opaque failure.
-            gatewayRepository.fetchStatus(refreshedSource.scheme, refreshedSource.host)
+            gatewayRepository
+                .fetchStatus(refreshedSource.scheme, refreshedSource.host)
                 .requireSupportedProtocol()
             val runtime =
                 gatewayRepository.startAgent(
@@ -679,12 +690,13 @@ class AcpChatSessionFacade(
     private fun userFacingSendError(error: Throwable): String {
         val detailedMessage = formatAcpErrorMessage(error, "Send failed")
         val raw = error.message.orEmpty()
-        val message = when {
-            raw.contains("Request timeout", true) -> "Request timed out. Please try again."
-            raw.contains("Invalid params", true) -> "Send failed due to an invalid request format."
-            detailedMessage != "Send failed" -> detailedMessage
-            else -> "Send failed due to an unknown error."
-        }
+        val message =
+            when {
+                raw.contains("Request timeout", true) -> "Request timed out. Please try again."
+                raw.contains("Invalid params", true) -> "Send failed due to an invalid request format."
+                detailedMessage != "Send failed" -> detailedMessage
+                else -> "Send failed due to an unknown error."
+            }
         return if (message.length > MAX_SEND_ERROR_CHARS) {
             message.take(MAX_SEND_ERROR_CHARS).trimEnd() + "…"
         } else {
@@ -751,22 +763,21 @@ class AcpChatSessionFacade(
             commandsAdvertised = snapshot.commandsAdvertised,
             error = snapshot.error,
             title = snapshot.title,
-            usage = snapshot.usage?.let {
-                UsageState(
-                    promptTokens = it.promptTokens,
-                    completionTokens = it.completionTokens,
-                    totalTokens = it.totalTokens,
-                    cachedReadTokens = it.cachedReadTokens,
-                    contextWindowTokens = it.contextWindowTokens,
-                    costAmount = it.costAmount,
-                    costCurrency = it.costCurrency,
-                )
-            },
+            usage =
+                snapshot.usage?.let {
+                    UsageState(
+                        promptTokens = it.promptTokens,
+                        completionTokens = it.completionTokens,
+                        totalTokens = it.totalTokens,
+                        cachedReadTokens = it.cachedReadTokens,
+                        contextWindowTokens = it.contextWindowTokens,
+                        costAmount = it.costAmount,
+                        costCurrency = it.costCurrency,
+                    )
+                },
         )
 
-    private fun mapLoadState(
-        acp: SessionLoadState,
-    ): ChatLoadState =
+    private fun mapLoadState(acp: SessionLoadState): ChatLoadState =
         when (acp) {
             SessionLoadState.IDLE ->
                 // Treat IDLE as hydrating so the UI shows a loading state until a snapshot arrives.
@@ -779,7 +790,9 @@ class AcpChatSessionFacade(
                 ChatLoadState.FAILED
         }
 
-    private fun mapConfigOption(option: com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption): ChatConfigOption {
+    private fun mapConfigOption(
+        option: com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption,
+    ): ChatConfigOption {
         val category = option.category?.let { mapConfigCategory(it) }
         return when (option) {
             is SessionConfigOption.Select ->
@@ -790,13 +803,14 @@ class AcpChatSessionFacade(
                     category = category,
                     currentValue = option.currentValue,
                     choices = option.choices.map { mapChoice(it) },
-                    groups = option.groups.map { group ->
-                        ChatConfigChoiceGroup(
-                            id = group.id,
-                            label = group.label,
-                            choices = group.choices.map { mapChoice(it) },
-                        )
-                    },
+                    groups =
+                        option.groups.map { group ->
+                            ChatConfigChoiceGroup(
+                                id = group.id,
+                                label = group.label,
+                                choices = group.choices.map { mapChoice(it) },
+                            )
+                        },
                 )
             is SessionConfigOption.BooleanOption ->
                 ChatConfigOption.BooleanOption(
@@ -818,18 +832,14 @@ class AcpChatSessionFacade(
         }
     }
 
-    private fun mapConfigCategory(
-        acp: SessionConfigCategory,
-    ): ChatConfigCategory =
+    private fun mapConfigCategory(acp: SessionConfigCategory): ChatConfigCategory =
         when (acp) {
             SessionConfigCategory.Mode -> ChatConfigCategory.Mode
             SessionConfigCategory.Model -> ChatConfigCategory.Model
             is SessionConfigCategory.Custom -> ChatConfigCategory.Custom(acp.rawValue)
         }
 
-    private fun mapChoice(
-        acp: SessionConfigChoice,
-    ): ChatConfigChoice =
+    private fun mapChoice(acp: SessionConfigChoice): ChatConfigChoice =
         ChatConfigChoice(
             id = acp.id,
             label = acp.label,
@@ -837,9 +847,7 @@ class AcpChatSessionFacade(
             description = acp.description,
         )
 
-    private fun mapConfigValue(
-        acp: SessionConfigValue,
-    ): ChatConfigValue =
+    private fun mapConfigValue(acp: SessionConfigValue): ChatConfigValue =
         when (acp) {
             is SessionConfigValue.StringValue -> ChatConfigValue.StringValue(acp.value)
             is SessionConfigValue.BoolValue -> ChatConfigValue.BoolValue(acp.value)

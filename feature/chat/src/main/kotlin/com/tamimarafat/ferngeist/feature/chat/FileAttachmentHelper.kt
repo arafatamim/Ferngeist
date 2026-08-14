@@ -15,7 +15,6 @@ import kotlinx.coroutines.withContext
  * no decoding or downscaling.
  */
 object FileAttachmentHelper {
-
     /** Maximum number of files a user can attach per message. */
     const val MAX_FILES = 5
 
@@ -24,8 +23,15 @@ object FileAttachmentHelper {
 
     /** Outcome of reading a single file URI. */
     sealed interface Result {
-        data class Success(val file: ChatFileData) : Result
-        data class TooLarge(val name: String, val sizeBytes: Long) : Result
+        data class Success(
+            val file: ChatFileData,
+        ) : Result
+
+        data class TooLarge(
+            val name: String,
+            val sizeBytes: Long,
+        ) : Result
+
         data object Unreadable : Result
     }
 
@@ -36,27 +42,29 @@ object FileAttachmentHelper {
     suspend fun uriToChatFileData(
         contentResolver: ContentResolver,
         uri: Uri,
-    ): Result = withContext(Dispatchers.IO) {
-        val (name, declaredSize) = queryNameAndSize(contentResolver, uri)
-        if (declaredSize != null && declaredSize > MAX_FILE_SIZE_BYTES) {
-            return@withContext Result.TooLarge(name, declaredSize)
+    ): Result =
+        withContext(Dispatchers.IO) {
+            val (name, declaredSize) = queryNameAndSize(contentResolver, uri)
+            if (declaredSize != null && declaredSize > MAX_FILE_SIZE_BYTES) {
+                return@withContext Result.TooLarge(name, declaredSize)
+            }
+            val bytes =
+                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: return@withContext Result.Unreadable
+            if (bytes.size > MAX_FILE_SIZE_BYTES) {
+                return@withContext Result.TooLarge(name, bytes.size.toLong())
+            }
+            val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            Result.Success(
+                ChatFileData(
+                    name = name,
+                    base64 = base64,
+                    mimeType = mimeType,
+                    sizeBytes = bytes.size.toLong(),
+                ),
+            )
         }
-        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: return@withContext Result.Unreadable
-        if (bytes.size > MAX_FILE_SIZE_BYTES) {
-            return@withContext Result.TooLarge(name, bytes.size.toLong())
-        }
-        val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
-        val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        Result.Success(
-            ChatFileData(
-                name = name,
-                base64 = base64,
-                mimeType = mimeType,
-                sizeBytes = bytes.size.toLong(),
-            ),
-        )
-    }
 
     /** Queries [OpenableColumns] for a display name (fallback "file") and size (nullable). */
     private fun queryNameAndSize(

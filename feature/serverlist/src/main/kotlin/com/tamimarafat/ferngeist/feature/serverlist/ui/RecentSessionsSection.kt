@@ -74,8 +74,8 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
-import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -109,10 +109,11 @@ internal fun AgentsBackdrop(
     LaunchedEffect(recentsPx, sheetRevealed.value, canReveal) {
         when {
             !canReveal -> sheetRevealed.value = false
-            sheetRevealed.value && recentsPx > 0 -> sheetOffset.animateTo(
-                recentsPx.toFloat(),
-                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-            )
+            sheetRevealed.value && recentsPx > 0 ->
+                sheetOffset.animateTo(
+                    recentsPx.toFloat(),
+                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                )
             !sheetRevealed.value && sheetOffset.value > 0f -> sheetOffset.snapTo(0f)
             sheetOffset.value > recentsPx -> sheetOffset.snapTo(recentsPx.toFloat())
         }
@@ -332,8 +333,7 @@ internal fun ContinueSessionCard(
                                 rotationZ = rotation
                                 scaleX = pop.value
                                 scaleY = pop.value
-                            }
-                            .clip(MaterialShapes.Clover4Leaf.toShape())
+                            }.clip(MaterialShapes.Clover4Leaf.toShape())
                             .background(MaterialTheme.colorScheme.primary),
                 )
                 Icon(

@@ -1,11 +1,392 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" ?>
 <SmellBaseline>
-    <ManuallySuppressedIssues/>
-    <CurrentIssues>
-        <ID>LongMethod:AddGatewayViewModel.kt$AddGatewayViewModel$private suspend fun pairAndSaveWithCode</ID>
-        <ID>MaxLineLength:AddServerViewModel.kt$"Copy the Verify URL and run it in your browser to complete the pairing process."</ID>
-        <ID>ExplicitItLambdaParameter:ServerListViewModel.kt$ServerListViewModel$suspend</ID>
-        <ID>MagicNumber:EncryptedAuthEnvValueStore.kt$EncryptedAuthEnvValueStore$AndroidKeystoreCipherProvider$private val gcmTagLength = 128</ID>
-        <ID>MaxLineLength:AddGatewayScreen.kt$description = "In the agent's CLI, run the command \u201cfg gateway add\u201d and follow the prompts."</ID>
-    </CurrentIssues>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:ChatScrollPolicy.kt:ChatScrollPolicy$_state is AutoScrollState.PausedByUser &amp;&amp; !recentlyUserScrolled &amp;&amp; timeSinceLastScroll &gt;= AutoScrollConfig.USER_RESUME_IDLE_MS &amp;&amp; isAtBottom</ID>
+    <ID>ComplexCondition:SessionMessageReducer.kt:SessionMessageReducer$lastMessage?.role == ChatMessage.Role.ASSISTANT &amp;&amp; lastMessage.isStreaming &amp;&amp; lastMessage.content.isBlank() &amp;&amp; lastMessage.segments.isEmpty() &amp;&amp; previousMessage?.role == ChatMessage.Role.USER</ID>
+    <ID>ComplexCondition:SessionMessageReducer.kt:SessionMessageReducer$lastMessage?.role == ChatMessage.Role.ASSISTANT &amp;&amp; lastMessage.isStreaming &amp;&amp; lastMessage.content.isBlank() &amp;&amp; lastMessage.segments.isEmpty() &amp;&amp; previousMessage?.role == ChatMessage.Role.USER &amp;&amp; previousMessage.content == text</ID>
+    <ID>CyclomaticComplexMethod:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$@OptIn(UnstableApi::class) fun mapSessionUpdateToEvent: AppSessionEvent?</ID>
+    <ID>CyclomaticComplexMethod:AcpTransportClient.kt:AcpTransportClient$@OptIn(UnstableApi::class) private suspend fun connectInternal: Boolean</ID>
+    <ID>CyclomaticComplexMethod:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddGatewayScreen</ID>
+    <ID>CyclomaticComplexMethod:AddGatewayViewModel.kt:AddGatewayViewModel$fun saveGateway</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ChatScreen</ID>
+    <ID>CyclomaticComplexMethod:ChatScreenSections.kt:@Composable private fun ChangedFileRow</ID>
+    <ID>CyclomaticComplexMethod:ChatScreenSections.kt:@Composable private fun GitDiffDetailContent</ID>
+    <ID>CyclomaticComplexMethod:ChatScrollState.kt:@Composable internal fun rememberChatScrollState: ChatScrollHandle</ID>
+    <ID>CyclomaticComplexMethod:ChatViewModel.kt:ChatViewModel$private suspend fun applySnapshot</ID>
+    <ID>CyclomaticComplexMethod:DiffRenderer.kt:internal fun buildDiffRows: List&lt;LineDiffRow&gt;</ID>
+    <ID>CyclomaticComplexMethod:GatewayAgentsScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun GatewayAgentsScreen</ID>
+    <ID>CyclomaticComplexMethod:MainActivity.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable fun FerngeistNavHost</ID>
+    <ID>CyclomaticComplexMethod:RecentSessionsSection.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable internal fun AgentsBackdrop</ID>
+    <ID>CyclomaticComplexMethod:ServerListDialogs.kt:@Composable internal fun PendingAuthenticationDialog</ID>
+    <ID>CyclomaticComplexMethod:ServerListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ServerListScreen</ID>
+    <ID>CyclomaticComplexMethod:ServerListViewModel.kt:ServerListViewModel$fun connectAndOpenServer</ID>
+    <ID>CyclomaticComplexMethod:ServerListViewModel.kt:ServerListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>CyclomaticComplexMethod:SessionListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
+    <ID>CyclomaticComplexMethod:SessionListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, UnstableApi::class, ) @Composable fun SessionListScreen</ID>
+    <ID>CyclomaticComplexMethod:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
+    <ID>CyclomaticComplexMethod:SessionRuntime.kt:SessionRuntime$private fun reduce: RuntimeData</ID>
+    <ID>CyclomaticComplexMethod:SessionRuntime.kt:SessionRuntime$private fun summarizeEvent: String</ID>
+    <ID>EmptyFunctionBlock:ChatViewModelTest.kt:FakeChatSessionFacade${}</ID>
+    <ID>EmptyFunctionBlock:ChatViewModelTest.kt:FakeRecentSelectionStore${}</ID>
+    <ID>EmptyFunctionBlock:ChatViewModelTest.kt:TestFacade${}</ID>
+    <ID>ExplicitItLambdaParameter:ServerListViewModel.kt:ServerListViewModel${ it -&gt; PendingGatewayRuntime(runtimeId = it.runtimeId) }</ID>
+    <ID>ForbiddenComment:CredentialEncryptor.kt:// TODO: Remove SharedPreferencesMigration for "ferngeist_credentials" after</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun GatewayProtocolOption</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun GatewayProtocolSelector</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun GatewayStatusCard</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun ImportPairingStep</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun ImportedPayloadCard</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun OnboardingBulletList</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun PairingCodeDialog</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun PairingStepProgress</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun ReviewGatewayStep</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@Composable private fun RunFerngeistPairStep</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddGatewayScreen</ID>
+    <ID>FunctionNaming:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun EditGatewayScreen</ID>
+    <ID>FunctionNaming:AddServerScreen.kt:@Composable internal fun ProtocolSelector</ID>
+    <ID>FunctionNaming:AddServerScreen.kt:@Composable internal fun SectionCard</ID>
+    <ID>FunctionNaming:AddServerScreen.kt:@Composable private fun ProtocolOption</ID>
+    <ID>FunctionNaming:AddServerScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun AddServerScreen</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable internal fun ChatComposerBar</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable internal fun ConfigOptionMenuItem</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable internal fun ExpandedComposerContent</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable internal fun PrimaryComposerActionButton</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable private fun FileChipItem</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable private fun FileChipRow</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable private fun ImageThumbnailItem</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@Composable private fun ImageThumbnailRow</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun CollapsedComposerActions</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun ModeMenuButton</ID>
+    <ID>FunctionNaming:ChatComposer.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun ToolbarOptionsButton</ID>
+    <ID>FunctionNaming:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ChatScreen</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable internal fun ChatScreenBody</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable internal fun ChatScreenDialogs</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable internal fun GitStatusSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ChangedFileRow</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ChatLoadError</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ChatMessageList</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun CommandsSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun GitDiffDetailContent</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun GitStatusListContent</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun PermissionRequestSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun PickerItemRow</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun PickerSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun SelectConfigOptionSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ThoughtDetailsSheet</ID>
+    <ID>FunctionNaming:ChatScreenSections.kt:@Composable private fun ToolCallDetailsSheet</ID>
+    <ID>FunctionNaming:ChatTopBar.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ChatTopBar</ID>
+    <ID>FunctionNaming:ChatTopBar.kt:@OptIn( ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ) @Composable internal fun ChatTopBarTitle</ID>
+    <ID>FunctionNaming:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
+    <ID>FunctionNaming:ConnectionStatusPill.kt:@Composable private fun DonutRing</ID>
+    <ID>FunctionNaming:ConnectionStatusPill.kt:@ExperimentalMaterial3Api @Composable fun ConnectionStatusPill</ID>
+    <ID>FunctionNaming:CwdDialog.kt:@OptIn(ExperimentalFoundationApi::class) @Composable fun CwdDialog</ID>
+    <ID>FunctionNaming:DiffRenderer.kt:@Composable internal fun DiffBlocks</ID>
+    <ID>FunctionNaming:DiffRenderer.kt:@Composable internal fun DiffRenderer</ID>
+    <ID>FunctionNaming:DiffRenderer.kt:@Composable internal fun DiffSummaryRow</ID>
+    <ID>FunctionNaming:DiffRenderer.kt:@Composable private fun DiffLoadingRow</ID>
+    <ID>FunctionNaming:DiffRenderer.kt:@Composable private fun DiffPathHeader</ID>
+    <ID>FunctionNaming:DiffRenderer.kt:@Composable private fun DiffRowItem</ID>
+    <ID>FunctionNaming:DiffRenderer.kt:@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class) @Composable internal fun GitStatusIndicatorButton</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable fun ErrorStateCard</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun MaterialExpressivePreview</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Preview(name = "Empty state (dark)", showBackground = true, backgroundColor = 0xFF000000) @Composable private fun ErrorStateCardEmptyDarkPreview</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Preview(name = "Empty state (light)", showBackground = true) @Composable private fun ErrorStateCardEmptyPreview</ID>
+    <ID>FunctionNaming:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Preview(name = "Error state (light)", showBackground = true) @Composable private fun ErrorStateCardErrorPreview</ID>
+    <ID>FunctionNaming:GatewayAgentsScreen.kt:@Composable private fun CompactAgentChip</ID>
+    <ID>FunctionNaming:GatewayAgentsScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun GatewayAgentsScreen</ID>
+    <ID>FunctionNaming:GatewayAgentsScreen.kt:@androidx.compose.ui.tooling.preview.Preview(name = "Gateway agents error", showBackground = true) @OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun GatewayAgentsErrorPreview</ID>
+    <ID>FunctionNaming:GatewayListScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun GatewayListScreen</ID>
+    <ID>FunctionNaming:GatewayListScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable private fun GatewayCard</ID>
+    <ID>FunctionNaming:ImageFullscreenViewer.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable fun ImageFullscreenViewer</ID>
+    <ID>FunctionNaming:MainActivity.kt:@Composable private fun NotificationPermissionEffect</ID>
+    <ID>FunctionNaming:MainActivity.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable fun FerngeistNavHost</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable fun MessageBubble</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun AssistantMessageContent</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun FileAttachmentItem</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun FileAttachments</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun ImageAttachmentItem</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun MarkdownText</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun PlanBubble</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Composable private fun ThoughtBubble</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@ExperimentalMaterial3ExpressiveApi @Composable private fun ImageAttachments</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun DeliveryStatusBadge</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun StreamingIndicator</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun ToolCallCard</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun UserMessageContent</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Preview @Composable private fun PlanBubblePreview</ID>
+    <ID>FunctionNaming:MessageBubble.kt:@Preview(showBackground = true) @Composable private fun ToolCallCardPreview</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@Composable internal fun SectionHeader</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ContinueSessionCard</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class) @Composable internal fun RecentSessionCard</ID>
+    <ID>FunctionNaming:RecentSessionsSection.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable internal fun AgentsBackdrop</ID>
+    <ID>FunctionNaming:ServerCard.kt:@Composable internal fun ServerSubtitle</ID>
+    <ID>FunctionNaming:ServerCard.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ServerCard</ID>
+    <ID>FunctionNaming:ServerCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun ConnectingTitleIndicator</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable internal fun AboutDialog</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable internal fun LaunchRiskConsentDialog</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable internal fun PendingAuthenticationDialog</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>FunctionNaming:ServerListDialogs.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun ServerListTopBar</ID>
+    <ID>FunctionNaming:ServerListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ServerListScreen</ID>
+    <ID>FunctionNaming:ServerListScreen.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun EmptyServerList</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, UnstableApi::class, ) @Composable fun SessionListScreen</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun EmptySessionList</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable private fun SessionCard</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable private fun SessionListTopBarTitle</ID>
+    <ID>FunctionNaming:SessionListScreen.kt:@androidx.compose.ui.tooling.preview.Preview(name = "Empty session list", showBackground = true) @Composable private fun EmptySessionListPreview</ID>
+    <ID>FunctionNaming:Theme.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable fun FerngeistTheme</ID>
+    <ID>FunctionNaming:ToolCallRenderer.kt:@Composable internal fun ContentBlockRenderer</ID>
+    <ID>FunctionNaming:ToolCallRenderer.kt:@Composable internal fun TerminalRenderer</ID>
+    <ID>LargeClass:AcpChatSessionFacade.kt:AcpChatSessionFacade : ChatSessionFacade</ID>
+    <ID>LargeClass:ChatViewModelTest.kt:ChatViewModelTest</ID>
+    <ID>LargeClass:ServerListViewModel.kt:ServerListViewModel : ViewModel</ID>
+    <ID>LongMethod:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun loadSession</ID>
+    <ID>LongMethod:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun buildGatewayConnectionConfig: AcpConnectionConfig?</ID>
+    <ID>LongMethod:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$@OptIn(UnstableApi::class) fun mapSessionUpdateToEvent: AppSessionEvent?</ID>
+    <ID>LongMethod:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddGatewayScreen</ID>
+    <ID>LongMethod:AddGatewayScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun EditGatewayScreen</ID>
+    <ID>LongMethod:AddGatewayViewModel.kt:AddGatewayViewModel$fun pairAndSaveWithCode</ID>
+    <ID>LongMethod:AddGatewayViewModel.kt:AddGatewayViewModel$fun saveGateway</ID>
+    <ID>LongMethod:AddServerScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun AddServerScreen</ID>
+    <ID>LongMethod:AppModule.kt:&lt;no name provided&gt;$override fun migrate</ID>
+    <ID>LongMethod:ChatComposer.kt:@Composable internal fun ChatComposerBar</ID>
+    <ID>LongMethod:ChatComposer.kt:@Composable internal fun ExpandedComposerContent</ID>
+    <ID>LongMethod:ChatComposer.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun CollapsedComposerActions</ID>
+    <ID>LongMethod:ChatComposer.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun ModeMenuButton</ID>
+    <ID>LongMethod:ChatComposer.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun ToolbarOptionsButton</ID>
+    <ID>LongMethod:ChatScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ChatScreen</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun ChangedFileRow</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun GitDiffDetailContent</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun GitStatusListContent</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun PermissionRequestSheet</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun PickerSheet</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun ToolCallDetailsSheet</ID>
+    <ID>LongMethod:ChatScrollState.kt:@Composable internal fun rememberChatScrollState: ChatScrollHandle</ID>
+    <ID>LongMethod:ChatTopBar.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ChatTopBar</ID>
+    <ID>LongMethod:ChatTopBar.kt:@OptIn( ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ) @Composable internal fun ChatTopBarTitle</ID>
+    <ID>LongMethod:ChatViewModel.kt:ChatViewModel$private suspend fun applySnapshot</ID>
+    <ID>LongMethod:ChatViewModel.kt:ChatViewModel$private suspend fun loadGitFileDiff</ID>
+    <ID>LongMethod:ChatViewModelTest.kt:ChatViewModelTest$@Test fun `retry resets FAILED to QUEUED then SENDING, echo removes bubble`</ID>
+    <ID>LongMethod:ConnectionStatusPill.kt:@ExperimentalMaterial3Api @Composable fun ConnectionStatusPill</ID>
+    <ID>LongMethod:CwdDialog.kt:@OptIn(ExperimentalFoundationApi::class) @Composable fun CwdDialog</ID>
+    <ID>LongMethod:DiffRenderer.kt:@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class) @Composable internal fun GitStatusIndicatorButton</ID>
+    <ID>LongMethod:DiffRenderer.kt:internal fun buildDiffRows: List&lt;LineDiffRow&gt;</ID>
+    <ID>LongMethod:ErrorStateCard.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable fun ErrorStateCard</ID>
+    <ID>LongMethod:GatewayAgentsScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable fun GatewayAgentsScreen</ID>
+    <ID>LongMethod:GatewayListScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class) @Composable private fun GatewayCard</ID>
+    <ID>LongMethod:ImageFullscreenViewer.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable fun ImageFullscreenViewer</ID>
+    <ID>LongMethod:MainActivity.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable fun FerngeistNavHost</ID>
+    <ID>LongMethod:MessageBubble.kt:@Composable private fun ImageAttachmentItem</ID>
+    <ID>LongMethod:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun DeliveryStatusBadge</ID>
+    <ID>LongMethod:MessageBubble.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable private fun ToolCallCard</ID>
+    <ID>LongMethod:MessageBubble.kt:@Preview(showBackground = true) @Composable private fun ToolCallCardPreview</ID>
+    <ID>LongMethod:RecentSessionsSection.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ContinueSessionCard</ID>
+    <ID>LongMethod:RecentSessionsSection.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class) @Composable internal fun RecentSessionCard</ID>
+    <ID>LongMethod:RecentSessionsSection.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable internal fun AgentsBackdrop</ID>
+    <ID>LongMethod:ServerCard.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable internal fun ServerCard</ID>
+    <ID>LongMethod:ServerListDialogs.kt:@Composable internal fun PendingAuthenticationDialog</ID>
+    <ID>LongMethod:ServerListDialogs.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>LongMethod:ServerListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, ) @Composable fun ServerListScreen</ID>
+    <ID>LongMethod:ServerListViewModel.kt:ServerListViewModel$fun connectAndOpenServer</ID>
+    <ID>LongMethod:ServerListViewModel.kt:ServerListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>LongMethod:SessionGateway.kt:SessionGateway$private suspend fun registerSession: SessionBridge</ID>
+    <ID>LongMethod:SessionListScreen.kt:@Composable private fun AuthenticationMethodDetails</ID>
+    <ID>LongMethod:SessionListScreen.kt:@Composable private fun PendingAuthenticationDialog</ID>
+    <ID>LongMethod:SessionListScreen.kt:@OptIn( ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class, UnstableApi::class, ) @Composable fun SessionListScreen</ID>
+    <ID>LongMethod:SessionListScreen.kt:@OptIn(ExperimentalSharedTransitionApi::class) @Composable private fun SessionCard</ID>
+    <ID>LongMethod:SessionListViewModel.kt:SessionListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>LongMethod:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
+    <ID>LongMethod:SessionRuntime.kt:SessionRuntime$private fun reduce: RuntimeData</ID>
+    <ID>LongMethod:ToolCallRenderer.kt:@Composable internal fun ContentBlockRenderer</ID>
+    <ID>LoopWithTooManyJumpStatements:AcpChatSessionFacade.kt:AcpChatSessionFacade$while</ID>
+    <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$1000L</ID>
+    <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$1_000_000_000L</ID>
+    <ID>MagicNumber:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$9_999_999_999L</ID>
+    <ID>MagicNumber:AddGatewayScreen.kt:10</ID>
+    <ID>MagicNumber:ChatComposer.kt:0.92f</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000L</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000L</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:1_000_000_000L</ID>
+    <ID>MagicNumber:ConnectionDiagnosticsUi.kt:8</ID>
+    <ID>MagicNumber:ConnectionOrchestrator.kt:ConnectionOrchestrator$30_000L</ID>
+    <ID>MagicNumber:DiffRenderer.kt:0xFF43A047</ID>
+    <ID>MagicNumber:DiffRenderer.kt:5</ID>
+    <ID>MagicNumber:EncryptedAuthEnvValueStore.kt:AndroidKeystoreCipherProvider$256</ID>
+    <ID>MagicNumber:ErrorStateCard.kt:0.85f</ID>
+    <ID>MagicNumber:FileAttachmentHelper.kt:FileAttachmentHelper$1024</ID>
+    <ID>MagicNumber:GatewayProofAuth.kt:GatewayProofAuth$1000</ID>
+    <ID>MagicNumber:MessageBubble.kt:200f</ID>
+    <ID>MagicNumber:MessageBubble.kt:50</ID>
+    <ID>MagicNumber:MessageBubble.kt:6</ID>
+    <ID>MatchingDeclarationName:ChatScrollState.kt:ChatScrollHandle</ID>
+    <ID>MaxLineLength:AcpChatSessionFacade.kt:AcpChatSessionFacade$message = "The ACP bridge process restarted while loading this session. Opened a new live session."</ID>
+    <ID>MaxLineLength:AddGatewayScreen.kt:error.message ?: context.getString(R.string.serverlist_error_unknown)</ID>
+    <ID>MaxLineLength:AddGatewayScreen.kt:leadingIcon = { Icon(Icons.Default.Link, contentDescription = stringResource(R.string.serverlist_add_server_host_label)) }</ID>
+    <ID>MaxLineLength:AddGatewayScreen.kt:leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = stringResource(R.string.serverlist_gateway_qr_label)) }</ID>
+    <ID>MaxLineLength:AddServerScreen.kt:contentDescription = if (viewModel.isEditMode) stringResource(R.string.serverlist_add_server_btn_update) else stringResource(R.string.serverlist_add_server_btn_add)</ID>
+    <ID>MaxLineLength:AddServerViewModel.kt:AddServerViewModel$"Server could not be loaded. The credential may be corrupted. Please remove and re-add the server."</ID>
+    <ID>MaxLineLength:ChatComposer.kt:contentDescription = if (showStopAction &amp;&amp; canCancelStreaming) stringResource(R.string.chat_stop_desc) else stringResource(R.string.chat_send_desc)</ID>
+    <ID>MaxLineLength:ChatComposer.kt:is ChatConfigOption.BooleanOption -&gt; if (currentValue) stringResource(R.string.chat_enabled) else stringResource(R.string.chat_disabled)</ID>
+    <ID>MaxLineLength:ChatComposer.kt:positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above)</ID>
+    <ID>MaxLineLength:ChatDomainModels.kt:ChatSessionFacade$suspend</ID>
+    <ID>MaxLineLength:ChatScreen.kt:viewModel.dispatch(ChatIntent.SendMessage(text = messageText, images = selectedImages, files = selectedFiles))</ID>
+    <ID>MaxLineLength:ChatScreenSections.kt:leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.chat_search_desc)) }</ID>
+    <ID>MaxLineLength:ChatTopBar.kt:Modifier.sessionTitleSharedBounds(sessionId, sharedTransitionScope, animatedContentScope)</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:ChatViewModelTest$fun</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun completePairing</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun connectRuntime</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun fetchGitStatus: GatewayGitStatus</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun fetchRuntimeLogs</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun fetchWorkspaceFile: GatewayFileRead</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun registerPushToken</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun restartRuntime</ID>
+    <ID>MaxLineLength:ChatViewModelTest.kt:FakeGatewayRepository$override suspend fun resumeSession</ID>
+    <ID>MaxLineLength:ConnectionDiagnosticsUi.kt:Text(stringResource(R.string.common_server, diagnostics.serverUrl ?: stringResource(R.string.common_unknown)))</ID>
+    <ID>MaxLineLength:DataStoreRecentSelectionStore.kt:DataStoreRecentSelectionStore$*</ID>
+    <ID>MaxLineLength:GatewayAgentsScreen.kt:CompactAgentChip(label = if (agent.detected) stringResource(R.string.serverlist_gateway_agents_detected) else stringResource(R.string.serverlist_gateway_agents_not_detected))</ID>
+    <ID>MaxLineLength:GatewayAgentsScreen.kt:CompactAgentChip(label = if (agent.manifestValid) stringResource(R.string.serverlist_gateway_agents_valid) else stringResource(R.string.serverlist_gateway_agents_invalid))</ID>
+    <ID>MaxLineLength:GatewayAgentsScreen.kt:Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.serverlist_back_desc))</ID>
+    <ID>MaxLineLength:GatewayCredentialRefreshTest.kt:GatewayCredentialRefreshTest$"""{"deviceId":"d","deviceName":"n","token":"new-token","expiresAt":"2099-01-01T00:00:00Z","scopes":["read"]}"""</ID>
+    <ID>MaxLineLength:GatewayListScreen.kt:Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.serverlist_back_desc))</ID>
+    <ID>MaxLineLength:GatewayPushTokenRegistrationTest.kt:GatewayPushTokenRegistrationTest$json.encodeToString(GatewayPushTokenRequest.serializer(), GatewayPushTokenRequest("fcm-abc", "android"))</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun closeSession</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun completePairing</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun connectRuntime</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun fetchGitDiff: List&lt;com.agentclientprotocol.model.ToolCallContent.Diff&gt;</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun fetchGitStatus: GatewayGitStatus</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun fetchRuntimeLogs</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun fetchWorkspaceFile: GatewayFileRead</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun listGatewaySessions: List&lt;GatewaySessionSummary&gt;</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun registerPushToken</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun restartRuntime</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun resumeSession: GatewaySessionResumeResponse</ID>
+    <ID>MaxLineLength:GatewaySessionModelsTest.kt:GatewaySessionModelsTest.&lt;no name provided&gt;$override suspend fun startAgent</ID>
+    <ID>MaxLineLength:GatewayWorkspaceTest.kt:GatewayWorkspaceTest$responseBody = """{"blob":"AAECAw==","uri":"file:///repo/clip.png","mimeType":"image/png","size":4,"truncated":false}"""</ID>
+    <ID>MaxLineLength:GatewayWorkspaceTest.kt:GatewayWorkspaceTest$val repo = repoCapturing(responseBody = """{"branch":"main","ahead":0,"behind":0,"changed":[]}""") { captured = it }</ID>
+    <ID>MaxLineLength:MainActivity.kt:route = "chat/{serverId}/{sessionId}?cwd={cwd}&amp;updatedAt={updatedAt}&amp;title={title}&amp;gatewayId={gatewayId}"</ID>
+    <ID>MaxLineLength:MessageBubble.kt:contentDescription = if (isCompleted) stringResource(R.string.chat_completed_desc) else stringResource(R.string.chat_plan_desc)</ID>
+    <ID>MaxLineLength:MessageBubble.kt:text = if (isStreaming) stringResource(R.string.chat_reasoning) else stringResource(R.string.chat_show_reasoning)</ID>
+    <ID>MaxLineLength:ServerCard.kt:text = stringResource(R.string.serverlist_gateway_url_format, server.server.scheme, server.server.host)</ID>
+    <ID>MaxLineLength:ServerCard.kt:text = { Text(stringResource(if (server is LaunchableTarget.GatewayAgent) R.string.serverlist_card_manage else R.string.serverlist_card_edit)) }</ID>
+    <ID>MaxLineLength:ServerListDialogs.kt:Text(if (isManualEnvAuth) stringResource(R.string.serverlist_auth_reconnect) else stringResource(R.string.serverlist_auth_authenticate))</ID>
+    <ID>MaxLineLength:ServerListDialogs.kt:text = method.description ?: stringResource(R.string.serverlist_auth_method_fallback, method.type)</ID>
+    <ID>MaxLineLength:ServerListScreen.kt:contentDescription = if (showAddMenu) stringResource(R.string.serverlist_fab_close) else stringResource(R.string.serverlist_fab_add)</ID>
+    <ID>MaxLineLength:ServerListScreen.kt:icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.serverlist_add_agent_btn)) }</ID>
+    <ID>MaxLineLength:ServerListScreen.kt:icon = { Icon(Icons.Default.Devices, contentDescription = stringResource(R.string.serverlist_add_gateway_btn)) }</ID>
+    <ID>MaxLineLength:ServerListScreen.kt:targetValue = if (showAddMenu) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary</ID>
+    <ID>MaxLineLength:ServerListScreen.kt:text = { Text(if (hasGateways) stringResource(R.string.serverlist_add_paired_btn) else stringResource(R.string.serverlist_add_gateway_btn)) }</ID>
+    <ID>MaxLineLength:ServerListViewModel.kt:ServerListViewModel$pending.copy(authErrorMessage = "Gateway credential expired. Please pair this gateway again.")</ID>
+    <ID>MaxLineLength:ServerListViewModel.kt:ServerListViewModel$val target = launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null</ID>
+    <ID>MaxLineLength:ServerListViewModelTest.kt:ServerListViewModelTest$fun</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:?:</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:append(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_optional_suffix))</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_method_fallback</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_back_desc)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_cwd_desc)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:contentDescription = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_new_session_desc)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:groupedSessions[stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_unknown_date)]</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:if</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_listed)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_offline)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:text = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_auth_env_instructions)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:today -&gt; stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_today)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:today.minusDays(1) -&gt; stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_yesterday)</ID>
+    <ID>MaxLineLength:SessionListScreen.kt:tooltip = { PlainTooltip { Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_cwd_tooltip)) } }</ID>
+    <ID>MaxLineLength:SessionListViewModel.kt:SessionListViewModel$_events.emit(SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to load sessions")))</ID>
+    <ID>MaxLineLength:SessionMessageReducerTest.kt:SessionMessageReducerTest$PlanEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.IN_PROGRESS)</ID>
+    <ID>MaxLineLength:SessionMessageReducerTest.kt:SessionMessageReducerTest$PlanEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.PENDING)</ID>
+    <ID>MaxLineLength:SessionMessageReducerTest.kt:SessionMessageReducerTest$PlanEntry(content = "Step 2", priority = PlanEntryPriority.MEDIUM, status = PlanEntryStatus.PENDING)</ID>
+    <ID>MaxLineLength:SessionRuntime.kt:SessionRuntime$is AppSessionEvent.LegacyModelOptionsUpdated -&gt; "legacyModels=${event.choices.size} current=${event.currentModelId}"</ID>
+    <ID>MaxLineLength:SessionRuntimeTest.kt:SessionRuntimeTest$base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun cancelStreaming</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun loadSession</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$override suspend fun sendMessage: Boolean</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun ensureConnectedAndInitialized: Boolean</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun ensureSessionReadyForSend: SessionPort?</ID>
+    <ID>ReturnCount:AcpChatSessionFacade.kt:AcpChatSessionFacade$private suspend fun recoverSessionBridge: SessionPort?</ID>
+    <ID>ReturnCount:AcpErrorFormatting.kt:private fun formatJsonRpcErrorMessage: String</ID>
+    <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$fun parseIsoOrMillis: Long?</ID>
+    <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$private fun extractFiles: ChatFileData?</ID>
+    <ID>ReturnCount:AcpSessionUpdateMapper.kt:AcpSessionUpdateMapper$private fun extractImage: ChatImageData?</ID>
+    <ID>ReturnCount:AcpTransportClient.kt:AcpTransportClient$@OptIn(UnstableApi::class) private suspend fun connectInternal: Boolean</ID>
+    <ID>ReturnCount:AcpTransportClient.kt:AcpTransportClient$private suspend fun connectSessionResume: Boolean</ID>
+    <ID>ReturnCount:ChatScrollPolicy.kt:ChatScrollPolicy$fun onInsetsChanged: ScrollDecision</ID>
+    <ID>ReturnCount:ChatScrollPolicy.kt:ChatScrollPolicy$fun onStreamingBubbleResized: ScrollDecision</ID>
+    <ID>ReturnCount:ChatScrollState.kt:internal fun LazyListState.isAtBottom: Boolean</ID>
+    <ID>ReturnCount:ChatScrollState.kt:internal suspend fun LazyListState.scrollToBottom</ID>
+    <ID>ReturnCount:ConnectionOrchestrator.kt:ConnectionOrchestrator$internal fun toAuthRequiredException: AcpAuthenticationRequiredException?</ID>
+    <ID>ReturnCount:FerngeistForegroundService.kt:FerngeistForegroundService$override fun onStartCommand: Int</ID>
+    <ID>ReturnCount:FileAttachmentHelper.kt:FileAttachmentHelper$fun formatSize: String</ID>
+    <ID>ReturnCount:GatewayCredentialRefresh.kt:suspend fun refreshGatewaySourceIfNeeded: GatewaySource</ID>
+    <ID>ReturnCount:GatewayPairingPayload.kt:GatewayPairingPayloadParser$private fun parseJson: GatewayPairingPayload?</ID>
+    <ID>ReturnCount:GatewayPairingPayload.kt:GatewayPairingPayloadParser$private fun parseUri: GatewayPairingPayload?</ID>
+    <ID>ReturnCount:ImageAttachmentHelper.kt:ImageAttachmentHelper$fun encodeImageBytes: ChatImageData?</ID>
+    <ID>ReturnCount:LaunchableTargetRepositoryImpl.kt:LaunchableTargetRepositoryImpl$override suspend fun getTarget: LaunchableTarget?</ID>
+    <ID>ReturnCount:MainActivity.kt:private fun AnimatedContentTransitionScope&lt;NavBackStackEntry&gt;.isServerListSessionsTransition: Boolean</ID>
+    <ID>ReturnCount:MainActivity.kt:private fun AnimatedContentTransitionScope&lt;NavBackStackEntry&gt;.isSessionChatTransition: Boolean</ID>
+    <ID>ReturnCount:MainActivity.kt:private suspend fun resolveChatDeepLink: ChatDeepLinkTarget?</ID>
+    <ID>ReturnCount:PushNotificationPolicy.kt:PushNotificationPolicy$fun shouldSuppress: Boolean</ID>
+    <ID>ReturnCount:ServerListViewModel.kt:ServerListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>ReturnCount:ServerListViewModel.kt:ServerListViewModel$private suspend fun buildGatewayLaunchContext: Result&lt;GatewayLaunchContext&gt;</ID>
+    <ID>ReturnCount:ServerListViewModel.kt:ServerListViewModel$private suspend fun buildInitializeFailureMessage: String</ID>
+    <ID>ReturnCount:SessionConfigPolicy.kt:SessionConfigPolicy$fun mapToDispatchAction: DispatchAction?</ID>
+    <ID>ReturnCount:SessionConfigPolicy.kt:SessionConfigPolicy$private fun annotateCategory: SessionConfigOption</ID>
+    <ID>ReturnCount:SessionConfigPolicy.kt:SessionConfigPolicy$private fun inferCategory: SessionConfigCategory?</ID>
+    <ID>ReturnCount:SessionGateway.kt:SessionGateway$private fun isUnsupportedSessionCancel: Boolean</ID>
+    <ID>ReturnCount:SessionGateway.kt:SessionGateway$suspend fun createSession: SessionPort?</ID>
+    <ID>ReturnCount:SessionGateway.kt:SessionGateway$suspend fun loadSession: SessionPort?</ID>
+    <ID>ReturnCount:SessionListScreen.kt:internal fun resolveServerDisplayName: String</ID>
+    <ID>ReturnCount:SessionListViewModel.kt:SessionListViewModel$private suspend fun authenticateGatewayEnvVar</ID>
+    <ID>ReturnCount:SessionListViewModel.kt:SessionListViewModel$private suspend fun handleAuthenticationRequired: Boolean</ID>
+    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun appendUserText: List&lt;ChatMessage&gt;</ID>
+    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun clearToolCallPermission: ReducerResult</ID>
+    <ID>ReturnCount:SessionMessageReducer.kt:SessionMessageReducer$private fun updateToolCallPermission: ReducerResult</ID>
+    <ID>SwallowedException:AcpChatSessionFacade.kt:AcpChatSessionFacade$error: GatewayCredentialExpiredException</ID>
+    <ID>SwallowedException:GatewayAgentsViewModel.kt:GatewayAgentsViewModel$error: GatewayCredentialExpiredException</ID>
+    <ID>SwallowedException:GatewayRepositoryImpl.kt:GatewayRepositoryImpl$error: GatewayRequestException</ID>
+    <ID>SwallowedException:ServerListViewModel.kt:ServerListViewModel$error: GatewayCredentialExpiredException</ID>
+    <ID>SwallowedException:SessionListViewModel.kt:SessionListViewModel$error: GatewayCredentialExpiredException</ID>
+    <ID>TooGenericExceptionCaught:AcpChatSessionFacade.kt:AcpChatSessionFacade$error: Exception</ID>
+    <ID>TooGenericExceptionCaught:AcpChatSessionFacade.kt:AcpChatSessionFacade$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:AcpTransportClient.kt:AcpTransportClient$error: Exception</ID>
+    <ID>TooGenericExceptionCaught:ForegroundServiceController.kt:ForegroundServiceController$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GatewayCredentialRefresh.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MarkdownStateStore.kt:MarkdownStateStore$error: Exception</ID>
+    <ID>TooGenericExceptionCaught:PushTokenRegistrar.kt:PushTokenRegistrar$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SessionBridge.kt:SessionBridge$t: Throwable</ID>
+    <ID>TooManyFunctions:AcpChatSessionFacade.kt:AcpChatSessionFacade : ChatSessionFacade</ID>
+    <ID>TooManyFunctions:AcpConnectionManager.kt:AcpConnectionManager</ID>
+    <ID>TooManyFunctions:AcpTransportClient.kt:AcpTransportClient</ID>
+    <ID>TooManyFunctions:AddGatewayScreen.kt:com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen.kt</ID>
+    <ID>TooManyFunctions:AddGatewayViewModel.kt:AddGatewayViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:AppModule.kt:AppModule</ID>
+    <ID>TooManyFunctions:ChatComposer.kt:com.tamimarafat.ferngeist.feature.chat.ui.ChatComposer.kt</ID>
+    <ID>TooManyFunctions:ChatScreenSections.kt:com.tamimarafat.ferngeist.feature.chat.ui.ChatScreenSections.kt</ID>
+    <ID>TooManyFunctions:ChatViewModel.kt:ChatViewModel : MviViewModel</ID>
+    <ID>TooManyFunctions:ConnectionOrchestrator.kt:ConnectionOrchestrator</ID>
+    <ID>TooManyFunctions:DiffRenderer.kt:com.tamimarafat.ferngeist.feature.chat.ui.DiffRenderer.kt</ID>
+    <ID>TooManyFunctions:GatewayRepository.kt:GatewayRepository</ID>
+    <ID>TooManyFunctions:GatewayRepositoryImpl.kt:GatewayRepositoryImpl : GatewayRepository</ID>
+    <ID>TooManyFunctions:MessageBubble.kt:com.tamimarafat.ferngeist.feature.chat.ui.MessageBubble.kt</ID>
+    <ID>TooManyFunctions:ServerListViewModel.kt:ServerListViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:SessionBridge.kt:SessionBridge : SessionPort</ID>
+    <ID>TooManyFunctions:SessionGateway.kt:SessionGateway</ID>
+    <ID>TooManyFunctions:SessionListViewModel.kt:SessionListViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:SessionRuntime.kt:SessionRuntime : SessionStateEngine</ID>
+    <ID>UnusedParameter:BatteryOptimizationHelper.kt:BatteryOptimizationHelper$context: Context</ID>
+    <ID>UnusedParameter:GatewayRepositoryImpl.kt:json: Json</ID>
+    <ID>UnusedParameter:ImageAttachmentHelper.kt:ImageAttachmentHelper$mimeType: String</ID>
+    <ID>VariableNaming:ChatViewModelTest.kt:FakeChatSessionFacade$protected val _sessionSnapshot = MutableStateFlow&lt;ChatSessionSnapshot?&gt;(null)</ID>
+                                    <ID>LongMethod:ConnectionDiagnosticsUi.kt:@Composable fun ConnectionDiagnosticsDialog</ID>
+    <ID>LongMethod:AddGatewayScreen.kt:@Composable private fun ReviewGatewayStep</ID>
+    <ID>LongMethod:ChatComposer.kt:@Composable private fun ImageThumbnailItem</ID>
+    <ID>LongMethod:ChatScreenSections.kt:@Composable private fun ChatMessageList</ID>
+    <ID>MaxLineLength:DiffRenderer.kt:184</ID>
+    <ID>LongMethod:MessageBubble.kt:@Composable fun MessageBubble</ID>
+    <ID>LongMethod:MessageBubble.kt:@Composable private fun PlanBubble</ID>
+        <ID>LongMethod:SessionMessageReducerTest.kt:SessionMessageReducerTest$@Test fun `plan entries replace existing plan segment on each update`</ID>
+  </CurrentIssues>
 </SmellBaseline>

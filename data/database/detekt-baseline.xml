@@ -2,6 +2,7 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
+    <ID>ForbiddenComment:CredentialEncryptor.kt:// TODO: Remove SharedPreferencesMigration for "ferngeist_credentials" after</ID>
     <ID>ReturnCount:LaunchableTargetRepositoryImpl.kt:LaunchableTargetRepositoryImpl$override suspend fun getTarget: LaunchableTarget?</ID>
   </CurrentIssues>
 </SmellBaseline>

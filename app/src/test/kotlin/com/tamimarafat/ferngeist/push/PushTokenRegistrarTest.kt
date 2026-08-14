@@ -146,20 +146,22 @@ class PushTokenRegistrarTest {
     fun `refreshes an expired credential before registering`() =
         runTest(UnconfinedTestDispatcher()) {
             every { pushTokenStore.token } returns MutableStateFlow("fcm-1")
-            val gateway = gateway("a").copy(
-                gatewayCredentialExpiresAt = System.currentTimeMillis(),
-            )
+            val gateway =
+                gateway("a").copy(
+                    gatewayCredentialExpiresAt = System.currentTimeMillis(),
+                )
             every { gatewaySourceRepository.getGateways() } returns
                 MutableStateFlow(listOf(gateway))
             coEvery {
                 gatewayRepository.refreshCredential("https", "host-a", "cred-a")
-            } returns GatewayPairingResult(
-                deviceId = "d",
-                deviceName = "n",
-                gatewayCredential = "cred-refreshed",
-                expiresAt = "2099-01-01T00:00:00Z",
-                gatewayId = "gwid-a",
-            )
+            } returns
+                GatewayPairingResult(
+                    deviceId = "d",
+                    deviceName = "n",
+                    gatewayCredential = "cred-refreshed",
+                    expiresAt = "2099-01-01T00:00:00Z",
+                    gatewayId = "gwid-a",
+                )
             coEvery { gatewaySourceRepository.updateGateway(any()) } just Runs
 
             registrar().start()
@@ -179,9 +181,10 @@ class PushTokenRegistrarTest {
 
             registrar().start()
 
-            gateways.value = listOf(
-                gateway("a").copy(gatewayCredential = "cred-a-new"),
-            )
+            gateways.value =
+                listOf(
+                    gateway("a").copy(gatewayCredential = "cred-a-new"),
+                )
 
             coVerify(exactly = 1) {
                 gatewayRepository.registerPushToken("https", "host-a", "cred-a", "fcm-1", any())

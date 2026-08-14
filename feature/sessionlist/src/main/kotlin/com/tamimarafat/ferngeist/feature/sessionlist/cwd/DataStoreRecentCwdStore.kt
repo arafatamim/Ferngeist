@@ -27,7 +27,6 @@ class DataStoreRecentCwdStore
         @ApplicationContext private val context: Context,
         private val json: Json,
     ) : RecentCwdStore {
-
         override fun getRecentCwds(targetId: String): Flow<List<String>> =
             context.recentCwdDataStore.data.map { prefs ->
                 prefs[stringPreferencesKey(keyFor(targetId))]
@@ -35,25 +34,33 @@ class DataStoreRecentCwdStore
                     ?: emptyList()
             }
 
-        override suspend fun addCwd(targetId: String, cwd: String) {
+        override suspend fun addCwd(
+            targetId: String,
+            cwd: String,
+        ) {
             val normalized = cwd.trim()
             if (normalized.isBlank()) return
             context.recentCwdDataStore.edit { prefs ->
                 val key = stringPreferencesKey(keyFor(targetId))
-                val current = prefs[key]
-                    ?.let { json.decodeFromString<List<String>>(it) }
-                    ?: emptyList()
+                val current =
+                    prefs[key]
+                        ?.let { json.decodeFromString<List<String>>(it) }
+                        ?: emptyList()
                 val updated = (listOf(normalized) + current.filter { it != normalized }).take(10)
                 prefs[key] = json.encodeToString(updated)
             }
         }
 
-        override suspend fun removeCwd(targetId: String, cwd: String) {
+        override suspend fun removeCwd(
+            targetId: String,
+            cwd: String,
+        ) {
             context.recentCwdDataStore.edit { prefs ->
                 val key = stringPreferencesKey(keyFor(targetId))
-                val current = prefs[key]
-                    ?.let { json.decodeFromString<List<String>>(it) }
-                    ?: return@edit
+                val current =
+                    prefs[key]
+                        ?.let { json.decodeFromString<List<String>>(it) }
+                        ?: return@edit
                 val updated = current.filter { it != cwd }
                 prefs[key] = json.encodeToString(updated)
             }

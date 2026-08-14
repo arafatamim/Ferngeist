@@ -40,12 +40,13 @@ class AcpConnectionManager(
 ) {
     private val orchestra = ConnectionOrchestrator(connectivityObserver, gatewayRepository, scope)
     private val permissionFlow = PermissionFlow()
-    private val gateway = SessionGateway(
-        orchestra = orchestra,
-        permissionFlow = permissionFlow,
-        bridgeFactory = { sessionId -> SessionBridge(sessionId, this) },
-        scope = scope,
-    )
+    private val gateway =
+        SessionGateway(
+            orchestra = orchestra,
+            permissionFlow = permissionFlow,
+            bridgeFactory = { sessionId -> SessionBridge(sessionId, this) },
+            scope = scope,
+        )
 
     /** Exposes the raw transport state — Connected, Connecting, Disconnected, Failed. */
     val connectionState: StateFlow<AcpConnectionState> = orchestra.connectionState
@@ -107,11 +108,17 @@ class AcpConnectionManager(
         gateway.cancelSession(sessionId)
     }
 
-    suspend fun setSessionMode(sessionId: String, modeId: String) {
+    suspend fun setSessionMode(
+        sessionId: String,
+        modeId: String,
+    ) {
         gateway.setSessionMode(sessionId, modeId)
     }
 
-    suspend fun setSessionModel(sessionId: String, modelId: String) {
+    suspend fun setSessionModel(
+        sessionId: String,
+        modelId: String,
+    ) {
         gateway.setSessionModel(sessionId, modelId)
     }
 

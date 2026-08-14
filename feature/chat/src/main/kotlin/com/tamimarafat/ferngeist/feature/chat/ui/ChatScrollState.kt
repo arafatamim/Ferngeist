@@ -3,8 +3,8 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -184,8 +184,7 @@ internal fun rememberChatScrollState(
     LaunchedEffect(policy, listState) {
         snapshotFlow {
             listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
-        }
-            .distinctUntilChanged()
+        }.distinctUntilChanged()
             .filter { it }
             .collect { atBottom ->
                 val decision = policy.onIdleTimeout(atBottom)
@@ -226,19 +225,18 @@ internal fun rememberChatScrollState(
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     LaunchedEffect(listState, renderedMessages, isFollowingState, sessionId) {
         snapshotFlow {
-                if (renderedMessages.isEmpty()) {
-                    null
-                } else {
-                    val idx = listState.firstVisibleItemIndex
-                    ScrollObservation(
-                        anchorMessageId = renderedMessages.getOrNull(idx)?.id,
-                        firstVisibleItemIndex = idx,
-                        firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
-                        isFollowing = policy.isFollowing,
-                    )
-                }
+            if (renderedMessages.isEmpty()) {
+                null
+            } else {
+                val idx = listState.firstVisibleItemIndex
+                ScrollObservation(
+                    anchorMessageId = renderedMessages.getOrNull(idx)?.id,
+                    firstVisibleItemIndex = idx,
+                    firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                    isFollowing = policy.isFollowing,
+                )
             }
-            .distinctUntilChanged()
+        }.distinctUntilChanged()
             .debounce(AutoScrollConfig.SCROLL_DEBOUNCE_MS)
             .collect { observation ->
                 observation ?: return@collect
@@ -295,8 +293,7 @@ internal fun rememberChatScrollState(
     LaunchedEffect(policy, renderedMessages.size) {
         snapshotFlow {
             renderedMessages.isNotEmpty() && !isFollowingState
-        }
-            .distinctUntilChanged()
+        }.distinctUntilChanged()
             .collect { show -> showJumpToBottom.value = show }
     }
 

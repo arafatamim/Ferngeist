@@ -15,12 +15,12 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
-import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
+import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
-import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
@@ -30,8 +30,8 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -54,7 +54,6 @@ class ChatViewModel
         private val gatewayRepository: GatewayRepository,
         savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(initialChatState()) {
-
         companion object {
             private const val TRACE_TAG = "TSChatVM"
 
@@ -81,8 +80,11 @@ class ChatViewModel
                 currentMessages = { state.value.messages },
                 onMarkdownStatesChanged = { markdownStates ->
                     updateState {
-                        if (markdownStates == this.markdownStates) this
-                        else copy(markdownStates = markdownStates)
+                        if (markdownStates == this.markdownStates) {
+                            this
+                        } else {
+                            copy(markdownStates = markdownStates)
+                        }
                     }
                 },
                 trace = { message -> trace(message) },
@@ -167,13 +169,16 @@ class ChatViewModel
                             inFlightClientId?.let { clientId ->
                                 inFlightClientId = null
                                 updateState {
-                                    val updated = pendingMessages.map { msg ->
-                                        if (msg.clientId == clientId &&
-                                            msg.status == MessageDeliveryStatus.SENDING
-                                        ) {
-                                            msg.copy(status = MessageDeliveryStatus.FAILED)
-                                        } else msg
-                                    }
+                                    val updated =
+                                        pendingMessages.map { msg ->
+                                            if (msg.clientId == clientId &&
+                                                msg.status == MessageDeliveryStatus.SENDING
+                                            ) {
+                                                msg.copy(status = MessageDeliveryStatus.FAILED)
+                                            } else {
+                                                msg
+                                            }
+                                        }
                                     copy(pendingMessages = updated)
                                 }
                             }
@@ -203,6 +208,7 @@ class ChatViewModel
                         }
                     },
             )
+
         /** Queue of locally-created prompts that have not been delivered to the server yet. */
         private val offlineQueue = OfflineQueue()
 
@@ -303,12 +309,13 @@ class ChatViewModel
         private fun refreshGitStatus(connection: GatewayWorkspaceConnection) {
             viewModelScope.launch {
                 runCatching {
-                    val status = gatewayRepository.fetchGitStatus(
-                        scheme = connection.scheme,
-                        host = connection.host,
-                        gatewayCredential = connection.gatewayCredential,
-                        runtimeId = connection.runtimeId,
-                    )
+                    val status =
+                        gatewayRepository.fetchGitStatus(
+                            scheme = connection.scheme,
+                            host = connection.host,
+                            gatewayCredential = connection.gatewayCredential,
+                            runtimeId = connection.runtimeId,
+                        )
                     GitDiffStats(
                         additions = status.changed.sumOf { it.added },
                         deletions = status.changed.sumOf { it.removed },
@@ -380,26 +387,27 @@ class ChatViewModel
                             }
                         gitFileDiffMutex.withLock {
                             if (currentJob != gitFileDiffJob) return@withLock
-                            result.onSuccess { diffs ->
-                                updateState {
-                                    copy(
-                                        gitFileDiff = diffs,
-                                        isGitFileDiffLoading = false,
-                                        gitFileDiffError = null,
-                                    )
+                            result
+                                .onSuccess { diffs ->
+                                    updateState {
+                                        copy(
+                                            gitFileDiff = diffs,
+                                            isGitFileDiffLoading = false,
+                                            gitFileDiffError = null,
+                                        )
+                                    }
+                                }.onFailure { throwable ->
+                                    if (throwable is CancellationException) return@withLock
+                                    updateState {
+                                        copy(
+                                            gitFileDiff = null,
+                                            isGitFileDiffLoading = false,
+                                            gitFileDiffError =
+                                                throwable.message?.takeIf { it.isNotBlank() }
+                                                    ?: "Failed to load git diff for $path",
+                                        )
+                                    }
                                 }
-                            }.onFailure { throwable ->
-                                if (throwable is CancellationException) return@withLock
-                                updateState {
-                                    copy(
-                                        gitFileDiff = null,
-                                        isGitFileDiffLoading = false,
-                                        gitFileDiffError =
-                                            throwable.message?.takeIf { it.isNotBlank() }
-                                                ?: "Failed to load git diff for $path",
-                                    )
-                                }
-                            }
                         }
                     }
             }
@@ -448,32 +456,35 @@ class ChatViewModel
                     loadState = snapshot.loadState,
                 )
             // Reconcile SENDING pending bubbles with their reducer echo.
-            val pendingSending = state.value.pendingMessages.filter {
-                it.status == MessageDeliveryStatus.SENDING
-            }
-            val reconciled = if (pendingSending.isNotEmpty()) {
-                val echoClientIds = mutableSetOf<String>()
-                for (sending in pendingSending) {
-                    val echoed = snapshot.messages.firstOrNull {
-                        it.role == ChatMessage.Role.USER &&
-                            it.content == sending.content &&
-                            it.images == sending.images &&
-                            it.files == sending.files
-                    }
-                    if (echoed != null) {
-                        echoClientIds.add(sending.clientId ?: sending.id)
-                    }
+            val pendingSending =
+                state.value.pendingMessages.filter {
+                    it.status == MessageDeliveryStatus.SENDING
                 }
-                if (echoClientIds.isEmpty()) {
-                    state.value.pendingMessages
+            val reconciled =
+                if (pendingSending.isNotEmpty()) {
+                    val echoClientIds = mutableSetOf<String>()
+                    for (sending in pendingSending) {
+                        val echoed =
+                            snapshot.messages.firstOrNull {
+                                it.role == ChatMessage.Role.USER &&
+                                    it.content == sending.content &&
+                                    it.images == sending.images &&
+                                    it.files == sending.files
+                            }
+                        if (echoed != null) {
+                            echoClientIds.add(sending.clientId ?: sending.id)
+                        }
+                    }
+                    if (echoClientIds.isEmpty()) {
+                        state.value.pendingMessages
+                    } else {
+                        state.value.pendingMessages.filterNot {
+                            (it.clientId ?: it.id) in echoClientIds
+                        }
+                    }
                 } else {
-                    state.value.pendingMessages.filterNot {
-                        (it.clientId ?: it.id) in echoClientIds
-                    }
+                    state.value.pendingMessages
                 }
-            } else {
-                state.value.pendingMessages
-            }
             updateState {
                 val failed = snapshot.loadState == ChatLoadState.FAILED
                 copy(
@@ -532,7 +543,6 @@ class ChatViewModel
             // suppression keys off the session actually on screen rather than the last
             // one opened. clearIfCurrent() no-ops if another chat is already active.
             activeChatStore.clearIfCurrent(sessionId)
-            super.onCleared()
         }
 
         /**
@@ -541,8 +551,9 @@ class ChatViewModel
         override suspend fun handleIntent(intent: ChatIntent) {
             when (intent) {
                 is ChatIntent.SendMessage -> {
-                    val canSendNow = state.value.isSessionReady &&
-                        state.value.connectionState == ChatConnectionState.Connected
+                    val canSendNow =
+                        state.value.isSessionReady &&
+                            state.value.connectionState == ChatConnectionState.Connected
                     if (canSendNow) {
                         enqueueThenSend(intent.text, intent.images, intent.files)
                     } else {
@@ -562,25 +573,32 @@ class ChatViewModel
             }
         }
 
-
         // region: Offline queue
 
         /**
          * Optimistically adds a user bubble with [MessageDeliveryStatus.QUEUED] and
          * stores the prompt in [offlineQueue] for later delivery.
          */
-        private fun enqueuePrompt(text: String, images: List<ChatImageData>, files: List<ChatFileData>) {
+        private fun enqueuePrompt(
+            text: String,
+            images: List<ChatImageData>,
+            files: List<ChatFileData>,
+        ) {
             if (text.isBlank() && images.isEmpty() && files.isEmpty()) return
-            val clientId = java.util.UUID.randomUUID().toString()
-            val message = ChatMessage(
-                id = clientId,
-                role = ChatMessage.Role.USER,
-                content = text,
-                images = images,
-                files = files,
-                status = MessageDeliveryStatus.QUEUED,
-                clientId = clientId,
-            )
+            val clientId =
+                java.util.UUID
+                    .randomUUID()
+                    .toString()
+            val message =
+                ChatMessage(
+                    id = clientId,
+                    role = ChatMessage.Role.USER,
+                    content = text,
+                    images = images,
+                    files = files,
+                    status = MessageDeliveryStatus.QUEUED,
+                    clientId = clientId,
+                )
             offlineQueue.enqueue(
                 PendingPrompt(
                     clientId = clientId,
@@ -611,24 +629,33 @@ class ChatViewModel
          * Used by [handleIntent] for the online-send path so the offline queue is always the
          * source of truth and the flush path is uniform.
          */
-        private suspend fun enqueueThenSend(text: String, images: List<ChatImageData>, files: List<ChatFileData>) {
+        private suspend fun enqueueThenSend(
+            text: String,
+            images: List<ChatImageData>,
+            files: List<ChatFileData>,
+        ) {
             if (text.isBlank() && images.isEmpty() && files.isEmpty()) return
-            val clientId = java.util.UUID.randomUUID().toString()
-            val message = ChatMessage(
-                id = clientId,
-                role = ChatMessage.Role.USER,
-                content = text,
-                images = images,
-                files = files,
-                status = MessageDeliveryStatus.QUEUED,
-                clientId = clientId,
-            )
-            val prompt = PendingPrompt(
-                clientId = clientId,
-                text = text,
-                images = images,
-                files = files,
-            )
+            val clientId =
+                java.util.UUID
+                    .randomUUID()
+                    .toString()
+            val message =
+                ChatMessage(
+                    id = clientId,
+                    role = ChatMessage.Role.USER,
+                    content = text,
+                    images = images,
+                    files = files,
+                    status = MessageDeliveryStatus.QUEUED,
+                    clientId = clientId,
+                )
+            val prompt =
+                PendingPrompt(
+                    clientId = clientId,
+                    text = text,
+                    images = images,
+                    files = files,
+                )
             offlineQueue.enqueue(prompt)
             updateState {
                 copy(pendingMessages = pendingMessages + message)
@@ -652,13 +679,16 @@ class ChatViewModel
                     // Transition QUEUED -> SENDING, keep the bubble visible.
                     inFlightClientId = prompt.clientId
                     updateState {
-                        val updated = pendingMessages.map { msg ->
-                            if (msg.clientId == prompt.clientId &&
-                                msg.status == MessageDeliveryStatus.QUEUED
-                            ) {
-                                msg.copy(status = MessageDeliveryStatus.SENDING)
-                            } else msg
-                        }
+                        val updated =
+                            pendingMessages.map { msg ->
+                                if (msg.clientId == prompt.clientId &&
+                                    msg.status == MessageDeliveryStatus.QUEUED
+                                ) {
+                                    msg.copy(status = MessageDeliveryStatus.SENDING)
+                                } else {
+                                    msg
+                                }
+                            }
                         copy(pendingMessages = updated)
                     }
                     val dispatched = sessionCoordinator.sendMessage(prompt.text, prompt.images, prompt.files)
@@ -666,13 +696,16 @@ class ChatViewModel
                     if (!dispatched) {
                         // No bridge / not ready / unsupported -> mark FAILED immediately.
                         updateState {
-                            val updated = pendingMessages.map { msg ->
-                                if (msg.clientId == prompt.clientId &&
-                                    msg.status == MessageDeliveryStatus.SENDING
-                                ) {
-                                    msg.copy(status = MessageDeliveryStatus.FAILED)
-                                } else msg
-                            }
+                            val updated =
+                                pendingMessages.map { msg ->
+                                    if (msg.clientId == prompt.clientId &&
+                                        msg.status == MessageDeliveryStatus.SENDING
+                                    ) {
+                                        msg.copy(status = MessageDeliveryStatus.FAILED)
+                                    } else {
+                                        msg
+                                    }
+                                }
                             copy(pendingMessages = updated)
                         }
                         emitEffect(ChatEffect.ShowError("Failed to send message"))
@@ -690,12 +723,13 @@ class ChatViewModel
             val pendingMessage = state.value.pendingMessages.firstOrNull { it.clientId == clientId }
             if (pendingMessage == null || pendingMessage.status != MessageDeliveryStatus.FAILED) return
 
-            val prompt = PendingPrompt(
-                clientId = clientId,
-                text = pendingMessage.content,
-                images = pendingMessage.images,
-                files = pendingMessage.files,
-            )
+            val prompt =
+                PendingPrompt(
+                    clientId = clientId,
+                    text = pendingMessage.content,
+                    images = pendingMessage.images,
+                    files = pendingMessage.files,
+                )
             // Remove existing queue entry for this clientId, then enqueue at the back.
             offlineQueue.removeByClientId(clientId)
             offlineQueue.enqueue(prompt)
@@ -703,18 +737,20 @@ class ChatViewModel
             // can transition it QUEUED -> SENDING and the echo-reconcile in
             // applySnapshot can remove it on delivery confirmation.
             updateState {
-                val updated = pendingMessages.map { msg ->
-                    if (msg.clientId == clientId &&
-                        msg.status == MessageDeliveryStatus.FAILED
-                    ) {
-                        msg.copy(status = MessageDeliveryStatus.QUEUED)
-                    } else msg
-                }
+                val updated =
+                    pendingMessages.map { msg ->
+                        if (msg.clientId == clientId &&
+                            msg.status == MessageDeliveryStatus.FAILED
+                        ) {
+                            msg.copy(status = MessageDeliveryStatus.QUEUED)
+                        } else {
+                            msg
+                        }
+                    }
                 copy(pendingMessages = updated)
             }
             flushOfflineQueue()
         }
-
 
         // endregion
 
@@ -726,8 +762,11 @@ class ChatViewModel
                 chatScrollStateStore.save(serverId, sessionId, snapshot)
             }
             updateState {
-                if (restoredScrollSnapshot == snapshot) this
-                else copy(restoredScrollSnapshot = snapshot)
+                if (restoredScrollSnapshot == snapshot) {
+                    this
+                } else {
+                    copy(restoredScrollSnapshot = snapshot)
+                }
             }
         }
 
@@ -736,8 +775,6 @@ class ChatViewModel
             if (!BuildConfig.DEBUG) return
             runCatching { Log.d(TRACE_TAG, message) }
         }
-
-
     }
 
 /** UI state for the chat screen. */
@@ -797,18 +834,28 @@ sealed interface ChatIntent {
     data object RetryLoad : ChatIntent
 
     /** Retry sending a previously failed (or queued) message identified by its [clientId]. */
-    data class RetryMessage(val clientId: String) : ChatIntent
+    data class RetryMessage(
+        val clientId: String,
+    ) : ChatIntent
 
     /** Re-fetch the git status for the gateway-backed working tree (e.g. after a send). */
     data object RefreshGitStatus : ChatIntent
 
     /** Load the unified diff for a single changed file from the gateway-backed working tree. */
-    data class LoadGitDiff(val path: String) : ChatIntent
+    data class LoadGitDiff(
+        val path: String,
+    ) : ChatIntent
 }
 
 /** One-shot effects emitted to the UI layer (snackbar, navigation, etc.). */
 sealed interface ChatEffect {
-    data class ShowError(val message: String) : ChatEffect
-    data class ShowMessage(val message: String) : ChatEffect
+    data class ShowError(
+        val message: String,
+    ) : ChatEffect
+
+    data class ShowMessage(
+        val message: String,
+    ) : ChatEffect
+
     data object NavigateBack : ChatEffect
 }

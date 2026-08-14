@@ -117,6 +117,7 @@ internal object AcpSessionUpdateMapper {
         return runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
             ?: runCatching { OffsetDateTime.parse(raw).toInstant().toEpochMilli() }.getOrNull()
     }
+
     private fun extractText(content: ContentBlock): String =
         when (content) {
             is ContentBlock.Text -> content.text

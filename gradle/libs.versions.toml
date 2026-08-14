@@ -12,7 +12,7 @@ lifecycleRuntimeKtx = "2.11.0"
 lifecycleViewmodelKtx = "2.11.0"
 lifecycleViewmodelCompose = "2.11.0"
 activityCompose = "1.13.0"
-composeBom = "2026.06.01"
+composeBom = "2026.08.00"
 
 # Serialization
 kotlinxSerializationJson = "1.11.0"
@@ -31,7 +31,7 @@ room = "2.8.4"
 hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
 ktlintGradle = "14.2.0"
-detekt = "2.0.0-alpha.5"
+detekt = "2.0.0-alpha.6"
 
 # Navigation
 navigationCompose = "2.9.8"
@@ -50,7 +50,7 @@ ktor = "3.5.2"
 # Turbine for Flow testing
 turbine = "1.2.1"
 mockk = "1.14.11"
-material3 = "1.5.0-alpha25"
+material3 = "1.5.0-alpha26"
 markdownRenderer = "0.43.0"
 datastorePreferences = "1.3.0-alpha10"
 

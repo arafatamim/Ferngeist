@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class DiffBlocksTest {
-
     @Test
     fun zeroChanges_shouldBeFiveEmpty() {
         val result = computeDiffBlocks(0, 0)
@@ -47,43 +46,47 @@ class DiffBlocksTest {
 
     @Test
     fun diffHelper_additions_countsInsertedLines() {
-        val diff = ToolCallContent.Diff(
-            oldText = "a\nb\nc",
-            newText = "a\nx\ny\nc",
-            path = "file.txt",
-        )
+        val diff =
+            ToolCallContent.Diff(
+                oldText = "a\nb\nc",
+                newText = "a\nx\ny\nc",
+                path = "file.txt",
+            )
         // old: [a,b,c], new: [a,x,y,c] -> patch inserts x,y = 2 additions
         assertEquals(2, diff.computeAdditions())
     }
 
     @Test
     fun diffHelper_deletions_countsDeletedLines() {
-        val diff = ToolCallContent.Diff(
-            oldText = "a\nb\nc\nd",
-            newText = "a\nd",
-            path = "file.txt",
-        )
+        val diff =
+            ToolCallContent.Diff(
+                oldText = "a\nb\nc\nd",
+                newText = "a\nd",
+                path = "file.txt",
+            )
         assertEquals(2, diff.computeDeletions())
     }
 
     @Test
     fun diffHelper_mixedCountsBoth() {
-        val diff = ToolCallContent.Diff(
-            oldText = "a\nb\nc",
-            newText = "a\nx\nc",
-            path = "file.txt",
-        )
+        val diff =
+            ToolCallContent.Diff(
+                oldText = "a\nb\nc",
+                newText = "a\nx\nc",
+                path = "file.txt",
+            )
         assertEquals(1, diff.computeAdditions())
         assertEquals(1, diff.computeDeletions())
     }
 
     @Test
     fun diffHelper_noOldText_treatsAllAsAdditions() {
-        val diff = ToolCallContent.Diff(
-            oldText = null,
-            newText = "x\ny\nz",
-            path = "file.txt",
-        )
+        val diff =
+            ToolCallContent.Diff(
+                oldText = null,
+                newText = "x\ny\nz",
+                path = "file.txt",
+            )
         assertEquals(3, diff.computeAdditions())
         assertEquals(0, diff.computeDeletions())
     }
@@ -91,13 +94,14 @@ class DiffBlocksTest {
     @Test
     fun diffRows_distantChanges_includeFiveContextLinesAndOmission() {
         val oldText = (0 until 30).joinToString("\n") { "line-$it" }
-        val newText = (0 until 30).joinToString("\n") {
-            when (it) {
-                2 -> "changed-2"
-                25 -> "changed-25"
-                else -> "line-$it"
+        val newText =
+            (0 until 30).joinToString("\n") {
+                when (it) {
+                    2 -> "changed-2"
+                    25 -> "changed-25"
+                    else -> "line-$it"
+                }
             }
-        }
 
         val rows = buildDiffRows(oldText, newText)
 
@@ -116,13 +120,14 @@ class DiffBlocksTest {
     @Test
     fun diffRows_nearbyChanges_mergeOverlappingContextWindows() {
         val oldText = (0 until 30).joinToString("\n") { "line-$it" }
-        val newText = (0 until 30).joinToString("\n") {
-            when (it) {
-                10 -> "changed-10"
-                15 -> "changed-15"
-                else -> "line-$it"
+        val newText =
+            (0 until 30).joinToString("\n") {
+                when (it) {
+                    10 -> "changed-10"
+                    15 -> "changed-15"
+                    else -> "line-$it"
+                }
             }
-        }
 
         val rows = buildDiffRows(oldText, newText)
 

@@ -15,7 +15,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionGatewayTest {
-
     private class ConnectivityStub : ConnectivityObserver {
         private val _isConnected = MutableStateFlow(true)
         override val isConnected: Flow<Boolean> = _isConnected
