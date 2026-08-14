@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularWavyProgressIndicator
@@ -39,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +57,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TwoRowsTopAppBar
+import androidx.compose.material3.toShape
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -92,6 +95,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -840,6 +844,7 @@ private fun SessionCard(
  * Shown when there are no sessions.
  * Text adapts based on whether the agent supports session listing.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EmptySessionList(
     modifier: Modifier = Modifier,
@@ -850,31 +855,33 @@ private fun EmptySessionList(
         modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text =
-                    if (supportsSessionList) {
-                        stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_listed)
-                    } else {
-                        stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_offline)
-                    },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(240.dp),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            TextButton(onClick = onCreateSession) {
-                Text(stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_action))
-            }
-        }
+        ErrorStateCard(
+            headline = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_title),
+            body =
+                if (supportsSessionList) {
+                    stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_listed)
+                } else {
+                    stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_subtitle_offline)
+                },
+            icon = Icons.Rounded.Forum,
+            medallionContainer = MaterialTheme.colorScheme.primaryContainer,
+            medallionContent = MaterialTheme.colorScheme.onPrimaryContainer,
+            medallionShape = MaterialShapes.Cookie9Sided.toShape(),
+            ctaLabel = stringResource(com.tamimarafat.ferngeist.feature.sessionlist.R.string.sessionlist_empty_action),
+            onCta = onCreateSession,
+            ctaIsHero = true,
+            modifier = Modifier.padding(24.dp),
+        )
     }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Empty session list", showBackground = true)
+@Composable
+private fun EmptySessionListPreview() {
+    EmptySessionList(
+        supportsSessionList = true,
+        onCreateSession = {},
+    )
 }
 
 /**

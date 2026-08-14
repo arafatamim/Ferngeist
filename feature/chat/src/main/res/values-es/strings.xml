@@ -167,6 +167,8 @@
     <string name="chat_mode_label">MODO</string>
 
     <string name="chat_retry">Reintentar</string>
+    <string name="chat_load_error_title">No se pudo cargar esta sesión</string>
+    <string name="chat_diff_error_title">No se pudo cargar este diff</string>
     <string name="chat_permission_title">Permiso requerido</string>
     <string name="chat_permission_body">El agente está esperando tu aprobación antes de continuar.</string>
     <string name="chat_deny">Denegar</string>

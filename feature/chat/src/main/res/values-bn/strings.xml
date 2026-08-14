@@ -167,6 +167,8 @@
     <string name="chat_mode_label">মোড</string>
 
     <string name="chat_retry">পুনরায় চেষ্টা করুন</string>
+    <string name="chat_load_error_title">এই সেশনটি লোড করা যায়নি</string>
+    <string name="chat_diff_error_title">এই ডিফটি লোড করা যায়নি</string>
     <string name="chat_permission_title">অনুমতি প্রয়োজন</string>
     <string name="chat_permission_body">চালিয়ে যাওয়ার আগে এজেন্ট আপনার অনুমতির অপেক্ষায় আছে।</string>
     <string name="chat_deny">অস্বীকার</string>

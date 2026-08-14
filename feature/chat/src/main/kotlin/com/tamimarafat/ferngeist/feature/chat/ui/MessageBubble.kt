@@ -293,14 +293,14 @@ private fun DeliveryStatusBadge(
                 ) {
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(50),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.ErrorOutline,
                             contentDescription = stringResource(R.string.chat_status_failed),
                             tint = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                                 .size(14.dp),
                         )
                     }

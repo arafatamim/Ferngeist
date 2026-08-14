@@ -136,6 +136,7 @@
     <string name="serverlist_gateway_agents_add_btn">Добавить агента</string>
     <string name="serverlist_gateway_agents_cancel">Отмена</string>
     <string name="serverlist_gateway_agents_retry">Повторить</string>
+    <string name="serverlist_gateway_agents_error_title">Не удалось загрузить агентов</string>
 
     <!-- Gateway List -->
     <string name="serverlist_gateway_list_title">Ferngeist Шлюзы</string>

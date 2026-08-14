@@ -183,6 +183,8 @@
 
     <!-- Chat Screen Sections -->
     <string name="chat_retry">Retry</string>
+    <string name="chat_load_error_title">Couldn\'t load this session</string>
+    <string name="chat_diff_error_title">Couldn\'t load this diff</string>
     <string name="chat_permission_title">Permission Required</string>
     <string name="chat_permission_body">The agent is waiting for your approval before it can continue.</string>
     <string name="chat_deny">Deny</string>

@@ -125,6 +125,7 @@
     <string name="serverlist_gateway_agents_add_btn">এজেন্ট যোগ করুন</string>
     <string name="serverlist_gateway_agents_cancel">বাতিল করুন</string>
     <string name="serverlist_gateway_agents_retry">পুনরায় চেষ্টা করুন</string>
+    <string name="serverlist_gateway_agents_error_title">এজেন্ট লোড করা যায়নি</string>
 
     <string name="serverlist_gateway_list_title">Ferngeist গেটওয়ে</string>
     <string name="serverlist_gateway_list_remote_mode">রিমোট মোড: %1$s</string>

@@ -57,6 +57,8 @@
     <string name="chat_mode_label">РЕЖИМ</string>
 
     <string name="chat_retry">Повторить</string>
+    <string name="chat_load_error_title">Не удалось загрузить сессию</string>
+    <string name="chat_diff_error_title">Не удалось загрузить этот diff</string>
     <string name="chat_permission_title">Требуется разрешение</string>
     <string name="chat_permission_body">Агент ожидает вашего разрешения перед продолжением.</string>
     <string name="chat_deny">Отклонить</string>

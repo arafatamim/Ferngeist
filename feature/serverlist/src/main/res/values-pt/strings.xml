@@ -125,6 +125,7 @@
     <string name="serverlist_gateway_agents_add_btn">Adicionar agente</string>
     <string name="serverlist_gateway_agents_cancel">Cancelar</string>
     <string name="serverlist_gateway_agents_retry">Tentar novamente</string>
+    <string name="serverlist_gateway_agents_error_title">Não foi possível carregar os agentes</string>
 
     <string name="serverlist_gateway_list_title">Gateways do Ferngeist</string>
     <string name="serverlist_gateway_list_remote_mode">Modo remoto: %1$s</string>

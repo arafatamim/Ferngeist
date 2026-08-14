@@ -29,12 +29,14 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -44,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -90,6 +93,7 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
 import com.mikepenz.markdown.model.State as MarkdownRenderState
+import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
@@ -244,21 +248,16 @@ private fun ChatLoadError(
                 .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.width(320.dp),
-            )
-            OutlinedButton(onClick = onRetry) {
-                Text(stringResource(R.string.chat_retry))
-            }
-        }
+        ErrorStateCard(
+            headline = stringResource(R.string.chat_load_error_title),
+            body = message,
+            icon = Icons.Rounded.CloudOff,
+            medallionContainer = MaterialTheme.colorScheme.errorContainer,
+            medallionContent = MaterialTheme.colorScheme.onErrorContainer,
+            medallionShape = MaterialShapes.VerySunny.toShape(),
+            ctaLabel = stringResource(R.string.chat_retry),
+            onCta = onRetry,
+        )
     }
 }
 
@@ -960,22 +959,17 @@ private fun GitDiffDetailContent(
                 )
             }
             error != null -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    OutlinedButton(onClick = onRetry) {
-                        Text(stringResource(R.string.chat_retry))
-                    }
-                }
+                ErrorStateCard(
+                    headline = stringResource(R.string.chat_diff_error_title),
+                    body = error,
+                    icon = Icons.Rounded.CloudOff,
+                    medallionContainer = MaterialTheme.colorScheme.errorContainer,
+                    medallionContent = MaterialTheme.colorScheme.onErrorContainer,
+                    medallionShape = MaterialShapes.VerySunny.toShape(),
+                    ctaLabel = stringResource(R.string.chat_retry),
+                    onCta = onRetry,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
             }
             diff == null || diffPath != file.path || diff.isEmpty() -> {
                 // No diff for this path yet (idle), a stale diff from another

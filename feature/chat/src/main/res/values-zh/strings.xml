@@ -172,6 +172,8 @@
     <string name="chat_mode_label">模式</string>
 
     <string name="chat_retry">重试</string>
+    <string name="chat_load_error_title">无法加载此会话</string>
+    <string name="chat_diff_error_title">无法加载此差异</string>
     <string name="chat_permission_title">需要权限</string>
     <string name="chat_permission_body">代理正在等待您的批准以继续操作。</string>
     <string name="chat_deny">拒绝</string>
