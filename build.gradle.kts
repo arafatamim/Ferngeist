@@ -41,7 +41,6 @@ fun Project.configureKtlintAndDetekt() {
     tasks.withType<Detekt>().configureEach {
         buildUponDefaultConfig = true
         allRules = false
-        baseline = file("$rootDir/detekt-baseline.xml")
         config.setFrom(file("$rootDir/detekt.yml"))
         exclude("**/build/**")
         exclude("**/generated/**")
@@ -52,11 +51,6 @@ fun Project.configureKtlintAndDetekt() {
         exclude("**/generated/**")
     }
 
-    tasks.named("check").configure {
-        setDependsOn(dependsOn.filterNot { dep ->
-            dep.toString().contains("detekt")
-        })
-    }
 }
 
 // Hilt 2.59.2's annotation processor bundles org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.20,

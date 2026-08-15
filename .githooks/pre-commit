@@ -1,0 +1,38 @@
+#!/bin/sh
+# Pre-commit hook: fail the commit if detekt or ktlint finds issues.
+#
+# Runs the full detekt + ktlintCheck tasks. Gradle's up-to-date checks make
+# this cheap on incremental commits (only changed modules re-analyze).
+#
+# Opt out per-commit with:  git commit --no-verify
+# (or set SKIP=detekt-ktlint to skip only this hook)
+
+if [ "$SKIP" = "detekt-ktlint" ]; then
+    exit 0
+fi
+
+# Windows dev boxes run Gradle via the wrapper jar directly (no JAVA_HOME in
+# git-bash / no gradlew); POSIX runs the shell wrapper. Both produce the same tasks.
+# A stale/invalid JAVA_HOME breaks `java` resolution from git-bash — drop it and
+# let PATH's java win.
+if [ -n "$JAVA_HOME" ] && [ ! -x "$JAVA_HOME/bin/java" ]; then
+    unset JAVA_HOME
+fi
+
+if [ -f gradlew ] && [ -x gradlew ]; then
+    GRADLE_CMD="./gradlew"
+elif [ -f gradle/wrapper/gradle-wrapper.jar ]; then
+    GRADLE_CMD="java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain"
+else
+    echo "❌ pre-commit: cannot locate Gradle wrapper."
+    exit 1
+fi
+
+echo "Running detekt + ktlintCheck (pre-commit gate)..."
+if ! $GRADLE_CMD detekt ktlintCheck --console=plain; then
+    echo "❌ detekt/ktlint failed. Fix findings before committing."
+    echo "   (override: git commit --no-verify)"
+    exit 1
+fi
+
+exit 0

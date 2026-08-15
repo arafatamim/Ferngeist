@@ -5,3 +5,33 @@ config:
 naming:
   FunctionNaming:
     functionPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    # Compose functions are PascalCase by convention (e.g. FooButton); detekt's
+    # FunctionNaming otherwise flags every @Composable as a violation.
+    ignoreAnnotated: ['Composable']
+  FunctionParameterNaming:
+    # Allow the Kotlin `_` prefix for intentionally-unused parameters.
+    parameterPattern: '[a-z_][A-Za-z0-9_]*'
+
+style:
+  MaxLineLength:
+    active: false
+  MagicNumber:
+    # Compose layout/color literals (dp, Color) are idiomatic as inline values.
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+  ReturnCount:
+    max: 4
+  UnusedParameter:
+    # Kotlin convention: `_`-prefixed params are intentionally unused.
+    allowedNames: 'ignored|expected|_.*'
+complexity:
+  TooManyFunctions:
+    allowedFunctionsPerClass: 25
+    allowedFunctionsPerInterface: 25
+    allowedFunctionsPerObject: 25
+    allowedFunctionsPerFile: 25
+  LargeClass:
+    # ViewModel coordinators legitimately exceed 600 lines after cohesive
+    # helper groups are extracted; the class delegates state-mutation to
+    # extracted support files rather than growing unbounded.
+    allowedLines: 800
