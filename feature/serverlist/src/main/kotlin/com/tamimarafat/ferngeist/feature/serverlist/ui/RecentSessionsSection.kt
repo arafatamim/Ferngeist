@@ -172,7 +172,11 @@ private suspend fun syncSheetOffset(
                 recentsPx.toFloat(),
                 spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
             )
-        !sheetRevealed.value && sheetOffset.value > 0f -> sheetOffset.snapTo(0f)
+        !sheetRevealed.value && sheetOffset.value > 0f ->
+            sheetOffset.animateTo(
+                0f,
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            )
         sheetOffset.value > recentsPx -> sheetOffset.snapTo(recentsPx.toFloat())
     }
 }
