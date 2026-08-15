@@ -4,10 +4,17 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +51,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.ButtonDefaults
@@ -500,9 +507,23 @@ internal fun CollapsedComposerActions(
         onExpandComposer = onExpandComposer,
     )
 
-    if (showJumpToBottom) {
-        Spacer(modifier = Modifier.width(6.dp))
-        JumpToBottomButton(onJumpToBottom = onJumpToBottom)
+    AnimatedVisibility(
+        visible = showJumpToBottom,
+        enter =
+            fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+                scaleIn(initialScale = 0.6f, animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
+                expandHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMedium)),
+        exit =
+            fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
+                scaleOut(targetScale = 0.6f, animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
+                shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMedium)),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Spacer(modifier = Modifier.width(6.dp))
+            JumpToBottomButton(onJumpToBottom = onJumpToBottom)
+        }
     }
 
     ToolbarOptionsButton(
@@ -588,7 +609,7 @@ private fun JumpToBottomButton(
     ) {
         IconButton(onClick = onJumpToBottom) {
             Icon(
-                imageVector = Icons.Filled.KeyboardArrowDown,
+                imageVector = Icons.Rounded.KeyboardDoubleArrowDown,
                 contentDescription = stringResource(R.string.chat_scroll_to_bottom),
             )
         }

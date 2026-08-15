@@ -226,6 +226,27 @@ class ChatScrollPolicyTest {
     }
 
     @Test
+    fun `idle timeout resumes on recheck after quiet window when first check was rejected`() {
+        var now = 0L
+        val policy = ChatScrollPolicy(clock = { now })
+
+        policy.onUserScrolled()
+        assertFalse(policy.isFollowing)
+
+        // User reaches bottom inside the quiet window: first check is rejected.
+        now += 10
+        val first = policy.onIdleTimeout(isAtBottom = true)
+        assertTrue(first is ScrollDecision.None)
+        assertFalse(policy.isFollowing)
+
+        // Observer re-checks once after USER_RESUME_IDLE_MS elapses: must resume.
+        now += AutoScrollConfig.USER_RESUME_IDLE_MS + 1
+        val second = policy.onIdleTimeout(isAtBottom = true)
+        assertTrue(second is ScrollDecision.SnapToBottom)
+        assertTrue(policy.isFollowing)
+    }
+
+    @Test
     fun `idle timeout requires at bottom`() {
         var now = 0L
         val policy = ChatScrollPolicy(clock = { now })

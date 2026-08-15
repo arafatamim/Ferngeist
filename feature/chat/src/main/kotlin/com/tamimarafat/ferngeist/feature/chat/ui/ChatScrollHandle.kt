@@ -307,14 +307,28 @@ private class ChatScrollSnapshotObserver(
     private val isFollowingState: () -> Boolean,
     private val onScrollSnapshotChanged: (ChatScrollSnapshot) -> Unit,
 ) {
-    /** 1. Idle timeout — scrolls to bottom when PausedByUser resumes. */
+    /**
+     * 1. Idle timeout — event-driven. Fires when the list becomes
+     * (paused && at bottom), waits out the policy's quiet window, then
+     * re-checks once against fresh state.
+     *
+     * No poll: the only time-based condition (quiet window since the last
+     * user scroll) is scheduled on demand from the pause-at-bottom event.
+     * If the user scrolls during the wait, the fresh re-check sees the new
+     * scroll time and rejects; the next bottom-arrival re-arms it.
+     */
     suspend fun observeIdleTimeout() {
         snapshotFlow {
-            listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
+            !policy.isFollowing && listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
         }.distinctUntilChanged()
             .filter { it }
-            .collect { atBottom ->
-                runner.run(policy.onIdleTimeout(atBottom))
+            .collect {
+                delay(AutoScrollConfig.USER_RESUME_IDLE_MS)
+                runner.run(
+                    policy.onIdleTimeout(
+                        listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX),
+                    ),
+                )
             }
     }
 
@@ -395,13 +409,15 @@ private class ChatScrollSnapshotObserver(
         runner.run(decision)
     }
 
-    /** 6. Show/hide jump-to-bottom FAB based on following state. */
+    /** 6. Show/hide jump-to-bottom FAB: visible when paused AND not at the bottom. */
     suspend fun observeJumpToBottom(
         renderedMessages: List<ChatMessage>,
         showJumpToBottom: MutableState<Boolean>,
     ) {
         snapshotFlow {
-            renderedMessages.isNotEmpty() && !isFollowingState()
+            renderedMessages.isNotEmpty() &&
+                !isFollowingState() &&
+                !listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
         }.distinctUntilChanged()
             .collect { show -> showJumpToBottom.value = show }
     }
