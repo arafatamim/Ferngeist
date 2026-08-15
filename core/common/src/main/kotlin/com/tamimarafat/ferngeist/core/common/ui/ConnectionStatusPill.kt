@@ -60,23 +60,12 @@ fun ConnectionStatusPill(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
             RichTooltip(title = { Text(stringResource(R.string.common_connection_status, connectionLabel)) }) {
-                if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
-                    val formattedUsed = formatCompactTokens(totalTokens, LocalLocale.current.platformLocale)
-                    val formattedWindow = formatCompactTokens(contextWindowTokens, LocalLocale.current.platformLocale)
-                    Column {
-                        Text(stringResource(R.string.common_context_used, formattedUsed, formattedWindow))
-                        costAmount?.let { amount ->
-                            val costFmt =
-                                NumberFormat.getCurrencyInstance(LocalLocale.current.platformLocale).apply {
-                                    costCurrency?.let {
-                                        runCatching { currency = java.util.Currency.getInstance(it) }
-                                    }
-                                    maximumFractionDigits = 2
-                                }
-                            Text(stringResource(R.string.common_cost_amount, costFmt.format(amount)))
-                        }
-                    }
-                }
+                ConnectionUsageTooltipBody(
+                    totalTokens = totalTokens,
+                    contextWindowTokens = contextWindowTokens,
+                    costAmount = costAmount,
+                    costCurrency = costCurrency,
+                )
             }
         },
         state = rememberTooltipState(),
@@ -98,48 +87,87 @@ fun ConnectionStatusPill(
                         stateDescription = connectionLabel
                     },
         ) {
-            when (connectionState) {
-                is ChatConnectionState.Connecting ->
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
-                        strokeWidth = 1.5.dp,
-                    )
+            ConnectionStateIcon(
+                connectionState = connectionState,
+                totalTokens = totalTokens,
+                contextWindowTokens = contextWindowTokens,
+            )
+        }
+    }
+}
 
-                is ChatConnectionState.Connected ->
-                    if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
-                        val ratio by animateFloatAsState(
-                            targetValue =
-                                (totalTokens.toFloat() / contextWindowTokens.toFloat())
-                                    .coerceIn(0f, 1f),
-                            animationSpec = tween(500),
-                        )
-                        DonutRing(
-                            ratio = ratio,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    } else {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(10.dp),
-                        ) {}
+@Composable
+private fun ConnectionUsageTooltipBody(
+    totalTokens: Int?,
+    contextWindowTokens: Int?,
+    costAmount: Double?,
+    costCurrency: String?,
+) {
+    if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
+        val formattedUsed = formatCompactTokens(totalTokens, LocalLocale.current.platformLocale)
+        val formattedWindow = formatCompactTokens(contextWindowTokens, LocalLocale.current.platformLocale)
+        Column {
+            Text(stringResource(R.string.common_context_used, formattedUsed, formattedWindow))
+            costAmount?.let { amount ->
+                val costFmt =
+                    NumberFormat.getCurrencyInstance(LocalLocale.current.platformLocale).apply {
+                        costCurrency?.let {
+                            runCatching { currency = java.util.Currency.getInstance(it) }
+                        }
+                        maximumFractionDigits = 2
                     }
-
-                is ChatConnectionState.Failed ->
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(10.dp),
-                    ) {}
-
-                is ChatConnectionState.Disconnected ->
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        modifier = Modifier.size(10.dp),
-                    ) {}
+                Text(stringResource(R.string.common_cost_amount, costFmt.format(amount)))
             }
         }
+    }
+}
+
+@Composable
+private fun ConnectionStateIcon(
+    connectionState: ChatConnectionState,
+    totalTokens: Int?,
+    contextWindowTokens: Int?,
+) {
+    when (connectionState) {
+        is ChatConnectionState.Connecting ->
+            CircularProgressIndicator(
+                modifier = Modifier.size(12.dp),
+                strokeWidth = 1.5.dp,
+            )
+
+        is ChatConnectionState.Connected ->
+            if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
+                val ratio by animateFloatAsState(
+                    targetValue =
+                        (totalTokens.toFloat() / contextWindowTokens.toFloat())
+                            .coerceIn(0f, 1f),
+                    animationSpec = tween(500),
+                )
+                DonutRing(
+                    ratio = ratio,
+                    modifier = Modifier.size(16.dp),
+                )
+            } else {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(10.dp),
+                ) {}
+            }
+
+        is ChatConnectionState.Failed ->
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(10.dp),
+            ) {}
+
+        is ChatConnectionState.Disconnected ->
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.size(10.dp),
+            ) {}
     }
 }
 

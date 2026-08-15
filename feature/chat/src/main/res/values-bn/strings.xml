@@ -50,120 +50,6 @@
     <string name="chat_permission_kind_reject_once">একবার প্রত্যাখ্যান করুন</string>
     <string name="chat_permission_kind_reject_always">সবসময় প্রত্যাখ্যান করুন</string>
 
-    <string name="chat_spinner_verb_01">শেষ করছি</string>
-    <string name="chat_spinner_verb_02">কার্যকর করছি</string>
-    <string name="chat_spinner_verb_03">আধুনিক করছি</string>
-    <string name="chat_spinner_verb_04">বেক করছি</string>
-    <string name="chat_spinner_verb_05">প্রস্তুত করছি</string>
-    <string name="chat_spinner_verb_06">গণনা করছি</string>
-    <string name="chat_spinner_verb_07">মস্তিষ্কচর্চা করছি</string>
-    <string name="chat_spinner_verb_08">মথছি</string>
-    <string name="chat_spinner_verb_09">একত্র করছি</string>
-    <string name="chat_spinner_verb_10">ভাবছি</string>
-    <string name="chat_spinner_verb_11">গণনাক্রমে করছি</string>
-    <string name="chat_spinner_verb_12">মন্ত্রমুগ্ধ করছি</string>
-    <string name="chat_spinner_verb_13">বিবেচনা করছি</string>
-    <string name="chat_spinner_verb_14">রান্না করছি</string>
-    <string name="chat_spinner_verb_15">গড়ছি</string>
-    <string name="chat_spinner_verb_16">তৈরি করছি</string>
-    <string name="chat_spinner_verb_17">চূর্ণ করছি</string>
-    <string name="chat_spinner_verb_18">আলোচনা করছি</string>
-    <string name="chat_spinner_verb_19">নির্ধারণ করছি</string>
-    <string name="chat_spinner_verb_20">করছি</string>
-    <string name="chat_spinner_verb_21">কার্যকর করছি</string>
-    <string name="chat_spinner_verb_22">কৌশল করছি</string>
-    <string name="chat_spinner_verb_23">গড়ছি</string>
-    <string name="chat_spinner_verb_24">রূপ দিচ্ছি</string>
-    <string name="chat_spinner_verb_25">উৎপন্ন করছি</string>
-    <string name="chat_spinner_verb_26">ডিম ফাটছি</string>
-    <string name="chat_spinner_verb_27">নিয়ন্ত্রণ করছি</string>
-    <string name="chat_spinner_verb_28">হর্ণ দিচ্ছি</string>
-    <string name="chat_spinner_verb_29">ব্যস্ত আছি</string>
-    <string name="chat_spinner_verb_30">ভাবনাচিন্তা করছি</string>
-    <string name="chat_spinner_verb_31">অনুমান করছি</string>
-    <string name="chat_spinner_verb_32">প্রকাশ করছি</string>
-    <string name="chat_spinner_verb_33">মেরিনেট করছি</string>
-    <string name="chat_spinner_verb_34">আড্ডা দিচ্ছি</string>
-    <string name="chat_spinner_verb_35">চিন্তা করছি</string>
-    <string name="chat_spinner_verb_36">জোগাড় করছি</string>
-    <string name="chat_spinner_verb_37">মন দিচ্ছি</string>
-    <string name="chat_spinner_verb_38">নাড়াচাড়া করছি</string>
-    <string name="chat_spinner_verb_39">ধীরে ধীরে এগোচ্ছি</string>
-    <string name="chat_spinner_verb_40">ভাবছি</string>
-    <string name="chat_spinner_verb_41">প্রসেস করছি</string>
-    <string name="chat_spinner_verb_42">এদিক-ওদিক করছি</string>
-    <string name="chat_spinner_verb_43">রেটিকুলেট করছি</string>
-    <string name="chat_spinner_verb_44">মন্থন করছি</string>
-    <string name="chat_spinner_verb_45">টেনে নিয়ে যাচ্ছি</string>
-    <string name="chat_spinner_verb_46">খোসা ছাড়াচ্ছি</string>
-    <string name="chat_spinner_verb_47">হালকা আঁচে রান্না করছি</string>
-    <string name="chat_spinner_verb_48">মাড়ছি</string>
-    <string name="chat_spinner_verb_49">ঘুরছি</string>
-    <string name="chat_spinner_verb_50">ঝোলাচ্ছি</string>
-    <string name="chat_spinner_verb_51">সংযোজন করছি</string>
-    <string name="chat_spinner_verb_52">ভাবছি</string>
-    <string name="chat_spinner_verb_53">রূপান্তর করছি</string>
-    <string name="chat_spinner_verb_54">কম্পিত করছি</string>
-    <string name="chat_spinner_verb_55">কাজ করছি</string>
-
-    <string-array name="chat_spinner_verbs">
-        <item>@string/chat_spinner_verb_01</item>
-        <item>@string/chat_spinner_verb_02</item>
-        <item>@string/chat_spinner_verb_03</item>
-        <item>@string/chat_spinner_verb_04</item>
-        <item>@string/chat_spinner_verb_05</item>
-        <item>@string/chat_spinner_verb_06</item>
-        <item>@string/chat_spinner_verb_07</item>
-        <item>@string/chat_spinner_verb_08</item>
-        <item>@string/chat_spinner_verb_09</item>
-        <item>@string/chat_spinner_verb_10</item>
-        <item>@string/chat_spinner_verb_11</item>
-        <item>@string/chat_spinner_verb_12</item>
-        <item>@string/chat_spinner_verb_13</item>
-        <item>@string/chat_spinner_verb_14</item>
-        <item>@string/chat_spinner_verb_15</item>
-        <item>@string/chat_spinner_verb_16</item>
-        <item>@string/chat_spinner_verb_17</item>
-        <item>@string/chat_spinner_verb_18</item>
-        <item>@string/chat_spinner_verb_19</item>
-        <item>@string/chat_spinner_verb_20</item>
-        <item>@string/chat_spinner_verb_21</item>
-        <item>@string/chat_spinner_verb_22</item>
-        <item>@string/chat_spinner_verb_23</item>
-        <item>@string/chat_spinner_verb_24</item>
-        <item>@string/chat_spinner_verb_25</item>
-        <item>@string/chat_spinner_verb_26</item>
-        <item>@string/chat_spinner_verb_27</item>
-        <item>@string/chat_spinner_verb_28</item>
-        <item>@string/chat_spinner_verb_29</item>
-        <item>@string/chat_spinner_verb_30</item>
-        <item>@string/chat_spinner_verb_31</item>
-        <item>@string/chat_spinner_verb_32</item>
-        <item>@string/chat_spinner_verb_33</item>
-        <item>@string/chat_spinner_verb_34</item>
-        <item>@string/chat_spinner_verb_35</item>
-        <item>@string/chat_spinner_verb_36</item>
-        <item>@string/chat_spinner_verb_37</item>
-        <item>@string/chat_spinner_verb_38</item>
-        <item>@string/chat_spinner_verb_39</item>
-        <item>@string/chat_spinner_verb_40</item>
-        <item>@string/chat_spinner_verb_41</item>
-        <item>@string/chat_spinner_verb_42</item>
-        <item>@string/chat_spinner_verb_43</item>
-        <item>@string/chat_spinner_verb_44</item>
-        <item>@string/chat_spinner_verb_45</item>
-        <item>@string/chat_spinner_verb_46</item>
-        <item>@string/chat_spinner_verb_47</item>
-        <item>@string/chat_spinner_verb_48</item>
-        <item>@string/chat_spinner_verb_49</item>
-        <item>@string/chat_spinner_verb_50</item>
-        <item>@string/chat_spinner_verb_51</item>
-        <item>@string/chat_spinner_verb_52</item>
-        <item>@string/chat_spinner_verb_53</item>
-        <item>@string/chat_spinner_verb_54</item>
-        <item>@string/chat_spinner_verb_55</item>
-    </string-array>
-
     <string name="chat_mode_label">মোড</string>
 
     <string name="chat_retry">পুনরায় চেষ্টা করুন</string>
@@ -216,4 +102,44 @@
     <string name="chat_error_unknown">অজানা ত্রুটি</string>
     <string name="chat_error_send_failed">পাঠানো ব্যর্থ হয়েছে</string>
     <string name="chat_scroll_to_bottom">নীচে স্ক্রোল করুন</string>
+    <string name="chat_attach_desc">ফাইল সংযুক্ত করুন</string>
+    <string name="chat_remove_file_desc">ফাইল সরান</string>
+    <string name="chat_remove_image_desc">ছবি সরান</string>
+    <string name="chat_git_binary">বাইনারি</string>
+    <string name="chat_git_clean">কাজের ট্রি পরিষ্কার</string>
+    <string name="chat_git_no_branch">(শাখা নেই)</string>
+    <string name="chat_git_status_title">গিট স্ট্যাটাস</string>
+    <string name="chat_git_status_desc">গিট স্ট্যাটাসের বিবরণ</string>
+    <string name="chat_status_sending">পাঠানো হচ্ছে</string>
+    <string name="chat_status_queued">সারিতে</string>
+    <string name="chat_status_failed">পাঠানো ব্যর্থ হয়েছে</string>
+    <string name="chat_status_retry">পুনরায় চেষ্টা করতে আলতো চাপুন</string>
+    <plurals name="chat_attachments_unsupported">
+        <item quantity="one">%1$dটি সংযুক্তি এই এজেন্ট সমর্থন করে না</item>
+        <item quantity="other">%1$dটি সংযুক্তি এই এজেন্ট সমর্থন করে না</item>
+    </plurals>
+    <plurals name="chat_files_too_large">
+        <item quantity="one">%1$dটি ফাইল 10 MB সীমা অতিক্রম করেছে</item>
+        <item quantity="other">%1$dটি ফাইল 10 MB সীমা অতিক্রম করেছে</item>
+    </plurals>
+    <plurals name="chat_files_capped">
+        <item quantity="one">বার্তায় %1$dটি ফাইলের মধ্যে সীমাবদ্ধ</item>
+        <item quantity="other">বার্তায় %1$dটি ফাইলের মধ্যে সীমাবদ্ধ</item>
+    </plurals>
+    <plurals name="chat_images_dropped">
+        <item quantity="one">%1$dটি ছবি ডিকোড করা যায়নি</item>
+        <item quantity="other">%1$dটি ছবি ডিকোড করা যায়নি</item>
+    </plurals>
+    <plurals name="chat_images_capped">
+        <item quantity="one">বার্তায় %1$dটি ছবির মধ্যে সীমাবদ্ধ</item>
+        <item quantity="other">বার্তায় %1$dটি ছবির মধ্যে সীমাবদ্ধ</item>
+    </plurals>
+    <plurals name="chat_images_dropped_capped">
+        <item quantity="one">%1$dটি ডিকোড করা যায়নি এমন ছবি বাদ দেওয়া হয়েছে; প্রতি বার্তায় সীমা %2$dটি</item>
+        <item quantity="other">%1$dটি ডিকোড করা যায়নি এমন ছবি বাদ দেওয়া হয়েছে; প্রতি বার্তায় সীমা %2$dটি</item>
+    </plurals>
+    <plurals name="chat_git_files_changed">
+        <item quantity="one">%1$dটি ফাইল পরিবর্তিত হয়েছে</item>
+        <item quantity="other">%1$dটি ফাইল পরিবর্তিত হয়েছে</item>
+    </plurals>
 </resources>

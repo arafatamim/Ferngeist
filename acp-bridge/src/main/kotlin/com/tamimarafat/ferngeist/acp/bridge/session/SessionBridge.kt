@@ -7,6 +7,8 @@ import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -112,12 +114,37 @@ class SessionBridge(
         files: List<ChatFileData>,
     ) {
         runtime.onLocalPromptStarted(text, images, files)
+        sendWithRollback(text, images, files)
+    }
+
+    /**
+     * Sends the prompt through the connection manager; on any failure rolls back the
+     * optimistic message and rethrows so the caller can surface the error.
+     */
+    private suspend fun sendWithRollback(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ) {
         try {
             connectionManager?.sendSessionMessage(sessionId, text, images, files)
-        } catch (t: Throwable) {
-            runtime.onPromptSendFailed()
-            throw t
+        } catch (e: CancellationException) {
+            rollbackAndRethrow(e)
+        } catch (e: IllegalStateException) {
+            // Missing bridge/session — surface as a failed send; the prompt was
+            // optimistically shown and must be rolled back.
+            rollbackAndRethrow(e)
+        } catch (e: IOException) {
+            // Transport-level failure — roll back the optimistic message and
+            // propagate so the caller can surface the error.
+            rollbackAndRethrow(e)
         }
+    }
+
+    /** Rolls back the optimistic prompt and rethrows the original failure. */
+    private suspend fun rollbackAndRethrow(e: Exception): Nothing {
+        runtime.onPromptSendFailed()
+        throw e
     }
 
     /**

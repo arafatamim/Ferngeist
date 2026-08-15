@@ -10,6 +10,7 @@ import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Base64
 
+private const val MILLISECONDS_PER_SECOND = 1000L
 private const val AUTH_BUNDLE_PREFIX = "ferngeist-gateway-auth-v1:"
 private const val PROOF_DOMAIN = "FERNGEIST-HTTP-PROOF-V1"
 
@@ -79,7 +80,7 @@ object GatewayProofAuth {
         method: String,
         endpoint: String,
         body: String? = null,
-        timestampSeconds: Long = System.currentTimeMillis() / 1000,
+        timestampSeconds: Long = System.currentTimeMillis() / MILLISECONDS_PER_SECOND,
         nonce: String =
             java.util.UUID
                 .randomUUID()

@@ -24,8 +24,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.State
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+
+private const val BODY_MAX_WIDTH_FRACTION = 0.85f
 
 /**
  * Shared error/empty-state card used across feature surfaces.
@@ -86,11 +91,44 @@ fun ErrorStateCard(
     modifier: Modifier = Modifier,
     ctaIsHero: Boolean = false,
 ) {
-    // One-shot entrance: medallion scales in, content fades in. Errors are
-    // rare, so a subtle delight is warranted; reduced motion snaps to final.
+    val medallionScale by rememberMedallionScale()
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ErrorStateMedallion(
+            icon = icon,
+            medallionContainer = medallionContainer,
+            medallionContent = medallionContent,
+            medallionShape = medallionShape,
+            scale = medallionScale,
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        ErrorStateContent(
+            headline = headline,
+            body = body,
+            ctaLabel = ctaLabel,
+            ctaIsHero = ctaIsHero,
+            onCta = onCta,
+        )
+    }
+}
+
+/**
+ * Computes the one-shot entrance scale for the medallion.
+ *
+ * The medallion scales in; content fades in. Errors are rare, so a subtle
+ * delight is warranted; reduced motion snaps to final. System "Remove
+ * animations" (animator duration scale = 0) → snap, no motion.
+ */
+@Composable
+private fun rememberMedallionScale(): State<Float> {
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
-    // System "Remove animations" (animator duration scale = 0) → snap, no motion.
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
     val reduceMotion =
@@ -110,66 +148,76 @@ fun ErrorStateCard(
             dampingRatio = if (reduceMotion) Spring.DampingRatioNoBouncy else Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
         )
-    val medallionScale by animateFloatAsState(
+    return animateFloatAsState(
         targetValue = if (entered) 1f else 0.9f,
         animationSpec = springSpec,
         label = "ErrorStateCardMedallionScale",
         visibilityThreshold = 0.001f,
     )
+}
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+@Composable
+private fun ErrorStateMedallion(
+    icon: ImageVector,
+    medallionContainer: Color,
+    medallionContent: Color,
+    medallionShape: Shape,
+    scale: Float,
+) {
+    Box(
+        modifier =
+            Modifier
+                .scale(scale)
+                .size(84.dp)
+                .clip(medallionShape)
+                .background(medallionContainer),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .scale(medallionScale)
-                    .size(84.dp)
-                    .clip(medallionShape)
-                    .background(medallionContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = medallionContent,
-                modifier = Modifier.size(40.dp),
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = medallionContent,
+            modifier = Modifier.size(40.dp),
+        )
+    }
+}
 
+@Composable
+private fun ErrorStateContent(
+    headline: String,
+    body: String,
+    ctaLabel: String,
+    ctaIsHero: Boolean,
+    onCta: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = headline,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(BODY_MAX_WIDTH_FRACTION),
+        )
         Spacer(modifier = Modifier.height(4.dp))
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = headline,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(0.85f),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            if (ctaIsHero) {
-                Button(
-                    onClick = onCta,
-                    shapes = ButtonDefaults.shapes(),
-                ) {
-                    Text(ctaLabel)
-                }
-            } else {
-                FilledTonalButton(onClick = onCta) {
-                    Text(ctaLabel)
-                }
+        if (ctaIsHero) {
+            Button(
+                onClick = onCta,
+                shapes = ButtonDefaults.shapes(),
+            ) {
+                Text(ctaLabel)
+            }
+        } else {
+            FilledTonalButton(onClick = onCta) {
+                Text(ctaLabel)
             }
         }
     }
@@ -242,7 +290,7 @@ private fun MaterialExpressivePreview(
     content: @Composable () -> Unit,
 ) {
     val scheme = if (darkTheme) darkColorScheme() else lightColorScheme()
-    androidx.compose.material3.MaterialExpressiveTheme(
+    MaterialExpressiveTheme(
         colorScheme = scheme,
         content = content,
     )

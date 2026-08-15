@@ -1,10 +1,12 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,6 +70,7 @@ fun AddServerScreen(
     val host by viewModel.host.collectAsState()
     val preferredAuthMethodId by viewModel.preferredAuthMethodId.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isEditMode = viewModel.isEditMode
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -82,259 +85,364 @@ fun AddServerScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text =
-                            stringResource(
-                                if (viewModel.isEditMode) {
-                                    R.string.serverlist_add_server_title_edit
-                                } else {
-                                    R.string.serverlist_add_server_title_new
-                                },
-                            ),
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                },
-                navigationIcon = {
-                    FilledTonalIconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.serverlist_back_desc),
-                        )
-                    }
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
+            AddServerTopAppBar(
+                isEditMode = isEditMode,
+                onNavigateBack = onNavigateBack,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
+        AddServerContent(
+            padding = padding,
+            name = name,
+            onUpdateName = viewModel::updateName,
+            scheme = scheme,
+            onSelectScheme = viewModel::updateScheme,
+            host = host,
+            onUpdateHost = viewModel::updateHost,
+            preferredAuthMethodId = preferredAuthMethodId,
+            isEditMode = isEditMode,
+            clearPreferredAuthMethod = viewModel::clearPreferredAuthMethod,
+            isLoading = isLoading,
+            onSave = viewModel::saveServer,
+        )
+    }
+}
+
+@Composable
+private fun AddServerContent(
+    padding: PaddingValues,
+    name: String,
+    onUpdateName: (String) -> Unit,
+    scheme: String,
+    onSelectScheme: (String) -> Unit,
+    host: String,
+    onUpdateHost: (String) -> Unit,
+    preferredAuthMethodId: String?,
+    isEditMode: Boolean,
+    clearPreferredAuthMethod: () -> Unit,
+    isLoading: Boolean,
+    onSave: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Spacer(modifier = Modifier.height(4.dp))
+
+        ServerDetailsSection(
+            name = name,
+            onUpdateName = onUpdateName,
+            scheme = scheme,
+            onSelectScheme = onSelectScheme,
+            host = host,
+            onUpdateHost = onUpdateHost,
+        )
+
+        ServerAuthSection(
+            preferredAuthMethodId = preferredAuthMethodId,
+            isEditMode = isEditMode,
+            clearPreferredAuthMethod = clearPreferredAuthMethod,
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        SaveServerButton(
+            isLoading = isLoading,
+            isEditMode = isEditMode,
+            onSave = onSave,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun AddServerTopAppBar(
+    isEditMode: Boolean,
+    onNavigateBack: () -> Unit,
+) {
+    TopAppBar(
+        title = {
+            Text(
+                text =
+                    stringResource(
+                        if (isEditMode) {
+                            R.string.serverlist_add_server_title_edit
+                        } else {
+                            R.string.serverlist_add_server_title_new
+                        },
+                    ),
+                fontWeight = FontWeight.SemiBold,
+            )
+        },
+        navigationIcon = {
+            FilledTonalIconButton(onClick = onNavigateBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.serverlist_back_desc),
+                )
+            }
+        },
+        colors =
+            TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ),
+    )
+}
+
+@Composable
+private fun ServerDetailsSection(
+    name: String,
+    onUpdateName: (String) -> Unit,
+    scheme: String,
+    onSelectScheme: (String) -> Unit,
+    host: String,
+    onUpdateHost: (String) -> Unit,
+) {
+    SectionCard(
+        title = stringResource(R.string.serverlist_add_server_details_title),
+        icon = Icons.Default.Dns,
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = onUpdateName,
+            label = { Text(stringResource(R.string.serverlist_add_server_name_label)) },
+            placeholder = { Text(stringResource(R.string.serverlist_add_server_name_placeholder)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = sectionTextFieldColors(),
+        )
+
+        ProtocolSection(scheme = scheme, onSelectScheme = onSelectScheme)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = host,
+            onValueChange = onUpdateHost,
+            label = { Text(stringResource(R.string.serverlist_add_server_host_label)) },
+            placeholder = { Text(stringResource(R.string.serverlist_add_server_host_placeholder)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            shape = RoundedCornerShape(14.dp),
+            colors = sectionTextFieldColors(),
+        )
+
+        if (host.isLoopbackHost()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            WarningSurface(stringResource(R.string.serverlist_add_server_host_hint))
+        }
+
+        StdioHintCard()
+    }
+}
+
+@Composable
+private fun ProtocolSection(
+    scheme: String,
+    onSelectScheme: (String) -> Unit,
+) {
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+        text = stringResource(R.string.serverlist_add_server_protocol_label),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    ProtocolSelector(
+        selected = scheme,
+        onSelect = onSelectScheme,
+    )
+    if (scheme == "ws") {
+        Spacer(modifier = Modifier.height(10.dp))
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = stringResource(R.string.serverlist_add_server_ws_warning),
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StdioHintCard() {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Column(
             modifier =
                 Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp)
-                    .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .fillMaxWidth()
+                    .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
-
-            SectionCard(
-                title = stringResource(R.string.serverlist_add_server_details_title),
-                icon = Icons.Default.Dns,
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = viewModel::updateName,
-                    label = { Text(stringResource(R.string.serverlist_add_server_name_label)) },
-                    placeholder = { Text(stringResource(R.string.serverlist_add_server_name_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = sectionTextFieldColors(),
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = stringResource(R.string.serverlist_add_server_protocol_label),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ProtocolSelector(
-                    selected = scheme,
-                    onSelect = viewModel::updateScheme,
-                )
-                if (scheme == "ws") {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.serverlist_add_server_ws_warning),
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = host,
-                    onValueChange = viewModel::updateHost,
-                    label = { Text(stringResource(R.string.serverlist_add_server_host_label)) },
-                    placeholder = { Text(stringResource(R.string.serverlist_add_server_host_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = sectionTextFieldColors(),
-                )
-
-                if (host.isLoopbackHost()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.serverlist_add_server_host_hint),
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.serverlist_add_server_stdio_hint),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.serverlist_add_server_stdio_example),
-                                modifier = Modifier.padding(10.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                        Text(
-                            text = stringResource(R.string.serverlist_add_server_docs_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
-                }
-            }
-
-            SectionCard(
-                title = stringResource(R.string.serverlist_add_server_auth_title),
-                subtitle = stringResource(R.string.serverlist_add_server_auth_subtitle),
-                icon = Icons.Default.Key,
+            Text(
+                text = stringResource(R.string.serverlist_add_server_stdio_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = stringResource(R.string.serverlist_add_server_auth_desc),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                preferredAuthMethodId?.takeIf { it.isNotBlank() }?.let { methodId ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.serverlist_add_server_stored_auth),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = methodId,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            if (viewModel.isEditMode) {
-                                OutlinedButton(onClick = viewModel::clearPreferredAuthMethod) {
-                                    Text(stringResource(R.string.serverlist_add_server_clear_auth))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Button(
-                onClick = viewModel::saveServer,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = !isLoading,
-                shape = RoundedCornerShape(16.dp),
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                elevation =
-                    ButtonDefaults.buttonElevation(
-                        defaultElevation = 2.dp,
-                        pressedElevation = 0.dp,
-                    ),
-            ) {
-                if (isLoading) {
-                    LoadingIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                }
-                Icon(
-                    Icons.Default.Save,
-                    contentDescription =
-                        if (viewModel.isEditMode) {
-                            stringResource(
-                                R.string.serverlist_add_server_btn_update,
-                            )
-                        } else {
-                            stringResource(R.string.serverlist_add_server_btn_add)
-                        },
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text =
-                        stringResource(
-                            if (viewModel.isEditMode) {
-                                R.string.serverlist_add_server_btn_update
-                            } else {
-                                R.string.serverlist_add_server_btn_add
-                            },
-                        ),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    text = stringResource(R.string.serverlist_add_server_stdio_example),
+                    modifier = Modifier.padding(10.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.serverlist_add_server_docs_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
         }
+    }
+}
+
+@Composable
+private fun ServerAuthSection(
+    preferredAuthMethodId: String?,
+    isEditMode: Boolean,
+    clearPreferredAuthMethod: () -> Unit,
+) {
+    SectionCard(
+        title = stringResource(R.string.serverlist_add_server_auth_title),
+        subtitle = stringResource(R.string.serverlist_add_server_auth_subtitle),
+        icon = Icons.Default.Key,
+    ) {
+        Text(
+            text = stringResource(R.string.serverlist_add_server_auth_desc),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        preferredAuthMethodId?.takeIf { it.isNotBlank() }?.let { methodId ->
+            Spacer(modifier = Modifier.height(12.dp))
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.serverlist_add_server_stored_auth),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = methodId,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    if (isEditMode) {
+                        OutlinedButton(onClick = clearPreferredAuthMethod) {
+                            Text(stringResource(R.string.serverlist_add_server_clear_auth))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(4.dp))
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun SaveServerButton(
+    isLoading: Boolean,
+    isEditMode: Boolean,
+    onSave: () -> Unit,
+) {
+    Button(
+        onClick = onSave,
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+        enabled = !isLoading,
+        shape = RoundedCornerShape(16.dp),
+        colors =
+            ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        elevation =
+            ButtonDefaults.buttonElevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 0.dp,
+            ),
+    ) {
+        if (isLoading) {
+            LoadingIndicator(
+                modifier = Modifier.size(22.dp),
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+        Icon(
+            Icons.Default.Save,
+            contentDescription =
+                if (isEditMode) {
+                    stringResource(R.string.serverlist_add_server_btn_update)
+                } else {
+                    stringResource(R.string.serverlist_add_server_btn_add)
+                },
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text =
+                stringResource(
+                    if (isEditMode) {
+                        R.string.serverlist_add_server_btn_update
+                    } else {
+                        R.string.serverlist_add_server_btn_add
+                    },
+                ),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun WarningSurface(message: String) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(12.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }
 

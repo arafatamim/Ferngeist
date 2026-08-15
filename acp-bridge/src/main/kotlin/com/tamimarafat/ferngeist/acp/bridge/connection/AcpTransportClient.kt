@@ -190,6 +190,7 @@ internal class AcpTransportClient(
     }
 
     @OptIn(UnstableApi::class)
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun connectInternal(
         config: AcpConnectionConfig,
         resetState: () -> Unit,
@@ -233,72 +234,86 @@ internal class AcpTransportClient(
             } else {
                 rawEndpointUrl to rawEndpointUrl
             }
-        return try {
-            establishSession(
-                wsUrl = wsUrl,
-                bearerToken = if (config.isResilientSession) null else config.webSocketBearerToken,
+        val wsResult =
+            runCatching {
+                establishSession(
+                    wsUrl = wsUrl,
+                    bearerToken = if (config.isResilientSession) null else config.webSocketBearerToken,
+                    resetState = resetState,
+                    diagnosticsUrl = diagnosticsUrl,
+                )
+            }
+        return if (wsResult.isSuccess) {
+            wsResult.getOrThrow()
+        } else {
+            handleEstablishFailure(
+                error = wsResult.exceptionOrNull()!!,
+                config = config,
                 resetState = resetState,
-                diagnosticsUrl = diagnosticsUrl,
+                scheduleReconnectOnFailure = scheduleReconnectOnFailure,
             )
-        } catch (error: Exception) {
-            if (error is CancellationException) throw error
-            // 409 means the gateway has an active resilient session for this runtime — the
-            // attachToken from connectRuntime is not enough; we must call resumeSession first
-            // to explicitly migrate the live session to this client.
-            if (config.isResilientSession && isWebSocketConflictError(error)) {
-                return connectSessionResume(config, resetState, scheduleReconnectOnFailure)
-            }
-            if (isCancellationLikeError(error)) {
-                updateConnectionState(AcpConnectionState.Disconnected)
-                diagnosticsStore.markDisconnected()
-                return false
-            }
-            updateConnectionState(AcpConnectionState.Failed(error))
-            diagnosticsStore.setWebSocketState(WebSocketState.FAILED)
-            diagnosticsStore.appendError("connect", formatAcpErrorMessage(error, "Unknown connection failure"))
-            if (scheduleReconnectOnFailure) {
-                scheduleReconnect(resetState)
-            }
-            false
         }
     }
 
+    /**
+     * Routes a failed WebSocket handshake to the appropriate recovery path:
+     * session-resume on a 409 conflict, silent disconnect on cancellation-like
+     * errors, otherwise Failed state with optional reconnect.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun handleEstablishFailure(
+        error: Throwable,
+        config: AcpConnectionConfig,
+        resetState: () -> Unit,
+        scheduleReconnectOnFailure: Boolean,
+    ): Boolean {
+        // Broad catch: the WebSocket handshake + ACP protocol init can surface any
+        // of IOException, SDK protocol errors, or timeout conversions; every failure
+        // type must route to the same Failed-state + reconnect path (a reconnect
+        // loop must never die on an unexpected exception type).
+        if (error is CancellationException) throw error
+        // 409 means the gateway has an active resilient session for this runtime — the
+        // attachToken from connectRuntime is not enough; we must call resumeSession first
+        // to explicitly migrate the live session to this client.
+        if (config.isResilientSession && isWebSocketConflictError(error)) {
+            return connectSessionResume(config, resetState, scheduleReconnectOnFailure)
+        }
+        if (isCancellationLikeError(error)) {
+            updateConnectionState(AcpConnectionState.Disconnected)
+            diagnosticsStore.markDisconnected()
+            return false
+        }
+        updateConnectionState(AcpConnectionState.Failed(error))
+        diagnosticsStore.setWebSocketState(WebSocketState.FAILED)
+        diagnosticsStore.appendError("connect", formatAcpErrorMessage(error, "Unknown connection failure"))
+        if (scheduleReconnectOnFailure) {
+            scheduleReconnect(resetState)
+        }
+        return false
+    }
+
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun connectSessionResume(
         config: AcpConnectionConfig,
         resetState: () -> Unit,
         scheduleReconnectOnFailure: Boolean,
     ): Boolean {
-        val sessionId = config.sessionId ?: return false
-        val gatewayRepo = gatewayRepository ?: return false
-        val gatewayScheme = config.gatewayScheme ?: return false
-        val gatewayHost = config.gatewayHost ?: return false
-        val gatewayCredential = config.gatewayCredential ?: return false
+        val resumeParams = resolveResumeParams(config) ?: return false
 
-        try {
-            val resumeResponse =
-                gatewayRepo.resumeSession(
-                    scheme = gatewayScheme,
-                    host = gatewayHost,
-                    gatewayCredential = gatewayCredential,
-                    sessionId = sessionId,
+        val result =
+            runCatching {
+                resumeAndEstablishSession(
+                    params = resumeParams,
+                    config = config,
+                    resetState = resetState,
                 )
-            currentConfig = config.copy(attachToken = resumeResponse.attachToken)
-            val rawEndpointUrl = config.webSocketUrl ?: "${config.scheme}://${config.host}"
-            val base = rawEndpointUrl.substringBefore('?')
-            val wsUrl = "$base?sessionId=$sessionId&attachToken=${resumeResponse.attachToken}"
-            val diagnosticsUrl = "$base?sessionId=$sessionId&attachToken=***"
-
-            prepareForConnectAttempt(resetState)
-            updateConnectionState(AcpConnectionState.Connecting)
-            diagnosticsStore.setWebSocketState(WebSocketState.CONNECTING)
-
-            return establishSession(
-                wsUrl = wsUrl,
-                bearerToken = null,
-                resetState = resetState,
-                diagnosticsUrl = diagnosticsUrl,
-            )
-        } catch (error: Exception) {
+            }
+        return if (result.isSuccess) {
+            result.getOrThrow()
+        } else {
+            val error = result.exceptionOrNull()!!
+            // Broad catch: gateway resume is a network boundary; any failure type must
+            // surface as Failed + optional reconnect rather than killing the coroutine.
             if (error is CancellationException) throw error
             updateConnectionState(AcpConnectionState.Failed(error))
             diagnosticsStore.setWebSocketState(WebSocketState.FAILED)
@@ -306,9 +321,77 @@ internal class AcpTransportClient(
             if (scheduleReconnectOnFailure) {
                 scheduleReconnect(resetState)
             }
-            return false
+            false
         }
     }
+
+    /** Mints a fresh attachToken via gateway resume, then attaches the WebSocket. */
+    private suspend fun resumeAndEstablishSession(
+        params: ResumeSessionParams,
+        config: AcpConnectionConfig,
+        resetState: () -> Unit,
+    ): Boolean {
+        val resumeResponse =
+            params.gatewayRepo.resumeSession(
+                scheme = params.gatewayScheme,
+                host = params.gatewayHost,
+                gatewayCredential = params.gatewayCredential,
+                sessionId = params.sessionId,
+            )
+        currentConfig = config.copy(attachToken = resumeResponse.attachToken)
+        val rawEndpointUrl = config.webSocketUrl ?: "${config.scheme}://${config.host}"
+        val base = rawEndpointUrl.substringBefore('?')
+        val wsUrl = "$base?sessionId=${params.sessionId}&attachToken=${resumeResponse.attachToken}"
+        val diagnosticsUrl = "$base?sessionId=${params.sessionId}&attachToken=***"
+
+        prepareForConnectAttempt(resetState)
+        updateConnectionState(AcpConnectionState.Connecting)
+        diagnosticsStore.setWebSocketState(WebSocketState.CONNECTING)
+
+        return establishSession(
+            wsUrl = wsUrl,
+            bearerToken = null,
+            resetState = resetState,
+            diagnosticsUrl = diagnosticsUrl,
+        )
+    }
+
+    /** Resolves the fields required for a gateway session resume, or null if any is absent. */
+    private fun resolveResumeParams(config: AcpConnectionConfig): ResumeSessionParams? =
+        buildResumeParamsOrNull(
+            config.sessionId,
+            gatewayRepository,
+            config.gatewayScheme,
+            config.gatewayHost,
+            config.gatewayCredential,
+        )
+
+    private fun buildResumeParamsOrNull(
+        sessionId: String?,
+        gatewayRepo: GatewayRepository?,
+        gatewayScheme: String?,
+        gatewayHost: String?,
+        gatewayCredential: String?,
+    ): ResumeSessionParams? {
+        if (listOf(sessionId, gatewayRepo, gatewayScheme, gatewayHost, gatewayCredential).any { it == null }) {
+            return null
+        }
+        return ResumeSessionParams(
+            sessionId = sessionId!!,
+            gatewayRepo = gatewayRepo!!,
+            gatewayScheme = gatewayScheme!!,
+            gatewayHost = gatewayHost!!,
+            gatewayCredential = gatewayCredential!!,
+        )
+    }
+
+    private data class ResumeSessionParams(
+        val sessionId: String,
+        val gatewayRepo: GatewayRepository,
+        val gatewayScheme: String,
+        val gatewayHost: String,
+        val gatewayCredential: String,
+    )
 
     @OptIn(UnstableApi::class)
     private suspend fun establishSession(

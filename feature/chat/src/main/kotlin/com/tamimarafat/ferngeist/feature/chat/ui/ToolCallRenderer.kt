@@ -33,79 +33,143 @@ private const val MAX_TEXT_CHARS = 5000
 @Composable
 internal fun ContentBlockRenderer(block: ContentBlock) {
     when (block) {
-        is ContentBlock.Text -> {
-            val text =
-                if (block.text.length > MAX_TEXT_CHARS) {
-                    block.text.substring(0, MAX_TEXT_CHARS) + "… (truncated)"
-                } else {
-                    block.text
-                }
+        is ContentBlock.Text -> TextContentBlock(block.text)
+        is ContentBlock.Image -> ImageContentBlock(block.data, block.mimeType)
+        is ContentBlock.Audio -> AudioContentBlock(block.mimeType)
+        is ContentBlock.ResourceLink -> ResourceLinkContentBlock(block)
+        is ContentBlock.Resource -> ResourceContentBlock(block.resource)
+    }
+}
+
+@Composable
+private fun TextContentBlock(text: String) {
+    val displayText =
+        if (text.length > MAX_TEXT_CHARS) {
+            text.substring(0, MAX_TEXT_CHARS) + "… (truncated)"
+        } else {
+            text
+        }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = MaterialTheme.shapes.medium,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+    ) {
+        SelectionContainer {
+            Text(
+                text = displayText,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(12.dp),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                softWrap = false,
+                overflow = TextOverflow.Visible,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImageContentBlock(data: String, mimeType: String) {
+    val bitmap =
+        remember(data) {
+            runCatching {
+                val bytes = Base64.decode(data, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.getOrNull()
+        }
+    if (bitmap != null) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = stringResource(R.string.chat_tool_output_image, mimeType),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 300.dp)
+                        .padding(8.dp),
+                contentScale = ContentScale.Fit,
+            )
+        }
+    } else {
+        Text(
+            text = stringResource(R.string.chat_failed_decode_image, mimeType),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+@Composable
+private fun AudioContentBlock(mimeType: String) {
+    Text(
+        text = stringResource(R.string.chat_audio_content, mimeType),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 4.dp),
+    )
+}
+
+@Composable
+private fun ResourceLinkContentBlock(block: ContentBlock.ResourceLink) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+    ) {
+        Text(
+            text = block.name,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = block.uri,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        block.description?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResourceContentBlock(resource: EmbeddedResourceResource) {
+    when (resource) {
+        is EmbeddedResourceResource.TextResourceContents -> {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 shape = MaterialTheme.shapes.medium,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                SelectionContainer {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = text,
+                        text = resource.uri,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = resource.text,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(12.dp),
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        softWrap = false,
-                        overflow = TextOverflow.Visible,
                     )
                 }
             }
         }
 
-        is ContentBlock.Image -> {
-            val bitmap =
-                remember(block.data) {
-                    runCatching {
-                        val bytes = Base64.decode(block.data, Base64.DEFAULT)
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    }.getOrNull()
-                }
-            if (bitmap != null) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = stringResource(R.string.chat_tool_output_image, block.mimeType),
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 300.dp)
-                                .padding(8.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
-            } else {
-                Text(
-                    text = stringResource(R.string.chat_failed_decode_image, block.mimeType),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-
-        is ContentBlock.Audio -> {
-            Text(
-                text = stringResource(R.string.chat_audio_content, block.mimeType),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 4.dp),
-            )
-        }
-
-        is ContentBlock.ResourceLink -> {
+        is EmbeddedResourceResource.BlobResourceContents -> {
             Column(
                 modifier =
                     Modifier
@@ -113,68 +177,15 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
                         .padding(vertical = 4.dp),
             ) {
                 Text(
-                    text = block.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    text = block.uri,
+                    text = resource.uri,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                block.description?.let {
+                resource.mimeType?.let { mimeType ->
                     Text(
-                        text = it,
+                        text = stringResource(R.string.chat_binary_resource, mimeType),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-        }
-
-        is ContentBlock.Resource -> {
-            when (val resource = block.resource) {
-                is EmbeddedResourceResource.TextResourceContents -> {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = resource.uri,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = resource.text,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            )
-                        }
-                    }
-                }
-
-                is EmbeddedResourceResource.BlobResourceContents -> {
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                    ) {
-                        Text(
-                            text = resource.uri,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        resource.mimeType?.let { mimeType ->
-                            Text(
-                                text = stringResource(R.string.chat_binary_resource, mimeType),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
                 }
             }
         }

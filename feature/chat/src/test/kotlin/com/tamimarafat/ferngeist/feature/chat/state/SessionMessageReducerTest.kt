@@ -32,6 +32,48 @@ class SessionMessageReducerTest {
         return r.messages to r.toolCallIndex
     }
 
+    /** Builds a [PlanEntry] with the given content, priority, and status. */
+    private fun planEntry(
+        content: String,
+        priority: PlanEntryPriority = PlanEntryPriority.HIGH,
+        status: PlanEntryStatus = PlanEntryStatus.PENDING,
+    ) = PlanEntry(content = content, priority = priority, status = status)
+
+    /** Applies a [AppSessionEvent.PlanUpdated] event and returns the updated messages. */
+    private fun applyPlan(
+        messages: List<ChatMessage>,
+        vararg entries: PlanEntry,
+    ): List<ChatMessage> =
+        apply(messages, emptyMap(), AppSessionEvent.PlanUpdated(entries = entries.toList()))
+            .first
+
+    /** Asserts that the last assistant message has a single PLAN segment with the expected entry count. */
+    private fun assertPlanSegment(
+        messages: List<ChatMessage>,
+        expectedEntryCount: Int,
+    ) {
+        assertEquals(1, messages.last().segments.size)
+        assertEquals(
+            AssistantSegment.Kind.PLAN,
+            messages.last().segments.last().kind,
+        )
+        assertEquals(
+            expectedEntryCount,
+            messages.last().segments.last().planEntries?.size,
+        )
+    }
+
+    /** Asserts the status of the first plan entry in the last assistant message. */
+    private fun assertFirstPlanEntryStatus(
+        messages: List<ChatMessage>,
+        expected: PlanEntryStatus,
+    ) {
+        assertEquals(
+            expected,
+            messages.last().segments.last().planEntries?.get(0)?.status,
+        )
+    }
+
     @Test
     fun `tool call update falls back to rawOutput when output missing`() {
         val (started, startedIdx) =
@@ -285,82 +327,21 @@ class SessionMessageReducerTest {
 
     @Test
     fun `plan entries replace existing plan segment on each update`() {
-        val (first, _) =
-            apply(
-                emptyList(),
-                emptyMap(),
-                AppSessionEvent.PlanUpdated(
-                    entries =
-                        listOf(
-                            PlanEntry(
-                                content = "Step 1",
-                                priority = PlanEntryPriority.HIGH,
-                                status = PlanEntryStatus.PENDING,
-                            ),
-                        ),
-                ),
-            )
-
-        assertEquals(1, first.last().segments.size)
-        assertEquals(
-            AssistantSegment.Kind.PLAN,
-            first
-                .last()
-                .segments
-                .last()
-                .kind,
-        )
-        assertEquals(
-            1,
-            first
-                .last()
-                .segments
-                .last()
-                .planEntries
-                ?.size,
+        val first = applyPlan(
+            emptyList(),
+            planEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.PENDING),
         )
 
-        val (second, _) =
-            apply(
-                first,
-                emptyMap(),
-                AppSessionEvent.PlanUpdated(
-                    entries =
-                        listOf(
-                            PlanEntry(
-                                content = "Step 1",
-                                priority = PlanEntryPriority.HIGH,
-                                status = PlanEntryStatus.IN_PROGRESS,
-                            ),
-                            PlanEntry(
-                                content = "Step 2",
-                                priority = PlanEntryPriority.MEDIUM,
-                                status = PlanEntryStatus.PENDING,
-                            ),
-                        ),
-                ),
-            )
+        assertPlanSegment(first, expectedEntryCount = 1)
 
-        assertEquals(1, second.last().segments.size)
-        assertEquals(
-            2,
-            second
-                .last()
-                .segments
-                .last()
-                .planEntries
-                ?.size,
+        val second = applyPlan(
+            first,
+            planEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.IN_PROGRESS),
+            planEntry(content = "Step 2", priority = PlanEntryPriority.MEDIUM, status = PlanEntryStatus.PENDING),
         )
-        assertEquals(
-            PlanEntryStatus.IN_PROGRESS,
-            second
-                .last()
-                .segments
-                .last()
-                .planEntries
-                ?.get(0)
-                ?.status,
-        )
+
+        assertPlanSegment(second, expectedEntryCount = 2)
+        assertFirstPlanEntryStatus(second, PlanEntryStatus.IN_PROGRESS)
     }
 
     @Test

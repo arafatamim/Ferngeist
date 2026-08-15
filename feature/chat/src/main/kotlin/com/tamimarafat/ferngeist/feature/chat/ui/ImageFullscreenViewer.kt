@@ -46,26 +46,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Fullscreen image overlay for attached chat images.
- *
- * Opens as a platform dialog with a dark scrim background. The image is decoded
- * from the [ChatImageData] base64 payload on [Dispatchers.Default] (same sampling
- * strategy as the thumbnail in [ImageAttachmentItem]) and displayed centered with
- * [ContentScale.Fit]. An animated scale+fade entrance and a close affordance in
- * the top-right corner make dismissal discoverable; tapping the scrim or pressing
- * back also dismisses.
+ * Decodes a base64-encoded [ChatImageData] into a sampled [ImageBitmap] on
+ * [Dispatchers.Default], using the same sampling strategy as the thumbnail in
+ * [ImageAttachmentItem]. Returns `null` when the payload cannot be decoded.
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ImageFullscreenViewer(
-    image: ChatImageData,
-    onDismiss: () -> Unit,
-) {
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, image.base64) {
+private fun rememberDecodedImageBitmap(base64: String): ImageBitmap? =
+    produceState<ImageBitmap?>(initialValue = null, base64) {
         value =
             withContext(Dispatchers.Default) {
                 runCatching {
-                    val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                    val bytes = Base64.decode(base64, Base64.DEFAULT)
                     val boundsOpts =
                         BitmapFactory.Options().apply {
                             inJustDecodeBounds = true
@@ -92,8 +83,25 @@ fun ImageFullscreenViewer(
                     bitmap.asImageBitmap()
                 }.getOrNull()
             }
-    }
+    }.value
 
+/**
+ * Fullscreen image overlay for attached chat images.
+ *
+ * Opens as a platform dialog with a dark scrim background. The image is decoded
+ * from the [ChatImageData] base64 payload on [Dispatchers.Default] (same sampling
+ * strategy as the thumbnail in [ImageAttachmentItem]) and displayed centered with
+ * [ContentScale.Fit]. An animated scale+fade entrance and a close affordance in
+ * the top-right corner make dismissal discoverable; tapping the scrim or pressing
+ * back also dismisses.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ImageFullscreenViewer(
+    image: ChatImageData,
+    onDismiss: () -> Unit,
+) {
+    val bitmap = rememberDecodedImageBitmap(image.base64)
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
@@ -115,47 +123,58 @@ fun ImageFullscreenViewer(
                 fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
                     scaleOut(targetScale = 0.94f, animationSpec = spring(stiffness = Spring.StiffnessMedium)),
         ) {
-            Box(
+            FullscreenImageContent(
+                bitmap = bitmap,
+                onDismiss = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullscreenImageContent(
+    bitmap: ImageBitmap?,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.94f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onDismiss,
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        val currentBitmap = bitmap
+        if (currentBitmap != null) {
+            Image(
+                bitmap = currentBitmap,
+                contentDescription = stringResource(R.string.chat_image_desc),
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.94f))
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                            onClick = onDismiss,
-                        ),
-                contentAlignment = Alignment.Center,
-            ) {
-                val currentBitmap = bitmap
-                if (currentBitmap != null) {
-                    Image(
-                        bitmap = currentBitmap,
-                        contentDescription = stringResource(R.string.chat_image_desc),
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .statusBarsPadding()
-                                .padding(24.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
+                        .statusBarsPadding()
+                        .padding(24.dp),
+                contentScale = ContentScale.Fit,
+            )
+        }
 
-                IconButton(
-                    onClick = onDismiss,
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .statusBarsPadding()
-                            .padding(12.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Close",
-                        tint = Color.White,
-                    )
-                }
-            }
+        IconButton(
+            onClick = onDismiss,
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = "Close",
+                tint = Color.White,
+            )
         }
     }
 }

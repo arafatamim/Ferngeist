@@ -29,19 +29,22 @@ object PushNotificationPolicy {
         targetGatewayId: String?,
         targetSessionId: String?,
     ): Boolean {
-        if (!isAppForeground) return false
-        if (targetSessionId == null) return false
-        val chat = activeChat ?: return false
-        if (chat.sessionId != targetSessionId) return false
-        // Session ids are unique, so a session match is already conclusive; still require the
-        // gateway to match when both ids are known, to guard against any id reuse. A null on
-        // either side (unresolved) falls back to the conclusive session match.
-        if (targetGatewayId != null &&
-            activeChatGatewayId != null &&
-            activeChatGatewayId != targetGatewayId
-        ) {
-            return false
-        }
+        if (!isAppForeground || targetSessionId == null) return false
+        if (activeChat?.sessionId != targetSessionId) return false
+        if (gatewayMismatch(activeChatGatewayId, targetGatewayId)) return false
         return true
     }
+
+    /**
+     * Returns true when both gateway ids are known and they differ, indicating the
+     * active chat belongs to a different gateway than the push targets.
+     * A null on either side falls back to the conclusive session-id match in [shouldSuppress].
+     */
+    private fun gatewayMismatch(
+        activeChatGatewayId: String?,
+        targetGatewayId: String?,
+    ): Boolean =
+        targetGatewayId != null &&
+            activeChatGatewayId != null &&
+            activeChatGatewayId != targetGatewayId
 }

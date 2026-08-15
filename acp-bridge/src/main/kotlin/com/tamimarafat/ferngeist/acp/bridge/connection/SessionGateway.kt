@@ -115,52 +115,66 @@ internal class SessionGateway(
                 return null
             }
         orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/load")
-        return runCatching {
-            // Store bridge before client.loadSession() so BridgeSessionOperations
-            // notify() callbacks during loading have a target for history buffering.
-            val bridge =
-                sessionRegistry.getBridge(sessionId)
-                    ?: bridgeFactory(sessionId).also {
-                        sessionRegistry.storeBridge(sessionId, it)
-                    }
-            bridge.beginHydration()
+        val result =
+            runCatching {
+                // Store bridge before client.loadSession() so BridgeSessionOperations
+                // notify() callbacks during loading have a target for history buffering.
+                val bridge =
+                    sessionRegistry.getBridge(sessionId)
+                        ?: bridgeFactory(sessionId).also {
+                            sessionRegistry.storeBridge(sessionId, it)
+                        }
+                bridge.beginHydration()
 
-            val session =
-                client.loadSession(
-                    sessionId = SessionId(sessionId),
-                    sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
-                    operationsFactory = operationsFactory,
-                )
-            val registeredBridge = registerSession(session)
-            registeredBridge.completeHydration()
-            registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
-            registeredBridge
-        }.getOrElse { error ->
-            orchestra.toAuthRequiredException(error)?.let { authError -> throw authError }
-            if (isSessionAlreadyLoadedError(error)) {
-                getLoadedSession(sessionId)?.let { existing ->
-                    orchestra.diagnosticsStore.appendError(
-                        "session/load",
-                        "Session is already loaded locally. Reusing the active session.",
+                val session =
+                    client.loadSession(
+                        sessionId = SessionId(sessionId),
+                        sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
+                        operationsFactory = operationsFactory,
                     )
-                    return existing
-                }
+                val registeredBridge = registerSession(session)
+                registeredBridge.completeHydration()
+                registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
+                registeredBridge
+            }
+        return result.getOrElse { error ->
+            handleLoadSessionFailure(error, sessionId)
+        }
+    }
 
-                val message =
-                    "This session is already active elsewhere. " +
-                        "Reconnect or open a new session instead."
-                sessionRegistry.getBridge(sessionId)?.failHydration(message)
-                clearSessionState(sessionId, closeBridge = true)
-                orchestra.diagnosticsStore.appendError("session/load", message)
-                return null
+    /**
+     * Routes a failed `session/load` to the appropriate recovery: an auth-required
+     * error rethrows, an "already loaded" error reuses the local session or reports
+     * the remote-active case, and any other failure is logged and rethrown.
+     */
+    private suspend fun handleLoadSessionFailure(
+        error: Throwable,
+        sessionId: String,
+    ): SessionPort? {
+        orchestra.toAuthRequiredException(error)?.let { authError -> throw authError }
+        if (isSessionAlreadyLoadedError(error)) {
+            getLoadedSession(sessionId)?.let { existing ->
+                orchestra.diagnosticsStore.appendError(
+                    "session/load",
+                    "Session is already loaded locally. Reusing the active session.",
+                )
+                return existing
             }
 
-            val message = formatAcpErrorMessage(error, "Failed to load session")
+            val message =
+                "This session is already active elsewhere. " +
+                    "Reconnect or open a new session instead."
             sessionRegistry.getBridge(sessionId)?.failHydration(message)
             clearSessionState(sessionId, closeBridge = true)
             orchestra.diagnosticsStore.appendError("session/load", message)
-            throw error
+            return null
         }
+
+        val message = formatAcpErrorMessage(error, "Failed to load session")
+        sessionRegistry.getBridge(sessionId)?.failHydration(message)
+        clearSessionState(sessionId, closeBridge = true)
+        orchestra.diagnosticsStore.appendError("session/load", message)
+        throw error
     }
 
     /**
@@ -472,6 +486,19 @@ internal class SessionGateway(
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
 
+        pushInitialSessionState(session)
+
+        bridge.markReady()
+        startReactiveObservers(session)
+        return bridge
+    }
+
+    /**
+     * Mirrors the SDK session's initial capability state (modes, models, config
+     * options) into app events, pushed to the bridge replay buffer before
+     * markReady(). After registration, [startReactiveObservers] forwards changes.
+     */
+    private suspend fun pushInitialSessionState(session: ClientSession) {
         // One-shot initial reads of availableModes/availableModels (plain List, not
         // StateFlow, so the SDK doesn't expose change notifications for them) and
         // of currentMode/currentModel/configOptions. The initial values land in the
@@ -537,10 +564,6 @@ internal class SessionGateway(
                 ),
             )
         }
-
-        bridge.markReady()
-        startReactiveObservers(session)
-        return bridge
     }
 
     /**
@@ -700,20 +723,16 @@ internal class SessionGateway(
      * and updates the diagnostics flag accordingly.
      */
     private fun handleSessionCancelFailure(error: Throwable) {
-        if (isUnsupportedSessionCancel(error)) {
+        val rpcError = error as? JsonRpcException
+        val unsupported = rpcError?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code &&
+            rpcError.message.contains("session/cancel", ignoreCase = true)
+        if (unsupported) {
             orchestra.diagnosticsStore.setSessionCancelSupport(isSupported = false)
         }
         orchestra.diagnosticsStore.appendError(
             "session/cancel",
             formatAcpErrorMessage(error, "Cancel failed"),
         )
-    }
-
-    /** Checks whether an error is "Method not found: session/cancel" – the server lacks cancel support. */
-    private fun isUnsupportedSessionCancel(error: Throwable): Boolean {
-        val rpcError = error as? JsonRpcException ?: return false
-        if (rpcError.code != JsonRpcErrorCode.METHOD_NOT_FOUND.code) return false
-        return rpcError.message.contains("session/cancel", ignoreCase = true)
     }
 
     /** Converts a Ferngeist [SessionConfigValue] to the SDK's wire format. */

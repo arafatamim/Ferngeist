@@ -57,9 +57,6 @@ class ServerListViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        // Mock Dispatchers.IO to use our test dispatcher
-        // (Note: Requires mockk-static for Dispatchers if not using a library like CoroutineTestRule that handles it,
-        // but simple way here is to just be aware of it)
 
         every { connectionManager.connectionState } returns connectionStateFlow
         every { connectionManager.events } returns eventsFlow

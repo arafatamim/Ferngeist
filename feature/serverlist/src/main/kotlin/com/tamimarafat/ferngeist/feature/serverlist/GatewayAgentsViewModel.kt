@@ -68,7 +68,7 @@ class GatewayAgentsViewModel
                 val gateway =
                     try {
                         refreshGatewaySourceIfNeeded(storedGateway, gatewayRepository, gatewaySourceRepository)
-                    } catch (error: GatewayCredentialExpiredException) {
+                    } catch (_: GatewayCredentialExpiredException) {
                         gatewaySourceRepository.deleteGateway(gatewayId)
                         _uiState.value =
                             GatewayAgentsUiState(

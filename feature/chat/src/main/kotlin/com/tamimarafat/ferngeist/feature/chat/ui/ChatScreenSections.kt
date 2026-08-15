@@ -2,11 +2,13 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import android.content.res.Resources
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -44,7 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.toShape
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -92,9 +96,132 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.mikepenz.markdown.model.State as MarkdownRenderState
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import androidx.compose.material3.toShape
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
+
+/**
+ * Processes picked URIs into images and file attachments, returning the combined
+ * lists (capped at max) and an optional feedback message for the user.
+ * Extracted from [ChatScreen] to reduce its cyclomatic complexity.
+ */
+internal suspend fun processPickedUris(
+    uris: List<android.net.Uri>,
+    context: android.content.Context,
+    canSendImages: Boolean,
+    supportsEmbeddedContext: Boolean,
+    existingImages: List<com.tamimarafat.ferngeist.core.model.ChatImageData>,
+    existingFiles: List<com.tamimarafat.ferngeist.core.model.ChatFileData>,
+    resources: Resources,
+): Triple<List<com.tamimarafat.ferngeist.core.model.ChatImageData>, List<com.tamimarafat.ferngeist.core.model.ChatFileData>, String?> {
+    val newImages = mutableListOf<com.tamimarafat.ferngeist.core.model.ChatImageData>()
+    val fileResults = mutableListOf<FileAttachmentHelper.Result>()
+    var imagesDropped = 0
+    var unsupportedCount = 0
+    for (uri in uris) {
+        val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true
+        when {
+            isImage && canSendImages -> {
+                val image = ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
+                if (image != null) newImages += image else imagesDropped++
+            }
+            supportsEmbeddedContext ->
+                fileResults += FileAttachmentHelper.uriToChatFileData(context.contentResolver, uri)
+            else -> unsupportedCount++
+        }
+    }
+    val newFiles = fileResults.filterIsInstance<FileAttachmentHelper.Result.Success>().map { it.file }
+    val tooLargeCount = fileResults.count { it is FileAttachmentHelper.Result.TooLarge }
+
+    val combinedImages = (existingImages + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
+    val imagesCapped = (existingImages.size + newImages.size) - combinedImages.size
+    val combinedFiles = (existingFiles + newFiles).take(FileAttachmentHelper.MAX_FILES)
+    val filesCapped = (existingFiles.size + newFiles.size) - combinedFiles.size
+
+    val feedback = buildPickFeedbackMessage(
+        resources = resources,
+        unsupportedCount = unsupportedCount,
+        tooLargeCount = tooLargeCount,
+        imagesDropped = imagesDropped,
+        imagesCapped = imagesCapped,
+        filesCapped = filesCapped,
+    )
+    return Triple(combinedImages, combinedFiles, feedback)
+}
+
+private fun buildPickFeedbackMessage(
+    resources: Resources,
+    unsupportedCount: Int,
+    tooLargeCount: Int,
+    imagesDropped: Int,
+    imagesCapped: Int,
+    filesCapped: Int,
+): String? =
+    when {
+        unsupportedCount > 0 ->
+            resources.getQuantityString(
+                com.tamimarafat.ferngeist.feature.chat.R.plurals.chat_attachments_unsupported,
+                unsupportedCount,
+                unsupportedCount,
+            )
+        tooLargeCount > 0 ->
+            resources.getQuantityString(
+                com.tamimarafat.ferngeist.feature.chat.R.plurals.chat_files_too_large,
+                tooLargeCount,
+                tooLargeCount,
+            )
+        imagesDropped > 0 ->
+            resources.getQuantityString(
+                com.tamimarafat.ferngeist.feature.chat.R.plurals.chat_images_dropped,
+                imagesDropped,
+                imagesDropped,
+            )
+        imagesCapped > 0 ->
+            resources.getQuantityString(
+                com.tamimarafat.ferngeist.feature.chat.R.plurals.chat_images_capped,
+                ImageAttachmentHelper.MAX_IMAGES,
+                ImageAttachmentHelper.MAX_IMAGES,
+            )
+        filesCapped > 0 ->
+            resources.getQuantityString(
+                com.tamimarafat.ferngeist.feature.chat.R.plurals.chat_files_capped,
+                FileAttachmentHelper.MAX_FILES,
+                FileAttachmentHelper.MAX_FILES,
+            )
+        else -> null
+    }
+/**
+ * Collects one-shot [ChatEffect]s from the view model and renders them as
+ * snackbars or navigates back. Extracted from [ChatScreen] to reduce its
+ * cyclomatic complexity.
+ */
+@Composable
+internal fun CollectChatEffects(
+    viewModel: com.tamimarafat.ferngeist.feature.chat.ChatViewModel,
+    snackbarHostState: SnackbarHostState,
+    onNavigateBack: () -> Unit,
+) {
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+            when (effect) {
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ShowError -> {
+                    android.util.Log.e("ChatScreen", "Chat effect error: ${effect.message}")
+                    snackbarHostState.showSnackbar(effect.message)
+                }
+
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ShowMessage -> {
+                    snackbarHostState.showSnackbar(effect.message)
+                }
+
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.NavigateBack ->
+                    onNavigateBack()
+            }
+        }
+    }
+}
 
 /**
  * Hosts the dialog/overlay surfaces that sit above the main chat UI.
@@ -305,23 +432,10 @@ private fun ChatMessageList(
             }
         }
         items(items = windowed, key = { it.id }) { message ->
-            val messageMarkdown =
-                remember(message, state.markdownStates) {
-                    if (message.role != ChatMessage.Role.ASSISTANT) {
-                        persistentMapOf<String, MarkdownRenderState>()
-                    } else {
-                        buildMap {
-                            message.segments.forEach { seg ->
-                                state.markdownStates[seg.id]?.let { put(seg.id, it) }
-                            }
-                            state.markdownStates[message.id]?.let { put(message.id, it) }
-                        }.toPersistentMap()
-                    }
-                }
-            MessageBubble(
+            ChatMessageItem(
                 message = message,
-                markdownStates = messageMarkdown,
-                showStreamingIndicator = message.isStreaming && message.id == renderedLastMessageId,
+                state = state,
+                renderedLastMessageId = renderedLastMessageId,
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 onStreamLayoutSettled = onStreamLayoutSettled,
@@ -332,6 +446,40 @@ private fun ChatMessageList(
             Spacer(modifier = Modifier.height(listBottomPadding))
         }
     }
+}
+
+@Composable
+private fun ChatMessageItem(
+    message: ChatMessage,
+    state: ChatState,
+    renderedLastMessageId: String?,
+    onThoughtClick: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
+    onStreamLayoutSettled: () -> Unit,
+    onRetryMessage: ((String) -> Unit)?,
+) {
+    val messageMarkdown =
+        remember(message, state.markdownStates) {
+            if (message.role != ChatMessage.Role.ASSISTANT) {
+                persistentMapOf<String, MarkdownRenderState>()
+            } else {
+                buildMap {
+                    message.segments.forEach { seg ->
+                        state.markdownStates[seg.id]?.let { put(seg.id, it) }
+                    }
+                    state.markdownStates[message.id]?.let { put(message.id, it) }
+                }.toPersistentMap()
+            }
+        }
+    MessageBubble(
+        message = message,
+        markdownStates = messageMarkdown,
+        showStreamingIndicator = message.isStreaming && message.id == renderedLastMessageId,
+        onThoughtClick = onThoughtClick,
+        onToolCallClick = onToolCallClick,
+        onStreamLayoutSettled = onStreamLayoutSettled,
+        onRetryMessage = onRetryMessage,
+    )
 }
 
 internal data class PendingPermissionRequest(
@@ -408,52 +556,70 @@ private fun PermissionRequestSheet(
                 text = stringResource(R.string.chat_permission_title),
                 style = MaterialTheme.typography.titleLarge,
             )
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = request.title.ifBlank { stringResource(R.string.chat_permission_request) },
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                request.kind?.let { kind ->
-                    Text(
-                        text = toolKindLabel(kind),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.chat_permission_body),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                request.options.forEach { option ->
-                    OutlinedButton(
-                        onClick = { onGrantPermission(request.toolCallId, option.id) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Text(
-                                text = option.label,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Text(
-                                text = permissionKindLabel(option.kind),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
+            PermissionRequestHeader(request = request)
+            PermissionRequestOptions(
+                request = request,
+                onGrantPermission = onGrantPermission,
+            )
             TextButton(
                 onClick = { onDenyPermission(request.toolCallId) },
                 modifier = Modifier.align(Alignment.End),
             ) {
                 Text(stringResource(R.string.chat_deny))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionRequestHeader(
+    request: PendingPermissionRequest,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = request.title.ifBlank { stringResource(R.string.chat_permission_request) },
+            style = MaterialTheme.typography.titleMedium,
+        )
+        request.kind?.let { kind ->
+            Text(
+                text = toolKindLabel(kind),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = stringResource(R.string.chat_permission_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PermissionRequestOptions(
+    request: PendingPermissionRequest,
+    onGrantPermission: (String, String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        request.options.forEach { option ->
+            OutlinedButton(
+                onClick = { onGrantPermission(request.toolCallId, option.id) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = option.label,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = permissionKindLabel(option.kind),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -478,75 +644,84 @@ private fun ToolCallDetailsSheet(
                     .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            val defaultToolCallLabel = stringResource(R.string.chat_tool_call)
-            val toolCallSheetTitle = toolCall.title.ifBlank { defaultToolCallLabel }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = toolCallSheetTitle,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                toolCall.kind?.let { kind ->
-                    Text(
-                        text = toolKindLabel(kind),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                    )
-                }
-                toolCall.status?.let { status ->
-                    Text(
-                        text = toolCallStatusLabel(status),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            ToolCallDetailsHeader(toolCall = toolCall)
+            ToolCallDetailsBody(toolCall = toolCall)
+        }
+    }
+}
 
-            if (!toolCall.permissionOptions.isNullOrEmpty()) {
-                Text(
-                    text = stringResource(R.string.chat_awaiting_permission),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+@Composable
+private fun ToolCallDetailsHeader(toolCall: ToolCallDisplay) {
+    val defaultToolCallLabel = stringResource(R.string.chat_tool_call)
+    val toolCallSheetTitle = toolCall.title.ifBlank { defaultToolCallLabel }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = toolCallSheetTitle,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        toolCall.kind?.let { kind ->
+            Text(
+                text = toolKindLabel(kind),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+            )
+        }
+        toolCall.status?.let { status ->
+            Text(
+                text = toolCallStatusLabel(status),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
 
-            if (toolCall.kind == ToolKind.EXECUTE) {
-                val rawInput = toolCall.rawInput
-                val displayText = rawInput?.toString()
-                if (!displayText.isNullOrBlank()) {
-                    ContentBlockRenderer(
-                        block = ContentBlock.Text(displayText),
-                    )
-                }
-            }
+@Composable
+private fun ToolCallDetailsBody(toolCall: ToolCallDisplay) {
+    if (!toolCall.permissionOptions.isNullOrEmpty()) {
+        Text(
+            text = stringResource(R.string.chat_awaiting_permission),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 
-            val content = toolCall.content
-            if (!content.isNullOrEmpty()) {
-                content.forEach { tc ->
-                    when (tc) {
-                        is ToolCallContent.Content -> ContentBlockRenderer(tc.content)
-                        is ToolCallContent.Diff -> {
-                            // Nested inside the sheet's vertical scroll column,
-                            // so render rows eagerly without an inner lazy list.
-                            DiffRenderer(tc, scrollable = false)
-                        }
+    if (toolCall.kind == ToolKind.EXECUTE) {
+        val rawInput = toolCall.rawInput
+        val displayText = rawInput?.toString()
+        if (!displayText.isNullOrBlank()) {
+            ContentBlockRenderer(
+                block = ContentBlock.Text(displayText),
+            )
+        }
+    }
 
-                        is ToolCallContent.Terminal -> TerminalRenderer(tc)
-                    }
+    val content = toolCall.content
+    if (!content.isNullOrEmpty()) {
+        content.forEach { tc ->
+            when (tc) {
+                is ToolCallContent.Content -> ContentBlockRenderer(tc.content)
+                is ToolCallContent.Diff -> {
+                    // Nested inside the sheet's vertical scroll column,
+                    // so render rows eagerly without an inner lazy list.
+                    DiffRenderer(tc, scrollable = false)
                 }
-            } else {
-                val rawOutput = toolCall.rawOutput
-                if (rawOutput != null) {
-                    ContentBlockRenderer(
-                        block = ContentBlock.Text(rawOutput.toString()),
-                    )
-                } else {
-                    Text(
-                        text = stringResource(R.string.chat_no_tool_output),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+
+                is ToolCallContent.Terminal -> TerminalRenderer(tc)
             }
+        }
+    } else {
+        val rawOutput = toolCall.rawOutput
+        if (rawOutput != null) {
+            ContentBlockRenderer(
+                block = ContentBlock.Text(rawOutput.toString()),
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.chat_no_tool_output),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -666,695 +841,6 @@ internal fun GitStatusSheet(
  * aggregate line-total card, and the per-file list. Scrolling is contained to
  * the file list so the sheet header stays pinned.
  */
-@Composable
-private fun GitStatusListContent(
-    status: GatewayGitStatus,
-    onFileClick: (GatewayChangedFile) -> Unit,
-) {
-    val additions = status.changed.sumOf { it.added }
-    val deletions = status.changed.sumOf { it.removed }
-
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        // Header: title + branch pill + ahead/behind
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = stringResource(R.string.chat_git_status_title),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                // Branch pill + ahead/behind (like git branch -v)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(percent = 50),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                    ) {
-                        Text(
-                            text = status.branch.ifBlank { stringResource(R.string.chat_git_no_branch) },
-                            style = MaterialTheme.typography.labelMedium,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
-                    }
-                    if (status.ahead > 0) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.ArrowUpward,
-                                contentDescription = null,
-                                tint = LocalGitSemanticColors.current.added,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Text(
-                                text = status.ahead.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = LocalGitSemanticColors.current.added,
-                            )
-                        }
-                    }
-                    if (status.behind > 0) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.ArrowDownward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Text(
-                                text = status.behind.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Summary card: aggregate line totals + diff-blocks proportion
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (additions > 0) {
-                        Text(
-                            text = "+$additions",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = LocalGitSemanticColors.current.added,
-                        )
-                    }
-                    if (deletions > 0) {
-                        Text(
-                            text = "-$deletions",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = LocalGitSemanticColors.current.deleted,
-                        )
-                    }
-                    DiffBlocks(additions = additions, deletions = deletions)
-                }
-                val resources = LocalResources.current
-                Text(
-                    text =
-                        resources.getQuantityString(
-                            R.plurals.chat_git_files_changed,
-                            status.changed.size,
-                            status.changed.size,
-                        ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Per-file list (own vertical scroll container, no nesting)
-        if (status.changed.isEmpty()) {
-            Text(
-                text = stringResource(R.string.chat_git_clean),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
-            )
-        } else {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                status.changed.forEach { file ->
-                    ChangedFileRow(file = file, onClick = { onFileClick(file) })
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-/**
- * Detail body of the git status sheet for one changed file: back arrow with
- * content description, full path, status badge, +N/-N counts, then loading,
- * error-with-retry, binary, empty-diff, or rendered-diff content. The diff
- * owns the only vertical scroll container in detail.
- */
-@Composable
-private fun GitDiffDetailContent(
-    path: String,
-    file: GatewayChangedFile?,
-    diff: List<ToolCallContent.Diff>?,
-    diffPath: String?,
-    isLoading: Boolean,
-    error: String?,
-    onBack: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        // Header: back arrow + full path + status badge + +N/-N counts
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(R.string.chat_back_desc),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            if (file != null) {
-                // Status badge (same porcelain semantics as the list rows)
-                val gitColors = LocalGitSemanticColors.current
-                val statusColor =
-                    when (file.status) {
-                        "M" -> MaterialTheme.colorScheme.secondary
-                        "A" -> gitColors.added
-                        "R" -> MaterialTheme.colorScheme.tertiary
-                        "?" -> MaterialTheme.colorScheme.onSurfaceVariant
-                        "D" -> gitColors.deleted
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                val statusBg =
-                    when (file.status) {
-                        "D" -> gitColors.deleted.copy(alpha = 0.15f)
-                        "M" -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                        "A" -> gitColors.added.copy(alpha = 0.15f)
-                        "R" -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
-                        "?" -> MaterialTheme.colorScheme.surfaceVariant
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    }
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = statusBg,
-                ) {
-                    Text(
-                        text = file.status,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        color = statusColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                    )
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = fileNameOf(file.path),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        maxLines = 1,
-                        overflow = TextOverflow.StartEllipsis,
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        if (file.binary) {
-                            Text(
-                                text = stringResource(R.string.chat_git_binary),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else {
-                            if (file.added > 0) {
-                                Text(
-                                    text = "+${file.added}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = LocalGitSemanticColors.current.added,
-                                )
-                            }
-                            if (file.removed > 0) {
-                                Text(
-                                    text = "-${file.removed}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = LocalGitSemanticColors.current.deleted,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Content: loading / error / binary / empty / rendered diff.
-        when {
-            file == null -> {
-                // Requested path no longer in status (e.g. refreshed while open).
-                // The header back arrow above remains available to return to the list.
-                // Hardcoded like the diff error strings in ChatViewModel because this
-                // file cannot add string resources.
-                Text(
-                    text = "File is no longer in the working tree: $path",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-                )
-            }
-            isLoading -> {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    CircularWavyProgressIndicator(modifier = Modifier.size(64.dp))
-                }
-            }
-            file.binary -> {
-                Text(
-                    text = stringResource(R.string.chat_git_binary),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
-            error != null -> {
-                ErrorStateCard(
-                    headline = stringResource(R.string.chat_diff_error_title),
-                    body = error,
-                    icon = Icons.Rounded.CloudOff,
-                    medallionContainer = MaterialTheme.colorScheme.errorContainer,
-                    medallionContent = MaterialTheme.colorScheme.onErrorContainer,
-                    medallionShape = MaterialShapes.VerySunny.toShape(),
-                    ctaLabel = stringResource(R.string.chat_retry),
-                    onCta = onRetry,
-                    modifier = Modifier.padding(vertical = 16.dp),
-                )
-            }
-            diff == null || diffPath != file.path || diff.isEmpty() -> {
-                // No diff for this path yet (idle), a stale diff from another
-                // file, or the gateway reported no changes for this path.
-                Text(
-                    text = stringResource(R.string.chat_no_tool_output),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
-            else -> {
-                // Loaded unified diff; DiffRenderer owns horizontal scrolling,
-                // the outer Column provides the only vertical scroll container.
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    DiffRenderer(diff.first())
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChangedFileRow(
-    file: GatewayChangedFile,
-    onClick: () -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (isDirectoryPath(file.path)) {
-                            Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                        } else {
-                            Modifier
-                                .clickable(
-                                    role = Role.Button,
-                                    onClick = onClick,
-                                ).padding(horizontal = 12.dp, vertical = 10.dp)
-                        },
-                    ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // Status badge (porcelain letter). Modified/renamed use neutral theme
-            // roles, while added/deleted use the fixed git semantic colors so the
-            // green=add / red=delete meaning survives any theme configuration.
-            val gitColors = LocalGitSemanticColors.current
-            val statusColor =
-                when (file.status) {
-                    "M" -> MaterialTheme.colorScheme.secondary
-                    "A" -> gitColors.added
-                    "R" -> MaterialTheme.colorScheme.tertiary
-                    "?" -> MaterialTheme.colorScheme.onSurfaceVariant
-                    "D" -> gitColors.deleted
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            val statusBg =
-                when (file.status) {
-                    "D" -> gitColors.deleted.copy(alpha = 0.15f)
-                    "M" -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                    "A" -> gitColors.added.copy(alpha = 0.15f)
-                    "R" -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
-                    "?" -> MaterialTheme.colorScheme.surfaceVariant
-                    else -> MaterialTheme.colorScheme.surfaceVariant
-                }
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = statusBg,
-            ) {
-                Text(
-                    text = file.status,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    color = statusColor,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                )
-            }
-
-            Text(
-                text = file.path,
-                style = MaterialTheme.typography.bodyMedium,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.StartEllipsis,
-                modifier = Modifier.weight(1f),
-            )
-
-            if (isDirectoryPath(file.path)) {
-                Text(
-                    text = "Directory",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else if (file.binary) {
-                Text(
-                    text = stringResource(R.string.chat_git_binary),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                // Reuse the diff-blocks visual (proportion of additions vs deletions)
-                // with compact +N / -M counts, matching the top-bar indicator.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (file.added > 0) {
-                        Text(
-                            text = "+${file.added}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = LocalGitSemanticColors.current.added,
-                        )
-                    }
-                    DiffBlocks(
-                        additions = file.added,
-                        deletions = file.removed,
-                        showEmpty = false,
-                    )
-                    if (file.removed > 0) {
-                        Text(
-                            text = "-${file.removed}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = LocalGitSemanticColors.current.deleted,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private data class PickerItem(
-    val id: String,
-    val label: String,
-    val value: String,
-    val description: String? = null,
-)
-
-@Composable
-private fun PickerSheet(
-    title: String,
-    items: List<PickerItem>,
-    selectedValue: String? = null,
-    recentItems: List<PickerItem> = emptyList(),
-    onItemClick: (value: String) -> Unit,
-    onDismiss: () -> Unit,
-    emptyText: String = "",
-    noResultsText: String = "",
-    searchPlaceholder: String = "",
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    val showSearch = items.size >= 10
-    var query by remember { mutableStateOf("") }
-
-    val recentValues = remember(recentItems) { recentItems.map { it.value }.toSet() }
-    val remainingItems =
-        remember(items, recentValues) {
-            items.filter { it.value !in recentValues }
-        }
-    val showRecentSection = recentItems.isNotEmpty() && query.isBlank()
-    val searchPool = remember(remainingItems, recentItems) { recentItems + remainingItems }
-
-    val filteredOptions =
-        remember(searchPool, query) {
-            if (!showSearch || query.trim().isBlank()) {
-                searchPool
-            } else {
-                val q = query.trim()
-                searchPool.filter { item ->
-                    item.label.contains(q, ignoreCase = true) ||
-                        item.value.contains(q, ignoreCase = true) ||
-                        (item.description?.contains(q, ignoreCase = true) == true)
-                }
-            }
-        }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
-            if (items.isEmpty()) {
-                Text(
-                    text = emptyText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                if (showSearch) {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = stringResource(R.string.chat_search_desc),
-                            )
-                        },
-                        placeholder = { Text(searchPlaceholder) },
-                        shape = RoundedCornerShape(28.dp),
-                    )
-                }
-                if (filteredOptions.isEmpty()) {
-                    Text(
-                        text = noResultsText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    val displayItems = if (showRecentSection) remainingItems else filteredOptions
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        if (showRecentSection) {
-                            Text(
-                                text = stringResource(R.string.chat_recent),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(vertical = 4.dp),
-                            )
-                            recentItems.forEach { item ->
-                                PickerItemRow(item, selectedValue, onItemClick, sheetState, scope, onDismiss)
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = stringResource(R.string.chat_all_items),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(vertical = 4.dp),
-                            )
-                        }
-
-                        displayItems.forEach { item ->
-                            PickerItemRow(item, selectedValue, onItemClick, sheetState, scope, onDismiss)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PickerItemRow(
-    item: PickerItem,
-    selectedValue: String?,
-    onItemClick: (String) -> Unit,
-    sheetState: SheetState,
-    scope: CoroutineScope,
-    onDismiss: () -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable {
-                    onItemClick(item.value)
-                    scope.launch {
-                        sheetState.hide()
-                        onDismiss()
-                    }
-                }.padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = item.label, style = MaterialTheme.typography.bodyMedium)
-            item.description?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (selectedValue != null && item.value == selectedValue) {
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = stringResource(R.string.chat_selected_desc),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SelectConfigOptionSheet(
-    option: ChatConfigOption.Select,
-    serverId: String,
-    recentSelectionStore: RecentSelectionStore,
-    onOptionSelected: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val scope = rememberCoroutineScope()
-    // Key format: "config_option:$serverId:$optionId"
-    // clearByPrefix uses "config_option:$serverId:" trailing colon to avoid cross-server matches
-    val storageKey = remember(option.id, serverId) { "config_option:$serverId:${option.id}" }
-    val allChoices = remember(option) { option.allChoices() }
-    val enableRecents = allChoices.size >= 10
-    val recentValues by recentSelectionStore
-        .getRecentSelections(storageKey)
-        .collectAsState(initial = emptyList())
-    val recentItems =
-        remember(recentValues, allChoices, enableRecents) {
-            if (!enableRecents) {
-                emptyList()
-            } else {
-                recentValues.mapNotNull { val_ ->
-                    allChoices.find { it.value == val_ }?.let { choice ->
-                        PickerItem(
-                            id = choice.id,
-                            label = choice.label,
-                            value = choice.value,
-                            description = choice.description,
-                        )
-                    }
-                }
-            }
-        }
-    PickerSheet(
-        title = option.name,
-        items =
-            allChoices.map { choice ->
-                PickerItem(
-                    id = choice.id,
-                    label = choice.label,
-                    value = choice.value,
-                    description = choice.description,
-                )
-            },
-        selectedValue = option.currentValue,
-        recentItems = recentItems,
-        onItemClick = { value ->
-            onOptionSelected(value)
-            if (enableRecents) {
-                scope.launch { recentSelectionStore.addSelection(storageKey, value) }
-            }
-        },
-        onDismiss = onDismiss,
-        emptyText = stringResource(R.string.chat_picker_no_values),
-        noResultsText = stringResource(R.string.chat_picker_no_models),
-        searchPlaceholder = stringResource(R.string.chat_search_placeholder, option.name),
-    )
-}
-
 @Composable
 private fun CommandsSheet(
     commands: List<ChatCommand>,

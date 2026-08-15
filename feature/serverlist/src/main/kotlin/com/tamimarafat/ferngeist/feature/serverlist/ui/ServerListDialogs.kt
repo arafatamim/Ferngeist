@@ -185,114 +185,38 @@ internal fun PendingAuthenticationDialog(
     onDismiss: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
-    val scrollState = rememberScrollState()
     val selectedMethod =
         pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
             ?: pendingAuthentication.authMethods.firstOrNull()
     val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntime != null
     val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntime == null
-    val requiredEnvVarsFilled =
-        selectedMethod
-            ?.envVars
-            ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
-            ?: false
+
+    val requiredEnvVarsFilled = selectedMethod?.envVars?.all { envVar ->
+        envVar.optional || !envValues[envVar.name].isNullOrBlank()
+    } ?: false
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.serverlist_auth_title, pendingAuthentication.serverName)) },
         text = {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.serverlist_auth_body, pendingAuthentication.agentName),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                pendingAuthentication.authErrorMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                pendingAuthentication.authMethods.forEach { method ->
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                            verticalAlignment = Alignment.Top,
-                        ) {
-                            RadioButton(
-                                selected = selectedMethod?.id == method.id,
-                                onClick = { onSelectedAuthMethodChange(method.id) },
-                            )
-                            Column(
-                                modifier =
-                                    Modifier
-                                        .weight(1f)
-                                        .padding(top = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Text(text = method.name, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    text =
-                                        method.description
-                                            ?: stringResource(R.string.serverlist_auth_method_fallback, method.type),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                if (selectedMethod?.id == method.id) {
-                                    AuthenticationMethodDetails(
-                                        method = method,
-                                        envValues = envValues,
-                                        isGatewayBacked = pendingAuthentication.gatewayRuntime != null,
-                                        onOpenLink = { uriHandler.openUri(it) },
-                                        onEnvValueChange = { name, value -> envValues[name] = value },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            AuthDialogBody(
+                pendingAuthentication = pendingAuthentication,
+                selectedMethod = selectedMethod,
+                envValues = envValues,
+                onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+                onOpenLink = { uriHandler.openUri(it) },
+            )
         },
         confirmButton = {
-            TextButton(
-                enabled =
-                    when {
-                        selectedMethod == null -> false
-                        isGatewayEnvAuth -> requiredEnvVarsFilled
-                        else -> true
-                    },
-                onClick = {
-                    when {
-                        selectedMethod == null -> Unit
-                        isManualEnvAuth -> onReconnect()
-                        else -> onSubmit(selectedMethod.id, envValues)
-                    }
-                },
-            ) {
-                Text(
-                    if (isManualEnvAuth) {
-                        stringResource(
-                            R.string.serverlist_auth_reconnect,
-                        )
-                    } else {
-                        stringResource(R.string.serverlist_auth_authenticate)
-                    },
-                )
-            }
+            AuthDialogConfirmButton(
+                selectedMethod = selectedMethod,
+                isGatewayEnvAuth = isGatewayEnvAuth,
+                isManualEnvAuth = isManualEnvAuth,
+                requiredEnvVarsFilled = requiredEnvVarsFilled,
+                envValues = envValues,
+                onSubmit = onSubmit,
+                onReconnect = onReconnect,
+            )
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
@@ -300,6 +224,147 @@ internal fun PendingAuthenticationDialog(
             }
         },
     )
+}
+
+@Composable
+private fun AuthDialogBody(
+    pendingAuthentication: PendingAuthentication,
+    selectedMethod: AcpAuthMethodInfo?,
+    envValues: MutableMap<String, String>,
+    onSelectedAuthMethodChange: (String) -> Unit,
+    onOpenLink: (String) -> Unit,
+) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 420.dp)
+                .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.serverlist_auth_body, pendingAuthentication.agentName),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        pendingAuthentication.authErrorMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        pendingAuthentication.authMethods.forEach { method ->
+            AuthMethodOption(
+                method = method,
+                selectedMethod = selectedMethod,
+                onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+                envValues = envValues,
+                isGatewayBacked = pendingAuthentication.gatewayRuntime != null,
+                onOpenLink = onOpenLink,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AuthDialogConfirmButton(
+    selectedMethod: AcpAuthMethodInfo?,
+    isGatewayEnvAuth: Boolean,
+    isManualEnvAuth: Boolean,
+    requiredEnvVarsFilled: Boolean,
+    envValues: MutableMap<String, String>,
+    onSubmit: (String, Map<String, String>) -> Unit,
+    onReconnect: () -> Unit,
+) {
+    TextButton(
+        enabled =
+            computeConfirmEnabled(
+                selectedMethod = selectedMethod,
+                isGatewayEnvAuth = isGatewayEnvAuth,
+                requiredEnvVarsFilled = requiredEnvVarsFilled,
+            ),
+        onClick = {
+            when {
+                selectedMethod == null -> Unit
+                isManualEnvAuth -> onReconnect()
+                else -> onSubmit(selectedMethod.id, envValues)
+            }
+        },
+    ) {
+        Text(
+            if (isManualEnvAuth) {
+                stringResource(R.string.serverlist_auth_reconnect)
+            } else {
+                stringResource(R.string.serverlist_auth_authenticate)
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AuthMethodOption(
+    method: AcpAuthMethodInfo,
+    selectedMethod: AcpAuthMethodInfo?,
+    onSelectedAuthMethodChange: (String) -> Unit,
+    envValues: MutableMap<String, String>,
+    isGatewayBacked: Boolean,
+    onOpenLink: (String) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            RadioButton(
+                selected = selectedMethod?.id == method.id,
+                onClick = { onSelectedAuthMethodChange(method.id) },
+            )
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(top = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(text = method.name, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text =
+                        method.description
+                            ?: stringResource(R.string.serverlist_auth_method_fallback, method.type),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (selectedMethod?.id == method.id) {
+                    AuthenticationMethodDetails(
+                        method = method,
+                        envValues = envValues,
+                        isGatewayBacked = isGatewayBacked,
+                        onOpenLink = onOpenLink,
+                        onEnvValueChange = { name, value -> envValues[name] = value },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun computeConfirmEnabled(
+    selectedMethod: AcpAuthMethodInfo?,
+    isGatewayEnvAuth: Boolean,
+    requiredEnvVarsFilled: Boolean,
+): Boolean = when {
+    selectedMethod == null -> false
+    isGatewayEnvAuth -> requiredEnvVarsFilled
+    else -> true
 }
 
 @Composable
@@ -326,28 +391,46 @@ private fun AuthenticationMethodDetails(
         return
     }
     if (!isGatewayBacked) {
+        ManualEnvVarInstructions(method)
+        return
+    }
+    GatewayEnvVarInputs(
+        method = method,
+        envValues = envValues,
+        onEnvValueChange = onEnvValueChange,
+    )
+}
+
+@Composable
+private fun ManualEnvVarInstructions(method: AcpAuthMethodInfo) {
+    Text(
+        text = stringResource(R.string.serverlist_auth_env_instructions),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    method.envVars.forEach { envVar ->
         Text(
-            text = stringResource(R.string.serverlist_auth_env_instructions),
+            text =
+                buildString {
+                    append(envVar.label ?: envVar.name)
+                    append(" -> ")
+                    append(envVar.name)
+                    if (envVar.optional) {
+                        append(stringResource(R.string.serverlist_auth_optional_suffix))
+                    }
+                },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        method.envVars.forEach { envVar ->
-            Text(
-                text =
-                    buildString {
-                        append(envVar.label ?: envVar.name)
-                        append(" -> ")
-                        append(envVar.name)
-                        if (envVar.optional) {
-                            append(stringResource(R.string.serverlist_auth_optional_suffix))
-                        }
-                    },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        return
     }
+}
+
+@Composable
+private fun GatewayEnvVarInputs(
+    method: AcpAuthMethodInfo,
+    envValues: MutableMap<String, String>,
+    onEnvValueChange: (String, String) -> Unit,
+) {
     method.envVars.forEach { envVar ->
         OutlinedTextField(
             value = envValues[envVar.name].orEmpty(),

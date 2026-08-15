@@ -1,3 +1,9 @@
+@file:OptIn(
+    ExperimentalFoundationApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -26,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TooltipState
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TwoRowsTopAppBar
@@ -58,11 +65,6 @@ import kotlinx.coroutines.launch
  * As [scrollBehavior.state.collapsedFraction] approaches 1.0, the base surface
  * fades out completely, leaving only the pill elements visible.
  */
-@OptIn(
-    ExperimentalMaterial3Api::class,
-    ExperimentalMaterial3ExpressiveApi::class,
-    ExperimentalSharedTransitionApi::class,
-)
 @Composable
 internal fun ChatTopBar(
     sessionId: String,
@@ -87,45 +89,13 @@ internal fun ChatTopBar(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
 ) {
-    // Gradient: opaque surface at top fades to transparent at bottom.
-    // As the bar collapses, the base surface fades to reveal the gradient
-    // layer underneath, giving a "surface peeling away" effect.
     val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
-    val expandedBackground = MaterialTheme.colorScheme.surface.copy(alpha = 1f - collapsedFraction)
-    val topShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-    val middleShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-    val bottomShadow = Color.Transparent
 
     Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .background(expandedBackground)
-                .background(
-                    brush =
-                        Brush.verticalGradient(
-                            colors =
-                                listOf(
-                                    topShadow,
-                                    middleShadow,
-                                    bottomShadow,
-                                ),
-                        ),
-                ),
+        modifier = ChatTopBarGradientModifier(collapsedFraction),
     ) {
         TwoRowsTopAppBar(
-            navigationIcon = {
-                FilledTonalIconButton(
-                    onClick = onNavigateBack,
-                    shape = RoundedCornerShape(percent = 50),
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(R.string.chat_back_desc),
-                    )
-                }
-            },
+            navigationIcon = { TopBarBackButton(onNavigateBack) },
             title = { expanded ->
                 ChatTopBarTitle(
                     expanded = expanded,
@@ -141,46 +111,23 @@ internal fun ChatTopBar(
             },
             subtitle =
                 activeModel?.takeIf { it.isNotBlank() }?.let { model ->
-                    { expanded ->
-                        if (expanded) {
-                            Text(
-                                text = model,
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                    ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(bottom = 12.dp),
-                            )
-                        }
-                    }
+                    { expanded -> TopBarSubtitleContent(model = model, expanded = expanded) }
                 },
             actions = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (gitAdditions > 0 || gitDeletions > 0 || gitChangedFiles > 0) {
-                        GitStatusIndicatorButton(
-                            additions = gitAdditions,
-                            deletions = gitDeletions,
-                            branch = gitBranch,
-                            changedFiles = gitChangedFiles,
-                            onClick = onGitStatusClick,
-                            onLongPress = onGitStatusLongPress,
-                        )
-                    }
-                    ConnectionStatusPill(
-                        connectionState = connectionState,
-                        totalTokens = totalTokens,
-                        contextWindowTokens = contextWindowTokens,
-                        costAmount = costAmount,
-                        costCurrency = costCurrency,
-                        onClick = onConnectionStatusClick,
-                    )
-                }
+                TopBarActions(
+                    gitAdditions = gitAdditions,
+                    gitDeletions = gitDeletions,
+                    gitBranch = gitBranch,
+                    gitChangedFiles = gitChangedFiles,
+                    onGitStatusClick = onGitStatusClick,
+                    onGitStatusLongPress = onGitStatusLongPress,
+                    connectionState = connectionState,
+                    totalTokens = totalTokens,
+                    contextWindowTokens = contextWindowTokens,
+                    costAmount = costAmount,
+                    costCurrency = costCurrency,
+                    onConnectionStatusClick = onConnectionStatusClick,
+                )
             },
             collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
             expandedHeight =
@@ -198,6 +145,102 @@ internal fun ChatTopBar(
         )
     }
 }
+
+// Gradient: opaque surface at top fades to transparent at bottom.
+// As the bar collapses, the base surface fades to reveal the gradient
+// layer underneath, giving a "surface peeling away" effect.
+@Composable
+private fun ChatTopBarGradientModifier(collapsedFraction: Float): Modifier {
+    val expandedBackground = MaterialTheme.colorScheme.surface.copy(alpha = 1f - collapsedFraction)
+    val topShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+    val middleShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+    val bottomShadow = Color.Transparent
+    return Modifier
+        .fillMaxWidth()
+        .background(expandedBackground)
+        .background(
+            brush =
+                Brush.verticalGradient(
+                    colors =
+                        listOf(
+                            topShadow,
+                            middleShadow,
+                            bottomShadow,
+                        ),
+                ),
+        )
+}
+
+@Composable
+private fun TopBarBackButton(onNavigateBack: () -> Unit) {
+    FilledTonalIconButton(
+        onClick = onNavigateBack,
+        shape = RoundedCornerShape(percent = 50),
+        modifier = Modifier.size(40.dp),
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = stringResource(R.string.chat_back_desc),
+        )
+    }
+}
+
+@Composable
+private fun TopBarSubtitleContent(model: String, expanded: Boolean) {
+    if (expanded) {
+        Text(
+            text = model,
+            style =
+                MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+    }
+}
+
+@Composable
+private fun TopBarActions(
+    gitAdditions: Int,
+    gitDeletions: Int,
+    gitBranch: String?,
+    gitChangedFiles: Int,
+    onGitStatusClick: () -> Unit,
+    onGitStatusLongPress: () -> Unit,
+    connectionState: ChatConnectionState,
+    totalTokens: Int?,
+    contextWindowTokens: Int?,
+    costAmount: Double?,
+    costCurrency: String?,
+    onConnectionStatusClick: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (gitAdditions > 0 || gitDeletions > 0 || gitChangedFiles > 0) {
+            GitStatusIndicatorButton(
+                additions = gitAdditions,
+                deletions = gitDeletions,
+                branch = gitBranch,
+                changedFiles = gitChangedFiles,
+                onClick = onGitStatusClick,
+                onLongPress = onGitStatusLongPress,
+            )
+        }
+        ConnectionStatusPill(
+            connectionState = connectionState,
+            totalTokens = totalTokens,
+            contextWindowTokens = contextWindowTokens,
+            costAmount = costAmount,
+            costCurrency = costCurrency,
+            onClick = onConnectionStatusClick,
+        )
+    }
+}
 // endregion
 
 // region: ChatTopBarTitle
@@ -209,11 +252,6 @@ internal fun ChatTopBar(
  * The shared-bounds transition for the session title is assigned to whichever
  * visual form owns the majority of the crossfade — ownership flips at 50%.
  */
-@OptIn(
-    ExperimentalSharedTransitionApi::class,
-    ExperimentalMaterial3Api::class,
-    ExperimentalFoundationApi::class,
-)
 @Composable
 internal fun ChatTopBarTitle(
     expanded: Boolean,
@@ -258,112 +296,163 @@ internal fun ChatTopBarTitle(
                     )
                 },
                 text = {
-                    Column {
-                        cwd?.takeIf { it.isNotBlank() }?.let { value ->
-                            Text(
-                                text = value,
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                    ),
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        }
-                        model?.takeIf { it.isNotBlank() }?.let { value ->
-                            Text(
-                                text = value,
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                    ),
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        }
-                    }
+                    TooltipMetadataRows(cwd = cwd, model = model)
                 },
             )
         },
         state = tooltipState,
     ) {
         if (expanded) {
-            with(sharedTransitionScope) {
-                Text(
-                    text = sessionTitle,
-                    style =
-                        MaterialTheme.typography.titleLarge.copy(
-                            fontFamily = FontFamily.Monospace,
-                        ),
-                    maxLines = 2,
-                    softWrap = true,
-                    overflow = TextOverflow.MiddleEllipsis,
-                    modifier =
-                        Modifier
-                            .then(
-                                if (ownsSharedTitleBounds) {
-                                    Modifier.sessionTitleSharedBounds(
-                                        sessionId,
-                                        sharedTransitionScope,
-                                        animatedContentScope,
-                                    )
-                                } else {
-                                    Modifier
-                                },
-                            ).combinedClickable(
-                                onClick = {
-                                    tooltipState.dismiss()
-                                    onTitleClick()
-                                },
-                                onLongClick = showTitleTooltip,
-                            ).semantics {
-                                contentDescription = sessionTitle
-                            },
-                )
-            }
+            ExpandedTitleText(
+                sessionId = sessionId,
+                sessionTitle = sessionTitle,
+                ownsSharedTitleBounds = ownsSharedTitleBounds,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+                onTitleClick = onTitleClick,
+                showTitleTooltip = showTitleTooltip,
+                tooltipState = tooltipState,
+            )
         } else {
-            Surface(
-                shape = RoundedCornerShape(percent = 50),
-                tonalElevation = 0.dp,
-                color = MaterialTheme.colorScheme.secondaryContainer,
+            CollapsedTitleSurface(
+                sessionId = sessionId,
+                sessionTitle = sessionTitle,
+                ownsSharedTitleBounds = ownsSharedTitleBounds,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+                onTitleClick = onTitleClick,
+                showTitleTooltip = showTitleTooltip,
+                tooltipState = tooltipState,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TooltipMetadataRows(cwd: String?, model: String?) {
+    Column {
+        cwd?.takeIf { it.isNotBlank() }?.let { value ->
+            Text(
+                text = value,
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        model?.takeIf { it.isNotBlank() }?.let { value ->
+            Text(
+                text = value,
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedTitleText(
+    sessionId: String,
+    sessionTitle: String,
+    ownsSharedTitleBounds: Boolean,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: androidx.compose.animation.AnimatedContentScope,
+    onTitleClick: () -> Unit,
+    showTitleTooltip: () -> Unit,
+    tooltipState: TooltipState,
+) {
+    with(sharedTransitionScope) {
+        Text(
+            text = sessionTitle,
+            style =
+                MaterialTheme.typography.titleLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
+            maxLines = 2,
+            softWrap = true,
+            overflow = TextOverflow.MiddleEllipsis,
+            modifier =
+                Modifier
+                    .then(
+                        if (ownsSharedTitleBounds) {
+                            Modifier.sessionTitleSharedBounds(
+                                sessionId,
+                                sharedTransitionScope,
+                                animatedContentScope,
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ).combinedClickable(
+                        onClick = {
+                            tooltipState.dismiss()
+                            onTitleClick()
+                        },
+                        onLongClick = showTitleTooltip,
+                    ).semantics {
+                        contentDescription = sessionTitle
+                    },
+        )
+    }
+}
+
+@Composable
+private fun CollapsedTitleSurface(
+    sessionId: String,
+    sessionTitle: String,
+    ownsSharedTitleBounds: Boolean,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: androidx.compose.animation.AnimatedContentScope,
+    onTitleClick: () -> Unit,
+    showTitleTooltip: () -> Unit,
+    tooltipState: TooltipState,
+) {
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        tonalElevation = 0.dp,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(percent = 50))
+                .combinedClickable(
+                    onClick = {
+                        tooltipState.dismiss()
+                        onTitleClick()
+                    },
+                    onLongClick = showTitleTooltip,
+                ).semantics {
+                    contentDescription = sessionTitle
+                },
+    ) {
+        with(sharedTransitionScope) {
+            Text(
+                text = sessionTitle,
+                style =
+                    MaterialTheme.typography.titleSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
                 modifier =
                     Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(percent = 50))
-                        .combinedClickable(
-                            onClick = {
-                                tooltipState.dismiss()
-                                onTitleClick()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .then(
+                            if (ownsSharedTitleBounds) {
+                                Modifier.sessionTitleSharedBounds(
+                                    sessionId,
+                                    sharedTransitionScope,
+                                    animatedContentScope,
+                                )
+                            } else {
+                                Modifier
                             },
-                            onLongClick = showTitleTooltip,
-                        ).semantics {
-                            contentDescription = sessionTitle
-                        },
-            ) {
-                with(sharedTransitionScope) {
-                    Text(
-                        text = sessionTitle,
-                        style =
-                            MaterialTheme.typography.titleSmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                            ),
-                        maxLines = 1,
-                        overflow = TextOverflow.MiddleEllipsis,
-                        modifier =
-                            Modifier
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .then(
-                                    if (ownsSharedTitleBounds) {
-                                        Modifier.sessionTitleSharedBounds(
-                                            sessionId,
-                                            sharedTransitionScope,
-                                            animatedContentScope,
-                                        )
-                                    } else {
-                                        Modifier
-                                    },
-                                ),
-                    )
-                }
-            }
+                        ),
+            )
         }
     }
 }

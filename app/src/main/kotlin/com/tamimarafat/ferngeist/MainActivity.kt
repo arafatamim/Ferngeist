@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -12,11 +13,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -40,11 +44,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.push.FcmPayloadKeys
@@ -155,6 +162,40 @@ fun FerngeistNavHost(
     val navSpring = spring<IntOffset>()
     val navFadeSpring = spring<Float>()
 
+    DeepLinkEffect(navController, latestIntent, translateGatewayId, onIntentConsumed)
+
+    val context = LocalContext.current
+    val connectionManager = (context.applicationContext as FerngeistApplication).connectionManager
+    BatteryOptimizationGate(connectionManager, context)
+
+    SharedTransitionLayout {
+        NavHost(
+            navController = navController,
+            startDestination = "server_list",
+            enterTransition = { navEnterTransition(navSpring, navFadeSpring) },
+            exitTransition = { navExitTransition(navSpring, navFadeSpring) },
+            popEnterTransition = { navPopEnterTransition(navSpring, navFadeSpring) },
+            popExitTransition = { navPopExitTransition(navSpring, navFadeSpring) },
+        ) {
+            ServerListDestination(navController, this@SharedTransitionLayout)
+            GatewaysDestination(navController)
+            AddServerDestination(navController)
+            AddGatewayDestination(navController)
+            EditGatewayDestination(navController)
+            GatewayAgentsDestination(navController)
+            EditServerDestination(navController)
+            SessionsDestination(navController, this@SharedTransitionLayout)
+            ChatDestination(navController, this@SharedTransitionLayout)
+        }
+    }
+}
+@Composable
+private fun DeepLinkEffect(
+    navController: NavHostController,
+    latestIntent: StateFlow<Intent?>,
+    translateGatewayId: suspend (String) -> String?,
+    onIntentConsumed: () -> Unit,
+) {
     // Deep-link a notification tap to the referenced chat session. Handles both the
     // connection/in-app notifications (our own extras) and a system-displayed FCM
     // notification tapped while the app was killed/background (raw FCM data keys).
@@ -175,13 +216,13 @@ fun FerngeistNavHost(
         }
         onIntentConsumed()
     }
-
-    val context = LocalContext.current
+}
+@Composable
+private fun BatteryOptimizationGate(connectionManager: AcpConnectionManager, context: Context) {
     val batteryPrefs = remember(context) { BatteryOptimizationPreferences(context) }
     val isDismissed by batteryPrefs.isDismissed.collectAsState(initial = false)
     var dismissLoaded by remember { mutableStateOf(false) }
     var showBatteryDialog by remember { mutableStateOf(false) }
-    val connectionManager = (context.applicationContext as FerngeistApplication).connectionManager
     val connectionState by connectionManager.connectionState.collectAsState()
 
     LaunchedEffect(batteryPrefs) {
@@ -211,56 +252,13 @@ fun FerngeistNavHost(
             },
         )
     }
+}
 
-    SharedTransitionLayout {
-        NavHost(
-            navController = navController,
-            startDestination = "server_list",
-            enterTransition = {
-                when {
-                    isSessionChatTransition() -> EnterTransition.None
-                    isServerListSessionsTransition() -> fadeIn(animationSpec = navFadeSpring)
-                    else ->
-                        slideIntoContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                            animationSpec = navSpring,
-                        ) + fadeIn(animationSpec = navFadeSpring)
-                }
-            },
-            exitTransition = {
-                when {
-                    isSessionChatTransition() -> ExitTransition.None
-                    isServerListSessionsTransition() -> fadeOut(animationSpec = navFadeSpring)
-                    else ->
-                        slideOutOfContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                            animationSpec = navSpring,
-                        ) + fadeOut(animationSpec = navFadeSpring)
-                }
-            },
-            popEnterTransition = {
-                when {
-                    isSessionChatTransition() -> EnterTransition.None
-                    isServerListSessionsTransition() -> fadeIn(animationSpec = navFadeSpring)
-                    else ->
-                        slideIntoContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                            animationSpec = navSpring,
-                        ) + fadeIn(animationSpec = navFadeSpring)
-                }
-            },
-            popExitTransition = {
-                when {
-                    isSessionChatTransition() -> ExitTransition.None
-                    isServerListSessionsTransition() -> fadeOut(animationSpec = navFadeSpring)
-                    else ->
-                        slideOutOfContainer(
-                            towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                            animationSpec = navSpring,
-                        ) + fadeOut(animationSpec = navFadeSpring)
-                }
-            },
-        ) {
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.ServerListDestination(
+    navController: NavHostController,
+    sharedTransitionLayout: SharedTransitionScope,
+) {
             composable("server_list") {
                 val viewModel: ServerListViewModel = hiltViewModel()
 
@@ -293,11 +291,14 @@ fun FerngeistNavHost(
                         )
                     },
                     viewModel = viewModel,
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedContentScope = this@composable,
+                    sharedTransitionScope = sharedTransitionLayout,
+                    animatedContentScope = this,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.GatewaysDestination(navController: NavHostController) {
             composable("gateways") {
                 val viewModel: GatewayListViewModel = hiltViewModel()
                 GatewayListScreen(
@@ -308,7 +309,10 @@ fun FerngeistNavHost(
                     viewModel = viewModel,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.AddServerDestination(navController: NavHostController) {
             composable(
                 route = "add_server?name={name}&scheme={scheme}&host={host}",
                 arguments =
@@ -336,7 +340,10 @@ fun FerngeistNavHost(
                     viewModel = viewModel,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.AddGatewayDestination(navController: NavHostController) {
             composable("add_gateway") {
                 val viewModel: AddGatewayViewModel = hiltViewModel()
                 AddGatewayScreen(
@@ -344,7 +351,10 @@ fun FerngeistNavHost(
                     viewModel = viewModel,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.EditGatewayDestination(navController: NavHostController) {
             composable(
                 route = "edit_gateway/{serverId}",
                 arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
@@ -355,7 +365,10 @@ fun FerngeistNavHost(
                     viewModel = viewModel,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.GatewayAgentsDestination(navController: NavHostController) {
             composable(
                 route = "gateway_agents/{serverId}",
                 arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
@@ -366,7 +379,10 @@ fun FerngeistNavHost(
                     viewModel = viewModel,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.EditServerDestination(navController: NavHostController) {
             composable(
                 route = "edit_server/{serverId}",
                 arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
@@ -377,7 +393,13 @@ fun FerngeistNavHost(
                     viewModel = viewModel,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.SessionsDestination(
+    navController: NavHostController,
+    sharedTransitionLayout: SharedTransitionScope,
+) {
             composable(
                 route = "sessions/{serverId}?create={create}&name={name}",
                 arguments =
@@ -416,11 +438,17 @@ fun FerngeistNavHost(
                         )
                     },
                     viewModel = viewModel,
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedContentScope = this@composable,
+                    sharedTransitionScope = sharedTransitionLayout,
+                    animatedContentScope = this,
                 )
             }
+}
 
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.ChatDestination(
+    navController: NavHostController,
+    sharedTransitionLayout: SharedTransitionScope,
+) {
             composable(
                 route =
                     "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}" +
@@ -459,13 +487,12 @@ fun FerngeistNavHost(
                     sessionId = sessionId,
                     sessionTitle = title,
                     onNavigateBack = { navController.popBackStack() },
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedContentScope = this@composable,
+                    sharedTransitionScope = sharedTransitionLayout,
+                    animatedContentScope = this,
                 )
             }
-        }
-    }
 }
+
 
 /** A resolved chat destination for a notification tap. [serverId] is always the local id. */
 private data class ChatDeepLinkTarget(
@@ -480,28 +507,45 @@ private suspend fun resolveChatDeepLink(
     intent: Intent,
     translateGatewayId: suspend (String) -> String?,
 ): ChatDeepLinkTarget? {
-    intent.getStringExtra(FerngeistForegroundService.EXTRA_SERVER_ID)?.let { localServerId ->
-        val sessionId = intent.getStringExtra(FerngeistForegroundService.EXTRA_SESSION_ID) ?: return null
-        return ChatDeepLinkTarget(
-            serverId = localServerId,
-            sessionId = sessionId,
-            cwd = intent.getStringExtra(FerngeistForegroundService.EXTRA_CWD) ?: "",
-            title = intent.getStringExtra(FerngeistForegroundService.EXTRA_TITLE).orEmpty(),
-            gatewayId = intent.getStringExtra(FerngeistForegroundService.EXTRA_GATEWAY_ID),
-        )
-    }
+    buildLocalServerDeepLinkTarget(intent)?.let { return it }
+    return buildFcmDeepLinkTargetOrNull(intent, translateGatewayId)
+}
 
+private suspend fun buildFcmDeepLinkTargetOrNull(
+    intent: Intent,
+    translateGatewayId: suspend (String) -> String?,
+): ChatDeepLinkTarget? {
     val gatewayId = intent.getStringExtra(FcmPayloadKeys.SERVER_ID) ?: return null
     val sessionId = intent.getStringExtra(FcmPayloadKeys.SESSION_ID) ?: return null
-    val localServerId = translateGatewayId(gatewayId) ?: return null
+    val mappedServerId = translateGatewayId(gatewayId) ?: return null
+    return buildFcmDeepLinkTarget(intent, mappedServerId, sessionId, gatewayId)
+}
+
+private fun buildLocalServerDeepLinkTarget(intent: Intent): ChatDeepLinkTarget? {
+    val localServerId = intent.getStringExtra(FerngeistForegroundService.EXTRA_SERVER_ID) ?: return null
+    val sessionId = intent.getStringExtra(FerngeistForegroundService.EXTRA_SESSION_ID) ?: return null
     return ChatDeepLinkTarget(
         serverId = localServerId,
+        sessionId = sessionId,
+        cwd = intent.getStringExtra(FerngeistForegroundService.EXTRA_CWD) ?: "",
+        title = intent.getStringExtra(FerngeistForegroundService.EXTRA_TITLE).orEmpty(),
+        gatewayId = intent.getStringExtra(FerngeistForegroundService.EXTRA_GATEWAY_ID),
+    )
+}
+
+private fun buildFcmDeepLinkTarget(
+    intent: Intent,
+    serverId: String,
+    sessionId: String,
+    gatewayId: String,
+): ChatDeepLinkTarget =
+    ChatDeepLinkTarget(
+        serverId = serverId,
         sessionId = sessionId,
         cwd = intent.getStringExtra(FcmPayloadKeys.CWD) ?: "",
         title = "",
         gatewayId = gatewayId,
     )
-}
 
 /**
  * Requests the `POST_NOTIFICATIONS` permission (Android 13+) on first composition
@@ -534,6 +578,63 @@ private fun NotificationPermissionEffect() {
  * Used to suppress the default slide/fade animation so the shared-element
  * transition defined inside the two screens drives the visual change instead.
  */
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.navEnterTransition(
+    navSpring: SpringSpec<IntOffset>,
+    navFadeSpring: SpringSpec<Float>,
+): EnterTransition =
+    when {
+        isSessionChatTransition() -> EnterTransition.None
+        isServerListSessionsTransition() -> fadeIn(animationSpec = navFadeSpring)
+        else ->
+            slideIntoContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                animationSpec = navSpring,
+            ) + fadeIn(animationSpec = navFadeSpring)
+    }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.navExitTransition(
+    navSpring: SpringSpec<IntOffset>,
+    navFadeSpring: SpringSpec<Float>,
+): ExitTransition =
+    when {
+        isSessionChatTransition() -> ExitTransition.None
+        isServerListSessionsTransition() -> fadeOut(animationSpec = navFadeSpring)
+        else ->
+            slideOutOfContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                animationSpec = navSpring,
+            ) + fadeOut(animationSpec = navFadeSpring)
+    }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.navPopEnterTransition(
+    navSpring: SpringSpec<IntOffset>,
+    navFadeSpring: SpringSpec<Float>,
+): EnterTransition =
+    when {
+        isSessionChatTransition() -> EnterTransition.None
+        isServerListSessionsTransition() -> fadeIn(animationSpec = navFadeSpring)
+        else ->
+            slideIntoContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                animationSpec = navSpring,
+            ) + fadeIn(animationSpec = navFadeSpring)
+    }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.navPopExitTransition(
+    navSpring: SpringSpec<IntOffset>,
+    navFadeSpring: SpringSpec<Float>,
+): ExitTransition =
+    when {
+        isSessionChatTransition() -> ExitTransition.None
+        isServerListSessionsTransition() -> fadeOut(animationSpec = navFadeSpring)
+        else ->
+            slideOutOfContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                animationSpec = navSpring,
+            ) + fadeOut(animationSpec = navFadeSpring)
+    }
+
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.isSessionChatTransition(): Boolean {
     val fromRoute = initialState.destination.route ?: return false
     val toRoute = targetState.destination.route ?: return false

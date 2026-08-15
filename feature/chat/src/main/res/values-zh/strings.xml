@@ -54,119 +54,6 @@
     <string name="chat_permission_kind_reject_always">总是拒绝</string>
 
     <!-- Spinner verbs -->
-    <string name="chat_spinner_verb_01">完成中</string>
-    <string name="chat_spinner_verb_02">执行中</string>
-    <string name="chat_spinner_verb_03">实现中</string>
-    <string name="chat_spinner_verb_04">烘焙中</string>
-    <string name="chat_spinner_verb_05">酝酿中</string>
-    <string name="chat_spinner_verb_06">计算中</string>
-    <string name="chat_spinner_verb_07">思索中</string>
-    <string name="chat_spinner_verb_08">搅动中</string>
-    <string name="chat_spinner_verb_09">融合中</string>
-    <string name="chat_spinner_verb_10">深思中</string>
-    <string name="chat_spinner_verb_11">运算中</string>
-    <string name="chat_spinner_verb_12">召唤中</string>
-    <string name="chat_spinner_verb_13">考虑中</string>
-    <string name="chat_spinner_verb_14">烹饪中</string>
-    <string name="chat_spinner_verb_15">打造中</string>
-    <string name="chat_spinner_verb_16">创造中</string>
-    <string name="chat_spinner_verb_17">分析中</string>
-    <string name="chat_spinner_verb_18">权衡中</string>
-    <string name="chat_spinner_verb_19">判断中</string>
-    <string name="chat_spinner_verb_20">干活中</string>
-    <string name="chat_spinner_verb_21">生效中</string>
-    <string name="chat_spinner_verb_22">巧思中</string>
-    <string name="chat_spinner_verb_23">锻造中</string>
-    <string name="chat_spinner_verb_24">成形中</string>
-    <string name="chat_spinner_verb_25">生成中</string>
-    <string name="chat_spinner_verb_26">孵化中</string>
-    <string name="chat_spinner_verb_27">归拢中</string>
-    <string name="chat_spinner_verb_28">滴滴中</string>
-    <string name="chat_spinner_verb_29">冲刺中</string>
-    <string name="chat_spinner_verb_30">构思中</string>
-    <string name="chat_spinner_verb_31">推理中</string>
-    <string name="chat_spinner_verb_32">显现中</string>
-    <string name="chat_spinner_verb_33">浸泡中</string>
-    <string name="chat_spinner_verb_34">漫步中</string>
-    <string name="chat_spinner_verb_35">琢磨中</string>
-    <string name="chat_spinner_verb_36">集结中</string>
-    <string name="chat_spinner_verb_37">沉思中</string>
-    <string name="chat_spinner_verb_38">摆弄中</string>
-    <string name="chat_spinner_verb_39">渗透中</string>
-    <string name="chat_spinner_verb_40">思量中</string>
-    <string name="chat_spinner_verb_41">加工中</string>
-    <string name="chat_spinner_verb_42">鼓捣中</string>
-    <string name="chat_spinner_verb_43">编织中</string>
-    <string name="chat_spinner_verb_44">反刍中</string>
-    <string name="chat_spinner_verb_45">搬运中</string>
-    <string name="chat_spinner_verb_46">剥离中</string>
-    <string name="chat_spinner_verb_47">慢炖中</string>
-    <string name="chat_spinner_verb_48">揉合中</string>
-    <string name="chat_spinner_verb_49">旋转中</string>
-    <string name="chat_spinner_verb_50">熬煮中</string>
-    <string name="chat_spinner_verb_51">合成中</string>
-    <string name="chat_spinner_verb_52">思考中</string>
-    <string name="chat_spinner_verb_53">转化中</string>
-    <string name="chat_spinner_verb_54">律动中</string>
-    <string name="chat_spinner_verb_55">工作中</string>
-
-    <string-array name="chat_spinner_verbs">
-        <item>@string/chat_spinner_verb_01</item>
-        <item>@string/chat_spinner_verb_02</item>
-        <item>@string/chat_spinner_verb_03</item>
-        <item>@string/chat_spinner_verb_04</item>
-        <item>@string/chat_spinner_verb_05</item>
-        <item>@string/chat_spinner_verb_06</item>
-        <item>@string/chat_spinner_verb_07</item>
-        <item>@string/chat_spinner_verb_08</item>
-        <item>@string/chat_spinner_verb_09</item>
-        <item>@string/chat_spinner_verb_10</item>
-        <item>@string/chat_spinner_verb_11</item>
-        <item>@string/chat_spinner_verb_12</item>
-        <item>@string/chat_spinner_verb_13</item>
-        <item>@string/chat_spinner_verb_14</item>
-        <item>@string/chat_spinner_verb_15</item>
-        <item>@string/chat_spinner_verb_16</item>
-        <item>@string/chat_spinner_verb_17</item>
-        <item>@string/chat_spinner_verb_18</item>
-        <item>@string/chat_spinner_verb_19</item>
-        <item>@string/chat_spinner_verb_20</item>
-        <item>@string/chat_spinner_verb_21</item>
-        <item>@string/chat_spinner_verb_22</item>
-        <item>@string/chat_spinner_verb_23</item>
-        <item>@string/chat_spinner_verb_24</item>
-        <item>@string/chat_spinner_verb_25</item>
-        <item>@string/chat_spinner_verb_26</item>
-        <item>@string/chat_spinner_verb_27</item>
-        <item>@string/chat_spinner_verb_28</item>
-        <item>@string/chat_spinner_verb_29</item>
-        <item>@string/chat_spinner_verb_30</item>
-        <item>@string/chat_spinner_verb_31</item>
-        <item>@string/chat_spinner_verb_32</item>
-        <item>@string/chat_spinner_verb_33</item>
-        <item>@string/chat_spinner_verb_34</item>
-        <item>@string/chat_spinner_verb_35</item>
-        <item>@string/chat_spinner_verb_36</item>
-        <item>@string/chat_spinner_verb_37</item>
-        <item>@string/chat_spinner_verb_38</item>
-        <item>@string/chat_spinner_verb_39</item>
-        <item>@string/chat_spinner_verb_40</item>
-        <item>@string/chat_spinner_verb_41</item>
-        <item>@string/chat_spinner_verb_42</item>
-        <item>@string/chat_spinner_verb_43</item>
-        <item>@string/chat_spinner_verb_44</item>
-        <item>@string/chat_spinner_verb_45</item>
-        <item>@string/chat_spinner_verb_46</item>
-        <item>@string/chat_spinner_verb_47</item>
-        <item>@string/chat_spinner_verb_48</item>
-        <item>@string/chat_spinner_verb_49</item>
-        <item>@string/chat_spinner_verb_50</item>
-        <item>@string/chat_spinner_verb_51</item>
-        <item>@string/chat_spinner_verb_52</item>
-        <item>@string/chat_spinner_verb_53</item>
-        <item>@string/chat_spinner_verb_54</item>
-        <item>@string/chat_spinner_verb_55</item>
-    </string-array>
 
     <!-- Chat Screen -->
     <string name="chat_mode_label">模式</string>
@@ -221,4 +108,37 @@
     <string name="chat_error_unknown">未知错误</string>
     <string name="chat_error_send_failed">发送失败</string>
     <string name="chat_scroll_to_bottom">滚动到底部</string>
+    <string name="chat_attach_desc">附加文件</string>
+    <string name="chat_remove_file_desc">移除文件</string>
+    <string name="chat_remove_image_desc">移除图片</string>
+    <string name="chat_git_binary">二进制</string>
+    <string name="chat_git_clean">工作区是干净的</string>
+    <string name="chat_git_no_branch">(无分支)</string>
+    <string name="chat_git_status_title">Git 状态</string>
+    <string name="chat_git_status_desc">Git 状态详情</string>
+    <string name="chat_status_sending">发送中</string>
+    <string name="chat_status_queued">排队中</string>
+    <string name="chat_status_failed">发送失败</string>
+    <string name="chat_status_retry">点按重试</string>
+    <plurals name="chat_attachments_unsupported">
+        <item quantity="other">此代理不支持 %1$d 个附件</item>
+    </plurals>
+    <plurals name="chat_files_too_large">
+        <item quantity="other">%1$d 个文件超过了 10 MB 限制</item>
+    </plurals>
+    <plurals name="chat_files_capped">
+        <item quantity="other">每条消息最多 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_images_dropped">
+        <item quantity="other">%1$d 张图片无法解码</item>
+    </plurals>
+    <plurals name="chat_images_capped">
+        <item quantity="other">每条消息最多 %1$d 张图片</item>
+    </plurals>
+    <plurals name="chat_images_dropped_capped">
+        <item quantity="other">已丢弃 %1$d 张无法解码的图片；每条消息限制为 %2$d 张</item>
+    </plurals>
+    <plurals name="chat_git_files_changed">
+        <item quantity="other">%1$d 个文件已更改</item>
+    </plurals>
 </resources>

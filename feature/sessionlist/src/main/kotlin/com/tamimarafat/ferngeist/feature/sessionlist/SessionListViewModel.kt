@@ -406,24 +406,23 @@ class SessionListViewModel
             return true
         }
 
+        private data class AuthContext(
+            val server: LaunchableTarget,
+            val gatewaySource: com.tamimarafat.ferngeist.core.model.GatewaySource,
+        )
+
         /**
-         * Handles gateway-backed env authentication by restarting the runtime with env vars.
+         * Resolves the server + gateway source for an in-flight authentication,
+         * deleting expired credentials. Returns null after surfacing the error.
          */
-        private suspend fun authenticateGatewayEnvVar(
-            pending: SessionListPendingAuthentication,
-            method: AcpAuthMethodInfo,
-            envValues: Map<String, String>,
-        ) {
-            // Gateway-backed env auth requires a fresh process environment. Restart
-            // the gateway runtime with the saved values, reconnect, authenticate,
-            // then retry the original session action.
+        private suspend fun resolveAuthContext(): AuthContext? {
             val currentServer =
                 server.value ?: run {
                     _pendingAuthentication.update {
                         it?.copy(authErrorMessage = "Server was removed before authentication could complete.")
                     }
                     _isLoading.value = false
-                    return
+                    return null
                 }
             val gatewayTarget =
                 currentServer as? LaunchableTarget.GatewayAgent ?: run {
@@ -431,9 +430,21 @@ class SessionListViewModel
                         it?.copy(authErrorMessage = "Gateway was not found for ${currentServer.name}.")
                     }
                     _isLoading.value = false
-                    return
+                    return null
                 }
             val gatewaySource =
+                resolveAuthGatewaySource(gatewayTarget) ?: return null
+            return AuthContext(currentServer, gatewaySource)
+        }
+
+        /**
+         * Refreshes the gateway source, deleting the stored credential when it
+         * has expired. Returns null after surfacing the failure.
+         */
+        private suspend fun resolveAuthGatewaySource(
+            gatewayTarget: LaunchableTarget.GatewayAgent,
+        ): com.tamimarafat.ferngeist.core.model.GatewaySource? {
+            val source =
                 try {
                     withContext(Dispatchers.IO) {
                         refreshGatewaySourceIfNeeded(
@@ -442,7 +453,7 @@ class SessionListViewModel
                             gatewaySourceRepository,
                         )
                     }
-                } catch (error: GatewayCredentialExpiredException) {
+                } catch (_: GatewayCredentialExpiredException) {
                     withContext(Dispatchers.IO) {
                         gatewaySourceRepository.deleteGateway(gatewayTarget.gatewaySource.id)
                     }
@@ -450,26 +461,38 @@ class SessionListViewModel
                         it?.copy(authErrorMessage = "Gateway credential expired. Please pair this gateway again.")
                     }
                     _isLoading.value = false
-                    return
+                    return null
                 }
-            if (gatewaySource.gatewayCredential.isBlank()) {
+            if (source.gatewayCredential.isBlank()) {
                 _pendingAuthentication.update {
                     it?.copy(authErrorMessage = "Gateway is not paired.")
                 }
                 _isLoading.value = false
-                return
+                return null
             }
+            return source
+        }
 
+        /**
+         * Restarts the gateway runtime with the env payload, disconnects the old
+         * transport, and reconnects with the new handoff. Returns null after
+         * surfacing the failure.
+         */
+        private suspend fun restartAndReconnect(
+            pending: SessionListPendingAuthentication,
+            currentServer: LaunchableTarget,
+            gatewaySource: com.tamimarafat.ferngeist.core.model.GatewaySource,
+            method: AcpAuthMethodInfo,
+            envValues: Map<String, String>,
+        ): com.tamimarafat.ferngeist.gateway.GatewayConnectResponse? {
             val runtimeId =
                 pending.gatewayRuntimeId ?: run {
                     _pendingAuthentication.update {
                         it?.copy(authErrorMessage = "Gateway runtime context is missing for ${currentServer.name}.")
                     }
                     _isLoading.value = false
-                    return
+                    return null
                 }
-
-            persistEnvValues(currentServer.id, method, envValues)
             val handoff =
                 runCatching {
                     withContext(Dispatchers.IO) {
@@ -486,7 +509,7 @@ class SessionListViewModel
                         it?.copy(authErrorMessage = error.message ?: "Failed to restart ${currentServer.name}.")
                     }
                     _isLoading.value = false
-                    return
+                    return null
                 }
 
             withContext(Dispatchers.IO) {
@@ -516,8 +539,35 @@ class SessionListViewModel
                     )
                 }
                 _isLoading.value = false
-                return
+                return null
             }
+            return handoff
+        }
+
+        /**
+         * Handles gateway-backed env authentication by restarting the runtime with env vars.
+         */
+        private suspend fun authenticateGatewayEnvVar(
+            pending: SessionListPendingAuthentication,
+            method: AcpAuthMethodInfo,
+            envValues: Map<String, String>,
+        ) {
+            // Gateway-backed env auth requires a fresh process environment. Restart
+            // the gateway runtime with the saved values, reconnect, authenticate,
+            // then retry the original session action.
+            val context = resolveAuthContext() ?: return
+            val currentServer = context.server
+            val gatewaySource = context.gatewaySource
+
+            persistEnvValues(currentServer.id, method, envValues)
+            val handoff =
+                restartAndReconnect(
+                    pending = pending,
+                    currentServer = currentServer,
+                    gatewaySource = gatewaySource,
+                    method = method,
+                    envValues = envValues,
+                ) ?: return
 
             val initializeResult =
                 withContext(Dispatchers.IO) {

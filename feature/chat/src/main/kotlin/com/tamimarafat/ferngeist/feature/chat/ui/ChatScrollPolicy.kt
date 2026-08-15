@@ -199,14 +199,12 @@ internal class ChatScrollPolicy(
         val recentlyUserScrolled =
             timeSinceLastScroll <= AutoScrollConfig.USER_SCROLL_SIGNAL_WINDOW_MS
 
-        // All four conditions must hold: paused, no recent scroll noise,
-        // enough idle time has passed, and the user is actually at bottom.
-        if (
+        val resumeConditionsMet =
             _state is AutoScrollState.PausedByUser &&
-            !recentlyUserScrolled &&
-            timeSinceLastScroll >= AutoScrollConfig.USER_RESUME_IDLE_MS &&
-            isAtBottom
-        ) {
+                !recentlyUserScrolled &&
+                timeSinceLastScroll >= AutoScrollConfig.USER_RESUME_IDLE_MS &&
+                isAtBottom
+        if (resumeConditionsMet) {
             _state = AutoScrollState.Following
             return ScrollDecision.SnapToBottom
         }

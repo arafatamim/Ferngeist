@@ -338,90 +338,160 @@ private val MIGRATION_6_7 =
         }
     }
 
+private val SQL_CREATE_GATEWAY_AGENT_BINDINGS =
+    """
+    CREATE TABLE IF NOT EXISTS `gateway_agent_bindings` (
+      `id` TEXT NOT NULL,
+      `name` TEXT NOT NULL,
+      `gatewaySourceId` TEXT NOT NULL,
+      `agentId` TEXT NOT NULL,
+      `workingDirectory` TEXT NOT NULL,
+      `preferredAuthMethodId` TEXT,
+      PRIMARY KEY(`id`),
+      FOREIGN KEY(`gatewaySourceId`) REFERENCES `gateway_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+    )
+    """.trimIndent()
+
+private const val SQL_INDEX_GATEWAY_AGENT_BINDINGS_GATEWAY_SOURCE_ID =
+    "CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_gatewaySourceId` " +
+        "ON `gateway_agent_bindings` (`gatewaySourceId`)"
+
+private val SQL_INSERT_GATEWAY_AGENT_BINDINGS =
+    """
+    INSERT INTO `gateway_agent_bindings` (
+      `id`,
+      `name`,
+      `gatewaySourceId`,
+      `agentId`,
+      `workingDirectory`,
+      `preferredAuthMethodId`
+    )
+    SELECT
+      `id`,
+      `name`,
+      `gatewaySourceId`,
+      `selectedAgentId`,
+      `workingDirectory`,
+      `preferredAuthMethodId`
+    FROM `servers`
+    WHERE `sourceKind` = 'DESKTOP_HELPER' AND `gatewaySourceId` IS NOT NULL AND TRIM(`gatewaySourceId`) != ''
+    """.trimIndent()
+
+private val SQL_CREATE_SERVERS_NEW =
+    """
+    CREATE TABLE IF NOT EXISTS `servers_new` (
+      `id` TEXT NOT NULL,
+      `name` TEXT NOT NULL,
+      `scheme` TEXT NOT NULL,
+      `host` TEXT NOT NULL,
+      `token` TEXT NOT NULL,
+      `workingDirectory` TEXT NOT NULL,
+      `preferredAuthMethodId` TEXT,
+      PRIMARY KEY(`id`)
+    )
+    """.trimIndent()
+
+private val SQL_INSERT_SERVERS_NEW =
+    """
+    INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `workingDirectory`, `preferredAuthMethodId`)
+    SELECT `id`, `name`, `scheme`, `host`, `token`, `workingDirectory`, `preferredAuthMethodId`
+    FROM `servers`
+    WHERE `sourceKind` = 'MANUAL_ACP'
+    """.trimIndent()
+
+private val SQL_CREATE_SESSIONS_NEW =
+    """
+    CREATE TABLE IF NOT EXISTS `sessions_new` (
+      `sessionId` TEXT NOT NULL,
+      `serverId` TEXT NOT NULL,
+      `title` TEXT,
+      `cwd` TEXT,
+      `updatedAt` INTEGER,
+      PRIMARY KEY(`sessionId`)
+    )
+    """.trimIndent()
+
+private val SQL_INSERT_SESSIONS_NEW =
+    """
+    INSERT INTO `sessions_new` (`sessionId`, `serverId`, `title`, `cwd`, `updatedAt`)
+    SELECT `sessionId`, `serverId`, `title`, `cwd`, `updatedAt` FROM `sessions`
+    """.trimIndent()
+
+private val SQL_CREATE_LAUNCHABLE_TARGET_SETTINGS =
+    """
+    CREATE TABLE IF NOT EXISTS `launchable_target_session_settings` (
+      `targetId` TEXT NOT NULL,
+      `cwd` TEXT,
+      PRIMARY KEY(`targetId`)
+    )
+    """.trimIndent()
+
+private val SQL_INSERT_TARGET_SETTINGS_FROM_SERVERS =
+    """
+    INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
+    SELECT `id`, `workingDirectory` FROM `servers`
+    """.trimIndent()
+
+private val SQL_INSERT_TARGET_SETTINGS_FROM_BINDINGS =
+    """
+    INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
+    SELECT `id`, `workingDirectory` FROM `gateway_agent_bindings`
+    """.trimIndent()
+
+private val SQL_8_9_CREATE_SERVERS_NEW =
+    """
+    CREATE TABLE IF NOT EXISTS `servers_new` (
+      `id` TEXT NOT NULL,
+      `name` TEXT NOT NULL,
+      `scheme` TEXT NOT NULL,
+      `host` TEXT NOT NULL,
+      `token` TEXT NOT NULL,
+      `preferredAuthMethodId` TEXT,
+      PRIMARY KEY(`id`)
+    )
+    """.trimIndent()
+
+private val SQL_8_9_INSERT_SERVERS_NEW =
+    """
+    INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId`)
+    SELECT `id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId` FROM `servers`
+    """.trimIndent()
+
+private val SQL_CREATE_GATEWAY_AGENT_BINDINGS_NEW =
+    """
+    CREATE TABLE IF NOT EXISTS `gateway_agent_bindings_new` (
+      `id` TEXT NOT NULL,
+      `name` TEXT NOT NULL,
+      `gatewaySourceId` TEXT NOT NULL,
+      `agentId` TEXT NOT NULL,
+      `preferredAuthMethodId` TEXT,
+      PRIMARY KEY(`id`),
+      FOREIGN KEY(`gatewaySourceId`) REFERENCES `gateway_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+    )
+    """.trimIndent()
+
+private const val SQL_INDEX_GATEWAY_AGENT_BINDINGS_NEW =
+    "CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_new_gatewaySourceId` " +
+        "ON `gateway_agent_bindings_new` (`gatewaySourceId`)"
+
+private val SQL_INSERT_GATEWAY_AGENT_BINDINGS_NEW =
+    """
+    INSERT INTO `gateway_agent_bindings_new` (`id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId`)
+    SELECT `id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId` FROM `gateway_agent_bindings`
+    """.trimIndent()
+
 private val MIGRATION_7_8 =
     object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `gateway_agent_bindings` (
-                  `id` TEXT NOT NULL,
-                  `name` TEXT NOT NULL,
-                  `gatewaySourceId` TEXT NOT NULL,
-                  `agentId` TEXT NOT NULL,
-                  `workingDirectory` TEXT NOT NULL,
-                  `preferredAuthMethodId` TEXT,
-                  PRIMARY KEY(`id`),
-                  FOREIGN KEY(`gatewaySourceId`) REFERENCES `gateway_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(
-                "CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_gatewaySourceId` " +
-                    "ON `gateway_agent_bindings` (`gatewaySourceId`)",
-            )
-            db.execSQL(
-                """
-                INSERT INTO `gateway_agent_bindings` (
-                  `id`,
-                  `name`,
-                  `gatewaySourceId`,
-                  `agentId`,
-                  `workingDirectory`,
-                  `preferredAuthMethodId`
-                )
-                SELECT
-                  `id`,
-                  `name`,
-                  `gatewaySourceId`,
-                  `selectedAgentId`,
-                  `workingDirectory`,
-                  `preferredAuthMethodId`
-                FROM `servers`
-                WHERE `sourceKind` = 'DESKTOP_HELPER' AND `gatewaySourceId` IS NOT NULL AND TRIM(`gatewaySourceId`) != ''
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `servers_new` (
-                  `id` TEXT NOT NULL,
-                  `name` TEXT NOT NULL,
-                  `scheme` TEXT NOT NULL,
-                  `host` TEXT NOT NULL,
-                  `token` TEXT NOT NULL,
-                  `workingDirectory` TEXT NOT NULL,
-                  `preferredAuthMethodId` TEXT,
-                  PRIMARY KEY(`id`)
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `workingDirectory`, `preferredAuthMethodId`)
-                SELECT `id`, `name`, `scheme`, `host`, `token`, `workingDirectory`, `preferredAuthMethodId`
-                FROM `servers`
-                WHERE `sourceKind` = 'MANUAL_ACP'
-                """.trimIndent(),
-            )
+            db.execSQL(SQL_CREATE_GATEWAY_AGENT_BINDINGS)
+            db.execSQL(SQL_INDEX_GATEWAY_AGENT_BINDINGS_GATEWAY_SOURCE_ID)
+            db.execSQL(SQL_INSERT_GATEWAY_AGENT_BINDINGS)
+            db.execSQL(SQL_CREATE_SERVERS_NEW)
+            db.execSQL(SQL_INSERT_SERVERS_NEW)
             db.execSQL("DROP TABLE `servers`")
             db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `sessions_new` (
-                  `sessionId` TEXT NOT NULL,
-                  `serverId` TEXT NOT NULL,
-                  `title` TEXT,
-                  `cwd` TEXT,
-                  `updatedAt` INTEGER,
-                  PRIMARY KEY(`sessionId`)
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                INSERT INTO `sessions_new` (`sessionId`, `serverId`, `title`, `cwd`, `updatedAt`)
-                SELECT `sessionId`, `serverId`, `title`, `cwd`, `updatedAt` FROM `sessions`
-                """.trimIndent(),
-            )
+            db.execSQL(SQL_CREATE_SESSIONS_NEW)
+            db.execSQL(SQL_INSERT_SESSIONS_NEW)
             db.execSQL("DROP TABLE `sessions`")
             db.execSQL("ALTER TABLE `sessions_new` RENAME TO `sessions`")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_sessions_serverId` ON `sessions` (`serverId`)")
@@ -431,71 +501,16 @@ private val MIGRATION_7_8 =
 private val MIGRATION_8_9 =
     object : Migration(8, 9) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `launchable_target_session_settings` (
-                  `targetId` TEXT NOT NULL,
-                  `cwd` TEXT,
-                  PRIMARY KEY(`targetId`)
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
-                SELECT `id`, `workingDirectory` FROM `servers`
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
-                SELECT `id`, `workingDirectory` FROM `gateway_agent_bindings`
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `servers_new` (
-                  `id` TEXT NOT NULL,
-                  `name` TEXT NOT NULL,
-                  `scheme` TEXT NOT NULL,
-                  `host` TEXT NOT NULL,
-                  `token` TEXT NOT NULL,
-                  `preferredAuthMethodId` TEXT,
-                  PRIMARY KEY(`id`)
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId`)
-                SELECT `id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId` FROM `servers`
-                """.trimIndent(),
-            )
+            db.execSQL(SQL_CREATE_LAUNCHABLE_TARGET_SETTINGS)
+            db.execSQL(SQL_INSERT_TARGET_SETTINGS_FROM_SERVERS)
+            db.execSQL(SQL_INSERT_TARGET_SETTINGS_FROM_BINDINGS)
+            db.execSQL(SQL_8_9_CREATE_SERVERS_NEW)
+            db.execSQL(SQL_8_9_INSERT_SERVERS_NEW)
             db.execSQL("DROP TABLE `servers`")
             db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `gateway_agent_bindings_new` (
-                  `id` TEXT NOT NULL,
-                  `name` TEXT NOT NULL,
-                  `gatewaySourceId` TEXT NOT NULL,
-                  `agentId` TEXT NOT NULL,
-                  `preferredAuthMethodId` TEXT,
-                  PRIMARY KEY(`id`),
-                  FOREIGN KEY(`gatewaySourceId`) REFERENCES `gateway_sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(
-                "CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_new_gatewaySourceId` " +
-                    "ON `gateway_agent_bindings_new` (`gatewaySourceId`)",
-            )
-            db.execSQL(
-                """
-                INSERT INTO `gateway_agent_bindings_new` (`id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId`)
-                SELECT `id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId` FROM `gateway_agent_bindings`
-                """.trimIndent(),
-            )
+            db.execSQL(SQL_CREATE_GATEWAY_AGENT_BINDINGS_NEW)
+            db.execSQL(SQL_INDEX_GATEWAY_AGENT_BINDINGS_NEW)
+            db.execSQL(SQL_INSERT_GATEWAY_AGENT_BINDINGS_NEW)
             db.execSQL("DROP TABLE `gateway_agent_bindings`")
             db.execSQL("ALTER TABLE `gateway_agent_bindings_new` RENAME TO `gateway_agent_bindings`")
         }

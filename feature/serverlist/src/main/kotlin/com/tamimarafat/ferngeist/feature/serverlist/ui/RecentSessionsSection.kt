@@ -4,6 +4,9 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.runtime.MutableState
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -107,55 +110,24 @@ internal fun AgentsBackdrop(
     val canReveal = olderSessions.isNotEmpty()
 
     LaunchedEffect(recentsPx, sheetRevealed.value, canReveal) {
-        when {
-            !canReveal -> sheetRevealed.value = false
-            sheetRevealed.value && recentsPx > 0 ->
-                sheetOffset.animateTo(
-                    recentsPx.toFloat(),
-                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-                )
-            !sheetRevealed.value && sheetOffset.value > 0f -> sheetOffset.snapTo(0f)
-            sheetOffset.value > recentsPx -> sheetOffset.snapTo(recentsPx.toFloat())
-        }
+        syncSheetOffset(sheetOffset, sheetRevealed, recentsPx, canReveal)
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sheetHeight = maxHeight + sheetOverhang
         // BACK LAYER — hero stays visible; recents sit hidden behind the sheet until revealed.
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(modifier = Modifier.onSizeChanged { topZonePx = it.height }) {
-                heroSession?.let { hero ->
-                    ContinueSessionCard(
-                        session = hero,
-                        onClick = { onResumeSession(hero) },
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
-                    )
-                }
-            }
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { recentsPx = it.height },
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                olderSessions.forEach { session ->
-                    RecentSessionCard(
-                        session = session,
-                        onClick = { onResumeSession(session) },
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
+        BackLayerContent(
+            heroSession = heroSession,
+            olderSessions = olderSessions,
+            onResumeSession = onResumeSession,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+            onTopZoneSize = { topZonePx = it },
+            onRecentsSize = { recentsPx = it },
+        )
 
         // FRONT LAYER — the draggable "Your agents" sheet.
-        Surface(
+        AgentsBackdropSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -163,89 +135,217 @@ internal fun AgentsBackdrop(
                     .offset { IntOffset(0, topZonePx + sheetOffset.value.roundToInt()) }
                     .then(
                         if (canReveal) {
-                            Modifier.draggable(
-                                orientation = Orientation.Vertical,
-                                state =
-                                    rememberDraggableState { delta ->
-                                        scope.launch {
-                                            val max = recentsPx.toFloat()
-                                            val current = sheetOffset.value
-                                            // Past an edge and pushing further out: rubber-band with
-                                            // progressively stronger resistance. Otherwise track 1:1.
-                                            val pushingOut =
-                                                (current <= 0f && delta < 0f) ||
-                                                    (current >= max && delta > 0f)
-                                            val applied =
-                                                if (pushingOut) {
-                                                    val overshoot =
-                                                        if (current <= 0f) -current else current - max
-                                                    delta * (1f / (1f + overshoot / overscrollRefPx))
-                                                } else {
-                                                    delta
-                                                }
-                                            // Clamp upward travel so the sheet's bottom
-                                            // never lifts past its overhang.
-                                            sheetOffset.snapTo(
-                                                (current + applied).coerceAtLeast(-maxTopOverscrollPx),
-                                            )
-                                        }
-                                    },
-                                onDragStopped = { velocity ->
-                                    val target =
-                                        if (sheetOffset.value > recentsPx / 2f || velocity > 1500f) {
-                                            recentsPx.toFloat()
-                                        } else {
-                                            0f
-                                        }
-                                    sheetRevealed.value = (target > 0f)
-                                    scope.launch {
-                                        // Critically damped: the elastic feel lives in the drag-time
-                                        // rubber-band; the return settles cleanly to the edge with no
-                                        // overshoot, so it never springs back into the overscroll zone.
-                                        sheetOffset.animateTo(
-                                            target,
-                                            spring(
-                                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                                stiffness = Spring.StiffnessMediumLow,
-                                            ),
-                                        )
-                                    }
-                                },
+                            sheetDragModifier(
+                                scope = scope,
+                                sheetOffset = sheetOffset,
+                                sheetRevealed = sheetRevealed,
+                                recentsPx = recentsPx,
+                                overscrollRefPx = overscrollRefPx,
+                                maxTopOverscrollPx = maxTopOverscrollPx,
                             )
                         } else {
                             Modifier
                         },
                     ),
-            // Lightest tone: the foreground sheet sits above the darker background.
-            color = MaterialTheme.colorScheme.surfaceContainerLowest,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            // Elevated via tonal color, deliberately without a drop shadow.
-            shadowElevation = 0.dp,
-        ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 22.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                SectionHeader(
-                    title = stringResource(R.string.serverlist_section_agents),
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
-                servers.forEach { server ->
-                    ServerCard(
-                        server = server,
-                        uiState = uiState,
-                        onClick = { onConnect(server) },
-                        onEdit = { onEdit(server) },
-                        onDelete = { onDelete(server.id) },
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+            servers = servers,
+            uiState = uiState,
+            onConnect = onConnect,
+            onEdit = onEdit,
+            onDelete = onDelete,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+        )
+    }
+}
+
+/** Snaps/animates the sheet offset to match the revealed state. */
+private suspend fun syncSheetOffset(
+    sheetOffset: Animatable<Float, AnimationVector1D>,
+    sheetRevealed: MutableState<Boolean>,
+    recentsPx: Int,
+    canReveal: Boolean,
+) {
+    when {
+        !canReveal -> sheetRevealed.value = false
+        sheetRevealed.value && recentsPx > 0 ->
+            sheetOffset.animateTo(
+                recentsPx.toFloat(),
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            )
+        !sheetRevealed.value && sheetOffset.value > 0f -> sheetOffset.snapTo(0f)
+        sheetOffset.value > recentsPx -> sheetOffset.snapTo(recentsPx.toFloat())
+    }
+}
+
+/**
+ * Drag modifier for the front sheet: rubber-bands past the edges and settles
+ * to the revealed/hidden edge on release.
+ */
+@Composable
+private fun sheetDragModifier(
+    scope: CoroutineScope,
+    sheetOffset: Animatable<Float, AnimationVector1D>,
+    sheetRevealed: MutableState<Boolean>,
+    recentsPx: Int,
+    overscrollRefPx: Float,
+    maxTopOverscrollPx: Float,
+): Modifier =
+    Modifier.draggable(
+        orientation = Orientation.Vertical,
+        state =
+            rememberDraggableState { delta ->
+                scope.launch {
+                    val max = recentsPx.toFloat()
+                    val current = sheetOffset.value
+                    // Past an edge and pushing further out: rubber-band with
+                    // progressively stronger resistance. Otherwise track 1:1.
+                    val pushingOut =
+                        (current <= 0f && delta < 0f) ||
+                            (current >= max && delta > 0f)
+                    val applied =
+                        if (pushingOut) {
+                            val overshoot =
+                                if (current <= 0f) -current else current - max
+                            delta * (1f / (1f + overshoot / overscrollRefPx))
+                        } else {
+                            delta
+                        }
+                    // Clamp upward travel so the sheet's bottom
+                    // never lifts past its overhang.
+                    sheetOffset.snapTo(
+                        (current + applied).coerceAtLeast(-maxTopOverscrollPx),
                     )
                 }
+            },
+        onDragStopped = { velocity ->
+            val target =
+                if (sheetOffset.value > recentsPx / 2f || velocity > 1500f) {
+                    recentsPx.toFloat()
+                } else {
+                    0f
+                }
+            sheetRevealed.value = (target > 0f)
+            scope.launch {
+                // Critically damped: the elastic feel lives in the drag-time
+                // rubber-band; the return settles cleanly to the edge with no
+                // overshoot, so it never springs back into the overscroll zone.
+                sheetOffset.animateTo(
+                    target,
+                    spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                )
             }
+        },
+    )
+
+@Composable
+private fun AgentsBackdropSheet(
+    modifier: Modifier,
+    servers: List<LaunchableTarget>,
+    uiState: ServerListUiState,
+    onConnect: (LaunchableTarget) -> Unit,
+    onEdit: (LaunchableTarget) -> Unit,
+    onDelete: (String) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    Surface(
+        modifier = modifier,
+        // Lightest tone: the foreground sheet sits above the darker background.
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        // Elevated via tonal color, deliberately without a drop shadow.
+        shadowElevation = 0.dp,
+    ) {
+        FrontLayerContent(
+            servers = servers,
+            uiState = uiState,
+            onConnect = onConnect,
+            onEdit = onEdit,
+            onDelete = onDelete,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+        )
+    }
+}
+
+@Composable
+private fun BackLayerContent(
+    heroSession: RecentSession?,
+    olderSessions: List<RecentSession>,
+    onResumeSession: (RecentSession) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+    onTopZoneSize: (Int) -> Unit,
+    onRecentsSize: (Int) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.onSizeChanged { onTopZoneSize(it.height) }) {
+            heroSession?.let { hero ->
+                ContinueSessionCard(
+                    session = hero,
+                    onClick = { onResumeSession(hero) },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                )
+            }
+        }
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { onRecentsSize(it.height) },
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            olderSessions.forEach { session ->
+                RecentSessionCard(
+                    session = session,
+                    onClick = { onResumeSession(session) },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun FrontLayerContent(
+    servers: List<LaunchableTarget>,
+    uiState: ServerListUiState,
+    onConnect: (LaunchableTarget) -> Unit,
+    onEdit: (LaunchableTarget) -> Unit,
+    onDelete: (String) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 22.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SectionHeader(
+            title = stringResource(R.string.serverlist_section_agents),
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        servers.forEach { server ->
+            ServerCard(
+                server = server,
+                uiState = uiState,
+                onClick = { onConnect(server) },
+                onEdit = { onEdit(server) },
+                onDelete = { onDelete(server.id) },
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
         }
     }
 }
@@ -315,76 +415,58 @@ internal fun ContinueSessionCard(
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                // Rotating clover behind the (upright) icon.
-                Box(
-                    modifier =
-                        Modifier
-                            .size(48.dp)
-                            .graphicsLayer {
-                                rotationZ = rotation
-                                scaleX = pop.value
-                                scaleY = pop.value
-                            }.clip(MaterialShapes.Clover4Leaf.toShape())
-                            .background(MaterialTheme.colorScheme.primary),
-                )
-                Icon(
-                    imageVector = Icons.Rounded.History,
-                    contentDescription = stringResource(R.string.serverlist_continue_resume_desc),
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier =
-                        Modifier
-                            .size(26.dp)
-                            .graphicsLayer {
-                                scaleX = pop.value
-                                scaleY = pop.value
-                            },
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                with(sharedTransitionScope) {
-                    Text(
-                        text = session.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier =
-                            Modifier.sharedBounds(
-                                sharedContentState =
-                                    rememberSharedContentState(
-                                        key = RecentSessionTitleSharedBoundsKey(session.sessionId),
-                                    ),
-                                animatedVisibilityScope = animatedContentScope,
-                                enter = fadeIn(),
-                                exit = fadeOut(),
-                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                            ),
-                    )
-                }
-                Text(
-                    text = session.target.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = targetDeviceLabel(session.target),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+        ContinueSessionCardContent(
+            session = session,
+            rotation = rotation,
+            pop = pop.value,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+private fun ContinueSessionCardContent(
+    session: RecentSession,
+    rotation: Float,
+    pop: Float,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        RotatingCloverBadge(
+            rotation = rotation,
+            pop = pop,
+            contentDescription = stringResource(R.string.serverlist_continue_resume_desc),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            SharedSessionTitle(
+                session = session,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+            )
+            Text(
+                text = session.target.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = targetDeviceLabel(session.target),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -400,6 +482,131 @@ private fun targetDeviceLabel(target: LaunchableTarget): String =
                 target.server.host,
             )
     }
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun RotatingCloverBadge(
+    rotation: Float,
+    pop: Float,
+    contentDescription: String,
+) {
+    Box(contentAlignment = Alignment.Center) {
+        // Rotating clover behind the (upright) icon.
+        Box(
+            modifier =
+                Modifier
+                    .size(48.dp)
+                    .graphicsLayer {
+                        rotationZ = rotation
+                        scaleX = pop
+                        scaleY = pop
+                    }.clip(MaterialShapes.Clover4Leaf.toShape())
+                    .background(MaterialTheme.colorScheme.primary),
+        )
+        Icon(
+            imageVector = Icons.Rounded.History,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier =
+                Modifier
+                    .size(26.dp)
+                    .graphicsLayer {
+                        scaleX = pop
+                        scaleY = pop
+                    },
+        )
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun SharedSessionTitle(
+    session: RecentSession,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    with(sharedTransitionScope) {
+        Text(
+            text = session.title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier =
+                Modifier.sharedBounds(
+                    sharedContentState =
+                        rememberSharedContentState(
+                            key = RecentSessionTitleSharedBoundsKey(session.sessionId),
+                        ),
+                    animatedVisibilityScope = animatedContentScope,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                ),
+        )
+    }
+}
+
+@Composable
+private fun RecentSessionCardRow(
+    session: RecentSession,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.History,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            with(sharedTransitionScope) {
+                Text(
+                    text = session.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier =
+                        Modifier.sharedBounds(
+                            sharedContentState =
+                                rememberSharedContentState(
+                                    key = RecentSessionTitleSharedBoundsKey(session.sessionId),
+                                ),
+                            animatedVisibilityScope = animatedContentScope,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                        ),
+                )
+            }
+            Text(
+                text = session.target.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            ServerSubtitle(
+                server = session.target,
+                hasSavedAuthMethod = false,
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -418,58 +625,10 @@ internal fun RecentSessionCard(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             ),
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Default.History,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                with(sharedTransitionScope) {
-                    Text(
-                        text = session.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier =
-                            Modifier.sharedBounds(
-                                sharedContentState =
-                                    rememberSharedContentState(
-                                        key = RecentSessionTitleSharedBoundsKey(session.sessionId),
-                                    ),
-                                animatedVisibilityScope = animatedContentScope,
-                                enter = fadeIn(),
-                                exit = fadeOut(),
-                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                            ),
-                    )
-                }
-                Text(
-                    text = session.target.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                ServerSubtitle(
-                    server = session.target,
-                    hasSavedAuthMethod = false,
-                )
-            }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            )
-        }
+        RecentSessionCardRow(
+            session = session,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+        )
     }
 }

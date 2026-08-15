@@ -87,7 +87,6 @@ class ChatViewModel
                         }
                     }
                 },
-                trace = { message -> trace(message) },
             )
         private val sessionCoordinator =
             ChatSessionCoordinator(
@@ -337,25 +336,7 @@ class ChatViewModel
         private suspend fun loadGitFileDiff(path: String) {
             val connection = state.value.gatewayWorkspaceConnection
             if (connection == null) {
-                // No gateway backing the working tree, so the diff cannot be fetched.
-                // Cancel any in-flight request (a stale response must not overwrite
-                // this error) and retain the path so the UI can retry once a
-                // connection is available. The setup is serialized so a concurrent
-                // request cannot slip its job assignment between the cancel and the
-                // state write.
-                gitFileDiffMutex.withLock {
-                    gitFileDiffJob?.cancel()
-                    gitFileDiffJob = null
-                    updateState {
-                        copy(
-                            gitFileDiffPath = path,
-                            isGitFileDiffLoading = false,
-                            gitFileDiff = null,
-                            gitFileDiffError =
-                                "No gateway workspace connection to load git diff for $path",
-                        )
-                    }
-                }
+                setGitFileDiffError(path, "No gateway workspace connection to load git diff for $path")
                 return
             }
             gitFileDiffMutex.withLock {
@@ -370,10 +351,6 @@ class ChatViewModel
                 }
                 gitFileDiffJob =
                     viewModelScope.launch {
-                        // Identity check: only the job currently stored in [gitFileDiffJob]
-                        // may write state, so a stale response can never replace a newer one.
-                        // Both the check and the state write are inside the lock so a newer
-                        // request cannot interleave between them.
                         val currentJob = coroutineContext[Job]
                         val result =
                             runCatching {
@@ -387,30 +364,53 @@ class ChatViewModel
                             }
                         gitFileDiffMutex.withLock {
                             if (currentJob != gitFileDiffJob) return@withLock
-                            result
-                                .onSuccess { diffs ->
-                                    updateState {
-                                        copy(
-                                            gitFileDiff = diffs,
-                                            isGitFileDiffLoading = false,
-                                            gitFileDiffError = null,
-                                        )
-                                    }
-                                }.onFailure { throwable ->
-                                    if (throwable is CancellationException) return@withLock
-                                    updateState {
-                                        copy(
-                                            gitFileDiff = null,
-                                            isGitFileDiffLoading = false,
-                                            gitFileDiffError =
-                                                throwable.message?.takeIf { it.isNotBlank() }
-                                                    ?: "Failed to load git diff for $path",
-                                        )
-                                    }
-                                }
+                            handleGitDiffResult(result, path)
                         }
                     }
             }
+        }
+
+        private suspend fun setGitFileDiffError(path: String, error: String) {
+            gitFileDiffMutex.withLock {
+                gitFileDiffJob?.cancel()
+                gitFileDiffJob = null
+                updateState {
+                    copy(
+                        gitFileDiffPath = path,
+                        isGitFileDiffLoading = false,
+                        gitFileDiff = null,
+                        gitFileDiffError = error,
+                    )
+                }
+            }
+        }
+
+        private fun handleGitDiffResult(
+            result: Result<List<ToolCallContent.Diff>>,
+            path: String,
+        ) {
+            result
+                .onSuccess { diffs ->
+                    updateState {
+                        copy(
+                            gitFileDiff = diffs,
+                            isGitFileDiffLoading = false,
+                            gitFileDiffError = null,
+                        )
+                    }
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) return
+                    val message =
+                        throwable.message?.takeIf { it.isNotBlank() }
+                            ?: "Failed to load git diff for $path"
+                    updateState {
+                        copy(
+                            gitFileDiff = null,
+                            isGitFileDiffLoading = false,
+                            gitFileDiffError = message,
+                        )
+                    }
+                }
         }
 
         /**
@@ -455,85 +455,95 @@ class ChatViewModel
                     messages = snapshot.messages,
                     loadState = snapshot.loadState,
                 )
-            // Reconcile SENDING pending bubbles with their reducer echo.
-            val pendingSending =
-                state.value.pendingMessages.filter {
-                    it.status == MessageDeliveryStatus.SENDING
-                }
-            val reconciled =
-                if (pendingSending.isNotEmpty()) {
-                    val echoClientIds = mutableSetOf<String>()
-                    for (sending in pendingSending) {
-                        val echoed =
-                            snapshot.messages.firstOrNull {
-                                it.role == ChatMessage.Role.USER &&
-                                    it.content == sending.content &&
-                                    it.images == sending.images &&
-                                    it.files == sending.files
-                            }
-                        if (echoed != null) {
-                            echoClientIds.add(sending.clientId ?: sending.id)
-                        }
-                    }
-                    if (echoClientIds.isEmpty()) {
-                        state.value.pendingMessages
-                    } else {
-                        state.value.pendingMessages.filterNot {
-                            (it.clientId ?: it.id) in echoClientIds
-                        }
-                    }
-                } else {
-                    state.value.pendingMessages
-                }
+            val reconciledPending = reconcileSendingPendingBubbles(snapshot.messages)
+            val failed = snapshot.loadState == ChatLoadState.FAILED
             updateState {
-                val failed = snapshot.loadState == ChatLoadState.FAILED
                 copy(
                     messages = snapshot.messages,
-                    pendingMessages = reconciled,
+                    pendingMessages = reconciledPending,
                     markdownStates = markdownProjection.markdownStates,
                     isStreaming = snapshot.isStreaming,
                     usage = snapshot.usage,
                     availableCommands = snapshot.availableCommands,
                     commandsAdvertised = snapshot.commandsAdvertised,
                     configOptions = snapshot.configOptions,
-                    // Loading ends only after session state is ready *and* markdown has hydrated.
-                    isLoading =
-                        snapshot.loadState == ChatLoadState.HYDRATING ||
-                            markdownProjection.pendingInitialHydration,
-                    isSessionReady =
-                        snapshot.loadState == ChatLoadState.READY &&
-                            !markdownProjection.pendingInitialHydration,
-                    error =
-                        if (failed) {
-                            snapshot.error ?: "Could not load this session. Check connection and retry."
-                        } else {
-                            null
-                        },
+                    isLoading = snapshot.loadState == ChatLoadState.HYDRATING ||
+                        markdownProjection.pendingInitialHydration,
+                    isSessionReady = snapshot.loadState == ChatLoadState.READY &&
+                        !markdownProjection.pendingInitialHydration,
+                    error = if (failed) {
+                        snapshot.error ?: "Could not load this session. Check connection and retry."
+                    } else {
+                        null
+                    },
                 )
             }
+            applyServerTitle(snapshot.title)
+        }
 
-            // Apply the server-provided session title when the current session has no title yet.
-            // The server emits SessionInfoUpdate after the first assistant response completes;
-            // this title is the canonical session name and should not overwrite an existing one.
-            // Use a targeted UPDATE (not upsert) to preserve updatedAt and all other columns.
-            val serverTitle = snapshot.title
-            if (!serverTitle.isNullOrBlank() && state.value.title.isNullOrBlank()) {
-                updateState { copy(title = serverTitle) }
-                activeChatStore.setActiveChat(
-                    ActiveChat(
-                        serverId = serverId,
-                        sessionId = sessionId,
-                        cwd = cwd,
-                        title = serverTitle,
-                        gatewayId = gatewayId,
-                    ),
-                )
-                sessionRepository.updateSessionTitle(
+        /**
+         * Reconciles SENDING pending bubbles with their reducer echo in [messages].
+         * A SENDING bubble is removed when a matching USER message appears in the
+         * snapshot (content + images + files match), because the echoed message
+         * in [messages] is the canonical delivery.
+         */
+        private fun reconcileSendingPendingBubbles(messages: List<ChatMessage>): List<ChatMessage> {
+            val pendingSending = state.value.pendingMessages.filter {
+                it.status == MessageDeliveryStatus.SENDING
+            }
+            if (pendingSending.isEmpty()) return state.value.pendingMessages
+            val echoClientIds = findEchoedClientIds(pendingSending, messages)
+            return if (echoClientIds.isEmpty()) {
+                state.value.pendingMessages
+            } else {
+                state.value.pendingMessages.filterNot {
+                    (it.clientId ?: it.id) in echoClientIds
+                }
+            }
+        }
+
+        private fun findEchoedClientIds(
+            pendingSending: List<ChatMessage>,
+            messages: List<ChatMessage>,
+        ): Set<String> {
+            val echoClientIds = mutableSetOf<String>()
+            for (sending in pendingSending) {
+                val echoed = messages.firstOrNull { msg ->
+                    msg.role == ChatMessage.Role.USER &&
+                        msg.content == sending.content &&
+                        msg.images == sending.images &&
+                        msg.files == sending.files
+                }
+                if (echoed != null) {
+                    echoClientIds.add(sending.clientId ?: sending.id)
+                }
+            }
+            return echoClientIds
+        }
+
+        /**
+         * Applies the server-provided session title when the current session has no title yet.
+         * The server emits SessionInfoUpdate after the first assistant response completes;
+         * this title is the canonical session name and should not overwrite an existing one.
+         * Uses a targeted UPDATE (not upsert) to preserve updatedAt and all other columns.
+         */
+        private suspend fun applyServerTitle(serverTitle: String?) {
+            if (serverTitle.isNullOrBlank() || !state.value.title.isNullOrBlank()) return
+            updateState { copy(title = serverTitle) }
+            activeChatStore.setActiveChat(
+                ActiveChat(
                     serverId = serverId,
                     sessionId = sessionId,
+                    cwd = cwd,
                     title = serverTitle,
-                )
-            }
+                    gatewayId = gatewayId,
+                ),
+            )
+            sessionRepository.updateSessionTitle(
+                serverId = serverId,
+                sessionId = sessionId,
+                title = serverTitle,
+            )
         }
 
         override fun onCleared() {

@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
  * the bytes are sent verbatim (Base64 NO_WRAP) with their original MIME type —
  * no decoding or downscaling.
  */
+private const val BYTES_PER_KB = 1024L
 object FileAttachmentHelper {
     /** Maximum number of files a user can attach per message. */
     const val MAX_FILES = 5
@@ -88,12 +89,11 @@ object FileAttachmentHelper {
         return name to size
     }
 
-    /** Formats a byte count as a short human-readable string (e.g. "1.2 MB"). */
     fun formatSize(bytes: Long): String {
-        if (bytes < 1024) return "$bytes B"
-        val kb = bytes / 1024.0
-        if (kb < 1024) return "%.0f KB".format(kb)
-        val mb = kb / 1024.0
+        if (bytes < BYTES_PER_KB) return "$bytes B"
+        val kb = bytes / BYTES_PER_KB.toDouble()
+        if (kb < BYTES_PER_KB) return "%.0f KB".format(kb)
+        val mb = kb / BYTES_PER_KB.toDouble()
         return "%.1f MB".format(mb)
     }
 }

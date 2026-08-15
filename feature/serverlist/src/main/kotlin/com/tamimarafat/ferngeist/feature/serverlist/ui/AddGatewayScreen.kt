@@ -1,10 +1,10 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
-import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,14 +60,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.google.android.gms.common.GoogleApiAvailability
-import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayEvent
+import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayUiState
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
+
+private const val CHALLENGE_ID_DISPLAY_LENGTH = 10
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +76,136 @@ fun AddGatewayScreen(
     onNavigateBack: () -> Unit,
     viewModel: AddGatewayViewModel,
 ) {
+    val ui = rememberAddGatewayUi(viewModel, onNavigateBack)
+
+    if (viewModel.isEditMode) {
+        EditGatewayScreen(
+            onNavigateBack = onNavigateBack,
+            snackbarHostState = ui.snackbarHostState,
+            viewModel = viewModel,
+            name = ui.name,
+            scheme = ui.scheme,
+            host = ui.host,
+            uiState = ui.uiState,
+        )
+        return
+    }
+
+    AddGatewayFlow(
+        ui = ui,
+        viewModel = viewModel,
+        onNavigateBack = onNavigateBack,
+    )
+}
+
+@Composable
+private fun AddGatewayFlow(
+    ui: AddGatewayUi,
+    viewModel: AddGatewayViewModel,
+    onNavigateBack: () -> Unit,
+) {
+    var stepIndex by rememberSaveable { mutableIntStateOf(0) }
+    var pairingDialogRequest by rememberSaveable { mutableIntStateOf(0) }
+    val steps = rememberGatewaySteps()
+    val step = steps[stepIndex]
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(ui.snackbarHostState) },
+    ) { padding ->
+        AddGatewayScaffoldContent(
+            modifier = Modifier.padding(padding),
+            stepIndex = stepIndex,
+            totalSteps = steps.size,
+            step = step,
+            pairingQrPayload = ui.pairingQrPayload,
+            name = ui.name,
+            deviceName = ui.deviceName,
+            scheme = ui.scheme,
+            host = ui.host,
+            uiState = ui.uiState,
+            onBack = {
+                if (stepIndex > 0) {
+                    stepIndex -= 1
+                } else {
+                    onNavigateBack()
+                }
+            },
+            onUpdatePayload = ui.onUpdatePayload,
+            onScanQr = ui.onScanQr,
+            onUpdateName = viewModel::updateName,
+            onUpdateDeviceName = viewModel::updateDeviceName,
+            onSelectScheme = viewModel::updateScheme,
+            onUpdateHost = viewModel::updateHost,
+            onCheckStatus = viewModel::checkStatus,
+            onNext = {
+                when (stepIndex) {
+                    0 -> stepIndex = 1
+                    1 -> stepIndex = 2
+                    else ->
+                        if (ui.uiState.importedPairingPayload != null) {
+                            viewModel.saveGateway()
+                        } else {
+                            pairingDialogRequest += 1
+                        }
+                }
+            },
+        )
+    }
+
+    AddGatewayPairingDialogHost(
+        openRequest = pairingDialogRequest,
+        isSaving = ui.uiState.isSaving,
+        onConfirm = viewModel::pairAndSaveWithCode,
+    )
+}
+
+@Composable
+private fun AddGatewayPairingDialogHost(
+    openRequest: Int,
+    isSaving: Boolean,
+    onConfirm: (String) -> Unit,
+) {
+    var visible by rememberSaveable { mutableStateOf(false) }
+    var dialogPairingCode by rememberSaveable { mutableStateOf("") }
+    var dialogOpenedWhileSaving by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(openRequest) {
+        if (openRequest > 0) {
+            visible = true
+        }
+    }
+
+    if (!visible) return
+    PairingCodeDialog(
+        code = dialogPairingCode,
+        onCodeChange = { dialogPairingCode = it },
+        onDismiss = {
+            if (!isSaving) {
+                visible = false
+                dialogPairingCode = ""
+                dialogOpenedWhileSaving = false
+            }
+        },
+        onConfirm = {
+            dialogOpenedWhileSaving = true
+            onConfirm(dialogPairingCode)
+        },
+        isLoading = isSaving,
+    )
+    LaunchedEffect(isSaving) {
+        if (dialogOpenedWhileSaving && !isSaving) {
+            visible = false
+            dialogPairingCode = ""
+            dialogOpenedWhileSaving = false
+        }
+    }
+}
+
+@Composable
+private fun rememberAddGatewayUi(
+    viewModel: AddGatewayViewModel,
+    onNavigateBack: () -> Unit,
+): AddGatewayUi {
     val name by viewModel.name.collectAsState()
     val scheme by viewModel.scheme.collectAsState()
     val host by viewModel.host.collectAsState()
@@ -85,36 +216,6 @@ fun AddGatewayScreen(
     val context = LocalContext.current
     val resources = LocalResources.current
 
-    var stepIndex by rememberSaveable { mutableIntStateOf(0) }
-    var showPairingCodeDialog by rememberSaveable { mutableStateOf(false) }
-    var dialogPairingCode by rememberSaveable { mutableStateOf("") }
-    val stepRunTitle = stringResource(R.string.serverlist_add_gateway_step_run_title)
-    val stepRunBody = stringResource(R.string.serverlist_add_gateway_step_run_body)
-    val stepScanTitle = stringResource(R.string.serverlist_add_gateway_step_scan_title)
-    val stepScanBody = stringResource(R.string.serverlist_add_gateway_step_scan_body)
-    val stepAddTitle = stringResource(R.string.serverlist_add_gateway_step_add_title)
-    val stepAddBody = stringResource(R.string.serverlist_add_gateway_step_add_body)
-    val steps =
-        remember {
-            listOf(
-                GatewayPairingStep(
-                    title = stepRunTitle,
-                    body = stepRunBody,
-                    icon = Icons.Default.Computer,
-                ),
-                GatewayPairingStep(
-                    title = stepScanTitle,
-                    body = stepScanBody,
-                    icon = Icons.Default.QrCode2,
-                ),
-                GatewayPairingStep(
-                    title = stepAddTitle,
-                    body = stepAddBody,
-                    icon = Icons.Default.Link,
-                ),
-            )
-        }
-
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -124,289 +225,340 @@ fun AddGatewayScreen(
         }
     }
 
-    if (viewModel.isEditMode) {
-        EditGatewayScreen(
-            onNavigateBack = onNavigateBack,
-            snackbarHostState = snackbarHostState,
-            viewModel = viewModel,
+    return AddGatewayUi(
+        name = name,
+        scheme = scheme,
+        host = host,
+        deviceName = deviceName,
+        pairingQrPayload = pairingQrPayload,
+        uiState = uiState,
+        snackbarHostState = snackbarHostState,
+        onScanQr = { performQrScan(context, resources, viewModel) },
+        onUpdatePayload = { value ->
+            viewModel.updatePairingQrPayload(value)
+            val parsed =
+                com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
+                    .parse(value)
+            if (parsed != null) {
+                viewModel.applyPairingPayload()
+            }
+        },
+    )
+}
+
+private data class AddGatewayUi(
+    val name: String,
+    val scheme: String,
+    val host: String,
+    val deviceName: String,
+    val pairingQrPayload: String,
+    val uiState: AddGatewayUiState,
+    val snackbarHostState: SnackbarHostState,
+    val onScanQr: () -> Unit,
+    val onUpdatePayload: (String) -> Unit,
+)
+
+@Composable
+private fun AddGatewayScaffoldContent(
+    modifier: Modifier = Modifier,
+    stepIndex: Int,
+    totalSteps: Int,
+    step: GatewayPairingStep,
+    pairingQrPayload: String,
+    name: String,
+    deviceName: String,
+    scheme: String,
+    host: String,
+    uiState: AddGatewayUiState,
+    onBack: () -> Unit,
+    onUpdatePayload: (String) -> Unit,
+    onScanQr: () -> Unit,
+    onUpdateName: (String) -> Unit,
+    onUpdateDeviceName: (String) -> Unit,
+    onSelectScheme: (String) -> Unit,
+    onUpdateHost: (String) -> Unit,
+    onCheckStatus: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+    ) {
+        AddGatewayTopBar(
+            stepIndex = stepIndex,
+            totalSteps = totalSteps,
+            onBack = onBack,
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        AddGatewayStepCard(
+            step = step,
+            stepIndex = stepIndex,
+            pairingQrPayload = pairingQrPayload,
             name = name,
+            deviceName = deviceName,
             scheme = scheme,
             host = host,
             uiState = uiState,
+            onUpdatePayload = onUpdatePayload,
+            onScanQr = onScanQr,
+            onUpdateName = onUpdateName,
+            onUpdateDeviceName = onUpdateDeviceName,
+            onSelectScheme = onSelectScheme,
+            onUpdateHost = onUpdateHost,
+            onCheckStatus = onCheckStatus,
         )
-        return
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        AddGatewayBottomBar(
+            stepIndex = stepIndex,
+            totalSteps = totalSteps,
+            hasImportedPayload = uiState.importedPairingPayload != null,
+            isSaving = uiState.isSaving,
+            onNext = onNext,
+        )
     }
+}
 
-    val step = steps[stepIndex]
+@Composable
+private fun rememberGatewaySteps(): List<GatewayPairingStep> {
+    val stepRunTitle = stringResource(R.string.serverlist_add_gateway_step_run_title)
+    val stepRunBody = stringResource(R.string.serverlist_add_gateway_step_run_body)
+    val stepScanTitle = stringResource(R.string.serverlist_add_gateway_step_scan_title)
+    val stepScanBody = stringResource(R.string.serverlist_add_gateway_step_scan_body)
+    val stepAddTitle = stringResource(R.string.serverlist_add_gateway_step_add_title)
+    val stepAddBody = stringResource(R.string.serverlist_add_gateway_step_add_body)
+    return remember {
+        listOf(
+            GatewayPairingStep(
+                title = stepRunTitle,
+                body = stepRunBody,
+                icon = Icons.Default.Computer,
+            ),
+            GatewayPairingStep(
+                title = stepScanTitle,
+                body = stepScanBody,
+                icon = Icons.Default.QrCode2,
+            ),
+            GatewayPairingStep(
+                title = stepAddTitle,
+                body = stepAddBody,
+                icon = Icons.Default.Link,
+            ),
+        )
+    }
+}
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { padding ->
+@Composable
+private fun AddGatewayTopBar(
+    stepIndex: Int,
+    totalSteps: Int,
+    onBack: () -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FilledTonalIconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.serverlist_back_desc),
+                )
+            }
+            Text(
+                text = stringResource(R.string.serverlist_add_gateway_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = stringResource(R.string.serverlist_add_gateway_step_count, stepIndex + 1, totalSteps),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        PairingStepProgress(currentStep = stepIndex, totalSteps = totalSteps)
+    }
+}
+
+@Composable
+private fun ColumnScope.AddGatewayStepCard(
+    step: GatewayPairingStep,
+    stepIndex: Int,
+    pairingQrPayload: String,
+    name: String,
+    deviceName: String,
+    scheme: String,
+    host: String,
+    uiState: AddGatewayUiState,
+    onUpdatePayload: (String) -> Unit,
+    onScanQr: () -> Unit,
+    onUpdateName: (String) -> Unit,
+    onUpdateDeviceName: (String) -> Unit,
+    onSelectScheme: (String) -> Unit,
+    onUpdateHost: (String) -> Unit,
+    onCheckStatus: () -> Unit,
+) {
+    ElevatedCard(
+        modifier = Modifier.weight(1f),
+        colors =
+            CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+        shape = RoundedCornerShape(28.dp),
+    ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(padding)
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                FilledTonalIconButton(onClick = {
-                    if (stepIndex > 0) {
-                        stepIndex -= 1
-                    } else {
-                        onNavigateBack()
-                    }
-                }) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(R.string.serverlist_back_desc),
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.serverlist_add_gateway_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+            StepHeader(step = step)
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = stringResource(R.string.serverlist_add_gateway_step_count, stepIndex + 1, steps.size),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+            StepBody(
+                stepIndex = stepIndex,
+                pairingQrPayload = pairingQrPayload,
+                name = name,
+                deviceName = deviceName,
+                scheme = scheme,
+                host = host,
+                uiState = uiState,
+                onUpdatePayload = onUpdatePayload,
+                onScanQr = onScanQr,
+                onUpdateName = onUpdateName,
+                onUpdateDeviceName = onUpdateDeviceName,
+                onSelectScheme = onSelectScheme,
+                onUpdateHost = onUpdateHost,
+                onCheckStatus = onCheckStatus,
             )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            PairingStepProgress(currentStep = stepIndex, totalSteps = steps.size)
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            ElevatedCard(
-                modifier = Modifier.weight(1f),
-                colors =
-                    CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    ),
-                shape = RoundedCornerShape(28.dp),
-            ) {
-                Column(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = step.icon,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = step.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-
-                    Text(
-                        text = step.body,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-
-                    when (stepIndex) {
-                        0 -> RunFerngeistPairStep()
-
-                        1 ->
-                            ImportPairingStep(
-                                pairingQrPayload = pairingQrPayload,
-                                importedPayload = uiState.importedPairingPayload,
-                                onUpdatePayload = { value ->
-                                    viewModel.updatePairingQrPayload(value)
-                                    val parsed =
-                                        com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
-                                            .parse(value)
-                                    if (parsed != null) {
-                                        viewModel.applyPairingPayload()
-                                    }
-                                },
-                                onScanQr = {
-                                    val activity = context as? Activity
-                                    if (activity == null) {
-                                        viewModel.showMessage(
-                                            resources.getString(R.string.serverlist_qr_error_no_activity),
-                                        )
-                                        return@ImportPairingStep
-                                    }
-                                    val availability = GoogleApiAvailability.getInstance()
-                                    val statusCode = availability.isGooglePlayServicesAvailable(activity)
-                                    if (statusCode != com.google.android.gms.common.ConnectionResult.SUCCESS) {
-                                        val msg = availability.getErrorString(statusCode)
-                                        viewModel.showMessage(
-                                            resources.getString(R.string.serverlist_qr_error_play_services, msg),
-                                        )
-                                        return@ImportPairingStep
-                                    }
-                                    val scanner =
-                                        try {
-                                            GmsBarcodeScanning.getClient(activity)
-                                        } catch (_: Exception) {
-                                            viewModel.showMessage(
-                                                resources.getString(R.string.serverlist_qr_error_no_scanner),
-                                            )
-                                            return@ImportPairingStep
-                                        }
-
-                                    try {
-                                        scanner
-                                            .startScan()
-                                            .addOnSuccessListener { barcode: Barcode ->
-                                                val raw = barcode.rawValue.orEmpty()
-                                                if (raw.isBlank()) {
-                                                    viewModel.showMessage(
-                                                        resources.getString(R.string.serverlist_qr_error_empty),
-                                                    )
-                                                    return@addOnSuccessListener
-                                                }
-                                                val parsed =
-                                                    com.tamimarafat.ferngeist.gateway.GatewayPairingPayloadParser
-                                                        .parse(raw)
-                                                if (parsed == null) {
-                                                    viewModel.showMessage(
-                                                        resources.getString(R.string.serverlist_qr_error_invalid),
-                                                    )
-                                                    return@addOnSuccessListener
-                                                }
-                                                viewModel.updatePairingQrPayload(raw)
-                                                viewModel.applyPairingPayload()
-                                            }.addOnCanceledListener {
-                                            }.addOnFailureListener { error: Exception ->
-                                                val errorDetail =
-                                                    error.message
-                                                        ?: resources.getString(R.string.serverlist_error_unknown)
-                                                viewModel.showMessage(
-                                                    resources.getString(
-                                                        R.string.serverlist_qr_error_scan_failed,
-                                                        errorDetail,
-                                                    ),
-                                                )
-                                            }
-                                    } catch (_: Exception) {
-                                        viewModel.showMessage(
-                                            resources.getString(R.string.serverlist_qr_error_cannot_start),
-                                        )
-                                    }
-                                },
-                            )
-
-                        else ->
-                            ReviewGatewayStep(
-                                name = name,
-                                onUpdateName = viewModel::updateName,
-                                deviceName = deviceName,
-                                onUpdateDeviceName = viewModel::updateDeviceName,
-                                scheme = scheme,
-                                onSelectScheme = viewModel::updateScheme,
-                                host = host,
-                                onUpdateHost = viewModel::updateHost,
-                                status = uiState.status,
-                                isCheckingStatus = uiState.isCheckingStatus,
-                                importedPayload = uiState.importedPairingPayload,
-                                onCheckStatus = viewModel::checkStatus,
-                            )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(
-                    onClick = {
-                        when (stepIndex) {
-                            0 -> stepIndex = 1
-                            1 -> {
-                                stepIndex = 2
-                            }
-                            else -> {
-                                if (uiState.importedPairingPayload != null) {
-                                    viewModel.saveGateway()
-                                } else {
-                                    showPairingCodeDialog = true
-                                }
-                            }
-                        }
-                    },
-                    enabled = !uiState.isSaving,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(
-                        when (stepIndex) {
-                            0 -> stringResource(R.string.serverlist_add_gateway_next)
-                            1 ->
-                                if (uiState.importedPairingPayload != null) {
-                                    stringResource(R.string.serverlist_add_gateway_next)
-                                } else {
-                                    stringResource(R.string.serverlist_add_gateway_skip)
-                                }
-                            else -> stringResource(R.string.serverlist_add_gateway_pair)
-                        },
-                    )
-                    if (stepIndex < steps.lastIndex) {
-                        Spacer(modifier = Modifier.size(8.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                        )
-                    }
-                }
-            }
+@Composable
+private fun StepHeader(step: GatewayPairingStep) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.size(56.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = step.icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
         }
     }
 
-    var dialogOpenedWhileSaving by rememberSaveable { mutableStateOf(false) }
+    Text(
+        text = step.title,
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold,
+    )
 
-    if (showPairingCodeDialog) {
-        PairingCodeDialog(
-            code = dialogPairingCode,
-            onCodeChange = { dialogPairingCode = it },
-            onDismiss = {
-                if (!uiState.isSaving) {
-                    showPairingCodeDialog = false
-                    dialogPairingCode = ""
-                    dialogOpenedWhileSaving = false
-                }
-            },
-            onConfirm = {
-                dialogOpenedWhileSaving = true
-                viewModel.pairAndSaveWithCode(dialogPairingCode)
-            },
-            isLoading = uiState.isSaving,
-        )
-        LaunchedEffect(uiState.isSaving) {
-            if (dialogOpenedWhileSaving && !uiState.isSaving) {
-                showPairingCodeDialog = false
-                dialogPairingCode = ""
-                dialogOpenedWhileSaving = false
+    Text(
+        text = step.body,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun StepBody(
+    stepIndex: Int,
+    pairingQrPayload: String,
+    name: String,
+    deviceName: String,
+    scheme: String,
+    host: String,
+    uiState: AddGatewayUiState,
+    onUpdatePayload: (String) -> Unit,
+    onScanQr: () -> Unit,
+    onUpdateName: (String) -> Unit,
+    onUpdateDeviceName: (String) -> Unit,
+    onSelectScheme: (String) -> Unit,
+    onUpdateHost: (String) -> Unit,
+    onCheckStatus: () -> Unit,
+) {
+    when (stepIndex) {
+        0 -> RunFerngeistPairStep()
+
+        1 ->
+            ImportPairingStep(
+                pairingQrPayload = pairingQrPayload,
+                importedPayload = uiState.importedPairingPayload,
+                onUpdatePayload = onUpdatePayload,
+                onScanQr = onScanQr,
+            )
+
+        else ->
+            ReviewGatewayStep(
+                name = name,
+                onUpdateName = onUpdateName,
+                deviceName = deviceName,
+                onUpdateDeviceName = onUpdateDeviceName,
+                scheme = scheme,
+                onSelectScheme = onSelectScheme,
+                host = host,
+                onUpdateHost = onUpdateHost,
+                status = uiState.status,
+                isCheckingStatus = uiState.isCheckingStatus,
+                importedPayload = uiState.importedPairingPayload,
+                onCheckStatus = onCheckStatus,
+            )
+    }
+}
+
+@Composable
+private fun AddGatewayBottomBar(
+    stepIndex: Int,
+    totalSteps: Int,
+    hasImportedPayload: Boolean,
+    isSaving: Boolean,
+    onNext: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Button(
+            onClick = onNext,
+            enabled = !isSaving,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text(
+                when (stepIndex) {
+                    0 -> stringResource(R.string.serverlist_add_gateway_next)
+                    1 ->
+                        if (hasImportedPayload) {
+                            stringResource(R.string.serverlist_add_gateway_next)
+                        } else {
+                            stringResource(R.string.serverlist_add_gateway_skip)
+                        }
+                    else -> stringResource(R.string.serverlist_add_gateway_pair)
+                },
+            )
+            if (stepIndex < totalSteps - 1) {
+                Spacer(modifier = Modifier.size(8.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                )
             }
         }
     }
@@ -539,56 +691,81 @@ private fun EditGatewayScreen(
                     .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            SectionCard(
-                title = stringResource(R.string.serverlist_add_gateway_details_title),
-                subtitle = stringResource(R.string.serverlist_add_gateway_details_subtitle),
-                icon = Icons.Default.Computer,
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = viewModel::updateName,
-                    label = { Text(stringResource(R.string.serverlist_add_gateway_name_label)) },
-                    placeholder = { Text(stringResource(R.string.serverlist_add_gateway_name_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
+            EditGatewayDetailsSection(
+                name = name,
+                scheme = scheme,
+                host = host,
+                uiState = uiState,
+                onUpdateName = viewModel::updateName,
+                onSelectScheme = viewModel::updateScheme,
+                onUpdateHost = viewModel::updateHost,
+                onCheckStatus = viewModel::checkStatus,
+                onSave = viewModel::saveGateway,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditGatewayDetailsSection(
+    name: String,
+    scheme: String,
+    host: String,
+    uiState: com.tamimarafat.ferngeist.feature.serverlist.AddGatewayUiState,
+    onUpdateName: (String) -> Unit,
+    onSelectScheme: (String) -> Unit,
+    onUpdateHost: (String) -> Unit,
+    onCheckStatus: () -> Unit,
+    onSave: () -> Unit,
+) {
+    SectionCard(
+        title = stringResource(R.string.serverlist_add_gateway_details_title),
+        subtitle = stringResource(R.string.serverlist_add_gateway_details_subtitle),
+        icon = Icons.Default.Computer,
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = onUpdateName,
+            label = { Text(stringResource(R.string.serverlist_add_gateway_name_label)) },
+            placeholder = { Text(stringResource(R.string.serverlist_add_gateway_name_placeholder)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        GatewayProtocolSelector(selected = scheme, onSelect = onSelectScheme)
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = host,
+            onValueChange = onUpdateHost,
+            label = { Text(stringResource(R.string.serverlist_add_gateway_host_label)) },
+            placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Link,
+                    contentDescription = stringResource(R.string.serverlist_add_server_host_label),
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                GatewayProtocolSelector(selected = scheme, onSelect = viewModel::updateScheme)
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = host,
-                    onValueChange = viewModel::updateHost,
-                    label = { Text(stringResource(R.string.serverlist_add_gateway_host_label)) },
-                    placeholder = { Text(stringResource(R.string.serverlist_add_gateway_host_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Link,
-                            contentDescription = stringResource(R.string.serverlist_add_server_host_label),
-                        )
-                    },
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(onClick = viewModel::checkStatus, enabled = !uiState.isCheckingStatus) {
-                    if (uiState.isCheckingStatus) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.serverlist_add_gateway_check))
-                    }
-                }
-                uiState.status?.let { status ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    GatewayStatusCard(status = status)
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = viewModel::saveGateway, enabled = !uiState.isSaving) {
-                    if (uiState.isSaving) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.serverlist_add_gateway_save))
-                    }
-                }
+            },
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(onClick = onCheckStatus, enabled = !uiState.isCheckingStatus) {
+            if (uiState.isCheckingStatus) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Text(stringResource(R.string.serverlist_add_gateway_check))
+            }
+        }
+        uiState.status?.let { status ->
+            Spacer(modifier = Modifier.height(12.dp))
+            GatewayStatusCard(status = status)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onSave, enabled = !uiState.isSaving) {
+            if (uiState.isSaving) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Text(stringResource(R.string.serverlist_add_gateway_save))
             }
         }
     }
@@ -682,6 +859,57 @@ private fun ReviewGatewayStep(
         Spacer(modifier = Modifier.height(4.dp))
     }
 
+    GatewayReviewForm(
+        name = name,
+        onUpdateName = onUpdateName,
+        deviceName = deviceName,
+        onUpdateDeviceName = onUpdateDeviceName,
+        scheme = scheme,
+        onSelectScheme = onSelectScheme,
+        host = host,
+        onUpdateHost = onUpdateHost,
+        status = status,
+        isCheckingStatus = isCheckingStatus,
+        onCheckStatus = onCheckStatus,
+    )
+}
+
+@Composable
+private fun GatewayReviewActions(
+    isCheckingStatus: Boolean,
+    onCheckStatus: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.serverlist_add_gateway_manual_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Button(onClick = onCheckStatus, enabled = !isCheckingStatus) {
+            if (isCheckingStatus) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Text(stringResource(R.string.serverlist_add_gateway_check))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GatewayReviewForm(
+    name: String,
+    onUpdateName: (String) -> Unit,
+    deviceName: String,
+    onUpdateDeviceName: (String) -> Unit,
+    scheme: String,
+    onSelectScheme: (String) -> Unit,
+    host: String,
+    onUpdateHost: (String) -> Unit,
+    status: GatewayStatus?,
+    isCheckingStatus: Boolean,
+    onCheckStatus: () -> Unit,
+) {
     ElevatedCard(
         colors =
             CardDefaults.elevatedCardColors(
@@ -727,19 +955,10 @@ private fun ReviewGatewayStep(
                 },
             )
 
-            Text(
-                text = stringResource(R.string.serverlist_add_gateway_manual_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            GatewayReviewActions(
+                isCheckingStatus = isCheckingStatus,
+                onCheckStatus = onCheckStatus,
             )
-
-            Button(onClick = onCheckStatus, enabled = !isCheckingStatus) {
-                if (isCheckingStatus) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(stringResource(R.string.serverlist_add_gateway_check))
-                }
-            }
 
             status?.let { GatewayStatusCard(status = it) }
         }
@@ -767,7 +986,7 @@ private fun ImportedPayloadCard(payload: GatewayPairingPayload) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
-                stringResource(R.string.serverlist_add_gateway_challenge_label, payload.challengeId.take(10)),
+                stringResource(R.string.serverlist_add_gateway_challenge_label, payload.challengeId.take(CHALLENGE_ID_DISPLAY_LENGTH)),
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(

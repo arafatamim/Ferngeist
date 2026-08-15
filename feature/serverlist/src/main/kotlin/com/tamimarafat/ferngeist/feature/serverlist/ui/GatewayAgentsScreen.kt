@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
+import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsUiState
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
@@ -82,54 +83,13 @@ fun GatewayAgentsScreen(
     }
 
     pendingAddAgent?.let { agent ->
-        var acknowledgedRisk by rememberSaveable(agent.id) { mutableStateOf(false) }
-        val gatewayHost = uiState.gateway?.host.orEmpty()
-        val riskLines = addAgentRiskLines(LocalResources.current, agent, gatewayHost)
-        AlertDialog(
-            onDismissRequest = { pendingAddAgent = null },
-            title = { Text(stringResource(R.string.serverlist_gateway_agents_add_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        stringResource(R.string.serverlist_gateway_agents_add_body, agent.displayName),
-                    )
-                    riskLines.forEach { line ->
-                        Text(
-                            text = "- $line",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Checkbox(
-                            checked = acknowledgedRisk,
-                            onCheckedChange = { acknowledgedRisk = it },
-                        )
-                        Text(
-                            stringResource(R.string.serverlist_gateway_agents_acknowledge_risk),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = acknowledgedRisk,
-                    onClick = {
-                        viewModel.addAgent(agent)
-                        pendingAddAgent = null
-                    },
-                ) {
-                    Text(stringResource(R.string.serverlist_gateway_agents_add_btn))
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { pendingAddAgent = null }) {
-                    Text(stringResource(R.string.serverlist_gateway_agents_cancel))
-                }
+        AddAgentConfirmationDialog(
+            agent = agent,
+            uiState = uiState,
+            onDismiss = { pendingAddAgent = null },
+            onConfirm = {
+                viewModel.addAgent(agent)
+                pendingAddAgent = null
             },
         )
     }
@@ -150,146 +110,264 @@ fun GatewayAgentsScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        if (uiState.isLoading) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularWavyProgressIndicator(modifier = Modifier.size(64.dp))
-            }
-            return@Scaffold
-        }
-
-        uiState.loadError?.let { message ->
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                ErrorStateCard(
-                    headline = stringResource(R.string.serverlist_gateway_agents_error_title),
-                    body = message,
-                    icon = Icons.Rounded.CloudOff,
-                    medallionContainer = MaterialTheme.colorScheme.errorContainer,
-                    medallionContent = MaterialTheme.colorScheme.onErrorContainer,
-                    medallionShape = MaterialShapes.VerySunny.toShape(),
-                    ctaLabel = stringResource(R.string.serverlist_gateway_agents_retry),
-                    onCta = viewModel::refresh,
+        when {
+            uiState.isLoading -> LoadingContent(modifier = Modifier.padding(padding))
+            uiState.loadError != null -> {
+                ErrorContent(
+                    message = uiState.loadError.orEmpty(),
+                    onRetry = viewModel::refresh,
+                    modifier = Modifier.padding(padding),
                 )
             }
-            return@Scaffold
-        }
-
-        LazyColumn(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(uiState.agents, key = { it.id }) { agent ->
-                val alreadyAdded = agent.id in uiState.addedAgentIds
-                val canAdd = agent.manifestValid && !alreadyAdded
-
-                Card(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(24.dp))
-                            .then(
-                                if (canAdd) {
-                                    Modifier
-                                        .clickable { pendingAddAgent = agent }
-                                        .semantics {
-                                            contentDescription = agent.displayName
-                                        }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                    shape = RoundedCornerShape(24.dp),
-                    colors =
-                        CardDefaults.cardColors(
-                            containerColor =
-                                if (alreadyAdded) {
-                                    MaterialTheme.colorScheme.secondaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceContainerLow
-                                },
-                        ),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            agent.displayName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            agent.id,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        agent.hint?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            CompactAgentChip(
-                                label =
-                                    if (agent.detected) {
-                                        stringResource(
-                                            R.string.serverlist_gateway_agents_detected,
-                                        )
-                                    } else {
-                                        stringResource(R.string.serverlist_gateway_agents_not_detected)
-                                    },
-                            )
-                            CompactAgentChip(
-                                label =
-                                    if (agent.manifestValid) {
-                                        stringResource(
-                                            R.string.serverlist_gateway_agents_valid,
-                                        )
-                                    } else {
-                                        stringResource(R.string.serverlist_gateway_agents_invalid)
-                                    },
-                            )
-                            agent.runtimeStatus?.let { CompactAgentChip(label = it) }
-                            if (alreadyAdded) {
-                                CompactAgentChip(
-                                    label = stringResource(R.string.serverlist_gateway_agents_added),
-                                    leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) },
-                                )
-                            }
-                        }
-                        if (!alreadyAdded && !canAdd) {
-                            Text(
-                                text = stringResource(R.string.serverlist_gateway_agents_invalid_body),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
+            else -> AgentList(
+                agents = uiState.agents,
+                addedAgentIds = uiState.addedAgentIds,
+                onAgentClick = { pendingAddAgent = it },
+                modifier = Modifier.padding(padding),
+            )
         }
     }
+}
+
+@Composable
+private fun LoadingContent(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularWavyProgressIndicator(modifier = Modifier.size(64.dp))
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+private fun ErrorContent(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        ErrorStateCard(
+            headline = stringResource(R.string.serverlist_gateway_agents_error_title),
+            body = message,
+            icon = Icons.Rounded.CloudOff,
+            medallionContainer = MaterialTheme.colorScheme.errorContainer,
+            medallionContent = MaterialTheme.colorScheme.onErrorContainer,
+            medallionShape = MaterialShapes.VerySunny.toShape(),
+            ctaLabel = stringResource(R.string.serverlist_gateway_agents_retry),
+            onCta = onRetry,
+        )
+    }
+}
+
+@Composable
+private fun AgentList(
+    agents: List<GatewayAgent>,
+    addedAgentIds: Set<String>,
+    onAgentClick: (GatewayAgent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(agents, key = { it.id }) { agent ->
+            AgentCard(
+                agent = agent,
+                alreadyAdded = agent.id in addedAgentIds,
+                canAdd = agent.manifestValid && agent.id !in addedAgentIds,
+                onClick = { onAgentClick(agent) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AgentCard(
+    agent: GatewayAgent,
+    alreadyAdded: Boolean,
+    canAdd: Boolean,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .then(
+                    if (canAdd) {
+                        Modifier
+                            .clickable(onClick = onClick)
+                            .semantics {
+                                contentDescription = agent.displayName
+                            }
+                    } else {
+                        Modifier
+                    },
+                ),
+        shape = RoundedCornerShape(24.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (alreadyAdded) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerLow
+                    },
+            ),
+    ) {
+        AgentCardBody(
+            agent = agent,
+            alreadyAdded = alreadyAdded,
+            canAdd = canAdd,
+        )
+    }
+}
+
+@Composable
+private fun AgentCardBody(
+    agent: GatewayAgent,
+    alreadyAdded: Boolean,
+    canAdd: Boolean,
+) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            agent.displayName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            agent.id,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        agent.hint?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AgentChipRow(
+            agent = agent,
+            alreadyAdded = alreadyAdded,
+        )
+        if (!alreadyAdded && !canAdd) {
+            Text(
+                text = stringResource(R.string.serverlist_gateway_agents_invalid_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AgentChipRow(
+    agent: GatewayAgent,
+    alreadyAdded: Boolean,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        CompactAgentChip(
+            label =
+                if (agent.detected) {
+                    stringResource(
+                        R.string.serverlist_gateway_agents_detected,
+                    )
+                } else {
+                    stringResource(R.string.serverlist_gateway_agents_not_detected)
+                },
+        )
+        CompactAgentChip(
+            label =
+                if (agent.manifestValid) {
+                    stringResource(
+                        R.string.serverlist_gateway_agents_valid,
+                    )
+                } else {
+                    stringResource(R.string.serverlist_gateway_agents_invalid)
+                },
+        )
+        agent.runtimeStatus?.let { CompactAgentChip(label = it) }
+        if (alreadyAdded) {
+            CompactAgentChip(
+                label = stringResource(R.string.serverlist_gateway_agents_added),
+                leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddAgentConfirmationDialog(
+    agent: GatewayAgent,
+    uiState: GatewayAgentsUiState,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    var acknowledgedRisk by rememberSaveable(agent.id) { mutableStateOf(false) }
+    val gatewayHost = uiState.gateway?.host.orEmpty()
+    val riskLines = addAgentRiskLines(LocalResources.current, agent, gatewayHost)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.serverlist_gateway_agents_add_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    stringResource(R.string.serverlist_gateway_agents_add_body, agent.displayName),
+                )
+                riskLines.forEach { line ->
+                    Text(
+                        text = "- $line",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(
+                        checked = acknowledgedRisk,
+                        onCheckedChange = { acknowledgedRisk = it },
+                    )
+                    Text(
+                        stringResource(R.string.serverlist_gateway_agents_acknowledge_risk),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = acknowledgedRisk,
+                onClick = onConfirm,
+            ) {
+                Text(stringResource(R.string.serverlist_gateway_agents_add_btn))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text(stringResource(R.string.serverlist_gateway_agents_cancel))
+            }
+        },
+    )
 }
 
 @Composable

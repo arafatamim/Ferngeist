@@ -35,7 +35,7 @@ object ImageAttachmentHelper {
      */
     fun encodeImageBytes(
         bytes: ByteArray,
-        mimeType: String,
+        _mimeType: String,
     ): ChatImageData? {
         val decodeOptions =
             BitmapFactory.Options().apply {

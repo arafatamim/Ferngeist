@@ -11,6 +11,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -82,7 +83,7 @@ class PushTokenRegistrarTest {
             every { gatewaySourceRepository.getGateways() } returns gateways
             coEvery {
                 gatewayRepository.registerPushToken("https", "host-a", "cred-a", "fcm-1", any())
-            } throws RuntimeException("offline") andThenJust Runs
+            } throws IOException("offline") andThenJust Runs
 
             registrar().start()
 

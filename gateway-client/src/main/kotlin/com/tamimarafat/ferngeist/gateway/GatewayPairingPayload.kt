@@ -26,28 +26,39 @@ object GatewayPairingPayloadParser {
         val query = raw.substringAfter('?', "")
         if (query.isBlank()) return null
         val params = parseQueryParams(query)
-        val host = params["host"].orEmpty()
-        val code = params["code"].orEmpty()
-        val challengeId = params["challengeId"].orEmpty()
-        if (host.isBlank() || code.isBlank() || challengeId.isBlank()) return null
-        return GatewayPairingPayload(
-            scheme = params["scheme"].takeUnless { it.isNullOrBlank() } ?: "http",
-            host = host,
-            code = code,
-            challengeId = challengeId,
-        )
+        return buildPairingPayload(params)
     }
 
     private fun parseJson(raw: String): GatewayPairingPayload? {
         val payload =
             runCatching { json.decodeFromString<GatewayPairingPayloadDto>(raw) }.getOrNull()
                 ?: return null
-        val challengeId = payload.challengeId?.trim().orEmpty()
-        if (payload.host.isBlank() || payload.code.isBlank() || challengeId.isBlank()) return null
-        return GatewayPairingPayload(
-            scheme = payload.scheme?.takeUnless { it.isBlank() } ?: "http",
+        return buildPairingPayload(
             host = payload.host.trim(),
             code = payload.code.trim(),
+            challengeId = payload.challengeId?.trim().orEmpty(),
+            scheme = payload.scheme?.takeUnless { it.isBlank() } ?: "http",
+        )
+    }
+
+    private fun buildPairingPayload(params: Map<String, String>): GatewayPairingPayload? {
+        val host = params["host"].orEmpty()
+        val code = params["code"].orEmpty()
+        val challengeId = params["challengeId"].orEmpty()
+        return buildPairingPayload(host, code, challengeId, params["scheme"])
+    }
+
+    private fun buildPairingPayload(
+        host: String,
+        code: String,
+        challengeId: String,
+        scheme: String?,
+    ): GatewayPairingPayload? {
+        if (host.isBlank() || code.isBlank() || challengeId.isBlank()) return null
+        return GatewayPairingPayload(
+            scheme = scheme?.takeUnless { it.isNullOrBlank() } ?: "http",
+            host = host,
+            code = code,
             challengeId = challengeId,
         )
     }

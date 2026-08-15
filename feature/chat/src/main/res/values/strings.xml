@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Translations intentionally deferred for chat_* strings. -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Chat Composer -->
     <string name="chat_composer_hint">Type a message…</string>
     <string name="chat_composer_close_desc">Close composer</string>
@@ -83,63 +82,63 @@
     <string name="chat_permission_kind_reject_always">Reject always</string>
 
     <!-- Spinner verbs -->
-    <string name="chat_spinner_verb_01">Accomplishing</string>
-    <string name="chat_spinner_verb_02">Actioning</string>
-    <string name="chat_spinner_verb_03">Actualizing</string>
-    <string name="chat_spinner_verb_04">Baking</string>
-    <string name="chat_spinner_verb_05">Brewing</string>
-    <string name="chat_spinner_verb_06">Calculating</string>
-    <string name="chat_spinner_verb_07">Cerebrating</string>
-    <string name="chat_spinner_verb_08">Churning</string>
-    <string name="chat_spinner_verb_09">Coalescing</string>
-    <string name="chat_spinner_verb_10">Cogitating</string>
-    <string name="chat_spinner_verb_11">Computing</string>
-    <string name="chat_spinner_verb_12">Conjuring</string>
-    <string name="chat_spinner_verb_13">Considering</string>
-    <string name="chat_spinner_verb_14">Cooking</string>
-    <string name="chat_spinner_verb_15">Crafting</string>
-    <string name="chat_spinner_verb_16">Creating</string>
-    <string name="chat_spinner_verb_17">Crunching</string>
-    <string name="chat_spinner_verb_18">Deliberating</string>
-    <string name="chat_spinner_verb_19">Determining</string>
-    <string name="chat_spinner_verb_20">Doing</string>
-    <string name="chat_spinner_verb_21">Effecting</string>
-    <string name="chat_spinner_verb_22">Finagling</string>
-    <string name="chat_spinner_verb_23">Forging</string>
-    <string name="chat_spinner_verb_24">Forming</string>
-    <string name="chat_spinner_verb_25">Generating</string>
-    <string name="chat_spinner_verb_26">Hatching</string>
-    <string name="chat_spinner_verb_27">Herding</string>
-    <string name="chat_spinner_verb_28">Honking</string>
-    <string name="chat_spinner_verb_29">Hustling</string>
-    <string name="chat_spinner_verb_30">Ideating</string>
-    <string name="chat_spinner_verb_31">Inferring</string>
-    <string name="chat_spinner_verb_32">Manifesting</string>
-    <string name="chat_spinner_verb_33">Marinating</string>
-    <string name="chat_spinner_verb_34">Moseying</string>
-    <string name="chat_spinner_verb_35">Mulling</string>
-    <string name="chat_spinner_verb_36">Mustering</string>
-    <string name="chat_spinner_verb_37">Musing</string>
-    <string name="chat_spinner_verb_38">Noodling</string>
-    <string name="chat_spinner_verb_39">Percolating</string>
-    <string name="chat_spinner_verb_40">Pondering</string>
-    <string name="chat_spinner_verb_41">Processing</string>
-    <string name="chat_spinner_verb_42">Puttering</string>
-    <string name="chat_spinner_verb_43">Reticulating</string>
-    <string name="chat_spinner_verb_44">Ruminating</string>
-    <string name="chat_spinner_verb_45">Schlepping</string>
-    <string name="chat_spinner_verb_46">Shucking</string>
-    <string name="chat_spinner_verb_47">Simmering</string>
-    <string name="chat_spinner_verb_48">Smooshing</string>
-    <string name="chat_spinner_verb_49">Spinning</string>
-    <string name="chat_spinner_verb_50">Stewing</string>
-    <string name="chat_spinner_verb_51">Synthesizing</string>
-    <string name="chat_spinner_verb_52">Thinking</string>
-    <string name="chat_spinner_verb_53">Transmuting</string>
-    <string name="chat_spinner_verb_54">Vibing</string>
-    <string name="chat_spinner_verb_55">Working</string>
+    <string name="chat_spinner_verb_01" translatable="false">Accomplishing</string>
+    <string name="chat_spinner_verb_02" translatable="false">Actioning</string>
+    <string name="chat_spinner_verb_03" translatable="false">Actualizing</string>
+    <string name="chat_spinner_verb_04" translatable="false">Baking</string>
+    <string name="chat_spinner_verb_05" translatable="false">Brewing</string>
+    <string name="chat_spinner_verb_06" translatable="false">Calculating</string>
+    <string name="chat_spinner_verb_07" translatable="false">Cerebrating</string>
+    <string name="chat_spinner_verb_08" translatable="false">Churning</string>
+    <string name="chat_spinner_verb_09" translatable="false">Coalescing</string>
+    <string name="chat_spinner_verb_10" translatable="false">Cogitating</string>
+    <string name="chat_spinner_verb_11" translatable="false">Computing</string>
+    <string name="chat_spinner_verb_12" translatable="false">Conjuring</string>
+    <string name="chat_spinner_verb_13" translatable="false">Considering</string>
+    <string name="chat_spinner_verb_14" translatable="false">Cooking</string>
+    <string name="chat_spinner_verb_15" translatable="false">Crafting</string>
+    <string name="chat_spinner_verb_16" translatable="false">Creating</string>
+    <string name="chat_spinner_verb_17" translatable="false">Crunching</string>
+    <string name="chat_spinner_verb_18" translatable="false">Deliberating</string>
+    <string name="chat_spinner_verb_19" translatable="false">Determining</string>
+    <string name="chat_spinner_verb_20" translatable="false">Doing</string>
+    <string name="chat_spinner_verb_21" translatable="false">Effecting</string>
+    <string name="chat_spinner_verb_22" translatable="false">Finagling</string>
+    <string name="chat_spinner_verb_23" translatable="false">Forging</string>
+    <string name="chat_spinner_verb_24" translatable="false">Forming</string>
+    <string name="chat_spinner_verb_25" translatable="false">Generating</string>
+    <string name="chat_spinner_verb_26" translatable="false">Hatching</string>
+    <string name="chat_spinner_verb_27" translatable="false">Herding</string>
+    <string name="chat_spinner_verb_28" translatable="false">Honking</string>
+    <string name="chat_spinner_verb_29" translatable="false">Hustling</string>
+    <string name="chat_spinner_verb_30" translatable="false">Ideating</string>
+    <string name="chat_spinner_verb_31" translatable="false">Inferring</string>
+    <string name="chat_spinner_verb_32" translatable="false">Manifesting</string>
+    <string name="chat_spinner_verb_33" translatable="false">Marinating</string>
+    <string name="chat_spinner_verb_34" translatable="false">Moseying</string>
+    <string name="chat_spinner_verb_35" translatable="false">Mulling</string>
+    <string name="chat_spinner_verb_36" translatable="false">Mustering</string>
+    <string name="chat_spinner_verb_37" translatable="false">Musing</string>
+    <string name="chat_spinner_verb_38" translatable="false">Noodling</string>
+    <string name="chat_spinner_verb_39" translatable="false">Percolating</string>
+    <string name="chat_spinner_verb_40" translatable="false">Pondering</string>
+    <string name="chat_spinner_verb_41" translatable="false">Processing</string>
+    <string name="chat_spinner_verb_42" translatable="false">Puttering</string>
+    <string name="chat_spinner_verb_43" translatable="false">Reticulating</string>
+    <string name="chat_spinner_verb_44" translatable="false">Ruminating</string>
+    <string name="chat_spinner_verb_45" translatable="false">Schlepping</string>
+    <string name="chat_spinner_verb_46" translatable="false">Shucking</string>
+    <string name="chat_spinner_verb_47" translatable="false">Simmering</string>
+    <string name="chat_spinner_verb_48" translatable="false">Smooshing</string>
+    <string name="chat_spinner_verb_49" translatable="false">Spinning</string>
+    <string name="chat_spinner_verb_50" translatable="false">Stewing</string>
+    <string name="chat_spinner_verb_51" translatable="false">Synthesizing</string>
+    <string name="chat_spinner_verb_52" translatable="false">Thinking</string>
+    <string name="chat_spinner_verb_53" translatable="false">Transmuting</string>
+    <string name="chat_spinner_verb_54" translatable="false">Vibing</string>
+    <string name="chat_spinner_verb_55" translatable="false">Working</string>
 
-    <string-array name="chat_spinner_verbs">
+    <string-array name="chat_spinner_verbs" translatable="false">
         <item>@string/chat_spinner_verb_01</item>
         <item>@string/chat_spinner_verb_02</item>
         <item>@string/chat_spinner_verb_03</item>

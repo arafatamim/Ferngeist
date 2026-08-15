@@ -106,4 +106,51 @@
     <string name="chat_error_unknown">неизвестная ошибка</string>
     <string name="chat_error_send_failed">Ошибка отправки</string>
     <string name="chat_scroll_to_bottom">Прокрутить вниз</string>
+    <string name="chat_attach_desc">Прикрепить файл</string>
+    <string name="chat_remove_file_desc">Удалить файл</string>
+    <string name="chat_remove_image_desc">Удалить изображение</string>
+    <string name="chat_git_binary">бинарный</string>
+    <string name="chat_git_clean">Рабочее дерево чистое</string>
+    <string name="chat_git_no_branch">(нет ветки)</string>
+    <string name="chat_git_status_title">Статус Git</string>
+    <string name="chat_git_status_desc">Сведения о статусе Git</string>
+    <string name="chat_status_sending">Отправка</string>
+    <string name="chat_status_queued">В очереди</string>
+    <string name="chat_status_failed">Не удалось отправить</string>
+    <string name="chat_status_retry">Нажмите, чтобы повторить</string>
+    <plurals name="chat_attachments_unsupported">
+        <item quantity="one">%1$d вложение не поддерживается этим агентом</item>
+        <item quantity="few">%1$d вложения не поддерживаются этим агентом</item>
+        <item quantity="many">%1$d вложений не поддерживаются этим агентом</item>
+    </plurals>
+    <plurals name="chat_files_too_large">
+        <item quantity="one">%1$d файл превысил лимит 10 МБ</item>
+        <item quantity="few">%1$d файла превысили лимит 10 МБ</item>
+        <item quantity="many">%1$d файлов превысили лимит 10 МБ</item>
+    </plurals>
+    <plurals name="chat_files_capped">
+        <item quantity="one">Не более %1$d файла на сообщение</item>
+        <item quantity="few">Не более %1$d файлов на сообщение</item>
+        <item quantity="many">Не более %1$d файлов на сообщение</item>
+    </plurals>
+    <plurals name="chat_images_dropped">
+        <item quantity="one">%1$d изображение не удалось декодировать</item>
+        <item quantity="few">%1$d изображения не удалось декодировать</item>
+        <item quantity="many">%1$d изображений не удалось декодировать</item>
+    </plurals>
+    <plurals name="chat_images_capped">
+        <item quantity="one">Не более %1$d изображения на сообщение</item>
+        <item quantity="few">Не более %1$d изображений на сообщение</item>
+        <item quantity="many">Не более %1$d изображений на сообщение</item>
+    </plurals>
+    <plurals name="chat_images_dropped_capped">
+        <item quantity="one">Отброшено %1$d нераскодированное изображение; лимит — %2$d на сообщение</item>
+        <item quantity="few">Отброшено %1$d нераскодированных изображения; лимит — %2$d на сообщение</item>
+        <item quantity="many">Отброшено %1$d нераскодированных изображений; лимит — %2$d на сообщение</item>
+    </plurals>
+    <plurals name="chat_git_files_changed">
+        <item quantity="one">%1$d файл изменен</item>
+        <item quantity="few">%1$d файла изменено</item>
+        <item quantity="many">%1$d файлов изменено</item>
+    </plurals>
 </resources>

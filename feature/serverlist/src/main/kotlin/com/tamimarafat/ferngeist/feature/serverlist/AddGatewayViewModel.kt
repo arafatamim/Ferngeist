@@ -175,31 +175,7 @@ class AddGatewayViewModel
                         deviceName = _deviceName.value.trim().ifBlank { defaultDeviceName() },
                     )
                 }.onSuccess { pairing ->
-                    // Re-pairing a known gateway must reuse its existing local id, not
-                    // mint a new UUID — otherwise chats/sessions opened under the old id
-                    // are orphaned and push deep-links/suppression stop matching.
-                    val existingId = pairing.gatewayId?.let { gatewaySourceRepository.resolveLocalId(it) }
-                    val gateway =
-                        GatewaySource(
-                            id =
-                                existingId
-                                    ?: java.util.UUID
-                                        .randomUUID()
-                                        .toString(),
-                            name = gatewayName,
-                            scheme = _scheme.value,
-                            host = gatewayHost,
-                            gatewayCredential = pairing.gatewayCredential,
-                            gatewayCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
-                            gatewayRemoteMode =
-                                _uiState.value.status
-                                    ?.remote
-                                    ?.mode,
-                            gatewayId = pairing.gatewayId,
-                        )
-                    gatewaySourceRepository.addGateway(gateway)
-                    _uiState.value = _uiState.value.copy(isSaving = false)
-                    _events.emit(AddGatewayEvent.GatewaySaved)
+                    savePairingResult(pairing, gatewayName, gatewayHost)
                 }.onFailure { error ->
                     _uiState.value = _uiState.value.copy(isSaving = false)
                     emitError("Could not complete pairing: ${error.message ?: "unknown error"}")
@@ -221,55 +197,17 @@ class AddGatewayViewModel
                 }
 
                 if (isEditMode) {
-                    val currentGateway = existingGateway
-                    if (currentGateway == null) {
-                        emitError("Gateway could not be loaded")
-                        return@launch
-                    }
-                    _uiState.value = _uiState.value.copy(isSaving = true)
-                    runCatching {
-                        val updatedGateway =
-                            currentGateway.copy(
-                                name = gatewayName,
-                                scheme = _scheme.value,
-                                host = gatewayHost,
-                                gatewayRemoteMode =
-                                    _uiState.value.status
-                                        ?.remote
-                                        ?.mode ?: currentGateway.gatewayRemoteMode,
-                            )
-                        gatewaySourceRepository.updateGateway(updatedGateway)
-                        existingGateway = updatedGateway
-                    }.onSuccess {
-                        _uiState.value = _uiState.value.copy(isSaving = false)
-                        _events.emit(AddGatewayEvent.GatewaySaved)
-                    }.onFailure { error ->
-                        _uiState.value = _uiState.value.copy(isSaving = false)
-                        emitError("Could not save gateway: ${error.message ?: "unknown error"}")
-                    }
+                    saveExistingGateway(gatewayHost, gatewayName)
                     return@launch
                 }
 
                 val importedPayload = _uiState.value.importedPairingPayload
                 val manualCode = _pairingCode.value.trim()
                 val resolvedCode = importedPayload?.code ?: manualCode
-                var challengeId = activeChallengeId ?: importedPayload?.challengeId
+                val challengeId =
+                    resolvePairingChallenge(gatewayHost, importedPayload, manualCode) ?: return@launch
 
-                if (challengeId.isNullOrBlank() && resolvedCode.isNotBlank()) {
-                    _uiState.value = _uiState.value.copy(isCheckingStatus = true)
-                    runCatching {
-                        val pairingResponse = gatewayRepository.startPairing(_scheme.value, gatewayHost)
-                        challengeId = pairingResponse.challengeId
-                        activeChallengeId = pairingResponse.challengeId
-                        _uiState.value = _uiState.value.copy(isCheckingStatus = false)
-                    }.onFailure { error ->
-                        _uiState.value = _uiState.value.copy(isCheckingStatus = false)
-                        emitError("Could not start pairing: ${error.message ?: "unknown error"}")
-                        return@launch
-                    }
-                }
-
-                if (resolvedCode.isBlank() || challengeId.isNullOrBlank()) {
+                if (resolvedCode.isBlank()) {
                     emitError("Scan QR, paste payload, or type pairing code first")
                     return@launch
                 }
@@ -284,34 +222,107 @@ class AddGatewayViewModel
                         deviceName = _deviceName.value.trim().ifBlank { defaultDeviceName() },
                     )
                 }.onSuccess { pairing ->
-                    val gatewayStatus = _uiState.value.status
-                    // Reuse the existing local id for this gatewayId (or the edit-mode id)
-                    // so a re-pair updates in place instead of orphaning existing chats.
-                    val existingId = pairing.gatewayId?.let { gatewaySourceRepository.resolveLocalId(it) }
-                    val gateway =
-                        GatewaySource(
-                            id =
-                                initialServerId
-                                    ?: existingId
-                                    ?: java.util.UUID
-                                        .randomUUID()
-                                        .toString(),
-                            name = gatewayName,
-                            scheme = _scheme.value,
-                            host = gatewayHost,
-                            gatewayCredential = pairing.gatewayCredential,
-                            gatewayCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
-                            gatewayRemoteMode = gatewayStatus?.remote?.mode,
-                            gatewayId = pairing.gatewayId,
-                        )
-                    gatewaySourceRepository.addGateway(gateway)
-                    _uiState.value = _uiState.value.copy(isSaving = false)
-                    _events.emit(AddGatewayEvent.GatewaySaved)
+                    savePairingResult(pairing, gatewayName, gatewayHost, preferredId = initialServerId)
                 }.onFailure { error ->
                     _uiState.value = _uiState.value.copy(isSaving = false)
                     emitError("Could not complete pairing: ${error.message ?: "unknown error"}")
                 }
             }
+        }
+
+        private suspend fun saveExistingGateway(gatewayHost: String, gatewayName: String) {
+            val currentGateway = existingGateway
+            if (currentGateway == null) {
+                emitError("Gateway could not be loaded")
+                return
+            }
+            _uiState.value = _uiState.value.copy(isSaving = true)
+            runCatching {
+                val updatedGateway =
+                    currentGateway.copy(
+                        name = gatewayName,
+                        scheme = _scheme.value,
+                        host = gatewayHost,
+                        gatewayRemoteMode =
+                            _uiState.value.status
+                                ?.remote
+                                ?.mode ?: currentGateway.gatewayRemoteMode,
+                    )
+                gatewaySourceRepository.updateGateway(updatedGateway)
+                existingGateway = updatedGateway
+            }.onSuccess {
+                _uiState.value = _uiState.value.copy(isSaving = false)
+                _events.emit(AddGatewayEvent.GatewaySaved)
+            }.onFailure { error ->
+                _uiState.value = _uiState.value.copy(isSaving = false)
+                emitError("Could not save gateway: ${error.message ?: "unknown error"}")
+            }
+        }
+
+        /**
+         * Starts pairing when no challenge id is available yet. Returns the
+         * challenge id, or null after surfacing the failure to stop the save.
+         */
+        private suspend fun resolvePairingChallenge(
+            gatewayHost: String,
+            importedPayload: com.tamimarafat.ferngeist.gateway.GatewayPairingPayload?,
+            manualCode: String,
+        ): String? {
+            val existing = activeChallengeId ?: importedPayload?.challengeId
+            if (!existing.isNullOrBlank() || manualCode.isBlank()) {
+                return existing
+            }
+            _uiState.value = _uiState.value.copy(isCheckingStatus = true)
+            val pairingResponse =
+                runCatching {
+                    gatewayRepository.startPairing(_scheme.value, gatewayHost)
+                }.getOrElse { error ->
+                    _uiState.value = _uiState.value.copy(isCheckingStatus = false)
+                    emitError("Could not start pairing: ${error.message ?: "unknown error"}")
+                    return null
+                }
+            activeChallengeId = pairingResponse.challengeId
+            _uiState.value = _uiState.value.copy(isCheckingStatus = false)
+            return pairingResponse.challengeId
+        }
+
+        /**
+         * Persists a completed pairing, reusing the existing local id for a known
+         * gatewayId so chats/sessions opened under the old id stay attached, then
+         * signals success.
+         */
+        private suspend fun savePairingResult(
+            pairing: com.tamimarafat.ferngeist.gateway.GatewayPairingResult,
+            gatewayName: String,
+            gatewayHost: String,
+            preferredId: String? = null,
+        ) {
+            // Re-pairing a known gateway must reuse its existing local id, not
+            // mint a new UUID — otherwise chats/sessions opened under the old id
+            // are orphaned and push deep-links/suppression stop matching.
+            val existingId = pairing.gatewayId?.let { gatewaySourceRepository.resolveLocalId(it) }
+            val gateway =
+                GatewaySource(
+                    id =
+                        preferredId
+                            ?: existingId
+                            ?: java.util.UUID
+                                .randomUUID()
+                                .toString(),
+                    name = gatewayName,
+                    scheme = _scheme.value,
+                    host = gatewayHost,
+                    gatewayCredential = pairing.gatewayCredential,
+                    gatewayCredentialExpiresAt = pairing.expiresAt.toEpochMillisOrNull(),
+                    gatewayRemoteMode =
+                        _uiState.value.status
+                            ?.remote
+                            ?.mode,
+                    gatewayId = pairing.gatewayId,
+                )
+            gatewaySourceRepository.addGateway(gateway)
+            _uiState.value = _uiState.value.copy(isSaving = false)
+            _events.emit(AddGatewayEvent.GatewaySaved)
         }
 
         private fun loadExisting(id: String) {

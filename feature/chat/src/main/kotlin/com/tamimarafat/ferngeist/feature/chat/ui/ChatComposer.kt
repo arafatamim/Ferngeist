@@ -12,9 +12,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -96,6 +99,21 @@ import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
 
+private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
+
+/**
+ * Computes the target height for the composer based on expansion and attachment state.
+ */
+private fun composerTargetHeight(
+    composerExpanded: Boolean,
+    selectedImages: List<ChatImageData>,
+    selectedFiles: List<ChatFileData>,
+): Dp = when {
+    composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
+    composerExpanded -> 142.dp
+    else -> 62.dp
+}
+
 /**
  * Main entry point for the chat composer UI.
  * This bar can be in a collapsed state (showing actions/modes) or an expanded state (for typing).
@@ -165,23 +183,54 @@ internal fun ChatComposerBar(
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
 
-    // Animates height between collapsed and expanded states
     val animatedHeight by animateDpAsState(
-        targetValue =
-            when {
-                composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
-                composerExpanded -> 142.dp
-                else -> 62.dp
-            },
-        animationSpec =
-            spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMedium,
-            ),
+        targetValue = composerTargetHeight(composerExpanded, selectedImages, selectedFiles),
+        animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium),
         label = "ComposerHeight",
     )
-    val collapsedMaxToolbarWidth = screenWidth * 0.92f
+    val collapsedMaxToolbarWidth = screenWidth * COLLAPSED_MAX_TOOLBAR_FRACTION
 
+    ComposerSurfaceContainer(
+        modifier = modifier, composerExpanded = composerExpanded,
+        animatedHeight = animatedHeight, collapsedMaxToolbarWidth = collapsedMaxToolbarWidth,
+        onHeightChanged = onHeightChanged,
+    ) {
+        if (composerExpanded) {
+            ExpandedComposerContent(
+                messageText, onMessageTextChange, inputAlpha, focusRequester, showStopAction,
+                canCancelStreaming,
+                { onComposerExpandedChange(false); onFocusCleared() },
+                { if (showStopAction && canCancelStreaming) onCancelStreaming(); else if (!showStopAction) onSend() },
+                onSend, canSendImages, selectedImages, onImagesChanged, canSendFiles,
+                selectedFiles, onFilesChanged, onAttach,
+            )
+        } else {
+            CollapsedComposerActions(
+                state, toolbarConfigOptions, buttonsAlpha, showModeButton, modeOption,
+                currentModeLabel, showStopAction, canCancelStreaming, collapsedMaxToolbarWidth,
+                showModeMenu, { showModeMenu = it }, modeMenuInteractionSource,
+                showOptionsMenu, { showOptionsMenu = it }, optionsMenuInteractionSource,
+                { onComposerExpandedChange(true) }, onCancelStreaming, onSetStringConfigOption,
+                onSetBooleanConfigOption, onShowCommands, onShowConfigOptionPicker,
+                showJumpToBottom, onJumpToBottom,
+            )
+        }
+    }
+}
+
+/**
+ * The Surface + Row container that wraps either expanded or collapsed composer
+ * content, switching based on [composerExpanded].
+ */
+@Composable
+private fun ComposerSurfaceContainer(
+    modifier: Modifier,
+    composerExpanded: Boolean,
+    animatedHeight: Dp,
+    collapsedMaxToolbarWidth: Dp,
+    onHeightChanged: (Int) -> Unit,
+    content: @Composable RowScope.() -> Unit,
+) {
     Surface(
         // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
         shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
@@ -193,7 +242,7 @@ internal fun ChatComposerBar(
                 .height(animatedHeight)
                 .then(
                     if (composerExpanded) {
-                        Modifier.fillMaxWidth(0.92f)
+                        Modifier.fillMaxWidth(COLLAPSED_MAX_TOOLBAR_FRACTION)
                     } else {
                         // Limit width in collapsed state to maintain "pill" look on wide screens
                         Modifier.widthIn(max = collapsedMaxToolbarWidth)
@@ -221,62 +270,7 @@ internal fun ChatComposerBar(
             verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            if (composerExpanded) {
-                ExpandedComposerContent(
-                    messageText = messageText,
-                    onMessageTextChange = onMessageTextChange,
-                    inputAlpha = inputAlpha,
-                    focusRequester = focusRequester,
-                    showStopAction = showStopAction,
-                    canCancelStreaming = canCancelStreaming,
-                    onClose = {
-                        onComposerExpandedChange(false)
-                        onFocusCleared()
-                    },
-                    onPrimaryAction = {
-                        // Primary action depends on whether we are currently streaming
-                        if (showStopAction && canCancelStreaming) {
-                            onCancelStreaming()
-                        } else if (!showStopAction) {
-                            onSend()
-                        }
-                    },
-                    onSend = onSend,
-                    canSendImages = canSendImages,
-                    selectedImages = selectedImages,
-                    onImagesChanged = onImagesChanged,
-                    canSendFiles = canSendFiles,
-                    selectedFiles = selectedFiles,
-                    onFilesChanged = onFilesChanged,
-                    onAttach = onAttach,
-                )
-            } else {
-                CollapsedComposerActions(
-                    state = state,
-                    toolbarConfigOptions = toolbarConfigOptions,
-                    buttonsAlpha = buttonsAlpha,
-                    showModeButton = showModeButton,
-                    modeOption = modeOption,
-                    currentModeLabel = currentModeLabel,
-                    showStopAction = showStopAction,
-                    canCancelStreaming = canCancelStreaming,
-                    collapsedMaxToolbarWidth = collapsedMaxToolbarWidth,
-                    showModeMenu = showModeMenu,
-                    onShowModeMenuChange = { showModeMenu = it },
-                    modeMenuInteractionSource = modeMenuInteractionSource,
-                    showOptionsMenu = showOptionsMenu,
-                    onShowOptionsMenuChange = { showOptionsMenu = it },
-                    optionsMenuInteractionSource = optionsMenuInteractionSource,
-                    onExpandComposer = { onComposerExpandedChange(true) },
-                    onCancelStreaming = onCancelStreaming,
-                    onSetStringConfigOption = onSetStringConfigOption,
-                    onSetBooleanConfigOption = onSetBooleanConfigOption,
-                    onShowCommands = onShowCommands,
-                    onShowConfigOptionPicker = onShowConfigOptionPicker,
-                    showJumpToBottom = showJumpToBottom,
-                    onJumpToBottom = onJumpToBottom,
-                )
-            }
+            content()
         }
     }
 }
@@ -324,87 +318,132 @@ internal fun ExpandedComposerContent(
                 onRemove = { index -> onFilesChanged(selectedFiles.toMutableList().also { it.removeAt(index) }) },
             )
         }
-        val selectionColors =
-            TextSelectionColors(
-                handleColor = MaterialTheme.colorScheme.onPrimary,
-                backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
-            )
-        CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
-            BasicTextField(
-                value = messageText,
-                onValueChange = onMessageTextChange,
-                singleLine = false,
-                minLines = 3,
-                maxLines = 8,
-                textStyle =
-                    MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { onSend() }),
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .focusRequester(focusRequester),
-                decorationBox = { innerTextField ->
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.TopStart,
-                    ) {
-                        if (messageText.isEmpty()) {
-                            Text(
-                                text = stringResource(R.string.chat_composer_hint),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
-                            )
-                        }
-                        innerTextField()
+        ExpandedComposerTextField(
+            messageText = messageText,
+            onMessageTextChange = onMessageTextChange,
+            focusRequester = focusRequester,
+            onSend = onSend,
+        )
+        ExpandedComposerBottomBar(
+            onClose = onClose,
+            canSendImages = canSendImages,
+            canSendFiles = canSendFiles,
+            onAttach = onAttach,
+            showStopAction = showStopAction,
+            canCancelStreaming = canCancelStreaming,
+            messageText = messageText,
+            onPrimaryAction = onPrimaryAction,
+        )
+    }
+}
+
+/**
+ * The text input area inside [ExpandedComposerContent], including
+ * selection-colors and the placeholder hint.
+ */
+@Composable
+private fun ColumnScope.ExpandedComposerTextField(
+    messageText: String,
+    onMessageTextChange: (String) -> Unit,
+    focusRequester: FocusRequester,
+    onSend: () -> Unit,
+) {
+    val selectionColors =
+        TextSelectionColors(
+            handleColor = MaterialTheme.colorScheme.onPrimary,
+            backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
+        )
+    CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
+        BasicTextField(
+            value = messageText,
+            onValueChange = onMessageTextChange,
+            singleLine = false,
+            minLines = 3,
+            maxLines = 8,
+            textStyle =
+                MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onPrimary,
+                ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { onSend() }),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.TopStart,
+                ) {
+                    if (messageText.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.chat_composer_hint),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
+                        )
                     }
-                },
+                    innerTextField()
+                }
+            },
+        )
+    }
+}
+
+/**
+ * The bottom action row inside [ExpandedComposerContent], containing the
+ * close button, attach-file affordance, and primary action button.
+ */
+@Composable
+private fun ExpandedComposerBottomBar(
+    onClose: () -> Unit,
+    canSendImages: Boolean,
+    canSendFiles: Boolean,
+    onAttach: () -> Unit,
+    showStopAction: Boolean,
+    canCancelStreaming: Boolean,
+    messageText: String,
+    onPrimaryAction: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        IconButton(onClick = onClose) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.chat_composer_close_desc),
             )
         }
 
         Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.chat_composer_close_desc),
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (canSendImages || canSendFiles) {
-                    IconButton(onClick = onAttach) {
-                        Icon(
-                            imageVector = Icons.Default.AttachFile,
-                            contentDescription = stringResource(R.string.chat_attach_desc),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
+            if (canSendImages || canSendFiles) {
+                IconButton(onClick = onAttach) {
+                    Icon(
+                        imageVector = Icons.Default.AttachFile,
+                        contentDescription = stringResource(R.string.chat_attach_desc),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
                 }
-
-                PrimaryComposerActionButton(
-                    showStopAction = showStopAction,
-                    canCancelStreaming = canCancelStreaming,
-                    // Only enable send if there's text, or if we are stopping a stream
-                    enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
-                    onClick = onPrimaryAction,
-                )
             }
+
+            PrimaryComposerActionButton(
+                showStopAction = showStopAction,
+                canCancelStreaming = canCancelStreaming,
+                // Only enable send if there's text, or if we are stopping a stream
+                enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
+                onClick = onPrimaryAction,
+            )
         }
     }
 }
@@ -453,6 +492,44 @@ internal fun CollapsedComposerActions(
         Spacer(modifier = Modifier.width(6.dp))
     }
 
+    CollapsedPrimaryButton(
+        showStopAction = showStopAction,
+        canCancelStreaming = canCancelStreaming,
+        buttonsAlpha = buttonsAlpha,
+        onCancelStreaming = onCancelStreaming,
+        onExpandComposer = onExpandComposer,
+    )
+
+    if (showJumpToBottom) {
+        Spacer(modifier = Modifier.width(6.dp))
+        JumpToBottomButton(onJumpToBottom = onJumpToBottom)
+    }
+
+    ToolbarOptionsButton(
+        commandsAdvertised = state.commandsAdvertised,
+        configOptions = toolbarConfigOptions,
+        expanded = showOptionsMenu,
+        onExpandedChange = onShowOptionsMenuChange,
+        interactionSource = optionsMenuInteractionSource,
+        onSetBooleanConfigOption = onSetBooleanConfigOption,
+        onShowCommands = onShowCommands,
+        onShowConfigOptionPicker = onShowConfigOptionPicker,
+    )
+}
+
+/**
+ * The primary action button in the collapsed composer, wrapped in a [TooltipBox]
+ * that shows the current mode label ("Stop", "Cancel unavailable", or "Chat").
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CollapsedPrimaryButton(
+    showStopAction: Boolean,
+    canCancelStreaming: Boolean,
+    buttonsAlpha: Float,
+    onCancelStreaming: () -> Unit,
+    onExpandComposer: () -> Unit,
+) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
@@ -473,11 +550,13 @@ internal fun CollapsedComposerActions(
             canCancelStreaming = canCancelStreaming,
             enabled = !showStopAction || canCancelStreaming,
             modifier =
-                Modifier.size(
-                    IconButtonDefaults.smallContainerSize(
-                        IconButtonDefaults.IconButtonWidthOption.Wide,
+                Modifier
+                    .alpha(buttonsAlpha)
+                    .size(
+                        IconButtonDefaults.smallContainerSize(
+                            IconButtonDefaults.IconButtonWidthOption.Wide,
+                        ),
                     ),
-                ),
             onClick = {
                 if (showStopAction && canCancelStreaming) {
                     onCancelStreaming()
@@ -488,37 +567,32 @@ internal fun CollapsedComposerActions(
             chatIcon = Icons.Default.Edit,
         )
     }
+}
 
-    if (showJumpToBottom) {
-        Spacer(modifier = Modifier.width(6.dp))
-        TooltipBox(
-            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-            tooltip = {
-                PlainTooltip {
-                    Text(stringResource(R.string.chat_scroll_to_bottom))
-                }
-            },
-            state = rememberTooltipState(),
-        ) {
-            IconButton(onClick = onJumpToBottom) {
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowDown,
-                    contentDescription = stringResource(R.string.chat_scroll_to_bottom),
-                )
+/**
+ * Jump-to-bottom scroll button wrapped in a [TooltipBox].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun JumpToBottomButton(
+    onJumpToBottom: () -> Unit,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+            PlainTooltip {
+                Text(stringResource(R.string.chat_scroll_to_bottom))
             }
+        },
+        state = rememberTooltipState(),
+    ) {
+        IconButton(onClick = onJumpToBottom) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.chat_scroll_to_bottom),
+            )
         }
     }
-
-    ToolbarOptionsButton(
-        commandsAdvertised = state.commandsAdvertised,
-        configOptions = toolbarConfigOptions,
-        expanded = showOptionsMenu,
-        onExpandedChange = onShowOptionsMenuChange,
-        interactionSource = optionsMenuInteractionSource,
-        onSetBooleanConfigOption = onSetBooleanConfigOption,
-        onShowCommands = onShowCommands,
-        onShowConfigOptionPicker = onShowConfigOptionPicker,
-    )
 }
 
 /**
@@ -562,47 +636,67 @@ internal fun ModeMenuButton(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) },
         ) {
-            DropdownMenuGroup(
-                shapes = MenuDefaults.groupShape(0, 1),
+            ModeMenuContent(
+                modeOption = modeOption,
+                onExpandedChange = onExpandedChange,
                 interactionSource = interactionSource,
-            ) {
-                val availableModes = modeOption.allChoices()
-                val modeCount = availableModes.size
-                if (modeCount == 0) {
+                onSetConfigOption = onSetConfigOption,
+            )
+        }
+    }
+}
+
+/**
+ * The dropdown content inside [ModeMenuButton], rendering each available mode
+ * as a [DropdownMenuItem] with optional tooltip.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModeMenuContent(
+    modeOption: ChatConfigOption.Select,
+    onExpandedChange: (Boolean) -> Unit,
+    interactionSource: MutableInteractionSource,
+    onSetConfigOption: (String, String) -> Unit,
+) {
+    DropdownMenuGroup(
+        shapes = MenuDefaults.groupShape(0, 1),
+        interactionSource = interactionSource,
+    ) {
+        val availableModes = modeOption.allChoices()
+        val modeCount = availableModes.size
+        if (modeCount == 0) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_no_modes_available)) },
+                onClick = { onExpandedChange(false) },
+                enabled = false,
+            )
+        } else {
+            availableModes.forEachIndexed { index, mode ->
+                val item: @Composable () -> Unit = {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.chat_no_modes_available)) },
-                        onClick = { onExpandedChange(false) },
-                        enabled = false,
+                        text = { Text(mode.label.uppercase()) },
+                        shapes = MenuDefaults.itemShape(index, modeCount),
+                        checked = mode.value == modeOption.currentValue,
+                        onCheckedChange = { checked ->
+                            if (checked && mode.value != modeOption.currentValue) {
+                                onExpandedChange(false)
+                                onSetConfigOption(modeOption.id, mode.value)
+                            }
+                        },
                     )
+                }
+                val description = mode.description
+                if (!description.isNullOrBlank()) {
+                    TooltipBox(
+                        positionProvider =
+                            TooltipDefaults.rememberTooltipPositionProvider(
+                                TooltipAnchorPosition.Above,
+                            ),
+                        tooltip = { PlainTooltip { Text(description) } },
+                        state = rememberTooltipState(),
+                    ) { item() }
                 } else {
-                    availableModes.forEachIndexed { index, mode ->
-                        val item: @Composable () -> Unit = {
-                            DropdownMenuItem(
-                                text = { Text(mode.label.uppercase()) },
-                                shapes = MenuDefaults.itemShape(index, modeCount),
-                                checked = mode.value == modeOption.currentValue,
-                                onCheckedChange = { checked ->
-                                    if (checked && mode.value != modeOption.currentValue) {
-                                        onExpandedChange(false)
-                                        onSetConfigOption(modeOption.id, mode.value)
-                                    }
-                                },
-                            )
-                        }
-                        val description = mode.description
-                        if (!description.isNullOrBlank()) {
-                            TooltipBox(
-                                positionProvider =
-                                    TooltipDefaults.rememberTooltipPositionProvider(
-                                        TooltipAnchorPosition.Above,
-                                    ),
-                                tooltip = { PlainTooltip { Text(description) } },
-                                state = rememberTooltipState(),
-                            ) { item() }
-                        } else {
-                            item()
-                        }
-                    }
+                    item()
                 }
             }
         }
@@ -640,51 +734,77 @@ internal fun ToolbarOptionsButton(
                 expanded = expanded,
                 onDismissRequest = { onExpandedChange(false) },
             ) {
-                DropdownMenuGroup(
-                    shapes = MenuDefaults.groupShape(0, 1),
+                ToolbarOptionsMenuContent(
+                    commandsAdvertised = commandsAdvertised,
+                    configOptions = configOptions,
+                    onExpandedChange = onExpandedChange,
                     interactionSource = interactionSource,
-                ) {
-                    val hasConfigOptions = configOptions.isNotEmpty()
-                    if (commandsAdvertised) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.chat_commands)) },
-                            onClick = {
-                                onExpandedChange(false)
-                                onShowCommands()
-                            },
-                        )
-                    }
-
-                    configOptions.forEach { option ->
-                        ConfigOptionMenuItem(
-                            option = option,
-                            onClick = {
-                                when (option) {
-                                    is ChatConfigOption.BooleanOption -> {
-                                        onExpandedChange(false)
-                                        onSetBooleanConfigOption(option.id, !option.currentValue)
-                                    }
-
-                                    is ChatConfigOption.Select -> {
-                                        onExpandedChange(false)
-                                        onShowConfigOptionPicker(option.id)
-                                    }
-
-                                    is ChatConfigOption.Unknown -> Unit
-                                }
-                            },
-                        )
-                    }
-
-                    if (!commandsAdvertised && !hasConfigOptions) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.chat_no_options_available)) },
-                            onClick = { onExpandedChange(false) },
-                            enabled = false,
-                        )
-                    }
-                }
+                    onSetBooleanConfigOption = onSetBooleanConfigOption,
+                    onShowCommands = onShowCommands,
+                    onShowConfigOptionPicker = onShowConfigOptionPicker,
+                )
             }
+        }
+    }
+}
+
+/**
+ * The dropdown menu content inside [ToolbarOptionsButton], rendering the
+ * commands, config options, and the fallback empty-state item.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ToolbarOptionsMenuContent(
+    commandsAdvertised: Boolean,
+    configOptions: List<ChatConfigOption>,
+    onExpandedChange: (Boolean) -> Unit,
+    interactionSource: MutableInteractionSource,
+    onSetBooleanConfigOption: (String, Boolean) -> Unit,
+    onShowCommands: () -> Unit,
+    onShowConfigOptionPicker: (String) -> Unit,
+) {
+    DropdownMenuGroup(
+        shapes = MenuDefaults.groupShape(0, 1),
+        interactionSource = interactionSource,
+    ) {
+        val hasConfigOptions = configOptions.isNotEmpty()
+        if (commandsAdvertised) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_commands)) },
+                onClick = {
+                    onExpandedChange(false)
+                    onShowCommands()
+                },
+            )
+        }
+
+        configOptions.forEach { option ->
+            ConfigOptionMenuItem(
+                option = option,
+                onClick = {
+                    when (option) {
+                        is ChatConfigOption.BooleanOption -> {
+                            onExpandedChange(false)
+                            onSetBooleanConfigOption(option.id, !option.currentValue)
+                        }
+
+                        is ChatConfigOption.Select -> {
+                            onExpandedChange(false)
+                            onShowConfigOptionPicker(option.id)
+                        }
+
+                        is ChatConfigOption.Unknown -> Unit
+                    }
+                },
+            )
+        }
+
+        if (!commandsAdvertised && !hasConfigOptions) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_no_options_available)) },
+                onClick = { onExpandedChange(false) },
+                enabled = false,
+            )
         }
     }
 }
@@ -890,57 +1010,81 @@ private fun ImageThumbnailItem(
                 }.getOrNull()
             }
 
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
-            modifier = Modifier.size(56.dp),
-        ) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = stringResource(R.string.chat_image_desc),
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .clip(MaterialTheme.shapes.large),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AddPhotoAlternate,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
-        }
+        ThumbnailImageContent(bitmap = bitmap)
 
         // Remove button — positioned top-end of the thumbnail
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-            modifier =
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-4).dp)
-                    .size(18.dp),
-        ) {
-            IconButton(
-                onClick = onRemove,
+        ThumbnailRemoveButton(onRemove = onRemove)
+    }
+}
+
+/**
+ * The thumbnail image surface inside [ImageThumbnailItem], showing either the
+ * decoded bitmap or a placeholder icon when decoding fails.
+ */
+@Composable
+private fun ThumbnailImageContent(
+    bitmap: androidx.compose.ui.graphics.ImageBitmap?,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
+        modifier = modifier.size(56.dp),
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = stringResource(R.string.chat_image_desc),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .clip(MaterialTheme.shapes.large),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Box(
                 modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.chat_remove_image_desc),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(12.dp),
+                    imageVector = Icons.Default.AddPhotoAlternate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
+                    modifier = Modifier.size(24.dp),
                 )
             }
+        }
+    }
+}
+
+/**
+ * The remove (x) button overlay for [ImageThumbnailItem], positioned at the
+ * top-end of the thumbnail.
+ */
+@Composable
+private fun BoxScope.ThumbnailRemoveButton(
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+        modifier =
+            modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 4.dp, y = (-4).dp)
+                .size(18.dp),
+    ) {
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.chat_remove_image_desc),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(12.dp),
+            )
         }
     }
 }

@@ -27,7 +27,13 @@ class GatewayRepositoryImpl
     constructor(
         private val httpClient: HttpClient,
         private val json: Json,
-    ) : GatewayRepository {
+    ) : GatewayRepository,
+       GatewayPairingRepository,
+       GatewayAuthRepository,
+       GatewayRuntimeRepository,
+       GatewaySessionRepository,
+       GatewayPushRepository,
+       GatewayWorkspaceRepository {
         override suspend fun fetchStatus(
             scheme: String,
             host: String,
@@ -178,7 +184,6 @@ class GatewayRepositoryImpl
             sessionId: String,
         ) {
             httpClient.deleteJsonUnit(
-                json = json,
                 scheme = scheme,
                 host = host,
                 bearerToken = gatewayCredential,
@@ -196,7 +201,6 @@ class GatewayRepositoryImpl
             platform: String,
         ) {
             httpClient.postJsonUnit(
-                json = json,
                 scheme = scheme,
                 host = host,
                 bearerToken = gatewayCredential,
@@ -412,6 +416,7 @@ class GatewayRepositoryImpl
                         throw GatewayCredentialExpiredException(
                             endpoint = endpoint,
                             gatewayResponse = error.message,
+                            cause = error,
                         )
                     }
                     throw error
@@ -501,7 +506,6 @@ private suspend inline fun <reified T> HttpClient.postJson(
 }
 
 private suspend fun HttpClient.postJsonUnit(
-    json: Json,
     scheme: String,
     host: String,
     bearerToken: String? = null,
@@ -539,7 +543,6 @@ private suspend fun HttpClient.postJsonUnit(
 }
 
 private suspend fun HttpClient.deleteJsonUnit(
-    json: Json,
     scheme: String,
     host: String,
     bearerToken: String? = null,
@@ -616,9 +619,11 @@ private fun normalizeGatewayHost(host: String): String =
 class GatewayCredentialExpiredException(
     val endpoint: String,
     val gatewayResponse: String? = null,
+    cause: Throwable? = null,
 ) : IllegalStateException(
         "The gateway credential has expired and cannot be refreshed. " +
             "Re-pair this gateway to continue. ($endpoint)",
+        cause,
     )
 
 /** Thrown for any non-success gateway API response; carries the HTTP status code. */

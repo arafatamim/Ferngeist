@@ -1,6 +1,9 @@
 package com.tamimarafat.ferngeist.gateway
 
-interface GatewayRepository {
+import com.agentclientprotocol.model.ToolCallContent
+
+/** Pairing and initial status operations. */
+interface GatewayPairingRepository {
     suspend fun fetchStatus(
         scheme: String,
         host: String,
@@ -17,6 +20,26 @@ interface GatewayRepository {
         challengeId: String,
     ): GatewayPairStatusResponse
 
+    suspend fun completePairing(
+        scheme: String,
+        host: String,
+        challengeId: String,
+        code: String,
+        deviceName: String,
+    ): GatewayPairingResult
+}
+
+/** Credential / token authentication operations. */
+interface GatewayAuthRepository {
+    suspend fun refreshCredential(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ): GatewayPairingResult
+}
+
+/** Agent runtime lifecycle operations. */
+interface GatewayRuntimeRepository {
     suspend fun fetchAgents(
         scheme: String,
         host: String,
@@ -52,21 +75,10 @@ interface GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
     ): List<GatewayLogEntry>
+}
 
-    suspend fun completePairing(
-        scheme: String,
-        host: String,
-        challengeId: String,
-        code: String,
-        deviceName: String,
-    ): GatewayPairingResult
-
-    suspend fun refreshCredential(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-    ): GatewayPairingResult
-
+/** Gateway session lifecycle operations. */
+interface GatewaySessionRepository {
     suspend fun resumeSession(
         scheme: String,
         host: String,
@@ -86,7 +98,10 @@ interface GatewayRepository {
         gatewayCredential: String,
         sessionId: String,
     )
+}
 
+/** Push token registration operations. */
+interface GatewayPushRepository {
     /**
      * Registers (or refreshes) this device's FCM push token with the gateway so it
      * can deliver background notifications. The gateway identifies the device from
@@ -99,7 +114,10 @@ interface GatewayRepository {
         token: String,
         platform: String = "android",
     )
+}
 
+/** Workspace file and git operations. */
+interface GatewayWorkspaceRepository {
     /**
      * Reads a file inside a runtime's project directory. [path] is relative to the
      * agent's cwd (captured from the ACP session/new params.cwd) and must not escape it.
@@ -133,5 +151,17 @@ interface GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
         path: String? = null,
-    ): List<com.agentclientprotocol.model.ToolCallContent.Diff>
+    ): List<ToolCallContent.Diff>
 }
+
+/**
+ * Composite gateway API — extends all sub-interfaces so callers depend on a single
+ * type while each concern stays under the function-count threshold.
+ */
+interface GatewayRepository :
+    GatewayPairingRepository,
+    GatewayAuthRepository,
+    GatewayRuntimeRepository,
+    GatewaySessionRepository,
+    GatewayPushRepository,
+    GatewayWorkspaceRepository

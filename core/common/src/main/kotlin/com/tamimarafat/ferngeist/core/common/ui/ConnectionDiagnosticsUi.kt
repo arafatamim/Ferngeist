@@ -21,6 +21,11 @@ import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.roundToInt
 
+private const val TOKENS_PER_K = 1_000L
+private const val TOKENS_PER_M = 1_000_000L
+private const val TOKENS_PER_B = 1_000_000_000L
+private const val MAX_RECENT_ERRORS = 8
+
 /**
  * Modal dialog showing connection diagnostics and usage statistics.
  *
@@ -37,7 +42,6 @@ fun ConnectionDiagnosticsDialog(
     costAmount: Double? = null,
     costCurrency: String? = null,
 ) {
-    val scrollState = rememberScrollState()
     val totalTokensText =
         totalTokens?.let {
             formatCompactTokens(it, Locale.getDefault())
@@ -57,39 +61,13 @@ fun ConnectionDiagnosticsDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.common_connection_diagnostics)) },
         text = {
-            Column(
-                modifier = Modifier.verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(stringResource(R.string.common_connection, connectionStateLabel(connectionState)))
-                Text(
-                    stringResource(
-                        R.string.common_server,
-                        diagnostics.serverUrl ?: stringResource(R.string.common_unknown),
-                    ),
-                )
-                Text(stringResource(R.string.common_pending_rpc, diagnostics.pendingRequestCount))
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text(stringResource(R.string.common_total_tokens, totalTokensText))
-                Text(stringResource(R.string.common_usage_percentage, contextUsagePct))
-                Text(stringResource(R.string.common_cost_spent, costText))
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text(stringResource(R.string.common_recent_errors), style = MaterialTheme.typography.titleSmall)
-                if (diagnostics.recentErrors.isEmpty()) {
-                    Text(
-                        stringResource(R.string.common_no_recent_errors),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    diagnostics.recentErrors.takeLast(8).reversed().forEach { error ->
-                        Text(
-                            text = error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
+            ConnectionDiagnosticsContent(
+                connectionState = connectionState,
+                diagnostics = diagnostics,
+                totalTokensText = totalTokensText,
+                contextUsagePct = contextUsagePct,
+                costText = costText,
+            )
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
@@ -97,6 +75,49 @@ fun ConnectionDiagnosticsDialog(
             }
         },
     )
+}
+
+@Composable
+private fun ConnectionDiagnosticsContent(
+    connectionState: ChatConnectionState,
+    diagnostics: ChatConnectionDiagnostics,
+    totalTokensText: String,
+    contextUsagePct: String,
+    costText: String,
+) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(stringResource(R.string.common_connection, connectionStateLabel(connectionState)))
+        Text(
+            stringResource(
+                R.string.common_server,
+                diagnostics.serverUrl ?: stringResource(R.string.common_unknown),
+            ),
+        )
+        Text(stringResource(R.string.common_pending_rpc, diagnostics.pendingRequestCount))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        Text(stringResource(R.string.common_total_tokens, totalTokensText))
+        Text(stringResource(R.string.common_usage_percentage, contextUsagePct))
+        Text(stringResource(R.string.common_cost_spent, costText))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        Text(stringResource(R.string.common_recent_errors), style = MaterialTheme.typography.titleSmall)
+        if (diagnostics.recentErrors.isEmpty()) {
+            Text(
+                stringResource(R.string.common_no_recent_errors),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            diagnostics.recentErrors.takeLast(MAX_RECENT_ERRORS).reversed().forEach { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
 }
 
 /** Maps a chat connection state to a localized label. */
@@ -155,16 +176,16 @@ internal fun formatCompactTokens(
 ): String {
     val absolute = kotlin.math.abs(tokens.toLong())
     return when {
-        absolute >= 1_000_000_000L -> {
-            val value = (tokens / 1_000_000_000.0).roundToInt()
+        absolute >= TOKENS_PER_B -> {
+            val value = (tokens / TOKENS_PER_B.toDouble()).roundToInt()
             "${NumberFormat.getIntegerInstance(locale).format(value)}B"
         }
-        absolute >= 1_000_000L -> {
-            val value = (tokens / 1_000_000.0).roundToInt()
+        absolute >= TOKENS_PER_M -> {
+            val value = (tokens / TOKENS_PER_M.toDouble()).roundToInt()
             "${NumberFormat.getIntegerInstance(locale).format(value)}M"
         }
-        absolute >= 1_000L -> {
-            val value = (tokens / 1_000.0).roundToInt()
+        absolute >= TOKENS_PER_K -> {
+            val value = (tokens / TOKENS_PER_K.toDouble()).roundToInt()
             "${NumberFormat.getIntegerInstance(locale).format(value)}k"
         }
         else -> NumberFormat.getIntegerInstance(locale).format(tokens)

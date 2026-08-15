@@ -25,6 +25,7 @@ internal class ConnectionOrchestrator(
 ) {
     companion object {
         private const val TRACE_TAG = "TSAcpLoad"
+        private const val LIST_SESSIONS_TIMEOUT_MS = 30_000L
     }
 
     /** Exposes the raw transport state — Connected, Connecting, Disconnected, Failed. */
@@ -125,7 +126,7 @@ internal class ConnectionOrchestrator(
             // client.listSessions returns a cold, finite Flow; .toList() collects
             // all items into memory — safe because the server returns a bounded set.
             @OptIn(UnstableApi::class)
-            withTimeout(30_000L) {
+            withTimeout(LIST_SESSIONS_TIMEOUT_MS) {
                 client.listSessions(cwd = cwd).toList().map { sessionInfo ->
                     SessionSummary(
                         id = sessionInfo.sessionId.value,

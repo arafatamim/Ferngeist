@@ -147,29 +147,51 @@ private fun GatewayCard(
             }
         }
 
-        DropdownMenuPopup(
+        GatewayActionsMenu(
             expanded = showActionsMenu,
-            onDismissRequest = { showActionsMenu = false },
+            onDismiss = { showActionsMenu = false },
+            interactionSource = interactionSource,
+            onEdit = {
+                showActionsMenu = false
+                onEditGateway()
+            },
+            onDelete = {
+                showActionsMenu = false
+                onDeleteGateway()
+            },
+        )
+    }
+}
+@Composable
+private fun GatewayActionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    interactionSource: MutableInteractionSource,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    DropdownMenuPopup(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+    ) {
+        DropdownMenuGroup(
+            shapes = MenuDefaults.groupShape(0, 1),
+            interactionSource = interactionSource,
         ) {
-            DropdownMenuGroup(
-                shapes = MenuDefaults.groupShape(0, 1),
-                interactionSource = interactionSource,
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.serverlist_gateway_list_edit)) },
-                    onClick = {
-                        showActionsMenu = false
-                        onEditGateway()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.serverlist_gateway_list_delete)) },
-                    onClick = {
-                        showActionsMenu = false
-                        onDeleteGateway()
-                    },
-                )
-            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.serverlist_gateway_list_edit)) },
+                onClick = {
+                    onDismiss()
+                    onEdit()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.serverlist_gateway_list_delete)) },
+                onClick = {
+                    onDismiss()
+                    onDelete()
+                },
+            )
         }
     }
 }

@@ -144,66 +144,11 @@ object SessionMessageReducer {
         val mutableMessages = messages.toMutableList()
         val lastMessage = mutableMessages.lastOrNull()
 
-        // append=true: server echo via UserMessageChunk — dedup against the user message or
-        // the streaming placeholder that follows it
-        if (append) {
-            // Exact-match dedup when the last message is already a USER bubble.
-            // Image chunks arrive as separate UserMessageChunks with empty text — merge
-            // images even when the text is empty or unchanged.
-            if (lastMessage?.role == ChatMessage.Role.USER) {
-                val dedup = lastMessage.content == text && images.isEmpty() && files.isEmpty()
-                if (dedup) return messages
-                mutableMessages[mutableMessages.lastIndex] =
-                    lastMessage.copy(
-                        content = lastMessage.content + text,
-                        images = lastMessage.images + images,
-                        files = lastMessage.files + files,
-                    )
-                return mutableMessages
-            }
-
-            // Server echo dedup: when the assistant placeholder is still empty (no content, no
-            // segments), the echoed chunk matches the user text that's one message back
-            val previousMessage =
-                if (mutableMessages.size >=
-                    2
-                ) {
-                    mutableMessages[mutableMessages.lastIndex - 1]
-                } else {
-                    null
-                }
-            if (lastMessage?.role == ChatMessage.Role.ASSISTANT &&
-                lastMessage.isStreaming &&
-                lastMessage.content.isBlank() &&
-                lastMessage.segments.isEmpty() &&
-                previousMessage?.role == ChatMessage.Role.USER
-            ) {
-                val previousText = previousMessage.content
-                if (previousText.startsWith(text) || previousText == text) {
-                    return messages
-                }
-            }
-        } else {
-            // append=false: local optimistic insertion (or redundant source) — dedup against the
-            // last USER bubble or against a streaming placeholder whose preceding USER matches
-            if (lastMessage?.role == ChatMessage.Role.USER && lastMessage.content == text) {
-                return messages
-            }
-            val previousMessage =
-                if (mutableMessages.size >= 2) {
-                    mutableMessages[mutableMessages.lastIndex - 1]
-                } else {
-                    null
-                }
-            if (lastMessage?.role == ChatMessage.Role.ASSISTANT &&
-                lastMessage.isStreaming &&
-                lastMessage.content.isBlank() &&
-                lastMessage.segments.isEmpty() &&
-                previousMessage?.role == ChatMessage.Role.USER &&
-                previousMessage.content == text
-            ) {
-                return messages
-            }
+        // Dedup against the already-present user bubble (or the streaming placeholder that
+        // follows it) before appending a new one. Returns non-null when the caller should
+        // use the returned list instead of appending.
+        deduplicateOrMergeUserMessage(mutableMessages, lastMessage, text, images, files, append)?.let {
+            return it
         }
 
         // A new user message arriving means any running assistant turn is obsolete — close it
@@ -224,6 +169,84 @@ object SessionMessageReducer {
                 files = files,
                 createdAt = timestampMs ?: System.currentTimeMillis(),
             )
+    }
+
+    /**
+     * When [append] is true this handles the server echo path: exact-match dedup against a
+     * USER bubble, image-merge for image chunks, and placeholder dedup. When false it handles
+     * the local optimistic insertion dedup. Returns null when a new message should be appended.
+     */
+    private fun deduplicateOrMergeUserMessage(
+        mutableMessages: MutableList<ChatMessage>,
+        lastMessage: ChatMessage?,
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        append: Boolean,
+    ): List<ChatMessage>? {
+        if (append) {
+            // Exact-match dedup when the last message is already a USER bubble.
+            // Image chunks arrive as separate UserMessageChunks with empty text — merge
+            // images even when the text is empty or unchanged.
+            if (lastMessage?.role == ChatMessage.Role.USER) {
+                val merged = mergeIntoUserBubble(mutableMessages, lastMessage, text, images, files)
+                if (merged != null) return merged
+            }
+            return if (placeholderMatchesPreviousUser(mutableMessages, lastMessage, text, exact = false)) {
+                mutableMessages
+            } else {
+                null
+            }
+        } else {
+            // append=false: local optimistic insertion (or redundant source) — dedup against the
+            // last USER bubble or against a streaming placeholder whose preceding USER matches
+            if (lastMessage?.role == ChatMessage.Role.USER && lastMessage.content == text) {
+                return mutableMessages
+            }
+            return if (placeholderMatchesPreviousUser(mutableMessages, lastMessage, text, exact = true)) {
+                mutableMessages
+            } else {
+                null
+            }
+        }
+    }
+
+    /**
+     * Returns the merged message list when [lastMessage] is a USER bubble, or null when the
+     * chunk should be appended as a new message. Merges when content/images/files differ,
+     * and returns the unchanged list on an exact duplicate.
+     */
+    private fun mergeIntoUserBubble(
+        mutableMessages: MutableList<ChatMessage>,
+        lastMessage: ChatMessage,
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): List<ChatMessage>? {
+        val dedup = lastMessage.content == text && images.isEmpty() && files.isEmpty()
+        if (dedup) return mutableMessages
+        mutableMessages[mutableMessages.lastIndex] =
+            lastMessage.copy(
+                content = lastMessage.content + text,
+                images = lastMessage.images + images,
+                files = lastMessage.files + files,
+            )
+        return mutableMessages
+    }
+
+    private fun placeholderMatchesPreviousUser(
+        mutableMessages: List<ChatMessage>,
+        lastMessage: ChatMessage?,
+        text: String,
+        exact: Boolean,
+    ): Boolean {
+        if (mutableMessages.size < 2) return false
+        val previousMessage = mutableMessages[mutableMessages.lastIndex - 1]
+        return if (exact) {
+            isStreamingPlaceholderWithExactPreviousUser(lastMessage, previousMessage, text)
+        } else {
+            isStreamingPlaceholderWithPreviousUser(lastMessage, previousMessage, text)
+        }
     }
 
     private fun appendText(
@@ -554,4 +577,32 @@ object SessionMessageReducer {
         mutableMessages[index] = message.copy(isStreaming = false)
         return mutableMessages
     }
+
+    /** True when [lastMessage] is an empty streaming assistant placeholder whose preceding USER
+     * message starts with or equals [text] (echo dedup on the server-echo path). */
+    private fun isStreamingPlaceholderWithPreviousUser(
+        lastMessage: ChatMessage?,
+        previousMessage: ChatMessage?,
+        text: String,
+    ): Boolean =
+        lastMessage?.role == ChatMessage.Role.ASSISTANT &&
+            lastMessage.isStreaming &&
+            lastMessage.content.isBlank() &&
+            lastMessage.segments.isEmpty() &&
+            previousMessage?.role == ChatMessage.Role.USER &&
+            (previousMessage.content.startsWith(text) || previousMessage.content == text)
+
+    /** True when [lastMessage] is an empty streaming assistant placeholder whose preceding USER
+     * message content exactly matches [text] (echo dedup on the local-insertion path). */
+    private fun isStreamingPlaceholderWithExactPreviousUser(
+        lastMessage: ChatMessage?,
+        previousMessage: ChatMessage?,
+        text: String,
+    ): Boolean =
+        lastMessage?.role == ChatMessage.Role.ASSISTANT &&
+            lastMessage.isStreaming &&
+            lastMessage.content.isBlank() &&
+            lastMessage.segments.isEmpty() &&
+            previousMessage?.role == ChatMessage.Role.USER &&
+            previousMessage.content == text
 }

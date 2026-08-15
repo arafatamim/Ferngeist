@@ -128,51 +128,26 @@ fun MessageBubble(
     onRetryMessage: ((String) -> Unit)? = null,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
-    val contentColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val contentColor = if (isUser) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
     var fullscreenImage by remember { mutableStateOf<ChatImageData?>(null) }
 
     Box(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .then(
-                    if (showStreamingIndicator) {
-                        Modifier.onSizeChanged { onStreamLayoutSettled() }
-                    } else {
-                        Modifier
-                    },
-                ),
+        modifier = modifier.fillMaxWidth().then(
+            if (showStreamingIndicator) Modifier.onSizeChanged { onStreamLayoutSettled() } else Modifier,
+        ),
         contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         if (isUser) {
-            ElevatedCard(
-                colors =
-                    CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = contentColor,
-                    ),
-                shape =
-                    RoundedCornerShape(
-                        topStart = 20.dp,
-                        topEnd = 20.dp,
-                        bottomStart = 20.dp,
-                        bottomEnd = 8.dp,
-                    ),
-                modifier = Modifier.widthIn(max = 420.dp),
-            ) {
-                UserMessageContent(
-                    message = message,
-                    textColor = contentColor,
-                    onRetry =
-                        if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
-                            { onRetryMessage(message.clientId ?: message.id) }
-                        } else {
-                            null
-                        },
-                    onImageClick = { fullscreenImage = it },
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                )
-            }
+            UserMessageBubble(
+                message = message,
+                contentColor = contentColor,
+                onRetryMessage = onRetryMessage,
+                onImageClick = { fullscreenImage = it },
+            )
         } else {
             AssistantMessageContent(
                 message = message,
@@ -186,9 +161,48 @@ fun MessageBubble(
     }
 
     fullscreenImage?.let { image ->
-        ImageFullscreenViewer(
-            image = image,
-            onDismiss = { fullscreenImage = null },
+        ImageFullscreenViewer(image = image, onDismiss = { fullscreenImage = null })
+    }
+}
+
+private const val SHIMMER_START_OFFSET = -200f
+private const val SHIMMER_END_OFFSET = 600f
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun UserMessageBubble(
+    message: ChatMessage,
+    contentColor: Color,
+    onRetryMessage: ((String) -> Unit)?,
+    onImageClick: (ChatImageData) -> Unit,
+) {
+    val onRetry =
+        if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
+            { onRetryMessage(message.clientId ?: message.id) }
+        } else {
+            null
+        }
+    ElevatedCard(
+        colors =
+            CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = contentColor,
+            ),
+        shape =
+            RoundedCornerShape(
+                topStart = 20.dp,
+                topEnd = 20.dp,
+                bottomStart = 20.dp,
+                bottomEnd = 8.dp,
+            ),
+        modifier = Modifier.widthIn(max = 420.dp),
+    ) {
+        UserMessageContent(
+            message = message,
+            textColor = contentColor,
+            onRetry = onRetry,
+            onImageClick = { onImageClick(it) },
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
         )
     }
 }
@@ -293,42 +307,47 @@ private fun DeliveryStatusBadge(
                 )
             }
             MessageDeliveryStatus.FAILED -> {
-                Row(
-                    modifier =
-                        Modifier
-                            .then(
-                                if (onRetry != null) {
-                                    Modifier.clickable { onRetry() }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(50),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ErrorOutline,
-                            contentDescription = stringResource(R.string.chat_status_failed),
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier =
-                                Modifier
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    .size(14.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.chat_status_retry),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+                FailedStatusContent(onRetry)
             }
             MessageDeliveryStatus.SENT -> { /* never rendered */ }
         }
+    }
+}
+
+@Composable
+private fun FailedStatusContent(onRetry: (() -> Unit)?) {
+    Row(
+        modifier =
+            Modifier
+                .then(
+                    if (onRetry != null) {
+                        Modifier.clickable { onRetry() }
+                    } else {
+                        Modifier
+                    },
+                ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.errorContainer,
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.ErrorOutline,
+                contentDescription = stringResource(R.string.chat_status_failed),
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier =
+                    Modifier
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .size(14.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = stringResource(R.string.chat_status_retry),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+        )
     }
 }
 
@@ -345,55 +364,66 @@ private fun AssistantMessageContent(
         // Render segments in order
         message.segments.forEach { segment ->
             key(segment.id) {
-                when (segment.kind) {
-                    AssistantSegment.Kind.MESSAGE -> {
-                        if (segment.text.isNotBlank()) {
-                            MarkdownText(
-                                state = markdownStates[segment.id],
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-
-                    AssistantSegment.Kind.THOUGHT -> {
-                        ThoughtBubble(
-                            isStreaming = message.isStreaming && message.segments.lastOrNull()?.id == segment.id,
-                            onClick = { onThoughtClick(segment.id) },
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    AssistantSegment.Kind.TOOL_CALL -> {
-                        segment.toolCall?.let { toolCall ->
-                            ToolCallCard(
-                                toolCall = toolCall,
-                                onClick = { onToolCallClick(segment.id) },
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-
-                    AssistantSegment.Kind.PLAN -> {
-                        PlanBubble(segment.planEntries.orEmpty())
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
+                AssistantSegmentContent(
+                    segment = segment,
+                    message = message,
+                    markdownState = markdownStates[segment.id],
+                    onThoughtClick = onThoughtClick,
+                    onToolCallClick = onToolCallClick,
+                )
             }
         }
 
-        // Fallback to simple text if no segments
         if (message.segments.isEmpty() && message.content.isNotBlank()) {
-            MarkdownText(
-                state = markdownStates[message.id],
-            )
+            MarkdownText(state = markdownStates[message.id])
         }
 
-        // Show a visible placeholder while waiting for the first assistant chunk.
         if (showStreamingIndicator && message.segments.isEmpty() && message.content.isBlank()) {
             StreamingIndicator(
                 streamKey = message.id,
                 modifier = Modifier.padding(vertical = 4.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun AssistantSegmentContent(
+    segment: AssistantSegment,
+    message: ChatMessage,
+    markdownState: MarkdownRenderState?,
+    onThoughtClick: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
+) {
+    when (segment.kind) {
+        AssistantSegment.Kind.MESSAGE -> {
+            if (segment.text.isNotBlank()) {
+                MarkdownText(state = markdownState)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+
+        AssistantSegment.Kind.THOUGHT -> {
+            ThoughtBubble(
+                isStreaming = message.isStreaming && message.segments.lastOrNull()?.id == segment.id,
+                onClick = { onThoughtClick(segment.id) },
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        AssistantSegment.Kind.TOOL_CALL -> {
+            segment.toolCall?.let { toolCall ->
+                ToolCallCard(
+                    toolCall = toolCall,
+                    onClick = { onToolCallClick(segment.id) },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+
+        AssistantSegment.Kind.PLAN -> {
+            PlanBubble(segment.planEntries.orEmpty())
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
@@ -501,56 +531,57 @@ private fun PlanBubble(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             entries.forEachIndexed { index, entry ->
-                val isCompleted = entry.status == PlanEntryStatus.COMPLETED
-                val isInProgress = entry.status == PlanEntryStatus.IN_PROGRESS
-                val isPending = entry.status == PlanEntryStatus.PENDING
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = if (isCompleted) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                        contentDescription =
-                            if (isCompleted) {
-                                stringResource(
-                                    R.string.chat_completed_desc,
-                                )
-                            } else {
-                                stringResource(R.string.chat_plan_desc)
-                            },
-                        tint =
-                            if (isInProgress) {
-                                MaterialTheme.colorScheme.primary
-                            } else if (isPending) {
-                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-                            } else {
-                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-                            },
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = entry.content,
-                        style = MaterialTheme.typography.bodySmall,
-                        color =
-                            if (isPending) {
-                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-                            } else if (isInProgress) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-                            },
-                        fontWeight = if (isInProgress) FontWeight.Medium else null,
-                        textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                PlanEntryItem(entry)
                 if (index < entries.lastIndex) {
                     Spacer(modifier = Modifier.height(6.dp))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PlanEntryItem(entry: PlanEntry) {
+    val isCompleted = entry.status == PlanEntryStatus.COMPLETED
+    val isInProgress = entry.status == PlanEntryStatus.IN_PROGRESS
+    val isPending = entry.status == PlanEntryStatus.PENDING
+    val iconTint = if (isInProgress) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+    }
+    val textColor = if (isPending) {
+        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+    } else if (isInProgress) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (isCompleted) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
+            contentDescription =
+                if (isCompleted) {
+                    stringResource(R.string.chat_completed_desc)
+                } else {
+                    stringResource(R.string.chat_plan_desc)
+                },
+            tint = iconTint,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = entry.content,
+            style = MaterialTheme.typography.bodySmall,
+            color = textColor,
+            fontWeight = if (isInProgress) FontWeight.Medium else null,
+            textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -571,93 +602,7 @@ private fun ToolCallCard(
         modifier = modifier.fillMaxWidth(),
     ) {
         Column {
-            // Header
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onClick() }
-                        .semantics {
-                            contentDescription =
-                                toolCall.title + " " + (toolCall.status?.name?.lowercase() ?: "unknown")
-                        }.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Status badge
-                toolCall.status?.let { status ->
-                    when (status) {
-                        ToolCallStatus.PENDING, ToolCallStatus.IN_PROGRESS ->
-                            ContainedLoadingIndicator(
-                                polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
-                                containerShape = MaterialTheme.shapes.medium,
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(32.dp),
-                            )
-
-                        ToolCallStatus.COMPLETED ->
-                            Surface(
-                                modifier = Modifier.size(32.dp),
-                                shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.primary,
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        modifier = Modifier.size(20.dp),
-                                        imageVector = toolKindIcon(toolCall.kind),
-                                        contentDescription = stringResource(R.string.chat_completed_desc),
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                    )
-                                }
-                            }
-
-                        ToolCallStatus.FAILED ->
-                            Surface(
-                                modifier = Modifier.size(32.dp),
-                                shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.error,
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        modifier = Modifier.size(20.dp),
-                                        imageVector = Icons.Rounded.Error,
-                                        contentDescription = stringResource(R.string.chat_error_desc),
-                                        tint = MaterialTheme.colorScheme.onError,
-                                    )
-                                }
-                            }
-                    }
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                val defaultToolCallTitle = stringResource(R.string.chat_tool_call)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = toolCall.title.ifBlank { defaultToolCallTitle },
-                        maxLines = 1,
-                        overflow = TextOverflow.MiddleEllipsis,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    toolCall.kind?.let { kind ->
-                        Text(
-                            text = toolKindLabel(kind),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                DiffSummaryRow(toolCall.content)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = stringResource(R.string.chat_tool_call_details_desc),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            ToolCallCardHeader(toolCall, onClick)
             if (!toolCall.permissionOptions.isNullOrEmpty()) {
                 Text(
                     text = stringResource(R.string.chat_awaiting_permission),
@@ -666,6 +611,104 @@ private fun ToolCallCard(
                     modifier = Modifier.padding(start = 56.dp, end = 12.dp, bottom = 12.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ToolCallCardHeader(
+    toolCall: ToolCallDisplay,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .semantics {
+                    contentDescription =
+                        toolCall.title + " " + (toolCall.status?.name?.lowercase() ?: "unknown")
+                }.padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ToolCallStatusIndicator(toolCall)
+        Spacer(modifier = Modifier.width(12.dp))
+        val defaultToolCallTitle = stringResource(R.string.chat_tool_call)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = toolCall.title.ifBlank { defaultToolCallTitle },
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+            )
+            toolCall.kind?.let { kind ->
+                Text(
+                    text = toolKindLabel(kind),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        DiffSummaryRow(toolCall.content)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = stringResource(R.string.chat_tool_call_details_desc),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
+    toolCall.status?.let { status ->
+        when (status) {
+            ToolCallStatus.PENDING, ToolCallStatus.IN_PROGRESS ->
+                ContainedLoadingIndicator(
+                    polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
+                    containerShape = MaterialTheme.shapes.medium,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(32.dp),
+                )
+
+            ToolCallStatus.COMPLETED ->
+                Surface(
+                    modifier = Modifier.size(32.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            modifier = Modifier.size(20.dp),
+                            imageVector = toolKindIcon(toolCall.kind),
+                            contentDescription = stringResource(R.string.chat_completed_desc),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                }
+
+            ToolCallStatus.FAILED ->
+                Surface(
+                    modifier = Modifier.size(32.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.error,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            modifier = Modifier.size(20.dp),
+                            imageVector = Icons.Rounded.Error,
+                            contentDescription = stringResource(R.string.chat_error_desc),
+                            tint = MaterialTheme.colorScheme.onError,
+                        )
+                    }
+                }
         }
     }
 }
@@ -737,15 +780,12 @@ private fun FileAttachmentItem(file: ChatFileData) {
 }
 
 @Composable
-private fun ImageAttachmentItem(
-    image: ChatImageData,
-    onClick: (() -> Unit)? = null,
-) {
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, image.base64) {
+private fun rememberImageBitmap(base64: String): ImageBitmap? =
+    produceState<ImageBitmap?>(initialValue = null, base64) {
         value =
             withContext(Dispatchers.Default) {
                 runCatching {
-                    val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                    val bytes = Base64.decode(base64, Base64.DEFAULT)
                     val boundsOpts =
                         BitmapFactory.Options().apply {
                             inJustDecodeBounds = true
@@ -772,7 +812,14 @@ private fun ImageAttachmentItem(
                     bitmap.asImageBitmap()
                 }.getOrNull()
             }
-    }
+    }.value
+
+@Composable
+private fun ImageAttachmentItem(
+    image: ChatImageData,
+    onClick: (() -> Unit)? = null,
+) {
+    val bitmap = rememberImageBitmap(image.base64)
 
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -870,7 +917,9 @@ private val LOADING_SHAPES =
         MaterialShapes.Bun,
     )
 
-private fun pickLoadingPolygons(seedKey: String) = LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(6)
+private const val LOADING_POLYGON_COUNT = 6
+
+private fun pickLoadingPolygons(seedKey: String) = LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(LOADING_POLYGON_COUNT)
 
 private fun toolKindIcon(kind: ToolKind?): ImageVector =
     when (kind) {
@@ -898,8 +947,8 @@ private fun rememberShimmerTextBrush(
         if (isActive) {
             shimmerTransition
                 .animateFloat(
-                    initialValue = -200f,
-                    targetValue = 600f,
+                    initialValue = SHIMMER_START_OFFSET,
+                    targetValue = SHIMMER_END_OFFSET,
                     animationSpec =
                         infiniteRepeatable(
                             animation = tween(durationMillis = 1400, easing = LinearEasing),
@@ -919,7 +968,7 @@ private fun rememberShimmerTextBrush(
                     baseColor.copy(alpha = 0.95f),
                     baseColor.copy(alpha = 0.45f),
                 ),
-            start = Offset(shimmerOffset - 200f, 0f),
+            start = Offset(shimmerOffset - SHIMMER_START_OFFSET, 0f),
             end = Offset(shimmerOffset, 0f),
         )
     } else {
@@ -957,134 +1006,39 @@ private fun PlanBubblePreview() {
 @Preview(showBackground = true)
 @Composable
 private fun ToolCallCardPreview() {
+    val samples = listOf(
+        ToolCallDisplay(title = "list_files (READ · IN_PROGRESS)", kind = ToolKind.READ, status = ToolCallStatus.IN_PROGRESS),
+        ToolCallDisplay(title = "search_code (READ · COMPLETED)", kind = ToolKind.READ, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "search (SEARCH · COMPLETED)", kind = ToolKind.SEARCH, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "edit_file (EDIT · COMPLETED)", kind = ToolKind.EDIT, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "delete_file (DELETE · FAILED)", kind = ToolKind.DELETE, status = ToolCallStatus.FAILED),
+        ToolCallDisplay(title = "move_file (MOVE · COMPLETED)", kind = ToolKind.MOVE, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "run_tests (EXECUTE · COMPLETED)", kind = ToolKind.EXECUTE, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "think (THINK · COMPLETED)", kind = ToolKind.THINK, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "fetch_data (FETCH · FAILED)", kind = ToolKind.FETCH, status = ToolCallStatus.FAILED),
+        ToolCallDisplay(title = "switch (SWITCH_MODE · COMPLETED)", kind = ToolKind.SWITCH_MODE, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "other_action (OTHER · COMPLETED)", kind = ToolKind.OTHER, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(title = "unknown (null · COMPLETED)", kind = null, status = ToolCallStatus.COMPLETED),
+        ToolCallDisplay(
+            title = "delete_file (DELETE · PENDING · permissions)",
+            kind = ToolKind.DELETE,
+            status = ToolCallStatus.PENDING,
+            permissionOptions =
+                listOf(
+                    AcpPermissionOption(
+                        id = "1",
+                        label = "Allow",
+                        kind = "allow_once",
+                    ),
+                ),
+        ),
+    )
     MaterialTheme {
         Surface(modifier = Modifier.padding(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "list_files (READ · IN_PROGRESS)",
-                            kind = ToolKind.READ,
-                            status = ToolCallStatus.IN_PROGRESS,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "search_code (READ · COMPLETED)",
-                            kind = ToolKind.READ,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "search (SEARCH · COMPLETED)",
-                            kind = ToolKind.SEARCH,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "edit_file (EDIT · COMPLETED)",
-                            kind = ToolKind.EDIT,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "delete_file (DELETE · FAILED)",
-                            kind = ToolKind.DELETE,
-                            status = ToolCallStatus.FAILED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "move_file (MOVE · COMPLETED)",
-                            kind = ToolKind.MOVE,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "run_tests (EXECUTE · COMPLETED)",
-                            kind = ToolKind.EXECUTE,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "think (THINK · COMPLETED)",
-                            kind = ToolKind.THINK,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "fetch_data (FETCH · FAILED)",
-                            kind = ToolKind.FETCH,
-                            status = ToolCallStatus.FAILED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "switch (SWITCH_MODE · COMPLETED)",
-                            kind = ToolKind.SWITCH_MODE,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "other_action (OTHER · COMPLETED)",
-                            kind = ToolKind.OTHER,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "unknown (null · COMPLETED)",
-                            kind = null,
-                            status = ToolCallStatus.COMPLETED,
-                        ),
-                    onClick = {},
-                )
-                ToolCallCard(
-                    toolCall =
-                        ToolCallDisplay(
-                            title = "delete_file (DELETE · PENDING · permissions)",
-                            kind = ToolKind.DELETE,
-                            status = ToolCallStatus.PENDING,
-                            permissionOptions =
-                                listOf(
-                                    AcpPermissionOption(
-                                        id = "1",
-                                        label = "Allow",
-                                        kind = "allow_once",
-                                    ),
-                                ),
-                        ),
-                    onClick = {},
-                )
+                samples.forEach { toolCall ->
+                    ToolCallCard(toolCall = toolCall, onClick = {})
+                }
             }
         }
     }

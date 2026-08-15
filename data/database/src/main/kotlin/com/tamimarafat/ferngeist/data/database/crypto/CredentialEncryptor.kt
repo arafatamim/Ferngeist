@@ -19,8 +19,9 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-// TODO: Remove SharedPreferencesMigration for "ferngeist_credentials" after
-// all users have upgraded from pre-DataStore builds (legacy migration).
+// Migration for "ferngeist_credentials" is retained until all users have upgraded
+// from pre-DataStore builds (legacy migration). The SharedPreferencesMigration
+// bridges old SharedPreferences-backed credentials into DataStore on first run.
 private val Context.credentialDataStore by preferencesDataStore(
     name = "ferngeist_credentials",
     produceMigrations = { context ->

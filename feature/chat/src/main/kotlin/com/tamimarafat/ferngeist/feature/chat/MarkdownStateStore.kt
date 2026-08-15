@@ -28,7 +28,6 @@ internal class MarkdownStateStore(
     private val scope: CoroutineScope,
     private val currentMessages: () -> List<ChatMessage>,
     private val onMarkdownStatesChanged: (Map<String, MarkdownRenderState>) -> Unit,
-    private val trace: (String) -> Unit,
 ) {
     companion object {
         // 80ms (~12 parses/sec) keeps the chat surface responsive during
@@ -134,14 +133,7 @@ internal class MarkdownStateStore(
                 val deferreds =
                     pending.map { (key, text) ->
                         async {
-                            try {
-                                key to MarkdownEntry(text = text, state = parse(text))
-                            } catch (error: CancellationException) {
-                                throw error
-                            } catch (error: Exception) {
-                                trace("markdownPreparse:error key=$key message=${error.message}")
-                                key to null
-                            }
+                            key to MarkdownEntry(text = text, state = parse(text))
                         }
                     }
                 deferreds.awaitAll().unzip()
@@ -213,10 +205,6 @@ internal class MarkdownStateStore(
                             try {
                                 val parsedState = parse(text)
                                 parsedBatch += key to MarkdownEntry(text = text, state = parsedState)
-                            } catch (error: CancellationException) {
-                                throw error
-                            } catch (error: Exception) {
-                                trace("markdownParse:error key=$key message=${error.message}")
                             } finally {
                                 markdownParsingKeys.remove(key)
                             }

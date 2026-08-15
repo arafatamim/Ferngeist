@@ -25,8 +25,10 @@ object ForegroundServiceController {
             }
         try {
             context.startForegroundService(intent)
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             Log.e(TAG, "Failed to start foreground service", e)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Missing permission to start foreground service", e)
         }
     }
 
@@ -46,8 +48,10 @@ object ForegroundServiceController {
             }
         try {
             context.startService(intent)
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             Log.e(TAG, "Failed to stop foreground service", e)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Missing permission to stop foreground service", e)
         }
     }
 }

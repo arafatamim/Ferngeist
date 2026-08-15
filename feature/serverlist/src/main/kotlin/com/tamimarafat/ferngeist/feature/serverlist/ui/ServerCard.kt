@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,12 +63,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
@@ -91,169 +94,249 @@ internal fun ServerCard(
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
-    val connectionState =
-        remember(
-            server.id,
-            uiState.connectingServerId,
-            uiState.connectedServerState,
-            uiState.connectionState,
-        ) {
-            ServerConnectionUiState.from(server.id, uiState)
-        }
+    val connectionState = ServerConnectionUiState.from(server.id, uiState)
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
     val hasSavedAuthMethod = server.preferredAuthMethodId?.isNotBlank() == true
-
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showActionsMenu by rememberSaveable { mutableStateOf(false) }
 
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            icon = {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.serverlist_card_delete),
-                    tint = MaterialTheme.colorScheme.error,
-                )
+        ServerCardDeleteDialog(
+            serverName = server.name,
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                showDeleteDialog = false
+                onDelete()
             },
-            title = { Text(stringResource(R.string.serverlist_card_delete_title)) },
-            text = { Text(stringResource(R.string.serverlist_card_delete_body, server.name)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        onDelete()
-                    },
-                ) {
-                    Text(stringResource(R.string.serverlist_card_delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.serverlist_cancel))
-                }
-            },
-            shape = RoundedCornerShape(28.dp),
         )
     }
 
     val containerColor by animateColorAsState(
-        targetValue =
-            when {
-                connectionState.isConnected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                connectionState.isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-                else -> MaterialTheme.colorScheme.surfaceContainer
-            },
-        // Color is a non-spatial effect: spring without bounce.
+        targetValue = connectionState.containerColor,
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "containerColor",
     )
+    val cardCorner by rememberCardCorner()
+    val cardShape = RoundedCornerShape(cardCorner)
 
+    Box(modifier = modifier.fillMaxWidth()) {
+        ServerCardSurface(
+            server = server,
+            connectionState = connectionState,
+            containerColor = containerColor,
+            cardShape = cardShape,
+            hasSavedAuthMethod = hasSavedAuthMethod,
+            onClick = onClick,
+            onLongClick = { showActionsMenu = true },
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+        )
+
+        ServerCardActionsMenu(
+            expanded = showActionsMenu,
+            onDismiss = { showActionsMenu = false },
+            interactionSource = actionsMenuInteractionSource,
+            isGatewayAgent = server is LaunchableTarget.GatewayAgent,
+            onEdit = {
+                showActionsMenu = false
+                onEdit()
+            },
+            onDelete = {
+                showActionsMenu = false
+                showDeleteDialog = true
+            },
+        )
+    }
+}
+
+@Composable
+private fun ServerCardSurface(
+    server: LaunchableTarget,
+    connectionState: ServerConnectionUiState,
+    containerColor: Color,
+    cardShape: RoundedCornerShape,
+    hasSavedAuthMethod: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
     val cardInteractionSource = remember { MutableInteractionSource() }
-    val pressed by cardInteractionSource.collectIsPressedAsState()
-    val cardCorner by animateDpAsState(
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(cardShape)
+                .combinedClickable(
+                    interactionSource = cardInteractionSource,
+                    indication = LocalIndication.current,
+                    enabled = !connectionState.isConnecting,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    role = Role.Button,
+                ).semantics {
+                    contentDescription = server.name
+                },
+        shape = cardShape,
+        colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            ServerCardTitleRow(
+                server = server,
+                isConnecting = connectionState.isConnecting,
+                hasSavedAuthMethod = hasSavedAuthMethod,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ServerCardTitleRow(
+    server: LaunchableTarget,
+    isConnecting: Boolean,
+    hasSavedAuthMethod: Boolean,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ConnectingTitleIndicator(visible = isConnecting)
+
+        Column(modifier = Modifier.weight(1f)) {
+            with(sharedTransitionScope) {
+                Text(
+                    text = server.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier =
+                        Modifier.sharedBounds(
+                            sharedContentState =
+                                rememberSharedContentState(
+                                    key = ServerNameSharedBoundsKey(server.id),
+                                ),
+                            animatedVisibilityScope = animatedContentScope,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                        ),
+                )
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            ServerSubtitle(
+                server = server,
+                hasSavedAuthMethod = hasSavedAuthMethod,
+            )
+        }
+    }
+}
+@Composable
+private fun rememberCardCorner(): State<Dp> {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    return animateDpAsState(
         targetValue = if (pressed) 12.dp else 24.dp,
         animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
         label = "cardCorner",
     )
-    val cardShape = RoundedCornerShape(cardCorner)
+}
 
-    Box(modifier = modifier.fillMaxWidth()) {
-        Card(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(cardShape)
-                    .combinedClickable(
-                        interactionSource = cardInteractionSource,
-                        indication = LocalIndication.current,
-                        enabled = !connectionState.isConnecting,
-                        onClick = onClick,
-                        onLongClick = { showActionsMenu = true },
-                        role = Role.Button,
-                    ).semantics {
-                        contentDescription = server.name
-                    },
-            shape = cardShape,
-            colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
-        ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+private val ServerConnectionUiState.containerColor: Color
+    @Composable
+    get() = when {
+        isConnected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+        else -> MaterialTheme.colorScheme.surfaceContainer
+    }
+
+@Composable
+private fun ServerCardDeleteDialog(
+    serverName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(R.string.serverlist_card_delete),
+                tint = MaterialTheme.colorScheme.error,
+            )
+        },
+        title = { Text(stringResource(R.string.serverlist_card_delete_title)) },
+        text = { Text(stringResource(R.string.serverlist_card_delete_body, serverName)) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDismiss()
+                    onConfirm()
+                },
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ConnectingTitleIndicator(visible = connectionState.isConnecting)
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        with(sharedTransitionScope) {
-                            Text(
-                                text = server.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier =
-                                    Modifier.sharedBounds(
-                                        sharedContentState =
-                                            rememberSharedContentState(
-                                                key = ServerNameSharedBoundsKey(server.id),
-                                            ),
-                                        animatedVisibilityScope = animatedContentScope,
-                                        enter = fadeIn(),
-                                        exit = fadeOut(),
-                                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                                    ),
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        ServerSubtitle(
-                            server = server,
-                            hasSavedAuthMethod = hasSavedAuthMethod,
-                        )
-                    }
-                }
+                Text(stringResource(R.string.serverlist_card_delete), color = MaterialTheme.colorScheme.error)
             }
-        }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.serverlist_cancel))
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+    )
+}
 
-        DropdownMenuPopup(
-            expanded = showActionsMenu,
-            onDismissRequest = { showActionsMenu = false },
+@Composable
+private fun ServerCardActionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    interactionSource: MutableInteractionSource,
+    isGatewayAgent: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    DropdownMenuPopup(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+    ) {
+        DropdownMenuGroup(
+            shapes = MenuDefaults.groupShape(0, 1),
+            interactionSource = interactionSource,
         ) {
-            DropdownMenuGroup(
-                shapes = MenuDefaults.groupShape(0, 1),
-                interactionSource = actionsMenuInteractionSource,
-            ) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            stringResource(
-                                if (server is LaunchableTarget.GatewayAgent) {
-                                    R.string.serverlist_card_manage
-                                } else {
-                                    R.string.serverlist_card_edit
-                                },
-                            ),
-                        )
-                    },
-                    onClick = {
-                        showActionsMenu = false
-                        onEdit()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.serverlist_card_delete)) },
-                    onClick = {
-                        showActionsMenu = false
-                        showDeleteDialog = true
-                    },
-                )
-            }
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(
+                            if (isGatewayAgent) {
+                                R.string.serverlist_card_manage
+                            } else {
+                                R.string.serverlist_card_edit
+                            },
+                        ),
+                    )
+                },
+                onClick = {
+                    onDismiss()
+                    onEdit()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.serverlist_card_delete)) },
+                onClick = {
+                    onDismiss()
+                    onDelete()
+                },
+            )
         }
     }
 }

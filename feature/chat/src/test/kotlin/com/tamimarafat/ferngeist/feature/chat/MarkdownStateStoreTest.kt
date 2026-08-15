@@ -140,7 +140,6 @@ class MarkdownStateStoreTest {
             scope = scope,
             currentMessages = currentMessages,
             onMarkdownStatesChanged = { onMarkdownStatesChanged(it) },
-            trace = {},
         )
 
     /** Helper for creating assistant messages with optional segments. */

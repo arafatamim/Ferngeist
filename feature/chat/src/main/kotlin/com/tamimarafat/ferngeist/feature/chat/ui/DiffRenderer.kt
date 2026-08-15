@@ -61,6 +61,8 @@ internal fun fileNameOf(path: String): String =
         .ifEmpty { path }
 
 private const val MAX_DIFF_ROWS = 500
+private const val DIFF_BLOCK_COUNT = 5
+private val DIFF_INSERT_COLOR = Color(0xFF43A047)
 private const val DIFF_CONTEXT_LINES = 5
 
 /**
@@ -183,7 +185,7 @@ private fun DiffRowItem(row: LineDiffRow) {
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
                     // MaterialTheme lacks this particular green; hardcode instead of adding
                     // a theme color for a single use.
-                    Color(0xFF43A047),
+                    DIFF_INSERT_COLOR,
                 )
             is LineDiffRow.Equal ->
                 Triple(
@@ -218,76 +220,89 @@ private fun DiffRowItem(row: LineDiffRow) {
 }
 
 /**
- * Builds the visible portion of a unified diff: changed rows, five equal rows
- * of context around each changed region, and omission rows between distant
- * regions. An unchanged file has no diff rows to display.
+ * Produces the complete list of [LineDiffRow] entries from a patch diff between
+ * [oldLines] and [newLines], including equal lines surrounding changes.
  */
-internal fun buildDiffRows(
-    oldText: String?,
-    newText: String,
+private fun buildFullDiffRows(
+    oldLines: List<String>,
+    newLines: List<String>,
 ): List<LineDiffRow> {
-    val oldLines = oldText?.lines() ?: emptyList()
-    val newLines = newText.lines()
     val fullRows = mutableListOf<LineDiffRow>()
 
     if (oldLines.isEmpty()) {
         newLines.forEach { line -> fullRows.add(LineDiffRow.Insert(line)) }
-    } else {
-        val patch =
-            generatePatch {
-                original = oldLines
-                revised = newLines
-            }
-        var oldPos = 0
-        for (delta in patch.getDeltas()) {
-            val sourceChunk = delta.source
-            val targetChunk = delta.target
-            val equalCount = sourceChunk.position - oldPos
-            for (i in 0 until equalCount) {
-                fullRows.add(LineDiffRow.Equal(oldLines[oldPos + i]))
-            }
-            oldPos = sourceChunk.position
-            when (delta.type) {
-                DeltaType.DELETE -> {
-                    sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
-                    oldPos += sourceChunk.lines.size
-                }
-                DeltaType.INSERT -> {
-                    targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
-                }
-                DeltaType.CHANGE -> {
-                    sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
-                    targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
-                    oldPos += sourceChunk.lines.size
-                }
-                // Equal runs are emitted positionally before each non-equal delta.
-                DeltaType.EQUAL -> Unit
-            }
-        }
+        return fullRows
+    }
 
-        for (i in oldPos until oldLines.size) {
-            fullRows.add(LineDiffRow.Equal(oldLines[i]))
+    val patch =
+        generatePatch {
+            original = oldLines
+            revised = newLines
+        }
+    var oldPos = 0
+    for (delta in patch.getDeltas()) {
+        val sourceChunk = delta.source
+        val targetChunk = delta.target
+        val equalCount = sourceChunk.position - oldPos
+        for (i in 0 until equalCount) {
+            fullRows.add(LineDiffRow.Equal(oldLines[oldPos + i]))
+        }
+        oldPos = sourceChunk.position
+        when (delta.type) {
+            DeltaType.DELETE -> {
+                sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
+                oldPos += sourceChunk.lines.size
+            }
+            DeltaType.INSERT -> {
+                targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
+            }
+            DeltaType.CHANGE -> {
+                sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
+                targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
+                oldPos += sourceChunk.lines.size
+            }
+            // Equal runs are emitted positionally before each non-equal delta.
+            DeltaType.EQUAL -> Unit
         }
     }
 
+    for (i in oldPos until oldLines.size) {
+        fullRows.add(LineDiffRow.Equal(oldLines[i]))
+    }
+    return fullRows
+}
+
+/**
+ * Merges overlapping or adjacent context windows around [changedIndexes] into
+ * inclusive [IntRange] values, each extended by [DIFF_CONTEXT_LINES] on both sides.
+ */
+private fun mergeContextRanges(
+    changedIndexes: List<Int>,
+    lastIndex: Int,
+): List<IntRange> =
+    changedIndexes
+        .map { index ->
+            (index - DIFF_CONTEXT_LINES).coerceAtLeast(0)..(index + DIFF_CONTEXT_LINES).coerceAtMost(lastIndex)
+        }.fold(mutableListOf<IntRange>()) { merged, range ->
+            val previous = merged.lastOrNull()
+            if (previous != null && range.first <= previous.last + 1) {
+                merged[merged.lastIndex] = previous.first..maxOf(previous.last, range.last)
+            } else {
+                merged.add(range)
+            }
+            merged
+        }
+
+/**
+ * Applies context-window merging to [fullRows], collapsing unchanged regions
+ * between changed hunks to [LineDiffRow.Omitted] markers and capping the total
+ * at [MAX_DIFF_ROWS] lines.
+ */
+private fun collapseDiffRows(fullRows: List<LineDiffRow>): List<LineDiffRow> {
     val changedIndexes = fullRows.indices.filter { fullRows[it].isChanged }
     if (changedIndexes.isEmpty()) return emptyList()
 
-    val ranges =
-        changedIndexes
-            .map { index ->
-                (index - DIFF_CONTEXT_LINES).coerceAtLeast(
-                    0,
-                )..(index + DIFF_CONTEXT_LINES).coerceAtMost(fullRows.lastIndex)
-            }.fold(mutableListOf<IntRange>()) { merged, range ->
-                val previous = merged.lastOrNull()
-                if (previous != null && range.first <= previous.last + 1) {
-                    merged[merged.lastIndex] = previous.first..maxOf(previous.last, range.last)
-                } else {
-                    merged.add(range)
-                }
-                merged
-            }
+    val ranges = mergeContextRanges(changedIndexes, fullRows.lastIndex)
 
     val visibleRows = mutableListOf<LineDiffRow>()
     ranges.forEachIndexed { index, range ->
@@ -301,6 +316,21 @@ internal fun buildDiffRows(
     } else {
         visibleRows
     }
+}
+
+/**
+ * Builds the visible portion of a unified diff: changed rows, five equal rows
+ * of context around each changed region, and omission rows between distant
+ * regions. An unchanged file has no diff rows to display.
+ */
+internal fun buildDiffRows(
+    oldText: String?,
+    newText: String,
+): List<LineDiffRow> {
+    val oldLines = oldText?.lines() ?: emptyList()
+    val newLines = newText.lines()
+    val fullRows = buildFullDiffRows(oldLines, newLines)
+    return collapseDiffRows(fullRows)
 }
 
 /**
@@ -334,10 +364,10 @@ internal fun computeDiffBlocks(
     deletions: Int,
 ): DiffBlockResult {
     val total = additions + deletions
-    if (total == 0) return DiffBlockResult(0, 0, 5)
+    if (total == 0) return DiffBlockResult(0, 0, DIFF_BLOCK_COUNT)
 
     // Fixed block count: small enough to fit in a row, enough blocks to show proportion.
-    val totalBlocks = 5
+    val totalBlocks = DIFF_BLOCK_COUNT
 
     var green = kotlin.math.round(additions.toFloat() / total * totalBlocks).toInt()
     var red = totalBlocks - green
@@ -352,7 +382,7 @@ internal fun computeDiffBlocks(
         green -= 1
     }
 
-    return DiffBlockResult(green, red, 5 - green - red)
+    return DiffBlockResult(green, red, DIFF_BLOCK_COUNT - green - red)
 }
 
 /**
@@ -641,26 +671,34 @@ internal fun GitStatusIndicatorButton(
                         stateDescription = label
                     },
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (additions > 0) {
-                    Text(
-                        text = "+$additions",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = LocalGitSemanticColors.current.added,
-                    )
-                }
-                DiffBlocks(additions = additions, deletions = deletions)
-                if (deletions > 0) {
-                    Text(
-                        text = "-$deletions",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = LocalGitSemanticColors.current.deleted,
-                    )
-                }
-            }
+            GitStatusButtonContent(additions, deletions)
+        }
+    }
+}
+
+@Composable
+private fun GitStatusButtonContent(
+    additions: Int,
+    deletions: Int,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (additions > 0) {
+            Text(
+                text = "+$additions",
+                style = MaterialTheme.typography.labelSmall,
+                color = LocalGitSemanticColors.current.added,
+            )
+        }
+        DiffBlocks(additions = additions, deletions = deletions)
+        if (deletions > 0) {
+            Text(
+                text = "-$deletions",
+                style = MaterialTheme.typography.labelSmall,
+                color = LocalGitSemanticColors.current.deleted,
+            )
         }
     }
 }

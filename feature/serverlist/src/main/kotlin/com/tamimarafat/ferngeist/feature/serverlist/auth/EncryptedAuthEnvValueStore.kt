@@ -28,6 +28,8 @@ private const val FILE_NAME = "auth_env_values"
 private val Context.encryptedDataStore by preferencesDataStore(name = FILE_NAME)
 
 @Singleton
+private const val AES_KEY_SIZE_BITS = 256
+
 class EncryptedAuthEnvValueStore
     @Inject
     constructor(
@@ -131,7 +133,7 @@ private class AndroidKeystoreCipherProvider {
                     KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
                 ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
+                .setKeySize(AES_KEY_SIZE_BITS)
                 .build(),
         )
         return keyGenerator.generateKey()

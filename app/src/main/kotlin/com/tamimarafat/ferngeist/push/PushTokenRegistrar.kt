@@ -4,12 +4,15 @@ import android.util.Log
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -86,10 +89,17 @@ class PushTokenRegistrar(
             registered.remove(key)
             gatewaySourceRepository.deleteGateway(refreshed.id)
             Log.w(TAG, "Gateway credential expired, removed gateway ${refreshed.name}", error)
-        } catch (e: Exception) {
-            // Drop the key so the next emission retries this gateway.
+        } catch (e: CancellationException) {
+            // Coroutine cancelled mid-request; propagate so the caller can clean up.
+            throw e
+        } catch (e: GatewayRequestException) {
+            // HTTP error from the gateway (non-fatal: logged, retried on next emission).
             registered.remove(key)
             Log.w(TAG, "Failed to register push token with gateway ${refreshed.name}", e)
+        } catch (e: IOException) {
+            // Network I/O failure (non-fatal: logged, retried on next emission).
+            registered.remove(key)
+            Log.w(TAG, "Network error registering push token with gateway ${refreshed.name}", e)
         }
     }
 

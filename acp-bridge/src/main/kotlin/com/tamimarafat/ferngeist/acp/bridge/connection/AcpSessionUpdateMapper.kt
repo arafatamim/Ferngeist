@@ -21,77 +21,100 @@ internal object AcpSessionUpdateMapper {
     @OptIn(UnstableApi::class)
     fun mapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent? =
         when (update) {
-            is SessionUpdate.UserMessageChunk ->
-                AppSessionEvent.UserMessage(
-                    text = extractText(update.content),
-                    images = listOfNotNull(extractImage(update.content)),
-                    files = listOfNotNull(extractFiles(update.content)),
-                    append = true,
-                )
+            is SessionUpdate.UserMessageChunk -> mapUserMessageChunk(update)
             is SessionUpdate.AgentMessageChunk -> AppSessionEvent.AgentMessage(extractText(update.content))
             is SessionUpdate.AgentThoughtChunk -> AppSessionEvent.AgentThought(extractText(update.content))
-            is SessionUpdate.ToolCall ->
-                AppSessionEvent.ToolCallStarted(
-                    toolCallId = update.toolCallId.value,
-                    title = update.title,
-                    kind = update.kind,
-                    status = update.status,
-                    rawInput = update.rawInput,
-                )
-            is SessionUpdate.ToolCallUpdate ->
-                AppSessionEvent.ToolCallUpdated(
-                    toolCallId = update.toolCallId.value,
-                    status = update.status,
-                    title = update.title,
-                    kind = update.kind,
-                    content = update.content,
-                    rawInput = update.rawInput,
-                    rawOutput = update.rawOutput,
-                )
-            is SessionUpdate.PlanUpdate ->
-                AppSessionEvent.PlanUpdated(
-                    entries = update.entries,
-                )
-            is SessionUpdate.AvailableCommandsUpdate ->
-                AppSessionEvent.CommandsUpdated(
-                    update.availableCommands.map { cmd ->
-                        CommandInfo(name = cmd.name, description = cmd.description)
-                    },
-                )
+            is SessionUpdate.ToolCall -> mapToolCall(update)
+            is SessionUpdate.ToolCallUpdate -> mapToolCallUpdate(update)
+            is SessionUpdate.PlanUpdate, is SessionUpdate.PlanRemoved -> mapPlanUpdate(update, removed = update is SessionUpdate.PlanRemoved)
+            is SessionUpdate.AvailableCommandsUpdate -> mapAvailableCommands(update)
             is SessionUpdate.CurrentModeUpdate -> AppSessionEvent.ModeChanged(update.currentModeId.value)
-            is SessionUpdate.UsageUpdate -> {
-                AppSessionEvent.UsageUpdated(
-                    totalTokens = update.used.toInt(),
-                    contextWindowTokens = update.size.toInt(),
-                    costAmount = update.cost?.amount,
-                    costCurrency = update.cost?.currency,
-                )
-            }
-            is SessionUpdate.ConfigOptionUpdate -> {
-                val mapped =
-                    update.configOptions.map { sdkOption ->
-                        mapSdkConfigOption(sdkOption)
-                    }
-                AppSessionEvent.ConfigOptionsUpdated(mapped)
-            }
-            is SessionUpdate.SessionInfoUpdate ->
-                AppSessionEvent.SessionInfoUpdated(
-                    title = update.title,
-                    updatedAt = update.updatedAt,
-                )
-            is SessionUpdate.PlanRemoved ->
-                AppSessionEvent.PlanUpdated(entries = emptyList())
-            is SessionUpdate.PlanUpdateV2 ->
-                AppSessionEvent.PlanUpdated(
-                    entries =
-                        if (update.plan is PlanVariant.Items) {
-                            (update.plan as PlanVariant.Items).entries
-                        } else {
-                            emptyList()
-                        },
-                )
-            is SessionUpdate.UnknownSessionUpdate -> AppSessionEvent.Unknown(update.toString())
+            is SessionUpdate.UsageUpdate -> mapUsageUpdate(update)
+            is SessionUpdate.ConfigOptionUpdate -> mapConfigOptionUpdate(update)
+            is SessionUpdate.SessionInfoUpdate -> mapSessionInfoUpdate(update)
+            is SessionUpdate.PlanUpdateV2 -> mapPlanUpdateV2(update)
+            else -> AppSessionEvent.Unknown(update.toString())
         }
+
+    @OptIn(UnstableApi::class)
+    private fun mapPlanUpdate(update: SessionUpdate, removed: Boolean): AppSessionEvent =
+        AppSessionEvent.PlanUpdated(
+            entries = if (removed) emptyList() else (update as SessionUpdate.PlanUpdate).entries,
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapSessionInfoUpdate(update: SessionUpdate.SessionInfoUpdate): AppSessionEvent =
+        AppSessionEvent.SessionInfoUpdated(
+            title = update.title,
+            updatedAt = update.updatedAt,
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapUserMessageChunk(update: SessionUpdate.UserMessageChunk): AppSessionEvent =
+        AppSessionEvent.UserMessage(
+            text = extractText(update.content),
+            images = listOfNotNull(extractImage(update.content)),
+            files = listOfNotNull(extractFiles(update.content)),
+            append = true,
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapToolCall(update: SessionUpdate.ToolCall): AppSessionEvent =
+        AppSessionEvent.ToolCallStarted(
+            toolCallId = update.toolCallId.value,
+            title = update.title,
+            kind = update.kind,
+            status = update.status,
+            rawInput = update.rawInput,
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapToolCallUpdate(update: SessionUpdate.ToolCallUpdate): AppSessionEvent =
+        AppSessionEvent.ToolCallUpdated(
+            toolCallId = update.toolCallId.value,
+            status = update.status,
+            title = update.title,
+            kind = update.kind,
+            content = update.content,
+            rawInput = update.rawInput,
+            rawOutput = update.rawOutput,
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapAvailableCommands(update: SessionUpdate.AvailableCommandsUpdate): AppSessionEvent =
+        AppSessionEvent.CommandsUpdated(
+            update.availableCommands.map { cmd ->
+                CommandInfo(name = cmd.name, description = cmd.description)
+            },
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapUsageUpdate(update: SessionUpdate.UsageUpdate): AppSessionEvent =
+        AppSessionEvent.UsageUpdated(
+            totalTokens = update.used.toInt(),
+            contextWindowTokens = update.size.toInt(),
+            costAmount = update.cost?.amount,
+            costCurrency = update.cost?.currency,
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapConfigOptionUpdate(update: SessionUpdate.ConfigOptionUpdate): AppSessionEvent =
+        AppSessionEvent.ConfigOptionsUpdated(
+            update.configOptions.map { sdkOption ->
+                mapSdkConfigOption(sdkOption)
+            },
+        )
+
+    @OptIn(UnstableApi::class)
+    private fun mapPlanUpdateV2(update: SessionUpdate.PlanUpdateV2): AppSessionEvent =
+        AppSessionEvent.PlanUpdated(
+            entries =
+                if (update.plan is PlanVariant.Items) {
+                    (update.plan as PlanVariant.Items).entries
+                } else {
+                    emptyList()
+                },
+        )
 
     fun mapStopReason(reason: StopReason): String =
         when (reason) {
@@ -102,13 +125,17 @@ internal object AcpSessionUpdateMapper {
             StopReason.CANCELLED -> "cancelled"
         }
 
+    private const val MILLIS_MIN_TEN_DIGITS = 1_000_000_000L
+    private const val MILLIS_MAX_TEN_DIGITS = 9_999_999_999L
+    private const val MILLIS_PER_SECOND = 1000L
+
     fun parseIsoOrMillis(value: String?): Long? {
         if (value.isNullOrBlank()) return null
         val raw = value.trim()
 
         raw.toLongOrNull()?.let { numeric ->
-            return if (numeric in 1_000_000_000L..9_999_999_999L) {
-                numeric * 1000L
+            return if (numeric in MILLIS_MIN_TEN_DIGITS..MILLIS_MAX_TEN_DIGITS) {
+                numeric * MILLIS_PER_SECOND
             } else {
                 numeric
             }

@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 
+private const val RECENT_CWD_MAX_HEIGHT_DP = 200
+
 /**
  * Dialog for setting the working-directory filter on sessions.
  * Recent CWDs are shown in an MRU suggestion list — tap to fill the text
@@ -63,47 +65,11 @@ fun CwdDialog(
                     placeholder = { Text(stringResource(R.string.sessionlist_cwd_placeholder)) },
                 )
                 if (recentCwds.isNotEmpty()) {
-                    LazyColumn(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 200.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        items(recentCwds) { cwd ->
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .combinedClickable(
-                                            onClick = { onCwdDialogValueChange(cwd) },
-                                            onLongClick = { onRemoveRecentCwd(cwd) },
-                                        ).semantics {
-                                            contentDescription = cwd
-                                        }.padding(vertical = 6.dp, horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.FolderOpen,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    text = cwd,
-                                    overflow = TextOverflow.MiddleEllipsis,
-                                    softWrap = true,
-                                    maxLines = 1,
-                                    modifier = Modifier.weight(1f),
-                                    style =
-                                        MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                        ),
-                                )
-                            }
-                        }
-                    }
+                    RecentCwdsList(
+                        recentCwds = recentCwds,
+                        onCwdSelected = onCwdDialogValueChange,
+                        onRemoveRecentCwd = onRemoveRecentCwd,
+                    )
                 }
             }
         },
@@ -119,4 +85,66 @@ fun CwdDialog(
             }
         },
     )
+}
+
+@Composable
+private fun RecentCwdsList(
+    recentCwds: List<String>,
+    onCwdSelected: (String) -> Unit,
+    onRemoveRecentCwd: (String) -> Unit,
+) {
+    LazyColumn(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = RECENT_CWD_MAX_HEIGHT_DP.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        items(recentCwds) { cwd ->
+            RecentCwdRow(
+                cwd = cwd,
+                onCwdSelected = onCwdSelected,
+                onRemoveRecentCwd = onRemoveRecentCwd,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecentCwdRow(
+    cwd: String,
+    onCwdSelected: (String) -> Unit,
+    onRemoveRecentCwd: (String) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = { onCwdSelected(cwd) },
+                    onLongClick = { onRemoveRecentCwd(cwd) },
+                ).semantics {
+                    contentDescription = cwd
+                }.padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.FolderOpen,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = cwd,
+            overflow = TextOverflow.MiddleEllipsis,
+            softWrap = true,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
+        )
+    }
 }

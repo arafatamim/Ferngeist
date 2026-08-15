@@ -77,6 +77,28 @@ class FerngeistForegroundService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
+        if (handleTerminalAction(intent)) return START_NOT_STICKY
+
+        // startForeground() MUST happen unconditionally within 5 s of
+        // startForegroundService(), regardless of connection state.
+        ensureForegroundStarted()
+
+        // Now safe to check state — startForeground() already called.
+        if (!shouldContinueObserving()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        observeConnectionState()
+        return START_STICKY
+    }
+
+    /**
+     * Handles ACTION_DISCONNECT and ACTION_STOP immediately.
+     * Returns true if the intent was a terminal action (and should return
+     * START_NOT_STICKY), false otherwise.
+     */
+    private fun handleTerminalAction(intent: Intent?): Boolean {
         when (intent?.action) {
             ACTION_DISCONNECT -> {
                 observationJob?.cancel()
@@ -84,38 +106,43 @@ class FerngeistForegroundService : Service() {
                     connectionManager.disconnect()
                     stopSelf()
                 }
-                return START_NOT_STICKY
+                return true
             }
             ACTION_STOP -> {
                 stopSelf()
-                return START_NOT_STICKY
+                return true
             }
         }
-        // startForeground() MUST happen unconditionally within 5 s of
-        // startForegroundService(), regardless of connection state.
-        if (!isStarted) {
-            isStarted = true
-            val notification =
-                buildNotification(connectionManager.connectionState.value, connectionManager.agentInfo.value?.name)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
-            getSystemService(NotificationManager::class.java)
-                .cancel(ERROR_NOTIFICATION_ID)
-        }
+        return false
+    }
 
-        // Now safe to check state — startForeground() already called.
-        if (connectionManager.connectionState.value !is AcpConnectionState.Connected &&
-            connectionManager.connectionState.value !is AcpConnectionState.Connecting
-        ) {
-            stopSelf()
-            return START_NOT_STICKY
+    /**
+     * Ensures startForeground() has been called exactly once, building the
+     * notification from the current connection state and agent name.
+     * Clears any lingering error notification from a previous run.
+     */
+    private fun ensureForegroundStarted() {
+        if (isStarted) return
+        isStarted = true
+        val notification =
+            buildNotification(connectionManager.connectionState.value, connectionManager.agentInfo.value?.name)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
         }
+        getSystemService(NotificationManager::class.java)
+            .cancel(ERROR_NOTIFICATION_ID)
+    }
 
-        observeConnectionState()
-        return START_STICKY
+    /**
+     * Returns true when the current connection state warrants continued
+     * observation (Connected or Connecting). Returns false for any terminal
+     * or idle state, signaling the caller to self-stop.
+     */
+    private fun shouldContinueObserving(): Boolean {
+        val state = connectionManager.connectionState.value
+        return state is AcpConnectionState.Connected || state is AcpConnectionState.Connecting
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

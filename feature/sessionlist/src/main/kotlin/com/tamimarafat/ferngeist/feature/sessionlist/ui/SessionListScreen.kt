@@ -6,12 +6,15 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -53,8 +56,10 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TwoRowsTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberTooltipState
@@ -63,6 +68,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +101,8 @@ import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
+import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
@@ -135,51 +143,157 @@ fun SessionListScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    val sessions by viewModel.sessions.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val state = rememberSessionListState(viewModel, navArgName, loadedName)
+    val currentCwd = state.currentCwd
+
+    SessionListEventEffects(
+        viewModel = viewModel,
+        pendingAuthentication = state.pendingAuthentication,
+        snackbarHostState = state.snackbarHostState,
+        envValues = state.envValues,
+        selectedAuthMethodId = state.selectedAuthMethodId,
+        hasConsumedLaunchCreate = state.hasConsumedLaunchCreate,
+        openCreateSessionDialogOnLaunch = openCreateSessionDialogOnLaunch,
+        onNavigateToChat = onNavigateToChat,
+    )
+
+    SessionListOverlays(
+        showCwdDialog = state.showCwdDialog.value,
+        recentCwds = state.recentCwds,
+        cwdDialogValue = state.cwdDialogValue.value,
+        currentCwd = currentCwd,
+        onCwdDialogValueChange = { state.cwdDialogValue.value = it },
+        onDismissCwdDialog = { state.showCwdDialog.value = false },
+        updateCurrentCwd = { viewModel.updateCurrentCwd(it) },
+        removeRecentCwd = viewModel::removeRecentCwd,
+        showConnectionStatusDialog = state.showConnectionStatusDialog.value,
+        connectionState = state.connectionState,
+        connectionDiagnostics = state.connectionDiagnostics,
+        onDismissConnectionStatusDialog = { state.showConnectionStatusDialog.value = false },
+        pendingAuthentication = state.pendingAuthentication,
+        selectedAuthMethodId = state.selectedAuthMethodId.value,
+        onSelectedAuthMethodChange = { state.selectedAuthMethodId.value = it },
+        envValues = state.envValues,
+        onSubmit = { methodId, values -> viewModel.authenticate(methodId, values) },
+        onReconnect = viewModel::reconnectPendingAuthentication,
+        onDismissAuthentication = viewModel::dismissAuthenticationPrompt,
+    )
+
+    SessionListScaffold(
+        state = state,
+        serverId = serverId,
+        currentCwd = currentCwd,
+        onShowCwdDialog = {
+            state.cwdDialogValue.value = currentCwd.orEmpty()
+            state.showCwdDialog.value = true
+        },
+        onShowConnectionStatusDialog = { state.showConnectionStatusDialog.value = true },
+        onNavigateBack = onNavigateBack,
+        onNavigateToChat = onNavigateToChat,
+        createSession = { viewModel.createSessionWithCurrentCwd() },
+        onRefresh = { viewModel.refreshSessions(isUserInitiated = true) },
+        sharedTransitionScope = sharedTransitionScope,
+        animatedContentScope = animatedContentScope,
+    )
+}
+
+private class SessionListState(
+    val sessions: List<SessionSummary>,
+    val isLoading: Boolean,
+    val currentCwd: String?,
+    val connectionState: ChatConnectionState,
+    val connectionDiagnostics: ChatConnectionDiagnostics,
+    val pendingAuthentication: SessionListPendingAuthentication?,
+    val snackbarHostState: SnackbarHostState,
+    val recentCwds: List<String>,
+    val showCwdDialog: MutableState<Boolean>,
+    val cwdDialogValue: MutableState<String>,
+    val showConnectionStatusDialog: MutableState<Boolean>,
+    val selectedAuthMethodId: MutableState<String?>,
+    val envValues: MutableMap<String, String>,
+    val isRefreshing: Boolean,
+    val pullToRefreshState: PullToRefreshState,
+    val supportsSessionList: Boolean,
+    val serverName: String,
+    val cwdAlpha: Float,
+    val scrollBehavior: TopAppBarScrollBehavior,
+    val hasConsumedLaunchCreate: MutableState<Boolean>,
+)
+
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
+@Composable
+private fun rememberSessionListState(
+    viewModel: SessionListViewModel,
+    navArgName: String?,
+    loadedName: String?,
+): SessionListState {
     val sessionSettings by viewModel.sessionSettings.collectAsState()
-    val connectionState by viewModel.connectionState.collectAsState()
     val agentCapabilities by viewModel.agentCapabilities.collectAsState()
-    val connectionDiagnostics by viewModel.connectionDiagnostics.collectAsState()
     val pendingAuthentication by viewModel.pendingAuthentication.collectAsState()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val recentCwds by viewModel.recentCwds.collectAsState()
     val currentCwd = sessionSettings.cwd
-    var showCwdDialog by remember { mutableStateOf(false) }
-    var cwdDialogValue by remember(currentCwd) { mutableStateOf(currentCwd.orEmpty()) }
-    var showConnectionStatusDialog by remember { mutableStateOf(false) }
-    var hasConsumedLaunchCreate by rememberSaveable { mutableStateOf(false) }
-    var selectedAuthMethodId by rememberSaveable(
-        pendingAuthentication?.serverId,
-        pendingAuthentication?.pendingAction,
-    ) {
-        mutableStateOf(
-            pendingAuthentication?.preferredAuthMethodId ?: pendingAuthentication?.authMethods?.firstOrNull()?.id,
-        )
-    }
-    val envValues =
-        remember(
-            pendingAuthentication?.serverId,
-            pendingAuthentication?.pendingAction,
-        ) { mutableStateMapOf<String, String>() }
-    // Separate flag: PullToRefreshDefaults.LoadingIndicator only shows on user-pull,
-    // not on initial load when cached sessions exist (isLoading alone would trigger it).
-    val isRefreshing by viewModel.refreshing.collectAsState()
-    val pullToRefreshState = rememberPullToRefreshState()
-    val supportsSessionList = agentCapabilities?.sessionCapabilities?.list != null
     val serverName =
         resolveServerDisplayName(
             navArgName,
             loadedName,
             stringResource(R.string.sessionlist_topbar_title),
         )
-    val hasCwd = !currentCwd.isNullOrBlank()
+    val supportsSessionList = agentCapabilities?.sessionCapabilities?.list != null
     val cwdAlpha by animateFloatAsState(
-        targetValue = if (hasCwd) 1f else 0f,
+        targetValue = if (!currentCwd.isNullOrBlank()) 1f else 0f,
         label = "cwdAlpha",
     )
+    return SessionListState(
+        sessions = viewModel.sessions.collectAsState().value,
+        isLoading = viewModel.isLoading.collectAsState().value,
+        currentCwd = currentCwd,
+        connectionState = viewModel.connectionState.collectAsState().value,
+        connectionDiagnostics = viewModel.connectionDiagnostics.collectAsState().value,
+        pendingAuthentication = pendingAuthentication,
+        snackbarHostState = remember { SnackbarHostState() },
+        recentCwds = viewModel.recentCwds.collectAsState().value,
+        showCwdDialog = remember { mutableStateOf(false) },
+        cwdDialogValue = remember(currentCwd) { mutableStateOf(currentCwd.orEmpty()) },
+        showConnectionStatusDialog = remember { mutableStateOf(false) },
+        selectedAuthMethodId =
+            rememberSaveable(
+                pendingAuthentication?.serverId,
+                pendingAuthentication?.pendingAction,
+            ) {
+                mutableStateOf(
+                    pendingAuthentication?.preferredAuthMethodId
+                        ?: pendingAuthentication?.authMethods?.firstOrNull()?.id,
+                )
+            },
+        envValues =
+            remember(
+                pendingAuthentication?.serverId,
+                pendingAuthentication?.pendingAction,
+            ) { mutableStateMapOf<String, String>() },
+        isRefreshing = viewModel.refreshing.collectAsState().value,
+        pullToRefreshState = rememberPullToRefreshState(),
+        supportsSessionList = supportsSessionList,
+        serverName = serverName,
+        cwdAlpha = cwdAlpha,
+        scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
+        hasConsumedLaunchCreate = rememberSaveable { mutableStateOf(false) },
+    )
+}
 
+@Composable
+private fun SessionListEventEffects(
+    viewModel: SessionListViewModel,
+    pendingAuthentication: SessionListPendingAuthentication?,
+    snackbarHostState: SnackbarHostState,
+    envValues: MutableMap<String, String>,
+    selectedAuthMethodId: MutableState<String?>,
+    hasConsumedLaunchCreate: MutableState<Boolean>,
+    openCreateSessionDialogOnLaunch: Boolean,
+    onNavigateToChat: (String, String, Long?, String?) -> Unit,
+) {
     // Re-populate envValues from persisted values whenever the pending auth changes.
     // This ensures the dialog reflects the most recent server-saved env vars.
     LaunchedEffect(
@@ -191,7 +305,7 @@ fun SessionListScreen(
         pendingAuthentication?.persistedEnvValues?.forEach { (name, value) ->
             envValues[name] = value
         }
-        selectedAuthMethodId = pendingAuthentication?.preferredAuthMethodId
+        selectedAuthMethodId.value = pendingAuthentication?.preferredAuthMethodId
             ?: pendingAuthentication?.authMethods?.firstOrNull()?.id
     }
 
@@ -213,56 +327,33 @@ fun SessionListScreen(
     }
 
     LaunchedEffect(openCreateSessionDialogOnLaunch) {
-        if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate) {
-            hasConsumedLaunchCreate = true
+        if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate.value) {
+            hasConsumedLaunchCreate.value = true
             viewModel.createSessionWithCurrentCwd()
         }
     }
+}
 
-    if (showCwdDialog) {
-        CwdDialog(
-            recentCwds = recentCwds,
-            cwdDialogValue = cwdDialogValue,
-            onCwdDialogValueChange = { cwdDialogValue = it },
-            onSave = {
-                showCwdDialog = false
-                viewModel.updateCurrentCwd(cwdDialogValue)
-            },
-            onClear =
-                if (currentCwd != null) {
-                    {
-                        showCwdDialog = false
-                        viewModel.updateCurrentCwd("")
-                    }
-                } else {
-                    null
-                },
-            onDismiss = { showCwdDialog = false },
-            onRemoveRecentCwd = viewModel::removeRecentCwd,
-        )
-    }
-
-    if (showConnectionStatusDialog) {
-        ConnectionDiagnosticsDialog(
-            connectionState = connectionState,
-            diagnostics = connectionDiagnostics,
-            onDismiss = { showConnectionStatusDialog = false },
-        )
-    }
-
-    pendingAuthentication?.let { pending ->
-        PendingAuthenticationDialog(
-            pendingAuthentication = pending,
-            selectedAuthMethodId = selectedAuthMethodId,
-            onSelectedAuthMethodChange = { selectedAuthMethodId = it },
-            envValues = envValues,
-            onSubmit = { methodId, values -> viewModel.authenticate(methodId, values) },
-            onReconnect = viewModel::reconnectPendingAuthentication,
-            onDismiss = viewModel::dismissAuthenticationPrompt,
-        )
-    }
-
-    val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
+@Composable
+private fun SessionListScaffold(
+    state: SessionListState,
+    serverId: String,
+    currentCwd: String?,
+    onShowCwdDialog: () -> Unit,
+    onShowConnectionStatusDialog: () -> Unit,
+    onNavigateBack: () -> Unit,
+    onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    createSession: () -> Unit,
+    onRefresh: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    val collapse = state.scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     // Interpolate title size between expanded (headlineMedium) and collapsed (titleLarge)
     // as the user scrolls — gives a smooth visual transition in the top bar.
     val titleStyle =
@@ -272,306 +363,528 @@ fun SessionListScreen(
             collapse,
         )
 
-    val containerModifier =
-        if (supportsSessionList) {
-            Modifier
-                .fillMaxSize()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .pullToRefresh(
-                    state = pullToRefreshState,
-                    isRefreshing = isRefreshing,
-                    onRefresh = { viewModel.refreshSessions(isUserInitiated = true) },
-                )
-        } else {
-            Modifier
-                .fillMaxSize()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-        }
-
     Box(
-        modifier = containerModifier,
+        modifier = sessionListContainerModifier(state, onRefresh),
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                TwoRowsTopAppBar(
-                    title = { expanded ->
-                        SessionListTopBarTitle(
-                            expanded = expanded,
-                            collapsedFraction = collapse,
-                            serverId = serverId,
-                            serverName = serverName,
-                            titleStyle = titleStyle,
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedContentScope = animatedContentScope,
-                        )
-                    },
-                    subtitle = { expanded ->
-                        if (expanded) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier =
-                                    Modifier
-                                        .heightIn(min = 20.dp)
-                                        .alpha(cwdAlpha),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.FolderOpen,
-                                    contentDescription = stringResource(R.string.sessionlist_cwd_desc),
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                                Text(
-                                    text = currentCwd.orEmpty(),
-                                    style =
-                                        MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                        ),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        FilledTonalIconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription =
-                                    stringResource(
-                                        R.string.sessionlist_back_desc,
-                                    ),
-                            )
-                        }
-                    },
-                    actions = {
-                        TooltipBox(
-                            positionProvider =
-                                TooltipDefaults.rememberTooltipPositionProvider(
-                                    TooltipAnchorPosition.Above,
-                                ),
-                            tooltip = {
-                                PlainTooltip {
-                                    Text(
-                                        stringResource(
-                                            R.string.sessionlist_cwd_tooltip,
-                                        ),
-                                    )
-                                }
-                            },
-                            state = rememberTooltipState(),
-                        ) {
-                            FilledTonalIconButton(
-                                onClick = {
-                                    cwdDialogValue = currentCwd.orEmpty()
-                                    showCwdDialog = true
-                                },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.FolderOpen,
-                                    contentDescription =
-                                        stringResource(
-                                            R.string.sessionlist_cwd_desc,
-                                        ),
-                                )
-                            }
-                        }
-                        ConnectionStatusPill(
-                            connectionState = connectionState,
-                            onClick = { showConnectionStatusDialog = true },
-                        )
-                    },
-                    collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
-                    expandedHeight = TopAppBarDefaults.LargeAppBarExpandedHeight,
-                    scrollBehavior = scrollBehavior,
+                SessionListTopBar(
+                    state = state,
+                    serverId = serverId,
+                    currentCwd = currentCwd,
+                    titleStyle = titleStyle,
+                    onShowCwdDialog = onShowCwdDialog,
+                    onShowConnectionStatusDialog = onShowConnectionStatusDialog,
+                    onNavigateBack = onNavigateBack,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
                 )
             },
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = {
-                        viewModel.createSessionWithCurrentCwd()
-                    },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription =
-                            stringResource(
-                                R.string.sessionlist_new_session_desc,
-                            ),
-                    )
-                }
+                SessionListFab(onClick = createSession)
             },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
+            snackbarHost = { SnackbarHost(state.snackbarHostState) },
         ) { padding ->
-            when {
-                isLoading && sessions.isEmpty() -> {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .padding(padding),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularWavyProgressIndicator(
-                            modifier = Modifier.size(64.dp),
-                        )
-                    }
-                }
-
-                sessions.isEmpty() -> {
-                    EmptySessionList(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .padding(padding),
-                        supportsSessionList = supportsSessionList,
-                        onCreateSession = { viewModel.createSessionWithCurrentCwd() },
-                    )
-                }
-
-                else -> {
-                    val zoneId = ZoneId.systemDefault()
-                    val today = LocalDate.now(zoneId)
-                    val locale = LocalLocale.current
-                    val dateFormatter =
-                        remember(locale) {
-                            SimpleDateFormat("MMMM d, yyyy", locale.platformLocale)
-                        }
-                    val sortedSessions =
-                        sessions.sortedWith(
-                            compareByDescending<SessionSummary> { it.updatedAt ?: Long.MIN_VALUE }
-                                .thenByDescending { it.id },
-                        )
-                    val groupedSessions = linkedMapOf<String, List<SessionSummary>>()
-                    // Group sessions by calendar date, sorted newest-first.
-                    // Sessions with updatedAt are bucketed by local date; those without
-                    // go into a final "Unknown" bucket.
-                    val withDate =
-                        sortedSessions.filter { it.updatedAt != null }.groupBy { session ->
-                            val updatedAt = session.updatedAt ?: 0L
-                            Instant.ofEpochMilli(updatedAt).atZone(zoneId).toLocalDate()
-                        }
-                    withDate.entries
-                        .sortedByDescending { it.key }
-                        .forEach { (sessionDate, groupSessions) ->
-                            // Show "Today" / "Yesterday" for recent dates, formatted date otherwise.
-                            val label =
-                                when (sessionDate) {
-                                    today ->
-                                        stringResource(
-                                            R.string.sessionlist_today,
-                                        )
-                                    today.minusDays(
-                                        1,
-                                    ),
-                                    ->
-                                        stringResource(
-                                            R.string.sessionlist_yesterday,
-                                        )
-                                    else -> {
-                                        val epoch =
-                                            max(
-                                                groupSessions.firstOrNull()?.updatedAt ?: 0L,
-                                                0L,
-                                            )
-                                        dateFormatter.format(Date(epoch))
-                                    }
-                                }
-                            groupedSessions[label] = groupSessions
-                        }
-                    val unknownSessions = sortedSessions.filter { it.updatedAt == null }
-                    if (unknownSessions.isNotEmpty()) {
-                        groupedSessions[
-                            stringResource(
-                                R.string.sessionlist_unknown_date,
-                            ),
-                        ] =
-                            unknownSessions
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding =
-                            PaddingValues(
-                                start = 16.dp,
-                                top = padding.calculateTopPadding() + 16.dp,
-                                end = 16.dp,
-                                bottom = padding.calculateBottomPadding() + 16.dp,
-                            ),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        groupedSessions.forEach { (group, groupSessions) ->
-                            item {
-                                Text(
-                                    text = group,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(vertical = 8.dp),
-                                )
-                            }
-                            items(groupSessions, key = { it.id }) { session ->
-                                SessionCard(
-                                    session = session,
-                                    onClick = {
-                                        onNavigateToChat(
-                                            session.id,
-                                            session.cwd ?: "",
-                                            session.updatedAt,
-                                            session.title,
-                                        )
-                                    },
-                                    sharedTransitionScope = sharedTransitionScope,
-                                    animatedContentScope = animatedContentScope,
-                                )
-                            }
-                        }
-                        item {
-                            Text(
-                                text =
-                                    LocalResources.current.getQuantityString(
-                                        R.plurals.sessionlist_session_count,
-                                        sessions.size,
-                                        sessions.size,
-                                    ),
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp, bottom = 8.dp),
-                                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
-                }
-            }
+            SessionListContent(
+                padding = padding,
+                state = state,
+                onNavigateToChat = onNavigateToChat,
+                createSession = createSession,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+            )
         }
 
-        if (supportsSessionList) {
-            PullToRefreshDefaults.LoadingIndicator(
-                state = pullToRefreshState,
-                isRefreshing = isRefreshing,
-                modifier =
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .statusBarsPadding(),
+        SessionListRefreshIndicator(state)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+private fun sessionListContainerModifier(
+    state: SessionListState,
+    onRefresh: () -> Unit,
+): Modifier =
+    if (state.supportsSessionList) {
+        Modifier
+            .fillMaxSize()
+            .nestedScroll(state.scrollBehavior.nestedScrollConnection)
+            .pullToRefresh(
+                state = state.pullToRefreshState,
+                isRefreshing = state.isRefreshing,
+                onRefresh = onRefresh,
+            )
+    } else {
+        Modifier
+            .fillMaxSize()
+            .nestedScroll(state.scrollBehavior.nestedScrollConnection)
+    }
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun BoxScope.SessionListRefreshIndicator(state: SessionListState) {
+    if (state.supportsSessionList) {
+        PullToRefreshDefaults.LoadingIndicator(
+            state = state.pullToRefreshState,
+            isRefreshing = state.isRefreshing,
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding(),
+        )
+    }
+}
+
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
+@Composable
+private fun SessionListTopBar(
+    state: SessionListState,
+    serverId: String,
+    currentCwd: String?,
+    titleStyle: TextStyle,
+    onShowCwdDialog: () -> Unit,
+    onShowConnectionStatusDialog: () -> Unit,
+    onNavigateBack: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    TwoRowsTopAppBar(
+        title = { expanded ->
+            SessionListTopBarTitle(
+                expanded = expanded,
+                collapsedFraction = state.scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f),
+                serverId = serverId,
+                serverName = state.serverName,
+                titleStyle = titleStyle,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+            )
+        },
+        subtitle = { expanded ->
+            if (expanded) {
+                SessionListTopBarSubtitle(state.cwdAlpha, currentCwd)
+            }
+        },
+        navigationIcon = {
+            FilledTonalIconButton(onClick = onNavigateBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription =
+                        stringResource(
+                            R.string.sessionlist_back_desc,
+                        ),
+                )
+            }
+        },
+        actions = {
+            SessionListTopBarActions(
+                state = state,
+                onShowCwdDialog = onShowCwdDialog,
+                onShowConnectionStatusDialog = onShowConnectionStatusDialog,
+            )
+        },
+        collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
+        expandedHeight = TopAppBarDefaults.LargeAppBarExpandedHeight,
+        scrollBehavior = state.scrollBehavior,
+    )
+}
+
+@Composable
+private fun SessionListTopBarSubtitle(cwdAlpha: Float, currentCwd: String?) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier
+                .heightIn(min = 20.dp)
+                .alpha(cwdAlpha),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.FolderOpen,
+            contentDescription = stringResource(R.string.sessionlist_cwd_desc),
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = currentCwd.orEmpty(),
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SessionListTopBarActions(
+    state: SessionListState,
+    onShowCwdDialog: () -> Unit,
+    onShowConnectionStatusDialog: () -> Unit,
+) {
+    TooltipBox(
+        positionProvider =
+            TooltipDefaults.rememberTooltipPositionProvider(
+                TooltipAnchorPosition.Above,
+            ),
+        tooltip = {
+            PlainTooltip {
+                Text(
+                    stringResource(
+                        R.string.sessionlist_cwd_tooltip,
+                    ),
+                )
+            }
+        },
+        state = rememberTooltipState(),
+    ) {
+        FilledTonalIconButton(
+            onClick = onShowCwdDialog,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FolderOpen,
+                contentDescription =
+                    stringResource(
+                        R.string.sessionlist_cwd_desc,
+                    ),
+            )
+        }
+    }
+    ConnectionStatusPill(
+        connectionState = state.connectionState,
+        onClick = onShowConnectionStatusDialog,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SessionListFab(onClick: () -> Unit) {
+    FloatingActionButton(
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription =
+                stringResource(
+                    R.string.sessionlist_new_session_desc,
+                ),
+        )
+    }
+}
+
+@OptIn(
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
+@Composable
+private fun SessionListContent(
+    padding: PaddingValues,
+    state: SessionListState,
+    onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    createSession: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    when {
+        state.isLoading && state.sessions.isEmpty() -> {
+            SessionListLoadingContent(padding)
+        }
+
+        state.sessions.isEmpty() -> {
+            SessionListEmptyContent(
+                padding = padding,
+                supportsSessionList = state.supportsSessionList,
+                onCreateSession = createSession,
+            )
+        }
+
+        else -> {
+            val groupedSessions = groupSessionsByDate(state.sessions)
+            SessionListLazyColumn(
+                groupedSessions = groupedSessions,
+                sessionCount = state.sessions.size,
+                padding = padding,
+                onNavigateToChat = onNavigateToChat,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
             )
         }
     }
 }
 
-/**
- * Dialog for ACP authentication with method selection, env var input, and reconnect.
- *
- * Supports three auth flows:
- * 1. **Gateway env auth**: user fills env var fields inline → `onSubmit`
- * 2. **Manual env auth**: user sets env vars manually → "Reconnect" → `onReconnect`
- * 3. **Other methods** (token, etc.): `onSubmit` immediately
- */
+@Composable
+private fun SessionListLoadingContent(padding: PaddingValues) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(padding),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularWavyProgressIndicator(
+            modifier = Modifier.size(64.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SessionListEmptyContent(
+    padding: PaddingValues,
+    supportsSessionList: Boolean,
+    onCreateSession: () -> Unit,
+) {
+    EmptySessionList(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(padding),
+        supportsSessionList = supportsSessionList,
+        onCreateSession = onCreateSession,
+    )
+}
+
+@Composable
+private fun groupSessionsByDate(sessions: List<SessionSummary>): Map<String, List<SessionSummary>> {
+    val zoneId = ZoneId.systemDefault()
+    val today = LocalDate.now(zoneId)
+    val locale = LocalLocale.current
+    val dateFormatter =
+        remember(locale) {
+            SimpleDateFormat("MMMM d, yyyy", locale.platformLocale)
+        }
+    val sortedSessions =
+        sessions.sortedWith(
+            compareByDescending<SessionSummary> { it.updatedAt ?: Long.MIN_VALUE }
+                .thenByDescending { it.id },
+        )
+    val groupedSessions = linkedMapOf<String, List<SessionSummary>>()
+    // Group sessions by calendar date, sorted newest-first.
+    // Sessions with updatedAt are bucketed by local date; those without
+    // go into a final "Unknown" bucket.
+    val withDate =
+        sortedSessions.filter { it.updatedAt != null }.groupBy { session ->
+            val updatedAt = session.updatedAt ?: 0L
+            Instant.ofEpochMilli(updatedAt).atZone(zoneId).toLocalDate()
+        }
+    withDate.entries
+        .sortedByDescending { it.key }
+        .forEach { (sessionDate, groupSessions) ->
+            // Show "Today" / "Yesterday" for recent dates, formatted date otherwise.
+            val label =
+                when (sessionDate) {
+                    today ->
+                        stringResource(
+                            R.string.sessionlist_today,
+                        )
+                    today.minusDays(
+                        1,
+                    ),
+                    ->
+                        stringResource(
+                            R.string.sessionlist_yesterday,
+                        )
+                    else -> {
+                        val epoch =
+                            max(
+                                groupSessions.firstOrNull()?.updatedAt ?: 0L,
+                                0L,
+                            )
+                        dateFormatter.format(Date(epoch))
+                    }
+                }
+            groupedSessions[label] = groupSessions
+        }
+    val unknownSessions = sortedSessions.filter { it.updatedAt == null }
+    if (unknownSessions.isNotEmpty()) {
+        groupedSessions[
+            stringResource(
+                R.string.sessionlist_unknown_date,
+            ),
+        ] =
+            unknownSessions
+    }
+    return groupedSessions
+}
+
+@OptIn(
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
+@Composable
+private fun SessionListLazyColumn(
+    groupedSessions: Map<String, List<SessionSummary>>,
+    sessionCount: Int,
+    padding: PaddingValues,
+    onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding =
+            PaddingValues(
+                start = 16.dp,
+                top = padding.calculateTopPadding() + 16.dp,
+                end = 16.dp,
+                bottom = padding.calculateBottomPadding() + 16.dp,
+            ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        groupedSessions.forEach { (group, groupSessions) ->
+            item {
+                Text(
+                    text = group,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
+            items(groupSessions, key = { it.id }) { session ->
+                SessionCard(
+                    session = session,
+                    onClick = {
+                        onNavigateToChat(
+                            session.id,
+                            session.cwd ?: "",
+                            session.updatedAt,
+                            session.title,
+                        )
+                    },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                )
+            }
+        }
+        item {
+            Text(
+                text =
+                    LocalResources.current.getQuantityString(
+                        R.plurals.sessionlist_session_count,
+                        sessionCount,
+                        sessionCount,
+                    ),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 8.dp),
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionListOverlays(
+    showCwdDialog: Boolean,
+    recentCwds: List<String>,
+    cwdDialogValue: String,
+    currentCwd: String?,
+    onCwdDialogValueChange: (String) -> Unit,
+    onDismissCwdDialog: () -> Unit,
+    updateCurrentCwd: (String) -> Unit,
+    removeRecentCwd: (String) -> Unit,
+    showConnectionStatusDialog: Boolean,
+    connectionState: ChatConnectionState,
+    connectionDiagnostics: ChatConnectionDiagnostics,
+    onDismissConnectionStatusDialog: () -> Unit,
+    pendingAuthentication: SessionListPendingAuthentication?,
+    selectedAuthMethodId: String?,
+    onSelectedAuthMethodChange: (String) -> Unit,
+    envValues: MutableMap<String, String>,
+    onSubmit: (String, Map<String, String>) -> Unit,
+    onReconnect: () -> Unit,
+    onDismissAuthentication: () -> Unit,
+) {
+    if (showCwdDialog) {
+        SessionCwdDialog(
+            recentCwds = recentCwds,
+            cwdDialogValue = cwdDialogValue,
+            currentCwd = currentCwd,
+            onCwdDialogValueChange = onCwdDialogValueChange,
+            onDismiss = onDismissCwdDialog,
+            updateCurrentCwd = updateCurrentCwd,
+            removeRecentCwd = removeRecentCwd,
+        )
+    }
+
+    if (showConnectionStatusDialog) {
+        SessionConnectionStatusDialog(
+            connectionState = connectionState,
+            diagnostics = connectionDiagnostics,
+            onDismiss = onDismissConnectionStatusDialog,
+        )
+    }
+
+    pendingAuthentication?.let { pending ->
+        PendingAuthenticationDialog(
+            pendingAuthentication = pending,
+            selectedAuthMethodId = selectedAuthMethodId,
+            onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+            envValues = envValues,
+            onSubmit = onSubmit,
+            onReconnect = onReconnect,
+            onDismiss = onDismissAuthentication,
+        )
+    }
+}
+
+@Composable
+private fun SessionCwdDialog(
+    recentCwds: List<String>,
+    cwdDialogValue: String,
+    currentCwd: String?,
+    onCwdDialogValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    updateCurrentCwd: (String) -> Unit,
+    removeRecentCwd: (String) -> Unit,
+) {
+    CwdDialog(
+        recentCwds = recentCwds,
+        cwdDialogValue = cwdDialogValue,
+        onCwdDialogValueChange = onCwdDialogValueChange,
+        onSave = {
+            onDismiss()
+            updateCurrentCwd(cwdDialogValue)
+        },
+        onClear =
+            if (currentCwd != null) {
+                {
+                    onDismiss()
+                    updateCurrentCwd("")
+                }
+            } else {
+                null
+            },
+        onDismiss = onDismiss,
+        onRemoveRecentCwd = removeRecentCwd,
+    )
+}
+
+@Composable
+private fun SessionConnectionStatusDialog(
+    connectionState: ChatConnectionState,
+    diagnostics: ChatConnectionDiagnostics,
+    onDismiss: () -> Unit,
+) {
+    ConnectionDiagnosticsDialog(
+        connectionState = connectionState,
+        diagnostics = diagnostics,
+        onDismiss = onDismiss,
+    )
+}
+
 @Composable
 private fun PendingAuthenticationDialog(
     pendingAuthentication: SessionListPendingAuthentication,
@@ -607,107 +920,26 @@ private fun PendingAuthenticationDialog(
             )
         },
         text = {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text =
-                        stringResource(
-                            R.string.sessionlist_auth_body,
-                            pendingAuthentication.agentName,
-                        ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                pendingAuthentication.authErrorMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                pendingAuthentication.authMethods.forEach { method ->
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                            verticalAlignment = Alignment.Top,
-                        ) {
-                            RadioButton(
-                                selected = selectedMethod?.id == method.id,
-                                onClick = { onSelectedAuthMethodChange(method.id) },
-                            )
-                            Column(
-                                modifier =
-                                    Modifier
-                                        .weight(1f)
-                                        .padding(top = 2.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Text(text = method.name, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    text =
-                                        method.description ?: stringResource(
-                                            R.string.sessionlist_auth_method_fallback,
-                                            method.type,
-                                        ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                if (selectedMethod?.id == method.id) {
-                                    AuthenticationMethodDetails(
-                                        method = method,
-                                        envValues = envValues,
-                                        isGatewayBacked = pendingAuthentication.gatewayRuntimeId != null,
-                                        onOpenLink = { uriHandler.openUri(it) },
-                                        onEnvValueChange = { name, value -> envValues[name] = value },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            SessionAuthDialogBody(
+                pendingAuthentication = pendingAuthentication,
+                selectedMethod = selectedMethod,
+                onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+                envValues = envValues,
+                onOpenLink = { uriHandler.openUri(it) },
+                onEnvValueChange = { name, value -> envValues[name] = value },
+                scrollState = scrollState,
+            )
         },
         confirmButton = {
-            TextButton(
-                // Enabled: method selected; for gateway env auth all required vars must be filled.
-                enabled =
-                    when {
-                        selectedMethod == null -> false
-                        isGatewayEnvAuth -> requiredEnvVarsFilled
-                        else -> true
-                    },
-                onClick = {
-                    when {
-                        selectedMethod == null -> Unit
-                        isManualEnvAuth -> onReconnect()
-                        else -> onSubmit(selectedMethod.id, envValues)
-                    }
-                },
-            ) {
-                Text(
-                    if (isManualEnvAuth) {
-                        stringResource(
-                            R.string.sessionlist_auth_reconnect,
-                        )
-                    } else {
-                        stringResource(
-                            R.string.sessionlist_auth_authenticate,
-                        )
-                    },
-                )
-            }
+            SessionAuthConfirmButton(
+                selectedMethod = selectedMethod,
+                isGatewayEnvAuth = isGatewayEnvAuth,
+                isManualEnvAuth = isManualEnvAuth,
+                requiredEnvVarsFilled = requiredEnvVarsFilled,
+                envValues = envValues,
+                onReconnect = onReconnect,
+                onSubmit = onSubmit,
+            )
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
@@ -718,111 +950,54 @@ private fun PendingAuthenticationDialog(
 }
 
 /**
- * Renders auth method-specific details below the selected method.
- *
- * Three branches:
- * 1. Method has a link → `TextButton` to open it
- * 2. Method is manual-env ("env" but not gateway-backed) → lists required env vars with instructions
- * 3. Method is gateway-env ("env" + gateway-backed) → inline `OutlinedTextField` per env var
- */
-@Composable
-private fun AuthenticationMethodDetails(
-    method: AcpAuthMethodInfo,
-    envValues: MutableMap<String, String>,
-    isGatewayBacked: Boolean,
-    onOpenLink: (String) -> Unit,
-    onEnvValueChange: (String, String) -> Unit,
-) {
-    method.link?.let { link ->
-        TextButton(onClick = { onOpenLink(link) }) {
-            Text(link)
-        }
-    }
-    if (method.args.isNotEmpty()) {
-        Text(
-            text =
-                stringResource(
-                    R.string.sessionlist_auth_terminal_cmd,
-                    method.args.joinToString(" "),
-                ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    if (method.type != "env") {
-        return
-    }
-    if (!isGatewayBacked) {
-        Text(
-            text =
-                stringResource(
-                    R.string.sessionlist_auth_env_instructions,
-                ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        method.envVars.forEach { envVar ->
-            Text(
-                text =
-                    buildString {
-                        append(envVar.label ?: envVar.name)
-                        append(" -> ")
-                        append(envVar.name)
-                        if (envVar.optional) {
-                            append(
-                                stringResource(
-                                    R.string.sessionlist_auth_optional_suffix,
-                                ),
-                            )
-                        }
-                    },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        return
-    }
-    method.envVars.forEach { envVar ->
-        OutlinedTextField(
-            value = envValues[envVar.name].orEmpty(),
-            onValueChange = { onEnvValueChange(envVar.name, it) },
-            modifier = Modifier.fillMaxWidth(),
-            label = {
-                Text(
-                    buildString {
-                        append(envVar.label ?: envVar.name)
-                        if (envVar.optional) {
-                            append(
-                                stringResource(
-                                    R.string.sessionlist_auth_optional_suffix,
-                                ),
-                            )
-                        }
-                    },
-                )
-            },
-            supportingText = { Text(envVar.name) },
-            singleLine = true,
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType = if (envVar.secret) KeyboardType.Password else KeyboardType.Text,
-                ),
-            visualTransformation =
-                if (envVar.secret) {
-                    PasswordVisualTransformation()
-                } else {
-                    VisualTransformation.None
-                },
-        )
-    }
-}
-
-/**
  * Tappable card for a single session in the list.
  *
  * Uses [sharedBounds] for a shared-element transition to the chat screen,
  * keyed by [SessionSharedBoundsKey] (outer card) and [SessionTitleSharedBoundsKey] (title text).
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun RowScope.SessionCardText(
+    session: SessionSummary,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    with(sharedTransitionScope) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text =
+                    session.title
+                        ?: stringResource(
+                            R.string.sessionlist_untitled,
+                        ),
+                style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+                modifier =
+                    Modifier.sharedBounds(
+                        sharedContentState =
+                            rememberSharedContentState(
+                                key = SessionTitleSharedBoundsKey(session.id),
+                            ),
+                        animatedVisibilityScope = animatedContentScope,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                    ),
+            )
+            session.cwd?.let { cwd ->
+                Text(
+                    text = cwd,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun SessionCard(
@@ -860,38 +1035,11 @@ private fun SessionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text =
-                            session.title
-                                ?: stringResource(
-                                    R.string.sessionlist_untitled,
-                                ),
-                        style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
-                        maxLines = 1,
-                        overflow = TextOverflow.MiddleEllipsis,
-                        modifier =
-                            Modifier.sharedBounds(
-                                sharedContentState =
-                                    rememberSharedContentState(
-                                        key = SessionTitleSharedBoundsKey(session.id),
-                                    ),
-                                animatedVisibilityScope = animatedContentScope,
-                                enter = fadeIn(),
-                                exit = fadeOut(),
-                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                            ),
-                    )
-                    session.cwd?.let { cwd ->
-                        Text(
-                            text = cwd,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.MiddleEllipsis,
-                        )
-                    }
-                }
+                SessionCardText(
+                    session = session,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                )
             }
         }
     }

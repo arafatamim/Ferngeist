@@ -213,13 +213,6 @@ class SessionRuntime(
         var messages = current.messages
         var toolCallIndex = current.toolCallIndex
         var isStreaming = current.isStreaming
-        var usage = current.usage
-        var availableCommands = current.availableCommands
-        var commandsAdvertised = current.commandsAdvertised
-        var nativeConfigOptions = current.nativeConfigOptions
-        var legacyModes = current.legacyModes
-        var legacyModel = current.legacyModel
-        var title = current.title
 
         // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
         // which owns both the message list and the tool-call index
@@ -235,69 +228,65 @@ class SessionRuntime(
             toolCallIndex = fromReducer.toolCallIndex
         }
 
-        when (event) {
-            is AppSessionEvent.TurnComplete -> isStreaming = false
-            is AppSessionEvent.SessionLoadComplete -> isStreaming = false
-            is AppSessionEvent.UsageUpdated -> {
-                usage =
-                    SessionUsage(
-                        promptTokens = event.promptTokens,
-                        completionTokens = event.completionTokens,
-                        totalTokens = event.totalTokens,
-                        cachedReadTokens = event.cachedReadTokens,
-                        contextWindowTokens = event.contextWindowTokens,
-                        costAmount = event.costAmount,
-                        costCurrency = event.costCurrency,
-                    )
-            }
-            is AppSessionEvent.CommandsUpdated -> {
-                availableCommands = event.commands
-                commandsAdvertised = true
-            }
-            is AppSessionEvent.ModeChanged -> {
-                legacyModes = (legacyModes ?: LegacyModeState()).copy(currentModeId = event.modeId)
-            }
-            is AppSessionEvent.ModesUpdated -> {
-                legacyModes =
-                    LegacyModeState(
-                        modes = event.modes,
-                        currentModeId = event.currentModeId ?: legacyModes?.currentModeId,
-                    )
-            }
-            is AppSessionEvent.ConfigOptionsUpdated -> {
-                nativeConfigOptions = event.options
-            }
-            is AppSessionEvent.ConfigOptionValueChanged -> {
-                // Delegate to the central policy for type-safe value mutation.
-                nativeConfigOptions =
-                    nativeConfigOptions.map { option ->
-                        SessionConfigPolicy.applyValueChange(option, event.optionId, event.value)
-                    }
-            }
-            is AppSessionEvent.LegacyModelOptionsUpdated -> {
-                legacyModel =
-                    LegacyModelState(
-                        choices = event.choices,
-                        currentModelId = event.currentModelId,
-                    )
-            }
-            is AppSessionEvent.ModelSelectionConfirmed -> {
-                val selectedModel = event.modelId
-                if (!selectedModel.isNullOrBlank() && legacyModel != null) {
-                    legacyModel = legacyModel.copy(currentModelId = selectedModel)
-                }
-            }
-            is AppSessionEvent.SessionInfoUpdated -> {
-                title = event.title ?: title
-            }
-            else -> Unit
-        }
+        val fields = applySideFieldUpdates(current, event)
 
+        // TurnComplete / SessionLoadComplete end the streaming turn.
+        if (event is AppSessionEvent.TurnComplete || event is AppSessionEvent.SessionLoadComplete) {
+            isStreaming = false
+        }
         val derivedStreaming = isStreaming || messages.any { it.isStreaming }
         return current.copy(
             messages = messages,
             toolCallIndex = toolCallIndex,
             isStreaming = derivedStreaming,
+            usage = fields.usage,
+            availableCommands = fields.availableCommands,
+            commandsAdvertised = fields.commandsAdvertised,
+            nativeConfigOptions = fields.nativeConfigOptions,
+            legacyModes = fields.legacyModes,
+            legacyModel = fields.legacyModel,
+            title = fields.title,
+        )
+    }
+
+    /**
+     * Applies side-field updates (usage, commands, config options, legacy mode/model)
+     * for a single event. Returns the new field values; unchanged fields carry through.
+     */
+    private fun applySideFieldUpdates(
+        current: RuntimeData,
+        event: AppSessionEvent,
+    ): SideFields {
+        var usage = current.usage
+        var availableCommands = current.availableCommands
+        var commandsAdvertised = current.commandsAdvertised
+        var nativeConfigOptions = current.nativeConfigOptions
+        var legacyModes = current.legacyModes
+        var legacyModel = current.legacyModel
+        var title = current.title
+
+        when (event) {
+            is AppSessionEvent.TurnComplete -> Unit
+            is AppSessionEvent.SessionLoadComplete -> Unit
+            is AppSessionEvent.UsageUpdated -> usage = mapUsage(event)
+            is AppSessionEvent.CommandsUpdated -> {
+                availableCommands = event.commands
+                commandsAdvertised = true
+            }
+            is AppSessionEvent.ModeChanged -> legacyModes = confirmModeChanged(legacyModes, event.modeId)
+            is AppSessionEvent.ModesUpdated -> legacyModes = mapModes(event, legacyModes)
+            is AppSessionEvent.ConfigOptionsUpdated -> nativeConfigOptions = event.options
+            is AppSessionEvent.ConfigOptionValueChanged -> {
+                nativeConfigOptions = applyConfigValueChange(nativeConfigOptions, event)
+            }
+            is AppSessionEvent.LegacyModelOptionsUpdated -> legacyModel = mapLegacyModel(event)
+            is AppSessionEvent.ModelSelectionConfirmed -> {
+                legacyModel = confirmModelSelection(legacyModel, event.modelId)
+            }
+            is AppSessionEvent.SessionInfoUpdated -> title = event.title ?: title
+            else -> Unit
+        }
+        return SideFields(
             usage = usage,
             availableCommands = availableCommands,
             commandsAdvertised = commandsAdvertised,
@@ -307,6 +296,59 @@ class SessionRuntime(
             title = title,
         )
     }
+
+    private fun mapUsage(event: AppSessionEvent.UsageUpdated): SessionUsage =
+        SessionUsage(
+            promptTokens = event.promptTokens,
+            completionTokens = event.completionTokens,
+            totalTokens = event.totalTokens,
+            cachedReadTokens = event.cachedReadTokens,
+            contextWindowTokens = event.contextWindowTokens,
+            costAmount = event.costAmount,
+            costCurrency = event.costCurrency,
+        )
+
+    private fun confirmModeChanged(legacyModes: LegacyModeState?, modeId: String): LegacyModeState {
+        val base = legacyModes ?: LegacyModeState()
+        return base.copy(currentModeId = modeId)
+    }
+
+    private fun mapModes(event: AppSessionEvent.ModesUpdated, legacyModes: LegacyModeState?): LegacyModeState =
+        LegacyModeState(
+            modes = event.modes,
+            currentModeId = event.currentModeId ?: legacyModes?.currentModeId,
+        )
+
+    private fun mapLegacyModel(event: AppSessionEvent.LegacyModelOptionsUpdated): LegacyModelState =
+        LegacyModelState(
+            choices = event.choices,
+            currentModelId = event.currentModelId,
+        )
+
+    /** Mutates config options via the central policy for type-safe value changes. */
+    private fun applyConfigValueChange(
+        options: List<SessionConfigOption>,
+        event: AppSessionEvent.ConfigOptionValueChanged,
+    ): List<SessionConfigOption> =
+        options.map { option ->
+            SessionConfigPolicy.applyValueChange(option, event.optionId, event.value)
+        }
+
+    /** Confirms the selected model id on the legacy model state, if a model set exists. */
+    private fun confirmModelSelection(legacyModel: LegacyModelState?, modelId: String?): LegacyModelState? {
+        if (modelId.isNullOrBlank() || legacyModel == null) return legacyModel
+        return legacyModel.copy(currentModelId = modelId)
+    }
+
+    private data class SideFields(
+        val usage: SessionUsage?,
+        val availableCommands: List<CommandInfo>,
+        val commandsAdvertised: Boolean,
+        val nativeConfigOptions: List<SessionConfigOption>,
+        val legacyModes: LegacyModeState?,
+        val legacyModel: LegacyModelState?,
+        val title: String?,
+    )
 
     /**
      * Publishes the [live] state to the [_snapshot] StateFlow after resolving the effective
@@ -353,6 +395,13 @@ class SessionRuntime(
         )
     }
 
+    /**
+     * Debug-only one-line summary of an event. Exhaustive `when` over the sealed
+     * [AppSessionEvent] hierarchy — one branch per event type, no branching logic,
+     * so cyclomatic complexity equals the type count and cannot be meaningfully
+     * reduced without losing exhaustiveness.
+     */
+    @Suppress("CyclomaticComplexMethod")
     private fun summarizeEvent(event: AppSessionEvent): String =
         when (event) {
             is AppSessionEvent.UserMessage -> "userLen=${event.text.length} append=${event.append}"
