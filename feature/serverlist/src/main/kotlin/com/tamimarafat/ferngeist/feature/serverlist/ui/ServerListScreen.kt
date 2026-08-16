@@ -40,8 +40,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,7 +53,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,7 +75,6 @@ private data class ServerListScreenState(
     val isLoading: Boolean,
     val recentSessions: List<RecentSession>,
     val snackbarHostState: SnackbarHostState,
-    val scrollBehavior: TopAppBarScrollBehavior,
     val pendingAuthentication: PendingAuthentication?,
     val pendingLaunchConsent: PendingLaunchConsent?,
 )
@@ -92,7 +88,6 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     return ServerListScreenState(
         servers = servers,
         hasGateways = hasGateways,
@@ -100,7 +95,6 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
         isLoading = isLoading,
         recentSessions = recentSessions,
         snackbarHostState = snackbarHostState,
-        scrollBehavior = scrollBehavior,
         pendingAuthentication = uiState.pendingAuthentication,
         pendingLaunchConsent = uiState.pendingLaunchConsent,
     )
@@ -130,7 +124,6 @@ fun ServerListScreen(
     val isLoading = screenState.isLoading
     val recentSessions = screenState.recentSessions
     val snackbarHostState = screenState.snackbarHostState
-    val scrollBehavior = screenState.scrollBehavior
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -148,7 +141,6 @@ fun ServerListScreen(
     }
 
     ServerListScaffold(
-        scrollBehavior = scrollBehavior,
         snackbarHostState = snackbarHostState,
         showAddMenu = showAddMenu,
         onShowAddMenuChange = { showAddMenu = it },
@@ -177,7 +169,6 @@ fun ServerListScreen(
 )
 @Composable
 private fun ServerListScaffold(
-    scrollBehavior: TopAppBarScrollBehavior,
     snackbarHostState: SnackbarHostState,
     showAddMenu: Boolean,
     onShowAddMenuChange: (Boolean) -> Unit,
@@ -198,12 +189,11 @@ private fun ServerListScaffold(
     animatedContentScope: AnimatedContentScope,
 ) {
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         // Background surface; the lighter foreground "Your agents" sheet reads as elevated against it.
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         topBar = {
             ServerListTopBar(
-                scrollBehavior = scrollBehavior,
+                collapsed = recentSessions.isNotEmpty() && servers.size > 3,
                 onAboutClick = onAboutClick,
             )
         },

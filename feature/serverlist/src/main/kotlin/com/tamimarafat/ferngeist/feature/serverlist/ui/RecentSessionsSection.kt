@@ -18,10 +18,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -64,14 +64,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -96,57 +104,113 @@ internal fun AgentsBackdrop(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    // Reference distance for rubber-band falloff: larger = looser overscroll.
+
     val overscrollRefPx = with(density) { 140.dp.toPx() }
-    // Upward overscroll travel is capped, and the sheet is extended below the screen
-    // by this same amount, so dragging up can never lift the sheet's bottom edge off
-    // the screen and expose the darker back layer underneath.
     val sheetOverhang = 120.dp
     val maxTopOverscrollPx = with(density) { sheetOverhang.toPx() }
     var topZonePx by remember { mutableIntStateOf(0) } // hero + gap above the sheet
     var recentsPx by remember { mutableIntStateOf(0) } // hidden recents block height
     val sheetRevealed = rememberSaveable { mutableStateOf(false) }
     val sheetOffset = remember { Animatable(0f) } // 0 = covering recents, recentsPx = fully revealed
+    val agentsScrollState = rememberScrollState()
     val canReveal = olderSessions.isNotEmpty()
 
     LaunchedEffect(recentsPx, sheetRevealed.value, canReveal) {
         syncSheetOffset(sheetOffset, sheetRevealed, recentsPx, canReveal)
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    val sheetConnection =
+        rememberSheetConnection(
+            scope = scope,
+            sheetOffset = sheetOffset,
+            scrollState = agentsScrollState,
+            recentsPx = recentsPx,
+            overscrollRefPx = overscrollRefPx,
+            maxTopOverscrollPx = maxTopOverscrollPx,
+            canReveal = canReveal,
+            sheetRevealed = sheetRevealed,
+        )
+    BackdropLayers(
+        heroSession = heroSession,
+        olderSessions = olderSessions,
+        servers = servers,
+        uiState = uiState,
+        onResumeSession = onResumeSession,
+        onConnect = onConnect,
+        onEdit = onEdit,
+        onDelete = onDelete,
+        sharedTransitionScope = sharedTransitionScope,
+        animatedContentScope = animatedContentScope,
+        scope = scope,
+        density = density,
+        sheetOverhang = sheetOverhang,
+        canReveal = canReveal,
+        sheetConnection = sheetConnection,
+        sheetOffset = sheetOffset,
+        sheetRevealed = sheetRevealed,
+        recentsPx = recentsPx,
+        overscrollRefPx = overscrollRefPx,
+        maxTopOverscrollPx = maxTopOverscrollPx,
+        topZonePx = topZonePx,
+        onTopZonePx = { topZonePx = it },
+        onRecentsPx = { recentsPx = it },
+        scrollState = agentsScrollState,
+    )
+}
+
+@Composable
+private fun BackdropLayers(
+    heroSession: RecentSession?,
+    olderSessions: List<RecentSession>,
+    servers: List<LaunchableTarget>,
+    uiState: ServerListUiState,
+    onResumeSession: (RecentSession) -> Unit,
+    onConnect: (LaunchableTarget) -> Unit,
+    onEdit: (LaunchableTarget) -> Unit,
+    onDelete: (String) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+    scope: CoroutineScope,
+    density: androidx.compose.ui.unit.Density,
+    sheetOverhang: androidx.compose.ui.unit.Dp,
+    canReveal: Boolean,
+    sheetConnection: NestedScrollConnection,
+    sheetOffset: Animatable<Float, AnimationVector1D>,
+    sheetRevealed: MutableState<Boolean>,
+    recentsPx: Int,
+    overscrollRefPx: Float,
+    maxTopOverscrollPx: Float,
+    topZonePx: Int,
+    onTopZonePx: (Int) -> Unit,
+    onRecentsPx: (Int) -> Unit,
+    scrollState: ScrollState,
+) {
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize().then(if (canReveal) Modifier.nestedScroll(sheetConnection) else Modifier),
+    ) {
         val sheetHeight = maxHeight + sheetOverhang
-        // BACK LAYER — hero stays visible; recents sit hidden behind the sheet until revealed.
+        val viewportHeightPx = with(density) { maxHeight.toPx() } - topZonePx.toFloat()
         BackLayerContent(
             heroSession = heroSession,
             olderSessions = olderSessions,
             onResumeSession = onResumeSession,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
-            onTopZoneSize = { topZonePx = it },
-            onRecentsSize = { recentsPx = it },
+            onTopZoneSize = onTopZonePx,
+            onRecentsSize = onRecentsPx,
         )
-
-        // FRONT LAYER — the draggable "Your agents" sheet.
-        AgentsBackdropSheet(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(sheetHeight)
-                    .offset { IntOffset(0, topZonePx + sheetOffset.value.roundToInt()) }
-                    .then(
-                        if (canReveal) {
-                            sheetDragModifier(
-                                scope = scope,
-                                sheetOffset = sheetOffset,
-                                sheetRevealed = sheetRevealed,
-                                recentsPx = recentsPx,
-                                overscrollRefPx = overscrollRefPx,
-                                maxTopOverscrollPx = maxTopOverscrollPx,
-                            )
-                        } else {
-                            Modifier
-                        },
-                    ),
+        FrontSheetLayer(
+            scope = scope,
+            sheetOffset = sheetOffset,
+            sheetRevealed = sheetRevealed,
+            recentsPx = recentsPx,
+            overscrollRefPx = overscrollRefPx,
+            maxTopOverscrollPx = maxTopOverscrollPx,
+            canReveal = canReveal,
+            sheetHeight = sheetHeight,
+            topZonePx = topZonePx,
+            viewportHeightPx = viewportHeightPx,
+            scrollState = scrollState,
             servers = servers,
             uiState = uiState,
             onConnect = onConnect,
@@ -155,6 +219,173 @@ internal fun AgentsBackdrop(
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
         )
+    }
+}
+
+@Composable
+private fun FrontSheetLayer(
+    scope: CoroutineScope,
+    sheetOffset: Animatable<Float, AnimationVector1D>,
+    sheetRevealed: MutableState<Boolean>,
+    recentsPx: Int,
+    overscrollRefPx: Float,
+    maxTopOverscrollPx: Float,
+    canReveal: Boolean,
+    sheetHeight: androidx.compose.ui.unit.Dp,
+    topZonePx: Int,
+    viewportHeightPx: Float,
+    scrollState: ScrollState,
+    servers: List<LaunchableTarget>,
+    uiState: ServerListUiState,
+    onConnect: (LaunchableTarget) -> Unit,
+    onEdit: (LaunchableTarget) -> Unit,
+    onDelete: (String) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    AgentsBackdropSheet(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(sheetHeight)
+                .offset { IntOffset(0, topZonePx + sheetOffset.value.roundToInt()) },
+        headerDragModifier =
+            if (canReveal) {
+                sheetDragModifier(
+                    scope = scope,
+                    sheetOffset = sheetOffset,
+                    sheetRevealed = sheetRevealed,
+                    recentsPx = recentsPx,
+                    overscrollRefPx = overscrollRefPx,
+                    maxTopOverscrollPx = maxTopOverscrollPx,
+                )
+            } else {
+                Modifier
+            },
+        servers = servers,
+        uiState = uiState,
+        onConnect = onConnect,
+        onEdit = onEdit,
+        onDelete = onDelete,
+        sharedTransitionScope = sharedTransitionScope,
+        animatedContentScope = animatedContentScope,
+        scrollState = scrollState,
+        viewportHeightPx = viewportHeightPx,
+    )
+}
+
+/** Per-gesture scratch state for the sheet's nested-scroll connection. */
+private class SheetGestureState {
+    var startScrollValue = 0
+    var sheetDragged = false
+    var active = false
+}
+
+/**
+ * Nested-scroll connection that lets list-edge overscroll drive the sheet.
+ * A drag up on a revealed sheet collapses it first (in onPreScroll) before the
+ * list scrolls; leftover scroll at the list's top/bottom edge (onPostScroll)
+ * moves the sheet with a two-sided rubber-band.
+ */
+@Composable
+private fun rememberSheetConnection(
+    scope: CoroutineScope,
+    sheetOffset: Animatable<Float, AnimationVector1D>,
+    scrollState: ScrollState,
+    recentsPx: Int,
+    overscrollRefPx: Float,
+    maxTopOverscrollPx: Float,
+    canReveal: Boolean,
+    sheetRevealed: MutableState<Boolean>,
+): NestedScrollConnection {
+    val gesture = remember { SheetGestureState() }
+    return object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if (source == NestedScrollSource.UserInput && !gesture.active) {
+                gesture.active = true
+                gesture.startScrollValue = scrollState.value
+                gesture.sheetDragged = false
+            }
+            if (source != NestedScrollSource.UserInput) return Offset.Zero
+            if (!canReveal || recentsPx == 0) return Offset.Zero
+            val delta = available.y
+            // Drag up while the sheet is revealed (recents visible): collapse the
+            // sheet first, before the inner list is allowed to scroll.
+            if (delta < 0f && sheetOffset.value > 0f) {
+                val current = sheetOffset.value
+                // Never overshoot past the collapsed edge (offset 0).
+                val applied = delta.coerceAtLeast(-current)
+                val next = (current + applied).coerceAtLeast(0f)
+                val consumedY = next - current
+                if (consumedY != 0f) {
+                    gesture.sheetDragged = true
+                    scope.launch { sheetOffset.snapTo(next) }
+                }
+                return Offset(0f, consumedY)
+            }
+            return Offset.Zero
+        }
+
+        override fun onPostScroll(
+            consumed: Offset,
+            available: Offset,
+            source: NestedScrollSource,
+        ): Offset {
+            val delta = available.y
+            val noScroll = delta == 0f || recentsPx == 0
+            if (noScroll || !canReveal || source != NestedScrollSource.UserInput) {
+                return Offset.Zero
+            }
+            val startedAtTop = gesture.startScrollValue == 0
+            val startedAtBottom = gesture.startScrollValue == scrollState.maxValue
+            val wrongDirection = (delta > 0f && !startedAtTop) || (delta < 0f && !startedAtBottom)
+            if (wrongDirection) {
+                return Offset.Zero
+            }
+            val max = recentsPx.toFloat()
+            val current = sheetOffset.value
+            val pushingOut =
+                (current <= 0f && delta < 0f) ||
+                    (current >= max && delta > 0f)
+            val applied =
+                if (pushingOut) {
+                    val overshoot =
+                        if (current <= 0f) -current else current - max
+                    delta * (1f / (1f + overshoot / overscrollRefPx))
+                } else {
+                    delta
+                }
+            val next = (current + applied).coerceAtLeast(-maxTopOverscrollPx)
+            val consumedY = next - current
+            if (consumedY != 0f) {
+                gesture.sheetDragged = true
+                scope.launch { sheetOffset.snapTo(next) }
+            }
+            return Offset(0f, consumedY)
+        }
+
+        override suspend fun onPreFling(available: Velocity): Velocity {
+            gesture.active = false
+            if (gesture.sheetDragged) {
+                gesture.sheetDragged = false
+                val target =
+                    if (sheetOffset.value > recentsPx / 2f || available.y > 1500f) {
+                        recentsPx.toFloat()
+                    } else {
+                        0f
+                    }
+                sheetRevealed.value = target > 0f
+                scope.launch {
+                    sheetOffset.animateTo(
+                        target,
+                        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                    )
+                }
+            }
+            return Velocity.Zero
+        }
+
+        override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity = Velocity.Zero
     }
 }
 
@@ -214,8 +445,8 @@ private fun sheetDragModifier(
                         } else {
                             delta
                         }
-                    // Clamp upward travel so the sheet's bottom
-                    // never lifts past its overhang.
+                    // Clamp upward travel so the sheet's bottom never lifts past
+                    // its overhang.
                     sheetOffset.snapTo(
                         (current + applied).coerceAtLeast(-maxTopOverscrollPx),
                     )
@@ -247,6 +478,7 @@ private fun sheetDragModifier(
 @Composable
 private fun AgentsBackdropSheet(
     modifier: Modifier,
+    headerDragModifier: Modifier,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     onConnect: (LaunchableTarget) -> Unit,
@@ -254,7 +486,10 @@ private fun AgentsBackdropSheet(
     onDelete: (String) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    scrollState: ScrollState,
+    viewportHeightPx: Float,
 ) {
+    val viewportDp = with(LocalDensity.current) { viewportHeightPx.toDp() }
     Surface(
         modifier = modifier,
         // Lightest tone: the foreground sheet sits above the darker background.
@@ -271,6 +506,9 @@ private fun AgentsBackdropSheet(
             onDelete = onDelete,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
+            scrollState = scrollState,
+            viewportDp = viewportDp,
+            headerDragModifier = headerDragModifier,
         )
     }
 }
@@ -317,7 +555,6 @@ private fun BackLayerContent(
         }
     }
 }
-
 @Composable
 private fun FrontLayerContent(
     servers: List<LaunchableTarget>,
@@ -327,29 +564,48 @@ private fun FrontLayerContent(
     onDelete: (String) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    scrollState: ScrollState,
+    viewportDp: androidx.compose.ui.unit.Dp,
+    headerDragModifier: Modifier,
 ) {
+    // Header pinned; only cards scroll. Outer is capped to viewport so
+    // inner actually overflows (maxValue > 0); scroll to the very end first,
+    // then a further up-swipe collapses the sheet back toward 0.
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .height(viewportDp)
                 .padding(top = 22.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SectionHeader(
-            title = stringResource(R.string.serverlist_section_agents),
-            modifier = Modifier.padding(horizontal = 20.dp),
-        )
-        servers.forEach { server ->
-            ServerCard(
-                server = server,
-                uiState = uiState,
-                onClick = { onConnect(server) },
-                onEdit = { onEdit(server) },
-                onDelete = { onDelete(server.id) },
-                sharedTransitionScope = sharedTransitionScope,
-                animatedContentScope = animatedContentScope,
-                modifier = Modifier.padding(horizontal = 16.dp),
+        Box(
+            modifier = Modifier.fillMaxWidth().then(headerDragModifier),
+        ) {
+            SectionHeader(
+                title = stringResource(R.string.serverlist_section_agents),
+                modifier = Modifier.padding(horizontal = 20.dp),
             )
+        }
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            servers.forEach { server ->
+                ServerCard(
+                    server = server,
+                    uiState = uiState,
+                    onClick = { onConnect(server) },
+                    onEdit = { onEdit(server) },
+                    onDelete = { onDelete(server.id) },
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+            // ponytail: bottom clearance so the last card scrolls clear of the screen
+            // bottom; sheet viewport extends below the visible sheet via the overhang.
+            Spacer(modifier = Modifier.height(160.dp))
         }
     }
 }

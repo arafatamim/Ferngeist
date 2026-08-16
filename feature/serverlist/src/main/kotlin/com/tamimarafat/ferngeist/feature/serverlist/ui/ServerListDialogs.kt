@@ -19,7 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -28,7 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -110,26 +110,40 @@ internal fun LaunchRiskConsentDialog(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ServerListTopBar(
-    scrollBehavior: TopAppBarScrollBehavior,
+    collapsed: Boolean,
     onAboutClick: () -> Unit,
 ) {
-    LargeFlexibleTopAppBar(
-        title = { Text(text = stringResource(R.string.serverlist_title)) },
-        actions = {
-            IconButton(onClick = onAboutClick) {
-                Icon(
-                    imageVector = Icons.Rounded.Info,
-                    contentDescription = stringResource(R.string.about),
-                )
-            }
-        },
-        scrollBehavior = scrollBehavior,
-        colors =
-            TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
-    )
+    val colors =
+        TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        )
+    if (collapsed) {
+        TopAppBar(
+            title = { Text(text = stringResource(R.string.serverlist_title)) },
+            actions = {
+                IconButton(onClick = onAboutClick) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = stringResource(R.string.about),
+                    )
+                }
+            },
+            colors = colors,
+        )
+    } else {
+        LargeTopAppBar(
+            title = { Text(text = stringResource(R.string.serverlist_title)) },
+            actions = {
+                IconButton(onClick = onAboutClick) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = stringResource(R.string.about),
+                    )
+                }
+            },
+            colors = colors,
+        )
+    }
 }
 
 @Composable
