@@ -55,9 +55,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -111,10 +113,18 @@ internal fun AgentsBackdrop(
     val overscrollRefPx = with(density) { 140.dp.toPx() }
     val sheetOverhang = 120.dp
     val maxTopOverscrollPx = with(density) { sheetOverhang.toPx() }
-    var topZonePx by remember { mutableIntStateOf(0) } // hero + gap above the sheet
-    var recentsPx by remember { mutableIntStateOf(0) } // hidden recents block height
+    var topZonePx by rememberSaveable { mutableIntStateOf(0) } // hero + gap above the sheet
+    var recentsPx by rememberSaveable { mutableIntStateOf(0) } // hidden recents block height
     val sheetRevealed = rememberSaveable { mutableStateOf(false) }
-    val sheetOffset = remember { Animatable(0f) } // 0 = covering recents, recentsPx = fully revealed
+    var savedSheetOffset by rememberSaveable { mutableFloatStateOf(0f) }
+    // Restore the sheet offset across navigation so the sheet is already at its
+    // settled position on return; the shared-title transition then targets stable
+    // bounds instead of following the sheet's settle animation.
+    val sheetOffset = remember { Animatable(savedSheetOffset) } // 0 = covering recents, recentsPx = fully revealed
+    // Persist the live offset only when leaving composition (navigation), not per frame.
+    DisposableEffect(sheetOffset) {
+        onDispose { savedSheetOffset = sheetOffset.value }
+    }
     val agentsScrollState = rememberScrollState()
     val canReveal = olderSessions.isNotEmpty()
 
@@ -401,6 +411,10 @@ private suspend fun syncSheetOffset(
 ) {
     when {
         !canReveal -> sheetRevealed.value = false
+        // Restored from navigation/saveable: offset is 0 but should be revealed.
+        // Snap so the shared-title transition sees final bounds, not a settle.
+        sheetRevealed.value && recentsPx > 0 && sheetOffset.value == 0f ->
+            sheetOffset.snapTo(recentsPx.toFloat())
         sheetRevealed.value && recentsPx > 0 ->
             sheetOffset.animateTo(
                 recentsPx.toFloat(),
