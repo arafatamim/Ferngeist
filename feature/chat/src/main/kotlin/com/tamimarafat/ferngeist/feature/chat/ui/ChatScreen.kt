@@ -520,11 +520,11 @@ private fun rememberChatMessages(
             state.messages + state.pendingMessages
         }
     val selectedThought =
-        remember(renderedMessages, selectedThoughtSegmentId) {
+        remember(renderedMessages, selectedThoughtSegmentId.value) {
             renderedMessages.thoughtForSegment(selectedThoughtSegmentId.value)
         }
     val selectedToolCall =
-        remember(renderedMessages, selectedToolCallSegmentId) {
+        remember(renderedMessages, selectedToolCallSegmentId.value) {
             renderedMessages.toolCallForSegment(selectedToolCallSegmentId.value)
         }
     val activePermissionRequest =
@@ -580,10 +580,9 @@ private fun rememberChatConfigDerived(
             state.configOptions.filterNot { it.category is ChatConfigCategory.Mode }
         }
     val selectedConfigPickerOption =
-        remember(state.configOptions, selectedConfigPickerOptionId) {
+        remember(state.configOptions, selectedConfigPickerOptionId.value) {
             val optionId = selectedConfigPickerOptionId.value ?: return@remember null
-            state.configOptions.firstOrNull { it.id == optionId }
-                as? ChatConfigOption.Select
+            state.configOptions.firstOrNull { it.id == optionId } as? ChatConfigOption.Select
         }
 
     // --- Streaming / stop flags ---
