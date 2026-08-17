@@ -43,6 +43,7 @@ internal fun mapDiagnostics(
     ChatConnectionDiagnostics(
         serverUrl = diag.serverUrl,
         pendingRequestCount = diag.pendingRequestCount,
+        reconnectAttempts = diag.reconnectAttempts,
         recentErrors = diag.recentErrors.map { it.message },
         lastUpdatedAtMs = diag.lastUpdatedAtMs,
     )

@@ -28,6 +28,43 @@ import kotlinx.coroutines.withTimeout
 import java.io.IOException
 import kotlin.random.Random
 
+/**
+ * Computes the delay before reconnect attempt [attempt] (1-based): exponential
+ * base 1000 * 2^(attempt-1) ms with full jitter in [0.5, 1.5), capped at
+ * [MAX_RECONNECT_DELAY_MS]. Pure and deterministic-bounded so tests can assert
+ * the schedule without running real sleeps.
+ */
+internal fun computeReconnectDelayMs(attempt: Int): Long {
+    val baseDelayMs =
+        RECONNECT_BASE_DELAY_MS shl
+            (attempt - 1).coerceAtMost(RECONNECT_MAX_SHIFT)
+    val jitteredDelayMs = (baseDelayMs * (0.5 + Random.nextDouble())).toLong()
+    return jitteredDelayMs.coerceAtMost(MAX_RECONNECT_DELAY_MS)
+}
+
+// Keeps the WebSocket alive and detects dead peers: the CIO client pings on
+// this interval when no frames are exchanged.
+private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 15_000L
+
+// Exponential backoff base: attempt N waits 1000 * 2^(N-1) ms before jitter,
+// capped at MAX_RECONNECT_DELAY_MS. Sequence: 1s, 2s, 4s, 8s, 16s, 30s, 30s, …
+// — snappy early retries, gentle long-term spacing.
+private const val RECONNECT_BASE_DELAY_MS = 1_000L
+
+// Upper bound for the exponent so 1000L shl exponent cannot overflow Long even
+// after years of unattended retries. The final coerceAtMost in
+// [computeReconnectDelayMs] is what actually caps the wait.
+private const val RECONNECT_MAX_SHIFT = 30
+
+// Ceiling for any single reconnect wait, independent of attempt count.
+private const val MAX_RECONNECT_DELAY_MS = 30_000L
+
+// Bounds the WebSocket upgrade handshake. Without this, a peer that accepts
+// the TCP socket but never completes the upgrade (or a dead agent behind a
+// gateway) parks connect() forever — the initialize()/listSessions() timeouts
+// never get reached because they run after the handshake.
+private const val WEB_SOCKET_CONNECT_TIMEOUT_MS = 30_000L
+
 internal class AcpTransportClient(
     private val connectivityObserver: ConnectivityObserver,
     private val gatewayRepository: GatewayRepository?,
@@ -36,17 +73,6 @@ internal class AcpTransportClient(
     private val updateConnectionState: (AcpConnectionState) -> Unit,
     private val emitManagerEvent: suspend (AcpManagerEvent) -> Unit,
 ) {
-    companion object {
-        private const val WEB_SOCKET_PING_INTERVAL_MILLIS = 15_000L
-        private const val MAX_RECONNECT_DELAY_MS = 30_000L
-
-        // Bounds the WebSocket upgrade handshake. Without this, a peer that accepts
-        // the TCP socket but never completes the upgrade (or a dead agent behind a
-        // gateway) parks connect() forever — the initialize()/listSessions() timeouts
-        // never get reached because they run after the handshake.
-        private const val WEB_SOCKET_CONNECT_TIMEOUT_MS = 30_000L
-    }
-
     private var reconnectJob: Job? = null
     private var reconnectAttempts = 0
     private var currentConfig: AcpConnectionConfig? = null
@@ -471,6 +497,7 @@ internal class AcpTransportClient(
 
         updateConnectionState(AcpConnectionState.Connected)
         diagnosticsStore.setWebSocketState(WebSocketState.OPEN)
+        diagnosticsStore.setReconnectAttempt(0)
         reconnectAttempts = 0
         scope.launch { emitManagerEvent(AcpManagerEvent.Connected) }
         return true
@@ -489,11 +516,11 @@ internal class AcpTransportClient(
                         // promptly once the network returns instead of idling out the 30s cap.
                         awaitConnectivityForReconnect()
                         reconnectAttempts++
-                        // Linear backoff with ±50% jitter to prevent thundering-herd reconnects
-                        // when many clients retry against the same gateway. Capped at 30s.
-                        val baseDelayMs = 1000L * reconnectAttempts
-                        val jitteredDelayMs = (baseDelayMs * (0.5 + Random.nextDouble())).toLong()
-                        delay(jitteredDelayMs.coerceAtMost(MAX_RECONNECT_DELAY_MS))
+                        diagnosticsStore.setReconnectAttempt(reconnectAttempts)
+                        // Exponential backoff with full jitter to prevent thundering-herd
+                        // reconnects when many clients retry against the same gateway.
+                        // Capped at 30s; retries forever (no attempt cap).
+                        delay(computeReconnectDelayMs(reconnectAttempts))
 
                         val reconnected =
                             if (config.isResilientSession) {

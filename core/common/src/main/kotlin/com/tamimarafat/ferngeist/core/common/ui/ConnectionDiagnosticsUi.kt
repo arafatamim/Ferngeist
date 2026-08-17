@@ -97,6 +97,9 @@ private fun ConnectionDiagnosticsContent(
             ),
         )
         Text(stringResource(R.string.common_pending_rpc, diagnostics.pendingRequestCount))
+        if (diagnostics.reconnectAttempts > 0) {
+            Text(stringResource(R.string.common_reconnect_attempts, diagnostics.reconnectAttempts))
+        }
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
         Text(stringResource(R.string.common_total_tokens, totalTokensText))
         Text(stringResource(R.string.common_usage_percentage, contextUsagePct))

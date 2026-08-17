@@ -26,6 +26,7 @@ internal class AcpDiagnosticsStore {
                 serverUrl = serverUrl,
                 agentInfo = null,
                 supportsSessionCancel = null,
+                reconnectAttempts = 0,
             )
         }
     }
@@ -52,7 +53,25 @@ internal class AcpDiagnosticsStore {
                 websocketState = WebSocketState.CLOSED,
                 agentInfo = null,
                 supportsSessionCancel = null,
+                reconnectAttempts = 0,
             )
+        }
+    }
+
+    /**
+     * Records the current reconnect attempt count (1-based) so the diagnostics
+     * sheet can show how many times the transport has retried since the last
+     * successful connect. No-ops when the value is unchanged to avoid
+     * redundant StateFlow emissions on every backoff tick.
+     */
+    fun setReconnectAttempt(attempts: Int) {
+        if (attempts <= 0) return
+        update { current ->
+            if (current.reconnectAttempts == attempts) {
+                current
+            } else {
+                current.copy(reconnectAttempts = attempts)
+            }
         }
     }
 

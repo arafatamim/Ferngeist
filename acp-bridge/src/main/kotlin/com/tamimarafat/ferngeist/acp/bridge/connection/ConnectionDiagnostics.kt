@@ -6,6 +6,7 @@ data class ConnectionDiagnostics(
     val agentInfo: AgentInfo? = null,
     val supportsSessionCancel: Boolean? = null,
     val pendingRequestCount: Int = 0,
+    val reconnectAttempts: Int = 0,
     val recentRpc: List<RpcDiagnosticEntry> = emptyList(),
     val recentErrors: List<DiagnosticErrorEntry> = emptyList(),
     val lastUpdatedAtMs: Long = System.currentTimeMillis(),

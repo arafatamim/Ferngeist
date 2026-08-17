@@ -134,6 +134,7 @@ data class ChatCommand(
 data class ChatConnectionDiagnostics(
     val serverUrl: String? = null,
     val pendingRequestCount: Int = 0,
+    val reconnectAttempts: Int = 0,
     val recentErrors: List<String> = emptyList(),
     val lastUpdatedAtMs: Long = 0L,
 )

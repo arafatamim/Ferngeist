@@ -27,6 +27,7 @@
     <string name="common_server">Server: %1$s</string>
     <string name="common_server_info">Server info: %1$s (%2$s)</string>
     <string name="common_pending_rpc">Pending RPC requests: %1$d</string>
+    <string name="common_reconnect_attempts">Reconnect attempts: %1$d</string>
     <string name="common_cancel_support">Cancel support: %1$s</string>
     <string name="common_total_tokens">Total tokens used: %1$s</string>
     <string name="common_usage_percentage">Usage percentage: %1$s</string>
