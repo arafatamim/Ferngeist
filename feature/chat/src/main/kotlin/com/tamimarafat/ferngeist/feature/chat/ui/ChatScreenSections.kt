@@ -813,7 +813,7 @@ internal fun GitStatusSheet(
                 GitStatusListContent(
                     status = status,
                     onFileClick = { file ->
-                        if (!isDirectoryPath(file.path)) {
+                        if (!isDirectoryEntry(file)) {
                             selectedFilePath = file.path
                             onLoadGitDiff(file.path)
                         }

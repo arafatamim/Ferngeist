@@ -199,6 +199,15 @@ data class GatewayChangedFile(
     val added: Int = 0,
     val removed: Int = 0,
     val binary: Boolean = false,
+    /**
+     * True when the entry is a directory rather than a file: a submodule
+     * (gitlink) or a collapsed untracked directory. The gateway computes this
+     * from `git status --porcelain=v2` (submodule `S` worktree status / trailing
+     * slash) because the client cannot distinguish a submodule from a file
+     * from the path alone. Directory entries are not diffable — tapping one
+     * must not call the diff endpoint (which 422s on a gitlink).
+     */
+    val isDir: Boolean = false,
 )
 
 @Serializable

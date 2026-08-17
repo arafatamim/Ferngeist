@@ -54,6 +54,16 @@ import kotlinx.coroutines.withContext
 
 internal fun isDirectoryPath(path: String): Boolean = path.endsWith('/')
 
+/**
+ * True when a git status entry is a directory (submodule or collapsed
+ * untracked dir) and therefore not diffable. [GatewayChangedFile.isDir] is
+ * authoritative (submodule paths carry no trailing slash); the trailing-slash
+ * check is a fallback for older gateways that report collapsed dirs only via
+ * the path.
+ */
+internal fun isDirectoryEntry(file: com.tamimarafat.ferngeist.gateway.GatewayChangedFile): Boolean =
+    file.isDir || isDirectoryPath(file.path)
+
 /** Returns the last path segment of a file path, or the full path when it ends in '/'. */
 internal fun fileNameOf(path: String): String =
     path

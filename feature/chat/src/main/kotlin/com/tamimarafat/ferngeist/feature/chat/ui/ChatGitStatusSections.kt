@@ -475,7 +475,7 @@ private fun ChangedFileRow(
                 Modifier
                     .fillMaxWidth()
                     .then(
-                        if (isDirectoryPath(file.path)) {
+                        if (isDirectoryEntry(file)) {
                             Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                         } else {
                             Modifier
@@ -499,7 +499,7 @@ private fun ChangedFileRow(
                 modifier = Modifier.weight(1f),
             )
 
-            if (isDirectoryPath(file.path)) {
+            if (isDirectoryEntry(file)) {
                 Text(
                     text = "Directory",
                     style = MaterialTheme.typography.labelSmall,
