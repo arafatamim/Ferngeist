@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.tamimarafat.ferngeist.data.database.entity.SessionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -33,4 +34,17 @@ interface SessionDao {
 
     @Query("DELETE FROM sessions WHERE serverId = :serverId")
     suspend fun deleteSessionsByServerId(serverId: String)
+
+    /**
+     * Atomically replaces every session for [serverId] with [sessions].
+     * Wrapped in a single transaction so the Room invalidation flow emits the
+     * complete new list exactly once — a clear-then-insert loop would emit an
+     * intermediate empty list that flashes the loading spinner over the list
+     * during refresh.
+     */
+    @Transaction
+    suspend fun replaceSessions(serverId: String, sessions: List<SessionEntity>) {
+        deleteSessionsByServerId(serverId)
+        sessions.forEach { insertSession(it) }
+    }
 }

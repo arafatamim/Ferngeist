@@ -66,6 +66,25 @@ class SessionRepositoryImpl(
         sessionDao.deleteSessionsByServerId(serverId)
     }
 
+    override suspend fun replaceSessions(
+        serverId: String,
+        sessions: List<SessionSummary>,
+    ) {
+        sessionDao.replaceSessions(
+            serverId = serverId,
+            sessions =
+                sessions.map { summary ->
+                    SessionEntity(
+                        sessionId = summary.id,
+                        serverId = serverId,
+                        title = summary.title,
+                        cwd = summary.cwd,
+                        updatedAt = summary.updatedAt,
+                    )
+                },
+        )
+    }
+
     private fun SessionEntity.toSummary() =
         SessionSummary(
             id = sessionId,

@@ -93,6 +93,16 @@ interface SessionRepository {
     )
 
     suspend fun clearSessions(serverId: String)
+
+    /**
+     * Atomically replaces all of [serverId]'s sessions with [sessions] in a
+     * single Room transaction so the observed flow emits the complete new list
+     * once instead of an intermediate empty list.
+     */
+    suspend fun replaceSessions(
+        serverId: String,
+        sessions: List<SessionSummary>,
+    )
 }
 
 interface LaunchableTargetSessionSettingsRepository {

@@ -371,12 +371,14 @@ class SessionListViewModel
 
         /**
          * Replaces all stored sessions for the current server with the latest remote list.
+         *
+         * Uses the atomic DAO transaction so the Room flow emits the complete
+         * new list once — the previous clear-then-insert loop emitted an
+         * intermediate empty list that flashed the loading spinner over the
+         * list during refresh.
          */
         private suspend fun replaceSessions(newSessions: List<SessionSummary>) {
-            sessionRepository.clearSessions(serverId)
-            newSessions.forEach { session ->
-                sessionRepository.upsertSession(serverId, session)
-            }
+            sessionRepository.replaceSessions(serverId, newSessions)
         }
 
         /**

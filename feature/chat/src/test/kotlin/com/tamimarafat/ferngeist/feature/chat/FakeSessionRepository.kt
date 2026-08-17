@@ -43,4 +43,9 @@ class FakeSessionRepository : SessionRepository {
     ) = Unit
 
     override suspend fun clearSessions(serverId: String) = Unit
+
+    override suspend fun replaceSessions(
+        serverId: String,
+        sessions: List<SessionSummary>,
+    ) = Unit
 }
