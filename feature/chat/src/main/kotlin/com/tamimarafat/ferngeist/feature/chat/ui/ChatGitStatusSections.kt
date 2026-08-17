@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.gateway.GatewayChangedFile
@@ -84,16 +85,26 @@ internal fun GitStatusListContent(
                 modifier = Modifier.padding(16.dp),
             )
         } else {
-            Column(
+            val scrollState = rememberScrollState()
+            Box(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                        .weight(1f),
             ) {
-                status.changed.forEach { file ->
-                    ChangedFileRow(file = file, onClick = { onFileClick(file) })
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight()
+                            .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    status.changed.forEach { file ->
+                        ChangedFileRow(file = file, onClick = { onFileClick(file) })
+                    }
                 }
+                EdgeFade(scrollState = scrollState, fadeColor = MaterialTheme.colorScheme.surfaceContainerLow)
             }
         }
 

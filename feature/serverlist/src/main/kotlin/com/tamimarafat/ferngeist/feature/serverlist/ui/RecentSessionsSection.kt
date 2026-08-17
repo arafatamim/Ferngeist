@@ -12,7 +12,6 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -27,7 +26,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -71,7 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -85,6 +83,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -625,55 +624,9 @@ private fun FrontLayerContent(
                 // bottom; sheet viewport extends below the visible sheet via the overhang.
                 Spacer(modifier = Modifier.height(160.dp))
             }
-            EdgeFade(scrollState = scrollState)
+            EdgeFade(scrollState = scrollState, fadeColor = MaterialTheme.colorScheme.surfaceContainerLowest)
         }
     }
-}
-
-/** Fades list edges into the sheet surface as content scrolls under them. */
-@Composable
-private fun BoxScope.EdgeFade(scrollState: ScrollState) {
-    val listColor = MaterialTheme.colorScheme.surfaceContainerLowest
-    val fadePx = with(LocalDensity.current) { 72.dp.toPx() }
-    val appearPx = with(LocalDensity.current) { 24.dp.toPx() }
-    val topAlpha by animateFloatAsState(
-        targetValue = if (scrollState.value > appearPx) 1f else 0f,
-        animationSpec = tween(300),
-        label = "topFadeAlpha",
-    )
-    val bottomAlpha by animateFloatAsState(
-        targetValue =
-            if (scrollState.maxValue > 0 && scrollState.value < scrollState.maxValue - appearPx) 1f else 0f,
-        animationSpec = tween(300),
-        label = "bottomFadeAlpha",
-    )
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .graphicsLayer { alpha = topAlpha }
-                .background(
-                    Brush.verticalGradient(
-                        0f to listColor,
-                        1f to listColor.copy(alpha = 0f),
-                    ),
-                ),
-    )
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .align(Alignment.BottomCenter)
-                .graphicsLayer { alpha = bottomAlpha }
-                .background(
-                    Brush.verticalGradient(
-                        0f to listColor.copy(alpha = 0f),
-                        1f to listColor,
-                    ),
-                ),
-    )
 }
 
 @Composable
