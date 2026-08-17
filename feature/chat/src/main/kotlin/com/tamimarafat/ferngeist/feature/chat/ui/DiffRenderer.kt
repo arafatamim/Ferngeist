@@ -72,6 +72,12 @@ internal fun fileNameOf(path: String): String =
 
 private const val MAX_DIFF_ROWS = 500
 private const val DIFF_BLOCK_COUNT = 5
+
+/**
+ * Bars per side when additions == deletions: an exact 2/2 split (4 bars)
+ * instead of the 5-bar rounding asymmetry (round(2.5)=3 green, 2 red).
+ */
+private const val DIFF_EQUAL_BLOCK_COUNT = 2
 private val DIFF_INSERT_COLOR = Color(0xFF43A047)
 private const val DIFF_CONTEXT_LINES = 5
 
@@ -375,6 +381,13 @@ internal fun computeDiffBlocks(
 ): DiffBlockResult {
     val total = additions + deletions
     if (total == 0) return DiffBlockResult(0, 0, DIFF_BLOCK_COUNT)
+
+    // Balanced diff: show an exact 2/2 split (4 bars) instead of the 5-bar
+    // rounding asymmetry (round(2.5)=3 green, 2 red). Only for strictly equal
+    // non-zero counts; anything else keeps the 5-bar proportion.
+    if (additions == deletions) {
+        return DiffBlockResult(DIFF_EQUAL_BLOCK_COUNT, DIFF_EQUAL_BLOCK_COUNT, 0)
+    }
 
     // Fixed block count: small enough to fit in a row, enough blocks to show proportion.
     val totalBlocks = DIFF_BLOCK_COUNT

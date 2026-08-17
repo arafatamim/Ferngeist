@@ -31,6 +31,13 @@ class DiffBlocksTest {
     }
 
     @Test
+    fun balanced_usesExactTwoTwoSplit() {
+        // A == D (non-zero) -> exact 2/2 (4 bars), not the 5-bar 3/2 rounding artifact.
+        assertEquals(DiffBlockResult(2, 2, 0), computeDiffBlocks(3, 3))
+        assertEquals(DiffBlockResult(2, 2, 0), computeDiffBlocks(1, 1))
+    }
+
+    @Test
     fun visibilityGuard_whenAdditionRoundingToZero_forcesOneGreen() {
         // A=1, D=100 -> round(1/101*5)=0 -> forced 1 green, 4 red
         val result = computeDiffBlocks(1, 100)
