@@ -593,7 +593,7 @@ internal fun DiffBlocks(
                             .clip(RoundedCornerShape(1.dp))
                             .border(
                                 1.dp,
-                                MaterialTheme.colorScheme.outlineVariant,
+                                gitColors.neutral,
                                 RoundedCornerShape(1.dp),
                             ),
                 )

@@ -111,6 +111,9 @@ internal fun AgentsBackdrop(
 
     val overscrollRefPx = with(density) { 140.dp.toPx() }
     val sheetOverhang = 120.dp
+    // Sheet can still be dragged up over the hero, but the upward band is
+    // stiffer than the reveal-direction band (see rubber-band sites), so
+    // covering the hero takes progressively more effort the further you pull.
     val maxTopOverscrollPx = with(density) { sheetOverhang.toPx() }
     var topZonePx by rememberSaveable { mutableIntStateOf(0) } // hero + gap above the sheet
     var recentsPx by rememberSaveable { mutableIntStateOf(0) } // hidden recents block height
@@ -363,7 +366,15 @@ private fun rememberSheetConnection(
                 if (pushingOut) {
                     val overshoot =
                         if (current <= 0f) -current else current - max
-                    delta * (1f / (1f + overshoot / overscrollRefPx))
+                    // Pulling up past the collapsed edge covers the hero: use a
+                    // much stiffer band than the reveal-direction rubber band,
+                    // so covering the hero takes progressively more effort
+                    // (~3.6x finger travel at 60dp of coverage) while the
+                    // recents reveal stays loose. 0.2x the travel cap keeps
+                    // the resistance proportional to the allowed rise.
+                    val ref =
+                        if (current <= 0f) maxTopOverscrollPx * 0.2f else overscrollRefPx
+                    delta * (1f / (1f + overshoot / ref))
                 } else {
                     delta
                 }
@@ -457,7 +468,11 @@ private fun sheetDragModifier(
                         if (pushingOut) {
                             val overshoot =
                                 if (current <= 0f) -current else current - max
-                            delta * (1f / (1f + overshoot / overscrollRefPx))
+                            // Same stiffer upward band as the nested-scroll
+                            // connection: covering the hero is resisted.
+                            val ref =
+                                if (current <= 0f) maxTopOverscrollPx * 0.2f else overscrollRefPx
+                            delta * (1f / (1f + overshoot / ref))
                         } else {
                             delta
                         }
