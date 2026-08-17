@@ -110,6 +110,9 @@
     <string name="chat_git_no_branch">(শাখা নেই)</string>
     <string name="chat_git_status_title">গিট স্ট্যাটাস</string>
     <string name="chat_git_status_desc">গিট স্ট্যাটাসের বিবরণ</string>
+    <string name="chat_git_directory">ডিরেক্টরি</string>
+    <string name="chat_git_file_deleted">ফাইলটি আর ওয়ার্কিং ট্রিতে নেই: %1$s</string>
+    <string name="chat_load_earlier">আগের বার্তাগুলো লোড করুন</string>
     <string name="chat_status_sending">পাঠানো হচ্ছে</string>
     <string name="chat_status_queued">সারিতে</string>
     <string name="chat_status_failed">পাঠানো ব্যর্থ হয়েছে</string>

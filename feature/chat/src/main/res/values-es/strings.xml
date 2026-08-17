@@ -110,6 +110,9 @@
     <string name="chat_git_no_branch">(sin rama)</string>
     <string name="chat_git_status_title">Estado de Git</string>
     <string name="chat_git_status_desc">Detalles del estado de Git</string>
+    <string name="chat_git_directory">Directorio</string>
+    <string name="chat_git_file_deleted">El archivo ya no está en el árbol de trabajo: %1$s</string>
+    <string name="chat_load_earlier">Cargar mensajes anteriores</string>
     <string name="chat_status_sending">Enviando</string>
     <string name="chat_status_queued">En cola</string>
     <string name="chat_status_failed">No se pudo enviar</string>

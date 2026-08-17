@@ -114,6 +114,9 @@
     <string name="chat_git_no_branch">(нет ветки)</string>
     <string name="chat_git_status_title">Статус Git</string>
     <string name="chat_git_status_desc">Сведения о статусе Git</string>
+    <string name="chat_git_directory">Каталог</string>
+    <string name="chat_git_file_deleted">Файла больше нет в рабочем дереве: %1$s</string>
+    <string name="chat_load_earlier">Загрузить более ранние сообщения</string>
     <string name="chat_status_sending">Отправка</string>
     <string name="chat_status_queued">В очереди</string>
     <string name="chat_status_failed">Не удалось отправить</string>

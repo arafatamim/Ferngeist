@@ -116,6 +116,9 @@
     <string name="chat_git_no_branch">(无分支)</string>
     <string name="chat_git_status_title">Git 状态</string>
     <string name="chat_git_status_desc">Git 状态详情</string>
+    <string name="chat_git_directory">目录</string>
+    <string name="chat_git_file_deleted">文件已不在工作区中：%1$s</string>
+    <string name="chat_load_earlier">加载更早的消息</string>
     <string name="chat_status_sending">发送中</string>
     <string name="chat_status_queued">排队中</string>
     <string name="chat_status_failed">发送失败</string>

@@ -427,7 +427,7 @@ private fun ChatMessageList(
                             .fillMaxWidth()
                             .padding(vertical = 8.dp),
                 ) {
-                    Text(text = "Load earlier messages")
+                    Text(text = stringResource(R.string.chat_load_earlier))
                 }
             }
         }

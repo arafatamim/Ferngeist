@@ -216,6 +216,9 @@
     <string name="chat_git_clean">Working tree is clean</string>
     <string name="chat_git_binary">binary</string>
     <string name="chat_git_status_desc">Git status details</string>
+    <string name="chat_git_directory">Directory</string>
+    <string name="chat_git_file_deleted">File is no longer in the working tree: %1$s</string>
+    <string name="chat_load_earlier">Load earlier messages</string>
     <string name="chat_picker_empty">No items.</string>
     <string name="chat_picker_no_results">No matching items.</string>
     <string name="chat_search_desc">Search</string>

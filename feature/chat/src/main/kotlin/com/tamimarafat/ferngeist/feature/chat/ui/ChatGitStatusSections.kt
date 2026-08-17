@@ -399,10 +399,8 @@ private fun GitDiffDetailBody(
         file == null -> {
             // Requested path no longer in status (e.g. refreshed while open).
             // The header back arrow above remains available to return to the list.
-            // Hardcoded like the diff error strings in ChatViewModel because this
-            // file cannot add string resources.
             Text(
-                text = "File is no longer in the working tree: $path",
+                text = stringResource(R.string.chat_git_file_deleted, path),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -501,7 +499,7 @@ private fun ChangedFileRow(
 
             if (isDirectoryEntry(file)) {
                 Text(
-                    text = "Directory",
+                    text = stringResource(R.string.chat_git_directory),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
