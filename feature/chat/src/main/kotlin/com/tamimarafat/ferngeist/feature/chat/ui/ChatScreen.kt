@@ -254,14 +254,15 @@ private fun rememberComposerInsets(
             with(density) { containerSize.width.toDp() }
         }
 
-    // Bottom padding for message list: composer height + system insets + floating offset + 36dp
+    // Bottom padding for message list: composer height + floating offset + 36dp.
+    // No system inset: the list extends edge-to-edge behind the nav bar, and the
+    // floating composer still sits above the gesture area via its own padding.
     val listBottomPadding =
-        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
+        remember(showComposerToolbar, composerContentHeightDp) {
             if (!showComposerToolbar) {
                 0.dp
             } else {
                 composerContentHeightDp +
-                    systemBottomInsetDp +
                     FloatingToolbarDefaults.ScreenOffset +
                     36.dp
             }
@@ -858,8 +859,7 @@ private fun ChatScreenScaffold(
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxSize()
-                            .padding(bottom = innerPadding.calculateBottomPadding()),
+                            .fillMaxSize(),
                 ) {
                     ChatScreenOverlays(
                         screenState = screenState,
