@@ -281,6 +281,9 @@ class ChatViewModel
             viewModelScope.launch {
                 sessionFacade.sessionReady.collect {
                     flushOfflineQueue()
+                    // Retry the git-status fetch once the session is fully initialized,
+                    // in case an earlier attempt raced session setup and failed.
+                    state.value.gatewayWorkspaceConnection?.let { refreshGitStatus(it) }
                 }
             }
             viewModelScope.launch {
