@@ -147,6 +147,8 @@ class SessionListViewModel
         private val _events = MutableSharedFlow<SessionListEvent>()
         val events = _events.asSharedFlow()
 
+        private var pendingCreateAfterCwd = false
+
         private val _pendingAuthentication = MutableStateFlow<SessionListPendingAuthentication?>(null)
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
 
@@ -199,7 +201,7 @@ class SessionListViewModel
         fun createSession(cwd: String) {
             viewModelScope.launch {
                 _isLoading.value = true
-                val normalizedCwd = cwd.trim().ifBlank { "/" }
+                val normalizedCwd = cwd.trim()
                 runCatching {
                     connectionManager.createSession(normalizedCwd)
                 }.onSuccess { bridge ->
@@ -241,9 +243,7 @@ class SessionListViewModel
          */
         fun createSessionWithCurrentCwd() {
             val normalizedCwd =
-                sessionSettings.value.cwd
-                    ?.trim()
-                    ?.ifBlank { "/" } ?: "/"
+                sessionSettings.value.cwd?.trim()?.ifBlank { null } ?: return
             createSession(normalizedCwd)
         }
 
@@ -256,7 +256,15 @@ class SessionListViewModel
                     recentCwdStore.addCwd(serverId, normalized)
                 }
                 refreshSessions()
+                if (pendingCreateAfterCwd) {
+                    pendingCreateAfterCwd = false
+                    createSessionWithCurrentCwd()
+                }
             }
+        }
+
+        fun setPendingCreateAfterCwd() {
+            pendingCreateAfterCwd = true
         }
 
         /** Removes [cwd] from the recent list without affecting the current filter. */

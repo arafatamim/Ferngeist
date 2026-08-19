@@ -148,6 +148,7 @@ fun SessionListScreen(
 
     SessionListEventEffects(
         viewModel = viewModel,
+        state = state,
         pendingAuthentication = state.pendingAuthentication,
         snackbarHostState = state.snackbarHostState,
         envValues = state.envValues,
@@ -190,7 +191,15 @@ fun SessionListScreen(
         onShowConnectionStatusDialog = { state.showConnectionStatusDialog.value = true },
         onNavigateBack = onNavigateBack,
         onNavigateToChat = onNavigateToChat,
-        createSession = { viewModel.createSessionWithCurrentCwd() },
+        createSession = {
+            if (currentCwd.isNullOrBlank()) {
+                state.cwdDialogValue.value = currentCwd.orEmpty()
+                viewModel.setPendingCreateAfterCwd()
+                state.showCwdDialog.value = true
+            } else {
+                viewModel.createSessionWithCurrentCwd()
+            }
+        },
         onRefresh = { viewModel.refreshSessions(isUserInitiated = true) },
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
@@ -286,6 +295,7 @@ private fun rememberSessionListState(
 @Composable
 private fun SessionListEventEffects(
     viewModel: SessionListViewModel,
+    state: SessionListState,
     pendingAuthentication: SessionListPendingAuthentication?,
     snackbarHostState: SnackbarHostState,
     envValues: MutableMap<String, String>,
@@ -329,7 +339,13 @@ private fun SessionListEventEffects(
     LaunchedEffect(openCreateSessionDialogOnLaunch) {
         if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate.value) {
             hasConsumedLaunchCreate.value = true
-            viewModel.createSessionWithCurrentCwd()
+            if (state.currentCwd.isNullOrBlank()) {
+                state.cwdDialogValue.value = state.currentCwd.orEmpty()
+                viewModel.setPendingCreateAfterCwd()
+                state.showCwdDialog.value = true
+            } else {
+                viewModel.createSessionWithCurrentCwd()
+            }
         }
     }
 }
