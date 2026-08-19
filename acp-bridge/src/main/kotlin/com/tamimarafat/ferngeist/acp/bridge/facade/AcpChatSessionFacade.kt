@@ -4,35 +4,22 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
-import com.tamimarafat.ferngeist.core.model.ChatCommand
-import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
-import com.tamimarafat.ferngeist.core.model.ChatConfigChoice
-import com.tamimarafat.ferngeist.core.model.ChatConfigChoiceGroup
-import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -570,7 +557,10 @@ class AcpChatSessionFacade(
                 )
                 null
             }
-        return created?.also { attachSessionBridge(it); _sessionReady.emit(Unit) }
+        return created?.also {
+            attachSessionBridge(it)
+            _sessionReady.emit(Unit)
+        }
     }
 
     /**
@@ -671,9 +661,7 @@ class AcpChatSessionFacade(
             _agentCapabilities.value = mapCapabilities(caps)
         }
     }
-
 }
-
 
 /**
  * Coordinates the session-load lifecycle: reattaches an existing session or
@@ -682,7 +670,10 @@ class AcpChatSessionFacade(
  */
 internal sealed interface SessionLoadOutcome {
     data object Attached : SessionLoadOutcome
-    data class Failed(val message: String) : SessionLoadOutcome
+
+    data class Failed(
+        val message: String,
+    ) : SessionLoadOutcome
 }
 
 internal class SessionLoadCoordinator(

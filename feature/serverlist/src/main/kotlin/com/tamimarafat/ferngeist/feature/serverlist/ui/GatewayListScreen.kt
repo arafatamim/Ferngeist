@@ -162,6 +162,7 @@ private fun GatewayCard(
         )
     }
 }
+
 @Composable
 private fun GatewayActionsMenu(
     expanded: Boolean,

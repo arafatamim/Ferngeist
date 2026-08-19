@@ -572,7 +572,6 @@ private fun AddFabToggle(
     }
 }
 
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EmptyServerList(

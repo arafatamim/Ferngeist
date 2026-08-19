@@ -31,7 +31,7 @@ fun Project.configureKtlintAndDetekt() {
         android.set(true)
         verbose.set(true)
         outputToConsole.set(true)
-        ignoreFailures.set(true)
+        ignoreFailures.set(false)
         filter {
             exclude("**/build/**")
             exclude("**/generated/**")

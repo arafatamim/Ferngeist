@@ -18,8 +18,9 @@ suspend fun refreshGatewaySourceIfNeeded(
     if (expiresAt == null || expiresAt - nowMillis > GATEWAY_REFRESH_WINDOW_MS) {
         return gatewaySource
     }
-    val refreshed = refreshGatewayCredential(gatewaySource, gatewayRepository)
-        ?: return gatewaySource
+    val refreshed =
+        refreshGatewayCredential(gatewaySource, gatewayRepository)
+            ?: return gatewaySource
     val updated =
         gatewaySource.copy(
             gatewayCredential = refreshed.gatewayCredential,
@@ -40,24 +41,29 @@ suspend fun refreshGatewaySourceIfNeeded(
 private suspend fun refreshGatewayCredential(
     gatewaySource: GatewaySource,
     gatewayRepository: GatewayRepository,
-): GatewayPairingResult? = try {
-    gatewayRepository.refreshCredential(
-        scheme = gatewaySource.scheme,
-        host = gatewaySource.host,
-        gatewayCredential = gatewaySource.gatewayCredential,
-    )
-} catch (e: CancellationException) {
-    throw e
-} catch (e: GatewayRequestException) {
-    // Non-fatal: the gateway rejected the refresh (HTTP error, transient failure).
-    // Fall back to the existing credential rather than blocking the caller.
-    println("GatewayCredentialRefresh: refresh rejected for ${gatewaySource.name}, keeping existing credential: ${e.message}")
-    null
-} catch (e: IOException) {
-    // Non-fatal: network error during credential refresh.
-    // Fall back to the existing credential.
-    println("GatewayCredentialRefresh: network error refreshing ${gatewaySource.name}, keeping existing credential: ${e.message}")
-    null
-}
+): GatewayPairingResult? =
+    try {
+        gatewayRepository.refreshCredential(
+            scheme = gatewaySource.scheme,
+            host = gatewaySource.host,
+            gatewayCredential = gatewaySource.gatewayCredential,
+        )
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: GatewayRequestException) {
+        // Non-fatal: the gateway rejected the refresh (HTTP error, transient failure).
+        // Fall back to the existing credential rather than blocking the caller.
+        println(
+            "GatewayCredentialRefresh: refresh rejected for ${gatewaySource.name}, keeping existing credential: ${e.message}",
+        )
+        null
+    } catch (e: IOException) {
+        // Non-fatal: network error during credential refresh.
+        // Fall back to the existing credential.
+        println(
+            "GatewayCredentialRefresh: network error refreshing ${gatewaySource.name}, keeping existing credential: ${e.message}",
+        )
+        null
+    }
 
 private fun String.toEpochMillisOrNull(): Long? = runCatching { Instant.parse(this).toEpochMilli() }.getOrNull()

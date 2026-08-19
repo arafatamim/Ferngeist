@@ -243,7 +243,9 @@ class SessionListViewModel
          */
         fun createSessionWithCurrentCwd() {
             val normalizedCwd =
-                sessionSettings.value.cwd?.trim()?.ifBlank { null } ?: return
+                sessionSettings.value.cwd
+                    ?.trim()
+                    ?.ifBlank { null } ?: return
             createSession(normalizedCwd)
         }
 

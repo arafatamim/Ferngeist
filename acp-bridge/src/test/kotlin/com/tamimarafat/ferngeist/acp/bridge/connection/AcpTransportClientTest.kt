@@ -102,40 +102,43 @@ class AcpTransportClientTest {
     // ---- Diagnostics telemetry ----
 
     @Test
-    fun `setReconnectAttempt records attempts and dedupes`() = runTest {
-        val store = AcpDiagnosticsStore()
-        assertEquals(0, store.diagnostics.value.reconnectAttempts)
+    fun `setReconnectAttempt records attempts and dedupes`() =
+        runTest {
+            val store = AcpDiagnosticsStore()
+            assertEquals(0, store.diagnostics.value.reconnectAttempts)
 
-        store.setReconnectAttempt(1)
-        assertEquals(1, store.diagnostics.value.reconnectAttempts)
+            store.setReconnectAttempt(1)
+            assertEquals(1, store.diagnostics.value.reconnectAttempts)
 
-        // Same value -> no redundant update.
-        store.setReconnectAttempt(1)
-        val updatedAtAfterDedupe = store.diagnostics.value.lastUpdatedAtMs
-        store.setReconnectAttempt(2)
-        assertEquals(2, store.diagnostics.value.reconnectAttempts)
-        assertTrue(store.diagnostics.value.lastUpdatedAtMs >= updatedAtAfterDedupe)
-    }
-
-    @Test
-    fun `setReconnectAttempt ignores non-positive values`() = runTest {
-        val store = AcpDiagnosticsStore()
-        store.setReconnectAttempt(0)
-        store.setReconnectAttempt(-1)
-        assertEquals(0, store.diagnostics.value.reconnectAttempts)
-    }
+            // Same value -> no redundant update.
+            store.setReconnectAttempt(1)
+            val updatedAtAfterDedupe = store.diagnostics.value.lastUpdatedAtMs
+            store.setReconnectAttempt(2)
+            assertEquals(2, store.diagnostics.value.reconnectAttempts)
+            assertTrue(store.diagnostics.value.lastUpdatedAtMs >= updatedAtAfterDedupe)
+        }
 
     @Test
-    fun `markDisconnected and startConnect reset reconnect attempts`() = runTest {
-        val store = AcpDiagnosticsStore()
-        store.setReconnectAttempt(5)
-        assertEquals(5, store.diagnostics.value.reconnectAttempts)
+    fun `setReconnectAttempt ignores non-positive values`() =
+        runTest {
+            val store = AcpDiagnosticsStore()
+            store.setReconnectAttempt(0)
+            store.setReconnectAttempt(-1)
+            assertEquals(0, store.diagnostics.value.reconnectAttempts)
+        }
 
-        store.markDisconnected()
-        assertEquals(0, store.diagnostics.value.reconnectAttempts)
+    @Test
+    fun `markDisconnected and startConnect reset reconnect attempts`() =
+        runTest {
+            val store = AcpDiagnosticsStore()
+            store.setReconnectAttempt(5)
+            assertEquals(5, store.diagnostics.value.reconnectAttempts)
 
-        store.setReconnectAttempt(3)
-        store.startConnect("ws://example.com")
-        assertEquals(0, store.diagnostics.value.reconnectAttempts)
-    }
+            store.markDisconnected()
+            assertEquals(0, store.diagnostics.value.reconnectAttempts)
+
+            store.setReconnectAttempt(3)
+            store.startConnect("ws://example.com")
+            assertEquals(0, store.diagnostics.value.reconnectAttempts)
+        }
 }

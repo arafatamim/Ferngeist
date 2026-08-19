@@ -1,7 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box

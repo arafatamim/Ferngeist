@@ -724,8 +724,9 @@ internal class SessionGateway(
      */
     private fun handleSessionCancelFailure(error: Throwable) {
         val rpcError = error as? JsonRpcException
-        val unsupported = rpcError?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code &&
-            rpcError.message.contains("session/cancel", ignoreCase = true)
+        val unsupported =
+            rpcError?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code &&
+                rpcError.message.contains("session/cancel", ignoreCase = true)
         if (unsupported) {
             orchestra.diagnosticsStore.setSessionCancelSupport(isSupported = false)
         }

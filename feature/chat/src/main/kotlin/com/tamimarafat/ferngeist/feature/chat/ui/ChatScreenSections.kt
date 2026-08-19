@@ -4,13 +4,10 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.content.res.Resources
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,34 +18,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,11 +48,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
@@ -75,7 +57,6 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
-import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatCommand
@@ -85,20 +66,16 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.core.model.UsageState
-import com.tamimarafat.ferngeist.core.model.allChoices
 import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
-import com.tamimarafat.ferngeist.gateway.GatewayChangedFile
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.mikepenz.markdown.model.State as MarkdownRenderState
-import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
-import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
-import androidx.compose.material3.toShape
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
@@ -116,7 +93,11 @@ internal suspend fun processPickedUris(
     existingImages: List<com.tamimarafat.ferngeist.core.model.ChatImageData>,
     existingFiles: List<com.tamimarafat.ferngeist.core.model.ChatFileData>,
     resources: Resources,
-): Triple<List<com.tamimarafat.ferngeist.core.model.ChatImageData>, List<com.tamimarafat.ferngeist.core.model.ChatFileData>, String?> {
+): Triple<
+    List<com.tamimarafat.ferngeist.core.model.ChatImageData>,
+    List<com.tamimarafat.ferngeist.core.model.ChatFileData>,
+    String?,
+> {
     val newImages = mutableListOf<com.tamimarafat.ferngeist.core.model.ChatImageData>()
     val fileResults = mutableListOf<FileAttachmentHelper.Result>()
     var imagesDropped = 0
@@ -141,14 +122,15 @@ internal suspend fun processPickedUris(
     val combinedFiles = (existingFiles + newFiles).take(FileAttachmentHelper.MAX_FILES)
     val filesCapped = (existingFiles.size + newFiles.size) - combinedFiles.size
 
-    val feedback = buildPickFeedbackMessage(
-        resources = resources,
-        unsupportedCount = unsupportedCount,
-        tooLargeCount = tooLargeCount,
-        imagesDropped = imagesDropped,
-        imagesCapped = imagesCapped,
-        filesCapped = filesCapped,
-    )
+    val feedback =
+        buildPickFeedbackMessage(
+            resources = resources,
+            unsupportedCount = unsupportedCount,
+            tooLargeCount = tooLargeCount,
+            imagesDropped = imagesDropped,
+            imagesCapped = imagesCapped,
+            filesCapped = filesCapped,
+        )
     return Triple(combinedImages, combinedFiles, feedback)
 }
 
@@ -193,6 +175,7 @@ private fun buildPickFeedbackMessage(
             )
         else -> null
     }
+
 /**
  * Collects one-shot [ChatEffect]s from the view model and renders them as
  * snackbars or navigates back. Extracted from [ChatScreen] to reduce its
@@ -572,9 +555,7 @@ private fun PermissionRequestSheet(
 }
 
 @Composable
-private fun PermissionRequestHeader(
-    request: PendingPermissionRequest,
-) {
+private fun PermissionRequestHeader(request: PendingPermissionRequest) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = request.title.ifBlank { stringResource(R.string.chat_permission_request) },

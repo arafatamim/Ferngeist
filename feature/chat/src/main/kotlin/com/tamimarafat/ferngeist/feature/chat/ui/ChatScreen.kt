@@ -1,8 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import android.content.res.Resources
+import android.net.Uri
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
-import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -46,14 +47,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
-import android.content.res.Resources
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -301,10 +301,15 @@ private fun rememberSendHandlers(
 ): Pair<() -> Unit, (String) -> Unit> {
     // --- Send message (composer) ---
     val sendMessage: () -> Unit = {
-        val hasContent = messageText.value.isNotBlank() || selectedImages.value.isNotEmpty() || selectedFiles.value.isNotEmpty()
+        val hasContent =
+            messageText.value.isNotBlank() || selectedImages.value.isNotEmpty() || selectedFiles.value.isNotEmpty()
         if (hasContent) {
             viewModel.dispatch(
-                ChatIntent.SendMessage(text = messageText.value, images = selectedImages.value, files = selectedFiles.value),
+                ChatIntent.SendMessage(
+                    text = messageText.value,
+                    images = selectedImages.value,
+                    files = selectedFiles.value,
+                ),
             )
             scrollHandle.onSendMessage()
             messageText.value = ""
@@ -344,21 +349,22 @@ private data class ChatScreenMutations(
 )
 
 @Composable
-private fun rememberChatScreenMutations(): ChatScreenMutations = ChatScreenMutations(
-    selectedConfigPickerOptionId = remember { mutableStateOf<String?>(null) },
-    selectedThoughtSegmentId = remember { mutableStateOf<String?>(null) },
-    selectedToolCallSegmentId = remember { mutableStateOf<String?>(null) },
-    showCommandsDialog = remember { mutableStateOf(false) },
-    showConnectionStatusDialog = remember { mutableStateOf(false) },
-    showGitStatusSheet = remember { mutableStateOf(false) },
-    composerContentHeightPx = remember { mutableIntStateOf(0) },
-    messageText = remember { mutableStateOf("") },
-    selectedImages = remember { mutableStateOf<List<ChatImageData>>(emptyList()) },
-    selectedFiles = remember { mutableStateOf<List<ChatFileData>>(emptyList()) },
-    composerExpanded = remember { mutableStateOf(false) },
-    focusRequester = remember { FocusRequester() },
-    imageFocusTrigger = remember { mutableIntStateOf(0) },
-)
+private fun rememberChatScreenMutations(): ChatScreenMutations =
+    ChatScreenMutations(
+        selectedConfigPickerOptionId = remember { mutableStateOf<String?>(null) },
+        selectedThoughtSegmentId = remember { mutableStateOf<String?>(null) },
+        selectedToolCallSegmentId = remember { mutableStateOf<String?>(null) },
+        showCommandsDialog = remember { mutableStateOf(false) },
+        showConnectionStatusDialog = remember { mutableStateOf(false) },
+        showGitStatusSheet = remember { mutableStateOf(false) },
+        composerContentHeightPx = remember { mutableIntStateOf(0) },
+        messageText = remember { mutableStateOf("") },
+        selectedImages = remember { mutableStateOf<List<ChatImageData>>(emptyList()) },
+        selectedFiles = remember { mutableStateOf<List<ChatFileData>>(emptyList()) },
+        composerExpanded = remember { mutableStateOf(false) },
+        focusRequester = remember { FocusRequester() },
+        imageFocusTrigger = remember { mutableIntStateOf(0) },
+    )
 
 private class ChatScreenState(
     val state: ChatState,
@@ -490,7 +496,6 @@ private fun rememberChatScrollAndAnimation(
             animationSpec = fadeSpring,
             label = "InputAlpha",
         )
-
 
     return ChatScrollAndAnimation(
         scrollHandle = scrollHandle,
@@ -658,30 +663,31 @@ private fun buildChatDerivedValues(
     gitDeletions: Int,
     messages: ChatMessagesState,
     scrollAndAnimation: ChatScrollAndAnimation,
-): ChatDerivedValues = ChatDerivedValues(
-    activeModel = configDerived.activeModel,
-    modeOption = configDerived.modeOption,
-    toolbarConfigOptions = configDerived.toolbarConfigOptions,
-    selectedConfigPickerOption = configDerived.selectedConfigPickerOption,
-    canCancelStreaming = configDerived.canCancelStreaming,
-    hasStreamingBubble = configDerived.hasStreamingBubble,
-    activelyStreaming = configDerived.activelyStreaming,
-    showStopAction = configDerived.showStopAction,
-    showModeButton = configDerived.showModeButton,
-    currentModeLabel = configDerived.currentModeLabel,
-    gitAdditions = gitAdditions,
-    gitDeletions = gitDeletions,
-    renderedMessages = messages.renderedMessages,
-    selectedThought = messages.selectedThought,
-    selectedToolCall = messages.selectedToolCall,
-    activePermissionRequest = messages.activePermissionRequest,
-    renderedLastMessageId = messages.renderedLastMessageId,
-    scrollHandle = scrollAndAnimation.scrollHandle,
-    showJumpToBottom = scrollAndAnimation.showJumpToBottom,
-    buttonsAlphaState = scrollAndAnimation.buttonsAlphaState,
-    inputAlphaState = scrollAndAnimation.inputAlphaState,
-    fadeSpring = scrollAndAnimation.fadeSpring,
-)
+): ChatDerivedValues =
+    ChatDerivedValues(
+        activeModel = configDerived.activeModel,
+        modeOption = configDerived.modeOption,
+        toolbarConfigOptions = configDerived.toolbarConfigOptions,
+        selectedConfigPickerOption = configDerived.selectedConfigPickerOption,
+        canCancelStreaming = configDerived.canCancelStreaming,
+        hasStreamingBubble = configDerived.hasStreamingBubble,
+        activelyStreaming = configDerived.activelyStreaming,
+        showStopAction = configDerived.showStopAction,
+        showModeButton = configDerived.showModeButton,
+        currentModeLabel = configDerived.currentModeLabel,
+        gitAdditions = gitAdditions,
+        gitDeletions = gitDeletions,
+        renderedMessages = messages.renderedMessages,
+        selectedThought = messages.selectedThought,
+        selectedToolCall = messages.selectedToolCall,
+        activePermissionRequest = messages.activePermissionRequest,
+        renderedLastMessageId = messages.renderedLastMessageId,
+        scrollHandle = scrollAndAnimation.scrollHandle,
+        showJumpToBottom = scrollAndAnimation.showJumpToBottom,
+        buttonsAlphaState = scrollAndAnimation.buttonsAlphaState,
+        inputAlphaState = scrollAndAnimation.inputAlphaState,
+        fadeSpring = scrollAndAnimation.fadeSpring,
+    )
 
 @Composable
 private fun rememberChatScreenState(
@@ -754,51 +760,52 @@ private fun buildChatScreenState(
     insets: ComposerInsets,
     sendMessage: () -> Unit,
     sendCommand: (String) -> Unit,
-): ChatScreenState = ChatScreenState(
-    state = state,
-    snackbarHostState = snackbarHostState,
-    selectedConfigPickerOptionId = mutations.selectedConfigPickerOptionId,
-    selectedThoughtSegmentId = mutations.selectedThoughtSegmentId,
-    selectedToolCallSegmentId = mutations.selectedToolCallSegmentId,
-    showCommandsDialog = mutations.showCommandsDialog,
-    showConnectionStatusDialog = mutations.showConnectionStatusDialog,
-    showGitStatusSheet = mutations.showGitStatusSheet,
-    composerContentHeightPx = mutations.composerContentHeightPx,
-    messageText = mutations.messageText,
-    selectedImages = mutations.selectedImages,
-    selectedFiles = mutations.selectedFiles,
-    composerExpanded = mutations.composerExpanded,
-    focusRequester = mutations.focusRequester,
-    imageFocusTrigger = mutations.imageFocusTrigger,
-    attachmentPickerLauncher = attachmentPickerLauncher,
-    scrollHandle = derived.scrollHandle,
-    showJumpToBottom = derived.showJumpToBottom,
-    activeModel = derived.activeModel,
-    modeOption = derived.modeOption,
-    toolbarConfigOptions = derived.toolbarConfigOptions,
-    selectedConfigPickerOption = derived.selectedConfigPickerOption,
-    canCancelStreaming = derived.canCancelStreaming,
-    hasStreamingBubble = derived.hasStreamingBubble,
-    activelyStreaming = derived.activelyStreaming,
-    showStopAction = derived.showStopAction,
-    showModeButton = derived.showModeButton,
-    currentModeLabel = derived.currentModeLabel,
-    gitAdditions = derived.gitAdditions,
-    gitDeletions = derived.gitDeletions,
-    renderedMessages = derived.renderedMessages,
-    selectedThought = derived.selectedThought,
-    selectedToolCall = derived.selectedToolCall,
-    activePermissionRequest = derived.activePermissionRequest,
-    renderedLastMessageId = derived.renderedLastMessageId,
-    listBottomPadding = insets.listBottomPadding,
-    snackbarBottomPadding = insets.snackbarBottomPadding,
-    showComposerToolbar = insets.showComposerToolbar,
-    screenWidthDp = insets.screenWidthDp,
-    buttonsAlpha = derived.buttonsAlphaState,
-    inputAlpha = derived.inputAlphaState,
-    sendMessage = sendMessage,
-    sendCommand = sendCommand,
-)
+): ChatScreenState =
+    ChatScreenState(
+        state = state,
+        snackbarHostState = snackbarHostState,
+        selectedConfigPickerOptionId = mutations.selectedConfigPickerOptionId,
+        selectedThoughtSegmentId = mutations.selectedThoughtSegmentId,
+        selectedToolCallSegmentId = mutations.selectedToolCallSegmentId,
+        showCommandsDialog = mutations.showCommandsDialog,
+        showConnectionStatusDialog = mutations.showConnectionStatusDialog,
+        showGitStatusSheet = mutations.showGitStatusSheet,
+        composerContentHeightPx = mutations.composerContentHeightPx,
+        messageText = mutations.messageText,
+        selectedImages = mutations.selectedImages,
+        selectedFiles = mutations.selectedFiles,
+        composerExpanded = mutations.composerExpanded,
+        focusRequester = mutations.focusRequester,
+        imageFocusTrigger = mutations.imageFocusTrigger,
+        attachmentPickerLauncher = attachmentPickerLauncher,
+        scrollHandle = derived.scrollHandle,
+        showJumpToBottom = derived.showJumpToBottom,
+        activeModel = derived.activeModel,
+        modeOption = derived.modeOption,
+        toolbarConfigOptions = derived.toolbarConfigOptions,
+        selectedConfigPickerOption = derived.selectedConfigPickerOption,
+        canCancelStreaming = derived.canCancelStreaming,
+        hasStreamingBubble = derived.hasStreamingBubble,
+        activelyStreaming = derived.activelyStreaming,
+        showStopAction = derived.showStopAction,
+        showModeButton = derived.showModeButton,
+        currentModeLabel = derived.currentModeLabel,
+        gitAdditions = derived.gitAdditions,
+        gitDeletions = derived.gitDeletions,
+        renderedMessages = derived.renderedMessages,
+        selectedThought = derived.selectedThought,
+        selectedToolCall = derived.selectedToolCall,
+        activePermissionRequest = derived.activePermissionRequest,
+        renderedLastMessageId = derived.renderedLastMessageId,
+        listBottomPadding = insets.listBottomPadding,
+        snackbarBottomPadding = insets.snackbarBottomPadding,
+        showComposerToolbar = insets.showComposerToolbar,
+        screenWidthDp = insets.screenWidthDp,
+        buttonsAlpha = derived.buttonsAlphaState,
+        inputAlpha = derived.inputAlphaState,
+        sendMessage = sendMessage,
+        sendCommand = sendCommand,
+    )
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -868,11 +875,11 @@ private fun ChatScreenScaffold(
                         focusManager = focusManager,
                         viewModel = viewModel,
                     )
-                 }
-             }
-         }
-     }
- }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -958,7 +965,6 @@ private fun BoxScope.ChatComposerHost(
     )
 }
 
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 private fun ChatScreenTopBar(
@@ -985,7 +991,10 @@ private fun ChatScreenTopBar(
         gitAdditions = screenState.gitAdditions,
         gitDeletions = screenState.gitDeletions,
         gitBranch = screenState.state.gitStatus?.branch,
-        gitChangedFiles = screenState.state.gitStatus?.changed?.size ?: 0,
+        gitChangedFiles =
+            screenState.state.gitStatus
+                ?.changed
+                ?.size ?: 0,
         scrollBehavior = scrollBehavior,
         onNavigateBack = onNavigateBack,
         onConnectionStatusClick = { screenState.showConnectionStatusDialog.value = true },
@@ -1001,7 +1010,6 @@ private fun ChatScreenTopBar(
         animatedContentScope = animatedContentScope,
     )
 }
-
 
 @Composable
 private fun BoxScope.ChatScreenContentOverlays(
@@ -1047,9 +1055,7 @@ private fun BoxScope.ChatScreenContentOverlays(
     )
 
     ChatScreenSnackbar(screenState)
-
 }
-
 
 @Composable
 private fun BoxScope.ChatScreenSnackbar(screenState: ChatScreenState) {
@@ -1065,7 +1071,6 @@ private fun BoxScope.ChatScreenSnackbar(screenState: ChatScreenState) {
                 ).zIndex(2f),
     )
 }
-
 
 @Composable
 private fun ChatScreenDialogsHost(
@@ -1108,9 +1113,7 @@ private fun ChatScreenDialogsHost(
         onDismissCommands = { screenState.showCommandsDialog.value = false },
         onCommandClick = screenState.sendCommand,
     )
-
 }
-
 
 private data class ComposerCallbacks(
     val onCancelStreaming: () -> Unit,
@@ -1125,33 +1128,34 @@ private fun rememberComposerCallbacks(
     screenState: ChatScreenState,
     coroutineScope: CoroutineScope,
     viewModel: ChatViewModel,
-): ComposerCallbacks = ComposerCallbacks(
-    onCancelStreaming = {
-        viewModel.dispatch(ChatIntent.CancelStreaming)
-    },
-    onSetStringConfigOption = { optionId, value ->
-        viewModel.dispatch(
-            ChatIntent.SetConfigOption(
-                optionId = optionId,
-                value = ChatConfigValue.StringValue(value),
-            ),
-        )
-    },
-    onSetBooleanConfigOption = { optionId, value ->
-        viewModel.dispatch(
-            ChatIntent.SetConfigOption(
-                optionId = optionId,
-                value = ChatConfigValue.BoolValue(value),
-            ),
-        )
-    },
-    onShowCommands = { screenState.showCommandsDialog.value = true },
-    onShowConfigOptionPicker = { optionId ->
-        screenState.selectedConfigPickerOptionId.value = optionId
-    },
-    onJumpToBottom = {
-        coroutineScope.launch { screenState.scrollHandle.jumpToBottom() }
-    },
-)
+): ComposerCallbacks =
+    ComposerCallbacks(
+        onCancelStreaming = {
+            viewModel.dispatch(ChatIntent.CancelStreaming)
+        },
+        onSetStringConfigOption = { optionId, value ->
+            viewModel.dispatch(
+                ChatIntent.SetConfigOption(
+                    optionId = optionId,
+                    value = ChatConfigValue.StringValue(value),
+                ),
+            )
+        },
+        onSetBooleanConfigOption = { optionId, value ->
+            viewModel.dispatch(
+                ChatIntent.SetConfigOption(
+                    optionId = optionId,
+                    value = ChatConfigValue.BoolValue(value),
+                ),
+            )
+        },
+        onShowCommands = { screenState.showCommandsDialog.value = true },
+        onShowConfigOptionPicker = { optionId ->
+            screenState.selectedConfigPickerOptionId.value = optionId
+        },
+        onJumpToBottom = {
+            coroutineScope.launch { screenState.scrollHandle.jumpToBottom() }
+        },
+    )
 
 // endregion

@@ -72,7 +72,10 @@ private fun TextContentBlock(text: String) {
 }
 
 @Composable
-private fun ImageContentBlock(data: String, mimeType: String) {
+private fun ImageContentBlock(
+    data: String,
+    mimeType: String,
+) {
     val bitmap =
         remember(data) {
             runCatching {

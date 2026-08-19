@@ -28,12 +28,12 @@ class GatewayRepositoryImpl
         private val httpClient: HttpClient,
         private val json: Json,
     ) : GatewayRepository,
-       GatewayPairingRepository,
-       GatewayAuthRepository,
-       GatewayRuntimeRepository,
-       GatewaySessionRepository,
-       GatewayPushRepository,
-       GatewayWorkspaceRepository {
+        GatewayPairingRepository,
+        GatewayAuthRepository,
+        GatewayRuntimeRepository,
+        GatewaySessionRepository,
+        GatewayPushRepository,
+        GatewayWorkspaceRepository {
         override suspend fun fetchStatus(
             scheme: String,
             host: String,

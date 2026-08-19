@@ -241,6 +241,7 @@ private fun ServerCardTitleRow(
         }
     }
 }
+
 @Composable
 private fun rememberCardCorner(): State<Dp> {
     val interactionSource = remember { MutableInteractionSource() }
@@ -254,11 +255,12 @@ private fun rememberCardCorner(): State<Dp> {
 
 private val ServerConnectionUiState.containerColor: Color
     @Composable
-    get() = when {
-        isConnected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-        isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-        else -> MaterialTheme.colorScheme.surfaceContainer
-    }
+    get() =
+        when {
+            isConnected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+            else -> MaterialTheme.colorScheme.surfaceContainer
+        }
 
 @Composable
 private fun ServerCardDeleteDialog(

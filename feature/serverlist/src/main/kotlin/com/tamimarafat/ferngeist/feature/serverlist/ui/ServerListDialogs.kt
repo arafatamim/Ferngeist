@@ -27,8 +27,8 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -205,9 +205,10 @@ internal fun PendingAuthenticationDialog(
     val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntime != null
     val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntime == null
 
-    val requiredEnvVarsFilled = selectedMethod?.envVars?.all { envVar ->
-        envVar.optional || !envValues[envVar.name].isNullOrBlank()
-    } ?: false
+    val requiredEnvVarsFilled =
+        selectedMethod?.envVars?.all { envVar ->
+            envVar.optional || !envValues[envVar.name].isNullOrBlank()
+        } ?: false
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -375,11 +376,12 @@ private fun computeConfirmEnabled(
     selectedMethod: AcpAuthMethodInfo?,
     isGatewayEnvAuth: Boolean,
     requiredEnvVarsFilled: Boolean,
-): Boolean = when {
-    selectedMethod == null -> false
-    isGatewayEnvAuth -> requiredEnvVarsFilled
-    else -> true
-}
+): Boolean =
+    when {
+        selectedMethod == null -> false
+        isGatewayEnvAuth -> requiredEnvVarsFilled
+        else -> true
+    }
 
 @Composable
 private fun AuthenticationMethodDetails(

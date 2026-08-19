@@ -4,8 +4,8 @@ import android.util.Log
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
-import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

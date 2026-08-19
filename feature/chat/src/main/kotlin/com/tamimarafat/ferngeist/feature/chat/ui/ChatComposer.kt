@@ -51,9 +51,9 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
@@ -115,11 +115,12 @@ private fun composerTargetHeight(
     composerExpanded: Boolean,
     selectedImages: List<ChatImageData>,
     selectedFiles: List<ChatFileData>,
-): Dp = when {
-    composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
-    composerExpanded -> 142.dp
-    else -> 62.dp
-}
+): Dp =
+    when {
+        composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
+        composerExpanded -> 142.dp
+        else -> 62.dp
+    }
 
 /**
  * Main entry point for the chat composer UI.
@@ -198,28 +199,65 @@ internal fun ChatComposerBar(
     val collapsedMaxToolbarWidth = screenWidth * COLLAPSED_MAX_TOOLBAR_FRACTION
 
     ComposerSurfaceContainer(
-        modifier = modifier, composerExpanded = composerExpanded,
-        animatedHeight = animatedHeight, collapsedMaxToolbarWidth = collapsedMaxToolbarWidth,
+        modifier = modifier,
+        composerExpanded = composerExpanded,
+        animatedHeight = animatedHeight,
+        collapsedMaxToolbarWidth = collapsedMaxToolbarWidth,
         onHeightChanged = onHeightChanged,
     ) {
         if (composerExpanded) {
             ExpandedComposerContent(
-                messageText, onMessageTextChange, inputAlpha, focusRequester, showStopAction,
+                messageText,
+                onMessageTextChange,
+                inputAlpha,
+                focusRequester,
+                showStopAction,
                 canCancelStreaming,
-                { onComposerExpandedChange(false); onFocusCleared() },
-                { if (showStopAction && canCancelStreaming) onCancelStreaming(); else if (!showStopAction) onSend() },
-                onSend, canSendImages, selectedImages, onImagesChanged, canSendFiles,
-                selectedFiles, onFilesChanged, onAttach,
+                {
+                    onComposerExpandedChange(false)
+                    onFocusCleared()
+                },
+                {
+                    if (showStopAction && canCancelStreaming) {
+                        onCancelStreaming()
+                    } else if (!showStopAction) {
+                        onSend()
+                    }
+                },
+                onSend,
+                canSendImages,
+                selectedImages,
+                onImagesChanged,
+                canSendFiles,
+                selectedFiles,
+                onFilesChanged,
+                onAttach,
             )
         } else {
             CollapsedComposerActions(
-                state, toolbarConfigOptions, buttonsAlpha, showModeButton, modeOption,
-                currentModeLabel, showStopAction, canCancelStreaming, collapsedMaxToolbarWidth,
-                showModeMenu, { showModeMenu = it }, modeMenuInteractionSource,
-                showOptionsMenu, { showOptionsMenu = it }, optionsMenuInteractionSource,
-                { onComposerExpandedChange(true) }, onCancelStreaming, onSetStringConfigOption,
-                onSetBooleanConfigOption, onShowCommands, onShowConfigOptionPicker,
-                showJumpToBottom, onJumpToBottom,
+                state,
+                toolbarConfigOptions,
+                buttonsAlpha,
+                showModeButton,
+                modeOption,
+                currentModeLabel,
+                showStopAction,
+                canCancelStreaming,
+                collapsedMaxToolbarWidth,
+                showModeMenu,
+                { showModeMenu = it },
+                modeMenuInteractionSource,
+                showOptionsMenu,
+                { showOptionsMenu = it },
+                optionsMenuInteractionSource,
+                { onComposerExpandedChange(true) },
+                onCancelStreaming,
+                onSetStringConfigOption,
+                onSetBooleanConfigOption,
+                onShowCommands,
+                onShowConfigOptionPicker,
+                showJumpToBottom,
+                onJumpToBottom,
             )
         }
     }
@@ -595,9 +633,7 @@ private fun CollapsedPrimaryButton(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun JumpToBottomButton(
-    onJumpToBottom: () -> Unit,
-) {
+private fun JumpToBottomButton(onJumpToBottom: () -> Unit) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {

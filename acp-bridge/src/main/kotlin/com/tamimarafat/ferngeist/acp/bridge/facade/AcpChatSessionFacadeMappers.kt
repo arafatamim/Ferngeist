@@ -37,9 +37,7 @@ internal fun mapConnectionState(acp: AcpConnectionState): ChatConnectionState =
             ChatConnectionState.Failed(acp.error.message)
     }
 
-internal fun mapDiagnostics(
-    diag: ConnectionDiagnostics,
-): ChatConnectionDiagnostics =
+internal fun mapDiagnostics(diag: ConnectionDiagnostics): ChatConnectionDiagnostics =
     ChatConnectionDiagnostics(
         serverUrl = diag.serverUrl,
         pendingRequestCount = diag.pendingRequestCount,
@@ -91,9 +89,7 @@ internal fun mapLoadState(acp: SessionLoadState): ChatLoadState =
             ChatLoadState.FAILED
     }
 
-internal fun mapConfigOption(
-    option: SessionConfigOption,
-): ChatConfigOption {
+internal fun mapConfigOption(option: SessionConfigOption): ChatConfigOption {
     val category = option.category?.let { mapConfigCategory(it) }
     return when (option) {
         is SessionConfigOption.Select ->

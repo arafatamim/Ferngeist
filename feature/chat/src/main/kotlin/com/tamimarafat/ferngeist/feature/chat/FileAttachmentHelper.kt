@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
  * no decoding or downscaling.
  */
 private const val BYTES_PER_KB = 1024L
+
 object FileAttachmentHelper {
     /** Maximum number of files a user can attach per message. */
     const val MAX_FILES = 5

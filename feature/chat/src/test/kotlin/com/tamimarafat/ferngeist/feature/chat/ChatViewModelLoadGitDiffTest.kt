@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat
 
-import app.cash.turbine.test
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -20,7 +19,6 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
-
     @Test
     fun `LoadGitDiff sets loading then loaded state with the first returned diff and records the path`() =
         runTest {
@@ -128,7 +126,11 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             latestGate.complete(Unit)
             advanceUntilIdle()
             assertEquals("src/Latest.kt", viewModel.state.value.gitFileDiffPath)
-            assertEquals(latestDiff, viewModel.state.value.gitFileDiff?.single())
+            assertEquals(
+                latestDiff,
+                viewModel.state.value.gitFileDiff
+                    ?.single(),
+            )
 
             // The stale request then completes; it must NOT overwrite the newer state.
             staleGate.complete(Unit)

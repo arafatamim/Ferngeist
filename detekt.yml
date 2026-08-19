@@ -25,6 +25,11 @@ style:
     # Kotlin convention: `_`-prefixed params are intentionally unused.
     allowedNames: 'ignored|expected|_.*'
 complexity:
+  LongMethod:
+    # Compose UI functions are long by structure (parameter lists + UI trees),
+    # same rationale as FunctionNaming above; LongMethod still guards
+    # ViewModels, reducers, and other logic-bearing functions.
+    ignoreAnnotated: ['Composable']
   TooManyFunctions:
     allowedFunctionsPerClass: 25
     allowedFunctionsPerInterface: 25

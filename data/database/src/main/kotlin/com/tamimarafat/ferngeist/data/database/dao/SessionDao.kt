@@ -43,7 +43,10 @@ interface SessionDao {
      * during refresh.
      */
     @Transaction
-    suspend fun replaceSessions(serverId: String, sessions: List<SessionEntity>) {
+    suspend fun replaceSessions(
+        serverId: String,
+        sessions: List<SessionEntity>,
+    ) {
         deleteSessionsByServerId(serverId)
         sessions.forEach { insertSession(it) }
     }

@@ -128,17 +128,19 @@ fun MessageBubble(
     onRetryMessage: ((String) -> Unit)? = null,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
-    val contentColor = if (isUser) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    val contentColor =
+        if (isUser) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
     var fullscreenImage by remember { mutableStateOf<ChatImageData?>(null) }
 
     Box(
-        modifier = modifier.fillMaxWidth().then(
-            if (showStreamingIndicator) Modifier.onSizeChanged { onStreamLayoutSettled() } else Modifier,
-        ),
+        modifier =
+            modifier.fillMaxWidth().then(
+                if (showStreamingIndicator) Modifier.onSizeChanged { onStreamLayoutSettled() } else Modifier,
+            ),
         contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         if (isUser) {
@@ -545,18 +547,20 @@ private fun PlanEntryItem(entry: PlanEntry) {
     val isCompleted = entry.status == PlanEntryStatus.COMPLETED
     val isInProgress = entry.status == PlanEntryStatus.IN_PROGRESS
     val isPending = entry.status == PlanEntryStatus.PENDING
-    val iconTint = if (isInProgress) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-    }
-    val textColor = if (isPending) {
-        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-    } else if (isInProgress) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-    }
+    val iconTint =
+        if (isInProgress) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+        }
+    val textColor =
+        if (isPending) {
+            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+        } else if (isInProgress) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+        }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -919,7 +923,8 @@ private val LOADING_SHAPES =
 
 private const val LOADING_POLYGON_COUNT = 6
 
-private fun pickLoadingPolygons(seedKey: String) = LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(LOADING_POLYGON_COUNT)
+private fun pickLoadingPolygons(seedKey: String) =
+    LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(LOADING_POLYGON_COUNT)
 
 private fun toolKindIcon(kind: ToolKind?): ImageVector =
     when (kind) {
@@ -1006,33 +1011,78 @@ private fun PlanBubblePreview() {
 @Preview(showBackground = true)
 @Composable
 private fun ToolCallCardPreview() {
-    val samples = listOf(
-        ToolCallDisplay(title = "list_files (READ · IN_PROGRESS)", kind = ToolKind.READ, status = ToolCallStatus.IN_PROGRESS),
-        ToolCallDisplay(title = "search_code (READ · COMPLETED)", kind = ToolKind.READ, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "search (SEARCH · COMPLETED)", kind = ToolKind.SEARCH, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "edit_file (EDIT · COMPLETED)", kind = ToolKind.EDIT, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "delete_file (DELETE · FAILED)", kind = ToolKind.DELETE, status = ToolCallStatus.FAILED),
-        ToolCallDisplay(title = "move_file (MOVE · COMPLETED)", kind = ToolKind.MOVE, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "run_tests (EXECUTE · COMPLETED)", kind = ToolKind.EXECUTE, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "think (THINK · COMPLETED)", kind = ToolKind.THINK, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "fetch_data (FETCH · FAILED)", kind = ToolKind.FETCH, status = ToolCallStatus.FAILED),
-        ToolCallDisplay(title = "switch (SWITCH_MODE · COMPLETED)", kind = ToolKind.SWITCH_MODE, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "other_action (OTHER · COMPLETED)", kind = ToolKind.OTHER, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(title = "unknown (null · COMPLETED)", kind = null, status = ToolCallStatus.COMPLETED),
-        ToolCallDisplay(
-            title = "delete_file (DELETE · PENDING · permissions)",
-            kind = ToolKind.DELETE,
-            status = ToolCallStatus.PENDING,
-            permissionOptions =
-                listOf(
-                    AcpPermissionOption(
-                        id = "1",
-                        label = "Allow",
-                        kind = "allow_once",
+    val samples =
+        listOf(
+            ToolCallDisplay(
+                title = "list_files (READ · IN_PROGRESS)",
+                kind = ToolKind.READ,
+                status = ToolCallStatus.IN_PROGRESS,
+            ),
+            ToolCallDisplay(
+                title = "search_code (READ · COMPLETED)",
+                kind = ToolKind.READ,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(
+                title = "search (SEARCH · COMPLETED)",
+                kind = ToolKind.SEARCH,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(
+                title = "edit_file (EDIT · COMPLETED)",
+                kind = ToolKind.EDIT,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(
+                title = "delete_file (DELETE · FAILED)",
+                kind = ToolKind.DELETE,
+                status = ToolCallStatus.FAILED,
+            ),
+            ToolCallDisplay(
+                title = "move_file (MOVE · COMPLETED)",
+                kind = ToolKind.MOVE,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(
+                title = "run_tests (EXECUTE · COMPLETED)",
+                kind = ToolKind.EXECUTE,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(
+                title = "think (THINK · COMPLETED)",
+                kind = ToolKind.THINK,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(
+                title = "fetch_data (FETCH · FAILED)",
+                kind = ToolKind.FETCH,
+                status = ToolCallStatus.FAILED,
+            ),
+            ToolCallDisplay(
+                title = "switch (SWITCH_MODE · COMPLETED)",
+                kind = ToolKind.SWITCH_MODE,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(
+                title = "other_action (OTHER · COMPLETED)",
+                kind = ToolKind.OTHER,
+                status = ToolCallStatus.COMPLETED,
+            ),
+            ToolCallDisplay(title = "unknown (null · COMPLETED)", kind = null, status = ToolCallStatus.COMPLETED),
+            ToolCallDisplay(
+                title = "delete_file (DELETE · PENDING · permissions)",
+                kind = ToolKind.DELETE,
+                status = ToolCallStatus.PENDING,
+                permissionOptions =
+                    listOf(
+                        AcpPermissionOption(
+                            id = "1",
+                            label = "Allow",
+                            kind = "allow_once",
+                        ),
                     ),
-                ),
-        ),
-    )
+            ),
+        )
     MaterialTheme {
         Surface(modifier = Modifier.padding(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

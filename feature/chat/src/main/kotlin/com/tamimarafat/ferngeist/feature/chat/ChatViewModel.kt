@@ -370,7 +370,10 @@ class ChatViewModel
             }
         }
 
-        private suspend fun setGitFileDiffError(path: String, error: String) {
+        private suspend fun setGitFileDiffError(
+            path: String,
+            error: String,
+        ) {
             gitFileDiffMutex.withLock {
                 gitFileDiffJob?.cancel()
                 gitFileDiffJob = null
@@ -467,15 +470,18 @@ class ChatViewModel
                     availableCommands = snapshot.availableCommands,
                     commandsAdvertised = snapshot.commandsAdvertised,
                     configOptions = snapshot.configOptions,
-                    isLoading = snapshot.loadState == ChatLoadState.HYDRATING ||
-                        markdownProjection.pendingInitialHydration,
-                    isSessionReady = snapshot.loadState == ChatLoadState.READY &&
-                        !markdownProjection.pendingInitialHydration,
-                    error = if (failed) {
-                        snapshot.error ?: "Could not load this session. Check connection and retry."
-                    } else {
-                        null
-                    },
+                    isLoading =
+                        snapshot.loadState == ChatLoadState.HYDRATING ||
+                            markdownProjection.pendingInitialHydration,
+                    isSessionReady =
+                        snapshot.loadState == ChatLoadState.READY &&
+                            !markdownProjection.pendingInitialHydration,
+                    error =
+                        if (failed) {
+                            snapshot.error ?: "Could not load this session. Check connection and retry."
+                        } else {
+                            null
+                        },
                 )
             }
             applyServerTitle(snapshot.title)
@@ -488,9 +494,10 @@ class ChatViewModel
          * in [messages] is the canonical delivery.
          */
         private fun reconcileSendingPendingBubbles(messages: List<ChatMessage>): List<ChatMessage> {
-            val pendingSending = state.value.pendingMessages.filter {
-                it.status == MessageDeliveryStatus.SENDING
-            }
+            val pendingSending =
+                state.value.pendingMessages.filter {
+                    it.status == MessageDeliveryStatus.SENDING
+                }
             if (pendingSending.isEmpty()) return state.value.pendingMessages
             val echoClientIds = findEchoedClientIds(pendingSending, messages)
             return if (echoClientIds.isEmpty()) {
@@ -508,12 +515,13 @@ class ChatViewModel
         ): Set<String> {
             val echoClientIds = mutableSetOf<String>()
             for (sending in pendingSending) {
-                val echoed = messages.firstOrNull { msg ->
-                    msg.role == ChatMessage.Role.USER &&
-                        msg.content == sending.content &&
-                        msg.images == sending.images &&
-                        msg.files == sending.files
-                }
+                val echoed =
+                    messages.firstOrNull { msg ->
+                        msg.role == ChatMessage.Role.USER &&
+                            msg.content == sending.content &&
+                            msg.images == sending.images &&
+                            msg.files == sending.files
+                    }
                 if (echoed != null) {
                     echoClientIds.add(sending.clientId ?: sending.id)
                 }

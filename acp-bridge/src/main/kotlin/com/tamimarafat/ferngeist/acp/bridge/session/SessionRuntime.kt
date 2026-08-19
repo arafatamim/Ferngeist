@@ -308,12 +308,18 @@ class SessionRuntime(
             costCurrency = event.costCurrency,
         )
 
-    private fun confirmModeChanged(legacyModes: LegacyModeState?, modeId: String): LegacyModeState {
+    private fun confirmModeChanged(
+        legacyModes: LegacyModeState?,
+        modeId: String,
+    ): LegacyModeState {
         val base = legacyModes ?: LegacyModeState()
         return base.copy(currentModeId = modeId)
     }
 
-    private fun mapModes(event: AppSessionEvent.ModesUpdated, legacyModes: LegacyModeState?): LegacyModeState =
+    private fun mapModes(
+        event: AppSessionEvent.ModesUpdated,
+        legacyModes: LegacyModeState?,
+    ): LegacyModeState =
         LegacyModeState(
             modes = event.modes,
             currentModeId = event.currentModeId ?: legacyModes?.currentModeId,
@@ -335,7 +341,10 @@ class SessionRuntime(
         }
 
     /** Confirms the selected model id on the legacy model state, if a model set exists. */
-    private fun confirmModelSelection(legacyModel: LegacyModelState?, modelId: String?): LegacyModelState? {
+    private fun confirmModelSelection(
+        legacyModel: LegacyModelState?,
+        modelId: String?,
+    ): LegacyModelState? {
         if (modelId.isNullOrBlank() || legacyModel == null) return legacyModel
         return legacyModel.copy(currentModelId = modelId)
     }

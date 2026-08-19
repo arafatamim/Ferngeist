@@ -26,7 +26,11 @@ internal object AcpSessionUpdateMapper {
             is SessionUpdate.AgentThoughtChunk -> AppSessionEvent.AgentThought(extractText(update.content))
             is SessionUpdate.ToolCall -> mapToolCall(update)
             is SessionUpdate.ToolCallUpdate -> mapToolCallUpdate(update)
-            is SessionUpdate.PlanUpdate, is SessionUpdate.PlanRemoved -> mapPlanUpdate(update, removed = update is SessionUpdate.PlanRemoved)
+            is SessionUpdate.PlanUpdate, is SessionUpdate.PlanRemoved ->
+                mapPlanUpdate(
+                    update,
+                    removed = update is SessionUpdate.PlanRemoved,
+                )
             is SessionUpdate.AvailableCommandsUpdate -> mapAvailableCommands(update)
             is SessionUpdate.CurrentModeUpdate -> AppSessionEvent.ModeChanged(update.currentModeId.value)
             is SessionUpdate.UsageUpdate -> mapUsageUpdate(update)
@@ -37,7 +41,10 @@ internal object AcpSessionUpdateMapper {
         }
 
     @OptIn(UnstableApi::class)
-    private fun mapPlanUpdate(update: SessionUpdate, removed: Boolean): AppSessionEvent =
+    private fun mapPlanUpdate(
+        update: SessionUpdate,
+        removed: Boolean,
+    ): AppSessionEvent =
         AppSessionEvent.PlanUpdated(
             entries = if (removed) emptyList() else (update as SessionUpdate.PlanUpdate).entries,
         )

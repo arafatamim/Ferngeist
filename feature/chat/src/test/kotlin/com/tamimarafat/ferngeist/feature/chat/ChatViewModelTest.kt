@@ -21,7 +21,6 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest : ChatViewModelTestBase() {
-
     @Test
     fun `set config option without active session emits session not ready error`() =
         runTest {

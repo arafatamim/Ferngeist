@@ -3,10 +3,10 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,23 +79,41 @@ internal fun rememberChatScrollState(
     var restorePending by remember(sessionId, restoredScrollSnapshot?.savedAt) {
         mutableStateOf(restoredScrollSnapshot != null)
     }
-    val runner = remember(sessionId, scope, listState, policy, isFollowingState) {
-        ChatScrollDecisionRunner(listState, scope, policy, isFollowingState)
-    }
+    val runner =
+        remember(sessionId, scope, listState, policy, isFollowingState) {
+            ChatScrollDecisionRunner(listState, scope, policy, isFollowingState)
+        }
     val userScrollDetector = remember(runner) { runner.createUserScrollConnection() }
-    val observer = remember(sessionId, listState, policy, runner, onScrollSnapshotChanged) {
-        ChatScrollSnapshotObserver(listState, policy, runner, { isFollowingState.value }, onScrollSnapshotChanged)
-    }
+    val observer =
+        remember(sessionId, listState, policy, runner, onScrollSnapshotChanged) {
+            ChatScrollSnapshotObserver(listState, policy, runner, { isFollowingState.value }, onScrollSnapshotChanged)
+        }
     LaunchedEffect(policy, listState) { observer.observeIdleTimeout() }
     LaunchedEffect(policy, activelyStreaming) { observer.observeManualBottomResume(activelyStreaming) }
-    LaunchedEffect(composerContentHeightPx, imeBottomPx, renderedMessages.size, isFollowingState.value, restorePending) {
+    LaunchedEffect(
+        composerContentHeightPx,
+        imeBottomPx,
+        renderedMessages.size,
+        isFollowingState.value,
+        restorePending,
+    ) {
         observer.onInsetsChanged(renderedMessages.size, restorePending)
     }
     LaunchedEffect(listState, renderedMessages, isFollowingState.value, sessionId) {
         observer.observePersistence(renderedMessages)
     }
-    LaunchedEffect(restorePending, restoreReady, renderedMessages, restoredScrollSnapshot?.savedAt, composerContentHeightPx, imeBottomPx) {
-        observer.restoreSnapshot(restoredScrollSnapshot, renderedMessages, restorePending, restoreReady) { restorePending = false }
+    LaunchedEffect(
+        restorePending,
+        restoreReady,
+        renderedMessages,
+        restoredScrollSnapshot?.savedAt,
+        composerContentHeightPx,
+        imeBottomPx,
+    ) {
+        observer.restoreSnapshot(restoredScrollSnapshot, renderedMessages, restorePending, restoreReady) {
+            restorePending =
+                false
+        }
     }
     LaunchedEffect(policy, renderedMessages.size) {
         observer.observeJumpToBottom(renderedMessages, showJumpToBottom)
@@ -343,7 +361,10 @@ private class ChatScrollSnapshotObserver(
     }
 
     /** 3. Composer/IME insets change — deferred to insets follow when not restoring. */
-    fun onInsetsChanged(messageCount: Int, restorePending: Boolean) {
+    fun onInsetsChanged(
+        messageCount: Int,
+        restorePending: Boolean,
+    ) {
         if (!restorePending) {
             runner.run(policy.onInsetsChanged(messageCount))
         }
@@ -389,7 +410,11 @@ private class ChatScrollSnapshotObserver(
         onRestoreDone: () -> Unit,
     ) {
         if (!restoreReady || !restorePending || renderedMessages.isEmpty()) return
-        val currentSnapshot = snapshot ?: run { onRestoreDone(); return }
+        val currentSnapshot =
+            snapshot ?: run {
+                onRestoreDone()
+                return
+            }
         val restoredIndex =
             currentSnapshot.anchorMessageId
                 ?.let { anchorId -> renderedMessages.indexOfFirst { it.id == anchorId } }

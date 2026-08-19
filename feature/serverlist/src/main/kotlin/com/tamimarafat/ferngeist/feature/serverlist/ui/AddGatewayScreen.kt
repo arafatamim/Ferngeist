@@ -60,7 +60,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayUiState
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
@@ -986,7 +985,10 @@ private fun ImportedPayloadCard(payload: GatewayPairingPayload) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
-                stringResource(R.string.serverlist_add_gateway_challenge_label, payload.challengeId.take(CHALLENGE_ID_DISPLAY_LENGTH)),
+                stringResource(
+                    R.string.serverlist_add_gateway_challenge_label,
+                    payload.challengeId.take(CHALLENGE_ID_DISPLAY_LENGTH),
+                ),
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(

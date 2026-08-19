@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import androidx.lifecycle.SavedStateHandle
+import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -7,17 +9,15 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.UsageState
-import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import androidx.lifecycle.SavedStateHandle
-import com.tamimarafat.ferngeist.core.model.ChatCommand
 import org.junit.Rule
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
@@ -101,8 +101,7 @@ internal fun readySnapshot(
     )
 
 /** Convenience overload that accepts a single [ChatMessage] for the [ChatSessionSnapshot.messages] field. */
-internal fun readySnapshot(message: ChatMessage): ChatSessionSnapshot =
-    readySnapshot(messages = listOf(message))
+internal fun readySnapshot(message: ChatMessage): ChatSessionSnapshot = readySnapshot(messages = listOf(message))
 
 /**
  * Builds an echo [ChatMessage] with [MessageDeliveryStatus.SENT], simulating the server-side
@@ -120,5 +119,4 @@ internal fun echoMessage(
     )
 
 /** Builds a [ChatSessionSnapshot] containing a single echo message. */
-internal fun snapshotWithEcho(echo: ChatMessage): ChatSessionSnapshot =
-    readySnapshot(message = echo)
+internal fun snapshotWithEcho(echo: ChatMessage): ChatSessionSnapshot = readySnapshot(message = echo)

@@ -246,7 +246,8 @@ internal suspend fun resolveGatewayAuthContext(
         server as? LaunchableTarget.GatewayAgent
             ?: return failGatewayAuth(uiState, pending, "Gateway was not found for ${server.name}.")
     val gatewaySource =
-        resolveAuthGatewaySource(pending, uiState, gatewayTarget, gatewayRepository, gatewaySourceRepository) ?: return null
+        resolveAuthGatewaySource(pending, uiState, gatewayTarget, gatewayRepository, gatewaySourceRepository)
+            ?: return null
     return GatewayAuthContext(server, gatewaySource)
 }
 

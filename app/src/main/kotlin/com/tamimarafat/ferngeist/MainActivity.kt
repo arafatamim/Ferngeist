@@ -13,7 +13,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -189,6 +188,7 @@ fun FerngeistNavHost(
         }
     }
 }
+
 @Composable
 private fun DeepLinkEffect(
     navController: NavHostController,
@@ -217,8 +217,12 @@ private fun DeepLinkEffect(
         onIntentConsumed()
     }
 }
+
 @Composable
-private fun BatteryOptimizationGate(connectionManager: AcpConnectionManager, context: Context) {
+private fun BatteryOptimizationGate(
+    connectionManager: AcpConnectionManager,
+    context: Context,
+) {
     val batteryPrefs = remember(context) { BatteryOptimizationPreferences(context) }
     val isDismissed by batteryPrefs.isDismissed.collectAsState(initial = false)
     var dismissLoaded by remember { mutableStateOf(false) }
@@ -259,140 +263,140 @@ private fun NavGraphBuilder.ServerListDestination(
     navController: NavHostController,
     sharedTransitionLayout: SharedTransitionScope,
 ) {
-            composable("server_list") {
-                val viewModel: ServerListViewModel = hiltViewModel()
+    composable("server_list") {
+        val viewModel: ServerListViewModel = hiltViewModel()
 
-                NotificationPermissionEffect()
+        NotificationPermissionEffect()
 
-                ServerListScreen(
-                    onNavigateToAddServer = { navController.navigate("add_server") },
-                    onNavigateToPairGateway = { navController.navigate("add_gateway") },
-                    onNavigateToGateways = { navController.navigate("gateways") },
-                    onNavigateToEditServer = { server ->
-                        when (server) {
-                            is LaunchableTarget.GatewayAgent ->
-                                navController.navigate(
-                                    "gateway_agents/${server.gatewaySource.id}",
-                                )
-                            is LaunchableTarget.Manual -> navController.navigate("edit_server/${server.id}")
-                        }
-                    },
-                    onNavigateToSessions = { serverId, serverName, _, openCreateSessionDialog ->
-                        val encodedName = Uri.encode(serverName)
+        ServerListScreen(
+            onNavigateToAddServer = { navController.navigate("add_server") },
+            onNavigateToPairGateway = { navController.navigate("add_gateway") },
+            onNavigateToGateways = { navController.navigate("gateways") },
+            onNavigateToEditServer = { server ->
+                when (server) {
+                    is LaunchableTarget.GatewayAgent ->
                         navController.navigate(
-                            "sessions/$serverId?create=$openCreateSessionDialog&name=$encodedName",
+                            "gateway_agents/${server.gatewaySource.id}",
                         )
-                    },
-                    onResumeSession = { session ->
-                        val encodedCwd = Uri.encode(session.cwd ?: "")
-                        val encodedTitle = Uri.encode(session.title)
-                        navController.navigate(
-                            "chat/${session.serverId}/${session.sessionId}?cwd=$encodedCwd&title=$encodedTitle",
-                        )
-                    },
-                    viewModel = viewModel,
-                    sharedTransitionScope = sharedTransitionLayout,
-                    animatedContentScope = this,
+                    is LaunchableTarget.Manual -> navController.navigate("edit_server/${server.id}")
+                }
+            },
+            onNavigateToSessions = { serverId, serverName, _, openCreateSessionDialog ->
+                val encodedName = Uri.encode(serverName)
+                navController.navigate(
+                    "sessions/$serverId?create=$openCreateSessionDialog&name=$encodedName",
                 )
-            }
+            },
+            onResumeSession = { session ->
+                val encodedCwd = Uri.encode(session.cwd ?: "")
+                val encodedTitle = Uri.encode(session.title)
+                navController.navigate(
+                    "chat/${session.serverId}/${session.sessionId}?cwd=$encodedCwd&title=$encodedTitle",
+                )
+            },
+            viewModel = viewModel,
+            sharedTransitionScope = sharedTransitionLayout,
+            animatedContentScope = this,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.GatewaysDestination(navController: NavHostController) {
-            composable("gateways") {
-                val viewModel: GatewayListViewModel = hiltViewModel()
-                GatewayListScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onPairAnother = { navController.navigate("add_gateway") },
-                    onEditGateway = { gateway -> navController.navigate("edit_gateway/${gateway.id}") },
-                    onOpenGatewayAgents = { gatewayId -> navController.navigate("gateway_agents/$gatewayId") },
-                    viewModel = viewModel,
-                )
-            }
+    composable("gateways") {
+        val viewModel: GatewayListViewModel = hiltViewModel()
+        GatewayListScreen(
+            onNavigateBack = { navController.popBackStack() },
+            onPairAnother = { navController.navigate("add_gateway") },
+            onEditGateway = { gateway -> navController.navigate("edit_gateway/${gateway.id}") },
+            onOpenGatewayAgents = { gatewayId -> navController.navigate("gateway_agents/$gatewayId") },
+            viewModel = viewModel,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.AddServerDestination(navController: NavHostController) {
-            composable(
-                route = "add_server?name={name}&scheme={scheme}&host={host}",
-                arguments =
-                    listOf(
-                        navArgument("name") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                        navArgument("scheme") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                        navArgument("host") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
-            ) {
-                val viewModel: AddServerViewModel = hiltViewModel()
-                AddServerScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    viewModel = viewModel,
-                )
-            }
+    composable(
+        route = "add_server?name={name}&scheme={scheme}&host={host}",
+        arguments =
+            listOf(
+                navArgument("name") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("scheme") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("host") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+    ) {
+        val viewModel: AddServerViewModel = hiltViewModel()
+        AddServerScreen(
+            onNavigateBack = { navController.popBackStack() },
+            viewModel = viewModel,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.AddGatewayDestination(navController: NavHostController) {
-            composable("add_gateway") {
-                val viewModel: AddGatewayViewModel = hiltViewModel()
-                AddGatewayScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    viewModel = viewModel,
-                )
-            }
+    composable("add_gateway") {
+        val viewModel: AddGatewayViewModel = hiltViewModel()
+        AddGatewayScreen(
+            onNavigateBack = { navController.popBackStack() },
+            viewModel = viewModel,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.EditGatewayDestination(navController: NavHostController) {
-            composable(
-                route = "edit_gateway/{serverId}",
-                arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
-            ) {
-                val viewModel: AddGatewayViewModel = hiltViewModel()
-                AddGatewayScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    viewModel = viewModel,
-                )
-            }
+    composable(
+        route = "edit_gateway/{serverId}",
+        arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
+    ) {
+        val viewModel: AddGatewayViewModel = hiltViewModel()
+        AddGatewayScreen(
+            onNavigateBack = { navController.popBackStack() },
+            viewModel = viewModel,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.GatewayAgentsDestination(navController: NavHostController) {
-            composable(
-                route = "gateway_agents/{serverId}",
-                arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
-            ) {
-                val viewModel: GatewayAgentsViewModel = hiltViewModel()
-                GatewayAgentsScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    viewModel = viewModel,
-                )
-            }
+    composable(
+        route = "gateway_agents/{serverId}",
+        arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
+    ) {
+        val viewModel: GatewayAgentsViewModel = hiltViewModel()
+        GatewayAgentsScreen(
+            onNavigateBack = { navController.popBackStack() },
+            viewModel = viewModel,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.EditServerDestination(navController: NavHostController) {
-            composable(
-                route = "edit_server/{serverId}",
-                arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
-            ) {
-                val viewModel: AddServerViewModel = hiltViewModel()
-                AddServerScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    viewModel = viewModel,
-                )
-            }
+    composable(
+        route = "edit_server/{serverId}",
+        arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
+    ) {
+        val viewModel: AddServerViewModel = hiltViewModel()
+        AddServerScreen(
+            onNavigateBack = { navController.popBackStack() },
+            viewModel = viewModel,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -400,48 +404,48 @@ private fun NavGraphBuilder.SessionsDestination(
     navController: NavHostController,
     sharedTransitionLayout: SharedTransitionScope,
 ) {
-            composable(
-                route = "sessions/{serverId}?create={create}&name={name}",
-                arguments =
-                    listOf(
-                        navArgument("serverId") { type = NavType.StringType },
-                        navArgument("create") {
-                            type = NavType.BoolType
-                            defaultValue = false
-                        },
-                        navArgument("name") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
-            ) { backStackEntry ->
-                val serverId = backStackEntry.arguments?.getString("serverId") ?: return@composable
-                val serverNameArg = backStackEntry.arguments?.getString("name")
-                val openCreateSessionDialog = backStackEntry.arguments?.getBoolean("create") == true
-                val viewModel: SessionListViewModel = hiltViewModel()
-                val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
+    composable(
+        route = "sessions/{serverId}?create={create}&name={name}",
+        arguments =
+            listOf(
+                navArgument("serverId") { type = NavType.StringType },
+                navArgument("create") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
+                navArgument("name") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+    ) { backStackEntry ->
+        val serverId = backStackEntry.arguments?.getString("serverId") ?: return@composable
+        val serverNameArg = backStackEntry.arguments?.getString("name")
+        val openCreateSessionDialog = backStackEntry.arguments?.getBoolean("create") == true
+        val viewModel: SessionListViewModel = hiltViewModel()
+        val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
 
-                val server by viewModel.server.collectAsState()
-                SessionListScreen(
-                    navArgName = serverNameArg,
-                    loadedName = server?.name,
-                    serverId = serverId,
-                    openCreateSessionDialogOnLaunch = openCreateSessionDialog,
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToChat = { sessionId, cwd, updatedAt, title ->
-                        val encodedCwd = Uri.encode(cwd)
-                        val encodedTitle = Uri.encode(title ?: fallbackSessionTitle)
-                        val updatedAtParam = updatedAt ?: -1L
-                        navController.navigate(
-                            "chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=$updatedAtParam&title=$encodedTitle",
-                        )
-                    },
-                    viewModel = viewModel,
-                    sharedTransitionScope = sharedTransitionLayout,
-                    animatedContentScope = this,
+        val server by viewModel.server.collectAsState()
+        SessionListScreen(
+            navArgName = serverNameArg,
+            loadedName = server?.name,
+            serverId = serverId,
+            openCreateSessionDialogOnLaunch = openCreateSessionDialog,
+            onNavigateBack = { navController.popBackStack() },
+            onNavigateToChat = { sessionId, cwd, updatedAt, title ->
+                val encodedCwd = Uri.encode(cwd)
+                val encodedTitle = Uri.encode(title ?: fallbackSessionTitle)
+                val updatedAtParam = updatedAt ?: -1L
+                navController.navigate(
+                    "chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=$updatedAtParam&title=$encodedTitle",
                 )
-            }
+            },
+            viewModel = viewModel,
+            sharedTransitionScope = sharedTransitionLayout,
+            animatedContentScope = this,
+        )
+    }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -449,50 +453,49 @@ private fun NavGraphBuilder.ChatDestination(
     navController: NavHostController,
     sharedTransitionLayout: SharedTransitionScope,
 ) {
-            composable(
-                route =
-                    "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}" +
-                        "&gatewayId={gatewayId}",
-                arguments =
-                    listOf(
-                        navArgument("serverId") { type = NavType.StringType },
-                        navArgument("sessionId") { type = NavType.StringType },
-                        navArgument("cwd") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = "/"
-                        },
-                        navArgument("updatedAt") {
-                            type = NavType.LongType
-                            defaultValue = -1L
-                        },
-                        navArgument("title") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = "Untitled Session"
-                        },
-                        navArgument("gatewayId") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
-            ) { backStackEntry ->
-                val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
-                val title =
-                    Uri.decode(
-                        backStackEntry.arguments?.getString("title") ?: stringResource(R.string.app_untitled_session),
-                    )
-                ChatScreen(
-                    sessionId = sessionId,
-                    sessionTitle = title,
-                    onNavigateBack = { navController.popBackStack() },
-                    sharedTransitionScope = sharedTransitionLayout,
-                    animatedContentScope = this,
-                )
-            }
+    composable(
+        route =
+            "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}" +
+                "&gatewayId={gatewayId}",
+        arguments =
+            listOf(
+                navArgument("serverId") { type = NavType.StringType },
+                navArgument("sessionId") { type = NavType.StringType },
+                navArgument("cwd") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = "/"
+                },
+                navArgument("updatedAt") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                },
+                navArgument("title") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = "Untitled Session"
+                },
+                navArgument("gatewayId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+    ) { backStackEntry ->
+        val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
+        val title =
+            Uri.decode(
+                backStackEntry.arguments?.getString("title") ?: stringResource(R.string.app_untitled_session),
+            )
+        ChatScreen(
+            sessionId = sessionId,
+            sessionTitle = title,
+            onNavigateBack = { navController.popBackStack() },
+            sharedTransitionScope = sharedTransitionLayout,
+            animatedContentScope = this,
+        )
+    }
 }
-
 
 /** A resolved chat destination for a notification tap. [serverId] is always the local id. */
 private data class ChatDeepLinkTarget(

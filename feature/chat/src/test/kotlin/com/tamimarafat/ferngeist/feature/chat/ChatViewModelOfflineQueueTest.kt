@@ -3,12 +3,10 @@ package com.tamimarafat.ferngeist.feature.chat
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,7 +17,6 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
-
     @Test
     fun `sessionReady flushes all queued prompts in FIFO order`() =
         runTest {
@@ -177,9 +174,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
      * flushes the queue via [TestFacade.emitSessionReady], and returns the view model in
      * the post-flush state where A has FAILED and B has been echoed and removed.
      */
-    private suspend fun TestScope.createFlushedOfflineQueue(
-        facadeFactory: TestFacadeFactory,
-    ): ChatViewModel {
+    private suspend fun TestScope.createFlushedOfflineQueue(facadeFactory: TestFacadeFactory): ChatViewModel {
         val viewModel = createViewModel(facadeFactory = facadeFactory)
         advanceUntilIdle()
 

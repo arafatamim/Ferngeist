@@ -119,24 +119,24 @@ fun GatewayAgentsScreen(
                     modifier = Modifier.padding(padding),
                 )
             }
-            else -> AgentList(
-                agents = uiState.agents,
-                addedAgentIds = uiState.addedAgentIds,
-                onAgentClick = { pendingAddAgent = it },
-                modifier = Modifier.padding(padding),
-            )
+            else ->
+                AgentList(
+                    agents = uiState.agents,
+                    addedAgentIds = uiState.addedAgentIds,
+                    onAgentClick = { pendingAddAgent = it },
+                    modifier = Modifier.padding(padding),
+                )
         }
     }
 }
 
 @Composable
-private fun LoadingContent(
-    modifier: Modifier = Modifier,
-) {
+private fun LoadingContent(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         CircularWavyProgressIndicator(modifier = Modifier.size(64.dp))
@@ -151,9 +151,10 @@ private fun ErrorContent(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         ErrorStateCard(

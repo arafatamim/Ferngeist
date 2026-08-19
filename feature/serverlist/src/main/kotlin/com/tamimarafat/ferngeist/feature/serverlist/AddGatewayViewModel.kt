@@ -230,7 +230,10 @@ class AddGatewayViewModel
             }
         }
 
-        private suspend fun saveExistingGateway(gatewayHost: String, gatewayName: String) {
+        private suspend fun saveExistingGateway(
+            gatewayHost: String,
+            gatewayName: String,
+        ) {
             val currentGateway = existingGateway
             if (currentGateway == null) {
                 emitError("Gateway could not be loaded")

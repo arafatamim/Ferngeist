@@ -4,6 +4,7 @@
     ExperimentalMaterial3ExpressiveApi::class,
     ExperimentalSharedTransitionApi::class,
 )
+
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -186,7 +187,10 @@ private fun TopBarBackButton(onNavigateBack: () -> Unit) {
 }
 
 @Composable
-private fun TopBarSubtitleContent(model: String, expanded: Boolean) {
+private fun TopBarSubtitleContent(
+    model: String,
+    expanded: Boolean,
+) {
     if (expanded) {
         Text(
             text = model,
@@ -329,7 +333,10 @@ internal fun ChatTopBarTitle(
 }
 
 @Composable
-private fun TooltipMetadataRows(cwd: String?, model: String?) {
+private fun TooltipMetadataRows(
+    cwd: String?,
+    model: String?,
+) {
     Column {
         cwd?.takeIf { it.isNotBlank() }?.let { value ->
             Text(

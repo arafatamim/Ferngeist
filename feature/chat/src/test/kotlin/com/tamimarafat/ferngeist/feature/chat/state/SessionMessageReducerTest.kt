@@ -55,11 +55,20 @@ class SessionMessageReducerTest {
         assertEquals(1, messages.last().segments.size)
         assertEquals(
             AssistantSegment.Kind.PLAN,
-            messages.last().segments.last().kind,
+            messages
+                .last()
+                .segments
+                .last()
+                .kind,
         )
         assertEquals(
             expectedEntryCount,
-            messages.last().segments.last().planEntries?.size,
+            messages
+                .last()
+                .segments
+                .last()
+                .planEntries
+                ?.size,
         )
     }
 
@@ -70,7 +79,13 @@ class SessionMessageReducerTest {
     ) {
         assertEquals(
             expected,
-            messages.last().segments.last().planEntries?.get(0)?.status,
+            messages
+                .last()
+                .segments
+                .last()
+                .planEntries
+                ?.get(0)
+                ?.status,
         )
     }
 
@@ -327,18 +342,20 @@ class SessionMessageReducerTest {
 
     @Test
     fun `plan entries replace existing plan segment on each update`() {
-        val first = applyPlan(
-            emptyList(),
-            planEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.PENDING),
-        )
+        val first =
+            applyPlan(
+                emptyList(),
+                planEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.PENDING),
+            )
 
         assertPlanSegment(first, expectedEntryCount = 1)
 
-        val second = applyPlan(
-            first,
-            planEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.IN_PROGRESS),
-            planEntry(content = "Step 2", priority = PlanEntryPriority.MEDIUM, status = PlanEntryStatus.PENDING),
-        )
+        val second =
+            applyPlan(
+                first,
+                planEntry(content = "Step 1", priority = PlanEntryPriority.HIGH, status = PlanEntryStatus.IN_PROGRESS),
+                planEntry(content = "Step 2", priority = PlanEntryPriority.MEDIUM, status = PlanEntryStatus.PENDING),
+            )
 
         assertPlanSegment(second, expectedEntryCount = 2)
         assertFirstPlanEntryStatus(second, PlanEntryStatus.IN_PROGRESS)
