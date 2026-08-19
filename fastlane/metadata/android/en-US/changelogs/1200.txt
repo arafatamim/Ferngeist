@@ -1,0 +1,8 @@
+• New: graceful error and empty states across the app
+• New: smoother server list — fading edges, stable top bar, and a snap-back bottom sheet
+• New: smarter reconnection with exponential backoff
+• Fixed: chat no longer leaves an empty strip above the gesture bar
+• Fixed: session list no longer flickers while refreshing
+• Fixed: git status entries for submodules now show as directories
+• Fixed: scroll-to-bottom button hides when already at the bottom
+• Various stability and polish improvements
