@@ -77,8 +77,7 @@ class ServerListViewModelTest {
                 )
 
             // Mock initialize success to allow first connection to complete
-            coEvery { connectionManager.connect(any()) } returns true
-            coEvery { connectionManager.initialize() } returns
+            coEvery { connectionManager.connectAndInitialize(any()) } returns
                 AcpInitializeResult.Ready(
                     agentInfo = AgentInfo("Test Agent", "1.0"),
                     agentCapabilities = AgentCapabilities(),
@@ -93,7 +92,7 @@ class ServerListViewModelTest {
                 advanceUntilIdle()
 
                 // Verify it connected once
-                coVerify(exactly = 1) { connectionManager.connect(any()) }
+                coVerify(exactly = 1) { connectionManager.connectAndInitialize(any()) }
 
                 // Should have navigated
                 val firstEvent = awaitItem()
@@ -112,7 +111,7 @@ class ServerListViewModelTest {
                 advanceUntilIdle()
 
                 // Verify that connect was NOT called again during the second attempt.
-                coVerify(exactly = 1) { connectionManager.connect(any()) }
+                coVerify(exactly = 1) { connectionManager.connectAndInitialize(any()) }
 
                 // Should have navigated AGAIN (instantly)
                 val secondEvent = awaitItem()
@@ -140,8 +139,7 @@ class ServerListViewModelTest {
                     server = ServerConfig(id = serverBId, name = "Server B", host = "localhost"),
                 )
 
-            coEvery { connectionManager.connect(any()) } returns true
-            coEvery { connectionManager.initialize() } returns
+            coEvery { connectionManager.connectAndInitialize(any()) } returns
                 AcpInitializeResult.Ready(
                     agentInfo = AgentInfo("Test Agent", "1.0"),
                     agentCapabilities = AgentCapabilities(),
@@ -186,8 +184,7 @@ class ServerListViewModelTest {
                     server = ServerConfig(id = serverId, name = "Test Server", host = "localhost"),
                 )
 
-            coEvery { connectionManager.connect(any()) } returns true
-            coEvery { connectionManager.initialize() } returns
+            coEvery { connectionManager.connectAndInitialize(any()) } returns
                 AcpInitializeResult.Ready(
                     agentInfo = AgentInfo("Test Agent", "1.0"),
                     agentCapabilities = AgentCapabilities(),
@@ -209,7 +206,7 @@ class ServerListViewModelTest {
                 )
 
                 // Verify full connection lifecycle ran (guard was skipped)
-                coVerify(exactly = 1) { connectionManager.connect(any()) }
+                coVerify(exactly = 1) { connectionManager.connectAndInitialize(any()) }
 
                 cancelAndIgnoreRemainingEvents()
             }

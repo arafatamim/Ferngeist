@@ -76,6 +76,18 @@ class AcpConnectionManager(
     suspend fun connect(config: AcpConnectionConfig): Boolean =
         orchestra.connect(config, resetState = ::resetConnectionState)
 
+    /**
+     * Connects the transport and runs the ACP initialize handshake.
+     * Callers dispatch to [Dispatchers.IO] when needed (both calls are
+     * network-bound).
+     *
+     * @return the initialize result, or null when connect or initialize failed.
+     */
+    suspend fun connectAndInitialize(config: AcpConnectionConfig): AcpInitializeResult? {
+        if (!connect(config)) return null
+        return initialize()
+    }
+
     suspend fun initialize(): AcpInitializeResult? = orchestra.initialize()
 
     fun currentConnectionConfig(): AcpConnectionConfig? = orchestra.currentConnectionConfig()

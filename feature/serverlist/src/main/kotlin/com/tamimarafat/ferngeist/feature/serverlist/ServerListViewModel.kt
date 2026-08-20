@@ -255,7 +255,7 @@ class ServerListViewModel
                 val resolvedConfig = resolveConnectionConfig(server, launchContext)
 
                 val initializeResult =
-                    connectAndInitialize(server, launchContext, resolvedConfig) ?: return@launch
+                    connectAndInitializeOrReport(server, launchContext, resolvedConfig) ?: return@launch
                 handleInitializeResult(server, launchContext, initializeResult)
             }
         }
@@ -309,19 +309,23 @@ class ServerListViewModel
             }
 
         /**
-         * Connects the transport and runs the initialize handshake. Returns the
-         * initialize result, or null after surfacing a connection/init error.
+         * Connects the transport and runs the initialize handshake via
+         * [AcpConnectionManager.connectAndInitialize], then surfaces a
+         * connection- or initialization-specific error when it fails.
+         * Returns the initialize result, or null after surfacing the error.
          */
-        private suspend fun connectAndInitialize(
+        private suspend fun connectAndInitializeOrReport(
             server: LaunchableTarget,
             launchContext: GatewayLaunchContext?,
             resolvedConfig: AcpConnectionConfig,
         ): AcpInitializeResult? {
-            val connected =
+            val initializeResult =
                 withContext(Dispatchers.IO) {
-                    connectionManager.connect(resolvedConfig)
+                    connectionManager.connectAndInitialize(resolvedConfig)
                 }
-            if (!connected) {
+            if (initializeResult != null) return initializeResult
+
+            if (!connectionManager.isConnected) {
                 val connectMessage =
                     connectionManager.diagnostics.value.recentErrors
                         .lastOrNull { entry -> entry.source == "connect" || entry.source == "connection" }
@@ -335,15 +339,7 @@ class ServerListViewModel
                         showConnectionError = connectMessage,
                     )
                 }
-                return null
-            }
-
-            // Step 2: Initialize and get agent info
-            val initializeResult =
-                withContext(Dispatchers.IO) {
-                    connectionManager.initialize()
-                }
-            if (initializeResult == null) {
+            } else {
                 val initializeDetail =
                     buildInitializeFailureMessage(
                         connectionManager = connectionManager,
@@ -361,9 +357,8 @@ class ServerListViewModel
                         connectedServerState = null,
                     )
                 }
-                return null
             }
-            return initializeResult
+            return null
         }
 
         /**

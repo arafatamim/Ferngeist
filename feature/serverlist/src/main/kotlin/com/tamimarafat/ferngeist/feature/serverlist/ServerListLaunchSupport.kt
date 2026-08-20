@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.launchGatewayRuntime
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
 import kotlinx.coroutines.Dispatchers
@@ -79,70 +80,40 @@ internal suspend fun persistEnvValues(
  * Gateway agents need a two-stage launch: start or reuse the gateway runtime,
  * then request a runtime-scoped ACP WebSocket handoff.
  */
-internal suspend fun buildGatewayLaunchContext(
+suspend fun buildGatewayLaunchContext(
     gatewayRepository: GatewayRepository,
     gatewaySourceRepository: GatewaySourceRepository,
     server: LaunchableTarget.GatewayAgent,
-): Result<GatewayLaunchContext> {
-    val gatewaySource =
-        try {
-            withContext(Dispatchers.IO) {
-                refreshGatewaySourceIfNeeded(server.gatewaySource, gatewayRepository, gatewaySourceRepository)
-            }
-        } catch (_: GatewayCredentialExpiredException) {
-            withContext(Dispatchers.IO) {
-                gatewaySourceRepository.deleteGateway(server.gatewaySource.id)
-            }
-            return Result.failure(
-                IllegalStateException("Gateway credential expired. Please pair this gateway again."),
-            )
-        }
-    if (gatewaySource.gatewayCredential.isBlank()) {
-        return Result.failure(IllegalStateException("Gateway is not paired"))
-    }
-
-    return runCatching {
-        val runtime =
-            withContext(Dispatchers.IO) {
-                gatewayRepository.startAgent(
-                    scheme = gatewaySource.scheme,
-                    host = gatewaySource.host,
-                    gatewayCredential = gatewaySource.gatewayCredential,
-                    agentId = server.binding.agentId,
-                )
-            }
-        val handoff =
-            withContext(Dispatchers.IO) {
-                gatewayRepository.connectRuntime(
-                    scheme = gatewaySource.scheme,
-                    host = gatewaySource.host,
-                    gatewayCredential = gatewaySource.gatewayCredential,
-                    runtimeId = runtime.id,
-                    sessionMode = "resilient",
-                )
-            }
+): Result<GatewayLaunchContext> =
+    launchGatewayRuntime(
+        gatewayRepository = gatewayRepository,
+        gatewaySourceRepository = gatewaySourceRepository,
+        gatewaySource = server.gatewaySource,
+        agentId = server.binding.agentId,
+    ).map { result ->
+        val source = result.gatewaySource
+        val handoff = result.handoff
         GatewayLaunchContext(
             config =
                 AcpConnectionConfig(
-                    scheme = gatewaySource.scheme,
-                    host = gatewaySource.host,
-                    webSocketUrl = resolveGatewayWebSocketUrl(gatewaySource, handoff),
+                    scheme = source.scheme,
+                    host = source.host,
+                    webSocketUrl = resolveGatewayWebSocketUrl(source, handoff),
                     webSocketBearerToken = handoff.bearerToken,
                     preferredAuthMethodId = server.preferredAuthMethodId,
-                    gatewayRuntimeId = runtime.id,
-                    gatewaySourceId = gatewaySource.id,
+                    gatewayRuntimeId = result.runtime.id,
+                    gatewaySourceId = source.id,
                     serverDisplayName = server.name,
                     sessionId = handoff.sessionId,
                     attachToken = handoff.attachToken,
-                    gatewayScheme = gatewaySource.scheme,
-                    gatewayHost = gatewaySource.host,
-                    gatewayCredential = gatewaySource.gatewayCredential,
+                    gatewayScheme = source.scheme,
+                    gatewayHost = source.host,
+                    gatewayCredential = source.gatewayCredential,
                 ),
-            gatewaySource = gatewaySource,
-            runtimeId = runtime.id,
+            gatewaySource = source,
+            runtimeId = result.runtime.id,
         )
     }
-}
 
 /**
  * Gateway-backed initialize failures can happen after the gateway has already
@@ -218,7 +189,7 @@ internal fun logConnectionFailure(
     }
 }
 
-internal data class GatewayLaunchContext(
+data class GatewayLaunchContext(
     val config: AcpConnectionConfig,
     val gatewaySource: GatewaySource,
     val runtimeId: String,

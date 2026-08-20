@@ -24,8 +24,7 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
-import com.tamimarafat.ferngeist.gateway.requireSupportedProtocol
+import com.tamimarafat.ferngeist.gateway.launchGatewayRuntime
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -210,9 +209,12 @@ class AcpChatSessionFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
     ): Boolean {
-        if (text.isBlank() && images.isEmpty() && files.isEmpty()) return false
-
-        val bridge = ensureSessionReadyForSend()
+        val bridge =
+            if (text.isBlank() && images.isEmpty() && files.isEmpty()) {
+                null
+            } else {
+                ensureSessionReadyForSend()
+            }
         if (bridge == null) {
             _operationError.emit(
                 ChatOperationError("Session is not ready. Please retry in a moment.", false),
@@ -223,10 +225,13 @@ class AcpChatSessionFacade(
 
         try {
             bridge.sendPrompt(text, images, files)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
         } catch (error: Exception) {
             // Broad catch: a send can fail on any transport/protocol error and must
             // surface as an operation error rather than crash the sending coroutine.
             _operationError.emit(ChatOperationError(userFacingSendError(error), true))
+            return false
         }
         return true
     }
@@ -415,79 +420,57 @@ class AcpChatSessionFacade(
             _loadFailed.emit("Gateway is not paired for ${target.name}.")
             return null
         }
-        return try {
-            startGatewayRuntimeAndConnect(target, gatewaySource)
-        } catch (_: GatewayCredentialExpiredException) {
-            // The stored credential is dead (expired past the gateway's grace
-            // window). Clear it and surface the pairing flow instead of failing
-            // opaquely on every reconnect.
-            gatewaySourceRepository.deleteGateway(gatewaySource.id)
-            _loadFailed.emit(
-                "Gateway credential expired for ${target.name}. Please pair this gateway again.",
-            )
-            null
-        } catch (error: Throwable) {
-            // Broad catch: gateway refresh/start/connect can fail on network errors,
-            // protocol mismatch, or gateway-side failures; all surface the same
-            // user-facing reconnect error instead of crashing the caller.
-            _loadFailed.emit(
-                "Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}",
-            )
-            null
-        }
-    }
-
-    /**
-     * Refreshes the gateway credential, gates on protocol compatibility, starts the
-     * agent runtime, and builds the WebSocket handoff config.
-     */
-    private suspend fun startGatewayRuntimeAndConnect(
-        target: LaunchableTarget.GatewayAgent,
-        gatewaySource: com.tamimarafat.ferngeist.core.model.GatewaySource,
-    ): AcpConnectionConfig {
-        val refreshedSource =
-            refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
-        // Gate on protocol compatibility before any agent/runtime calls so a
-        // mismatched gateway surfaces a clear error instead of an opaque failure.
-        gatewayRepository
-            .fetchStatus(refreshedSource.scheme, refreshedSource.host)
-            .requireSupportedProtocol()
-        val runtime =
-            gatewayRepository.startAgent(
-                scheme = refreshedSource.scheme,
-                host = refreshedSource.host,
-                gatewayCredential = refreshedSource.gatewayCredential,
-                agentId = target.binding.agentId,
-            )
-        val handoff =
-            gatewayRepository.connectRuntime(
-                scheme = refreshedSource.scheme,
-                host = refreshedSource.host,
-                gatewayCredential = refreshedSource.gatewayCredential,
-                runtimeId = runtime.id,
-                sessionMode = "resilient",
-            )
-        _gatewayWorkspaceConnection.value =
-            GatewayWorkspaceConnection(
-                runtimeId = runtime.id,
-                scheme = refreshedSource.scheme,
-                host = refreshedSource.host,
-                gatewayCredential = refreshedSource.gatewayCredential,
-            )
-        return AcpConnectionConfig(
-            scheme = refreshedSource.scheme,
-            host = refreshedSource.host,
-            webSocketUrl = resolveGatewayWebSocketUrl(refreshedSource, handoff),
-            webSocketBearerToken = handoff.bearerToken,
-            preferredAuthMethodId = target.binding.preferredAuthMethodId,
-            gatewayRuntimeId = runtime.id,
-            gatewaySourceId = refreshedSource.id,
-            serverDisplayName = target.name,
-            sessionId = handoff.sessionId,
-            attachToken = handoff.attachToken,
-            gatewayScheme = refreshedSource.scheme,
-            gatewayHost = refreshedSource.host,
-            gatewayCredential = refreshedSource.gatewayCredential,
+        return launchGatewayRuntime(
+            gatewayRepository = gatewayRepository,
+            gatewaySourceRepository = gatewaySourceRepository,
+            gatewaySource = gatewaySource,
+            agentId = target.binding.agentId,
+            requireSupportedProtocol = true,
+        ).fold(
+            onSuccess = { result ->
+                val source = result.gatewaySource
+                val handoff = result.handoff
+                _gatewayWorkspaceConnection.value =
+                    GatewayWorkspaceConnection(
+                        runtimeId = result.runtime.id,
+                        scheme = source.scheme,
+                        host = source.host,
+                        gatewayCredential = source.gatewayCredential,
+                    )
+                AcpConnectionConfig(
+                    scheme = source.scheme,
+                    host = source.host,
+                    webSocketUrl = resolveGatewayWebSocketUrl(source, handoff),
+                    webSocketBearerToken = handoff.bearerToken,
+                    preferredAuthMethodId = target.binding.preferredAuthMethodId,
+                    gatewayRuntimeId = result.runtime.id,
+                    gatewaySourceId = source.id,
+                    serverDisplayName = target.name,
+                    sessionId = handoff.sessionId,
+                    attachToken = handoff.attachToken,
+                    gatewayScheme = source.scheme,
+                    gatewayHost = source.host,
+                    gatewayCredential = source.gatewayCredential,
+                )
+            },
+            onFailure = { error ->
+                when (error) {
+                    is GatewayCredentialExpiredException -> {
+                        // The stored credential is dead (expired past the gateway's grace
+                        // window). Clear it and surface the pairing flow instead of failing
+                        // opaquely on every reconnect.
+                        gatewaySourceRepository.deleteGateway(gatewaySource.id)
+                        _loadFailed.emit(
+                            "Gateway credential expired for ${target.name}. Please pair this gateway again.",
+                        )
+                    }
+                    else ->
+                        _loadFailed.emit(
+                            "Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}",
+                        )
+                }
+                null
+            },
         )
     }
 
