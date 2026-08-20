@@ -105,4 +105,12 @@ class SessionGatewayTest {
             val gateway = newGateway()
             assertNull(gateway.createSession("   "))
         }
+
+    @Test
+    fun `createSession while disconnected throws AcpDisconnectedException`() =
+        runTest {
+            val gateway = newGateway()
+            val result = runCatching { gateway.createSession("/some/cwd") }
+            assertTrue(result.exceptionOrNull() is AcpDisconnectedException)
+        }
 }

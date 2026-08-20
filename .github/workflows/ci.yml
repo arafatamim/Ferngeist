@@ -32,5 +32,5 @@ jobs:
       - name: Run debug unit tests
         run: ./gradlew testDebugUnitTest
 
-      - name: Run detekt + ktlint
-        run: ./gradlew detekt ktlintCheck
+      - name: Run detekt + ktlint + lint
+        run: ./gradlew detekt ktlintCheck lintDebug

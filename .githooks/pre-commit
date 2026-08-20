@@ -28,9 +28,9 @@ else
     exit 1
 fi
 
-echo "Running detekt + ktlintCheck (pre-commit gate)..."
-if ! $GRADLE_CMD detekt ktlintCheck --console=plain; then
-    echo "❌ detekt/ktlint failed. Fix findings before committing."
+echo "Running detekt + ktlint + lint (pre-commit gate)..."
+if ! $GRADLE_CMD detekt ktlintCheck lintDebug --console=plain; then
+    echo "❌ detekt/ktlint/lint failed. Fix findings before committing."
     echo "   (override: git commit --no-verify)"
     exit 1
 fi

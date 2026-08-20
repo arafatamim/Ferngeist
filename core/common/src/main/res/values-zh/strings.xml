@@ -33,6 +33,7 @@
     <string name="common_cost_spent">已消耗金额：%1$s</string>
     <string name="common_recent_rpc">近期 RPC 活动</string>
     <string name="common_no_recent_rpc">无近期 RPC 活动</string>
+    <string name="common_reconnect_attempts">重连尝试次数：%1$d</string>
     <string name="common_recent_errors">近期错误</string>
     <string name="common_no_recent_errors">无近期错误</string>
     <string name="common_connection_status_desc">连接状态</string>

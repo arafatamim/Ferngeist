@@ -22,6 +22,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
+import com.tamimarafat.ferngeist.feature.serverlist.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -197,11 +198,18 @@ class SessionListViewModel
 
         /**
          * Creates a new session on the server and navigates to it on success.
+         *
+         * If the transport is not connected, reconnects first so session
+         * creation succeeds instead of failing with a disconnect error.
          */
         fun createSession(cwd: String) {
             viewModelScope.launch {
                 _isLoading.value = true
                 val normalizedCwd = cwd.trim()
+                if (!connectIfNeeded()) {
+                    _isLoading.value = false
+                    return@launch
+                }
                 runCatching {
                     connectionManager.createSession(normalizedCwd)
                 }.onSuccess { bridge ->
@@ -236,6 +244,70 @@ class SessionListViewModel
                 }
                 _isLoading.value = false
             }
+        }
+
+        /**
+         * Ensures the ACP transport is connected before a session operation,
+         * reconnecting when needed. Emits a clear error when reconnection fails.
+         *
+         * @return true when connected (or already connected); false stops the caller.
+         */
+        private suspend fun connectIfNeeded(): Boolean {
+            if (connectionManager.isConnected) return true
+
+            val target =
+                server.value
+                    ?: return showConnectError("Server was removed before connecting.")
+
+            val config = buildConnectionConfig(target) ?: return false
+
+            val initialized =
+                withContext(Dispatchers.IO) {
+                    connectionManager.connectAndInitialize(config)
+                }
+            return if (initialized == null) {
+                showConnectError(
+                    "Failed to connect to ${target.name}. Check your connection and try again.",
+                )
+            } else {
+                true
+            }
+        }
+
+        /**
+         * Builds the transport config for [target], starting the gateway runtime
+         * when needed. Emits a clear error and returns null on failure.
+         */
+        private suspend fun buildConnectionConfig(target: LaunchableTarget): AcpConnectionConfig? {
+            val launchContext =
+                when (target) {
+                    is LaunchableTarget.GatewayAgent ->
+                        buildGatewayLaunchContext(gatewayRepository, gatewaySourceRepository, target)
+                            .getOrElse { error ->
+                                showConnectError(error.message ?: "Failed to launch ${target.name}")
+                                return null
+                            }
+                    is LaunchableTarget.Manual -> null
+                }
+            return launchContext?.config
+                ?: (target as? LaunchableTarget.Manual)?.let { manual ->
+                    AcpConnectionConfig(
+                        scheme = manual.server.scheme,
+                        host = manual.server.host,
+                        preferredAuthMethodId = manual.server.preferredAuthMethodId,
+                        serverDisplayName = manual.name,
+                    )
+                }
+                ?: run {
+                    showConnectError("Unknown server type.")
+                    null
+                }
+        }
+
+        /** Emits a connection error to the UI and returns false to stop the caller. */
+        private suspend fun showConnectError(message: String): Boolean {
+            _events.emit(SessionListEvent.ShowError(message))
+            return false
         }
 
         /**

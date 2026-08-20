@@ -30,6 +30,7 @@
     <string name="common_cost_spent">Custo gasto: %1$s</string>
     <string name="common_recent_rpc">Atividade RPC recente</string>
     <string name="common_no_recent_rpc">Sem atividade RPC recente</string>
+    <string name="common_reconnect_attempts">Tentativas de reconexão: %1$d</string>
     <string name="common_recent_errors">Erros recentes</string>
     <string name="common_no_recent_errors">Sem erros recentes</string>
     <string name="common_connection_status_desc">Status da conexão</string>

@@ -73,7 +73,9 @@ internal class SessionGateway(
             orchestra.diagnosticsStore.appendError("session/new", "Refusing to create session: blank cwd")
             return null
         }
-        val client = orchestra.sdkClient ?: return null
+        val client =
+            orchestra.sdkClient
+                ?: throw AcpDisconnectedException()
         return runCatching {
             orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/new")
             val session =
@@ -110,10 +112,8 @@ internal class SessionGateway(
         getLoadedSession(sessionId)?.let { existing -> return existing }
 
         val client =
-            orchestra.sdkClient ?: run {
-                orchestra.logError("loadSession: sdkClient is NULL, returning null")
-                return null
-            }
+            orchestra.sdkClient
+                ?: throw AcpDisconnectedException()
         orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/load")
         val result =
             runCatching {

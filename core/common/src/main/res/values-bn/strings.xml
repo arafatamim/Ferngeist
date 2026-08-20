@@ -30,6 +30,7 @@
     <string name="common_cost_spent">ব্যয়: %1$s</string>
     <string name="common_recent_rpc">সাম্প্রতিক RPC কার্যকলাপ</string>
     <string name="common_no_recent_rpc">সাম্প্রতিক RPC কার্যকলাপ নেই</string>
+    <string name="common_reconnect_attempts">পুনঃসংযোগের চেষ্টা: %1$d</string>
     <string name="common_recent_errors">সাম্প্রতিক ত্রুটি</string>
     <string name="common_no_recent_errors">সাম্প্রতিক ত্রুটি নেই</string>
     <string name="common_connection_status_desc">সংযোগের অবস্থা</string>

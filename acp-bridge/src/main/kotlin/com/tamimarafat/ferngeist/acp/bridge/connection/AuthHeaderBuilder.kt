@@ -73,6 +73,16 @@ class AcpAuthenticationRequiredException(
     val challenge: AcpAuthChallenge,
 ) : IllegalStateException(challenge.message)
 
+/**
+ * Raised when a session RPC is attempted while the ACP transport is not
+ * connected (no live SDK client). Callers should surface this as a clear
+ * "not connected" error instead of silently retrying or returning null.
+ */
+class AcpDisconnectedException :
+    IllegalStateException(
+        "Not connected to the ACP server",
+    )
+
 @OptIn(UnstableApi::class)
 fun AgentCapabilities.displayLabels(): List<String> =
     buildList {

@@ -33,6 +33,7 @@
     <string name="common_cost_spent">Затрачено: %1$s</string>
     <string name="common_recent_rpc">Недавние RPC</string>
     <string name="common_no_recent_rpc">Нет недавних RPC</string>
+    <string name="common_reconnect_attempts">Попытки переподключения: %1$d</string>
     <string name="common_recent_errors">Недавние ошибки</string>
     <string name="common_no_recent_errors">Нет недавних ошибок</string>
     <string name="common_connection_status_desc">Статус подключения</string>
