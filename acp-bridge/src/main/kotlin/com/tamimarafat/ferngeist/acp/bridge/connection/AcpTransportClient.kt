@@ -503,6 +503,7 @@ internal class AcpTransportClient(
         return true
     }
 
+    @Suppress("TooGenericExceptionCaught")
     private fun scheduleReconnect(resetState: () -> Unit) {
         if (reconnectJob != null) return
         reconnectJob =
@@ -523,10 +524,22 @@ internal class AcpTransportClient(
                         delay(computeReconnectDelayMs(reconnectAttempts))
 
                         val reconnected =
-                            if (config.isResilientSession) {
-                                connectSessionResume(config, resetState, scheduleReconnectOnFailure = false)
-                            } else {
-                                connectInternal(config, resetState, scheduleReconnectOnFailure = false)
+                            try {
+                                if (config.isResilientSession) {
+                                    connectSessionResume(config, resetState, scheduleReconnectOnFailure = false)
+                                } else {
+                                    connectInternal(config, resetState, scheduleReconnectOnFailure = false)
+                                }
+                            } catch (error: Throwable) {
+                                // A reconnect attempt must never crash the app or kill the loop:
+                                // network drops (ConnectException), handshake failures, and
+                                // gateway HTTP errors all surface here. Log + retry with backoff.
+                                if (error is CancellationException) throw error
+                                diagnosticsStore.appendError(
+                                    "reconnect",
+                                    formatAcpErrorMessage(error, "Reconnect failed"),
+                                )
+                                false
                             }
 
                         if (reconnected) {
