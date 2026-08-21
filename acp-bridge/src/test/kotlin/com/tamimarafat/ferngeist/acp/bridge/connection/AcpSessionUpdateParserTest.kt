@@ -1,3 +1,5 @@
+@file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
+
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.model.ContentBlock

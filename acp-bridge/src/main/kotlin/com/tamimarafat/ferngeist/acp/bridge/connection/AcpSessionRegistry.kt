@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.ClientSession
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
@@ -52,6 +53,7 @@ internal class AcpSessionRegistry(
         }
     }
 
+    @OptIn(UnstableApi::class)
     fun clearSession(
         sessionId: String,
         closeBridge: Boolean,

@@ -32,7 +32,7 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -520,8 +520,8 @@ private fun PermissionRequestSheet(
     onDenyPermission: (String) -> Unit,
 ) {
     val sheetState =
-        rememberModalBottomSheetState(
-            skipPartiallyExpanded = true,
+        rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
             confirmValueChange = { value -> value != SheetValue.Hidden },
         )
     ModalBottomSheet(
@@ -611,7 +611,7 @@ private fun ToolCallDetailsSheet(
     toolCall: ToolCallDisplay,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -712,7 +712,7 @@ private fun ThoughtDetailsSheet(
     thought: String,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -759,7 +759,7 @@ internal fun GitStatusSheet(
     onLoadGitDiff: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     // Selected file path; null shows the summary/list, non-null shows its diff detail.
     // Saved across process death so the detail survives rotation while the request runs.
     var selectedFilePath by rememberSaveable { mutableStateOf<String?>(null) }

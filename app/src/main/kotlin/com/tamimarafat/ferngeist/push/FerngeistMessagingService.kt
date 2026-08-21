@@ -52,6 +52,9 @@ class FerngeistMessagingService : FirebaseMessagingService() {
     @Inject
     lateinit var appForegroundState: AppForegroundState
 
+    // FCM 25.x still delivers tokens via the String overload; the deprecation is
+    // a migration marker, but no Token-based replacement exists in this version.
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onNewToken(token: String) {
         pushTokenRegistrar.onTokenRefreshed(token)
     }

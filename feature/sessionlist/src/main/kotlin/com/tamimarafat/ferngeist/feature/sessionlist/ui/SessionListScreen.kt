@@ -220,6 +220,7 @@ private class SessionListState(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
     ExperimentalSharedTransitionApi::class,
+    UnstableApi::class,
 )
 @Composable
 private fun rememberSessionListState(

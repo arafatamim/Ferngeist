@@ -142,7 +142,7 @@ internal class MarkdownStateStore(
         keys.forEach { pendingMarkdownQueue.remove(it) }
         keys.forEach { markdownParsingKeys.remove(it) }
         results.forEachIndexed { index, entry ->
-            entry?.let { markdownStateCache[keys[index]] = it }
+            markdownStateCache[keys[index]] = entry
         }
     }
 

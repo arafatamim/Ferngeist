@@ -36,10 +36,10 @@ class FakeRecentSelectionStore : RecentSelectionStore {
         key: String,
         value: String,
     ) {
-        Unit // No-op: recent selections are not tracked in this fake.
+        // No-op: recent selections are not tracked in this fake.
     }
 
     override suspend fun clearByPrefix(prefix: String) {
-        Unit // No-op: recent selections are not tracked in this fake.
+        // No-op: recent selections are not tracked in this fake.
     }
 }

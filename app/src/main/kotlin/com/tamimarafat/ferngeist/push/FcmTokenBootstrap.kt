@@ -25,7 +25,11 @@ object FcmTokenBootstrap {
             Log.i(TAG, "Firebase not configured (no google-services.json); push notifications disabled")
             return
         }
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        // Firebase 25.1.1 exposes only the (deprecated) no-arg getToken(); no
+        // replacement overload exists in this version, so the call is required.
+        @Suppress("DEPRECATION")
+        val tokenTask = FirebaseMessaging.getInstance().getToken()
+        tokenTask.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 task.result?.let(registrar::onTokenRefreshed)
             } else {

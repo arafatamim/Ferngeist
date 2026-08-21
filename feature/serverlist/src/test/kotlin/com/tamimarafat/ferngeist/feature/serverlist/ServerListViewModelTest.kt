@@ -1,3 +1,5 @@
+@file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
+
 package com.tamimarafat.ferngeist.feature.serverlist
 
 import app.cash.turbine.test

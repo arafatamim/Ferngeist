@@ -24,6 +24,7 @@ kotlin {
         jvmTarget =
             org.jetbrains.kotlin.gradle.dsl.JvmTarget
                 .fromTarget("17")
+        allWarningsAsErrors = true
     }
 }
 

@@ -142,23 +142,23 @@ open class FakeChatSessionFacade : ChatSessionFacade {
         toolCallId: String,
         optionId: String,
     ) {
-        Unit // No-op: permissions not exercised in this fake.
+        // No-op: permissions not exercised in this fake.
     }
 
     override suspend fun denyPermission(toolCallId: String) {
-        Unit // No-op: permissions not exercised in this fake.
+        // No-op: permissions not exercised in this fake.
     }
 
     override fun clear() {
-        Unit // No-op: no bridge state to tear down in this fake.
+        // No-op: no bridge state to tear down in this fake.
     }
 
     override fun onConnectionStateChanged(connectionState: ChatConnectionState) {
-        Unit // No-op: connection state is driven directly via the state flows.
+        // No-op: connection state is driven directly via the state flows.
     }
 
     override suspend fun reconnect() {
-        Unit // No-op: reconnect is not exercised in this fake.
+        // No-op: reconnect is not exercised in this fake.
     }
 
     protected suspend fun emitOperationError() {

@@ -38,6 +38,7 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.fromTarget("17")
+        allWarningsAsErrors = true
     }
 }
 
