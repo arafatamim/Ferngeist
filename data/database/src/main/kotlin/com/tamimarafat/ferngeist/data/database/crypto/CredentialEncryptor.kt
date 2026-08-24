@@ -2,11 +2,9 @@ package com.tamimarafat.ferngeist.data.database.crypto
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import androidx.annotation.RequiresApi
 import androidx.datastore.preferences.SharedPreferencesMigration
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -47,7 +45,6 @@ class CredentialEncryptor(
         KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     suspend fun encrypt(
         plaintext: String,
         key: String,
@@ -65,7 +62,6 @@ class CredentialEncryptor(
         return ENCRYPTED_PREFIX + key
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     suspend fun decrypt(
         ciphertext: String,
         key: String,
@@ -104,7 +100,6 @@ class CredentialEncryptor(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     @Synchronized
     // TrulyRandom: AndroidKeyStore never uses an app-seeded SecureRandom; minSdk 30
     // (API 23+) makes the legacy pre-4.3 SecureRandom seeding concern moot.

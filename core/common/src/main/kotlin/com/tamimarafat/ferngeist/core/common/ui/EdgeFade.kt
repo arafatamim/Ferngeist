@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -87,8 +88,14 @@ fun BoxScope.EdgeFade(
         label = "bottomFadeAlpha",
     )
     // Band grows with scroll so it always covers content, never empty viewport.
-    val topBandPx = min(scrollState.value.toFloat(), edgePx)
-    val bottomBandPx = min((scrollState.maxValue - scrollState.value).toFloat(), edgePx)
+    // FrequentlyChangingValue: scrollState.value changes every frame; derivedStateOf
+    // throttles recomposition to actual band-size changes instead of every pixel.
+    val topBandPx by remember(edgePx) {
+        derivedStateOf { min(scrollState.value.toFloat(), edgePx) }
+    }
+    val bottomBandPx by remember(edgePx) {
+        derivedStateOf { min((scrollState.maxValue - scrollState.value).toFloat(), edgePx) }
+    }
     val density = LocalDensity.current
     val brush = remember(fadeColor) { fadeBrush(fadeColor) }
     val bottomBrush = remember(fadeColor) { bottomFadeBrush(fadeColor) }

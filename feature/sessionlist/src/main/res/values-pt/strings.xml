@@ -11,6 +11,7 @@
     <plurals name="sessionlist_session_count">
         <item quantity="one">%d sessão</item>
         <item quantity="other">%d sessões</item>
+        <item quantity="many">%d sessões</item>
     </plurals>
 
     <string name="sessionlist_auth_title">Autenticar %1$s</string>

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="Typos">
-    <array name="com_google_android_gms_fonts_certs" tools:override="true">
+    <!-- PrivateResource: intentionally overrides androidx.compose.ui:ui-text-google-fonts private cert arrays via tools:override; the dev/prod arrays are defined locally below. -->
+    <array name="com_google_android_gms_fonts_certs" tools:override="true" tools:ignore="PrivateResource">
         <item>@array/com_google_android_gms_fonts_certs_dev</item>
         <item>@array/com_google_android_gms_fonts_certs_prod</item>
     </array>

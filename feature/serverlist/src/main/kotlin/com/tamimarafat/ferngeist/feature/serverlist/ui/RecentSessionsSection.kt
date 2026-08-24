@@ -265,7 +265,7 @@ private fun FrontSheetLayer(
                 .offset { IntOffset(0, topZonePx + sheetOffset.value.roundToInt()) },
         headerDragModifier =
             if (canReveal) {
-                sheetDragModifier(
+                Modifier.sheetDrag(
                     scope = scope,
                     sheetOffset = sheetOffset,
                     sheetRevealed = sheetRevealed,
@@ -449,7 +449,7 @@ private suspend fun syncSheetOffset(
  * to the revealed/hidden edge on release.
  */
 @Composable
-private fun sheetDragModifier(
+private fun Modifier.sheetDrag(
     scope: CoroutineScope,
     sheetOffset: Animatable<Float, AnimationVector1D>,
     sheetRevealed: MutableState<Boolean>,
@@ -457,7 +457,7 @@ private fun sheetDragModifier(
     overscrollRefPx: Float,
     maxTopOverscrollPx: Float,
 ): Modifier =
-    Modifier.draggable(
+    this.draggable(
         orientation = Orientation.Vertical,
         state =
             rememberDraggableState { delta ->
@@ -592,6 +592,7 @@ private fun BackLayerContent(
     }
 }
 
+@Suppress("ModifierParameter")
 @Composable
 private fun FrontLayerContent(
     servers: List<LaunchableTarget>,
