@@ -148,6 +148,7 @@ fun SessionListScreen(
     SessionListOverlays(
         showCwdDialog = state.showCwdDialog.value,
         recentCwds = state.recentCwds,
+        sessions = state.sessions,
         cwdDialogValue = state.cwdDialogValue.value,
         currentCwd = currentCwd,
         onCwdDialogValueChange = { state.cwdDialogValue.value = it },
@@ -800,6 +801,7 @@ private fun SessionListLazyColumn(
 private fun SessionListOverlays(
     showCwdDialog: Boolean,
     recentCwds: List<String>,
+    sessions: List<SessionSummary>,
     cwdDialogValue: String,
     currentCwd: String?,
     onCwdDialogValueChange: (String) -> Unit,
@@ -821,6 +823,7 @@ private fun SessionListOverlays(
     if (showCwdDialog) {
         SessionCwdDialog(
             recentCwds = recentCwds,
+            sessions = sessions,
             cwdDialogValue = cwdDialogValue,
             currentCwd = currentCwd,
             onCwdDialogValueChange = onCwdDialogValueChange,
@@ -854,6 +857,7 @@ private fun SessionListOverlays(
 @Composable
 private fun SessionCwdDialog(
     recentCwds: List<String>,
+    sessions: List<SessionSummary>,
     cwdDialogValue: String,
     currentCwd: String?,
     onCwdDialogValueChange: (String) -> Unit,
@@ -863,6 +867,7 @@ private fun SessionCwdDialog(
 ) {
     CwdDialog(
         recentCwds = recentCwds,
+        sessions = sessions,
         cwdDialogValue = cwdDialogValue,
         onCwdDialogValueChange = onCwdDialogValueChange,
         onSave = {
