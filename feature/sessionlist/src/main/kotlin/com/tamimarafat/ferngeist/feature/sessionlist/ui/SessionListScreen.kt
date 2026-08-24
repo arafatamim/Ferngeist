@@ -371,7 +371,7 @@ private fun SessionListScaffold(
         )
 
     Box(
-        modifier = sessionListContainerModifier(state, onRefresh),
+        modifier = Modifier.sessionListContainer(state, onRefresh),
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -408,12 +408,12 @@ private fun SessionListScaffold(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-private fun sessionListContainerModifier(
+private fun Modifier.sessionListContainer(
     state: SessionListState,
     onRefresh: () -> Unit,
 ): Modifier =
     if (state.supportsSessionList) {
-        Modifier
+        this
             .fillMaxSize()
             .nestedScroll(state.scrollBehavior.nestedScrollConnection)
             .pullToRefresh(
@@ -422,7 +422,7 @@ private fun sessionListContainerModifier(
                 onRefresh = onRefresh,
             )
     } else {
-        Modifier
+        this
             .fillMaxSize()
             .nestedScroll(state.scrollBehavior.nestedScrollConnection)
     }

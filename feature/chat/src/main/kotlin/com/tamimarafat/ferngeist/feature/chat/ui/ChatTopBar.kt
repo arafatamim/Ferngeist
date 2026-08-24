@@ -98,7 +98,7 @@ internal fun ChatTopBar(
     val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
 
     Box(
-        modifier = ChatTopBarGradientModifier(collapsedFraction),
+        modifier = Modifier.chatTopBarGradient(collapsedFraction),
     ) {
         TwoRowsTopAppBar(
             navigationIcon = { TopBarBackButton(onNavigateBack) },
@@ -156,12 +156,12 @@ internal fun ChatTopBar(
 // As the bar collapses, the base surface fades to reveal the gradient
 // layer underneath, giving a "surface peeling away" effect.
 @Composable
-private fun ChatTopBarGradientModifier(collapsedFraction: Float): Modifier {
+private fun Modifier.chatTopBarGradient(collapsedFraction: Float): Modifier {
     val expandedBackground = MaterialTheme.colorScheme.surface.copy(alpha = 1f - collapsedFraction)
     val topShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
     val middleShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
     val bottomShadow = Color.Transparent
-    return Modifier
+    return this
         .fillMaxWidth()
         .background(expandedBackground)
         .background(

@@ -51,6 +51,26 @@ fun Project.configureKtlintAndDetekt() {
         exclude("**/generated/**")
     }
 
+    // Lint warnings fail the build — same gate as detekt/ktlint/allWarningsAsErrors.
+    // Generates lint-results-debug.html for inspection, but exit code is non-zero on any
+    // warning/error so CI and the pre-commit hook catch them.
+    plugins.withId("com.android.application") {
+        extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
+            lint {
+                warningsAsErrors = true
+                abortOnError = true
+            }
+        }
+    }
+    plugins.withId("com.android.library") {
+        extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+            lint {
+                warningsAsErrors = true
+                abortOnError = true
+            }
+        }
+    }
+
 }
 
 // Hilt 2.59.2's annotation processor bundles org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.20,
