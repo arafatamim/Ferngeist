@@ -122,4 +122,62 @@ internal class AcpSessionRegistryTest {
 
         assertTrue(session.closeCalled)
     }
+
+    @Test
+    fun `closeSession_whenSdkCloseThrows_doesNotPropagate`() {
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val session = ThrowingClientSession()
+        val registry = AcpSessionRegistry(scope) { true }
+
+        registry.storeSdkSession("s1", session)
+        // This should not throw - the exception from close() is caught internally
+        registry.clearSession("s1", closeBridge = false)
+    }
+
+    private class ThrowingClientSession : ClientSession {
+        override val sessionId: SessionId get() = error("unused")
+        override val parameters: SessionCreationParameters get() = error("unused")
+        override val client: Client get() = error("unused")
+        override val operations: ClientSessionOperations get() = error("unused")
+
+        override suspend fun prompt(
+            content: List<ContentBlock>,
+            _meta: JsonElement?,
+        ): Flow<Event> = error("unused")
+
+        override suspend fun cancel() {
+            error("unused")
+        }
+
+        override suspend fun close(_meta: JsonElement?): CloseSessionResponse {
+            throw RuntimeException("Simulated close failure on dead transport")
+        }
+
+        override val modesSupported: Boolean get() = false
+        override val availableModes: List<SessionMode> get() = emptyList()
+        override val currentMode: StateFlow<SessionModeId> get() = error("unused")
+
+        override suspend fun setMode(
+            modeId: SessionModeId,
+            _meta: JsonElement?,
+        ): SetSessionModeResponse = error("unused")
+
+        override val modelsSupported: Boolean get() = false
+        override val availableModels: List<ModelInfo> get() = emptyList()
+        override val currentModel: StateFlow<ModelId> get() = error("unused")
+
+        override suspend fun setModel(
+            modelId: ModelId,
+            _meta: JsonElement?,
+        ): SetSessionModelResponse = error("unused")
+
+        override val configOptionsSupported: Boolean get() = false
+        override val configOptions: StateFlow<List<SessionConfigOption>> get() = error("unused")
+
+        override suspend fun setConfigOption(
+            configId: SessionConfigId,
+            value: SessionConfigOptionValue,
+            _meta: JsonElement?,
+        ): SetSessionConfigOptionResponse = error("unused")
+    }
 }

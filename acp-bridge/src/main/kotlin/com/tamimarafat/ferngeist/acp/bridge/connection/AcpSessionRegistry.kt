@@ -60,7 +60,7 @@ internal class AcpSessionRegistry(
     ) {
         val sdkSession = sdkSessions.remove(sessionId)
         if (sdkSession != null && shouldCloseSdkSession()) {
-            scope.launch { sdkSession.close() }
+            scope.launch { runCatching { sdkSession.close() } }
         }
         if (closeBridge) {
             sessionBridges.remove(sessionId)?.close()

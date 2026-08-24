@@ -315,7 +315,10 @@ class AcpChatSessionFacade(
             // only when the confirmation matches the user's selection.
             pendingModelSelectionId = selectedModelId
         }
-        bridge.setConfigOption(optionId, toAcpConfigValue(value))
+        runCatching { bridge.setConfigOption(optionId, toAcpConfigValue(value)) }
+            .onFailure { error ->
+                _operationError.emit(ChatOperationError("Failed to update configuration", false))
+            }
     }
 
     /** Forwards a permission grant to the active bridge. */
@@ -323,12 +326,18 @@ class AcpChatSessionFacade(
         toolCallId: String,
         optionId: String,
     ) {
-        sessionBridge?.grantPermission(toolCallId, optionId)
+        runCatching { sessionBridge?.grantPermission(toolCallId, optionId) }
+            .onFailure { error ->
+                _operationError.emit(ChatOperationError("Failed to grant permission", false))
+            }
     }
 
     /** Forwards a permission denial to the active bridge. */
     override suspend fun denyPermission(toolCallId: String) {
-        sessionBridge?.denyPermission(toolCallId)
+        runCatching { sessionBridge?.denyPermission(toolCallId) }
+            .onFailure { error ->
+                _operationError.emit(ChatOperationError("Failed to deny permission", false))
+            }
     }
 
     /** Tears down bridge observers, cancels recovery, and invalidates the active bridge. */
