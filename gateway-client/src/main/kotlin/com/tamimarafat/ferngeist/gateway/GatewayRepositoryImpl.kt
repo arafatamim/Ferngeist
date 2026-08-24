@@ -127,6 +127,7 @@ class GatewayRepositoryImpl
             gatewayCredential: String,
             runtimeId: String,
             sessionMode: String?,
+            fresh: Boolean,
         ): GatewayConnectResponse =
             httpClient.postJson(
                 json = json,
@@ -138,9 +139,9 @@ class GatewayRepositoryImpl
                 runtimeId,
                 "connect",
                 body =
-                    sessionMode?.let {
-                        json.encodeToString(GatewayConnectRequest(sessionMode = it))
-                    },
+                    json.encodeToString(
+                        GatewayConnectRequest(sessionMode = sessionMode, new = fresh.takeIf { it }),
+                    ),
             )
 
         override suspend fun resumeSession(

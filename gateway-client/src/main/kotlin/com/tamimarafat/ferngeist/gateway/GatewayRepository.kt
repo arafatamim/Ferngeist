@@ -59,6 +59,7 @@ interface GatewayRuntimeRepository {
         gatewayCredential: String,
         runtimeId: String,
         sessionMode: String? = null,
+        fresh: Boolean = false,
     ): GatewayConnectResponse
 
     suspend fun restartRuntime(

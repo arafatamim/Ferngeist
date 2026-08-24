@@ -142,6 +142,8 @@ data class GatewayPairStatusResponse(
 @Serializable
 data class GatewayConnectRequest(
     @SerialName("sessionMode") val sessionMode: String? = null,
+    // Forces a fresh runtime/process on connect, bypassing runtime reuse.
+    @SerialName("new") val new: Boolean? = null,
 )
 
 @Serializable
