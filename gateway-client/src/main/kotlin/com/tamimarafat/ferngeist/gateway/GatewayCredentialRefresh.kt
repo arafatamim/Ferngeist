@@ -50,6 +50,8 @@ private suspend fun refreshGatewayCredential(
         )
     } catch (e: CancellationException) {
         throw e
+    } catch (e: GatewayCredentialExpiredException) {
+        throw e
     } catch (e: GatewayRequestException) {
         // Non-fatal: the gateway rejected the refresh (HTTP error, transient failure).
         // Fall back to the existing credential rather than blocking the caller.

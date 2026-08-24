@@ -149,9 +149,8 @@ internal class AcpSessionRegistryTest {
             error("unused")
         }
 
-        override suspend fun close(_meta: JsonElement?): CloseSessionResponse {
-            throw RuntimeException("Simulated close failure on dead transport")
-        }
+        override suspend fun close(_meta: JsonElement?): CloseSessionResponse =
+            throw IllegalStateException("Simulated close failure on dead transport")
 
         override val modesSupported: Boolean get() = false
         override val availableModes: List<SessionMode> get() = emptyList()

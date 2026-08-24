@@ -72,7 +72,14 @@ class PushTokenRegistrar(
         gateway: GatewaySource,
         token: String,
     ) {
-        val refreshed = refreshGatewaySourceIfNeeded(gateway, gatewayRepository, gatewaySourceRepository)
+        val refreshed =
+            try {
+                refreshGatewaySourceIfNeeded(gateway, gatewayRepository, gatewaySourceRepository)
+            } catch (error: GatewayCredentialExpiredException) {
+                gatewaySourceRepository.deleteGateway(gateway.id)
+                Log.w(TAG, "Gateway credential expired, removed gateway ${gateway.name}", error)
+                return
+            }
         val key = "${refreshed.id}:${refreshed.gatewayCredential}:$token"
         if (!registered.add(key)) return
         try {
