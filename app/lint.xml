@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <lint>
+    <!-- Version-update nagging does not belong in the commit gate; AGP upgrades are deliberate. -->
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
     <!-- Localization checks -->
     <issue id="MissingTranslation" severity="error" />
     <issue id="ExtraTranslation" severity="warning" />
