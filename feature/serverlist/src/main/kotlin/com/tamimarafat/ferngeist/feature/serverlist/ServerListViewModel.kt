@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
@@ -105,7 +106,7 @@ class ServerListViewModel
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val launchableTargetRepository: LaunchableTargetRepository,
         private val sessionRepository: SessionRepository,
-        private val connectionManager: AcpConnectionManager,
+        private val factory: AcpConnectionManagerFactory,
         private val gatewayRepository: GatewayRepository,
         private val authEnvValueStore: AuthEnvValueStore,
         private val agentLaunchConsentStore: AgentLaunchConsentStore,
@@ -113,6 +114,7 @@ class ServerListViewModel
         private val recentCwdStore: RecentCwdStore,
         private val recentSelectionStore: RecentSelectionStore,
     ) : ViewModel() {
+        private val connectionManager: AcpConnectionManager = factory.create(viewModelScope)
         val servers: StateFlow<List<LaunchableTarget>> =
             launchableTargetRepository
                 .getTargets()

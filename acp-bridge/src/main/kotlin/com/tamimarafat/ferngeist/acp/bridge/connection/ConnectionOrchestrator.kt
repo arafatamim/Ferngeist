@@ -120,6 +120,11 @@ internal class ConnectionOrchestrator(
         transportClient.disconnect(resetState)
     }
 
+    /** Releases heavyweight resources (shared [HttpClient]); idempotent. */
+    fun close() {
+        transportClient.close()
+    }
+
     suspend fun listSessions(cwd: String? = null): List<SessionSummary> {
         val client = transportClient.sdkClient ?: return emptyList()
         return runCatching {

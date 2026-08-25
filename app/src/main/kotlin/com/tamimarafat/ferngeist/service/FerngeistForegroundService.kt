@@ -12,8 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -27,14 +26,17 @@ import javax.inject.Inject
 /**
  * Foreground service that owns the persistent connection notification.
  *
- * Lifecycle is driven by [AcpConnectionState]:
- * - [AcpConnectionState.Connecting] / [AcpConnectionState.Connected] → keeps running
- * - [AcpConnectionState.Disconnected] → calls [stopSelf] immediately
- * - [AcpConnectionState.Failed] → posts a persistent error notification via
- *   [postErrorNotification], then calls [stopSelf]
+ * Lifecycle is driven by [AcpManagerRegistry.anyConnected]: while any ACP
+ * manager in the process is connected the service keeps running, and when the
+ * aggregate goes inactive it self-stops. The service no longer owns a private
+ * [com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager]
+ * (per-instance managers are owned by their screens); it observes the registry.
  *
- * On [onDestroy] the service disconnects [AcpConnectionManager] if not already
- * disconnected, ensuring clean teardown even on system-kill.
+ * Notification text is minimal: the aggregate has no single agent name or
+ * failure detail, so the notification renders the generic connected/connecting/
+ * disconnected titles without inventing new copy. The disconnect action is
+ * retained for parity with the previous UI, but with no single manager to
+ * target it stops the service rather than disconnecting a transport.
  */
 @AndroidEntryPoint
 class FerngeistForegroundService : Service() {
@@ -58,7 +60,7 @@ class FerngeistForegroundService : Service() {
     }
 
     @Inject
-    lateinit var connectionManager: AcpConnectionManager
+    lateinit var acpManagerRegistry: AcpManagerRegistry
 
     @Inject
     lateinit var activeChatStore: ActiveChatStore
@@ -102,10 +104,7 @@ class FerngeistForegroundService : Service() {
         when (intent?.action) {
             ACTION_DISCONNECT -> {
                 observationJob?.cancel()
-                scope.launch {
-                    connectionManager.disconnect()
-                    stopSelf()
-                }
+                stopSelf()
                 return true
             }
             ACTION_STOP -> {
@@ -118,14 +117,13 @@ class FerngeistForegroundService : Service() {
 
     /**
      * Ensures startForeground() has been called exactly once, building the
-     * notification from the current connection state and agent name.
+     * notification from the current aggregate state.
      * Clears any lingering error notification from a previous run.
      */
     private fun ensureForegroundStarted() {
         if (isStarted) return
         isStarted = true
-        val notification =
-            buildNotification(connectionManager.connectionState.value, connectionManager.agentInfo.value?.name)
+        val notification = buildNotification(acpManagerRegistry.anyConnected.value)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING)
         } else {
@@ -136,25 +134,17 @@ class FerngeistForegroundService : Service() {
     }
 
     /**
-     * Returns true when the current connection state warrants continued
-     * observation (Connected or Connecting). Returns false for any terminal
-     * or idle state, signaling the caller to self-stop.
+     * Returns true when any manager is connected, warranting continued
+     * observation. Returns false for a fully idle process, signaling the
+     * caller to self-stop.
      */
-    private fun shouldContinueObserving(): Boolean {
-        val state = connectionManager.connectionState.value
-        return state is AcpConnectionState.Connected || state is AcpConnectionState.Connecting
-    }
+    private fun shouldContinueObserving(): Boolean = acpManagerRegistry.anyConnected.value
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         observationJob?.cancel()
         scope.cancel()
-
-        if (connectionManager.connectionState.value !is AcpConnectionState.Disconnected) {
-            connectionManager.disconnect()
-        }
-
         isStarted = false
         super.onDestroy()
     }
@@ -164,26 +154,11 @@ class FerngeistForegroundService : Service() {
         observationJob =
             scope.launch {
                 launch {
-                    connectionManager.connectionState
-                        .collect { state ->
+                    acpManagerRegistry.anyConnected
+                        .collect { anyConnected ->
                             if (!isStarted) return@collect
-                            updateNotification(state)
-
-                            when (state) {
-                                is AcpConnectionState.Disconnected -> stopSelf()
-                                is AcpConnectionState.Failed -> {
-                                    postErrorNotification(state)
-                                    stopSelf()
-                                }
-                                else -> { /* active states, no stop */ }
-                            }
-                        }
-                }
-                launch {
-                    connectionManager.agentInfo
-                        .collect {
-                            if (!isStarted) return@collect
-                            updateNotification(connectionManager.connectionState.value)
+                            updateNotification(anyConnected)
+                            if (!anyConnected) stopSelf()
                         }
                 }
                 launch {
@@ -192,44 +167,17 @@ class FerngeistForegroundService : Service() {
                     activeChatStore.activeChat
                         .collect {
                             if (!isStarted) return@collect
-                            updateNotification(connectionManager.connectionState.value)
+                            updateNotification(acpManagerRegistry.anyConnected.value)
                         }
                 }
             }
     }
 
-    private fun updateNotification(state: AcpConnectionState) {
+    private fun updateNotification(anyConnected: Boolean) {
         if (!isStarted) return
-        val notification = buildNotification(state, connectionManager.agentInfo.value?.name)
+        val notification = buildNotification(anyConnected)
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, notification)
-    }
-
-    /**
-     * Posts a regular (non-foreground) notification with the failure error,
-     * then immediately stops the service. The notification persists via
-     * [setAutoCancel] so the user can read the error after the service dies.
-     *
-     * Cleared on next service start via [ERROR_NOTIFICATION_ID] cancel in
-     * [onStartCommand].
-     */
-    private fun postErrorNotification(state: AcpConnectionState.Failed) {
-        val displayName =
-            connectionManager.currentConnectionConfig()?.serverDisplayName
-                ?: connectionManager.agentInfo.value?.name
-        val errorText = state.error.message ?: getString(R.string.notification_failed_text)
-        val contentIntent = buildContentIntent()
-        val notification =
-            NotificationCompat
-                .Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.notification_failed_title))
-                .setContentText(errorText)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentIntent(contentIntent)
-                .setAutoCancel(true)
-                .build()
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(ERROR_NOTIFICATION_ID, notification)
     }
 
     /**
@@ -257,28 +205,14 @@ class FerngeistForegroundService : Service() {
         )
     }
 
-    private fun buildNotification(
-        state: AcpConnectionState,
-        agentName: String?,
-    ): Notification {
-        val displayName = connectionManager.currentConnectionConfig()?.serverDisplayName ?: agentName
+    private fun buildNotification(anyConnected: Boolean): Notification {
         val (title, text) =
-            when (state) {
-                is AcpConnectionState.Connected ->
-                    getString(R.string.notification_connected_title) to
-                        getString(
-                            R.string.notification_connected_text,
-                            displayName ?: getString(R.string.notification_agent_fallback),
-                        )
-                is AcpConnectionState.Connecting ->
-                    getString(R.string.notification_connecting_title) to
-                        getString(R.string.notification_connecting_text)
-                is AcpConnectionState.Failed ->
-                    getString(R.string.notification_failed_title) to
-                        (state.error.message ?: getString(R.string.notification_failed_text))
-                is AcpConnectionState.Disconnected ->
-                    getString(R.string.notification_disconnected_title) to
-                        getString(R.string.notification_disconnected_text)
+            if (anyConnected) {
+                getString(R.string.notification_connected_title) to
+                    getString(R.string.notification_connected_text, getString(R.string.notification_agent_fallback))
+            } else {
+                getString(R.string.notification_disconnected_title) to
+                    getString(R.string.notification_disconnected_text)
             }
 
         val contentIntent = buildContentIntent()

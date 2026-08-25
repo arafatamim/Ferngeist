@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.connection.DefaultAcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
@@ -127,29 +129,42 @@ object AppModule {
         @ApplicationContext context: Context,
     ): CredentialEncryptor = CredentialEncryptor(context)
 
-    /** Builds the singleton ACP connection manager for the app process. */
+    /** Application-scoped scope for process-wide observers (registry aggregates). */
     @Provides
     @Singleton
-    fun provideAcpConnectionManager(
+    fun provideApplicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Tracks every ACP manager created in-process; powers aggregate observers. */
+    @Provides
+    @Singleton
+    fun provideAcpManagerRegistry(applicationScope: CoroutineScope): AcpManagerRegistry =
+        AcpManagerRegistry(applicationScope)
+
+    /** Builds independent ACP connection managers — one per chat or browser surface. */
+    @Provides
+    @Singleton
+    fun provideAcpConnectionManagerFactory(
         @ApplicationContext context: Context,
         gatewayRepository: GatewayRepository,
-    ): AcpConnectionManager {
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-        val connectivityObserver = AndroidConnectivityObserver(context)
-        return AcpConnectionManager(connectivityObserver, gatewayRepository, scope)
-    }
+        registry: AcpManagerRegistry,
+    ): AcpConnectionManagerFactory =
+        DefaultAcpConnectionManagerFactory(
+            connectivityObserver = AndroidConnectivityObserver(context),
+            gatewayRepository = gatewayRepository,
+            registry = registry,
+        )
 
     /** Supplies the chat-session facade factory backed by ACP. */
     @Provides
     @Singleton
     fun provideChatSessionFacadeFactory(
-        connectionManager: AcpConnectionManager,
+        managerFactory: AcpConnectionManagerFactory,
         launchableTargetRepository: LaunchableTargetRepository,
         gatewaySourceRepository: GatewaySourceRepository,
         gatewayRepository: GatewayRepository,
     ): ChatSessionFacadeFactory =
         AcpChatSessionFacadeFactory(
-            connectionManager = connectionManager,
+            managerFactory = managerFactory,
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,

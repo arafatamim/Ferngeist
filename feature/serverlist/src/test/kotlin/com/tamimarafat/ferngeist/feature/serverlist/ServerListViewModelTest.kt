@@ -5,6 +5,7 @@ package com.tamimarafat.ferngeist.feature.serverlist
 import app.cash.turbine.test
 import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AgentInfo
@@ -52,6 +53,7 @@ class ServerListViewModelTest {
     private val sessionSettingsRepository = mockk<LaunchableTargetSessionSettingsRepository>(relaxed = true)
     private val recentCwdStore = mockk<RecentCwdStore>(relaxed = true)
     private val recentSelectionStore = mockk<RecentSelectionStore>(relaxed = true)
+    private val managerFactory = mockk<AcpConnectionManagerFactory>(relaxed = true)
 
     private val connectionStateFlow = MutableStateFlow<AcpConnectionState>(AcpConnectionState.Disconnected)
     private val eventsFlow = MutableSharedFlow<com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent>()
@@ -62,6 +64,7 @@ class ServerListViewModelTest {
 
         every { connectionManager.connectionState } returns connectionStateFlow
         every { connectionManager.events } returns eventsFlow
+        every { managerFactory.create(any()) } returns connectionManager
     }
 
     @After
@@ -219,7 +222,7 @@ class ServerListViewModelTest {
             gatewaySourceRepository,
             launchableTargetRepository,
             sessionRepository,
-            connectionManager,
+            managerFactory,
             gatewayRepository,
             authEnvValueStore,
             agentLaunchConsentStore,

@@ -4,12 +4,8 @@
     <string name="notification_channel_description">Показывает статус активного подключения к агенту</string>
     <string name="notification_connected_title">Ferngeist подключен</string>
     <string name="notification_connected_text">Подключено к %1$s</string>
-    <string name="notification_connecting_title">Ferngeist: подключение</string>
-    <string name="notification_connecting_text">Подключение к серверу агента…</string>
     <string name="notification_disconnected_title">Ferngeist отключен</string>
     <string name="notification_disconnected_text">Отключено от сервера агента</string>
-    <string name="notification_failed_title">Ошибка подключения</string>
-    <string name="notification_failed_text">Не удалось подключиться к серверу агента</string>
     <string name="notification_action_disconnect">Отключить</string>
     <string name="battery_opt_title">Поддерживать подключение Ferngeist</string>
     <string name="battery_opt_body">Android может ограничивать Ferngeist в фоновом режиме, что приводит к разрыву соединения. Отключение оптимизации батареи помогает поддерживать сессию активной.</string>

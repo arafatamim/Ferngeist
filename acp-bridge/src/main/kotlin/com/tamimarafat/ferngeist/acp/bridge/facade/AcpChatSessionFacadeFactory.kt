@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -15,7 +15,7 @@ import kotlinx.coroutines.CoroutineScope
  * ViewModel to create a per-session facade using runtime parameters.
  */
 class AcpChatSessionFacadeFactory(
-    private val connectionManager: AcpConnectionManager,
+    private val managerFactory: AcpConnectionManagerFactory,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val gatewaySourceRepository: GatewaySourceRepository,
     private val gatewayRepository: GatewayRepository,
@@ -28,7 +28,7 @@ class AcpChatSessionFacadeFactory(
     ): ChatSessionFacade =
         AcpChatSessionFacade(
             scope = scope,
-            connectionManager = connectionManager,
+            connectionManager = managerFactory.create(scope),
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,

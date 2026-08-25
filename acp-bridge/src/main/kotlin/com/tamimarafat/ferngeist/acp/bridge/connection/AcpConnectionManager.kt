@@ -98,6 +98,16 @@ class AcpConnectionManager(
         orchestra.disconnect(resetState = ::resetConnectionState)
     }
 
+    /**
+     * Tears down the transport and releases heavyweight resources (the shared
+     * CIO [io.ktor.client.HttpClient]). Called when the owning scope completes;
+     * [disconnect] alone only closes the SDK protocol and keeps the client for
+     * reconnect reuse. Idempotent.
+     */
+    fun close() {
+        orchestra.close()
+    }
+
     suspend fun listSessions(cwd: String? = null): List<SessionSummary> = orchestra.listSessions(cwd)
 
     suspend fun createSession(cwd: String = ""): SessionPort? = gateway.createSession(cwd)
