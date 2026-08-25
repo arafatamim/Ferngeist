@@ -87,6 +87,13 @@ interface SessionRepository {
         title: String,
     )
 
+    /** Records (or clears) the live gateway session a chat was last attached to. */
+    suspend fun setGatewaySessionId(
+        serverId: String,
+        sessionId: String,
+        gatewaySessionId: String?,
+    )
+
     suspend fun deleteSession(
         serverId: String,
         sessionId: String,

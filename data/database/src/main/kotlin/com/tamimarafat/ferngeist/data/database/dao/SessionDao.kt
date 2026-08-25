@@ -16,6 +16,9 @@ interface SessionDao {
     @Query("SELECT * FROM sessions ORDER BY updatedAt DESC LIMIT :limit")
     fun getRecentSessions(limit: Int): Flow<List<SessionEntity>>
 
+    @Query("SELECT * FROM sessions WHERE serverId = :serverId")
+    suspend fun getSessionsSnapshot(serverId: String): List<SessionEntity>
+
     @Query("SELECT * FROM sessions WHERE sessionId = :sessionId")
     suspend fun getSessionById(sessionId: String): SessionEntity?
 
@@ -27,6 +30,15 @@ interface SessionDao {
         sessionId: String,
         serverId: String,
         title: String,
+    )
+
+    @Query(
+        "UPDATE sessions SET gatewaySessionId = :gatewaySessionId WHERE sessionId = :sessionId AND serverId = :serverId",
+    )
+    suspend fun updateGatewaySessionId(
+        sessionId: String,
+        serverId: String,
+        gatewaySessionId: String?,
     )
 
     @Query("DELETE FROM sessions WHERE sessionId = :sessionId")

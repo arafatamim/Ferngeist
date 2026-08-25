@@ -44,6 +44,12 @@ class FakeSessionRepository : SessionRepository {
 
     override suspend fun clearSessions(serverId: String) = Unit
 
+    override suspend fun setGatewaySessionId(
+        serverId: String,
+        sessionId: String,
+        gatewaySessionId: String?,
+    ) = Unit
+
     override suspend fun replaceSessions(
         serverId: String,
         sessions: List<SessionSummary>,

@@ -31,10 +31,12 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import com.mikepenz.markdown.model.State as MarkdownRenderState
 
@@ -255,9 +257,22 @@ class ChatViewModel
                 updateState { copy(restoredScrollSnapshot = snapshot) }
             }
             viewModelScope.launch {
-                // Pin this chat as the hub's focused entry whenever it attaches.
+                // Pin this chat as the hub's focused entry whenever it attaches,
+                // and record which gateway session owns it so cold closes and
+                // reattaches can find it after process death.
                 sessionFacade.liveChatId.collect { chatId ->
-                    if (chatId != null) chatConnectionHub.focus(chatId)
+                    if (chatId != null) {
+                        chatConnectionHub.focus(chatId)
+                        val gatewaySessionId =
+                            chatConnectionHub.liveChats.value
+                                .firstOrNull { it.chatId == chatId }
+                                ?.gatewaySessionId
+                        if (gatewaySessionId != null) {
+                            withContext(Dispatchers.IO) {
+                                sessionRepository.setGatewaySessionId(serverId, sessionId, gatewaySessionId)
+                            }
+                        }
+                    }
                 }
             }
             viewModelScope.launch {

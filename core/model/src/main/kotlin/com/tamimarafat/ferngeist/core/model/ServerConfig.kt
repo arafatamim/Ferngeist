@@ -20,4 +20,6 @@ data class SessionSummary(
     val cwd: String? = null,
     val updatedAt: Long? = null,
     val serverId: String = "",
+    /** Live gateway session this chat was last attached to; used for reattach and close. */
+    val gatewaySessionId: String? = null,
 )
