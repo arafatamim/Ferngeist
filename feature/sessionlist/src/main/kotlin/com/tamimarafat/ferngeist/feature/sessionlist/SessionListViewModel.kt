@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -80,12 +81,13 @@ class SessionListViewModel
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val launchableTargetRepository: LaunchableTargetRepository,
         private val sessionRepository: SessionRepository,
-        private val connectionManager: AcpConnectionManager,
+        private val factory: AcpConnectionManagerFactory,
         private val gatewayRepository: GatewayRepository,
         private val authEnvValueStore: AuthEnvValueStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
         private val recentCwdStore: RecentCwdStore,
     ) : ViewModel() {
+        private val connectionManager: AcpConnectionManager = factory.create(viewModelScope)
         val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
 
         val server: StateFlow<LaunchableTarget?> =

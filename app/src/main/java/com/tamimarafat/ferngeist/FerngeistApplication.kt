@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist
 import android.app.Application
 import android.util.Log
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.FcmTokenBootstrap
@@ -33,7 +34,8 @@ import javax.inject.Inject
 @HiltAndroidApp
 class FerngeistApplication : Application() {
     @Inject
-    lateinit var connectionManager: AcpConnectionManager
+    lateinit var managerFactory: AcpConnectionManagerFactory
+    private val connectionManager: AcpConnectionManager by lazy { managerFactory.create(appScope) }
 
     @Inject
     lateinit var pushTokenRegistrar: PushTokenRegistrar

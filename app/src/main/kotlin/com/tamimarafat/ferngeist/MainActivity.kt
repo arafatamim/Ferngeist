@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -51,6 +52,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.push.FcmPayloadKeys
@@ -92,6 +94,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var gatewaySourceRepository: GatewaySourceRepository
 
+    @Inject
+    lateinit var managerFactory: AcpConnectionManagerFactory
+
     // Latest launch/notification intent, exposed to the nav host so a notification
     // tap can deep-link to the active chat on both cold start and warm resume.
     private val latestIntent = MutableStateFlow<Intent?>(null)
@@ -130,6 +135,7 @@ class MainActivity : ComponentActivity() {
                         translateGatewayId = { gatewayId ->
                             gatewaySourceRepository.getGatewayByGatewayId(gatewayId)?.id
                         },
+                        connectionManager = remember { managerFactory.create(lifecycleScope) },
                     )
                 }
             }
@@ -156,6 +162,7 @@ fun FerngeistNavHost(
     latestIntent: StateFlow<Intent?> = MutableStateFlow(null),
     onIntentConsumed: () -> Unit = {},
     translateGatewayId: suspend (String) -> String? = { null },
+    connectionManager: AcpConnectionManager,
 ) {
     val navController = rememberNavController()
     val navSpring = spring<IntOffset>()
@@ -164,7 +171,6 @@ fun FerngeistNavHost(
     DeepLinkEffect(navController, latestIntent, translateGatewayId, onIntentConsumed)
 
     val context = LocalContext.current
-    val connectionManager = (context.applicationContext as FerngeistApplication).connectionManager
     BatteryOptimizationGate(connectionManager, context)
 
     SharedTransitionLayout {

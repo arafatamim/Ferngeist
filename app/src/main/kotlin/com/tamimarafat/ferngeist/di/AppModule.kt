@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
@@ -127,29 +128,31 @@ object AppModule {
         @ApplicationContext context: Context,
     ): CredentialEncryptor = CredentialEncryptor(context)
 
-    /** Builds the singleton ACP connection manager for the app process. */
+    /** Builds independent ACP connection managers — one per chat or browser surface. */
     @Provides
     @Singleton
-    fun provideAcpConnectionManager(
+    fun provideAcpConnectionManagerFactory(
         @ApplicationContext context: Context,
         gatewayRepository: GatewayRepository,
-    ): AcpConnectionManager {
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    ): AcpConnectionManagerFactory {
         val connectivityObserver = AndroidConnectivityObserver(context)
-        return AcpConnectionManager(connectivityObserver, gatewayRepository, scope)
+        return object : AcpConnectionManagerFactory {
+            override fun create(scope: CoroutineScope): AcpConnectionManager =
+                AcpConnectionManager(connectivityObserver, gatewayRepository, scope)
+        }
     }
 
     /** Supplies the chat-session facade factory backed by ACP. */
     @Provides
     @Singleton
     fun provideChatSessionFacadeFactory(
-        connectionManager: AcpConnectionManager,
+        managerFactory: AcpConnectionManagerFactory,
         launchableTargetRepository: LaunchableTargetRepository,
         gatewaySourceRepository: GatewaySourceRepository,
         gatewayRepository: GatewayRepository,
     ): ChatSessionFacadeFactory =
         AcpChatSessionFacadeFactory(
-            connectionManager = connectionManager,
+            managerFactory = managerFactory,
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,

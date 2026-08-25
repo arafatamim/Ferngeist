@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import dagger.hilt.android.AndroidEntryPoint
@@ -58,7 +59,8 @@ class FerngeistForegroundService : Service() {
     }
 
     @Inject
-    lateinit var connectionManager: AcpConnectionManager
+    lateinit var managerFactory: AcpConnectionManagerFactory
+    private val connectionManager: AcpConnectionManager by lazy { managerFactory.create(scope) }
 
     @Inject
     lateinit var activeChatStore: ActiveChatStore
