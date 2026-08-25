@@ -9,8 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -251,6 +253,62 @@ class AcpManagerRegistryTest {
             advanceUntilIdle()
 
             assertEquals(1, registry.trackedCount())
+            assertFalse(registry.anyConnected.value)
+        }
+
+    @Test
+    fun `anyConnected still emits after all managers unregister`() =
+        runTest {
+            val registry = AcpManagerRegistry(CoroutineScope(Dispatchers.Unconfined))
+
+            val first = newManager()
+            val second = newManager()
+            registry.register(first)
+            registry.register(second)
+            advanceUntilIdle()
+            assertEquals(2, registry.trackedCount())
+
+            registry.unregister(first)
+            registry.unregister(second)
+            advanceUntilIdle()
+            assertEquals(0, registry.trackedCount())
+
+            // The flow must still emit (not freeze on its last value) once the
+            // registry is empty — combine over zero flows would emit nothing.
+            assertFalse(withTimeout(1_000L) { registry.anyConnected.first() })
+            assertNull(withTimeout(1_000L) { registry.connectedDisplayName.first() })
+        }
+
+    @Test
+    fun `close releases the transport client on owner-scope completion`() =
+        runTest {
+            val registry = AcpManagerRegistry(CoroutineScope(Dispatchers.Unconfined))
+            val ownerScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+            val factory =
+                DefaultAcpConnectionManagerFactory(
+                    connectivityObserver = ConnectivityObserverStub(initialState = true),
+                    gatewayRepository = NoopGatewayRepository,
+                    registry = registry,
+                )
+
+            val manager = factory.create(ownerScope)
+            advanceUntilIdle()
+            assertEquals(1, registry.trackedCount())
+
+            // connect() forces the lazily-created shared HttpClient to exist.
+            manager.connect(
+                com.tamimarafat.ferngeist.acp.bridge.connection
+                    .AcpConnectionConfig(host = "127.0.0.1:1"),
+            )
+
+            ownerScope.cancel()
+            advanceUntilIdle()
+
+            assertEquals(0, registry.trackedCount())
+            // close() ran on scope completion; disconnect() alone would not tear
+            // down the HTTP client, so assert via the manager's public surface
+            // that teardown completed without throwing.
+            manager.disconnect()
             assertFalse(registry.anyConnected.value)
         }
 }

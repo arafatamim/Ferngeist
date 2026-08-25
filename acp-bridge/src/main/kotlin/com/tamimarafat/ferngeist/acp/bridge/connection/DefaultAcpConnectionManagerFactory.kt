@@ -12,10 +12,11 @@ import kotlinx.coroutines.Job
  * connection, not just the first one they were handed.
  *
  * When the manager's owning scope completes (e.g. the ViewModel that created
- * it is cleared), the manager is unregistered and disconnected: a dead-scope
- * transport is a zombie (no reconnect loop alive) and the gateway's resilient
- * session makes return cheap. Task 5 (ChatConnectionHub) relocates lifetime
- * control with a proper stay-alive policy.
+ * it is cleared), the manager is unregistered and closed ([AcpConnectionManager.close]
+ * disconnects the transport and releases the heavyweight HTTP client): a
+ * dead-scope transport is a zombie (no reconnect loop alive) and the gateway's
+ * resilient session makes return cheap. Task 5 (ChatConnectionHub) relocates
+ * lifetime control with a proper stay-alive policy.
  */
 class DefaultAcpConnectionManagerFactory(
     private val connectivityObserver: ConnectivityObserver,
@@ -27,7 +28,7 @@ class DefaultAcpConnectionManagerFactory(
             registry.register(manager)
             scope.coroutineContext[Job]?.invokeOnCompletion {
                 registry.unregister(manager)
-                manager.disconnect()
+                manager.close()
             }
         }
 }

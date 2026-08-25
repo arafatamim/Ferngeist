@@ -53,8 +53,11 @@ class AcpManagerRegistry(
     val anyConnected: StateFlow<Boolean> =
         revision
             .flatMapLatest { rev ->
-                if (rev == 0) {
-                    // No managers registered yet — emit the safe default.
+                if (managers.isEmpty()) {
+                    // No managers tracked (yet or anymore) — emit the safe default.
+                    // Predicate on the list, not the revision: after register→unregister
+                    // the revision is non-zero while combine over zero flows emits
+                    // nothing, which would freeze the StateFlow on its last value.
                     flowOf(false)
                 } else {
                     combine(managers.map { it.connectionState }) { states ->
@@ -70,7 +73,7 @@ class AcpManagerRegistry(
     val connectedDisplayName: StateFlow<String?> =
         revision
             .flatMapLatest { rev ->
-                if (rev == 0) {
+                if (managers.isEmpty()) {
                     flowOf(null)
                 } else {
                     combine(managers.map { it.connectionState }) { states ->
