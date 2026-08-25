@@ -39,7 +39,7 @@ interface SessionDao {
         sessionId: String,
         serverId: String,
         gatewaySessionId: String?,
-    )
+    ): Int
 
     @Query("DELETE FROM sessions WHERE sessionId = :sessionId")
     suspend fun deleteSessionById(sessionId: String)

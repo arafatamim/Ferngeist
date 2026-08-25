@@ -268,8 +268,12 @@ class ChatViewModel
                                 .firstOrNull { it.chatId == chatId }
                                 ?.gatewaySessionId
                         if (gatewaySessionId != null) {
+                            // chatId is "$serverId/$sessionId" and carries the REAL
+                            // session id even for create-on-arrival chats, where the
+                            // nav arg is still the __new__ sentinel.
+                            val realSessionId = chatId.substringAfter('/')
                             withContext(Dispatchers.IO) {
-                                sessionRepository.setGatewaySessionId(serverId, sessionId, gatewaySessionId)
+                                sessionRepository.setGatewaySessionId(serverId, realSessionId, gatewaySessionId)
                             }
                         }
                     }
