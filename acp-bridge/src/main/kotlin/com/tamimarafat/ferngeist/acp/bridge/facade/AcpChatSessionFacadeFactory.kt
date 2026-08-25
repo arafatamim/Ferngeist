@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -12,13 +13,16 @@ import kotlinx.coroutines.CoroutineScope
  * ACP-backed implementation of [ChatSessionFacadeFactory].
  *
  * This keeps ACP wiring outside the feature layer while still allowing the
- * ViewModel to create a per-session facade using runtime parameters.
+ * ViewModel to create a per-session facade using runtime parameters. Each
+ * facade owns an independent connection manager and registers its live
+ * session with the shared [ChatConnectionHub].
  */
 class AcpChatSessionFacadeFactory(
     private val managerFactory: AcpConnectionManagerFactory,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val gatewaySourceRepository: GatewaySourceRepository,
     private val gatewayRepository: GatewayRepository,
+    private val hub: ChatConnectionHub? = null,
 ) : ChatSessionFacadeFactory {
     override fun create(
         scope: CoroutineScope,
@@ -35,5 +39,6 @@ class AcpChatSessionFacadeFactory(
             serverId = serverId,
             initialSessionId = sessionId,
             cwd = cwd,
+            hub = hub,
         )
 }

@@ -4,6 +4,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
+ * Nav-arg sentinel for the chat route: the chat screen must CREATE a fresh
+ * ACP session on its own connection instead of loading an existing one.
+ */
+const val NEW_SESSION_ARG = "__new__"
+
+/**
  * Chat-domain equivalent of ACP connection state.
  */
 sealed interface ChatConnectionState {
@@ -205,6 +211,9 @@ interface ChatSessionFacade {
     /** Gateway workspace connection details (runtime id, host, credential), or null
      * when the chat targets a direct (non-gateway) server. */
     val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?>
+
+    /** Hub chat id (`"$serverId/$sessionId"`) once a live session is attached; null before. */
+    val liveChatId: StateFlow<String?>
 
     // One-shot event streams (not state snapshots):
     val loadFailed: SharedFlow<String>

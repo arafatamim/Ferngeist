@@ -6,6 +6,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
@@ -20,6 +22,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -46,7 +49,11 @@ import kotlinx.coroutines.withTimeout
  * Owns the full session lifecycle: connection, initialization, bridge
  * attachment, recovery, and user action dispatch. Maps all ACP types
  * to chat-domain equivalents before exposing them to the feature layer.
+ *
+ * ponytail: hub integration helpers live here until the facade splits;
+ * splitting now would scatter five one-call methods.
  */
+@Suppress("TooManyFunctions")
 class AcpChatSessionFacade(
     private val scope: CoroutineScope,
     private val connectionManager: AcpConnectionManager,
@@ -56,6 +63,7 @@ class AcpChatSessionFacade(
     private val serverId: String,
     private val initialSessionId: String,
     private val cwd: String,
+    private val hub: ChatConnectionHub? = null,
     private val sessionLoadTimeoutMs: Long = 20_000L,
     private val bridgeRecoveryRetryDelayMs: Long = 3_000L,
 ) : ChatSessionFacade {
@@ -80,6 +88,11 @@ class AcpChatSessionFacade(
     private val _gatewayWorkspaceConnection = MutableStateFlow<GatewayWorkspaceConnection?>(null)
     override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> =
         _gatewayWorkspaceConnection.asStateFlow()
+
+    // ---- Hub tracking ----
+    private val _liveChatId = MutableStateFlow<String?>(null)
+    override val liveChatId: StateFlow<String?> = _liveChatId.asStateFlow()
+    private var resolvedAgentId: String? = null
 
     // ---- Events (one-shot) ----
     // SharedFlow is used for one-off signals so repeated emissions are not lost.
@@ -163,6 +176,19 @@ class AcpChatSessionFacade(
             }
 
             publishCapabilities()
+
+            if (initialSessionId == NEW_SESSION_ARG) {
+                // Create-on-arrival: the session list no longer pre-creates on its
+                // browser transport; this chat's own connection mints the session.
+                val bridge = connectionManager.createSession(cwd)
+                if (bridge == null) {
+                    _loadFailed.emit("Failed to create a new session.")
+                    return
+                }
+                attachSessionBridge(bridge)
+                _sessionReady.emit(Unit)
+                return
+            }
 
             when (val outcome = sessionLoadCoordinator.run()) {
                 is SessionLoadOutcome.Attached -> return
@@ -429,14 +455,21 @@ class AcpChatSessionFacade(
             _loadFailed.emit("Gateway is not paired for ${target.name}.")
             return null
         }
+        // A second concurrent chat on the same agent needs its own runtime
+        // process: the gateway leases one runtime per gateway session, so a
+        // plain connect would resume the other chat's session.
+        val fresh = resolveFreshSpawn(target)
+        if (fresh == null) return null
         return launchGatewayRuntime(
             gatewayRepository = gatewayRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewaySource = gatewaySource,
             agentId = target.binding.agentId,
             requireSupportedProtocol = true,
+            fresh = fresh,
         ).fold(
             onSuccess = { result ->
+                resolvedAgentId = target.binding.agentId
                 val source = result.gatewaySource
                 val handoff = result.handoff
                 _gatewayWorkspaceConnection.value =
@@ -473,6 +506,7 @@ class AcpChatSessionFacade(
                             "Gateway credential expired for ${target.name}. Please pair this gateway again.",
                         )
                     }
+
                     else ->
                         _loadFailed.emit(
                             "Failed to reconnect to ${target.name}: ${error.message ?: "unknown error"}",
@@ -483,7 +517,26 @@ class AcpChatSessionFacade(
         )
     }
 
-    /** Binds the bridge (resetting session-local state) and starts collecting its flows. */
+    /**
+     * Decides whether this connect must mint an isolated runtime process, and
+     * when so, frees a device gateway-session slot first. Returns null when
+     * capacity could not be secured (error already emitted).
+     */
+    private suspend fun resolveFreshSpawn(target: LaunchableTarget.GatewayAgent): Boolean? {
+        val connectionHub = hub ?: return false
+        val gatewaySource = target.gatewaySource
+        if (!connectionHub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId)) return false
+        return runCatching {
+            connectionHub.ensureGatewayCapacity(
+                GatewayEndpoint(gatewaySource.scheme, gatewaySource.host, gatewaySource.gatewayCredential),
+            )
+            true
+        }.getOrElse { error ->
+            _loadFailed.emit(error.message ?: "All gateway sessions are in use.")
+            null
+        }
+    }
+
     private fun attachSessionBridge(bridge: SessionPort) {
         activeSessionId = bridge.sessionId
         sessionBridge = bridge
@@ -491,6 +544,25 @@ class AcpChatSessionFacade(
         shouldRecoverBridge = true
         cancelBridgeRecovery()
         observeSessionBridge(bridge)
+        registerWithHub(bridge)
+    }
+
+    /** Tracks this live session in the hub (fire-and-forget; register is suspend). */
+    private fun registerWithHub(bridge: SessionPort) {
+        val connectionHub = hub ?: return
+        scope.launch {
+            _liveChatId.value =
+                connectionHub.register(
+                    serverId = serverId,
+                    sessionId = bridge.sessionId,
+                    gatewaySessionId = connectionManager.currentConnectionConfig()?.sessionId,
+                    gatewaySourceId = connectionManager.currentConnectionConfig()?.gatewaySourceId.orEmpty(),
+                    agentId = resolvedAgentId.orEmpty(),
+                    isConnected = { connectionManager.isConnected },
+                    isStreaming = { bridge.snapshot.value.isStreaming },
+                    onEvict = { connectionManager.disconnect() },
+                )
+        }
     }
 
     /** Launches snapshot and model-selection collection coroutines. */

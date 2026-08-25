@@ -17,6 +17,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -169,10 +170,10 @@ class SessionListViewModel
         fun refreshSessions(isUserInitiated: Boolean = false) {
             viewModelScope.launch {
                 try {
+                    // The list owns its browser transport (per-instance manager);
+                    // connect it before listing — nothing else connects it for us.
+                    if (!connectIfNeeded()) return@launch
                     if (!connectionManager.isConnected) return@launch
-
-                    val capabilities = connectionManager.agentCapabilities.value
-                    if (capabilities != null && capabilities.sessionCapabilities.list == null) return@launch
 
                     if (isUserInitiated) _refreshing.value = true
                     _isLoading.value = true
@@ -199,52 +200,22 @@ class SessionListViewModel
         }
 
         /**
-         * Creates a new session on the server and navigates to it on success.
-         *
-         * If the transport is not connected, reconnects first so session
-         * creation succeeds instead of failing with a disconnect error.
+         * Navigates to a fresh chat. Creation happens inside the chat screen on
+         * its own connection (the [NEW_SESSION_ARG] sentinel route), so the new
+         * session gets its own gateway runtime instead of sharing the browser
+         * transport used for listing.
          */
         fun createSession(cwd: String) {
             viewModelScope.launch {
-                _isLoading.value = true
-                val normalizedCwd = cwd.trim()
-                if (!connectIfNeeded()) {
-                    _isLoading.value = false
-                    return@launch
-                }
-                runCatching {
-                    connectionManager.createSession(normalizedCwd)
-                }.onSuccess { bridge ->
-                    if (bridge == null) {
-                        _events.emit(SessionListEvent.ShowError("Failed to create a new session"))
-                    } else {
-                        val summary =
-                            SessionSummary(
-                                id = bridge.sessionId,
-                                title = null,
-                                cwd = normalizedCwd,
-                                updatedAt = System.currentTimeMillis(),
-                            )
-                        sessionRepository.upsertSession(serverId, summary)
-                        _events.emit(
-                            SessionListEvent.NavigateToChat(
-                                serverId = serverId,
-                                sessionId = summary.id,
-                                cwd = summary.cwd ?: "",
-                                updatedAt = summary.updatedAt,
-                                title = summary.title,
-                            ),
-                        )
-                    }
-                }.onFailure { error ->
-                    if (handleAuthenticationRequired(error, PendingAuthAction.CreateSession(normalizedCwd))) {
-                        return@launch
-                    }
-                    _events.emit(
-                        SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to create a new session")),
-                    )
-                }
-                _isLoading.value = false
+                _events.emit(
+                    SessionListEvent.NavigateToChat(
+                        serverId = serverId,
+                        sessionId = NEW_SESSION_ARG,
+                        cwd = cwd.trim(),
+                        updatedAt = System.currentTimeMillis(),
+                        title = null,
+                    ),
+                )
             }
         }
 

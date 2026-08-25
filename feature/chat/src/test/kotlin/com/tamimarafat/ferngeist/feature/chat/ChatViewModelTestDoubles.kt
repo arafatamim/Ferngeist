@@ -101,6 +101,7 @@ open class FakeChatSessionFacade : ChatSessionFacade {
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = sessionSnapshotFlow
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = agentCapabilitiesFlow
     override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> = gatewayWorkspaceConnectionFlow
+    override val liveChatId: StateFlow<String?> = MutableStateFlow(null)
 
     /** Test hook: push a new snapshot into the session state. */
     protected fun setSessionSnapshot(snapshot: ChatSessionSnapshot?) {
