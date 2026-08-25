@@ -39,6 +39,16 @@ class AcpManagerRegistry(
         }
     }
 
+    /** Removes [manager] from tracking; the aggregate rebuilds over remaining managers. */
+    fun unregister(manager: AcpConnectionManager) {
+        if (managers.remove(manager)) {
+            revision.value += 1
+        }
+    }
+
+    /** Number of managers currently tracked — test visibility for lifecycle assertions. */
+    fun trackedCount(): Int = managers.size
+
     /** True when any tracked manager is currently connected. */
     val anyConnected: StateFlow<Boolean> =
         revision
