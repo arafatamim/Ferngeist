@@ -30,4 +30,17 @@ class GatewayConnectRequestSerializationTest {
         )
         assertEquals("""{}""", json.encodeToString(GatewayConnectRequest()))
     }
+
+    @Test
+    fun `connect body omits null fields on the wire`() {
+        assertEquals(
+            """{"sessionMode":"resilient","new":true}""",
+            buildConnectRequestBody(sessionMode = "resilient", fresh = true),
+        )
+        assertEquals(
+            """{"sessionMode":"resilient"}""",
+            buildConnectRequestBody(sessionMode = "resilient", fresh = false),
+        )
+        assertEquals("""{}""", buildConnectRequestBody(sessionMode = null, fresh = false))
+    }
 }

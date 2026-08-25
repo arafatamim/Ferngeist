@@ -155,7 +155,7 @@ data class GatewaySessionResumeResponse(
 data class GatewayPushTokenRequest(
     val token: String,
     // Always emit platform, even when it equals the default, so the gateway never
-    // has to infer it (the shared Json has encodeDefaults = false).
+    // has to infer it (connect request bodies force encodeDefaults = false locally).
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val platform: String = "android",
