@@ -127,6 +127,7 @@ class GatewayRepositoryImpl
             gatewayCredential: String,
             runtimeId: String,
             sessionMode: String?,
+            new: Boolean,
         ): GatewayConnectResponse =
             httpClient.postJson(
                 json = json,
@@ -137,10 +138,7 @@ class GatewayRepositoryImpl
                 "runtimes",
                 runtimeId,
                 "connect",
-                body =
-                    sessionMode?.let {
-                        json.encodeToString(GatewayConnectRequest(sessionMode = it))
-                    },
+                body = buildConnectRequestBody(sessionMode = sessionMode, new = new),
             )
 
         override suspend fun resumeSession(
@@ -593,6 +591,27 @@ private fun buildGatewayEndpoint(
         }
     return "$base?$encodedQuery"
 }
+
+/** Connect bodies must omit null fields regardless of the injected shared [Json] config. */
+private val connectRequestJson =
+    Json {
+        encodeDefaults = false
+        ignoreUnknownKeys = true
+    }
+
+/**
+ * Serializes the connect request body, omitting null fields so the gateway never
+ * receives explicit nulls. Uses its own [Json] with encodeDefaults = false rather
+ * than the injected shared instance (whose encodeDefaults default is true), making
+ * the omission structural and independent of DI configuration.
+ */
+internal fun buildConnectRequestBody(
+    sessionMode: String?,
+    new: Boolean,
+): String =
+    connectRequestJson.encodeToString(
+        GatewayConnectRequest(sessionMode = sessionMode, new = new.takeIf { it }),
+    )
 
 private fun normalizeControlScheme(scheme: String): String =
     when (scheme.trim().lowercase()) {

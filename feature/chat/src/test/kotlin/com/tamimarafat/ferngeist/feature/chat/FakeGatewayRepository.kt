@@ -58,6 +58,7 @@ class FakeGatewayRepository : GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
         sessionMode: String?,
+        new: Boolean,
     ) = TODO()
 
     override suspend fun restartRuntime(
