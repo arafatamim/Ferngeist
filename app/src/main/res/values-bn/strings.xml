@@ -4,12 +4,8 @@
     <string name="notification_channel_description">সক্রিয় এজেন্ট সংযোগের অবস্থা দেখায়</string>
     <string name="notification_connected_title">Ferngeist সংযুক্ত</string>
     <string name="notification_connected_text">%1$s-এর সাথে সংযুক্ত</string>
-    <string name="notification_connecting_title">Ferngeist সংযোগ হচ্ছে</string>
-    <string name="notification_connecting_text">এজেন্ট সার্ভারের সাথে সংযোগ করা হচ্ছে…</string>
     <string name="notification_disconnected_title">Ferngeist সংযোগ বিচ্ছিন্ন</string>
     <string name="notification_disconnected_text">এজেন্ট সার্ভার থেকে সংযোগ বিচ্ছিন্ন</string>
-    <string name="notification_failed_title">সংযোগ ব্যর্থ</string>
-    <string name="notification_failed_text">এজেন্ট সার্ভারের সাথে সংযোগ করা যায়নি</string>
     <string name="notification_action_disconnect">সংযোগ বিচ্ছিন্ন করুন</string>
     <string name="battery_opt_title">Ferngeist-কে সংযুক্ত রাখুন</string>
     <string name="battery_opt_body">Android ব্যাকগ্রাউন্ডে Ferngeist-কে সীমাবদ্ধ করতে পারে, ফলে এজেন্ট সংযোগ বিচ্ছিন্ন হতে পারে। ব্যাটারি অপ্টিমাইজেশন বন্ধ করলে সেশন চালু রাখতে সাহায্য করে।</string>

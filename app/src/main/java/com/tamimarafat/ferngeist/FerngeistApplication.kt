@@ -2,9 +2,7 @@ package com.tamimarafat.ferngeist
 
 import android.app.Application
 import android.util.Log
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
 import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.FcmTokenBootstrap
 import com.tamimarafat.ferngeist.push.PushTokenRegistrar
@@ -22,11 +20,9 @@ import javax.inject.Inject
 /**
  * Application entry point that wires Hilt and manages foreground service lifecycle.
  *
- * Observes [AcpConnectionManager.connectionState] to request the foreground
- * service start on active states ([Connecting][AcpConnectionState.Connecting],
- * [Connected][AcpConnectionState.Connected]) and reset the tracking flag on
- * terminal states ([Disconnected][AcpConnectionState.Disconnected],
- * [Failed][AcpConnectionState.Failed]).
+ * Observes [AcpManagerRegistry.anyConnected] to request the foreground service
+ * start when any ACP manager is connected and reset the tracking flag (with a
+ * delayed stop backstop) when none remain connected.
  *
  * A delayed [ForegroundServiceController.stop] backstop ensures the service is
  * torn down even if its internal observation coroutine died before self-stopping.
@@ -34,8 +30,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class FerngeistApplication : Application() {
     @Inject
-    lateinit var managerFactory: AcpConnectionManagerFactory
-    private val connectionManager: AcpConnectionManager by lazy { managerFactory.create(appScope) }
+    lateinit var acpManagerRegistry: AcpManagerRegistry
 
     @Inject
     lateinit var pushTokenRegistrar: PushTokenRegistrar
@@ -68,25 +63,18 @@ class FerngeistApplication : Application() {
         FcmTokenBootstrap.start(this, pushTokenRegistrar)
 
         appScope.launch {
-            connectionManager.connectionState
-                .collect { state ->
-                    when (state) {
-                        is AcpConnectionState.Connecting,
-                        is AcpConnectionState.Connected,
-                        -> {
-                            if (!isServiceRunning) {
-                                isServiceRunning = true
-                                ForegroundServiceController.start(this@FerngeistApplication)
-                            }
+            acpManagerRegistry.anyConnected
+                .collect { anyConnected ->
+                    if (anyConnected) {
+                        if (!isServiceRunning) {
+                            isServiceRunning = true
+                            ForegroundServiceController.start(this@FerngeistApplication)
                         }
-                        is AcpConnectionState.Disconnected,
-                        is AcpConnectionState.Failed,
-                        -> {
-                            isServiceRunning = false
-                            appScope.launch {
-                                delay(SERVICE_STOP_BACKSTOP_MS)
-                                ForegroundServiceController.stop(this@FerngeistApplication)
-                            }
+                    } else {
+                        isServiceRunning = false
+                        appScope.launch {
+                            delay(SERVICE_STOP_BACKSTOP_MS)
+                            ForegroundServiceController.stop(this@FerngeistApplication)
                         }
                     }
                 }
