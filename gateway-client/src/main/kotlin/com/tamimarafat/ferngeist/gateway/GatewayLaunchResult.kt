@@ -25,6 +25,9 @@ data class GatewayLaunchResult(
  * runtime-scoped ACP WebSocket handoff — the two-stage launch every
  * gateway-backed agent needs.
  *
+ * Pass `fresh = true` to start an isolated agent process instead of reusing
+ * an existing one for [agentId].
+ *
  * Refreshes the stored credential when it is due. Returns [Result.failure]
  * with a user-facing message when the gateway is unpaired or the credential
  * expired; rethrows [CancellationException] but surfaces other launch errors
@@ -36,6 +39,7 @@ suspend fun launchGatewayRuntime(
     gatewaySource: GatewaySource,
     agentId: String,
     requireSupportedProtocol: Boolean = false,
+    fresh: Boolean = false,
 ): Result<GatewayLaunchResult> {
     val refreshedSource =
         try {
@@ -80,6 +84,7 @@ suspend fun launchGatewayRuntime(
                     gatewayCredential = refreshedSource.gatewayCredential,
                     runtimeId = runtime.id,
                     sessionMode = "resilient",
+                    fresh = fresh,
                 )
             }
         GatewayLaunchResult(
