@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.push
 
-import com.tamimarafat.ferngeist.core.model.store.ActiveChat
+import com.tamimarafat.ferngeist.core.model.ChatPresence
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -9,15 +9,20 @@ class PushNotificationPolicyTest {
     private fun chat(
         serverId: String = "srv-1",
         sessionId: String = "sess-1",
-    ) = ActiveChat(serverId = serverId, sessionId = sessionId, cwd = "/", title = "t")
+        gatewaySourceId: String? = "gw-1",
+    ) = ChatPresence(
+        serverId = serverId,
+        sessionId = sessionId,
+        cwd = "/",
+        gatewaySourceId = gatewaySourceId,
+    )
 
     @Test
     fun `suppresses when foregrounded on the exact session and gateway`() {
         assertTrue(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
-                activeChat = chat(sessionId = "sess-1"),
-                activeChatGatewayId = "gw-1",
+                foregroundChat = chat(sessionId = "sess-1"),
                 targetGatewayId = "gw-1",
                 targetSessionId = "sess-1",
             ),
@@ -26,13 +31,12 @@ class PushNotificationPolicyTest {
 
     @Test
     fun `suppresses across re-pair when local ids differ but the gateway matches`() {
-        // The active chat's local server id and the push's translated id differ (a
-        // duplicate record from re-pairing), but both resolve to the same gatewayId.
+        // The presence entry's local server id and the push's translated id differ (a
+        // duplicate record from re-pairing), but both resolve to the same gatewaySourceId.
         assertTrue(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
-                activeChat = chat(serverId = "local-old", sessionId = "sess-1"),
-                activeChatGatewayId = "gw-1",
+                foregroundChat = chat(serverId = "local-old", sessionId = "sess-1"),
                 targetGatewayId = "gw-1",
                 targetSessionId = "sess-1",
             ),
@@ -41,12 +45,11 @@ class PushNotificationPolicyTest {
 
     @Test
     fun `suppresses on session match when the gateway id could not be resolved`() {
-        // gatewayId resolution failed (null) but the session is unique and matches.
+        // gatewaySourceId is unknown (null) but the session is unique and matches.
         assertTrue(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
-                activeChat = chat(sessionId = "sess-1"),
-                activeChatGatewayId = null,
+                foregroundChat = chat(sessionId = "sess-1", gatewaySourceId = null),
                 targetGatewayId = null,
                 targetSessionId = "sess-1",
             ),
@@ -58,8 +61,7 @@ class PushNotificationPolicyTest {
         assertFalse(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = false,
-                activeChat = chat(sessionId = "sess-1"),
-                activeChatGatewayId = "gw-1",
+                foregroundChat = chat(sessionId = "sess-1"),
                 targetGatewayId = "gw-1",
                 targetSessionId = "sess-1",
             ),
@@ -71,8 +73,7 @@ class PushNotificationPolicyTest {
         assertFalse(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
-                activeChat = chat(sessionId = "sess-1"),
-                activeChatGatewayId = "gw-1",
+                foregroundChat = chat(sessionId = "sess-1"),
                 targetGatewayId = "gw-1",
                 targetSessionId = "sess-2",
             ),
@@ -84,8 +85,7 @@ class PushNotificationPolicyTest {
         assertFalse(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
-                activeChat = chat(sessionId = "sess-1"),
-                activeChatGatewayId = "gw-1",
+                foregroundChat = chat(sessionId = "sess-1", gatewaySourceId = "gw-1"),
                 targetGatewayId = "gw-2",
                 targetSessionId = "sess-1",
             ),
@@ -97,8 +97,7 @@ class PushNotificationPolicyTest {
         assertFalse(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
-                activeChat = null,
-                activeChatGatewayId = "gw-1",
+                foregroundChat = null,
                 targetGatewayId = "gw-1",
                 targetSessionId = "sess-1",
             ),
@@ -110,10 +109,23 @@ class PushNotificationPolicyTest {
         assertFalse(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
-                activeChat = chat(),
-                activeChatGatewayId = "gw-1",
+                foregroundChat = chat(),
                 targetGatewayId = "gw-1",
                 targetSessionId = null,
+            ),
+        )
+    }
+
+    @Test
+    fun `does not suppress a pooled chat after back-out when onScreenChat is null`() {
+        // After the user backs out of a chat its transport may stay pooled (so the hub's
+        // tapTarget still names it), but onScreenChat — the suppression input — is null.
+        assertFalse(
+            PushNotificationPolicy.shouldSuppress(
+                isAppForeground = true,
+                foregroundChat = null,
+                targetGatewayId = "gw-1",
+                targetSessionId = "sess-1",
             ),
         )
     }
