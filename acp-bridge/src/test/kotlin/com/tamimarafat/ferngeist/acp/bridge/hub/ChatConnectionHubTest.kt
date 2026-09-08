@@ -1,7 +1,9 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
+import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
@@ -11,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -574,4 +577,44 @@ class ChatConnectionHubTest {
             assertNull(hub.warmManagerFor("srvA"))
             assertNull(hub.warmManagerFor("srvB"))
         }
+
+    @Test
+    fun `manager reaching connected updates warm presence without refresh`() =
+        runTest {
+            val hub = newHub()
+            val manager = hub.acquireChatManager()
+            hub.registerChat(serverId = "srvA", sessionId = "s1", manager = manager)
+            advanceUntilIdle()
+            assertEquals(emptySet<String>(), hub.warmServers.value)
+
+            // No refresh() call anywhere in this test: warm presence must follow
+            // the manager's own connection-state flow.
+            hub.connectedSessionIds("srvA").test {
+                assertEquals(emptySet<String>(), awaitItem())
+                manager.forceConnectionState(AcpConnectionState.Connected)
+                assertEquals(setOf("s1"), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            advanceUntilIdle()
+            assertEquals(setOf("srvA"), hub.warmServers.value)
+        }
+
+    /**
+     * Drives a manager's live connection state the way a successful transport
+     * connect would. Unit tests cannot run a real ACP server, so this flips the
+     * same private StateFlow the transport updates — observers watching
+     * [AcpConnectionManager.connectionState] cannot tell the difference.
+     */
+    private fun AcpConnectionManager.forceConnectionState(state: AcpConnectionState) {
+        val managerClass = AcpConnectionManager::class.java
+        val orchestraField = managerClass.getDeclaredField("orchestra")
+        orchestraField.isAccessible = true
+        val orchestra = orchestraField.get(this)
+        val stateField = orchestra.javaClass.getDeclaredField("_connectionState")
+        stateField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val stateFlow = stateField.get(orchestra) as MutableStateFlow<AcpConnectionState>
+        stateFlow.value = state
+    }
 }

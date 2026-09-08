@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -89,7 +88,6 @@ class ChatConnectionHub(
     // open/closed state after process death if that ever becomes a requirement.
     private val _tapTarget = MutableStateFlow<ChatPresence?>(null)
     private val _onScreenChat = MutableStateFlow<ChatPresence?>(null)
-    private val _warmServers = MutableStateFlow<Set<String>>(emptySet())
 
     /**
      * Notification tap target: the most recently focused screen-open chat, else
@@ -106,8 +104,15 @@ class ChatConnectionHub(
     /** Most recently focused screen-open chat, or null when no chat screen is open. */
     val onScreenChat: StateFlow<ChatPresence?> = _onScreenChat.asStateFlow()
 
-    /** Server ids holding at least one tracked entry whose manager is connected. */
-    val warmServers: StateFlow<Set<String>> = _warmServers.asStateFlow()
+    /**
+     * Server ids holding at least one tracked entry whose manager is connected.
+     * Combines each entry manager's live [AcpConnectionState] flow, so warm
+     * presence updates the moment a manager connects or disconnects on its own —
+     * no explicit [refresh] required.
+     */
+    val warmServers: StateFlow<Set<String>> =
+        connectedManagerValues(filter = { true }, select = { it.serverId })
+            .stateIn(scope, SharingStarted.Eagerly, emptySet())
 
     /** True when any tracked manager is currently connected. */
     val anyConnected: StateFlow<Boolean> =
@@ -349,23 +354,24 @@ class ChatConnectionHub(
     fun gatewaySessionIds(): Set<String> = entries.values.mapNotNullTo(mutableSetOf()) { it.gatewaySessionId }
 
     /**
-     * Cold flow of connected session ids tracked on [serverId], derived from
-     * the presence revision so each republish re-evaluates each entry's live
-     * manager state. Facades call [refresh] on connection-state changes.
+     * Cold flow of connected session ids tracked on [serverId]. Combines each
+     * entry manager's live connection state, so a manager connecting or
+     * disconnecting re-emits on its own; the combination also rebuilds on every
+     * entry-table change (register/evict/close) via the shared derivation.
      */
     fun connectedSessionIds(serverId: String): Flow<Set<String>> =
-        revision.map {
-            entries.values
-                .filter { entry -> entry.serverId == serverId && entry.isConnectedNow() }
-                .map { it.sessionId }
-                .toSet()
-        }
+        connectedManagerValues(filter = { it.serverId == serverId }, select = { it.sessionId })
 
     /** First same-server tracked entry whose manager is connected, or null. */
     fun warmManagerFor(serverId: String): AcpConnectionManager? =
         entries.values.firstOrNull { it.serverId == serverId && it.isConnectedNow() }?.manager
 
-    /** Recomputes presence from each entry's live manager state; call on transport changes. */
+    /**
+     * Recomputes screen presence ([tapTarget], [onScreenChat]) from the entry
+     * table. Warm and aggregate observers follow manager connection states
+     * directly, so this is only needed by callers that want an immediate
+     * republish on transport changes (the chat facade calls it).
+     */
     fun refresh() {
         republish()
     }
@@ -438,6 +444,39 @@ class ChatConnectionHub(
     private fun Entry.isConnectedNow(): Boolean =
         manager?.connectionState?.value is AcpConnectionState.Connected
 
+    /**
+     * Live connected-entry derivation shared by [warmServers] and
+     * [connectedSessionIds]. Follows the same shape as [anyConnected]: the
+     * combination is rebuilt via [flatMapLatest] whenever [revision] bumps
+     * (entry-table changes), and within a stable entry set it combines each
+     * manager's [AcpConnectionState] flow, so it re-emits the moment a manager
+     * connects or disconnects on its own.
+     */
+    private fun <T> connectedManagerValues(
+        filter: (Entry) -> Boolean,
+        select: (Entry) -> T,
+    ): Flow<Set<T>> =
+        revision.flatMapLatest {
+            val managerEntries =
+                entries.values
+                    .filter(filter)
+                    .mapNotNull { entry -> entry.manager?.let { entry to it } }
+            if (managerEntries.isEmpty()) {
+                flowOf(emptySet())
+            } else {
+                combine(managerEntries.map { pair -> pair.second.connectionState }) { states ->
+                    buildSet {
+                        managerEntries.zip(states.toList()).forEach { pair ->
+                            val entry = pair.first.first
+                            if (pair.second is AcpConnectionState.Connected) {
+                                add(select(entry))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     private fun Entry.toPresence(): ChatPresence =
         ChatPresence(
             serverId = serverId,
@@ -449,16 +488,16 @@ class ChatConnectionHub(
         )
 
     /**
-     * Recomputes every derived presence observer from the entry table (MRU by
-     * [Entry.lastFocusedMs]) and bumps the revision the per-server connected
-     * flows derive from.
+     * Recomputes screen presence ([tapTarget], [onScreenChat]) from the entry
+     * table (MRU by [Entry.lastFocusedMs]) and bumps the revision that the
+     * manager-state observers ([anyConnected], [anyActive], [warmServers],
+     * [connectedSessionIds]) rebuild their combinations on.
      */
     private fun republish() {
         val ordered = entries.values.sortedByDescending { it.lastFocusedMs }
         val onScreen = ordered.firstOrNull { it.screenOpen }
         _onScreenChat.value = onScreen?.toPresence()
         _tapTarget.value = (onScreen ?: ordered.firstOrNull())?.toPresence()
-        _warmServers.value = ordered.filter { it.isConnectedNow() }.mapTo(mutableSetOf()) { it.serverId }
         revision.value += 1
     }
 
