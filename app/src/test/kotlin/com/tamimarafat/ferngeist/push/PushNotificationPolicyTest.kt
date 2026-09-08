@@ -129,4 +129,20 @@ class PushNotificationPolicyTest {
             ),
         )
     }
+
+    @Test
+    fun `suppresses on session match when the push carries no gateway id`() {
+        // The push omits the gateway id (legacy payload) while the foreground chat's
+        // gatewaySourceId is known: a null target cannot be shown to come from another
+        // gateway, so it falls back to the conclusive session-id match and the push is
+        // still suppressed (matches the pre-refactor truth table).
+        assertTrue(
+            PushNotificationPolicy.shouldSuppress(
+                isAppForeground = true,
+                foregroundChat = chat(sessionId = "sess-1"),
+                targetGatewayId = null,
+                targetSessionId = "sess-1",
+            ),
+        )
+    }
 }

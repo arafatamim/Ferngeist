@@ -12,7 +12,7 @@ import com.tamimarafat.ferngeist.core.model.ChatPresence
  * Any other case — backgrounded, or focused on a different session — still notifies.
  *
  * The foreground chat is the presence the connection hub publishes for the chat whose
- * screen is open ([ChatConnectionHub.onScreenChat]). A chat the user backed out of — even
+ * screen is open (ChatConnectionHub.onScreenChat). A chat the user backed out of — even
  * one whose transport stays pooled, so the hub still has a tap target — has no on-screen
  * presence and therefore never suppresses: the user is not watching it live, so the push
  * should notify.
@@ -44,15 +44,14 @@ object PushNotificationPolicy {
     }
 
     /**
-     * Returns true when the foreground chat's gateway id is known and differs from the
-     * push's, indicating the on-screen chat belongs to a different gateway than the push
-     * targets. A null [foregroundGatewayId] (gateway identity not yet attached) falls
-     * back to the conclusive session-id match in [shouldSuppress]; a null
-     * [targetGatewayId] while the foreground gateway is known cannot be proven to match,
-     * so it reads as a mismatch and the push is not suppressed.
+     * Returns true when both gateway ids are known and they differ, indicating the
+     * on-screen chat belongs to a different gateway than the push targets. A null on
+     * either side falls back to the conclusive session-id match in [shouldSuppress]: an
+     * unknown foreground gateway cannot disprove a session match, and a push that names
+     * no gateway cannot be shown to come from another one.
      */
     private fun gatewayMismatch(
         foregroundGatewayId: String?,
         targetGatewayId: String?,
-    ): Boolean = foregroundGatewayId != null && foregroundGatewayId != targetGatewayId
+    ): Boolean = targetGatewayId != null && foregroundGatewayId != null && foregroundGatewayId != targetGatewayId
 }
