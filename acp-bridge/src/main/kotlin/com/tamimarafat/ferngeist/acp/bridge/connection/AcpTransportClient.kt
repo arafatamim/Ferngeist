@@ -121,6 +121,18 @@ internal class AcpTransportClient(
         )
     }
 
+    suspend fun connectWithoutReconnect(
+        config: AcpConnectionConfig,
+        resetState: () -> Unit,
+    ): Boolean {
+        currentConfig = config
+        return connectInternal(
+            config = config,
+            resetState = resetState,
+            scheduleReconnectOnFailure = false,
+        )
+    }
+
     @OptIn(UnstableApi::class)
     suspend fun initialize(): AcpInitializeResult? {
         val client = sdkClient ?: return null
@@ -494,7 +506,6 @@ internal class AcpTransportClient(
         protocol.start()
 
         sdkClient = Client(protocol)
-
         updateConnectionState(AcpConnectionState.Connected)
         diagnosticsStore.setWebSocketState(WebSocketState.OPEN)
         diagnosticsStore.setReconnectAttempt(0)
@@ -576,6 +587,16 @@ internal class AcpTransportClient(
         if (error == null || isCancellationLikeError(error)) {
             updateConnectionState(AcpConnectionState.Disconnected)
             diagnosticsStore.markDisconnected()
+            // A clean onClose (error == null) right after a successful connect
+            // is the gateway dropping us — usually an auth or session conflict.
+            // Surface it so the UI can show a real error instead of a silent
+            // "Disconnected" pill.
+            if (error == null && currentConfig != null) {
+                diagnosticsStore.appendError(
+                    "connection",
+                    "Connection closed by the server before any session activity.",
+                )
+            }
         } else {
             updateConnectionState(AcpConnectionState.Failed(error))
             diagnosticsStore.setWebSocketState(WebSocketState.FAILED)

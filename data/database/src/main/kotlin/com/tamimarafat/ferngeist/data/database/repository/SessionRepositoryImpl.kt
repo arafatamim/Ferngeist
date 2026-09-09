@@ -36,17 +36,16 @@ class SessionRepositoryImpl(
         serverId: String,
         summary: SessionSummary,
     ) {
-        // REPLACE-insert would clear gatewaySessionId; carry the stored value forward.
-        val existing = sessionDao.getSessionById(summary.id)
-        sessionDao.insertSession(
-            SessionEntity(
-                sessionId = summary.id,
-                serverId = serverId,
-                title = summary.title,
-                cwd = summary.cwd,
-                updatedAt = summary.updatedAt,
-                gatewaySessionId = summary.gatewaySessionId ?: existing?.gatewaySessionId,
-            ),
+        // The DAO's COALESCE upsert preserves a concurrently recorded
+        // gatewaySessionId, so no pre-read is needed (a read-then-REPLACE
+        // sequence could clobber it with a stale null).
+        sessionDao.upsertSession(
+            sessionId = summary.id,
+            serverId = serverId,
+            title = summary.title,
+            cwd = summary.cwd,
+            updatedAt = summary.updatedAt,
+            gatewaySessionId = summary.gatewaySessionId,
         )
     }
 
@@ -64,15 +63,13 @@ class SessionRepositoryImpl(
         if (updated == 0 && gatewaySessionId != null) {
             // Create-on-arrival chats can attach before any list refresh has
             // inserted the row; seed a minimal one so the mapping survives.
-            sessionDao.insertSession(
-                SessionEntity(
-                    sessionId = sessionId,
-                    serverId = serverId,
-                    title = null,
-                    cwd = null,
-                    updatedAt = null,
-                    gatewaySessionId = gatewaySessionId,
-                ),
+            sessionDao.upsertSession(
+                sessionId = sessionId,
+                serverId = serverId,
+                title = null,
+                cwd = null,
+                updatedAt = null,
+                gatewaySessionId = gatewaySessionId,
             )
         }
     }
@@ -100,7 +97,10 @@ class SessionRepositoryImpl(
         serverId: String,
         sessions: List<SessionSummary>,
     ) {
-        val existing = sessionDao.getSessionsSnapshot(serverId).associateBy { it.sessionId }
+        // The DAO upserts survivors in place (COALESCE keeps a concurrently
+        // recorded gatewaySessionId) and deletes only rows absent from the
+        // refresh, so no snapshot pre-read is needed and a stale-null insert
+        // cannot clobber a live mapping.
         sessionDao.replaceSessions(
             serverId = serverId,
             sessions =
@@ -111,7 +111,7 @@ class SessionRepositoryImpl(
                         title = summary.title,
                         cwd = summary.cwd,
                         updatedAt = summary.updatedAt,
-                        gatewaySessionId = summary.gatewaySessionId ?: existing[summary.id]?.gatewaySessionId,
+                        gatewaySessionId = summary.gatewaySessionId,
                     )
                 },
         )

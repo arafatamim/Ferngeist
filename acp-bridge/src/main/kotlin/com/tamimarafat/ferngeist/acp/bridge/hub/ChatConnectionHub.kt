@@ -260,6 +260,9 @@ class ChatConnectionHub(
     /** The live transport for a tracked chat, or null when untracked/cold. */
     fun managerFor(chatId: String): AcpConnectionManager? = entries[chatId]?.manager
 
+    /** Gateway session id of the tracked chat entry, or null when untracked. */
+    fun gatewaySessionIdFor(chatId: String): String? = entries[chatId]?.gatewaySessionId
+
     /** Last rendered snapshot for a chat; survives evict/screen-close so reopen paints instantly. Dropped only on close. */
     fun snapshotFor(chatId: String): ChatSessionSnapshot? = snapshots[chatId]
 
@@ -447,8 +450,7 @@ class ChatConnectionHub(
     }
 
     /** True when the entry's live manager reports Connected; entries without a transport are never connected. */
-    private fun Entry.isConnectedNow(): Boolean =
-        manager?.connectionState?.value is AcpConnectionState.Connected
+    private fun Entry.isConnectedNow(): Boolean = manager?.connectionState?.value is AcpConnectionState.Connected
 
     /**
      * Live connected-entry derivation shared by [warmServers] and

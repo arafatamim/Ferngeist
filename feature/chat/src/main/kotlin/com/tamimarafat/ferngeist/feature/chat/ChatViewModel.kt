@@ -280,12 +280,7 @@ class ChatViewModel
                         // nav arg is still the __new__ sentinel. Record which
                         // gateway session owns it so cold closes and reattaches
                         // can find it after process death.
-                        // ponytail: the hub no longer republishes per-chat gateway
-                        // session ids, so re-derive the id the facade registered
-                        // from its live transport config through the kept
-                        // managerFor seam instead.
-                        val gatewaySessionId =
-                            chatConnectionHub.managerFor(chatId)?.currentConnectionConfig()?.sessionId
+                        val gatewaySessionId = chatConnectionHub.gatewaySessionIdFor(chatId)
                         if (gatewaySessionId != null) {
                             val realSessionId = chatId.substringAfter('/')
                             withContext(Dispatchers.IO) {

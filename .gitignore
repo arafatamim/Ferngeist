@@ -37,4 +37,6 @@ vendor/bundle/
 .DS_Store
 Thumbs.db
 
-.codex-temp
+.codex-temp.superpowers/
+
+.superpowers/

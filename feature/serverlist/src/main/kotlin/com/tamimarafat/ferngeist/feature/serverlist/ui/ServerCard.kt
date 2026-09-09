@@ -87,6 +87,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 internal fun ServerCard(
     server: LaunchableTarget,
     uiState: ServerListUiState,
+    liveServerIds: Set<String> = emptySet(),
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -94,7 +95,7 @@ internal fun ServerCard(
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
-    val connectionState = ServerConnectionUiState.from(server.id, uiState)
+    val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
     val hasSavedAuthMethod = server.preferredAuthMethodId?.isNotBlank() == true
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -449,11 +450,13 @@ private data class ServerConnectionUiState(
         fun from(
             serverId: String,
             uiState: ServerListUiState,
+            liveServerIds: Set<String> = emptySet(),
         ): ServerConnectionUiState {
             val isConnecting = uiState.connectingServerId == serverId
-            val isConnected =
-                uiState.connectedServerState?.serverId == serverId &&
-                    uiState.connectionState is AcpConnectionState.Connected
+            // One source of truth: a hub-tracked chat holding a live transport.
+            // The home VM's own verification socket hangs up after every tap,
+            // so it must not drive the dot.
+            val isConnected = serverId in liveServerIds
             val isFailed = isConnecting && uiState.connectionState is AcpConnectionState.Failed
             return ServerConnectionUiState(
                 isConnecting = isConnecting,

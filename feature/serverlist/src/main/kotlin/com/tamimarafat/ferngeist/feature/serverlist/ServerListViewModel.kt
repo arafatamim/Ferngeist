@@ -217,8 +217,7 @@ class ServerListViewModel
          * transport. Its socket is already initialized, so the tap path must
          * not open a competing handshake.
          */
-        private fun hasWarmHubChat(serverId: String): Boolean =
-            chatConnectionHub.warmManagerFor(serverId) != null
+        private fun hasWarmHubChat(serverId: String): Boolean = chatConnectionHub.warmManagerFor(serverId) != null
 
         fun connectAndOpenServer(server: LaunchableTarget) {
             viewModelScope.launch {

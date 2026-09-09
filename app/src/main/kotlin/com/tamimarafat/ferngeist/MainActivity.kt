@@ -50,7 +50,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.push.FcmPayloadKeys
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -92,7 +92,7 @@ class MainActivity : ComponentActivity() {
     lateinit var gatewaySourceRepository: GatewaySourceRepository
 
     @Inject
-    lateinit var acpManagerRegistry: AcpManagerRegistry
+    lateinit var chatConnectionHub: ChatConnectionHub
 
     // Latest launch/notification intent, exposed to the nav host so a notification
     // tap can deep-link to the active chat on both cold start and warm resume.
@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
                         translateGatewayId = { gatewayId ->
                             gatewaySourceRepository.getGatewayByGatewayId(gatewayId)?.id
                         },
-                        acpManagerRegistry = acpManagerRegistry,
+                        chatConnectionHub = chatConnectionHub,
                     )
                 }
             }
@@ -159,7 +159,7 @@ fun FerngeistNavHost(
     latestIntent: StateFlow<Intent?> = MutableStateFlow(null),
     onIntentConsumed: () -> Unit = {},
     translateGatewayId: suspend (String) -> String? = { null },
-    acpManagerRegistry: AcpManagerRegistry,
+    chatConnectionHub: ChatConnectionHub,
 ) {
     val navController = rememberNavController()
     val navSpring = spring<IntOffset>()
@@ -168,7 +168,7 @@ fun FerngeistNavHost(
     DeepLinkEffect(navController, latestIntent, translateGatewayId, onIntentConsumed)
 
     val context = LocalContext.current
-    BatteryOptimizationGate(acpManagerRegistry, context)
+    BatteryOptimizationGate(chatConnectionHub, context)
 
     SharedTransitionLayout {
         NavHost(
@@ -223,14 +223,14 @@ private fun DeepLinkEffect(
 
 @Composable
 private fun BatteryOptimizationGate(
-    acpManagerRegistry: AcpManagerRegistry,
+    chatConnectionHub: ChatConnectionHub,
     context: Context,
 ) {
     val batteryPrefs = remember(context) { BatteryOptimizationPreferences(context) }
     val isDismissed by batteryPrefs.isDismissed.collectAsState(initial = false)
     var dismissLoaded by remember { mutableStateOf(false) }
     var showBatteryDialog by remember { mutableStateOf(false) }
-    val anyConnected by acpManagerRegistry.anyConnected.collectAsState()
+    val anyConnected by chatConnectionHub.anyConnected.collectAsState()
 
     LaunchedEffect(batteryPrefs) {
         batteryPrefs.isDismissed.first()

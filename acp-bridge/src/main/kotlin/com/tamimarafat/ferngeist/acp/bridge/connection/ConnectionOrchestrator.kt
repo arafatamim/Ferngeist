@@ -104,6 +104,11 @@ internal class ConnectionOrchestrator(
         resetState: () -> Unit,
     ): Boolean = transportClient.connect(config, resetState)
 
+    suspend fun connectWithoutReconnect(
+        config: AcpConnectionConfig,
+        resetState: () -> Unit,
+    ): Boolean = transportClient.connectWithoutReconnect(config, resetState)
+
     suspend fun initialize(): AcpInitializeResult? {
         val result = transportClient.initialize()
         _agentCapabilities.value = result?.agentCapabilities

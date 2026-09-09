@@ -132,7 +132,8 @@ class SessionListViewModel
 
         /** Sessions currently holding a live gateway connection (for the row dot). */
         val liveSessionIds: StateFlow<Set<String>> =
-            chatConnectionHub.connectedSessionIds(serverId)
+            chatConnectionHub
+                .connectedSessionIds(serverId)
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         private val _isLoading = MutableStateFlow(true)
@@ -225,9 +226,7 @@ class SessionListViewModel
                             // borrow it so the list never competes — and leave our
                             // browser socket DOWN, else its reconnect evicts the
                             // chat socket right after this refresh succeeds.
-                            if (connectionManager.isConnected) {
-                                withContext(Dispatchers.IO) { connectionManager.disconnect() }
-                            }
+                            hangUpBrowserSocket()
                             listViaWarmChat(warm, cwd, isUserInitiated)
                         } else {
                             listViaBrowser(cwd, isUserInitiated)
@@ -298,9 +297,7 @@ class SessionListViewModel
                     val needsAuth =
                         handleAuthenticationRequired(error, PendingAuthAction.RefreshSessions)
                     if (needsAuth) {
-                        if (connectionManager.isConnected) {
-                            withContext(Dispatchers.IO) { connectionManager.disconnect() }
-                        }
+                        hangUpBrowserSocket()
                         return
                     }
                     _events.emit(
@@ -309,12 +306,8 @@ class SessionListViewModel
                         ),
                     )
                 }
-            // Hang up after use: an idle browser socket's
-            // reconnect loop would steal the gateway's
-            // single-attach slot from a chat opened next.
-            if (connectionManager.isConnected) {
-                withContext(Dispatchers.IO) { connectionManager.disconnect() }
-            }
+            // Idle browser socket's reconnect would steal the gateway's single-attach slot.
+            hangUpBrowserSocket()
         }
 
         /**
@@ -322,8 +315,18 @@ class SessionListViewModel
          * null. Listing through it avoids stealing the gateway's single-attach
          * socket from a live chat. Never disconnect the returned manager.
          */
-        private fun findWarmChatManager(): AcpConnectionManager? =
-            chatConnectionHub.warmManagerFor(serverId)
+        private fun findWarmChatManager(): AcpConnectionManager? = chatConnectionHub.warmManagerFor(serverId)
+
+        /**
+         * Drops this screen's browser socket if it is up. An idle browser
+         * socket's reconnect loop would steal the gateway's single-attach slot
+         * from a chat opened next, so listing surfaces hang up after use.
+         */
+        private suspend fun hangUpBrowserSocket() {
+            if (connectionManager.isConnected) {
+                withContext(Dispatchers.IO) { connectionManager.disconnect() }
+            }
+        }
 
         /**
          * Proactively hangs up the browser socket before opening a chat, so the
@@ -335,7 +338,7 @@ class SessionListViewModel
             _isLoading.value = false
             _refreshing.value = false
             if (connectionManager.isConnected) {
-                viewModelScope.launch(Dispatchers.IO) { connectionManager.disconnect() }
+                viewModelScope.launch { hangUpBrowserSocket() }
             }
         }
 

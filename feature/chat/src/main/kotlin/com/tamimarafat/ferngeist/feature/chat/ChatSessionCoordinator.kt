@@ -95,6 +95,24 @@ internal class ChatSessionCoordinator(
         facade.loadSession()
     }
 
+    /**
+     * Cache-first attach: paints the last rendered snapshot instantly (no
+     * reconnect, no transcript wipe), then revalidates in the background.
+     * Warm transport hit still wins — it reattaches live observers.
+     */
+    suspend fun attachCachedThenLoad() {
+        val cached = facade.cachedSnapshot.value
+        if (cached != null) {
+            callbacks.onSnapshot(cached)
+            callbacks.onSessionReady()
+        } else {
+            callbacks.onLoadStarted()
+        }
+        if (!facade.tryRestoreWarmSession()) {
+            if (cached == null) facade.loadSession() else facade.loadSessionQuietly()
+        }
+    }
+
     /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
     suspend fun sendMessage(
         text: String,

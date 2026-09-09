@@ -2,7 +2,7 @@ package com.tamimarafat.ferngeist
 
 import android.app.Application
 import android.util.Log
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.FcmTokenBootstrap
 import com.tamimarafat.ferngeist.push.PushTokenRegistrar
@@ -20,7 +20,7 @@ import javax.inject.Inject
 /**
  * Application entry point that wires Hilt and manages foreground service lifecycle.
  *
- * Observes [AcpManagerRegistry.anyConnected] to request the foreground service
+ * Observes [ChatConnectionHub.anyConnected] to request the foreground service
  * start when any ACP manager is connected and reset the tracking flag (with a
  * delayed stop backstop) when none remain connected.
  *
@@ -30,7 +30,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class FerngeistApplication : Application() {
     @Inject
-    lateinit var acpManagerRegistry: AcpManagerRegistry
+    lateinit var chatConnectionHub: ChatConnectionHub
 
     @Inject
     lateinit var pushTokenRegistrar: PushTokenRegistrar
@@ -63,7 +63,7 @@ class FerngeistApplication : Application() {
         FcmTokenBootstrap.start(this, pushTokenRegistrar)
 
         appScope.launch {
-            acpManagerRegistry.anyConnected
+            chatConnectionHub.anyConnected
                 .collect { anyConnected ->
                     if (anyConnected) {
                         if (!isServiceRunning) {
