@@ -17,7 +17,6 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRepositoryImpl
@@ -178,11 +177,6 @@ object AppModule {
             gatewayRepository = gatewayRepository,
             hub = hub,
         )
-
-    /** Tracks the most recently opened chat so the connection notification can deep-link to it. */
-    @Provides
-    @Singleton
-    fun provideActiveChatStore(): ActiveChatStore = ActiveChatStore()
 
     /** Registers this device's FCM push token with every paired gateway. */
     @Provides
