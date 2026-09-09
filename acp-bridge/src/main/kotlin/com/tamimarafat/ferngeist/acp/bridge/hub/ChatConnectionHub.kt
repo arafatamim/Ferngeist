@@ -83,7 +83,7 @@ class ChatConnectionHub(
     private val browserManagers = CopyOnWriteArrayList<AcpConnectionManager>()
     private val revision = MutableStateFlow(0L)
 
-    // Presence is deliberately in-memory, like the ActiveChatStore it replaces.
+    // Presence is deliberately in-memory, like the focus-ordered store this hub supersedes.
     // ponytail: a Room-backed or event-sourced presence table would replay
     // open/closed state after process death if that ever becomes a requirement.
     private val _tapTarget = MutableStateFlow<ChatPresence?>(null)
