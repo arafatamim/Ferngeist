@@ -89,7 +89,7 @@ class ChatConnectionHub(
     private val sessionRepository: SessionRepository? = null,
     private val launchableTargetRepository: LaunchableTargetRepository? = null,
     private val gatewaySourceRepository: GatewaySourceRepository? = null,
-) {
+) : ChatConnectionSurface {
     private data class Entry(
         val chatId: String,
         val serverId: String,
@@ -188,7 +188,7 @@ class ChatConnectionHub(
      * promotes it into a hot entry. A spawn that fails before attach stays
      * tracked (visible in the aggregates) until [abandon] releases it.
      */
-    fun acquireChatManager(): AcpConnectionManager =
+    override fun acquireChatManager(): AcpConnectionManager =
         AcpConnectionManager(requireObserver(), gatewayRepository, scope).also { manager ->
             pendingManagers.addIfAbsent(manager)
             revision.value += 1
@@ -198,7 +198,7 @@ class ChatConnectionHub(
      * Releases an [acquireChatManager] manager that never registered (failed
      * spawn, cleared screen). No-op for managers already promoted into entries.
      */
-    fun abandon(manager: AcpConnectionManager) {
+    override fun abandon(manager: AcpConnectionManager) {
         if (pendingManagers.remove(manager)) {
             revision.value += 1
             manager.release()
@@ -238,7 +238,7 @@ class ChatConnectionHub(
      * [manager] is the chat's connection, promoted from pending into the hot
      * entry. Eviction and explicit close tear it down here; callers never do.
      */
-    suspend fun register(
+    override suspend fun register(
         serverId: String,
         sessionId: String,
         gatewaySessionId: String?,
@@ -246,7 +246,7 @@ class ChatConnectionHub(
         agentId: String,
         isConnected: () -> Boolean,
         isStreaming: () -> Boolean,
-        manager: AcpConnectionManager? = null,
+        manager: AcpConnectionManager?,
     ): String {
         val chatId = "$serverId/$sessionId"
         if (manager != null) {
@@ -293,16 +293,16 @@ class ChatConnectionHub(
     }
 
     /** The live transport for a tracked chat, or null when untracked/cold. */
-    fun managerFor(chatId: String): AcpConnectionManager? = entries[chatId]?.manager
+    override fun managerFor(chatId: String): AcpConnectionManager? = entries[chatId]?.manager
 
     /** Gateway session id of the tracked chat entry, or null when untracked. */
     fun gatewaySessionIdFor(chatId: String): String? = entries[chatId]?.gatewaySessionId
 
     /** Last rendered snapshot for a chat; survives evict/screen-close so reopen paints instantly. Dropped only on close. */
-    fun snapshotFor(chatId: String): ChatSessionSnapshot? = snapshots[chatId]
+    override fun snapshotFor(chatId: String): ChatSessionSnapshot? = snapshots[chatId]
 
     /** Stashes the latest rendered snapshot; eldest-evicted past the snapshot cap. Safe before any entry exists. */
-    fun storeSnapshot(
+    override fun storeSnapshot(
         chatId: String,
         snapshot: ChatSessionSnapshot,
     ) {
@@ -386,7 +386,7 @@ class ChatConnectionHub(
     ): Boolean = entries.containsKey("$serverId/$sessionId")
 
     /** True when this agent on this source already holds a live (connected) gateway session. */
-    fun hasLiveGatewaySession(
+    override fun hasLiveGatewaySession(
         gatewaySourceId: String,
         agentId: String,
     ): Boolean =
@@ -416,7 +416,7 @@ class ChatConnectionHub(
      * directly, so this is only needed by callers that want an immediate
      * republish on transport changes (the chat facade calls it).
      */
-    fun refresh() {
+    override fun refresh() {
         republish()
     }
 
@@ -447,7 +447,7 @@ class ChatConnectionHub(
      * is reached: closes the oldest active session not owned by a tracked
      * chat. Throws when every session is spoken for.
      */
-    suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint) {
+    override suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint) {
         val repository = gatewayRepository ?: throw IllegalStateException("No gateway repository available")
         val active =
             repository
