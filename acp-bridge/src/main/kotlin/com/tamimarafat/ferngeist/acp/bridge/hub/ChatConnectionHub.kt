@@ -51,9 +51,10 @@ data class GatewayEndpoint(
  *
  * Chat managers are created via [acquireChatManager] (tracked as pending until
  * [register] promotes them into a hot entry) and torn down only here — evict,
- * explicit close, and abandon all run the same disconnect-then-close pairing,
- * so callers can never half-release a transport. Browser (listing) managers are
- * created via [createBrowserManager] and auto-released with their owner scope.
+ * explicit close, and abandon all call the manager's single [AcpConnectionManager.release]
+ * (disconnect-then-close, paired inside the manager), so callers can never
+ * half-release a transport. Browser (listing) managers are created via
+ * [createBrowserManager] and auto-released with their owner scope.
  *
  * Presence: each hot entry is keyed by `"$serverId/$sessionId"` and records
  * transport facts plus whether its chat screen is open and the cwd it was
@@ -200,7 +201,7 @@ class ChatConnectionHub(
     fun abandon(manager: AcpConnectionManager) {
         if (pendingManagers.remove(manager)) {
             revision.value += 1
-            teardown(manager)
+            manager.release()
         }
     }
 
@@ -216,7 +217,7 @@ class ChatConnectionHub(
                 if (browserManagers.remove(manager)) {
                     revision.value += 1
                 }
-                teardown(manager)
+                manager.release()
             }
         }
 
@@ -436,7 +437,7 @@ class ChatConnectionHub(
                 gatewayRepository.closeSession(endpoint.scheme, endpoint.host, endpoint.credential, gatewaySessionId)
             }
         } finally {
-            entry.manager?.let { teardown(it) }
+            entry.manager?.let { it.release() }
             republish()
         }
     }
@@ -470,11 +471,6 @@ class ChatConnectionHub(
     private fun allManagers(): List<AcpConnectionManager> =
         entries.values.mapNotNullTo(mutableListOf()) { it.manager } + pendingManagers + browserManagers
 
-    private fun teardown(manager: AcpConnectionManager) {
-        manager.disconnect()
-        manager.close()
-    }
-
     /** Disconnects a listing browser transport (kept for reuse, not closed). */
     private suspend fun hangUpListing(transport: AcpConnectionManager) {
         if (transport.isConnected) {
@@ -485,7 +481,7 @@ class ChatConnectionHub(
     private suspend fun removeAndEvict(chatId: String) {
         val entry = entries.remove(chatId)
         if (entry != null) {
-            entry.manager?.let { teardown(it) }
+            entry.manager?.let { it.release() }
             republish()
         }
     }
@@ -777,7 +773,7 @@ class ChatConnectionHub(
         if (browserManagers.remove(transport)) {
             revision.value += 1
         }
-        teardown(transport)
+        transport.release()
     }
 
     /**
