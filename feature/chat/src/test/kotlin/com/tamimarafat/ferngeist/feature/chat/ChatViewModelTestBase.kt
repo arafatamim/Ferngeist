@@ -172,7 +172,10 @@ class ChatViewModelPresenceTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             assertTrue(hub.isTracked("server_1", "session_1"))
-            assertEquals(ChatPresence(serverId = "server_1", sessionId = "session_1", cwd = "/"), hub.onScreenChat.value)
+            assertEquals(
+                ChatPresence(serverId = "server_1", sessionId = "session_1", cwd = "/"),
+                hub.onScreenChat.value,
+            )
 
             viewModel.clearForTest()
         }
