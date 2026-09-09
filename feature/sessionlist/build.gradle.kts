@@ -43,7 +43,6 @@ dependencies {
     implementation(projects.data.database)
     implementation(projects.acpBridge)
     implementation(projects.gatewayClient)
-    implementation(projects.feature.serverlist)
 
     // === Android ===
     implementation(libs.androidx.core.ktx)
