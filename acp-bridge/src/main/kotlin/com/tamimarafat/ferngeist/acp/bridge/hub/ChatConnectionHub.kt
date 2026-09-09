@@ -51,8 +51,14 @@ data class GatewayEndpoint(
  * process-wide observers (foreground service, battery gate) react to any
  * connection. Registrations are rare, so the aggregate recombines on a revision
  * bump via [flatMapLatest], discarding the previous combination each time.
+ *
+ * Carries more functions than detekt's TooManyFunctions budget: the presence
+ * surface is deliberately many small single-purpose operations so callers get
+ * role-shaped entry points (screen-open, pooled tap target, aggregates), and
+ * the count grew with the presence merge. Suppressed rather than merged.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("TooManyFunctions")
 class ChatConnectionHub(
     private val gatewayRepository: GatewayRepository?,
     private val scope: CoroutineScope,
