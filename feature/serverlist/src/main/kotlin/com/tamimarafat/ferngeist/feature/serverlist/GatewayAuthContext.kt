@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.serverlist
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
@@ -23,8 +24,8 @@ internal data class GatewayAuthContext(
  */
 internal suspend fun resolveGatewayAuthContext(
     pending: PendingAuthentication,
-    uiState: kotlinx.coroutines.flow.MutableStateFlow<ServerListUiState>,
-    launchableTargetRepository: com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository,
+    uiState: MutableStateFlow<ServerListUiState>,
+    launchableTargetRepository: LaunchableTargetRepository,
     gatewayRepository: GatewayRepository,
     gatewaySourceRepository: GatewaySourceRepository,
 ): GatewayAuthContext? {
@@ -41,8 +42,8 @@ internal suspend fun resolveGatewayAuthContext(
 /** Resolves the pending server, or surfaces the removed-server error. */
 internal suspend fun resolveAuthTarget(
     pending: PendingAuthentication,
-    uiState: kotlinx.coroutines.flow.MutableStateFlow<ServerListUiState>,
-    launchableTargetRepository: com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository,
+    uiState: MutableStateFlow<ServerListUiState>,
+    launchableTargetRepository: LaunchableTargetRepository,
 ): LaunchableTarget? =
     withContext(Dispatchers.IO) {
         launchableTargetRepository.getTarget(pending.serverId)
@@ -55,7 +56,7 @@ internal suspend fun resolveAuthTarget(
  */
 internal suspend fun resolveAuthGatewaySource(
     pending: PendingAuthentication,
-    uiState: kotlinx.coroutines.flow.MutableStateFlow<ServerListUiState>,
+    uiState: MutableStateFlow<ServerListUiState>,
     gatewayTarget: LaunchableTarget.GatewayAgent,
     gatewayRepository: GatewayRepository,
     gatewaySourceRepository: GatewaySourceRepository,
@@ -81,7 +82,7 @@ internal suspend fun resolveAuthGatewaySource(
 
 /** Surfaces the auth failure and signals the caller to stop. */
 internal fun failGatewayAuth(
-    uiState: kotlinx.coroutines.flow.MutableStateFlow<ServerListUiState>,
+    uiState: MutableStateFlow<ServerListUiState>,
     pending: PendingAuthentication,
     message: String,
 ): Nothing? {

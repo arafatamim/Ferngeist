@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
+import com.tamimarafat.ferngeist.acp.bridge.hub.chatIdFor
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -32,24 +33,9 @@ class AcpChatSessionFacadeFactory(
         sessionId: String,
         cwd: String,
     ): ChatSessionFacade {
-        val chatId = "$serverId/$sessionId"
-        val hubSnapshot = hub.snapshotFor(chatId)
+        val chatId = chatIdFor(serverId, sessionId)
         val existing = hub.managerFor(chatId)
-        if (existing != null) {
-            return AcpChatSessionFacade(
-                scope = scope,
-                connectionManager = existing,
-                launchableTargetRepository = launchableTargetRepository,
-                gatewaySourceRepository = gatewaySourceRepository,
-                gatewayRepository = gatewayRepository,
-                serverId = serverId,
-                initialSessionId = sessionId,
-                cwd = cwd,
-                hub = hub,
-                initialCachedSnapshot = hubSnapshot,
-            )
-        }
-        val manager = hub.acquireChatManager()
+        val manager = existing ?: hub.acquireChatManager()
         return AcpChatSessionFacade(
             scope = scope,
             connectionManager = manager,
@@ -60,7 +46,7 @@ class AcpChatSessionFacadeFactory(
             initialSessionId = sessionId,
             cwd = cwd,
             hub = hub,
-            initialCachedSnapshot = hubSnapshot,
+            initialCachedSnapshot = hub.snapshotFor(chatId),
         )
     }
 }

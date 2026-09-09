@@ -272,7 +272,6 @@ class SessionListViewModel
         override fun onCleared() {
             refreshJob?.cancel()
             chatConnectionHub.releaseListing(serverId)
-            super.onCleared()
         }
 
         /**

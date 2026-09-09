@@ -56,7 +56,7 @@ data class GatewayEndpoint(
  * half-release a transport. Browser (listing) managers are created via
  * [createBrowserManager] and auto-released with their owner scope.
  *
- * Presence: each hot entry is keyed by `"$serverId/$sessionId"` and records
+ * Presence: each hot entry is keyed by the canonical [chatIdFor] composite and records
  * transport facts plus whether its chat screen is open and the cwd it was
  * opened with. Entries exist while screen-open or transport-attached; recency
  * bumps only on screen open or fresh-entry creation — never on transport
@@ -248,7 +248,7 @@ class ChatConnectionHub(
         isStreaming: () -> Boolean,
         manager: AcpConnectionManager?,
     ): String {
-        val chatId = "$serverId/$sessionId"
+        val chatId = chatIdFor(serverId, sessionId)
         if (manager != null) {
             pendingManagers.remove(manager)
         }
@@ -328,7 +328,7 @@ class ChatConnectionHub(
         cwd: String,
     ): Boolean {
         if (sessionId == NEW_SESSION_ARG) return false
-        val chatId = "$serverId/$sessionId"
+        val chatId = chatIdFor(serverId, sessionId)
         val existing = entries[chatId]
         if (existing != null) {
             entries[chatId] =
@@ -368,7 +368,7 @@ class ChatConnectionHub(
         serverId: String,
         sessionId: String,
     ) {
-        val chatId = "$serverId/$sessionId"
+        val chatId = chatIdFor(serverId, sessionId)
         entries[chatId]?.let { existing ->
             if (existing.manager == null) {
                 entries.remove(chatId)
@@ -383,7 +383,7 @@ class ChatConnectionHub(
     fun isTracked(
         serverId: String,
         sessionId: String,
-    ): Boolean = entries.containsKey("$serverId/$sessionId")
+    ): Boolean = entries.containsKey(chatIdFor(serverId, sessionId))
 
     /** True when this agent on this source already holds a live (connected) gateway session. */
     override fun hasLiveGatewaySession(
@@ -787,7 +787,7 @@ class ChatConnectionHub(
         sessionId: String,
         endpoint: GatewayEndpoint,
     ) {
-        val chatId = "$serverId/$sessionId"
+        val chatId = chatIdFor(serverId, sessionId)
         val sessionRepository = sessionRepository
         if (isTracked(serverId, sessionId)) {
             close(chatId, endpoint)
@@ -894,3 +894,9 @@ class ChatConnectionHub(
         const val STATUS_ACTIVE = "active"
     }
 }
+
+/** Builds the canonical chat key: `"<serverId>/<sessionId>"`. Single format owner for the hub contract. */
+internal fun chatIdFor(
+    serverId: String,
+    sessionId: String,
+): String = "$serverId/$sessionId"
