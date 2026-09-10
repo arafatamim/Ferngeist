@@ -35,11 +35,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -65,8 +69,12 @@ class SessionGatewayTest {
      */
     private class FakeClientSession(
         private val turns: List<Flow<Event>>,
+        val cancelGate: CompletableDeferred<Unit>? = null,
     ) : ClientSession {
         private var turnIndex = 0
+
+        /** Completed as soon as [cancel] is entered, so a test can order against the RPC. */
+        val cancelStarted = CompletableDeferred<Unit>()
 
         override val sessionId: SessionId get() = error("unused")
         override val parameters: SessionCreationParameters get() = error("unused")
@@ -82,7 +90,10 @@ class SessionGatewayTest {
             return turn
         }
 
-        override suspend fun cancel() = Unit
+        override suspend fun cancel() {
+            cancelStarted.complete(Unit)
+            cancelGate?.await()
+        }
 
         override suspend fun close(_meta: JsonElement?): CloseSessionResponse = error("unused")
 
@@ -353,18 +364,34 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `cancelled prompt turn reports cancelled and the next turn is not mislabelled`() =
+    fun `a cancel while the turn is in flight reports cancelled and does not leak to the next turn`() =
         runTest {
             val gateway = newGateway()
+            val turn = Channel<Event>(Channel.UNLIMITED)
+            val collecting = CompletableDeferred<Unit>()
             val bridge =
                 installSession(
                     gateway,
                     "s1",
-                    FakeClientSession(listOf(emptyFlow(), emptyFlow())),
+                    FakeClientSession(
+                        listOf(
+                            flow {
+                                collecting.complete(Unit)
+                                turn.receiveAsFlow().collect { emit(it) }
+                            },
+                            emptyFlow(),
+                        ),
+                    ),
                 )
 
-            gateway.cancelSession("s1")
-            gateway.sendSessionMessage("s1", "first")
+            // The turn runs on the bridge's own scope (Dispatchers.Default), so the
+            // handshake — not a yield — is what orders the cancel after collection.
+            val first = launch { gateway.sendSessionMessage("s1", "first") }
+            collecting.await()
+            gateway.cancelSession("s1") // STOP pressed mid-turn
+            turn.close() // stream ends without a terminal event
+            first.join()
+
             gateway.sendSessionMessage("s1", "second")
 
             assertEquals(listOf("cancelled", "end_turn"), turnReasons(bridge))
@@ -386,6 +413,109 @@ class SessionGatewayTest {
             gateway.sendSessionMessage("s1", "second")
 
             assertEquals(listOf("end_turn", "end_turn"), turnReasons(bridge))
+        }
+
+    @Test
+    fun `a failing prompt turn still ends the turn before rethrowing`() =
+        runTest {
+            val gateway = newGateway()
+            val failure = IllegalStateException("transport died mid-turn")
+            val bridge =
+                installSession(
+                    gateway,
+                    "s1",
+                    FakeClientSession(listOf(flow { throw failure })),
+                )
+
+            val result = runCatching { gateway.sendSessionMessage("s1", "hello") }
+
+            assertTrue(result.exceptionOrNull() is IllegalStateException)
+            // The turn runs on the bridge scope, so its starter may already be gone and
+            // no rollback would run: the turn must end here or the bubble streams forever.
+            assertEquals(listOf("end_turn"), turnReasons(bridge))
+        }
+
+    @Test
+    fun `a failing turn after a cancel reports cancelled`() =
+        runTest {
+            val gateway = newGateway()
+            val turn = Channel<Event>(Channel.UNLIMITED)
+            val collecting = CompletableDeferred<Unit>()
+            val failsAfterClose =
+                flow {
+                    collecting.complete(Unit)
+                    turn.receiveAsFlow().collect { emit(it) }
+                    throw IllegalStateException("aborted")
+                }
+            val bridge =
+                installSession(gateway, "s1", FakeClientSession(listOf(failsAfterClose)))
+
+            val first = launch { runCatching { gateway.sendSessionMessage("s1", "hello") } }
+            collecting.await()
+            gateway.cancelSession("s1")
+            turn.close()
+            first.join()
+
+            assertEquals(listOf("cancelled"), turnReasons(bridge))
+        }
+
+    @Test
+    fun `a cancel after the turn ended does not mislabel the next turn`() =
+        runTest {
+            val gateway = newGateway()
+            val bridge =
+                installSession(
+                    gateway,
+                    "s1",
+                    FakeClientSession(listOf(responseTurn(), emptyFlow())),
+                )
+
+            // Turn 1 ends normally, with no response expected after it.
+            gateway.sendSessionMessage("s1", "first")
+            // A cancel lands after the turn is over (user tapped STOP late).
+            gateway.cancelSession("s1")
+            // Turn 2 must not inherit that stale mark.
+            gateway.sendSessionMessage("s1", "second")
+
+            assertEquals(listOf("end_turn", "end_turn"), turnReasons(bridge))
+        }
+
+    @Test
+    fun `a slow cancel RPC still labels the turn it interrupted`() =
+        runTest {
+            val gateway = newGateway()
+            val turn = Channel<Event>(Channel.UNLIMITED)
+            val collecting = CompletableDeferred<Unit>()
+            val session =
+                FakeClientSession(
+                    turns =
+                        listOf(
+                            flow {
+                                collecting.complete(Unit)
+                                turn.receiveAsFlow().collect { emit(it) }
+                            },
+                            emptyFlow(),
+                        ),
+                    // The RPC does not return until the test releases it, so the turn
+                    // stream ends while the cancel is still in flight.
+                    cancelGate = CompletableDeferred(),
+                )
+            val bridge = installSession(gateway, "s1", session)
+
+            val first = launch { gateway.sendSessionMessage("s1", "first") }
+            collecting.await()
+            val cancelling = launch { gateway.cancelSession("s1") }
+            session.cancelStarted.await()
+            turn.close() // the turn ends before session.cancel() returns
+            first.join()
+            session.cancelGate?.complete(Unit) // now let the RPC return
+            cancelling.join()
+
+            gateway.sendSessionMessage("s1", "second")
+
+            // Marking before the RPC is what makes this the cancelled turn; marking
+            // after it would report end_turn here and strand "cancelled" on turn two.
+            assertEquals(listOf("cancelled", "end_turn"), turnReasons(bridge))
         }
 
     @Test

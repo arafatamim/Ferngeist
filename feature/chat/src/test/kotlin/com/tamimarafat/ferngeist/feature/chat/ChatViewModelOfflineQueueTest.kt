@@ -1,8 +1,11 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import app.cash.turbine.test
+import com.tamimarafat.ferngeist.core.model.ChatFileData
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -167,6 +170,57 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             }
         }
 
+    @Test
+    fun `a delivered prompt leaves no durable copy behind`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("delivered"))
+            advanceUntilIdle()
+            assertEquals(1, store.restore("server_1", "session_1").size)
+
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            // The store removes the key once the queue is drained.
+            assertEquals(
+                emptyList<String>(),
+                store.restore("server_1", "session_1").map { it.text },
+            )
+            val messages = viewModel.state.value.pendingMessages
+            assertEquals(MessageDeliveryStatus.SENDING, messages.single().status)
+        }
+
+    @Test
+    fun `a flush cancelled mid-send keeps the prompt durable`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val facadeFactory = TestFacadeFactory { SuspendingSendFacade() }
+            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("survive"))
+            advanceUntilIdle()
+            assertEquals(1, store.restore("server_1", "session_1").size)
+
+            // Flush starts and blocks inside sendMessage, so the queue is empty in
+            // memory while the prompt is still the only thing holding it on disk.
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            // Tearing the screen down cancels the in-flight send.
+            viewModel.clearForTest()
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("survive"),
+                store.restore("server_1", "session_1").map { it.text },
+            )
+        }
+
     // region: Helpers
 
     /**
@@ -229,4 +283,17 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
     }
 
     // endregion
+}
+
+/**
+ * Facade whose [ChatSessionFacade.sendMessage] never returns, so a test can cancel the
+ * screen while a prompt is mid-dispatch. Models a transport that has been handed the
+ * prompt but has not yet resolved it.
+ */
+private class SuspendingSendFacade : TestFacade() {
+    override suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean = awaitCancellation()
 }

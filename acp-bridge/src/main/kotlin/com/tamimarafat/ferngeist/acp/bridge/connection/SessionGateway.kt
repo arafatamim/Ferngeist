@@ -278,48 +278,75 @@ internal class SessionGateway(
      * Collects one prompt turn and maps it onto the bridge's event stream.
      *
      * Runs on the bridge's own scope (see [sendSessionMessage]) so it survives a
-     * cancelled caller. If the stream ends without a [Event.PromptResponseEvent] —
-     * some ACP server/transport combos drop the terminal event on cancellation or
-     * teardown — a defensive [AppSessionEvent.TurnComplete] is emitted, reporting
-     * `"cancelled"` when a cancel was requested for this session, `"end_turn"`
-     * otherwise. The cancel mark is consumed here so the next turn starts clean.
+     * cancelled caller. A turn therefore always reaches a terminal event:
+     * - the stream ends without a [Event.PromptResponseEvent] — some ACP
+     *   server/transport combos drop the terminal event on cancellation or
+     *   teardown — a defensive [AppSessionEvent.TurnComplete] is emitted;
+     * - the stream throws, in which case the turn ends before the error is
+     *   rethrown, because no awaiter may remain to run the rollback.
+     *
+     * Either way the stop reason is `"cancelled"` when a cancel was requested for
+     * this session and `"end_turn"` otherwise. The cancel mark is consumed here so
+     * the next turn starts clean.
      */
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun collectPromptTurn(
         sessionId: String,
         session: ClientSession,
         bridge: SessionBridge,
         blocks: List<ContentBlock>,
     ) {
+        // Start clean: a cancel that arrived after the previous turn had already
+        // finished must not mislabel this one.
+        cancelsRequested.remove(sessionId)
         var receivedPromptResponse = false
-        session.prompt(blocks).collect { event ->
-            when (event) {
-                is Event.SessionUpdateEvent -> {
-                    val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(event.update)
-                    if (appEvent != null) {
-                        bridge.emitEvent(appEvent)
+        try {
+            session.prompt(blocks).collect { event ->
+                when (event) {
+                    is Event.SessionUpdateEvent -> {
+                        val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(event.update)
+                        if (appEvent != null) {
+                            bridge.emitEvent(appEvent)
+                        }
+                    }
+
+                    is Event.PromptResponseEvent -> {
+                        receivedPromptResponse = true
+                        bridge.emitEvent(
+                            AppSessionEvent.TurnComplete(
+                                AcpSessionUpdateMapper.mapStopReason(
+                                    event.response.stopReason,
+                                ),
+                            ),
+                        )
                     }
                 }
-
-                is Event.PromptResponseEvent -> {
-                    receivedPromptResponse = true
-                    bridge.emitEvent(
-                        AppSessionEvent.TurnComplete(
-                            AcpSessionUpdateMapper.mapStopReason(
-                                event.response.stopReason,
-                            ),
-                        ),
-                    )
-                }
             }
+        } catch (error: CancellationException) {
+            // The bridge scope is being torn down; the session dies with it.
+            throw error
+        } catch (error: Exception) {
+            // This turn runs on the bridge scope, so whoever started it may already
+            // be gone (the chat screen closed). Nobody is left to run the rollback
+            // in that case, so end the turn here — otherwise a transport or SDK
+            // failure after navigation leaves the optimistic bubble streaming
+            // forever. Still rethrown so a live awaiter can surface the error.
+            bridge.emitEvent(AppSessionEvent.TurnComplete(consumeTurnEndReason(sessionId)))
+            throw error
         }
 
-        val cancelRequested = cancelsRequested.remove(sessionId)
         if (!receivedPromptResponse) {
-            bridge.emitEvent(
-                AppSessionEvent.TurnComplete(if (cancelRequested) "cancelled" else "end_turn"),
-            )
+            bridge.emitEvent(AppSessionEvent.TurnComplete(consumeTurnEndReason(sessionId)))
         }
     }
+
+    /**
+     * Consumes this session's cancel mark (set by [cancelSession]) and maps it to a stop
+     * reason: `"cancelled"` when the turn was explicitly cancelled, `"end_turn"` when the
+     * stream simply ended without reporting one.
+     */
+    private fun consumeTurnEndReason(sessionId: String): String =
+        if (cancelsRequested.remove(sessionId)) "cancelled" else "end_turn"
 
     /**
      * Cancels the current streaming turn via `session/cancel` RPC.
@@ -336,6 +363,10 @@ internal class SessionGateway(
      */
     suspend fun cancelSession(sessionId: String) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
+        // Mark before the RPC: the prompt stream can finish while cancel() is still
+        // in flight, and it consumes this mark to report "cancelled". Marking after
+        // the call would let that turn end as "end_turn" and leave the mark behind.
+        cancelsRequested += sessionId
         var cancelled = false
         runCatching {
             orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/cancel")
@@ -343,9 +374,11 @@ internal class SessionGateway(
             cancelled = true
             orchestra.diagnosticsStore.setSessionCancelSupport(isSupported = true)
         }.onFailure { handleSessionCancelFailure(it) }
-        if (!cancelled) return
+        if (!cancelled) {
+            cancelsRequested -= sessionId
+            return
+        }
 
-        cancelsRequested += sessionId
         permissionFlow.cancelPendingForSession(sessionId).forEach { toolCallId ->
             emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
         }

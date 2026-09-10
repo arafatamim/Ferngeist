@@ -276,7 +276,7 @@ private fun newPresenceHub(): ChatConnectionHub =
  * testable. [ChatViewModel] is final and onCleared is protected, so reflection
  * is the deterministic seam (mirrors the hub test suite's manager-state helper).
  */
-private fun ChatViewModel.clearForTest() {
+internal fun ChatViewModel.clearForTest() {
     val onCleared = ChatViewModel::class.java.getDeclaredMethod("onCleared")
     onCleared.isAccessible = true
     onCleared.invoke(this)

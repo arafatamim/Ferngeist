@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -21,6 +22,58 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest : ChatViewModelTestBase() {
+    @Test
+    fun `create-on-arrival chat asks the facade to mint a session`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade() }
+            createViewModel(
+                facadeFactory = facadeFactory,
+                savedStateHandle = newSessionHandle(),
+            )
+            advanceUntilIdle()
+
+            assertEquals(NEW_SESSION_ARG, facadeFactory.lastRequestedSessionId)
+        }
+
+    @Test
+    fun `a rebuilt create-on-arrival chat reattaches instead of minting a second session`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade() }
+            // Same route, restored from saved state: the nav arg is still the sentinel,
+            // but the minted id from the first ViewModel is known.
+            val handle =
+                newSessionHandle().apply {
+                    this["mintedSessionId"] = "session_minted"
+                }
+            createViewModel(facadeFactory = facadeFactory, savedStateHandle = handle)
+            advanceUntilIdle()
+
+            assertEquals("session_minted", facadeFactory.lastRequestedSessionId)
+        }
+
+    @Test
+    fun `minting a session records the id for a later rebuild`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade() }
+            val handle = newSessionHandle()
+            val viewModel = createViewModel(facadeFactory = facadeFactory, savedStateHandle = handle)
+            advanceUntilIdle()
+
+            facadeFactory.lastFacade.value?.emitLiveChatId("server_1/session_minted")
+            advanceUntilIdle()
+
+            assertEquals("session_minted", handle.get<String>("mintedSessionId"))
+        }
+
+    private fun newSessionHandle(): SavedStateHandle =
+        SavedStateHandle(
+            mapOf(
+                "serverId" to "server_1",
+                "sessionId" to NEW_SESSION_ARG,
+                "cwd" to "/",
+            ),
+        )
+
     @Test
     fun `set config option without active session emits session not ready error`() =
         runTest {
