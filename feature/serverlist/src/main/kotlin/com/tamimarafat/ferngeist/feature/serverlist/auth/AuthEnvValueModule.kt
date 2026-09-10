@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist.auth
 
+import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

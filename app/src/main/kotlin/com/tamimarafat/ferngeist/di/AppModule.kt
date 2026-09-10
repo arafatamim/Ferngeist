@@ -138,12 +138,18 @@ object AppModule {
     fun provideChatConnectionHub(
         @ApplicationContext context: Context,
         gatewayRepository: GatewayRepository,
+        sessionRepository: SessionRepository,
+        launchableTargetRepository: LaunchableTargetRepository,
+        gatewaySourceRepository: GatewaySourceRepository,
         applicationScope: CoroutineScope,
     ): ChatConnectionHub =
         ChatConnectionHub(
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
             connectivityObserver = AndroidConnectivityObserver(context),
+            sessionRepository = sessionRepository,
+            launchableTargetRepository = launchableTargetRepository,
+            gatewaySourceRepository = gatewaySourceRepository,
         )
 
     /** Supplies the chat-session facade factory backed by ACP. */

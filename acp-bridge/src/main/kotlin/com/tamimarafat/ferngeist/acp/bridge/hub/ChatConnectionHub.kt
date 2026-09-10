@@ -1,13 +1,30 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
+import com.agentclientprotocol.annotations.UnstableApi
+import com.agentclientprotocol.model.AgentCapabilities
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
+import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +36,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Gateway endpoint triple needed for session-scoped REST calls (list/close). */
@@ -33,9 +51,10 @@ data class GatewayEndpoint(
  *
  * Chat managers are created via [acquireChatManager] (tracked as pending until
  * [register] promotes them into a hot entry) and torn down only here — evict,
- * explicit close, and abandon all run the same disconnect-then-close pairing,
- * so callers can never half-release a transport. Browser (listing) managers are
- * created via [createBrowserManager] and auto-released with their owner scope.
+ * explicit close, and abandon all call the manager's single [AcpConnectionManager.release]
+ * (disconnect-then-close, paired inside the manager), so callers can never
+ * half-release a transport. Browser (listing) managers are created via
+ * [createBrowserManager] and auto-released with their owner scope.
  *
  * Presence: each hot entry is keyed by `"$serverId/$sessionId"` and records
  * transport facts plus whether its chat screen is open and the cwd it was
@@ -67,7 +86,10 @@ class ChatConnectionHub(
     private val maxGatewaySessionsPerDevice: Int = 5,
     private val clock: () -> Long = System::currentTimeMillis,
     private val maxSnapshotCacheSize: Int = 20,
-) {
+    private val sessionRepository: SessionRepository? = null,
+    private val launchableTargetRepository: LaunchableTargetRepository? = null,
+    private val gatewaySourceRepository: GatewaySourceRepository? = null,
+) : ChatConnectionSurface {
     private data class Entry(
         val chatId: String,
         val serverId: String,
@@ -88,6 +110,19 @@ class ChatConnectionHub(
     private val pendingManagers = CopyOnWriteArrayList<AcpConnectionManager>()
     private val browserManagers = CopyOnWriteArrayList<AcpConnectionManager>()
     private val revision = MutableStateFlow(0L)
+
+    /**
+     * Reusable browser (listing) transport per server, plus the transport that
+     * surfaced an outstanding listing auth challenge. Kept disconnected after
+     * each list; torn down by [releaseListing].
+     */
+    private data class ListingSession(
+        val serverId: String,
+        val browserTransport: AcpConnectionManager,
+        var authTransport: AcpConnectionManager? = null,
+    )
+
+    private val listingSessions = LinkedHashMap<String, ListingSession>()
 
     // Presence is deliberately in-memory, like the focus-ordered store this hub supersedes.
     // ponytail: a Room-backed or event-sourced presence table would replay
@@ -153,7 +188,7 @@ class ChatConnectionHub(
      * promotes it into a hot entry. A spawn that fails before attach stays
      * tracked (visible in the aggregates) until [abandon] releases it.
      */
-    fun acquireChatManager(): AcpConnectionManager =
+    override fun acquireChatManager(): AcpConnectionManager =
         AcpConnectionManager(requireObserver(), gatewayRepository, scope).also { manager ->
             pendingManagers.addIfAbsent(manager)
             revision.value += 1
@@ -163,10 +198,10 @@ class ChatConnectionHub(
      * Releases an [acquireChatManager] manager that never registered (failed
      * spawn, cleared screen). No-op for managers already promoted into entries.
      */
-    fun abandon(manager: AcpConnectionManager) {
+    override fun abandon(manager: AcpConnectionManager) {
         if (pendingManagers.remove(manager)) {
             revision.value += 1
-            teardown(manager)
+            manager.release()
         }
     }
 
@@ -182,7 +217,7 @@ class ChatConnectionHub(
                 if (browserManagers.remove(manager)) {
                     revision.value += 1
                 }
-                teardown(manager)
+                manager.release()
             }
         }
 
@@ -203,7 +238,7 @@ class ChatConnectionHub(
      * [manager] is the chat's connection, promoted from pending into the hot
      * entry. Eviction and explicit close tear it down here; callers never do.
      */
-    suspend fun register(
+    override suspend fun register(
         serverId: String,
         sessionId: String,
         gatewaySessionId: String?,
@@ -211,7 +246,7 @@ class ChatConnectionHub(
         agentId: String,
         isConnected: () -> Boolean,
         isStreaming: () -> Boolean,
-        manager: AcpConnectionManager? = null,
+        manager: AcpConnectionManager?,
     ): String {
         val chatId = "$serverId/$sessionId"
         if (manager != null) {
@@ -258,16 +293,16 @@ class ChatConnectionHub(
     }
 
     /** The live transport for a tracked chat, or null when untracked/cold. */
-    fun managerFor(chatId: String): AcpConnectionManager? = entries[chatId]?.manager
+    override fun managerFor(chatId: String): AcpConnectionManager? = entries[chatId]?.manager
 
     /** Gateway session id of the tracked chat entry, or null when untracked. */
     fun gatewaySessionIdFor(chatId: String): String? = entries[chatId]?.gatewaySessionId
 
     /** Last rendered snapshot for a chat; survives evict/screen-close so reopen paints instantly. Dropped only on close. */
-    fun snapshotFor(chatId: String): ChatSessionSnapshot? = snapshots[chatId]
+    override fun snapshotFor(chatId: String): ChatSessionSnapshot? = snapshots[chatId]
 
     /** Stashes the latest rendered snapshot; eldest-evicted past the snapshot cap. Safe before any entry exists. */
-    fun storeSnapshot(
+    override fun storeSnapshot(
         chatId: String,
         snapshot: ChatSessionSnapshot,
     ) {
@@ -351,7 +386,7 @@ class ChatConnectionHub(
     ): Boolean = entries.containsKey("$serverId/$sessionId")
 
     /** True when this agent on this source already holds a live (connected) gateway session. */
-    fun hasLiveGatewaySession(
+    override fun hasLiveGatewaySession(
         gatewaySourceId: String,
         agentId: String,
     ): Boolean =
@@ -381,7 +416,7 @@ class ChatConnectionHub(
      * directly, so this is only needed by callers that want an immediate
      * republish on transport changes (the chat facade calls it).
      */
-    fun refresh() {
+    override fun refresh() {
         republish()
     }
 
@@ -402,7 +437,7 @@ class ChatConnectionHub(
                 gatewayRepository.closeSession(endpoint.scheme, endpoint.host, endpoint.credential, gatewaySessionId)
             }
         } finally {
-            entry.manager?.let { teardown(it) }
+            entry.manager?.let { it.release() }
             republish()
         }
     }
@@ -412,7 +447,7 @@ class ChatConnectionHub(
      * is reached: closes the oldest active session not owned by a tracked
      * chat. Throws when every session is spoken for.
      */
-    suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint) {
+    override suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint) {
         val repository = gatewayRepository ?: throw IllegalStateException("No gateway repository available")
         val active =
             repository
@@ -436,15 +471,17 @@ class ChatConnectionHub(
     private fun allManagers(): List<AcpConnectionManager> =
         entries.values.mapNotNullTo(mutableListOf()) { it.manager } + pendingManagers + browserManagers
 
-    private fun teardown(manager: AcpConnectionManager) {
-        manager.disconnect()
-        manager.close()
+    /** Disconnects a listing browser transport (kept for reuse, not closed). */
+    private suspend fun hangUpListing(transport: AcpConnectionManager) {
+        if (transport.isConnected) {
+            withContext(Dispatchers.IO) { transport.disconnect() }
+        }
     }
 
     private suspend fun removeAndEvict(chatId: String) {
         val entry = entries.remove(chatId)
         if (entry != null) {
-            entry.manager?.let { teardown(it) }
+            entry.manager?.let { it.release() }
             republish()
         }
     }
@@ -494,6 +531,350 @@ class ChatConnectionHub(
             // attaches; "" would read as a mismatch, null reads as unknown.
             gatewaySourceId = gatewaySourceId.ifEmpty { null },
         )
+
+    // ===== Session-list listing seam (architecture review candidate 3) =====
+    //
+    // Listing surfaces (session list, and any future sibling) call these and
+    // never hold an AcpConnectionManager: warm-chat borrow-else-own dispatch,
+    // capability gating, gateway REST close, and the Room session-table write
+    // all live here so socket-steal and warm-reuse bugs concentrate in the hub.
+
+    /** Outcome of a session-list listing attempt. */
+    sealed interface ListSessionsResult {
+        /**
+         * Listing succeeded through a warm chat transport ([viaWarmChat]) or
+         * the hub's own browser transport; Room has been replaced.
+         */
+        data class Listed(
+            val sessions: List<SessionSummary>,
+            val agentCapabilities: AgentCapabilities?,
+            val viaWarmChat: Boolean,
+        ) : ListSessionsResult
+
+        /**
+         * The transport advertised no session-list capability; nothing was
+         * listed or written. Screens keep the old list and show the
+         * "not supported" empty state.
+         */
+        data class Unsupported(
+            val agentCapabilities: AgentCapabilities?,
+        ) : ListSessionsResult
+
+        /** The transport raised an auth challenge; screens keep the auth UX. */
+        data class AuthRequired(
+            val agentName: String,
+            val authMethods: List<AcpAuthMethodInfo>,
+            val challengeMessage: String?,
+            val gatewayRuntimeId: String?,
+            val viaWarmChat: Boolean,
+        ) : ListSessionsResult
+
+        /** Listing failed for a non-auth reason (connect, launch). */
+        data class Failed(
+            val message: String,
+        ) : ListSessionsResult
+    }
+
+    /**
+     * Lists sessions for [serverId], replacing the Room session table on
+     * success. Borrows a warm chat transport when one holds the gateway slot;
+     * otherwise runs a transient browser transport (connect → list → hang up).
+     * Auth challenges surface as [ListSessionsResult.AuthRequired] with the
+     * raising transport retained for [authenticateListing] routing.
+     */
+    @OptIn(UnstableApi::class)
+    suspend fun listSessions(
+        serverId: String,
+        cwd: String?,
+    ): ListSessionsResult {
+        val target =
+            launchableTargetRepository?.getTarget(serverId)
+                ?: return ListSessionsResult.Failed("Server was removed before listing sessions.")
+        val listing = listingSession(serverId)
+        val warm = warmManagerFor(serverId)
+        return if (warm != null) {
+            listViaWarmListing(listing, warm, serverId, cwd)
+        } else {
+            listViaBrowserListing(listing, target, serverId, cwd)
+        }
+    }
+
+    /**
+     * Lists through [warm], a hub-tracked chat transport owning the gateway
+     * slot. Never disconnects it — the chat owns it.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    @OptIn(UnstableApi::class)
+    private suspend fun listViaWarmListing(
+        listing: ListingSession,
+        warm: AcpConnectionManager,
+        serverId: String,
+        cwd: String?,
+    ): ListSessionsResult {
+        val caps = warm.agentCapabilities.value
+        if (caps != null && caps.sessionCapabilities.list == null) {
+            return ListSessionsResult.Unsupported(caps)
+        }
+        return try {
+            val sessions = warm.listSessions(cwd = cwd)
+            writeListedSessions(serverId, sessions)
+            ListSessionsResult.Listed(sessions = sessions, agentCapabilities = caps, viaWarmChat = true)
+        } catch (error: AcpAuthenticationRequiredException) {
+            listing.authTransport = warm
+            authRequiredResult(warm, viaWarmChat = true, error = error)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            ListSessionsResult.Failed(formatAcpErrorMessage(error, "Failed to load sessions"))
+        }
+    }
+
+    /**
+     * Lists over the hub-owned browser transport, connecting on demand and
+     * hanging up afterwards. On auth the socket stays up for the follow-up
+     * authenticateListing call.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    @OptIn(UnstableApi::class)
+    private suspend fun listViaBrowserListing(
+        listing: ListingSession,
+        target: LaunchableTarget,
+        serverId: String,
+        cwd: String?,
+    ): ListSessionsResult {
+        val transport = listing.browserTransport
+        val capabilities = transport.agentCapabilities.value
+        if (capabilities != null && capabilities.sessionCapabilities.list == null) {
+            return ListSessionsResult.Unsupported(capabilities)
+        }
+        val connected =
+            if (transport.isConnected) {
+                true
+            } else {
+                val config =
+                    buildListingConfig(target) ?: return ListSessionsResult.Failed(
+                        "Failed to launch ${target.name}",
+                    )
+                withContext(Dispatchers.IO) {
+                    transport.connectAndInitializeWithoutReconnect(config)
+                } != null
+            }
+        if (!connected) {
+            return ListSessionsResult.Failed(
+                transport.diagnostics.value.recentErrors
+                    .lastOrNull { it.source == "connect" || it.source == "connection" }
+                    ?.message
+                    ?: "Failed to connect to ${target.name}. Check your connection and try again.",
+            )
+        }
+        val result =
+            try {
+                val sessions = transport.listSessions(cwd = cwd)
+                writeListedSessions(serverId, sessions)
+                ListSessionsResult.Listed(
+                    sessions = sessions,
+                    agentCapabilities = transport.agentCapabilities.value ?: capabilities,
+                    viaWarmChat = false,
+                )
+            } catch (error: AcpAuthenticationRequiredException) {
+                // Keep the browser transport connected: the follow-up
+                // authenticateListing runs on this same socket.
+                listing.authTransport = transport
+                authRequiredResult(transport, viaWarmChat = false, error = error)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                ListSessionsResult.Failed(formatAcpErrorMessage(error, "Failed to load sessions"))
+            }
+        if (result !is ListSessionsResult.AuthRequired) {
+            // Idle browser socket's reconnect would steal the gateway's
+            // single-attach slot from a chat opened next.
+            hangUpListing(transport)
+        }
+        return result
+    }
+
+    /**
+     * Routes an auth-method selection to the transport that raised the
+     * outstanding challenge for [serverId] (a warm chat transport when the
+     * listing borrowed one, else the hub's browser transport).
+     */
+    suspend fun authenticateListing(
+        serverId: String,
+        methodId: String,
+    ): AcpAuthenticateResult {
+        val transport =
+            listingSessions[serverId]?.authTransport
+                ?: warmManagerFor(serverId)
+                ?: return AcpAuthenticateResult.Failure(
+                    "Authentication transport is no longer available. Please try again.",
+                )
+        val result = transport.authenticate(methodId)
+        if (result is AcpAuthenticateResult.Success) {
+            listingSessions[serverId]?.let {
+                it.authTransport = null
+            }
+        }
+        return result
+    }
+
+    /**
+     * Disconnects the retained listing/auth transport for [serverId]. Part of
+     * the auth recovery flows (manual env-var reconnect, gateway env-var
+     * restart) that reconnect the raising transport with a new config.
+     */
+    suspend fun disconnectListingTransport(serverId: String) {
+        val transport =
+            listingSessions[serverId]?.authTransport
+                ?: listingSessions[serverId]?.browserTransport
+                ?: return
+        withContext(Dispatchers.IO) {
+            transport.disconnect()
+        }
+    }
+
+    /**
+     * Connects the retained listing/auth transport for [serverId] to [config]
+     * (a manual server reconnect or a freshly handed-off gateway runtime).
+     * Returns false when the connection attempt failed.
+     */
+    suspend fun connectListingTransport(
+        serverId: String,
+        config: AcpConnectionConfig,
+    ): Boolean {
+        val transport =
+            listingSessions[serverId]?.authTransport
+                ?: listingSessions[serverId]?.browserTransport
+                ?: return false
+        return withContext(Dispatchers.IO) {
+            transport.connect(config)
+        }
+    }
+
+    /** Runs the ACP initialize handshake on the retained listing transport. */
+    suspend fun initializeListingTransport(serverId: String): AcpInitializeResult? {
+        val transport =
+            listingSessions[serverId]?.authTransport
+                ?: listingSessions[serverId]?.browserTransport
+                ?: return null
+        return withContext(Dispatchers.IO) {
+            transport.initialize()
+        }
+    }
+
+    /**
+     * Drops the retained browser transport for [serverId] and clears any
+     * outstanding auth routing. Call from the listing screen's onCleared.
+     * Never tears down a warm chat transport (the chat owns it).
+     */
+    fun releaseListing(serverId: String) {
+        val listing = listingSessions.remove(serverId) ?: return
+        // Only the browser transport is hub-owned here — a warm chat transport
+        // recorded as authTransport belongs to its chat entry.
+        val transport = listing.browserTransport
+        if (browserManagers.remove(transport)) {
+            revision.value += 1
+        }
+        transport.release()
+    }
+
+    /**
+     * Closes [sessionId] on [serverId]: hub-tracked chats go through the
+     * tracked close (REST DELETE + transport teardown); cold Room-known
+     * sessions close the gateway session directly. Clears the recorded
+     * gateway session id in both cases.
+     */
+    suspend fun closeSession(
+        serverId: String,
+        sessionId: String,
+        endpoint: GatewayEndpoint,
+    ) {
+        val chatId = "$serverId/$sessionId"
+        val sessionRepository = sessionRepository
+        if (isTracked(serverId, sessionId)) {
+            close(chatId, endpoint)
+            sessionRepository?.setGatewaySessionId(serverId, sessionId, null)
+            return
+        }
+        val gatewaySessionId =
+            sessionRepository?.getSession(serverId, sessionId)?.gatewaySessionId
+        val repository = gatewayRepository
+        if (sessionRepository == null || repository == null || gatewaySessionId == null) {
+            return
+        }
+        repository.closeSession(
+            scheme = endpoint.scheme,
+            host = endpoint.host,
+            gatewayCredential = endpoint.credential,
+            sessionId = gatewaySessionId,
+        )
+        sessionRepository.setGatewaySessionId(serverId, sessionId, null)
+    }
+
+    /** Agent capabilities observed by the last listing for [serverId]. */
+    fun listingAgentCapabilities(serverId: String): AgentCapabilities? =
+        listingSessions[serverId]
+            ?.browserTransport
+            ?.agentCapabilities
+            ?.value
+            ?: entries.values
+                .firstOrNull { it.serverId == serverId }
+                ?.manager
+                ?.agentCapabilities
+                ?.value
+
+    /** Live diagnostics of the listing transport for [serverId]. */
+    fun listingDiagnostics(serverId: String): ConnectionDiagnostics? =
+        listingSessions[serverId]?.browserTransport?.diagnostics?.value
+
+    private suspend fun writeListedSessions(
+        serverId: String,
+        sessions: List<SessionSummary>,
+    ) {
+        sessionRepository?.replaceSessions(serverId, sessions)
+    }
+
+    private fun authRequiredResult(
+        transport: AcpConnectionManager,
+        viaWarmChat: Boolean,
+        error: AcpAuthenticationRequiredException,
+    ): ListSessionsResult.AuthRequired =
+        ListSessionsResult.AuthRequired(
+            agentName = error.challenge.agentInfo.name,
+            authMethods = error.challenge.authMethods,
+            challengeMessage = error.challenge.message,
+            gatewayRuntimeId = transport.currentConnectionConfig()?.gatewayRuntimeId,
+            viaWarmChat = viaWarmChat,
+        )
+
+    private fun listingSession(serverId: String): ListingSession =
+        listingSessions.getOrPut(serverId) {
+            ListingSession(
+                serverId = serverId,
+                browserTransport = createBrowserManager(scope),
+            )
+        }
+
+    private suspend fun buildListingConfig(target: LaunchableTarget): AcpConnectionConfig? =
+        when (target) {
+            is LaunchableTarget.GatewayAgent -> {
+                val gatewaySourceRepository = gatewaySourceRepository
+                val gatewayRepository = gatewayRepository
+                if (gatewaySourceRepository == null || gatewayRepository == null) {
+                    return null
+                }
+                buildGatewayLaunchContext(
+                    gatewayRepository = gatewayRepository,
+                    gatewaySourceRepository = gatewaySourceRepository,
+                    server = target,
+                ).getOrNull()?.config
+            }
+            is LaunchableTarget.Manual ->
+                AcpConnectionConfig(
+                    scheme = target.server.scheme,
+                    host = target.server.host,
+                    preferredAuthMethodId = target.server.preferredAuthMethodId,
+                    serverDisplayName = target.name,
+                )
+        }
 
     /**
      * Recomputes screen presence ([tapTarget], [onScreenChat]) from the entry

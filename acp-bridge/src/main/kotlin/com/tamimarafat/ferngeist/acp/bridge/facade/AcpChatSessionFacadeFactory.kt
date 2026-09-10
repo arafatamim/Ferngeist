@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
-import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -13,14 +13,15 @@ import kotlinx.coroutines.CoroutineScope
  *
  * Keeps ACP wiring outside the feature layer while still allowing the
  * ViewModel to create a per-session facade using runtime parameters. Chat
- * managers are acquired from the shared [ChatConnectionHub], which owns their
- * lifetime: a returning screen reuses the live transport instead of
- * reconnecting, so backgrounded chats keep streaming (hot cap 3, never
- * evicting a streaming chat). The hub tears managers down on eviction or
- * explicit close.
+ * managers are acquired from the shared hub (a [ChatConnectionSurface]
+ * implemented by [com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub]),
+ * which owns their lifetime: a returning screen reuses the live transport
+ * instead of reconnecting, so backgrounded chats keep streaming (hot cap 3,
+ * never evicting a streaming chat). The hub tears managers down on eviction
+ * or explicit close.
  */
 class AcpChatSessionFacadeFactory(
-    private val hub: ChatConnectionHub,
+    private val hub: ChatConnectionSurface,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val gatewaySourceRepository: GatewaySourceRepository,
     private val gatewayRepository: GatewayRepository,

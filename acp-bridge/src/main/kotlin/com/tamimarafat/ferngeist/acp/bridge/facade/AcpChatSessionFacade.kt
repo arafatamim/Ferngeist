@@ -6,7 +6,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
@@ -63,7 +63,7 @@ class AcpChatSessionFacade(
     private val serverId: String,
     private val initialSessionId: String,
     private val cwd: String,
-    private val hub: ChatConnectionHub? = null,
+    private val hub: ChatConnectionSurface,
     private val sessionLoadTimeoutMs: Long = 180_000L,
     private val bridgeRecoveryRetryDelayMs: Long = 3_000L,
     initialCachedSnapshot: com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot? = null,
@@ -155,7 +155,7 @@ class AcpChatSessionFacade(
                 // The hub publishes `connected` snapshots taken at register/
                 // focus time; re-read the live lambdas so dots tracking
                 // liveChats stay truthful across drops and reconnects.
-                hub?.refresh()
+                hub.refresh()
             }
         }
         scope.launch {
@@ -420,7 +420,7 @@ class AcpChatSessionFacade(
         _sessionSnapshot.value = null
         _gatewayWorkspaceConnection.value = null
         if (_liveChatId.value == null) {
-            hub?.abandon(connectionManager)
+            hub.abandon(connectionManager)
         }
     }
 
@@ -465,9 +465,8 @@ class AcpChatSessionFacade(
         sessionId: String,
         isStreaming: () -> Boolean,
     ) {
-        val connectionHub = hub ?: return
         _liveChatId.value =
-            connectionHub.register(
+            hub.register(
                 serverId = serverId,
                 sessionId = sessionId,
                 gatewaySessionId = connectionManager.currentConnectionConfig()?.sessionId,
@@ -612,11 +611,10 @@ class AcpChatSessionFacade(
      * capacity could not be secured (error already emitted).
      */
     private suspend fun resolveNewSpawn(target: LaunchableTarget.GatewayAgent): Boolean? {
-        val connectionHub = hub ?: return false
         val gatewaySource = target.gatewaySource
-        if (!connectionHub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId)) return false
+        if (!hub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId)) return false
         return runCatching {
-            connectionHub.ensureGatewayCapacity(
+            hub.ensureGatewayCapacity(
                 GatewayEndpoint(gatewaySource.scheme, gatewaySource.host, gatewaySource.gatewayCredential),
             )
             true
@@ -654,7 +652,7 @@ class AcpChatSessionFacade(
                     bridge.snapshot.collect { snapshot ->
                         val mapped = mapSnapshot(snapshot)
                         _sessionSnapshot.value = mapped
-                        hub?.storeSnapshot(snapshotChatId, mapped)
+                        hub.storeSnapshot(snapshotChatId, mapped)
                     }
                 },
                 scope.launch {

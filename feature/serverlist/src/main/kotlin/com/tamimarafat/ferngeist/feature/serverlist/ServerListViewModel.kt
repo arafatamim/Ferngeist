@@ -10,8 +10,16 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.GatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.buildEnvPayload
+import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.buildInitializeFailureMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.loadPersistedEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.logConnectionFailure
+import com.tamimarafat.ferngeist.acp.bridge.connection.persistEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.shortInitializeFailureMessage
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -19,9 +27,9 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
-import com.tamimarafat.ferngeist.feature.serverlist.auth.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
