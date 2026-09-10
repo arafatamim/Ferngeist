@@ -167,6 +167,30 @@ class SessionRuntimeTest {
         }
 
     @Test
+    fun reload_without_usage_update_keeps_last_known_context_usage() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+
+            // A completed turn publishes the context reading for this session.
+            runtime.onEvent(
+                AppSessionEvent.UsageUpdated(totalTokens = 21000, contextWindowTokens = 200000),
+            )
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
+            val afterTurn = runtime.snapshot.value
+            assertEquals(21000, afterTurn.usage?.totalTokens)
+
+            // Agents emit `usage_update` only at end of turn, so a reconnect/load replay
+            // carries no usage: the last known reading must survive it.
+            runtime.beginHydration()
+            runtime.onEvent(AppSessionEvent.UserMessage(text = "hey", append = true))
+            runtime.completeHydration()
+
+            val snapshot = runtime.snapshot.value
+            assertEquals(21000, snapshot.usage?.totalTokens)
+            assertEquals(200000, snapshot.usage?.contextWindowTokens)
+        }
+
+    @Test
     fun fail_hydration_sets_failed_state_and_error() =
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test")

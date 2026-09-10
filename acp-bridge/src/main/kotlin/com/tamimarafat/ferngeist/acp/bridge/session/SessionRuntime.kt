@@ -65,12 +65,15 @@ class SessionRuntime(
         mutex.withLock {
             debug("beginHydration: clearing buffered/live snapshot view")
             buffered = RuntimeData()
+            // `usage` is deliberately NOT cleared here: it describes the context window of
+            // this same session, and agents only emit `usage_update` at the end of a turn
+            // (never during a `session/load` replay). Clearing it would blank the context
+            // indicator until the next turn finishes.
             _snapshot.value =
                 _snapshot.value.copy(
                     loadState = SessionLoadState.HYDRATING,
                     messages = emptyList(),
                     isStreaming = false,
-                    usage = null,
                     availableCommands = emptyList(),
                     commandsAdvertised = false,
                     error = null,
@@ -97,6 +100,9 @@ class SessionRuntime(
                     messages = finalizedMessages,
                     isStreaming = finalizedMessages.any { it.isStreaming },
                     title = buffered.title ?: live.title,
+                    // A load replay carries no usage update, so keep the last known
+                    // context reading instead of dropping it to null.
+                    usage = buffered.usage ?: live.usage,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
