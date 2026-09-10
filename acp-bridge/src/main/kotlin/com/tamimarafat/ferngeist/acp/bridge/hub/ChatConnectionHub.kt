@@ -229,8 +229,15 @@ class ChatConnectionHub(
     fun trackedCount(): Int = entries.size + pendingManagers.size + browserManagers.size
 
     /**
-     * Registers (or re-attaches the transport of) a chat connection. Evicts
-     * pooled idle entries while at capacity. Returns the stable chat id.
+     * Registers (or re-attaches the transport of) a chat connection. Returns the
+     * stable chat id.
+     *
+     * At capacity, pooled idle entries are evicted first, least-recently-focused
+     * first. When every entry is streaming or on screen the over-cap is
+     * tolerated only up to the gateway's per-device session cap; past that point
+     * new spawns fail and each extra entry leaks a transport, so the
+     * least-recently-focused entry is evicted anyway (its turn is abandoned with
+     * it).
      *
      * When the key already exists only transport facts are merged — recency is
      * never bumped, so reconnects/re-attaches cannot steal the screen head.
@@ -271,7 +278,14 @@ class ChatConnectionHub(
                 entries.values
                     .filter { !it.isStreaming() && !it.screenOpen }
                     .minByOrNull { it.lastFocusedMs }
-                    ?: break // everything streaming or on screen: allow the over-cap registration
+                    // Every entry is streaming or on screen. Tolerate the over-cap while the pool
+                    // still fits the gateway's per-device session lease; past that point new spawns
+                    // fail and each extra entry leaks a transport, so evict the least-recently-focused
+                    // one (its turn is abandoned with it).
+                    ?: entries.values
+                        .takeIf { entries.size >= maxGatewaySessionsPerDevice }
+                        ?.minByOrNull { it.lastFocusedMs }
+                    ?: break
             removeAndEvict(victim.chatId)
         }
         entries[chatId] =

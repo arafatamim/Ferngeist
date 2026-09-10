@@ -566,16 +566,18 @@ object SessionMessageReducer {
         return ReducerResult(mutableMessages, toolCallIndex)
     }
 
+    /**
+     * Clears the streaming flag on every message that carries it.
+     *
+     * TurnComplete can arrive for a streaming message in any position, and more than one bubble can
+     * be streaming at once (the order of prompt events is not guaranteed to be sequential). The
+     * runtime derives its streaming flag as an OR over all messages (SessionRuntime.reduce), and
+     * the chat UI's STOP action is driven by that flag, so every streaming bubble must be cleared -
+     * a single orphan left behind keeps the snapshot streaming forever and strands the user on STOP.
+     */
     fun finishStreaming(messages: List<ChatMessage>): List<ChatMessage> {
-        // TurnComplete can arrive for the last streaming message in any position (the order of
-        // prompt events is not guaranteed to be sequential)
-        val index = messages.indexOfLast { it.isStreaming }
-        if (index == -1) return messages
-
-        val mutableMessages = messages.toMutableList()
-        val message = mutableMessages[index]
-        mutableMessages[index] = message.copy(isStreaming = false)
-        return mutableMessages
+        if (messages.none { it.isStreaming }) return messages
+        return messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it }
     }
 
     /** True when [lastMessage] is an empty streaming assistant placeholder whose preceding USER

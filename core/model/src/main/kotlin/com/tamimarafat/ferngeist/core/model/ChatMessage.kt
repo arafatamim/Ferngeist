@@ -6,6 +6,7 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import java.util.UUID
 
@@ -62,11 +63,13 @@ data class AcpPermissionOption(
     val kind: String,
 )
 
+@Serializable
 data class ChatImageData(
     val base64: String,
     val mimeType: String = "image/jpeg",
 )
 
+@Serializable
 data class ChatFileData(
     val name: String,
     val base64: String,

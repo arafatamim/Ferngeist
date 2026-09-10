@@ -23,6 +23,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
@@ -51,6 +52,7 @@ class ChatViewModel
         sessionFacadeFactory: ChatSessionFacadeFactory,
         private val sessionRepository: SessionRepository,
         private val chatScrollStateStore: ChatScrollStateStore,
+        private val pendingPromptStore: PendingPromptStore,
         val recentSelectionStore: RecentSelectionStore,
         private val chatConnectionHub: ChatConnectionHub,
         private val gatewayRepository: GatewayRepository,
@@ -223,6 +225,12 @@ class ChatViewModel
         /** Queue of locally-created prompts that have not been delivered to the server yet. */
         private val offlineQueue = OfflineQueue()
 
+        /** Restores [offlineQueue] from [pendingPromptStore] at most once per view model. */
+        private var pendingPromptsRestored = false
+
+        /** Serializes [persistQueue] writes so a slower, older snapshot cannot land last. */
+        private val persistMutex = Mutex()
+
         /** The clientId of the prompt currently being dispatched via [flushOfflineQueue].
          *  Used to wire [onOperationError] back to the specific SENDING bubble. */
         private var inFlightClientId: String? = null
@@ -262,6 +270,7 @@ class ChatViewModel
                 val snapshot = chatScrollStateStore.restore(serverId, sessionId)
                 updateState { copy(restoredScrollSnapshot = snapshot) }
             }
+            viewModelScope.launch { restorePendingPrompts() }
             viewModelScope.launch {
                 // The transport entry (created by the facade's register) becomes
                 // screen-open for real ids here. Existing-session chats were already
@@ -621,10 +630,72 @@ class ChatViewModel
         // region: Offline queue
 
         /**
+         * Restores the prompts a previous screen lifetime persisted (see [persistQueue]) into
+         * [offlineQueue] and [ChatState.pendingMessages], then gives them a path forward: an
+         * immediate flush when the session is already live, otherwise the reconnect the offline
+         * enqueue path uses, so a restored prompt stays QUEUED until the session is ready
+         * instead of being marked FAILED by a flush that cannot dispatch it yet.
+         *
+         * Guarded so a second call cannot duplicate the queue.
+         */
+        private suspend fun restorePendingPrompts() {
+            if (pendingPromptsRestored) return
+            pendingPromptsRestored = true
+            val records = pendingPromptStore.restore(serverId, sessionId)
+            if (records.isEmpty()) return
+            records.forEach { record ->
+                offlineQueue.enqueue(
+                    PendingPrompt(
+                        clientId = record.clientId,
+                        text = record.text,
+                        images = record.images,
+                        files = record.files,
+                    ),
+                )
+                val message =
+                    ChatMessage(
+                        id = record.clientId,
+                        role = ChatMessage.Role.USER,
+                        content = record.text,
+                        images = record.images,
+                        files = record.files,
+                        status = MessageDeliveryStatus.QUEUED,
+                        clientId = record.clientId,
+                    )
+                updateState { copy(pendingMessages = pendingMessages + message) }
+            }
+            val canSendNow =
+                state.value.isSessionReady && state.value.connectionState == ChatConnectionState.Connected
+            if (canSendNow) {
+                flushOfflineQueue()
+            } else {
+                kickReconnect()
+            }
+        }
+
+        /**
+         * Persists [offlineQueue] for this chat so a screen teardown cannot silently drop a
+         * queued prompt. The snapshot is taken at write time under [persistMutex], so an older
+         * write can never land after a newer one.
+         */
+        private suspend fun persistQueue() {
+            persistMutex.withLock {
+                val records =
+                    offlineQueue.snapshot().map {
+                        QueuedPromptRecord(it.clientId, it.text, it.images, it.files)
+                    }
+                pendingPromptStore.save(serverId, sessionId, records)
+            }
+        }
+
+        /**
          * Optimistically adds a user bubble with [MessageDeliveryStatus.QUEUED] and
          * stores the prompt in [offlineQueue] for later delivery.
+         *
+         * Suspends only for the queue persist; the sole caller is the suspend intent
+         * dispatch path, so no signature ripples.
          */
-        private fun enqueuePrompt(
+        private suspend fun enqueuePrompt(
             text: String,
             images: List<ChatImageData>,
             files: List<ChatFileData>,
@@ -658,6 +729,7 @@ class ChatViewModel
             if (state.value.connectionState != ChatConnectionState.Connected) {
                 kickReconnect()
             }
+            persistQueue()
         }
 
         /**
@@ -702,6 +774,7 @@ class ChatViewModel
                     files = files,
                 )
             offlineQueue.enqueue(prompt)
+            persistQueue()
             updateState {
                 copy(pendingMessages = pendingMessages + message)
             }
@@ -721,6 +794,9 @@ class ChatViewModel
             flushMutex.withLock {
                 while (!offlineQueue.isEmpty) {
                     val prompt = offlineQueue.dequeue() ?: break
+                    // The prompt now lives in the SENDING bubble (and, once delivered, in the
+                    // server transcript), so it no longer needs to be persisted as queued.
+                    persistQueue()
                     // Transition QUEUED -> SENDING, keep the bubble visible.
                     inFlightClientId = prompt.clientId
                     updateState {
@@ -778,6 +854,7 @@ class ChatViewModel
             // Remove existing queue entry for this clientId, then enqueue at the back.
             offlineQueue.removeByClientId(clientId)
             offlineQueue.enqueue(prompt)
+            persistQueue()
             // Reset the bubble's status from FAILED to QUEUED so flushOfflineQueue
             // can transition it QUEUED -> SENDING and the echo-reconcile in
             // applySnapshot can remove it on delivery confirmation.

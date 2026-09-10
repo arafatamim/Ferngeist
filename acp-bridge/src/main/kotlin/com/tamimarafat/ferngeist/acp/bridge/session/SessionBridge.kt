@@ -9,8 +9,10 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -80,6 +82,15 @@ class SessionBridge(
         runtime.onEvent(event)
         _events.emit(event)
     }
+
+    /**
+     * Launches a prompt turn on the bridge's own [eventScope] so the turn survives
+     * cancellation of its caller. A chat screen's `viewModelScope` is cancelled when
+     * the user navigates away; collecting the prompt there would make the SDK send a
+     * `$/cancelRequest`, aborting the agent mid-turn and leaving the transcript with
+     * no terminal event. A turn dies with its session, not with the screen.
+     */
+    internal fun startTurn(block: suspend () -> Unit): Deferred<Unit> = eventScope.async { block() }
 
     /** Marks the session as entering hydration (history replay) mode. */
     suspend fun beginHydration() {
