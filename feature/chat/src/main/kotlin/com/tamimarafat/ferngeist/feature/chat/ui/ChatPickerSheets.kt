@@ -28,12 +28,12 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -53,14 +53,25 @@ internal data class PickerItem(
     val description: String? = null,
 )
 
-internal data class PickerSheetState(
+/**
+ * [query] must stay backed by a [MutableState]: the sheet edits it through the setter and
+ * reads it back in the same composition, so a plain `var` would swallow the write and the
+ * search field would never update or filter.
+ */
+internal class PickerSheetState(
     val showSearch: Boolean,
-    var query: String,
+    private val queryState: MutableState<String>,
     val filteredOptions: List<PickerItem>,
     val showRecentSection: Boolean,
     val remainingItems: List<PickerItem>,
     val recentItems: List<PickerItem>,
-)
+) {
+    var query: String
+        get() = queryState.value
+        set(value) {
+            queryState.value = value
+        }
+}
 
 @Composable
 internal fun rememberPickerSheetState(
@@ -68,7 +79,8 @@ internal fun rememberPickerSheetState(
     recentItems: List<PickerItem>,
 ): PickerSheetState {
     val showSearch = items.size >= 10
-    var query by remember { mutableStateOf("") }
+    val queryState = remember { mutableStateOf("") }
+    val query = queryState.value
 
     val recentValues = remember(recentItems) { recentItems.map { it.value }.toSet() }
     val remainingItems =
@@ -93,7 +105,7 @@ internal fun rememberPickerSheetState(
         }
     return PickerSheetState(
         showSearch = showSearch,
-        query = query,
+        queryState = queryState,
         filteredOptions = filteredOptions,
         showRecentSection = showRecentSection,
         remainingItems = remainingItems,
