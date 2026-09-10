@@ -32,6 +32,7 @@ import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.launchGatewayRuntime
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -882,6 +883,10 @@ class AcpChatSessionFacade(
             null
         } catch (_: TimeoutCancellationException) {
             null
+        } catch (error: CancellationException) {
+            // The chat screen was closed mid-load: cancellation must not be
+            // reported as a load failure (and must not fabricate a session).
+            throw error
         } catch (error: Exception) {
             _loadFailed.emit(formatAcpErrorMessage(error, "Failed to load session"))
             null
@@ -958,6 +963,10 @@ internal class SessionLoadCoordinator(
                 )
             } catch (_: TimeoutCancellationException) {
                 return SessionLoadOutcome.Failed("Session load timed out. Check server connection and retry.")
+            } catch (error: CancellationException) {
+                // Screen closed mid-load: never degrade cancellation into a
+                // load failure (or into the fresh-session fallback).
+                throw error
             } catch (error: Exception) {
                 // Broad catch: session/load can fail on transport, auth, or SDK
                 // protocol errors; each is surfaced as a load failure instead of
@@ -978,6 +987,10 @@ internal class SessionLoadCoordinator(
         error: Exception,
         announceReady: Boolean = true,
     ): SessionLoadOutcome {
+        // Cancellation means the caller went away, not that the load failed:
+        // rethrow before any failure mapping so the createSession fallback
+        // can never mint a session for a closed screen.
+        if (error is CancellationException) throw error
         if (isDestroyedBridgeStreamError(error)) {
             // If the bridge process restarted mid-load, create a new session
             // so the user can keep chatting without reopening the screen.

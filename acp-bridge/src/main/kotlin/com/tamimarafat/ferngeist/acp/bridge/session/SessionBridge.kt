@@ -9,8 +9,10 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -20,7 +22,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.serialization.json.JsonElement
-import java.io.IOException
 
 /**
  * SessionBridge is the UI-facing handle to a single ACP session, implementing [SessionPort].
@@ -82,6 +83,15 @@ class SessionBridge(
         _events.emit(event)
     }
 
+    /**
+     * Launches a prompt turn on the bridge's own [eventScope] so the turn survives
+     * cancellation of its caller. A chat screen's `viewModelScope` is cancelled when
+     * the user navigates away; collecting the prompt there would make the SDK send a
+     * `$/cancelRequest`, aborting the agent mid-turn and leaving the transcript with
+     * no terminal event. A turn dies with its session, not with the screen.
+     */
+    internal fun startTurn(block: suspend () -> Unit): Deferred<Unit> = eventScope.async { block() }
+
     /** Marks the session as entering hydration (history replay) mode. */
     suspend fun beginHydration() {
         runtime.beginHydration()
@@ -121,6 +131,7 @@ class SessionBridge(
      * Sends the prompt through the connection manager; on any failure rolls back the
      * optimistic message and rethrows so the caller can surface the error.
      */
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun sendWithRollback(
         text: String,
         images: List<ChatImageData>,
@@ -129,22 +140,17 @@ class SessionBridge(
         try {
             connectionManager?.sendSessionMessage(sessionId, text, images, files)
         } catch (e: CancellationException) {
-            rollbackAndRethrow(e)
-        } catch (e: IllegalStateException) {
-            // Missing bridge/session — surface as a failed send; the prompt was
-            // optimistically shown and must be rolled back.
-            rollbackAndRethrow(e)
-        } catch (e: IOException) {
-            // Transport-level failure — roll back the optimistic message and
-            // propagate so the caller can surface the error.
-            rollbackAndRethrow(e)
+            // Propagate structured cancellation without swallowing; the coroutine's
+            // parent will handle it and the streaming placeholder remains cancellable.
+            throw e
+        } catch (e: Exception) {
+            // Any transport, SDK, or protocol error (IOException, IllegalStateException,
+            // RuntimeException from JSON/codec, etc.) must roll back the optimistic
+            // bubble and clear the streaming flag, otherwise the loading indicator
+            // lingers forever on a failed turn.
+            runtime.onPromptSendFailed()
+            throw e
         }
-    }
-
-    /** Rolls back the optimistic prompt and rethrows the original failure. */
-    private suspend fun rollbackAndRethrow(e: Exception): Nothing {
-        runtime.onPromptSendFailed()
-        throw e
     }
 
     /**

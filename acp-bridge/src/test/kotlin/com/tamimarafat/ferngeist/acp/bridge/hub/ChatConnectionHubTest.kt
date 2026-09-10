@@ -259,6 +259,64 @@ class ChatConnectionHubTest {
         }
 
     @Test
+    fun `at cap an idle entry is evicted and the new registration lands`() =
+        runTest {
+            val hub = newHub(maxHot = 3, maxGateway = 5)
+            hub.registerChat(sessionId = "a")
+            hub.registerChat(sessionId = "b")
+            hub.registerChat(sessionId = "c")
+            hub.registerChat(sessionId = "d")
+            assertFalse(hub.isTracked("srv", "a"))
+            assertTrue(hub.isTracked("srv", "d"))
+            assertEquals(3, hub.trackedCount())
+        }
+
+    @Test
+    fun `all-streaming pool below the device cap tolerates the over-cap`() =
+        runTest {
+            val hub = newHub(maxHot = 3, maxGateway = 5)
+            hub.registerChat(sessionId = "a", streaming = true)
+            hub.registerChat(sessionId = "b", streaming = true)
+            hub.registerChat(sessionId = "c", streaming = true)
+            hub.registerChat(sessionId = "d", streaming = true)
+            // Nothing is evictable and the pool still fits the gateway lease: the
+            // count grows past maxHotConnections so background turns survive.
+            listOf("a", "b", "c", "d").forEach { assertTrue(hub.isTracked("srv", it)) }
+            assertEquals(4, hub.trackedCount())
+        }
+
+    @Test
+    fun `all-streaming pool at the device cap evicts the least recently focused`() =
+        runTest {
+            val hub = newHub(maxHot = 3, maxGateway = 4)
+            hub.registerChat(sessionId = "a", streaming = true)
+            hub.registerChat(sessionId = "b", streaming = true)
+            hub.registerChat(sessionId = "c", streaming = true)
+            hub.registerChat(sessionId = "d", streaming = true)
+            hub.registerChat(sessionId = "e", streaming = true)
+            // a is the oldest and the pool is at the gateway lease: the over-cap
+            // cannot survive, so a is evicted to keep the count bounded.
+            assertFalse(hub.isTracked("srv", "a"))
+            listOf("b", "c", "d", "e").forEach { assertTrue(hub.isTracked("srv", it)) }
+            assertEquals(4, hub.trackedCount())
+        }
+
+    @Test
+    fun `on-screen entry is kept over a less recently focused idle pooled entry`() =
+        runTest {
+            val hub = newHub(maxHot = 3, maxGateway = 5)
+            hub.chatScreenOpened("srv", "a", "/a") // oldest, but on screen
+            hub.registerChat(sessionId = "b")
+            hub.registerChat(sessionId = "c")
+            hub.registerChat(sessionId = "d")
+            assertTrue(hub.isTracked("srv", "a"))
+            assertFalse(hub.isTracked("srv", "b"))
+            assertTrue(hub.isTracked("srv", "c"))
+            assertTrue(hub.isTracked("srv", "d"))
+            assertEquals(3, hub.trackedCount())
+        }
+
+    @Test
     fun `hasLiveGatewaySession requires matching source agent and connection`() =
         runTest {
             val hub = newHub()

@@ -45,6 +45,25 @@ internal class PermissionFlow {
             iterator.remove()
         }
     }
+
+    /**
+     * Completes every pending permission for [sessionId] with
+     * [RequestPermissionOutcome.Cancelled] and removes it, returning the affected
+     * tool call ids. Used when a turn is cancelled: `requestPermissions` suspends on
+     * the deferred, so leaving it pending would block the agent's tool call forever.
+     */
+    fun cancelPendingForSession(sessionId: String): List<String> {
+        val cancelled = mutableListOf<String>()
+        val iterator = pendingPermissionRequests.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.value.sessionId != sessionId) continue
+            entry.value.deferred.complete(RequestPermissionOutcome.Cancelled)
+            cancelled += entry.key
+            iterator.remove()
+        }
+        return cancelled
+    }
 }
 
 internal data class PendingPermissionRequest(

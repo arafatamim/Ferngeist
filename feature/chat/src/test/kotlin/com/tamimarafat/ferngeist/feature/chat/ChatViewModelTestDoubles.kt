@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -231,6 +232,41 @@ class FakeConnectivityObserver(
 ) : ConnectivityObserver {
     private val _isConnected = MutableStateFlow(initialState)
     override val isConnected: Flow<Boolean> = _isConnected
+}
+
+// endregion
+
+// region: Stores
+
+/** In-memory [PendingPromptStore] so ViewModel tests never touch DataStore. */
+class InMemoryPendingPromptStore(
+    initial: Map<Pair<String, String>, List<QueuedPromptRecord>> = emptyMap(),
+) : PendingPromptStore {
+    private val entries = initial.toMutableMap()
+
+    override suspend fun restore(
+        serverId: String,
+        sessionId: String,
+    ): List<QueuedPromptRecord> = entries[serverId to sessionId].orEmpty()
+
+    override suspend fun save(
+        serverId: String,
+        sessionId: String,
+        records: List<QueuedPromptRecord>,
+    ) {
+        if (records.isEmpty()) {
+            entries.remove(serverId to sessionId)
+        } else {
+            entries[serverId to sessionId] = records
+        }
+    }
+
+    override suspend fun clear(
+        serverId: String,
+        sessionId: String,
+    ) {
+        entries.remove(serverId to sessionId)
+    }
 }
 
 // endregion

@@ -59,11 +59,13 @@ open class ChatViewModelTestBase {
         facadeFactory: ChatSessionFacadeFactory = FakeChatSessionFacadeFactory(),
         gatewayRepository: GatewayRepository = FakeGatewayRepository(),
         chatConnectionHub: ChatConnectionHub = newChatConnectionHub(),
+        pendingPromptStore: PendingPromptStore = InMemoryPendingPromptStore(),
     ): ChatViewModel =
         ChatViewModel(
             sessionFacadeFactory = facadeFactory,
             sessionRepository = sessionRepository,
             chatScrollStateStore = chatScrollStateStore,
+            pendingPromptStore = pendingPromptStore,
             recentSelectionStore = FakeRecentSelectionStore(),
             chatConnectionHub = chatConnectionHub,
             gatewayRepository = gatewayRepository,

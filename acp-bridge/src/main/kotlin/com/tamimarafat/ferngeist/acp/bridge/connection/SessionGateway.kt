@@ -28,12 +28,15 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -51,6 +54,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @property permissionFlow tracks pending permission completable-futures
  * @property bridgeFactory creates a [SessionBridge] wired to the thin shell
  */
+@Suppress("TooManyFunctions")
 internal class SessionGateway(
     private val orchestra: ConnectionOrchestrator,
     private val permissionFlow: PermissionFlow,
@@ -59,6 +63,14 @@ internal class SessionGateway(
 ) {
     private val sessionRegistry = AcpSessionRegistry(scope, ::shouldCloseSdkSession)
     private val observerJobs = ConcurrentHashMap<String, List<Job>>()
+
+    /**
+     * Session ids whose current turn was explicitly cancelled through [cancelSession].
+     * A prompt stream that ends without a terminal `PromptResponseEvent` then reports
+     * `"cancelled"` instead of the misleading `"end_turn"`. Each entry is consumed —
+     * and cleared — at the end of its turn so a later turn is not mislabelled.
+     */
+    private val cancelsRequested = ConcurrentHashMap.newKeySet<String>()
 
     /**
      * Creates a new ACP session and returns a [SessionPort] for the chat layer.
@@ -138,6 +150,9 @@ internal class SessionGateway(
                 registeredBridge
             }
         return result.getOrElse { error ->
+            // A cancelled caller (the chat screen closed mid-load) is not a load
+            // failure: rethrow so no local session state is destroyed for an exit.
+            if (error is CancellationException) throw error
             handleLoadSessionFailure(error, sessionId)
         }
     }
@@ -146,6 +161,11 @@ internal class SessionGateway(
      * Routes a failed `session/load` to the appropriate recovery: an auth-required
      * error rethrows, an "already loaded" error reuses the local session or reports
      * the remote-active case, and any other failure is logged and rethrown.
+     *
+     * The `failHydration` + [clearSessionState] teardown runs in [NonCancellable]:
+     * `failHydration` takes the runtime mutex, so on an already-cancelled context the
+     * lock acquisition would throw before [clearSessionState] runs, stranding the
+     * bridge in HYDRATING.
      */
     private suspend fun handleLoadSessionFailure(
         error: Throwable,
@@ -164,15 +184,22 @@ internal class SessionGateway(
             val message =
                 "This session is already active elsewhere. " +
                     "Reconnect or open a new session instead."
-            sessionRegistry.getBridge(sessionId)?.failHydration(message)
-            clearSessionState(sessionId, closeBridge = true)
+            // failHydration takes the runtime mutex; on an already-cancelled context the
+            // lock acquisition throws and clearSessionState never runs, leaving the
+            // bridge stuck in HYDRATING (which buffers every event and publishes nothing).
+            withContext(NonCancellable) {
+                sessionRegistry.getBridge(sessionId)?.failHydration(message)
+                clearSessionState(sessionId, closeBridge = true)
+            }
             orchestra.diagnosticsStore.appendError("session/load", message)
             return null
         }
 
         val message = formatAcpErrorMessage(error, "Failed to load session")
-        sessionRegistry.getBridge(sessionId)?.failHydration(message)
-        clearSessionState(sessionId, closeBridge = true)
+        withContext(NonCancellable) {
+            sessionRegistry.getBridge(sessionId)?.failHydration(message)
+            clearSessionState(sessionId, closeBridge = true)
+        }
         orchestra.diagnosticsStore.appendError("session/load", message)
         throw error
     }
@@ -185,10 +212,14 @@ internal class SessionGateway(
      * 2. Emits an optimistic [AppSessionEvent.UserMessage] so the UI updates
      *    before the server round-trip completes.
      * 3. Streams prompt events from the SDK, mapping each [SessionUpdate] and
-     *    terminal [PromptResponseEvent] to [AppSessionEvent] values.
+     *    terminal [Event.PromptResponseEvent] to [AppSessionEvent] values. The
+     *    stream is collected on the bridge's own scope ([SessionBridge.startTurn])
+     *    so a cancelled caller cannot abort the turn, then merely awaited here.
      * 4. Includes a defensive [AppSessionEvent.TurnComplete] if the prompt stream
      *    finishes without a PromptResponseEvent — some ACP server/transport combos
-     *    can drop the terminal event on cancellation or teardown.
+     *    can drop the terminal event on cancellation or teardown. That fallback
+     *    reports `"cancelled"` when [cancelSession] was requested for the session
+     *    and `"end_turn"` otherwise.
      */
     suspend fun sendSessionMessage(
         sessionId: String,
@@ -231,6 +262,34 @@ internal class SessionGateway(
 
         // session.prompt returns a cold flow; .collect is terminal and suspends
         // until the entire prompt turn completes (all updates + final response).
+        // The turn must outlive this caller: a chat screen's viewModelScope is
+        // cancelled when the user navigates away, and cancelling this collector
+        // would make the SDK send a `$/cancelRequest`, aborting the agent mid-turn
+        // with no terminal event — stranding the transcript in a streaming state.
+        // startTurn runs it on the bridge's own scope, which lives until the
+        // session is torn down.
+        // Awaiting merely joins the turn: if this caller is cancelled (the chat screen
+        // closed) the cancellation propagates from here while the turn keeps running on
+        // the bridge scope, emitting its own terminal event when the agent finishes.
+        bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks) }.await()
+    }
+
+    /**
+     * Collects one prompt turn and maps it onto the bridge's event stream.
+     *
+     * Runs on the bridge's own scope (see [sendSessionMessage]) so it survives a
+     * cancelled caller. If the stream ends without a [Event.PromptResponseEvent] —
+     * some ACP server/transport combos drop the terminal event on cancellation or
+     * teardown — a defensive [AppSessionEvent.TurnComplete] is emitted, reporting
+     * `"cancelled"` when a cancel was requested for this session, `"end_turn"`
+     * otherwise. The cancel mark is consumed here so the next turn starts clean.
+     */
+    private suspend fun collectPromptTurn(
+        sessionId: String,
+        session: ClientSession,
+        bridge: SessionBridge,
+        blocks: List<ContentBlock>,
+    ) {
         var receivedPromptResponse = false
         session.prompt(blocks).collect { event ->
             when (event) {
@@ -254,8 +313,11 @@ internal class SessionGateway(
             }
         }
 
+        val cancelRequested = cancelsRequested.remove(sessionId)
         if (!receivedPromptResponse) {
-            bridge.emitEvent(AppSessionEvent.TurnComplete("end_turn"))
+            bridge.emitEvent(
+                AppSessionEvent.TurnComplete(if (cancelRequested) "cancelled" else "end_turn"),
+            )
         }
     }
 
@@ -263,17 +325,30 @@ internal class SessionGateway(
      * Cancels the current streaming turn via `session/cancel` RPC.
      *
      * On success the diagnostics flag is set to indicate the server supports
-     * cancellation. On failure [handleSessionCancelFailure] checks whether the
-     * error is a "Method not found" (server does not support cancel) vs. a
-     * genuine transport error, and sets the diagnostics flag accordingly.
+     * cancellation, the session is marked as having a cancel in flight (so a prompt
+     * stream that dies without a terminal event reports `"cancelled"`), and any
+     * pending permission requests are completed as [RequestPermissionOutcome.Cancelled]:
+     * [BridgeSessionOperations.requestPermissions] suspends on its deferred, so leaving
+     * one pending would block the agent's tool call forever. On failure
+     * [handleSessionCancelFailure] checks whether the error is a "Method not found"
+     * (server does not support cancel) vs. a genuine transport error, and sets the
+     * diagnostics flag accordingly.
      */
     suspend fun cancelSession(sessionId: String) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
+        var cancelled = false
         runCatching {
             orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/cancel")
             session.cancel()
+            cancelled = true
             orchestra.diagnosticsStore.setSessionCancelSupport(isSupported = true)
         }.onFailure { handleSessionCancelFailure(it) }
+        if (!cancelled) return
+
+        cancelsRequested += sessionId
+        permissionFlow.cancelPendingForSession(sessionId).forEach { toolCallId ->
+            emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
+        }
     }
 
     /** Sets the session's active mode via `session/set_mode` RPC. */
