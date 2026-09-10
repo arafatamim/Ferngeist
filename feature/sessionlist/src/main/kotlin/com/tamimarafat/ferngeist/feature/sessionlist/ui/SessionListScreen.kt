@@ -3,11 +3,11 @@ package com.tamimarafat.ferngeist.feature.sessionlist.ui
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -1042,7 +1041,11 @@ private fun RowScope.SessionCardText(
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalFoundationApi::class)
+@OptIn(
+    ExperimentalSharedTransitionApi::class,
+    ExperimentalFoundationApi::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+)
 @Composable
 private fun SessionCard(
     session: SessionSummary,
@@ -1052,6 +1055,18 @@ private fun SessionCard(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
+    // Live sessions tint the card container exactly like active server cards;
+    // the card itself is the status indicator, no trailing dot.
+    val containerColor by animateColorAsState(
+        targetValue =
+            if (isLive) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "sessionCardContainer",
+    )
     with(sharedTransitionScope) {
         Card(
             modifier =
@@ -1070,7 +1085,7 @@ private fun SessionCard(
                     .combinedClickable(onClick = onClick, onLongClick = onLongPress),
             colors =
                 CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    containerColor = containerColor,
                 ),
         ) {
             Row(
@@ -1078,7 +1093,6 @@ private fun SessionCard(
                     Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SessionCardText(
@@ -1086,15 +1100,6 @@ private fun SessionCard(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                 )
-                if (isLive) {
-                    // Live indicator: this session currently holds a gateway connection.
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(8.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape),
-                    )
-                }
             }
         }
     }

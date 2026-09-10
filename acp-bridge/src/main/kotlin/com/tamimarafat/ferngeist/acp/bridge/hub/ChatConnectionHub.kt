@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -56,7 +57,7 @@ data class GatewayEndpoint(
  * half-release a transport. Browser (listing) managers are created via
  * [createBrowserManager] and auto-released with their owner scope.
  *
- * Presence: each hot entry is keyed by `"$serverId/$sessionId"` and records
+ * Presence: each hot entry is keyed by the canonical [chatIdFor] composite and records
  * transport facts plus whether its chat screen is open and the cwd it was
  * opened with. Entries exist while screen-open or transport-attached; recency
  * bumps only on screen open or fresh-entry creation — never on transport
@@ -248,7 +249,7 @@ class ChatConnectionHub(
         isStreaming: () -> Boolean,
         manager: AcpConnectionManager?,
     ): String {
-        val chatId = "$serverId/$sessionId"
+        val chatId = chatIdFor(serverId, sessionId)
         if (manager != null) {
             pendingManagers.remove(manager)
         }
@@ -328,7 +329,7 @@ class ChatConnectionHub(
         cwd: String,
     ): Boolean {
         if (sessionId == NEW_SESSION_ARG) return false
-        val chatId = "$serverId/$sessionId"
+        val chatId = chatIdFor(serverId, sessionId)
         val existing = entries[chatId]
         if (existing != null) {
             entries[chatId] =
@@ -368,7 +369,7 @@ class ChatConnectionHub(
         serverId: String,
         sessionId: String,
     ) {
-        val chatId = "$serverId/$sessionId"
+        val chatId = chatIdFor(serverId, sessionId)
         entries[chatId]?.let { existing ->
             if (existing.manager == null) {
                 entries.remove(chatId)
@@ -383,7 +384,13 @@ class ChatConnectionHub(
     fun isTracked(
         serverId: String,
         sessionId: String,
-    ): Boolean = entries.containsKey("$serverId/$sessionId")
+    ): Boolean = entries.containsKey(chatIdFor(serverId, sessionId))
+
+    /** True when the hub-tracked entry for this server/session pair reports streaming. */
+    fun isStreaming(
+        serverId: String,
+        sessionId: String,
+    ): Boolean = entries[chatIdFor(serverId, sessionId)]?.isStreaming() == true
 
     /** True when this agent on this source already holds a live (connected) gateway session. */
     override fun hasLiveGatewaySession(
@@ -474,7 +481,9 @@ class ChatConnectionHub(
     /** Disconnects a listing browser transport (kept for reuse, not closed). */
     private suspend fun hangUpListing(transport: AcpConnectionManager) {
         if (transport.isConnected) {
-            withContext(Dispatchers.IO) { transport.disconnect() }
+            // NonCancellable: called from CancellationException catches, where a
+            // plain IO hop would re-cancel before disconnect() runs.
+            withContext(NonCancellable + Dispatchers.IO) { transport.disconnect() }
         }
     }
 
@@ -654,9 +663,17 @@ class ChatConnectionHub(
                     buildListingConfig(target) ?: return ListSessionsResult.Failed(
                         "Failed to launch ${target.name}",
                     )
-                withContext(Dispatchers.IO) {
-                    transport.connectAndInitializeWithoutReconnect(config)
-                } != null
+                try {
+                    withContext(Dispatchers.IO) {
+                        transport.connectAndInitializeWithoutReconnect(config)
+                    } != null
+                } catch (error: CancellationException) {
+                    // Cancellation can land after the socket opened but before the
+                    // connect+initialize returned, stranding a connected transport;
+                    // release it before rethrowing.
+                    hangUpListing(transport)
+                    throw error
+                }
             }
         if (!connected) {
             return ListSessionsResult.Failed(
@@ -681,7 +698,12 @@ class ChatConnectionHub(
                 listing.authTransport = transport
                 authRequiredResult(transport, viaWarmChat = false, error = error)
             } catch (error: Throwable) {
-                if (error is CancellationException) throw error
+                if (error is CancellationException) {
+                    // A cancelled listing still releases the browser transport: an
+                    // idle connected socket holds the gateway's single-attach slot.
+                    hangUpListing(transport)
+                    throw error
+                }
                 ListSessionsResult.Failed(formatAcpErrorMessage(error, "Failed to load sessions"))
             }
         if (result !is ListSessionsResult.AuthRequired) {
@@ -781,24 +803,29 @@ class ChatConnectionHub(
      * tracked close (REST DELETE + transport teardown); cold Room-known
      * sessions close the gateway session directly. Clears the recorded
      * gateway session id in both cases.
+     *
+     * Returns true when a tracked chat was closed or a known gateway session
+     * was deleted, false when nothing was left to close (untracked session the
+     * local store does not know, or an already-cleared gateway session id) so
+     * the caller can surface that instead of failing silently.
      */
     suspend fun closeSession(
         serverId: String,
         sessionId: String,
         endpoint: GatewayEndpoint,
-    ) {
-        val chatId = "$serverId/$sessionId"
+    ): Boolean {
+        val chatId = chatIdFor(serverId, sessionId)
         val sessionRepository = sessionRepository
         if (isTracked(serverId, sessionId)) {
             close(chatId, endpoint)
             sessionRepository?.setGatewaySessionId(serverId, sessionId, null)
-            return
+            return true
         }
         val gatewaySessionId =
             sessionRepository?.getSession(serverId, sessionId)?.gatewaySessionId
         val repository = gatewayRepository
         if (sessionRepository == null || repository == null || gatewaySessionId == null) {
-            return
+            return false
         }
         repository.closeSession(
             scheme = endpoint.scheme,
@@ -807,6 +834,7 @@ class ChatConnectionHub(
             sessionId = gatewaySessionId,
         )
         sessionRepository.setGatewaySessionId(serverId, sessionId, null)
+        return true
     }
 
     /** Agent capabilities observed by the last listing for [serverId]. */
@@ -894,3 +922,9 @@ class ChatConnectionHub(
         const val STATUS_ACTIVE = "active"
     }
 }
+
+/** Builds the canonical chat key: `"<serverId>/<sessionId>"`. Single format owner for the hub contract. */
+internal fun chatIdFor(
+    serverId: String,
+    sessionId: String,
+): String = "$serverId/$sessionId"

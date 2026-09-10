@@ -66,7 +66,7 @@ class AcpChatSessionFacade(
     private val hub: ChatConnectionSurface,
     private val sessionLoadTimeoutMs: Long = 180_000L,
     private val bridgeRecoveryRetryDelayMs: Long = 3_000L,
-    initialCachedSnapshot: com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot? = null,
+    initialCachedSnapshot: ChatSessionSnapshot? = null,
 ) : ChatSessionFacade {
     // ---- Connection state mirroring ----
     private val _connectionState =

@@ -169,6 +169,7 @@ class SessionListViewModel
         private val _pendingAuthentication = MutableStateFlow<SessionListPendingAuthentication?>(null)
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
         private var refreshJob: kotlinx.coroutines.Job? = null
+        private var refreshGeneration = 0
 
         init {
             refreshSessions()
@@ -189,12 +190,12 @@ class SessionListViewModel
         }
 
         /**
-         * Resume-path refresh: skip when a hot chat owns the socket so the list
-         * never opens a competing browser transport on the way back from chat.
-         * Room already holds the last list; the warm entry keeps it live.
+         * Resume-path refresh. The hub picks its transport per call: a warm
+         * chat manager lists over the chat's own socket, otherwise it runs the
+         * browser listing — so this never opens a competing transport, and the
+         * list refreshes on resume without a manual pull.
          */
         fun refreshSessionsIfCold() {
-            if (chatConnectionHub.warmManagerFor(serverId) != null) return
             refreshSessions()
         }
 
@@ -208,7 +209,9 @@ class SessionListViewModel
          *   sets [refreshing] so the pull indicator shows only on user drag.
          */
         fun refreshSessions(isUserInitiated: Boolean = false) {
+            if (refreshJob?.isActive == true && !isUserInitiated) return // coalesce overlapping cold listings
             refreshJob?.cancel()
+            val generation = ++refreshGeneration
             refreshJob =
                 viewModelScope.launch {
                     try {
@@ -231,15 +234,23 @@ class SessionListViewModel
                             }
 
                             is ListSessionsResult.Failed -> {
-                                _events.emit(
-                                    SessionListEvent.ShowError(result.message),
-                                )
+                                // Silent on an auto resume refresh with cached rows; a
+                                // warm socket mid-reconnect would otherwise toast on
+                                // every return from chat. Still loud for a pull-to-refresh
+                                // or when the user is looking at nothing.
+                                if (isUserInitiated || sessions.value.isEmpty()) {
+                                    _events.emit(
+                                        SessionListEvent.ShowError(result.message),
+                                    )
+                                }
                             }
                         }
                         syncHubObservables()
                     } finally {
-                        _isLoading.value = false
-                        _refreshing.value = false
+                        if (generation == refreshGeneration) {
+                            _isLoading.value = false
+                            _refreshing.value = false
+                        }
                     }
                 }
         }
@@ -272,7 +283,6 @@ class SessionListViewModel
         override fun onCleared() {
             refreshJob?.cancel()
             chatConnectionHub.releaseListing(serverId)
-            super.onCleared()
         }
 
         /**
@@ -302,6 +312,14 @@ class SessionListViewModel
          */
         fun closeSession(sessionId: String) {
             viewModelScope.launch(Dispatchers.IO) {
+                if (chatConnectionHub.isStreaming(serverId, sessionId)) {
+                    _events.emit(
+                        SessionListEvent.ShowError(
+                            "This session is still responding. Cancel or close it from inside the chat first.",
+                        ),
+                    )
+                    return@launch
+                }
                 val target = launchableTargetRepository.getTarget(serverId)
                 val endpoint =
                     when (target) {
@@ -316,16 +334,12 @@ class SessionListViewModel
                             return@launch
                         }
                     }
-                val gatewaySessionId =
-                    sessions.value.firstOrNull { it.id == sessionId }?.gatewaySessionId
-                if (gatewaySessionId == null &&
-                    !chatConnectionHub.isTracked(serverId, sessionId)
-                ) {
-                    _events.emit(SessionListEvent.ShowError("This session has no live process to close."))
-                    return@launch
-                }
                 runCatching {
                     chatConnectionHub.closeSession(serverId, sessionId, endpoint)
+                }.onSuccess { closed ->
+                    if (!closed) {
+                        _events.emit(SessionListEvent.ShowError("This session has no live process to close."))
+                    }
                 }.onFailure { error ->
                     _events.emit(
                         SessionListEvent.ShowError(error.message ?: "Failed to close session."),
@@ -480,7 +494,18 @@ class SessionListViewModel
             auth: ListSessionsResult.AuthRequired,
             action: PendingAuthAction,
         ) {
-            val currentServer = server.value ?: return
+            val currentServer =
+                server.value
+                    ?: withContext(Dispatchers.IO) { launchableTargetRepository.getTarget(serverId) }
+                    ?: run {
+                        _events.emit(
+                            SessionListEvent.ShowError(
+                                "Server was removed before authentication could complete.",
+                            ),
+                        )
+                        _isLoading.value = false
+                        return
+                    }
             _pendingAuthentication.value =
                 SessionListPendingAuthentication(
                     serverId = serverId,

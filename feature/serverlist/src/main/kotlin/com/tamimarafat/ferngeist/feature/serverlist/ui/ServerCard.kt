@@ -87,13 +87,13 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 internal fun ServerCard(
     server: LaunchableTarget,
     uiState: ServerListUiState,
-    liveServerIds: Set<String> = emptySet(),
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
+    liveServerIds: Set<String> = emptySet(),
 ) {
     val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
