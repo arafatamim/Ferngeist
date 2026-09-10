@@ -6,7 +6,7 @@
     <string name="notification_connected_text">Conectado a %1$s</string>
     <string name="notification_disconnected_title">Ferngeist desconectado</string>
     <string name="notification_disconnected_text">Desconectado do servidor do agente</string>
-    <string name="notification_action_disconnect">Desconectar</string>
+    <string name="notification_action_stop">Parar</string>
     <string name="battery_opt_title">Mantenha o Ferngeist conectado</string>
     <string name="battery_opt_body">O Android pode restringir o Ferngeist em segundo plano, fazendo a conexão com o agente cair. Desativar a otimização de bateria ajuda a manter sua sessão ativa.</string>
     <string name="battery_opt_not_now">Agora não</string>

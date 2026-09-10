@@ -7,7 +7,7 @@
     <string name="notification_connected_text">Connected to %1$s</string>
     <string name="notification_disconnected_title">Ferngeist Disconnected</string>
     <string name="notification_disconnected_text">Disconnected from agent server</string>
-    <string name="notification_action_disconnect">Disconnect</string>
+    <string name="notification_action_stop">Stop</string>
     <string name="battery_opt_title">Keep Ferngeist Connected</string>
     <string name="battery_opt_body">Android may restrict Ferngeist in the background, causing the agent connection to drop. Disabling battery optimization helps keep your session alive.</string>
     <string name="battery_opt_not_now">Not now</string>
