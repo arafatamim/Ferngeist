@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -385,6 +386,12 @@ class ChatConnectionHub(
         sessionId: String,
     ): Boolean = entries.containsKey(chatIdFor(serverId, sessionId))
 
+    /** True when the hub-tracked entry for this server/session pair reports streaming. */
+    fun isStreaming(
+        serverId: String,
+        sessionId: String,
+    ): Boolean = entries[chatIdFor(serverId, sessionId)]?.isStreaming() == true
+
     /** True when this agent on this source already holds a live (connected) gateway session. */
     override fun hasLiveGatewaySession(
         gatewaySourceId: String,
@@ -474,7 +481,9 @@ class ChatConnectionHub(
     /** Disconnects a listing browser transport (kept for reuse, not closed). */
     private suspend fun hangUpListing(transport: AcpConnectionManager) {
         if (transport.isConnected) {
-            withContext(Dispatchers.IO) { transport.disconnect() }
+            // NonCancellable: called from CancellationException catches, where a
+            // plain IO hop would re-cancel before disconnect() runs.
+            withContext(NonCancellable + Dispatchers.IO) { transport.disconnect() }
         }
     }
 
@@ -654,9 +663,17 @@ class ChatConnectionHub(
                     buildListingConfig(target) ?: return ListSessionsResult.Failed(
                         "Failed to launch ${target.name}",
                     )
-                withContext(Dispatchers.IO) {
-                    transport.connectAndInitializeWithoutReconnect(config)
-                } != null
+                try {
+                    withContext(Dispatchers.IO) {
+                        transport.connectAndInitializeWithoutReconnect(config)
+                    } != null
+                } catch (error: CancellationException) {
+                    // Cancellation can land after the socket opened but before the
+                    // connect+initialize returned, stranding a connected transport;
+                    // release it before rethrowing.
+                    hangUpListing(transport)
+                    throw error
+                }
             }
         if (!connected) {
             return ListSessionsResult.Failed(
@@ -681,7 +698,12 @@ class ChatConnectionHub(
                 listing.authTransport = transport
                 authRequiredResult(transport, viaWarmChat = false, error = error)
             } catch (error: Throwable) {
-                if (error is CancellationException) throw error
+                if (error is CancellationException) {
+                    // A cancelled listing still releases the browser transport: an
+                    // idle connected socket holds the gateway's single-attach slot.
+                    hangUpListing(transport)
+                    throw error
+                }
                 ListSessionsResult.Failed(formatAcpErrorMessage(error, "Failed to load sessions"))
             }
         if (result !is ListSessionsResult.AuthRequired) {

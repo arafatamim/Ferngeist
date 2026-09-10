@@ -169,6 +169,7 @@ class SessionListViewModel
         private val _pendingAuthentication = MutableStateFlow<SessionListPendingAuthentication?>(null)
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
         private var refreshJob: kotlinx.coroutines.Job? = null
+        private var refreshGeneration = 0
 
         init {
             refreshSessions()
@@ -208,7 +209,9 @@ class SessionListViewModel
          *   sets [refreshing] so the pull indicator shows only on user drag.
          */
         fun refreshSessions(isUserInitiated: Boolean = false) {
+            if (refreshJob?.isActive == true && !isUserInitiated) return // coalesce overlapping cold listings
             refreshJob?.cancel()
+            val generation = ++refreshGeneration
             refreshJob =
                 viewModelScope.launch {
                     try {
@@ -238,8 +241,10 @@ class SessionListViewModel
                         }
                         syncHubObservables()
                     } finally {
-                        _isLoading.value = false
-                        _refreshing.value = false
+                        if (generation == refreshGeneration) {
+                            _isLoading.value = false
+                            _refreshing.value = false
+                        }
                     }
                 }
         }
@@ -301,6 +306,14 @@ class SessionListViewModel
          */
         fun closeSession(sessionId: String) {
             viewModelScope.launch(Dispatchers.IO) {
+                if (chatConnectionHub.isStreaming(serverId, sessionId)) {
+                    _events.emit(
+                        SessionListEvent.ShowError(
+                            "This session is still responding. Cancel or close it from inside the chat first.",
+                        ),
+                    )
+                    return@launch
+                }
                 val target = launchableTargetRepository.getTarget(serverId)
                 val endpoint =
                     when (target) {
@@ -479,7 +492,18 @@ class SessionListViewModel
             auth: ListSessionsResult.AuthRequired,
             action: PendingAuthAction,
         ) {
-            val currentServer = server.value ?: return
+            val currentServer =
+                server.value
+                    ?: withContext(Dispatchers.IO) { launchableTargetRepository.getTarget(serverId) }
+                    ?: run {
+                        _events.emit(
+                            SessionListEvent.ShowError(
+                                "Server was removed before authentication could complete.",
+                            ),
+                        )
+                        _isLoading.value = false
+                        return
+                    }
             _pendingAuthentication.value =
                 SessionListPendingAuthentication(
                     serverId = serverId,
