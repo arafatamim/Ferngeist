@@ -361,6 +361,50 @@ class ChatConnectionHubTest {
         }
 
     @Test
+    fun `capacity counts disconnected sessions the gateway still leases`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val hub = newHub(repo, maxGateway = 5)
+            // The gateway counts a disconnected session against MaxPerDevice — its
+            // runtime lease is still held (lifecycle.go: StatusActive||StatusDisconnected).
+            // Counting only `active` here reports a free slot the gateway does not
+            // have, so the spawn that follows comes back session-less.
+            repo.sessions =
+                (1..5).map { i ->
+                    GatewaySessionSummary(
+                        sessionId = "g$i",
+                        runtimeId = "r$i",
+                        agentId = "agent-$i",
+                        status = "disconnected",
+                        createdAt = "2026-01-0${i + 1}T00:00:00Z",
+                    )
+                }
+            hub.ensureGatewayCapacity(GatewayEndpoint("http", "gw", "cred"))
+            assertEquals(listOf("g1"), repo.closed)
+        }
+
+    @Test
+    fun `capacity ignores sessions whose runtime lease is dead`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val hub = newHub(repo, maxGateway = 5)
+            // `failed` holds no lease, so these occupy no slot and there is
+            // nothing to free — the helper must leave them alone.
+            repo.sessions =
+                (1..5).map { i ->
+                    GatewaySessionSummary(
+                        sessionId = "g$i",
+                        runtimeId = "r$i",
+                        agentId = "agent-$i",
+                        status = "failed",
+                        createdAt = "2026-01-0${i + 1}T00:00:00Z",
+                    )
+                }
+            hub.ensureGatewayCapacity(GatewayEndpoint("http", "gw", "cred"))
+            assertTrue(repo.closed.isEmpty())
+        }
+
+    @Test
     fun `capacity throws when every active session is protected`() =
         runTest {
             val repo = FakeGatewayRepo()
