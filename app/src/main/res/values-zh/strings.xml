@@ -6,7 +6,7 @@
     <string name="notification_connected_text">已连接到 %1$s</string>
     <string name="notification_disconnected_title">Ferngeist 连接已断开</string>
     <string name="notification_disconnected_text">已从代理服务器断开连接</string>
-    <string name="notification_action_disconnect">断开连接</string>
+    <string name="notification_action_stop">停止</string>
     <string name="battery_opt_title">保持 Ferngeist 连接</string>
     <string name="battery_opt_body">Android 可能会限制后台运行的 Ferngeist，导致代理连接中断。禁用电池优化有助于保持会话持续运行。</string>
     <string name="battery_opt_not_now">稍后再说</string>

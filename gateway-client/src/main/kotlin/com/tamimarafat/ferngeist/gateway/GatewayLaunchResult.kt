@@ -76,16 +76,42 @@ suspend fun launchGatewayRuntime(
             .requireSupportedProtocol()
     }
 
-    return runCatching {
+    return startAndConnect(
+        gatewayRepository = gatewayRepository,
+        gatewaySource = refreshedSource,
+        agentId = agentId,
+        fresh = fresh,
+        reuseRuntimeId = reuseRuntimeId,
+    )
+}
+
+/**
+ * Runs the two-stage launch for an already-refreshed [gatewaySource] and folds the
+ * outcome into a [Result].
+ *
+ * [CancellationException] is rethrown rather than folded into the failure, so a
+ * cancelled caller sees cancellation instead of a launch error it would render on a
+ * screen that is already gone. Every other exception is the launch failure the
+ * function's contract promises to surface.
+ */
+@Suppress("TooGenericExceptionCaught")
+private suspend fun startAndConnect(
+    gatewayRepository: GatewayRepository,
+    gatewaySource: GatewaySource,
+    agentId: String,
+    fresh: Boolean,
+    reuseRuntimeId: String?,
+): Result<GatewayLaunchResult> =
+    try {
         val runtime =
             if (reuseRuntimeId != null) {
                 GatewayRuntime(id = reuseRuntimeId, status = RUNTIME_STATUS_RUNNING, agentId = agentId)
             } else {
                 withContext(Dispatchers.IO) {
                     gatewayRepository.startAgent(
-                        scheme = refreshedSource.scheme,
-                        host = refreshedSource.host,
-                        gatewayCredential = refreshedSource.gatewayCredential,
+                        scheme = gatewaySource.scheme,
+                        host = gatewaySource.host,
+                        gatewayCredential = gatewaySource.gatewayCredential,
                         agentId = agentId,
                         new = fresh,
                     )
@@ -94,17 +120,22 @@ suspend fun launchGatewayRuntime(
         val handoff =
             withContext(Dispatchers.IO) {
                 gatewayRepository.connectRuntime(
-                    scheme = refreshedSource.scheme,
-                    host = refreshedSource.host,
-                    gatewayCredential = refreshedSource.gatewayCredential,
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = gatewaySource.gatewayCredential,
                     runtimeId = runtime.id,
                     sessionMode = "resilient",
                 )
             }
-        GatewayLaunchResult(
-            gatewaySource = refreshedSource,
-            runtime = runtime,
-            handoff = handoff,
+        Result.success(
+            GatewayLaunchResult(
+                gatewaySource = gatewaySource,
+                runtime = runtime,
+                handoff = handoff,
+            ),
         )
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        Result.failure(error)
     }
-}

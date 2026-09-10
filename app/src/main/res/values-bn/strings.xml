@@ -6,7 +6,7 @@
     <string name="notification_connected_text">%1$s-এর সাথে সংযুক্ত</string>
     <string name="notification_disconnected_title">Ferngeist সংযোগ বিচ্ছিন্ন</string>
     <string name="notification_disconnected_text">এজেন্ট সার্ভার থেকে সংযোগ বিচ্ছিন্ন</string>
-    <string name="notification_action_disconnect">সংযোগ বিচ্ছিন্ন করুন</string>
+    <string name="notification_action_stop">থামুন</string>
     <string name="battery_opt_title">Ferngeist-কে সংযুক্ত রাখুন</string>
     <string name="battery_opt_body">Android ব্যাকগ্রাউন্ডে Ferngeist-কে সীমাবদ্ধ করতে পারে, ফলে এজেন্ট সংযোগ বিচ্ছিন্ন হতে পারে। ব্যাটারি অপ্টিমাইজেশন বন্ধ করলে সেশন চালু রাখতে সাহায্য করে।</string>
     <string name="battery_opt_not_now">এখন নয়</string>
