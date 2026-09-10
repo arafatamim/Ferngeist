@@ -77,6 +77,7 @@ private data class ServerListScreenState(
     val snackbarHostState: SnackbarHostState,
     val pendingAuthentication: PendingAuthentication?,
     val pendingLaunchConsent: PendingLaunchConsent?,
+    val liveServerIds: Set<String>,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +88,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
+    val liveServerIds by viewModel.liveServerIds.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     return ServerListScreenState(
         servers = servers,
@@ -97,6 +99,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
         snackbarHostState = snackbarHostState,
         pendingAuthentication = uiState.pendingAuthentication,
         pendingLaunchConsent = uiState.pendingLaunchConsent,
+        liveServerIds = liveServerIds,
     )
 }
 
@@ -153,6 +156,7 @@ fun ServerListScreen(
         servers = servers,
         recentSessions = recentSessions,
         uiState = uiState,
+        liveServerIds = screenState.liveServerIds,
         onResumeSession = onResumeSession,
         onConnect = { viewModel.connectAndOpenServer(it) },
         onEdit = onNavigateToEditServer,
@@ -181,6 +185,7 @@ private fun ServerListScaffold(
     servers: List<LaunchableTarget>,
     recentSessions: List<RecentSession>,
     uiState: ServerListUiState,
+    liveServerIds: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -237,6 +242,7 @@ private fun ServerListScaffold(
             heroSession = heroSession,
             olderSessions = olderSessions,
             uiState = uiState,
+            liveServerIds = liveServerIds,
             onResumeSession = onResumeSession,
             onConnect = onConnect,
             onEdit = onEdit,
@@ -385,6 +391,7 @@ private fun ServerListContent(
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     uiState: ServerListUiState,
+    liveServerIds: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -415,6 +422,7 @@ private fun ServerListContent(
                     olderSessions = olderSessions,
                     servers = servers,
                     uiState = uiState,
+                    liveServerIds = liveServerIds,
                     onResumeSession = onResumeSession,
                     onConnect = onConnect,
                     onEdit = onEdit,

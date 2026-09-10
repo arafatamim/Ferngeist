@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -12,6 +13,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -99,9 +101,11 @@ open class FakeChatSessionFacade : ChatSessionFacade {
     override val connectionState: StateFlow<ChatConnectionState> = connectionStateFlow
     override val diagnostics: StateFlow<ChatConnectionDiagnostics> = diagnosticsFlow
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = sessionSnapshotFlow
+    override val cachedSnapshot: StateFlow<ChatSessionSnapshot?> = sessionSnapshotFlow
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = agentCapabilitiesFlow
     override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> = gatewayWorkspaceConnectionFlow
-    override val liveChatId: StateFlow<String?> = MutableStateFlow(null)
+    protected val liveChatIdFlow = MutableStateFlow<String?>(null)
+    override val liveChatId: StateFlow<String?> = liveChatIdFlow
 
     /** Test hook: push a new snapshot into the session state. */
     protected fun setSessionSnapshot(snapshot: ChatSessionSnapshot?) {
@@ -170,6 +174,11 @@ open class FakeChatSessionFacade : ChatSessionFacade {
     suspend fun emitGatewayWorkspaceConnection(connection: GatewayWorkspaceConnection) {
         gatewayWorkspaceConnectionFlow.value = connection
     }
+
+    /** Test hook: mints a real hub chat id the way the transport's real-id attach does. */
+    fun emitLiveChatId(chatId: String) {
+        liveChatIdFlow.value = chatId
+    }
 }
 
 /** Facade that immediately emits a pre-configured snapshot so [ChatSessionFacade.applySnapshot] is exercised. */
@@ -207,6 +216,21 @@ class FakeChatSessionFacadeFactory : ChatSessionFacadeFactory {
         lastFacade.value = facade
         return facade
     }
+}
+
+// endregion
+
+// region: Connectivity
+
+/**
+ * [ConnectivityObserver] stub so a presence test hub can attach real (never
+ * connected) transports via [com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub.acquireChatManager].
+ */
+class FakeConnectivityObserver(
+    initialState: Boolean = false,
+) : ConnectivityObserver {
+    private val _isConnected = MutableStateFlow(initialState)
+    override val isConnected: Flow<Boolean> = _isConnected
 }
 
 // endregion

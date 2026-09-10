@@ -8,10 +8,10 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.push.FcmPayloadKeys
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.resolveLocalId
-import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import com.tamimarafat.ferngeist.service.FerngeistForegroundService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.runBlocking
@@ -47,7 +47,7 @@ class FerngeistMessagingService : FirebaseMessagingService() {
     lateinit var gatewaySourceRepository: GatewaySourceRepository
 
     @Inject
-    lateinit var activeChatStore: ActiveChatStore
+    lateinit var chatConnectionHub: ChatConnectionHub
 
     @Inject
     lateinit var appForegroundState: AppForegroundState
@@ -68,7 +68,8 @@ class FerngeistMessagingService : FirebaseMessagingService() {
         val category = data[FcmPayloadKeys.CATEGORY]
 
         // The push carries the gateway-owned id; translate to the local server id that
-        // navigation (and ActiveChatStore) use. Null when unknown/legacy → no deep-link.
+        // navigation (and the hub's presence entries) use. Null when unknown/legacy →
+        // no deep-link.
         // Runs on FCM's background thread, so the brief blocking lookup is acceptable.
         val localServerId =
             data[FcmPayloadKeys.SERVER_ID]?.let { gatewayId ->
@@ -76,15 +77,14 @@ class FerngeistMessagingService : FirebaseMessagingService() {
             }
 
         // Skip pushes the user is already watching live in the foreground. Suppression
-        // matches on the stable gatewayId, not the local server id, so it survives the
-        // local-id churn (and duplicate records) a re-pair can introduce.
+        // matches on the presence entry's gatewaySourceId (the stable gateway id), not
+        // the local server id, so it survives the local-id churn (and duplicate records)
+        // a re-pair can introduce.
         val isForeground = appForegroundState.isForeground.value
-        val activeChat = activeChatStore.activeChat.value
-        val activeChatGatewayId = activeChat?.gatewayId
+        val foregroundChat = chatConnectionHub.onScreenChat.value
         if (PushNotificationPolicy.shouldSuppress(
                 isAppForeground = isForeground,
-                activeChat = activeChat,
-                activeChatGatewayId = activeChatGatewayId,
+                foregroundChat = foregroundChat,
                 targetGatewayId = data[FcmPayloadKeys.SERVER_ID],
                 targetSessionId = sessionId,
             )

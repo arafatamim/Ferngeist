@@ -223,8 +223,35 @@ interface ChatSessionFacade {
     val sessionReady: SharedFlow<Unit>
     val modelUpdated: SharedFlow<Unit>
 
+    /**
+     * Last rendered snapshot, retained after [clear] so a reopening screen can
+     * paint instantly without waiting for reconnect + session/load replay.
+     * Null when nothing has rendered yet. Never blocks on transport.
+     */
+    val cachedSnapshot: StateFlow<ChatSessionSnapshot?>
+
+    /**
+     * Attempts to reattach a warm in-memory session without wiping UI state.
+     *
+     * Returns true when an already-connected manager holds a hydrated
+     * bridge for this session; the facade attaches its observers and the
+     * caller should skip `onLoadStarted` (which clears transcript/markdown).
+     * Returns false when no warm cache exists — caller must do a full
+     * `loadSession` path.
+     */
+    suspend fun tryRestoreWarmSession(): Boolean = false
+
     /** Loads an existing session or creates a new one. Emits [loadFailed] on error. */
     suspend fun loadSession()
+
+    /**
+     * Same as [loadSession] but skips the transcript wipe: the caller already
+     * painted [cachedSnapshot], so the reload only revalidates in the
+     * background. UI state must be preserved.
+     */
+    suspend fun loadSessionQuietly() {
+        loadSession()
+    }
 
     /** Sends a user message with optional inline images. Returns true if the message
      * was dispatched to a live session; false when no bridge is available or the

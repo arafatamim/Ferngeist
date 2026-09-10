@@ -9,6 +9,14 @@ import org.junit.Test
 class GatewaySessionModelsTest {
     private val json = Json { ignoreUnknownKeys = true }
 
+    // Connect bodies must omit null fields — mirrors the wire-side
+    // connectRequestJson (encodeDefaults = false) in GatewayRepositoryImpl.
+    private val requestJson =
+        Json {
+            encodeDefaults = false
+            ignoreUnknownKeys = true
+        }
+
     @Test
     fun `connectResponse with session fields deserializes correctly`() {
         val raw =
@@ -53,15 +61,35 @@ class GatewaySessionModelsTest {
     @Test
     fun `connectRequest serializes sessionMode`() {
         val req = GatewayConnectRequest(sessionMode = "resilient")
-        val raw = json.encodeToString(GatewayConnectRequest.serializer(), req)
+        val raw = requestJson.encodeToString(GatewayConnectRequest.serializer(), req)
         assertEquals("""{"sessionMode":"resilient"}""", raw.trim())
+    }
+
+    @Test
+    fun `connectRequest serializes new=true alongside sessionMode`() {
+        val req = GatewayConnectRequest(sessionMode = "resilient", new = true)
+        val raw = requestJson.encodeToString(GatewayConnectRequest.serializer(), req)
+        assertEquals("""{"sessionMode":"resilient","new":true}""", raw.trim())
     }
 
     @Test
     fun `connectRequest without sessionMode omits field`() {
         val req = GatewayConnectRequest()
-        val raw = json.encodeToString(GatewayConnectRequest.serializer(), req)
+        val raw = requestJson.encodeToString(GatewayConnectRequest.serializer(), req)
         assertEquals("""{}""", raw.trim())
+    }
+
+    @Test
+    fun `connect body omits null fields on the wire`() {
+        assertEquals(
+            """{"sessionMode":"resilient","new":true}""",
+            buildConnectRequestBody(sessionMode = "resilient", new = true),
+        )
+        assertEquals(
+            """{"sessionMode":"resilient"}""",
+            buildConnectRequestBody(sessionMode = "resilient", new = false),
+        )
+        assertEquals("""{}""", buildConnectRequestBody(sessionMode = null, new = false))
     }
 
     @Test

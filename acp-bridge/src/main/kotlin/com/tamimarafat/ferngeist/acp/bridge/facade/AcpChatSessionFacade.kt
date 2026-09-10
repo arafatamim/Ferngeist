@@ -64,8 +64,9 @@ class AcpChatSessionFacade(
     private val initialSessionId: String,
     private val cwd: String,
     private val hub: ChatConnectionHub? = null,
-    private val sessionLoadTimeoutMs: Long = 20_000L,
+    private val sessionLoadTimeoutMs: Long = 180_000L,
     private val bridgeRecoveryRetryDelayMs: Long = 3_000L,
+    initialCachedSnapshot: com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot? = null,
 ) : ChatSessionFacade {
     // ---- Connection state mirroring ----
     private val _connectionState =
@@ -80,6 +81,13 @@ class AcpChatSessionFacade(
     private val _sessionSnapshot = MutableStateFlow<ChatSessionSnapshot?>(null)
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = _sessionSnapshot.asStateFlow()
 
+    // Paint cache is seeded from the hub's snapshot cache at creation (the durable
+    // store: observeSessionBridge writes hub.storeSnapshot per emission). This flow
+    // never mutates after construction — reopening builds a fresh facade seeded from
+    // the hub, so a live mirror here would duplicate the hub write per chunk.
+    override val cachedSnapshot: StateFlow<ChatSessionSnapshot?> =
+        MutableStateFlow(initialCachedSnapshot)
+
     private val _agentCapabilities =
         MutableStateFlow(ChatAgentCapabilities())
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = _agentCapabilities.asStateFlow()
@@ -93,6 +101,7 @@ class AcpChatSessionFacade(
     private val _liveChatId = MutableStateFlow<String?>(null)
     override val liveChatId: StateFlow<String?> = _liveChatId.asStateFlow()
     private var resolvedAgentId: String? = null
+    private var snapshotChatId: String = "$serverId/$initialSessionId"
 
     // ---- Events (one-shot) ----
     // SharedFlow is used for one-off signals so repeated emissions are not lost.
@@ -143,6 +152,10 @@ class AcpChatSessionFacade(
         scope.launch {
             connectionManager.connectionState.collect { state ->
                 _connectionState.value = mapConnectionState(state)
+                // The hub publishes `connected` snapshots taken at register/
+                // focus time; re-read the live lambdas so dots tracking
+                // liveChats stay truthful across drops and reconnects.
+                hub?.refresh()
             }
         }
         scope.launch {
@@ -165,7 +178,15 @@ class AcpChatSessionFacade(
      * 4. On timeout or destroyed-bridge error during load, creates a fresh session
      *    so the user can keep chatting without re-entering the screen.
      */
-    override suspend fun loadSession() {
+    override suspend fun loadSession() = loadSessionInternal(quiet = false)
+
+    override suspend fun loadSessionQuietly() = loadSessionInternal(quiet = true)
+
+    /**
+     * Shared load implementation. [quiet] suppresses the ready announcement so a
+     * screen that already painted its cached snapshot never flashes loading UI.
+     */
+    private suspend fun loadSessionInternal(quiet: Boolean) {
         bridgeOperationMutex.withLock {
             shouldRecoverBridge = true
             cancelBridgeRecovery()
@@ -190,16 +211,41 @@ class AcpChatSessionFacade(
                 return
             }
 
-            when (val outcome = sessionLoadCoordinator.run()) {
+            when (val outcome = sessionLoadCoordinator.run(announceReady = !quiet)) {
                 is SessionLoadOutcome.Attached -> return
                 is SessionLoadOutcome.Failed -> _loadFailed.emit(outcome.message)
             }
         }
     }
 
+    override suspend fun tryRestoreWarmSession(): Boolean =
+        bridgeOperationMutex.withLock {
+            if (!connectionManager.isConnected) return@withLock false
+            val bridge =
+                connectionManager.getSession(activeSessionId)
+                    ?: connectionManager.getSession(initialSessionId)
+                    ?: return@withLock false
+            // Hot cache hit: reuse hydrated bridge without reconnect or transcript wipe.
+            attachSessionBridge(bridge)
+            // Restore workspace link so diff/status works after reattach.
+            connectionManager
+                .currentConnectionConfig()
+                ?.takeIf { it.gatewayCredential != null && it.gatewayRuntimeId != null }
+                ?.let { config ->
+                    _gatewayWorkspaceConnection.value =
+                        GatewayWorkspaceConnection(
+                            runtimeId = config.gatewayRuntimeId!!,
+                            scheme = config.gatewayScheme ?: "http",
+                            host = config.gatewayHost ?: config.host,
+                            gatewayCredential = config.gatewayCredential!!,
+                        )
+                }
+            publishCapabilities()
+            true
+        }
+
     /**
      * Reacts to connection-state changes from the transport.
-     *
      * On reconnect the facade tries to reattach the session bridge automatically;
      * on disconnect/error the bridge is invalidated so state is not stale.
      */
@@ -371,7 +417,11 @@ class AcpChatSessionFacade(
         cancelBridgeRecovery()
         invalidateActiveBridge()
         clearBridgeObservers()
+        _sessionSnapshot.value = null
         _gatewayWorkspaceConnection.value = null
+        if (_liveChatId.value == null) {
+            hub?.abandon(connectionManager)
+        }
     }
 
     // ---- Internal ----
@@ -397,11 +447,51 @@ class AcpChatSessionFacade(
                         )
                 }
             publishCapabilities()
+            registerConnectingWithHub()
             return true
         }
         val server = launchableTargetRepository.getTarget(serverId) ?: return false
         val connected = connectForTarget(server) ?: return false
-        return connected && initializeSession() != null
+        val initialized = connected && initializeSession() != null
+        if (initialized) registerConnectingWithHub()
+        return initialized
+    }
+
+    /**
+     * Tracks this chat's connection in the hub under [sessionId] with [isStreaming]
+     * read live; assigns the returned chat id to [_liveChatId].
+     */
+    private suspend fun registerHubEntry(
+        sessionId: String,
+        isStreaming: () -> Boolean,
+    ) {
+        val connectionHub = hub ?: return
+        _liveChatId.value =
+            connectionHub.register(
+                serverId = serverId,
+                sessionId = sessionId,
+                gatewaySessionId = connectionManager.currentConnectionConfig()?.sessionId,
+                gatewaySourceId = connectionManager.currentConnectionConfig()?.gatewaySourceId.orEmpty(),
+                agentId = resolvedAgentId.orEmpty(),
+                isConnected = { connectionManager.isConnected },
+                isStreaming = isStreaming,
+                manager = connectionManager,
+            )
+    }
+
+    /**
+     * Makes this chat warm-visible in the hub as soon as its transport is up,
+     * before any bridge attaches. Register is idempotent per chatId, so the
+     * later [registerHubEntry] attach call only refreshes focus.
+     *
+     * Create-on-arrival chats are skipped: the `__new__` sentinel is not a real
+     * session id, so registering it would count a transient ghost toward the hot
+     * cap. Their only counting registration is the real-id entry once a bridge
+     * attaches.
+     */
+    private suspend fun registerConnectingWithHub() {
+        if (initialSessionId == NEW_SESSION_ARG) return
+        registerHubEntry(sessionId = activeSessionId, isStreaming = { false })
     }
 
     /**
@@ -448,7 +538,6 @@ class AcpChatSessionFacade(
      * Builds a connection config for a gateway-backed agent by starting a fresh
      * runtime on the gateway and obtaining the WebSocket handoff.
      */
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun buildGatewayConnectionConfig(target: LaunchableTarget.GatewayAgent): AcpConnectionConfig? {
         val gatewaySource = target.gatewaySource
         if (gatewaySource.gatewayCredential.isBlank()) {
@@ -537,8 +626,12 @@ class AcpChatSessionFacade(
         }
     }
 
-    private fun attachSessionBridge(bridge: SessionPort) {
+    private suspend fun attachSessionBridge(bridge: SessionPort) {
         activeSessionId = bridge.sessionId
+        // The create-on-arrival sentinel never registers with the hub (see
+        // registerConnectingWithHub); switch to the real id so snapshots store
+        // under the same key the factory seeds from.
+        snapshotChatId = "$serverId/${bridge.sessionId}"
         sessionBridge = bridge
         pendingModelSelectionId = null
         shouldRecoverBridge = true
@@ -547,22 +640,9 @@ class AcpChatSessionFacade(
         registerWithHub(bridge)
     }
 
-    /** Tracks this live session in the hub (fire-and-forget; register is suspend). */
-    private fun registerWithHub(bridge: SessionPort) {
-        val connectionHub = hub ?: return
-        scope.launch {
-            _liveChatId.value =
-                connectionHub.register(
-                    serverId = serverId,
-                    sessionId = bridge.sessionId,
-                    gatewaySessionId = connectionManager.currentConnectionConfig()?.sessionId,
-                    gatewaySourceId = connectionManager.currentConnectionConfig()?.gatewaySourceId.orEmpty(),
-                    agentId = resolvedAgentId.orEmpty(),
-                    isConnected = { connectionManager.isConnected },
-                    isStreaming = { bridge.snapshot.value.isStreaming },
-                    onEvict = { connectionManager.disconnect() },
-                )
-        }
+    /** Tracks this live session in the hub; synchronous so snapshots store under the entry immediately. */
+    private suspend fun registerWithHub(bridge: SessionPort) {
+        registerHubEntry(sessionId = bridge.sessionId, isStreaming = { bridge.snapshot.value.isStreaming })
     }
 
     /** Launches snapshot and model-selection collection coroutines. */
@@ -572,7 +652,9 @@ class AcpChatSessionFacade(
             listOf(
                 scope.launch {
                     bridge.snapshot.collect { snapshot ->
-                        _sessionSnapshot.value = mapSnapshot(snapshot)
+                        val mapped = mapSnapshot(snapshot)
+                        _sessionSnapshot.value = mapped
+                        hub?.storeSnapshot(snapshotChatId, mapped)
                     }
                 },
                 scope.launch {
@@ -677,6 +759,7 @@ class AcpChatSessionFacade(
     private fun invalidateActiveBridge() {
         sessionBridge = null
         pendingModelSelectionId = null
+        _sessionSnapshot.value = null
         clearBridgeObservers()
     }
 
@@ -752,10 +835,16 @@ internal class SessionLoadCoordinator(
     private val onOperationError: suspend (ChatOperationError) -> Unit,
     private val onRecoveryDisabled: () -> Unit,
 ) {
-    suspend fun run(): SessionLoadOutcome {
+    /**
+     * Quiet revalidation: same load, but [announceReady] controls whether
+     * [onSessionReady] fires on the fast-path so the UI keeps the already-painted
+     * cached snapshot instead of flashing loading states. Live bridge snapshots
+     * still flow through observers regardless.
+     */
+    suspend fun run(announceReady: Boolean = true): SessionLoadOutcome {
         connectionManager.getSession(initialSessionId)?.let { existing ->
             onAttachBridge(existing)
-            onSessionReady()
+            if (announceReady) onSessionReady()
             return SessionLoadOutcome.Attached
         }
 
@@ -765,11 +854,11 @@ internal class SessionLoadCoordinator(
             return SessionLoadOutcome.Failed("This agent does not advertise session/load support.")
         }
 
-        return loadWithTimeout()
+        return loadWithTimeout(announceReady)
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun loadWithTimeout(): SessionLoadOutcome {
+    private suspend fun loadWithTimeout(announceReady: Boolean): SessionLoadOutcome {
         val bridge =
             try {
                 withTimeout(sessionLoadTimeoutMs) {
@@ -787,7 +876,7 @@ internal class SessionLoadCoordinator(
                 // protocol errors; each is surfaced as a load failure instead of
                 // crashing the loading coroutine. Destroyed-bridge errors fall
                 // back to a fresh session so the user can keep chatting.
-                return handleLoadFailure(error)
+                return handleLoadFailure(error, announceReady)
             }
         return if (bridge != null) {
             onAttachBridge(bridge)
@@ -798,7 +887,10 @@ internal class SessionLoadCoordinator(
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun handleLoadFailure(error: Exception): SessionLoadOutcome {
+    private suspend fun handleLoadFailure(
+        error: Exception,
+        announceReady: Boolean = true,
+    ): SessionLoadOutcome {
         if (isDestroyedBridgeStreamError(error)) {
             // If the bridge process restarted mid-load, create a new session
             // so the user can keep chatting without reopening the screen.
@@ -806,7 +898,7 @@ internal class SessionLoadCoordinator(
                 runCatching { connectionManager.createSession(cwd) }.getOrNull()
             if (fallbackBridge != null) {
                 onAttachBridge(fallbackBridge)
-                onSessionReady()
+                if (announceReady) onSessionReady()
                 onOperationError(
                     ChatOperationError(
                         message =

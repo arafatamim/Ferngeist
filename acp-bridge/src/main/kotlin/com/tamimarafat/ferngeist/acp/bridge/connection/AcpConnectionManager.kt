@@ -88,6 +88,21 @@ class AcpConnectionManager(
         return initialize()
     }
 
+    /**
+     * Connects the transport and runs the ACP initialize handshake without
+     * scheduling a background reconnect on failure. For short-lived listing
+     * surfaces (e.g. the session-list browser transport) where perpetual
+     * "Connecting..." after a failed handshake is worse than a single clear
+     * error. Chat facades keep using [connect] so backgrounded sessions keep
+     * streaming through transient drops.
+     *
+     * @return the initialize result, or null when connect or initialize failed.
+     */
+    suspend fun connectAndInitializeWithoutReconnect(config: AcpConnectionConfig): AcpInitializeResult? {
+        if (!orchestra.connectWithoutReconnect(config, resetState = ::resetConnectionState)) return null
+        return initialize()
+    }
+
     suspend fun initialize(): AcpInitializeResult? = orchestra.initialize()
 
     fun currentConnectionConfig(): AcpConnectionConfig? = orchestra.currentConnectionConfig()

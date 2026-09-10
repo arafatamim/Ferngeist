@@ -10,8 +10,6 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
@@ -61,6 +59,13 @@ data class SessionListPendingAuthentication(
     val authErrorMessage: String? = null,
     val gatewayRuntimeId: String? = null,
     val pendingAction: PendingAuthAction,
+    /**
+     * The transport that surfaced the challenge. When the session list
+     * borrowed a warm chat manager, that manager owns the gateway socket —
+     * authentication must run through it, never this screen's idle browser
+     * [AcpConnectionManager]. Null means the browser manager raised it.
+     */
+    val authManager: AcpConnectionManager? = null,
 )
 
 sealed interface PendingAuthAction {
@@ -75,7 +80,13 @@ sealed interface PendingAuthAction {
  * Coordinates session list data and ACP authentication flows.
  *
  * Converts ACP transport state into chat-domain diagnostics for UI rendering.
+ *
+ * Carries more functions than detekt's TooManyFunctions budget: the auth
+ * recovery flows (gateway runtime restart, env-var persistence, retry
+ * dispatch) are built from many small single-purpose helpers that read better
+ * split than merged. Suppressed here rather than force-merging cohesive flows.
  */
+@Suppress("TooManyFunctions")
 @HiltViewModel
 class SessionListViewModel
     @Inject
@@ -84,14 +95,13 @@ class SessionListViewModel
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val launchableTargetRepository: LaunchableTargetRepository,
         private val sessionRepository: SessionRepository,
-        private val factory: AcpConnectionManagerFactory,
         private val gatewayRepository: GatewayRepository,
         private val chatConnectionHub: ChatConnectionHub,
         private val authEnvValueStore: AuthEnvValueStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
         private val recentCwdStore: RecentCwdStore,
     ) : ViewModel() {
-        private val connectionManager: AcpConnectionManager = factory.create(viewModelScope)
+        private val connectionManager: AcpConnectionManager = chatConnectionHub.createBrowserManager(viewModelScope)
         val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
 
         val server: StateFlow<LaunchableTarget?> =
@@ -122,10 +132,9 @@ class SessionListViewModel
 
         /** Sessions currently holding a live gateway connection (for the row dot). */
         val liveSessionIds: StateFlow<Set<String>> =
-            chatConnectionHub.liveChats
-                .map { chats ->
-                    chats.filter { it.connected && it.serverId == serverId }.mapTo(mutableSetOf()) { it.sessionId }
-                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+            chatConnectionHub
+                .connectedSessionIds(serverId)
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -135,14 +144,13 @@ class SessionListViewModel
         private val _refreshing = MutableStateFlow(false)
         val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
         val connectionState: StateFlow<ChatConnectionState> =
-            connectionManager.connectionState
-                .map { state ->
-                    when (state) {
-                        is AcpConnectionState.Disconnected -> ChatConnectionState.Disconnected
-                        is AcpConnectionState.Connecting -> ChatConnectionState.Connecting
-                        is AcpConnectionState.Connected -> ChatConnectionState.Connected
-                        is AcpConnectionState.Failed -> ChatConnectionState.Failed(state.error.message)
-                    }
+            chatConnectionHub.warmServers
+                .map { warmServers ->
+                    val warm = serverId in warmServers
+                    // One source of truth: hub-tracked chats holding live
+                    // transports. The screen's own browser socket hangs up
+                    // after every listing, so it must not drive the pill.
+                    if (warm) ChatConnectionState.Connected else ChatConnectionState.Disconnected
                 }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChatConnectionState.Disconnected)
         val agentCapabilities: StateFlow<AgentCapabilities?> =
             connectionManager.agentCapabilities
@@ -165,48 +173,179 @@ class SessionListViewModel
 
         private val _pendingAuthentication = MutableStateFlow<SessionListPendingAuthentication?>(null)
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
+        private var refreshJob: kotlinx.coroutines.Job? = null
 
         init {
+            refreshSessions()
+            viewModelScope.launch {
+                chatConnectionHub.warmServers.collect { warmServers ->
+                    val hasWarmHub = serverId in warmServers
+                    if (hasWarmHub && _isLoading.value && sessions.value.isNotEmpty()) {
+                        android.util.Log.d(
+                            "TSList",
+                            "warm hub appeared — cancelling stale isLoading sessions=${sessions.value.size}",
+                        )
+                        refreshJob?.cancel()
+                        _isLoading.value = false
+                        _refreshing.value = false
+                    }
+                }
+            }
+        }
+
+        /**
+         * Resume-path refresh: skip when a hot chat owns the socket so the list
+         * never opens a competing browser transport on the way back from chat.
+         * Room already holds the last list; the warm entry keeps it live.
+         */
+        fun refreshSessionsIfCold() {
+            if (findWarmChatManager() != null) return
             refreshSessions()
         }
 
         /**
          * Refreshes the session list, handling auth gating and capability checks.
          *
+         * When a hub-tracked chat owns the gateway's single-attach slot, the
+         * list is fetched through that warm transport; otherwise the screen's
+         * own browser transport connects, lists, then hangs up.
+         *
          * @param isUserInitiated true when triggered by pull-to-refresh gesture;
          *   sets [refreshing] so the pull indicator shows only on user drag.
          */
-        @OptIn(UnstableApi::class)
         fun refreshSessions(isUserInitiated: Boolean = false) {
-            viewModelScope.launch {
-                try {
-                    // The list owns its browser transport (per-instance manager);
-                    // connect it before listing — nothing else connects it for us.
-                    if (!connectIfNeeded()) return@launch
-                    if (!connectionManager.isConnected) return@launch
-
-                    if (isUserInitiated) _refreshing.value = true
-                    _isLoading.value = true
-                    val settings = sessionSettingsRepository.getSettingsBlocking(serverId)
-                    val cwd = settings?.cwd?.trim()?.ifBlank { null }
-                    runCatching {
-                        connectionManager.listSessions(cwd = cwd)
-                    }.onSuccess { remoteSessions ->
-                        replaceSessions(remoteSessions)
-                    }.onFailure { error ->
-                        if (handleAuthenticationRequired(error, PendingAuthAction.RefreshSessions)) {
-                            return@launch
+            refreshJob?.cancel()
+            refreshJob =
+                viewModelScope.launch {
+                    try {
+                        val settings = sessionSettingsRepository.getSettingsBlocking(serverId)
+                        val cwd = settings?.cwd?.trim()?.ifBlank { null }
+                        val warm = findWarmChatManager()
+                        if (warm != null) {
+                            // A hot chat owns the gateway's single-attach slot:
+                            // borrow it so the list never competes — and leave our
+                            // browser socket DOWN, else its reconnect evicts the
+                            // chat socket right after this refresh succeeds.
+                            hangUpBrowserSocket()
+                            listViaWarmChat(warm, cwd, isUserInitiated)
+                        } else {
+                            listViaBrowser(cwd, isUserInitiated)
                         }
-                        _events.emit(
-                            SessionListEvent.ShowError(formatAcpErrorMessage(error, "Failed to load sessions")),
-                        )
+                    } finally {
+                        _isLoading.value = false
+                        _refreshing.value = false
                     }
-                } finally {
-                    // Centralised cleanup replaces 3 duplicated _isLoading = false sites.
-                    _isLoading.value = false
-                    _refreshing.value = false
                 }
+        }
+
+        /**
+         * Lists sessions through [warm], a hub-tracked chat transport that owns
+         * the gateway's single-attach slot while a chat is open. The caller has
+         * already dropped this screen's browser socket so it cannot evict the
+         * chat. Never disconnects [warm] — the chat owns it.
+         */
+        @OptIn(UnstableApi::class)
+        private suspend fun listViaWarmChat(
+            warm: AcpConnectionManager,
+            cwd: String?,
+            isUserInitiated: Boolean,
+        ) {
+            val warmCapabilities = warm.agentCapabilities.value
+            if (warmCapabilities != null && warmCapabilities.sessionCapabilities.list == null) return
+            if (isUserInitiated) _refreshing.value = true
+            _isLoading.value = true
+            runCatching { warm.listSessions(cwd = cwd) }
+                .onSuccess { remoteSessions ->
+                    sessionRepository.replaceSessions(serverId, remoteSessions)
+                }.onFailure { error ->
+                    val needsAuth =
+                        handleAuthenticationRequired(
+                            error,
+                            PendingAuthAction.RefreshSessions,
+                            warm,
+                        )
+                    if (needsAuth) return
+                    _events.emit(
+                        SessionListEvent.ShowError(
+                            formatAcpErrorMessage(error, "Failed to load sessions"),
+                        ),
+                    )
+                }
+        }
+
+        /**
+         * Lists sessions over this screen's own browser transport, connecting
+         * on demand. Hangs the socket back up afterwards: an idle browser
+         * socket's reconnect loop would steal the gateway's single-attach slot
+         * from a chat opened next.
+         */
+        @OptIn(UnstableApi::class)
+        private suspend fun listViaBrowser(
+            cwd: String?,
+            isUserInitiated: Boolean,
+        ) {
+            if (!connectIfNeeded()) return
+            if (!connectionManager.isConnected) return
+            val capabilities = connectionManager.agentCapabilities.value
+            if (capabilities != null && capabilities.sessionCapabilities.list == null) return
+            if (isUserInitiated) _refreshing.value = true
+            _isLoading.value = true
+            runCatching { connectionManager.listSessions(cwd = cwd) }
+                .onSuccess { remoteSessions ->
+                    sessionRepository.replaceSessions(serverId, remoteSessions)
+                }.onFailure { error ->
+                    val needsAuth =
+                        handleAuthenticationRequired(error, PendingAuthAction.RefreshSessions)
+                    if (needsAuth) {
+                        hangUpBrowserSocket()
+                        return
+                    }
+                    _events.emit(
+                        SessionListEvent.ShowError(
+                            formatAcpErrorMessage(error, "Failed to load sessions"),
+                        ),
+                    )
+                }
+            // Idle browser socket's reconnect would steal the gateway's single-attach slot.
+            hangUpBrowserSocket()
+        }
+
+        /**
+         * A hub-tracked chat transport already connected for this server, or
+         * null. Listing through it avoids stealing the gateway's single-attach
+         * socket from a live chat. Never disconnect the returned manager.
+         */
+        private fun findWarmChatManager(): AcpConnectionManager? = chatConnectionHub.warmManagerFor(serverId)
+
+        /**
+         * Drops this screen's browser socket if it is up. An idle browser
+         * socket's reconnect loop would steal the gateway's single-attach slot
+         * from a chat opened next, so listing surfaces hang up after use.
+         */
+        private suspend fun hangUpBrowserSocket() {
+            if (connectionManager.isConnected) {
+                withContext(Dispatchers.IO) { connectionManager.disconnect() }
             }
+        }
+
+        /**
+         * Proactively hangs up the browser socket before opening a chat, so the
+         * chat's fresh attach never races a lingering list socket for the
+         * gateway's single-attach slot.
+         */
+        fun onChatOpened() {
+            refreshJob?.cancel()
+            _isLoading.value = false
+            _refreshing.value = false
+            if (connectionManager.isConnected) {
+                viewModelScope.launch { hangUpBrowserSocket() }
+            }
+        }
+
+        override fun onCleared() {
+            refreshJob?.cancel()
+            connectionManager.disconnect()
+            super.onCleared()
         }
 
         /**
@@ -259,8 +398,9 @@ class SessionListViewModel
                     }
                 val chatId = "$serverId/$sessionId"
                 runCatching {
-                    if (chatConnectionHub.liveChats.value.any { it.chatId == chatId }) {
+                    if (chatConnectionHub.isTracked(serverId, sessionId)) {
                         chatConnectionHub.close(chatId, endpoint)
+                        sessionRepository.setGatewaySessionId(serverId, sessionId, null)
                     } else {
                         gatewayRepository.closeSession(
                             endpoint.scheme,
@@ -287,15 +427,16 @@ class SessionListViewModel
         private suspend fun connectIfNeeded(): Boolean {
             if (connectionManager.isConnected) return true
 
+            // One-shot lookup: server.value is still null on first launch
+            // before Room emits, which falsely reported "Server was removed".
             val target =
-                server.value
+                launchableTargetRepository.getTarget(serverId)
                     ?: return showConnectError("Server was removed before connecting.")
-
             val config = buildConnectionConfig(target) ?: return false
 
             val initialized =
                 withContext(Dispatchers.IO) {
-                    connectionManager.connectAndInitialize(config)
+                    connectionManager.connectAndInitializeWithoutReconnect(config)
                 }
             return if (initialized == null) {
                 showConnectError(
@@ -401,7 +542,12 @@ class SessionListViewModel
                     return@launch
                 }
 
-                when (val result = connectionManager.authenticate(methodId)) {
+                // The challenge may have surfaced on a borrowed warm chat
+                // manager that owns the live socket; authenticate there, not on
+                // this screen's browser transport, which is disconnected while
+                // a warm chat holds the gateway's single-attach slot.
+                val authManager = pending.authManager ?: connectionManager
+                when (val result = authManager.authenticate(methodId)) {
                     is AcpAuthenticateResult.Failure -> {
                         _pendingAuthentication.update { it?.copy(authErrorMessage = result.message) }
                         _isLoading.value = false
@@ -411,7 +557,9 @@ class SessionListViewModel
                     AcpAuthenticateResult.Success -> Unit
                 }
 
-                savePreferredAuthMethod(serverId, methodId)
+                viewModelScope.launch(Dispatchers.IO) {
+                    launchableTargetRepository.updatePreferredAuthMethod(serverId, methodId)
+                }
                 _pendingAuthentication.value = null
                 retryPendingAction(pending.pendingAction)
             }
@@ -484,23 +632,12 @@ class SessionListViewModel
         }
 
         /**
-         * Replaces all stored sessions for the current server with the latest remote list.
-         *
-         * Uses the atomic DAO transaction so the Room flow emits the complete
-         * new list once — the previous clear-then-insert loop emitted an
-         * intermediate empty list that flashed the loading spinner over the
-         * list during refresh.
-         */
-        private suspend fun replaceSessions(newSessions: List<SessionSummary>) {
-            sessionRepository.replaceSessions(serverId, newSessions)
-        }
-
-        /**
          * Builds and surfaces a pending authentication model when ACP requires auth.
          */
         private suspend fun handleAuthenticationRequired(
             error: Throwable,
             action: PendingAuthAction,
+            listingManager: AcpConnectionManager = connectionManager,
         ): Boolean {
             // ACP auth is session-gated. initialize() only advertises methods; the first
             // session action failure is what opens the authentication prompt.
@@ -515,8 +652,9 @@ class SessionListViewModel
                     preferredAuthMethodId = currentServer.preferredAuthMethodId,
                     persistedEnvValues = loadPersistedEnvValues(currentServer.id, authError.challenge.authMethods),
                     authErrorMessage = authError.challenge.message,
-                    gatewayRuntimeId = connectionManager.currentConnectionConfig()?.gatewayRuntimeId,
+                    gatewayRuntimeId = listingManager.currentConnectionConfig()?.gatewayRuntimeId,
                     pendingAction = action,
+                    authManager = listingManager,
                 )
             _isLoading.value = false
             return true
@@ -628,13 +766,17 @@ class SessionListViewModel
                     return null
                 }
 
+            // The manager that owns the socket is the one that raised the
+            // challenge (a borrowed warm chat transport when warm-borrowed);
+            // restart its transport against the new runtime handoff.
+            val transport = pending.authManager ?: connectionManager
             withContext(Dispatchers.IO) {
-                connectionManager.disconnect()
+                transport.disconnect()
             }
 
             val reconnected =
                 withContext(Dispatchers.IO) {
-                    connectionManager.connect(
+                    transport.connect(
                         AcpConnectionConfig(
                             scheme = gatewaySource.scheme,
                             host = gatewaySource.host,
@@ -685,9 +827,12 @@ class SessionListViewModel
                     envValues = envValues,
                 ) ?: return
 
+            // Keep the whole env-auth sequence on the transport that owns the
+            // socket — the same manager restartAndReconnect just reconnected.
+            val transport = pending.authManager ?: connectionManager
             val initializeResult =
                 withContext(Dispatchers.IO) {
-                    connectionManager.initialize()
+                    transport.initialize()
                 }
             if (initializeResult == null) {
                 _pendingAuthentication.update {
@@ -700,7 +845,7 @@ class SessionListViewModel
                 return
             }
 
-            when (val result = connectionManager.authenticate(method.id)) {
+            when (val result = transport.authenticate(method.id)) {
                 is AcpAuthenticateResult.Failure -> {
                     _pendingAuthentication.update {
                         it?.copy(authErrorMessage = result.message, gatewayRuntimeId = handoff.runtimeId)
@@ -712,7 +857,9 @@ class SessionListViewModel
                 AcpAuthenticateResult.Success -> Unit
             }
 
-            savePreferredAuthMethod(currentServer.id, method.id)
+            viewModelScope.launch(Dispatchers.IO) {
+                launchableTargetRepository.updatePreferredAuthMethod(currentServer.id, method.id)
+            }
             _pendingAuthentication.value = null
             retryPendingAction(pending.pendingAction)
         }
@@ -780,16 +927,6 @@ class SessionListViewModel
                         put(envVar.name, value)
                     }
                 }
-            }
-        }
-
-        /** Stores the last successful auth method as a per-target preference. */
-        private fun savePreferredAuthMethod(
-            targetId: String,
-            methodId: String,
-        ) {
-            viewModelScope.launch(Dispatchers.IO) {
-                launchableTargetRepository.updatePreferredAuthMethod(targetId, methodId)
             }
         }
     }

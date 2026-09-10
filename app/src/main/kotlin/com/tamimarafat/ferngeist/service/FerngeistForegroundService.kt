@@ -12,8 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
-import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,11 +25,15 @@ import javax.inject.Inject
 /**
  * Foreground service that owns the persistent connection notification.
  *
- * Lifecycle is driven by [AcpManagerRegistry.anyConnected]: while any ACP
- * manager in the process is connected the service keeps running, and when the
- * aggregate goes inactive it self-stops. The service no longer owns a private
+ * Lifecycle is driven by [ChatConnectionHub.anyActive]: while any ACP manager
+ * in the process is connected or mid-connect the service keeps running, and
+ * when the aggregate goes fully idle it self-stops. Keying on anyActive rather
+ * than anyConnected keeps the service alive through Connecting windows, so a
+ * transient reconnect never tears the notification down between attempts. The
+ * service no longer owns a private
  * [com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager]
- * (per-instance managers are owned by their screens); it observes the registry.
+ * (per-instance managers are owned by their screens); it observes the hub, whose
+ * [ChatConnectionHub.tapTarget] also supplies the notification's deep-link target.
  *
  * Notification text is minimal: the aggregate has no single agent name or
  * failure detail, so the notification renders the generic connected/connecting/
@@ -60,10 +63,7 @@ class FerngeistForegroundService : Service() {
     }
 
     @Inject
-    lateinit var acpManagerRegistry: AcpManagerRegistry
-
-    @Inject
-    lateinit var activeChatStore: ActiveChatStore
+    lateinit var chatConnectionHub: ChatConnectionHub
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var observationJob: Job? = null
@@ -123,7 +123,7 @@ class FerngeistForegroundService : Service() {
     private fun ensureForegroundStarted() {
         if (isStarted) return
         isStarted = true
-        val notification = buildNotification(acpManagerRegistry.anyConnected.value)
+        val notification = buildNotification(chatConnectionHub.anyConnected.value)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING)
         } else {
@@ -134,11 +134,11 @@ class FerngeistForegroundService : Service() {
     }
 
     /**
-     * Returns true when any manager is connected, warranting continued
-     * observation. Returns false for a fully idle process, signaling the
-     * caller to self-stop.
+     * Returns true when any manager is connected or connecting, warranting
+     * continued observation. Returns false for a fully idle process, signaling
+     * the caller to self-stop.
      */
-    private fun shouldContinueObserving(): Boolean = acpManagerRegistry.anyConnected.value
+    private fun shouldContinueObserving(): Boolean = chatConnectionHub.anyActive.value
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -154,20 +154,32 @@ class FerngeistForegroundService : Service() {
         observationJob =
             scope.launch {
                 launch {
-                    acpManagerRegistry.anyConnected
-                        .collect { anyConnected ->
+                    // Stop only when the aggregate is fully idle — no manager
+                    // Connected or Connecting. Connecting windows (transient
+                    // reconnects) keep the service alive.
+                    chatConnectionHub.anyActive
+                        .collect { anyActive ->
                             if (!isStarted) return@collect
-                            updateNotification(anyConnected)
-                            if (!anyConnected) stopSelf()
+                            if (!anyActive) stopSelf()
                         }
                 }
                 launch {
-                    // Keep the notification's deep-link target in sync with the
-                    // chat the user is currently viewing.
-                    activeChatStore.activeChat
+                    // Notification title tracks actual connectivity, not the
+                    // connecting window that merely keeps the service alive.
+                    chatConnectionHub.anyConnected
+                        .collect { anyConnected ->
+                            if (!isStarted) return@collect
+                            updateNotification(anyConnected)
+                        }
+                }
+                launch {
+                    // Keep the notification's deep-link target in sync with the chat
+                    // the user is currently viewing (falling back to the most recently
+                    // focused pooled chat after back-out).
+                    chatConnectionHub.tapTarget
                         .collect {
                             if (!isStarted) return@collect
-                            updateNotification(acpManagerRegistry.anyConnected.value)
+                            updateNotification(chatConnectionHub.anyConnected.value)
                         }
                 }
             }
@@ -181,20 +193,26 @@ class FerngeistForegroundService : Service() {
     }
 
     /**
-     * Builds the notification's tap target. When a chat session is active it
-     * carries deep-link extras so [MainActivity] navigates straight to that chat;
-     * otherwise it opens the app's default screen. [PendingIntent.FLAG_UPDATE_CURRENT]
-     * keeps the extras current as the active chat changes.
+     * Builds the notification's tap target. When the hub tracks a chat it carries
+     * deep-link extras so [MainActivity] navigates straight to that chat; otherwise it
+     * opens the app's default screen. [PendingIntent.FLAG_UPDATE_CURRENT] keeps the
+     * extras current as the tracked chat changes.
+     *
+     * Title is intentionally omitted: it is Room-resolved on open ([MainActivity]
+     * tolerates its absence). The gateway identity travels as [EXTRA_GATEWAY_ID] so
+     * push suppression on the opened chat is gateway-exact.
      */
     private fun buildContentIntent(): PendingIntent {
         val intent =
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-                activeChatStore.activeChat.value?.let { chat ->
-                    putExtra(EXTRA_SERVER_ID, chat.serverId)
-                    putExtra(EXTRA_SESSION_ID, chat.sessionId)
-                    putExtra(EXTRA_CWD, chat.cwd)
-                    putExtra(EXTRA_TITLE, chat.title)
+                chatConnectionHub.tapTarget.value?.let { presence ->
+                    putExtra(EXTRA_SERVER_ID, presence.serverId)
+                    putExtra(EXTRA_SESSION_ID, presence.sessionId)
+                    // ponytail: a pooled entry that was never screen-opened carries an
+                    // empty cwd, so its deep link lands on the default working dir.
+                    putExtra(EXTRA_CWD, presence.cwd)
+                    putExtra(EXTRA_GATEWAY_ID, presence.gatewaySourceId)
                 }
             }
         return PendingIntent.getActivity(

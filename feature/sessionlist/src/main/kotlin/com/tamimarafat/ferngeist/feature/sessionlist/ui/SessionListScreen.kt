@@ -84,6 +84,8 @@ import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
@@ -135,6 +137,10 @@ fun SessionListScreen(
 ) {
     val state = rememberSessionListState(viewModel, navArgName, loadedName)
     val currentCwd = state.currentCwd
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshSessionsIfCold()
+    }
 
     SessionListEventEffects(
         viewModel = viewModel,
@@ -193,6 +199,7 @@ fun SessionListScreen(
             }
         },
         onRefresh = { viewModel.refreshSessions(isUserInitiated = true) },
+        onChatOpened = viewModel::onChatOpened,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
     )
@@ -362,6 +369,7 @@ private fun SessionListScaffold(
     onCloseSession: (String) -> Unit,
     createSession: () -> Unit,
     onRefresh: () -> Unit,
+    onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -406,6 +414,7 @@ private fun SessionListScaffold(
                 onNavigateToChat = onNavigateToChat,
                 onCloseSession = onCloseSession,
                 createSession = createSession,
+                onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
             )
@@ -612,6 +621,7 @@ private fun SessionListContent(
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     onCloseSession: (String) -> Unit,
     createSession: () -> Unit,
+    onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -637,6 +647,7 @@ private fun SessionListContent(
                 liveSessionIds = state.liveSessionIds,
                 onCloseSession = onCloseSession,
                 onNavigateToChat = onNavigateToChat,
+                onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
             )
@@ -751,6 +762,7 @@ private fun SessionListLazyColumn(
     liveSessionIds: Set<String>,
     onCloseSession: (String) -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -780,6 +792,7 @@ private fun SessionListLazyColumn(
                     isLive = session.id in liveSessionIds,
                     onLongPress = { onCloseSession(session.id) },
                     onClick = {
+                        onChatOpened()
                         onNavigateToChat(
                             session.id,
                             session.cwd ?: "",

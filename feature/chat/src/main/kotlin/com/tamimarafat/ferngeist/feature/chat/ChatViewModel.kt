@@ -22,11 +22,10 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.store.ActiveChat
-import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,7 +52,6 @@ class ChatViewModel
         private val sessionRepository: SessionRepository,
         private val chatScrollStateStore: ChatScrollStateStore,
         val recentSelectionStore: RecentSelectionStore,
-        private val activeChatStore: ActiveChatStore,
         private val chatConnectionHub: ChatConnectionHub,
         private val gatewayRepository: GatewayRepository,
         savedStateHandle: SavedStateHandle,
@@ -70,7 +68,17 @@ class ChatViewModel
         private val sessionUpdatedAt: Long? = savedStateHandle.get<Long>("updatedAt")?.takeIf { it > 0L }
         private val sessionTitle: String =
             savedStateHandle.get<String>("title")?.let { Uri.decode(it) }.orEmpty()
-        private val gatewayId: String? = savedStateHandle.get<String>("gatewayId")?.let { Uri.decode(it) }
+
+        /**
+         * Session id this chat's hub presence is tracked under (deep-link and
+         * push-suppression identity). Matches the nav-arg [sessionId] except for
+         * create-on-arrival chats, whose nav arg is still the [NEW_SESSION_ARG]
+         * sentinel until the facade mints a real session; the
+         * [sessionFacade.liveChatId] collector promotes this and re-opens hub
+         * presence under the real id once that happens.
+         */
+        private var trackedSessionId: String = sessionId
+
         private val sessionFacade: ChatSessionFacade =
             sessionFacadeFactory.create(
                 scope = viewModelScope,
@@ -240,37 +248,40 @@ class ChatViewModel
 
         init {
             updateState { copy(serverId = serverId) }
-            // Record this as the active chat so the connection notification deep-links
-            // back here instead of dropping the user on the home screen.
-            activeChatStore.setActiveChat(
-                ActiveChat(
-                    serverId = serverId,
-                    sessionId = sessionId,
-                    cwd = cwd,
-                    title = sessionTitle,
-                    gatewayId = gatewayId,
-                ),
-            )
+            // Announce this chat's screen presence to the hub so the connection
+            // notification deep-links back here instead of dropping the user on
+            // the home screen. A create-on-arrival chat still holds the __new__
+            // nav-arg sentinel here and is refused by the hub (it is a nav
+            // placeholder, not a chat identity); its presence opens under the
+            // real session id once the facade's liveChatId collector promotes it.
+            if (sessionId != NEW_SESSION_ARG) {
+                chatConnectionHub.chatScreenOpened(serverId, sessionId, cwd)
+            }
             resolveSessionTitle()
             viewModelScope.launch {
                 val snapshot = chatScrollStateStore.restore(serverId, sessionId)
                 updateState { copy(restoredScrollSnapshot = snapshot) }
             }
             viewModelScope.launch {
-                // Pin this chat as the hub's focused entry whenever it attaches,
-                // and record which gateway session owns it so cold closes and
-                // reattaches can find it after process death.
+                // The transport entry (created by the facade's register) becomes
+                // screen-open for real ids here. Existing-session chats were already
+                // announced in init; create-on-arrival chats still hold the __new__
+                // sentinel nav arg and only become a real chat when the facade mints
+                // a session, so this second open is an idempotent screen-on merge
+                // under the real id — there is no store re-key or hub focus anymore.
                 sessionFacade.liveChatId.collect { chatId ->
                     if (chatId != null) {
-                        chatConnectionHub.focus(chatId)
-                        val gatewaySessionId =
-                            chatConnectionHub.liveChats.value
-                                .firstOrNull { it.chatId == chatId }
-                                ?.gatewaySessionId
+                        if (trackedSessionId == NEW_SESSION_ARG) {
+                            trackedSessionId = chatId.substringAfter('/')
+                            chatConnectionHub.chatScreenOpened(serverId, trackedSessionId, cwd)
+                        }
+                        // chatId is "$serverId/$sessionId" and carries the REAL
+                        // session id even for create-on-arrival chats, where the
+                        // nav arg is still the __new__ sentinel. Record which
+                        // gateway session owns it so cold closes and reattaches
+                        // can find it after process death.
+                        val gatewaySessionId = chatConnectionHub.gatewaySessionIdFor(chatId)
                         if (gatewaySessionId != null) {
-                            // chatId is "$serverId/$sessionId" and carries the REAL
-                            // session id even for create-on-arrival chats, where the
-                            // nav arg is still the __new__ sentinel.
                             val realSessionId = chatId.substringAfter('/')
                             withContext(Dispatchers.IO) {
                                 sessionRepository.setGatewaySessionId(serverId, realSessionId, gatewaySessionId)
@@ -280,7 +291,7 @@ class ChatViewModel
                 }
             }
             viewModelScope.launch {
-                sessionCoordinator.loadSession()
+                sessionCoordinator.attachCachedThenLoad()
             }
             viewModelScope.launch {
                 sessionFacade.connectionState.collect { connectionState ->
@@ -462,15 +473,6 @@ class ChatViewModel
                 val resolved = sessionRepository.getSession(serverId, sessionId)?.title
                 if (!resolved.isNullOrBlank() && state.value.title.isNullOrBlank()) {
                     updateState { copy(title = resolved) }
-                    activeChatStore.setActiveChat(
-                        ActiveChat(
-                            serverId = serverId,
-                            sessionId = sessionId,
-                            cwd = cwd,
-                            title = resolved,
-                            gatewayId = gatewayId,
-                        ),
-                    )
                 }
             }
         }
@@ -568,15 +570,6 @@ class ChatViewModel
         private suspend fun applyServerTitle(serverTitle: String?) {
             if (serverTitle.isNullOrBlank() || !state.value.title.isNullOrBlank()) return
             updateState { copy(title = serverTitle) }
-            activeChatStore.setActiveChat(
-                ActiveChat(
-                    serverId = serverId,
-                    sessionId = sessionId,
-                    cwd = cwd,
-                    title = serverTitle,
-                    gatewayId = gatewayId,
-                ),
-            )
             sessionRepository.updateSessionTitle(
                 serverId = serverId,
                 sessionId = sessionId,
@@ -587,14 +580,14 @@ class ChatViewModel
         override fun onCleared() {
             markdownStateStore.dispose()
             sessionCoordinator.clear()
-            // Stop hub tracking for this chat. The gateway session itself stays
-            // alive (resilient); the transport is torn down by the factory's
-            // scope-completion hook.
-            sessionFacade.liveChatId.value?.let(chatConnectionHub::unregister)
-            // Drop the active-chat record when the user leaves this chat, so push
-            // suppression keys off the session actually on screen rather than the last
-            // one opened. clearIfCurrent() no-ops if another chat is already active.
-            activeChatStore.clearIfCurrent(sessionId)
+            // Leaving the screen drops this chat's screen presence: the pooled
+            // transport entry survives (screenOpen=false) as the notification
+            // tap target until the hub evicts it via LRU pressure or an explicit
+            // session-list close, so a backgrounded chat keeps streaming and the
+            // tap can still return to it. A screen that never attached a
+            // transport (create-on-arrival that failed to mint) has no pooled
+            // entry, so chatScreenClosed is a no-op there.
+            chatConnectionHub.chatScreenClosed(serverId, trackedSessionId)
         }
 
         /**

@@ -4,10 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
-import com.tamimarafat.ferngeist.acp.bridge.connection.DefaultAcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
@@ -17,7 +14,6 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.store.ActiveChatStore
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRepositoryImpl
@@ -70,6 +66,7 @@ object AppModule {
                 MIGRATION_11_12,
                 MIGRATION_12_13,
                 MIGRATION_13_14,
+                MIGRATION_14_15,
             ).fallbackToDestructiveMigration(false)
             .build()
 
@@ -135,54 +132,35 @@ object AppModule {
     @Singleton
     fun provideApplicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** Tracks every ACP manager created in-process; powers aggregate observers. */
+    /** Tracks every open chat's connection; owns every ACP manager lifetime in the process. */
     @Provides
     @Singleton
-    fun provideAcpManagerRegistry(applicationScope: CoroutineScope): AcpManagerRegistry =
-        AcpManagerRegistry(applicationScope)
-
-    /** Builds independent ACP connection managers — one per chat or browser surface. */
-    @Provides
-    @Singleton
-    fun provideAcpConnectionManagerFactory(
+    fun provideChatConnectionHub(
         @ApplicationContext context: Context,
         gatewayRepository: GatewayRepository,
-        registry: AcpManagerRegistry,
-    ): AcpConnectionManagerFactory =
-        DefaultAcpConnectionManagerFactory(
-            connectivityObserver = AndroidConnectivityObserver(context),
+        applicationScope: CoroutineScope,
+    ): ChatConnectionHub =
+        ChatConnectionHub(
             gatewayRepository = gatewayRepository,
-            registry = registry,
+            scope = applicationScope,
+            connectivityObserver = AndroidConnectivityObserver(context),
         )
-
-    /** Tracks every open chat's connection; enforces the hot-cap and gateway-capacity policies. */
-    @Provides
-    @Singleton
-    fun provideChatConnectionHub(gatewayRepository: GatewayRepository): ChatConnectionHub =
-        ChatConnectionHub(gatewayRepository = gatewayRepository)
 
     /** Supplies the chat-session facade factory backed by ACP. */
     @Provides
     @Singleton
     fun provideChatSessionFacadeFactory(
-        managerFactory: AcpConnectionManagerFactory,
         launchableTargetRepository: LaunchableTargetRepository,
         gatewaySourceRepository: GatewaySourceRepository,
         gatewayRepository: GatewayRepository,
         hub: ChatConnectionHub,
     ): ChatSessionFacadeFactory =
         AcpChatSessionFacadeFactory(
-            managerFactory = managerFactory,
+            hub = hub,
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,
-            hub = hub,
         )
-
-    /** Tracks the most recently opened chat so the connection notification can deep-link to it. */
-    @Provides
-    @Singleton
-    fun provideActiveChatStore(): ActiveChatStore = ActiveChatStore()
 
     /** Registers this device's FCM push token with every paired gateway. */
     @Provides
@@ -569,6 +547,13 @@ private val MIGRATION_13_14 =
     object : Migration(13, 14) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // No schema change — version bump only
+        }
+    }
+
+private val MIGRATION_14_15 =
+    object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE sessions ADD COLUMN gatewaySessionId TEXT")
         }
     }
 

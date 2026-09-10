@@ -7,7 +7,6 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
@@ -106,15 +105,15 @@ class ServerListViewModel
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val launchableTargetRepository: LaunchableTargetRepository,
         private val sessionRepository: SessionRepository,
-        private val factory: AcpConnectionManagerFactory,
         private val gatewayRepository: GatewayRepository,
         private val authEnvValueStore: AuthEnvValueStore,
         private val agentLaunchConsentStore: AgentLaunchConsentStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
         private val recentCwdStore: RecentCwdStore,
         private val recentSelectionStore: RecentSelectionStore,
+        private val chatConnectionHub: com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub,
     ) : ViewModel() {
-        private val connectionManager: AcpConnectionManager = factory.create(viewModelScope)
+        private val connectionManager: AcpConnectionManager = chatConnectionHub.createBrowserManager(viewModelScope)
         val servers: StateFlow<List<LaunchableTarget>> =
             launchableTargetRepository
                 .getTargets()
@@ -125,9 +124,13 @@ class ServerListViewModel
                 .getGateways()
                 .map { gateways -> gateways.isNotEmpty() }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+        /** Server ids with a live hub-tracked chat. Dots track this, not the verification socket. */
+        val liveServerIds: StateFlow<Set<String>> =
+            chatConnectionHub.warmServers
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         val recentSessions: StateFlow<List<RecentSession>> =
             sessionRepository
@@ -209,6 +212,13 @@ class ServerListViewModel
             return false
         }
 
+        /**
+         * True when a hub-tracked chat for this server still holds a live
+         * transport. Its socket is already initialized, so the tap path must
+         * not open a competing handshake.
+         */
+        private fun hasWarmHubChat(serverId: String): Boolean = chatConnectionHub.warmManagerFor(serverId) != null
+
         fun connectAndOpenServer(server: LaunchableTarget) {
             viewModelScope.launch {
                 // REUSE GUARD: If already connected to this server (and no pending auth), skip re-connection
@@ -219,9 +229,17 @@ class ServerListViewModel
                     openConnectedServer(server.id, server.name)
                     return@launch
                 }
+                // A hub-tracked chat owns this agent's gateway slot: its transport
+                // is already connected+initialized, so skip the tap handshake —
+                // a fresh start+connect would steal the single-attach slot and
+                // evict the live chat socket (gateway logs the intentional
+                // CloseNow as "use of closed network connection").
+                if (hasWarmHubChat(server.id) && _uiState.value.pendingAuthentication == null) {
+                    openConnectedServer(server.id, server.name)
+                    return@launch
+                }
 
                 if (!hasLaunchConsent(server)) return@launch
-
                 // Gateway-backed agents should start from a fresh ACP transport. If we
                 // request a new gateway handoff before closing the existing socket,
                 // the old runtime can survive long enough to be reused, which some
@@ -390,6 +408,10 @@ class ServerListViewModel
                                 ),
                         )
                     }
+                    // The gateway allows one live attach per session: disconnect
+                    // this verification transport so it doesn't steal the slot from
+                    // a hot chat and trigger mutual reconnect-loops.
+                    connectionManager.disconnect()
                     openConnectedServer(server.id, server.name)
                 }
 
