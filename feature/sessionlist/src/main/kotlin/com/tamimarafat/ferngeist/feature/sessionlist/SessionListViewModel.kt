@@ -190,12 +190,12 @@ class SessionListViewModel
         }
 
         /**
-         * Resume-path refresh: skip when a hot chat owns the socket so the list
-         * never opens a competing browser transport on the way back from chat.
-         * Room already holds the last list; the warm entry keeps it live.
+         * Resume-path refresh. The hub picks its transport per call: a warm
+         * chat manager lists over the chat's own socket, otherwise it runs the
+         * browser listing — so this never opens a competing transport, and the
+         * list refreshes on resume without a manual pull.
          */
         fun refreshSessionsIfCold() {
-            if (chatConnectionHub.warmManagerFor(serverId) != null) return
             refreshSessions()
         }
 
@@ -234,9 +234,15 @@ class SessionListViewModel
                             }
 
                             is ListSessionsResult.Failed -> {
-                                _events.emit(
-                                    SessionListEvent.ShowError(result.message),
-                                )
+                                // Silent on an auto resume refresh with cached rows; a
+                                // warm socket mid-reconnect would otherwise toast on
+                                // every return from chat. Still loud for a pull-to-refresh
+                                // or when the user is looking at nothing.
+                                if (isUserInitiated || sessions.value.isEmpty()) {
+                                    _events.emit(
+                                        SessionListEvent.ShowError(result.message),
+                                    )
+                                }
                             }
                         }
                         syncHubObservables()
@@ -328,16 +334,12 @@ class SessionListViewModel
                             return@launch
                         }
                     }
-                val gatewaySessionId =
-                    sessions.value.firstOrNull { it.id == sessionId }?.gatewaySessionId
-                if (gatewaySessionId == null &&
-                    !chatConnectionHub.isTracked(serverId, sessionId)
-                ) {
-                    _events.emit(SessionListEvent.ShowError("This session has no live process to close."))
-                    return@launch
-                }
                 runCatching {
                     chatConnectionHub.closeSession(serverId, sessionId, endpoint)
+                }.onSuccess { closed ->
+                    if (!closed) {
+                        _events.emit(SessionListEvent.ShowError("This session has no live process to close."))
+                    }
                 }.onFailure { error ->
                     _events.emit(
                         SessionListEvent.ShowError(error.message ?: "Failed to close session."),

@@ -803,24 +803,29 @@ class ChatConnectionHub(
      * tracked close (REST DELETE + transport teardown); cold Room-known
      * sessions close the gateway session directly. Clears the recorded
      * gateway session id in both cases.
+     *
+     * Returns true when a tracked chat was closed or a known gateway session
+     * was deleted, false when nothing was left to close (untracked session the
+     * local store does not know, or an already-cleared gateway session id) so
+     * the caller can surface that instead of failing silently.
      */
     suspend fun closeSession(
         serverId: String,
         sessionId: String,
         endpoint: GatewayEndpoint,
-    ) {
+    ): Boolean {
         val chatId = chatIdFor(serverId, sessionId)
         val sessionRepository = sessionRepository
         if (isTracked(serverId, sessionId)) {
             close(chatId, endpoint)
             sessionRepository?.setGatewaySessionId(serverId, sessionId, null)
-            return
+            return true
         }
         val gatewaySessionId =
             sessionRepository?.getSession(serverId, sessionId)?.gatewaySessionId
         val repository = gatewayRepository
         if (sessionRepository == null || repository == null || gatewaySessionId == null) {
-            return
+            return false
         }
         repository.closeSession(
             scheme = endpoint.scheme,
@@ -829,6 +834,7 @@ class ChatConnectionHub(
             sessionId = gatewaySessionId,
         )
         sessionRepository.setGatewaySessionId(serverId, sessionId, null)
+        return true
     }
 
     /** Agent capabilities observed by the last listing for [serverId]. */
