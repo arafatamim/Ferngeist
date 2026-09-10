@@ -1,8 +1,13 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import com.tamimarafat.ferngeist.core.model.ChatFileData
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -167,7 +172,122 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             }
         }
 
+    @Test
+    fun `a delivered prompt leaves no durable copy behind`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("delivered"))
+            advanceUntilIdle()
+            assertEquals(1, store.restore("server_1", "session_1").size)
+
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            // The store removes the key once the queue is drained.
+            assertEquals(
+                emptyList<String>(),
+                store.restore("server_1", "session_1").map { it.text },
+            )
+            val messages = viewModel.state.value.pendingMessages
+            assertEquals(MessageDeliveryStatus.SENDING, messages.single().status)
+        }
+
+    @Test
+    fun `a flush cancelled mid-send keeps the prompt durable`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val facadeFactory = TestFacadeFactory { SuspendingSendFacade() }
+            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("survive"))
+            advanceUntilIdle()
+            assertEquals(1, store.restore("server_1", "session_1").size)
+
+            // Flush starts and blocks inside sendMessage, so the queue is empty in
+            // memory while the prompt is still the only thing holding it on disk.
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            // Tearing the screen down cancels the in-flight send.
+            viewModel.clearForTest()
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("survive"),
+                store.restore("server_1", "session_1").map { it.text },
+            )
+        }
+
+    @Test
+    fun `a prompt left by a torn-down new chat is not replayed into the next new chat`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            // Chat A: create-on-arrival, minted by the transport, torn down mid-send.
+            val facadeA = TestFacadeFactory { SuspendingSendFacade() }
+            val chatA =
+                createViewModel(
+                    facadeFactory = facadeA,
+                    pendingPromptStore = store,
+                    savedStateHandle = newChatSavedStateHandle(),
+                )
+            advanceUntilIdle()
+            facadeA.lastFacade.value?.emitLiveChatId("server_1/session_a")
+            advanceUntilIdle()
+
+            chatA.dispatch(ChatIntent.SendMessage("wipe the workspace"))
+            advanceUntilIdle()
+            facadeA.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+            chatA.clearForTest()
+            advanceUntilIdle()
+
+            // Chat B: the next create-on-arrival chat of the same server, which must
+            // not adopt chat A's prompt and dispatch it into its own session.
+            val facadeB = TestFacadeFactory { TestFacade(sendResult = true) }
+            val chatB =
+                createViewModel(
+                    facadeFactory = facadeB,
+                    pendingPromptStore = store,
+                    savedStateHandle = newChatSavedStateHandle(),
+                )
+            advanceUntilIdle()
+            facadeB.lastFacade.value?.emitLiveChatId("server_1/session_b")
+            facadeB.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            assertEquals(
+                emptyList<String>(),
+                chatB.state.value.pendingMessages
+                    .map { it.content },
+            )
+            assertEquals(emptyList<String>(), store.restore("server_1", "session_b").map { it.text })
+            // Nothing is left staged under the shared sentinel either.
+            assertEquals(emptyList<String>(), store.restore("server_1", NEW_SESSION_ARG).map { it.text })
+
+            // The prompt stays durable under the id chat A minted, so dropping it from
+            // the sentinel loses nothing.
+            assertEquals(
+                listOf("wipe the workspace"),
+                store.restore("server_1", "session_a").map { it.text },
+            )
+        }
+
     // region: Helpers
+
+    /** Nav args for a create-on-arrival chat, whose nav arg is the [NEW_SESSION_ARG] sentinel. */
+    private fun newChatSavedStateHandle(): SavedStateHandle =
+        SavedStateHandle(
+            mapOf(
+                "serverId" to "server_1",
+                "sessionId" to NEW_SESSION_ARG,
+                "cwd" to "/",
+            ),
+        )
 
     /**
      * Creates a view model, dispatches two messages ("A" then "B") while disconnected,
@@ -229,4 +349,17 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
     }
 
     // endregion
+}
+
+/**
+ * Facade whose [ChatSessionFacade.sendMessage] never returns, so a test can cancel the
+ * screen while a prompt is mid-dispatch. Models a transport that has been handed the
+ * prompt but has not yet resolved it.
+ */
+private class SuspendingSendFacade : TestFacade() {
+    override suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean = awaitCancellation()
 }

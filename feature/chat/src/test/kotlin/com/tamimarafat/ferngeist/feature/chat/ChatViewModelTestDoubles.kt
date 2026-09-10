@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
  * to inherit all no-op defaults, overriding only [sendMessage] (to control success/failure
  * per call) and [reconnect] (to track reconnect calls).
  */
-class TestFacade(
+open class TestFacade(
     private val sendResultProvider: () -> Boolean = { true },
 ) : FakeChatSessionFacade() {
     constructor(sendResult: Boolean) : this({ sendResult })
@@ -69,12 +69,17 @@ class TestFacadeFactory(
 ) : ChatSessionFacadeFactory {
     val lastFacade = MutableStateFlow<TestFacade?>(null)
 
+    /** Session id the ViewModel asked for; the sentinel means it will mint a new one. */
+    var lastRequestedSessionId: String? = null
+        private set
+
     override fun create(
         scope: CoroutineScope,
         serverId: String,
         sessionId: String,
         cwd: String,
     ): ChatSessionFacade {
+        lastRequestedSessionId = sessionId
         val facade = factory()
         lastFacade.value = facade
         return facade

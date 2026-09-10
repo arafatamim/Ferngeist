@@ -56,16 +56,29 @@ class ChatViewModel
         val recentSelectionStore: RecentSelectionStore,
         private val chatConnectionHub: ChatConnectionHub,
         private val gatewayRepository: GatewayRepository,
-        savedStateHandle: SavedStateHandle,
+        private val savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(initialChatState()) {
         companion object {
             private const val TRACE_TAG = "TSChatVM"
+
+            /**
+             * [SavedStateHandle] key holding the session id a create-on-arrival chat
+             * minted, so a rebuilt ViewModel reattaches to that session instead of
+             * minting a second one.
+             */
+            private const val KEY_MINTED_SESSION_ID = "mintedSessionId"
 
             private fun initialChatState(): ChatState = ChatState()
         }
 
         private val serverId: String = savedStateHandle["serverId"] ?: error("serverId is required")
         private val sessionId: String = savedStateHandle["sessionId"] ?: error("sessionId is required")
+
+        /**
+         * Real session id minted by a create-on-arrival chat, restored after process
+         * death. Null for ordinary chats, whose nav arg is already the real id.
+         */
+        private val mintedSessionId: String? = savedStateHandle[KEY_MINTED_SESSION_ID]
         val cwd: String = savedStateHandle["cwd"] ?: ""
         private val sessionUpdatedAt: Long? = savedStateHandle.get<Long>("updatedAt")?.takeIf { it > 0L }
         private val sessionTitle: String =
@@ -79,13 +92,28 @@ class ChatViewModel
          * [sessionFacade.liveChatId] collector promotes this and re-opens hub
          * presence under the real id once that happens.
          */
-        private var trackedSessionId: String = sessionId
+        private var trackedSessionId: String = mintedSessionId ?: sessionId
+
+        /**
+         * Identity for this chat's own local records (the durable prompt queue and
+         * the scroll snapshot), or null while the chat is still the
+         * [NEW_SESSION_ARG] sentinel.
+         *
+         * A create-on-arrival chat has no identity to key on until the facade mints
+         * one, and the sentinel is shared by every new chat of a server. A record
+         * written under it outlives the chat that wrote it and the *next* new chat
+         * restores it — replaying a prompt into a session it never belonged to.
+         * A newly minted id can never have a record of its own, so "no identity,
+         * nothing to restore" loses nothing.
+         */
+        private val durableSessionId: String?
+            get() = trackedSessionId.takeIf { it != NEW_SESSION_ARG }
 
         private val sessionFacade: ChatSessionFacade =
             sessionFacadeFactory.create(
                 scope = viewModelScope,
                 serverId = serverId,
-                sessionId = sessionId,
+                sessionId = trackedSessionId,
                 cwd = cwd,
             )
         private val markdownStateStore =
@@ -267,7 +295,7 @@ class ChatViewModel
             }
             resolveSessionTitle()
             viewModelScope.launch {
-                val snapshot = chatScrollStateStore.restore(serverId, sessionId)
+                val snapshot = durableSessionId?.let { chatScrollStateStore.restore(serverId, it) }
                 updateState { copy(restoredScrollSnapshot = snapshot) }
             }
             viewModelScope.launch { restorePendingPrompts() }
@@ -282,6 +310,11 @@ class ChatViewModel
                     if (chatId != null) {
                         if (trackedSessionId == NEW_SESSION_ARG) {
                             trackedSessionId = chatId.substringAfter('/')
+                            // Record the minted id where a rebuilt ViewModel reads it:
+                            // the nav arg stays the sentinel for this route's lifetime,
+                            // so without this a process death would re-enter the create
+                            // path and mint a second session for one user intent.
+                            savedStateHandle[KEY_MINTED_SESSION_ID] = trackedSessionId
                             chatConnectionHub.chatScreenOpened(serverId, trackedSessionId, cwd)
                         }
                         // chatId is "$serverId/$sessionId" and carries the REAL
@@ -641,7 +674,8 @@ class ChatViewModel
         private suspend fun restorePendingPrompts() {
             if (pendingPromptsRestored) return
             pendingPromptsRestored = true
-            val records = pendingPromptStore.restore(serverId, sessionId)
+            val queueId = durableSessionId ?: return
+            val records = pendingPromptStore.restore(serverId, queueId)
             if (records.isEmpty()) return
             records.forEach { record ->
                 offlineQueue.enqueue(
@@ -680,11 +714,12 @@ class ChatViewModel
          */
         private suspend fun persistQueue() {
             persistMutex.withLock {
+                val queueId = durableSessionId ?: return
                 val records =
                     offlineQueue.snapshot().map {
                         QueuedPromptRecord(it.clientId, it.text, it.images, it.files)
                     }
-                pendingPromptStore.save(serverId, sessionId, records)
+                pendingPromptStore.save(serverId, queueId, records)
             }
         }
 
@@ -794,9 +829,6 @@ class ChatViewModel
             flushMutex.withLock {
                 while (!offlineQueue.isEmpty) {
                     val prompt = offlineQueue.dequeue() ?: break
-                    // The prompt now lives in the SENDING bubble (and, once delivered, in the
-                    // server transcript), so it no longer needs to be persisted as queued.
-                    persistQueue()
                     // Transition QUEUED -> SENDING, keep the bubble visible.
                     inFlightClientId = prompt.clientId
                     updateState {
@@ -831,9 +863,15 @@ class ChatViewModel
                         }
                         emitEffect(ChatEffect.ShowError("Failed to send message"))
                     }
-                    // When dispatched=true, the bubble stays SENDING until the echoed
-                    // USER message appears in the snapshot (applySnapshot) or an
-                    // operationError fires.
+                    // Only now is the durable copy dropped, and deliberately not from a
+                    // finally: until the send resolves the stored snapshot still contains
+                    // this prompt, so a screen teardown mid-send (which cancels
+                    // sendMessage and skips this line) restores it as QUEUED rather than
+                    // losing it. The cost is that a process death between a successful
+                    // send and this write can re-send one prompt after restart
+                    // (at-least-once); the record carries its clientId, so an echo-based
+                    // dedupe could tighten that later if it ever matters.
+                    persistQueue()
                 }
             }
         }
@@ -881,7 +919,7 @@ class ChatViewModel
          */
         fun persistScrollSnapshot(snapshot: ChatScrollSnapshot) {
             viewModelScope.launch {
-                chatScrollStateStore.save(serverId, sessionId, snapshot)
+                durableSessionId?.let { chatScrollStateStore.save(serverId, it, snapshot) }
             }
             updateState {
                 if (restoredScrollSnapshot == snapshot) {
