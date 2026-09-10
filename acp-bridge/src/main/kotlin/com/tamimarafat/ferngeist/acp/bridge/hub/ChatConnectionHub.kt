@@ -470,20 +470,27 @@ class ChatConnectionHub(
 
     /**
      * Frees a device gateway-session slot before a spawn when the device cap
-     * is reached: closes the oldest active session not owned by a tracked
-     * chat. Throws when every session is spoken for.
+     * is reached: closes the oldest live session not owned by a tracked chat.
+     * Throws when every session is spoken for.
+     *
+     * "Live" means the gateway would still have to count it:
+     * [GatewaySessionSummary.isResumable], i.e. `active` or `disconnected`.
+     * A `disconnected` session still holds its runtime lease, so it occupies a
+     * slot exactly like an `active` one — counting only `active` would let the
+     * helper report a free slot that the gateway does not have, and the spawn
+     * would come back session-less.
      */
     override suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint) {
         val repository = gatewayRepository ?: throw IllegalStateException("No gateway repository available")
-        val active =
+        val live =
             repository
                 .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
-                .filter { it.status == STATUS_ACTIVE }
-        if (active.size < maxGatewaySessionsPerDevice) return
+                .filter { it.isResumable }
+        if (live.size < maxGatewaySessionsPerDevice) return
         val protected = gatewaySessionIds()
         // ponytail: createdAt is an ISO-8601 string, so lexicographic min = oldest; switch to parsed instants if the format ever varies
         val victim =
-            active
+            live
                 .filter { it.sessionId !in protected }
                 .minByOrNull { it.createdAt.orEmpty() }
                 ?: throw IllegalStateException("All $maxGatewaySessionsPerDevice gateway sessions are busy")
@@ -935,10 +942,6 @@ class ChatConnectionHub(
         _onScreenChat.value = onScreen?.toPresence()
         _tapTarget.value = (onScreen ?: ordered.firstOrNull())?.toPresence()
         revision.value += 1
-    }
-
-    private companion object {
-        const val STATUS_ACTIVE = "active"
     }
 }
 

@@ -3,6 +3,8 @@ package com.tamimarafat.ferngeist.data.database.repository
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -83,6 +85,32 @@ class SessionRepositoryImplGatewaySessionTest {
             assertEquals("gw-2", repository.getSession(SERVER_ID, "chat-b")?.gatewaySessionId)
         }
 
+    @Test
+    fun concurrentClaimsForOneGatewaySession_leaveExactlyOneOwner() =
+        runTest {
+            seedSession(sessionId = "chat-a")
+            seedSession(sessionId = "chat-b")
+
+            repeat(CLAIM_ROUNDS) {
+                // Two chats on one agent attach to the same gateway session at
+                // once. The claim is update-then-clear, so an interleaved pair
+                // would have each call clear the other's row and leave the
+                // gateway session owned by nobody.
+                val claims =
+                    listOf("chat-a", "chat-b").map { chat ->
+                        async { repository.setGatewaySessionId(SERVER_ID, chat, "gw-1") }
+                    }
+                claims.awaitAll()
+
+                val owners =
+                    listOf("chat-a", "chat-b")
+                        .filter { repository.getSession(SERVER_ID, it)?.gatewaySessionId == "gw-1" }
+                assertEquals("round $it must leave exactly one owner, got $owners", 1, owners.size)
+                repository.setGatewaySessionId(SERVER_ID, "chat-a", null)
+                repository.setGatewaySessionId(SERVER_ID, "chat-b", null)
+            }
+        }
+
     private suspend fun seedSession(
         sessionId: String,
         gatewaySessionId: String? = null,
@@ -101,5 +129,6 @@ class SessionRepositoryImplGatewaySessionTest {
 
     private companion object {
         const val SERVER_ID = "server-1"
+        const val CLAIM_ROUNDS = 25
     }
 }

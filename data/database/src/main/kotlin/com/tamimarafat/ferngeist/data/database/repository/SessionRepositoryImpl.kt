@@ -54,35 +54,16 @@ class SessionRepositoryImpl(
         sessionId: String,
         gatewaySessionId: String?,
     ) {
-        val updated =
-            sessionDao.updateGatewaySessionId(
-                sessionId = sessionId,
-                serverId = serverId,
-                gatewaySessionId = gatewaySessionId,
-            )
-        if (updated == 0 && gatewaySessionId != null) {
-            // Create-on-arrival chats can attach before any list refresh has
-            // inserted the row; seed a minimal one so the mapping survives.
-            sessionDao.upsertSession(
-                sessionId = sessionId,
-                serverId = serverId,
-                title = null,
-                cwd = null,
-                updatedAt = null,
-                gatewaySessionId = gatewaySessionId,
-            )
-        }
-        if (gatewaySessionId != null) {
-            // One gateway session serves one chat. Recording it here makes this
-            // row the owner, so any other row still pointing at the same session
-            // releases it — that stale claim would otherwise resume the session
-            // on a cold start and put two chats on one lease.
-            sessionDao.clearGatewaySessionClaim(
-                serverId = serverId,
-                gatewaySessionId = gatewaySessionId,
-                sessionId = sessionId,
-            )
-        }
+        // One gateway session serves one chat, so this both records the mapping
+        // and makes this row the sole owner — any other row pointing at the same
+        // session releases it, since a stale claim would otherwise resume the
+        // session on a cold start and put two chats on one lease. Atomicity is
+        // the DAO's job: see [SessionDao.setGatewaySessionId].
+        sessionDao.setGatewaySessionId(
+            serverId = serverId,
+            sessionId = sessionId,
+            gatewaySessionId = gatewaySessionId,
+        )
     }
 
     override suspend fun updateSessionTitle(
