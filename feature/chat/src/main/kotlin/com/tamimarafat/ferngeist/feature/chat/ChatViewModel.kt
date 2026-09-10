@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatCommand
@@ -51,6 +52,7 @@ class ChatViewModel
         private val chatScrollStateStore: ChatScrollStateStore,
         val recentSelectionStore: RecentSelectionStore,
         private val activeChatStore: ActiveChatStore,
+        private val chatConnectionHub: ChatConnectionHub,
         private val gatewayRepository: GatewayRepository,
         savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(initialChatState()) {
@@ -251,6 +253,12 @@ class ChatViewModel
             viewModelScope.launch {
                 val snapshot = chatScrollStateStore.restore(serverId, sessionId)
                 updateState { copy(restoredScrollSnapshot = snapshot) }
+            }
+            viewModelScope.launch {
+                // Pin this chat as the hub's focused entry whenever it attaches.
+                sessionFacade.liveChatId.collect { chatId ->
+                    if (chatId != null) chatConnectionHub.focus(chatId)
+                }
             }
             viewModelScope.launch {
                 sessionCoordinator.loadSession()
@@ -560,6 +568,10 @@ class ChatViewModel
         override fun onCleared() {
             markdownStateStore.dispose()
             sessionCoordinator.clear()
+            // Stop hub tracking for this chat. The gateway session itself stays
+            // alive (resilient); the transport is torn down by the factory's
+            // scope-completion hook.
+            sessionFacade.liveChatId.value?.let(chatConnectionHub::unregister)
             // Drop the active-chat record when the user leaves this chat, so push
             // suppression keys off the session actually on screen rather than the last
             // one opened. clearIfCurrent() no-ops if another chat is already active.

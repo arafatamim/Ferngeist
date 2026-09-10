@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import androidx.lifecycle.SavedStateHandle
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
@@ -55,6 +56,7 @@ open class ChatViewModelTestBase {
             chatScrollStateStore = chatScrollStateStore,
             recentSelectionStore = FakeRecentSelectionStore(),
             activeChatStore = ActiveChatStore(),
+            chatConnectionHub = ChatConnectionHub(gatewayRepository = null),
             gatewayRepository = gatewayRepository,
             savedStateHandle = savedStateHandle,
         )

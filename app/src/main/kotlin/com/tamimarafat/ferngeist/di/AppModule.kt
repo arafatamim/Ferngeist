@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerRegistry
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.DefaultAcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -154,6 +155,12 @@ object AppModule {
             registry = registry,
         )
 
+    /** Tracks every open chat's connection; enforces the hot-cap and gateway-capacity policies. */
+    @Provides
+    @Singleton
+    fun provideChatConnectionHub(gatewayRepository: GatewayRepository): ChatConnectionHub =
+        ChatConnectionHub(gatewayRepository = gatewayRepository)
+
     /** Supplies the chat-session facade factory backed by ACP. */
     @Provides
     @Singleton
@@ -162,12 +169,14 @@ object AppModule {
         launchableTargetRepository: LaunchableTargetRepository,
         gatewaySourceRepository: GatewaySourceRepository,
         gatewayRepository: GatewayRepository,
+        hub: ChatConnectionHub,
     ): ChatSessionFacadeFactory =
         AcpChatSessionFacadeFactory(
             managerFactory = managerFactory,
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,
+            hub = hub,
         )
 
     /** Tracks the most recently opened chat so the connection notification can deep-link to it. */
