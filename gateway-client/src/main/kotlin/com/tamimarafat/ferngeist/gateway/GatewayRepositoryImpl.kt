@@ -106,6 +106,7 @@ class GatewayRepositoryImpl
             host: String,
             gatewayCredential: String,
             agentId: String,
+            new: Boolean,
         ): GatewayRuntime {
             val response =
                 httpClient.postJson<GatewayStartAgentResponse>(
@@ -117,6 +118,7 @@ class GatewayRepositoryImpl
                     "agents",
                     agentId,
                     "start",
+                    body = buildStartAgentRequestBody(new),
                 )
             return response.runtime
         }
@@ -127,7 +129,6 @@ class GatewayRepositoryImpl
             gatewayCredential: String,
             runtimeId: String,
             sessionMode: String?,
-            new: Boolean,
         ): GatewayConnectResponse =
             httpClient.postJson(
                 json = json,
@@ -138,7 +139,7 @@ class GatewayRepositoryImpl
                 "runtimes",
                 runtimeId,
                 "connect",
-                body = buildConnectRequestBody(sessionMode = sessionMode, new = new),
+                body = buildConnectRequestBody(sessionMode = sessionMode),
             )
 
         override suspend fun resumeSession(
@@ -592,8 +593,8 @@ private fun buildGatewayEndpoint(
     return "$base?$encodedQuery"
 }
 
-/** Connect bodies must omit null fields regardless of the injected shared [Json] config. */
-private val connectRequestJson =
+/** Request bodies must omit null/false fields regardless of the injected shared [Json] config. */
+private val requestBodyJson =
     Json {
         encodeDefaults = false
         ignoreUnknownKeys = true
@@ -605,13 +606,20 @@ private val connectRequestJson =
  * than the injected shared instance (whose encodeDefaults default is true), making
  * the omission structural and independent of DI configuration.
  */
-internal fun buildConnectRequestBody(
-    sessionMode: String?,
-    new: Boolean,
-): String =
-    connectRequestJson.encodeToString(
-        GatewayConnectRequest(sessionMode = sessionMode, new = new.takeIf { it }),
-    )
+internal fun buildConnectRequestBody(sessionMode: String?): String =
+    requestBodyJson.encodeToString(GatewayConnectRequest(sessionMode = sessionMode))
+
+/**
+ * Serializes the start request body, or null when no body is needed: the
+ * gateway treats an absent body as `new = false`, so only the isolated-start
+ * case has anything to say.
+ */
+internal fun buildStartAgentRequestBody(new: Boolean): String? =
+    if (new) {
+        requestBodyJson.encodeToString(GatewayStartRequest(new = true))
+    } else {
+        null
+    }
 
 private fun normalizeControlScheme(scheme: String): String =
     when (scheme.trim().lowercase()) {

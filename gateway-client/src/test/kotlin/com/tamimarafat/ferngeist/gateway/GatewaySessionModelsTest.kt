@@ -66,13 +66,6 @@ class GatewaySessionModelsTest {
     }
 
     @Test
-    fun `connectRequest serializes new=true alongside sessionMode`() {
-        val req = GatewayConnectRequest(sessionMode = "resilient", new = true)
-        val raw = requestJson.encodeToString(GatewayConnectRequest.serializer(), req)
-        assertEquals("""{"sessionMode":"resilient","new":true}""", raw.trim())
-    }
-
-    @Test
     fun `connectRequest without sessionMode omits field`() {
         val req = GatewayConnectRequest()
         val raw = requestJson.encodeToString(GatewayConnectRequest.serializer(), req)
@@ -82,14 +75,18 @@ class GatewaySessionModelsTest {
     @Test
     fun `connect body omits null fields on the wire`() {
         assertEquals(
-            """{"sessionMode":"resilient","new":true}""",
-            buildConnectRequestBody(sessionMode = "resilient", new = true),
-        )
-        assertEquals(
             """{"sessionMode":"resilient"}""",
-            buildConnectRequestBody(sessionMode = "resilient", new = false),
+            buildConnectRequestBody(sessionMode = "resilient"),
         )
-        assertEquals("""{}""", buildConnectRequestBody(sessionMode = null, new = false))
+        assertEquals("""{}""", buildConnectRequestBody(sessionMode = null))
+    }
+
+    // A runtime leases one session, so the connect endpoint cannot isolate a
+    // chat: only /agents/{id}/start carries the flag that spawns a new runtime.
+    @Test
+    fun `start body requests an isolated runtime only when asked`() {
+        assertEquals("""{"new":true}""", buildStartAgentRequestBody(new = true))
+        assertNull(buildStartAgentRequestBody(new = false))
     }
 
     @Test
@@ -130,6 +127,7 @@ class GatewaySessionModelsTest {
                     host: String,
                     gatewayCredential: String,
                     agentId: String,
+                    new: Boolean,
                 ) = TODO()
 
                 override suspend fun connectRuntime(
@@ -138,7 +136,6 @@ class GatewaySessionModelsTest {
                     gatewayCredential: String,
                     runtimeId: String,
                     sessionMode: String?,
-                    new: Boolean,
                 ) = TODO()
 
                 override suspend fun restartRuntime(

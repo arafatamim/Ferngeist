@@ -50,6 +50,7 @@ class FakeGatewayRepository : GatewayRepository {
         host: String,
         gatewayCredential: String,
         agentId: String,
+        new: Boolean,
     ) = TODO()
 
     override suspend fun connectRuntime(
@@ -58,7 +59,6 @@ class FakeGatewayRepository : GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
         sessionMode: String?,
-        new: Boolean,
     ) = TODO()
 
     override suspend fun restartRuntime(

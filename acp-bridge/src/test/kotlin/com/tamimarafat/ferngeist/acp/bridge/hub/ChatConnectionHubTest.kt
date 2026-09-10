@@ -71,6 +71,7 @@ class ChatConnectionHubTest {
             host: String,
             gatewayCredential: String,
             agentId: String,
+            new: Boolean,
         ) = TODO("unused in hub tests")
 
         override suspend fun connectRuntime(
@@ -79,7 +80,6 @@ class ChatConnectionHubTest {
             gatewayCredential: String,
             runtimeId: String,
             sessionMode: String?,
-            new: Boolean,
         ) = TODO("unused in hub tests")
 
         override suspend fun restartRuntime(

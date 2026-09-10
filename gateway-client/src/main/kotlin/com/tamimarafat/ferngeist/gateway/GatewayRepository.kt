@@ -46,11 +46,17 @@ interface GatewayRuntimeRepository {
         gatewayCredential: String,
     ): List<GatewayAgent>
 
+    /**
+     * Starts a runtime for [agentId]. Pass [new] = true to spawn a distinct
+     * runtime rather than reusing an existing one — required to isolate a second
+     * concurrent chat, because a runtime leases exactly one session.
+     */
     suspend fun startAgent(
         scheme: String,
         host: String,
         gatewayCredential: String,
         agentId: String,
+        new: Boolean = false,
     ): GatewayRuntime
 
     suspend fun connectRuntime(
@@ -59,7 +65,6 @@ interface GatewayRuntimeRepository {
         gatewayCredential: String,
         runtimeId: String,
         sessionMode: String? = null,
-        new: Boolean = false,
     ): GatewayConnectResponse
 
     suspend fun restartRuntime(

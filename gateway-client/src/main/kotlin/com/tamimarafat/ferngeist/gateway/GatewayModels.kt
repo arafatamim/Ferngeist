@@ -142,8 +142,19 @@ data class GatewayPairStatusResponse(
 @Serializable
 data class GatewayConnectRequest(
     @SerialName("sessionMode") val sessionMode: String? = null,
-    // Forces a fresh runtime/process on connect, bypassing runtime reuse.
-    @SerialName("new") val new: Boolean? = null,
+)
+
+/**
+ * Body of `POST /v1/agents/{id}/start`.
+ *
+ * `new = true` makes the gateway spawn a distinct runtime instead of reusing
+ * an existing one for the agent. That is the only lever that isolates a second
+ * concurrent chat: the connect endpoint ignores this flag, because a runtime
+ * reuses the one session it leases.
+ */
+@Serializable
+data class GatewayStartRequest(
+    @SerialName("new") val new: Boolean,
 )
 
 @Serializable
@@ -173,7 +184,23 @@ data class GatewaySessionSummary(
     @SerialName("agentId") val agentId: String,
     val status: String,
     @SerialName("createdAt") val createdAt: String? = null,
-)
+) {
+    /**
+     * Whether the gateway will still resume this session.
+     *
+     * Mirrors the gateway's own check (`RuntimeSession.Resume` /
+     * `FindReconnectableByRuntime`): only an `active` or `disconnected` session
+     * holds a live runtime lease. Anything else (`failed`, `closing`) has a dead
+     * runtime behind it, so attaching to its `runtimeId` fails on connect.
+     */
+    val isResumable: Boolean
+        get() = status == STATUS_ACTIVE || status == STATUS_DISCONNECTED
+
+    private companion object {
+        const val STATUS_ACTIVE = "active"
+        const val STATUS_DISCONNECTED = "disconnected"
+    }
+}
 
 /**
  * Text file read response from `GET /v1/runtimes/{id}/files`. The gateway returns the ACP

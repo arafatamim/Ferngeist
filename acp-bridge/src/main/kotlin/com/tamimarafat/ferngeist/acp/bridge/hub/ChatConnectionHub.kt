@@ -401,6 +401,11 @@ class ChatConnectionHub(
             it.gatewaySourceId == gatewaySourceId && it.agentId == agentId && it.isConnected()
         }
 
+    override suspend fun persistedGatewaySessionId(
+        serverId: String,
+        sessionId: String,
+    ): String? = sessionRepository?.getSession(serverId, sessionId)?.gatewaySessionId
+
     /** All tracked gateway session ids — protected from capacity eviction. */
     fun gatewaySessionIds(): Set<String> = entries.values.mapNotNullTo(mutableSetOf()) { it.gatewaySessionId }
 

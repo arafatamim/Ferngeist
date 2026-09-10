@@ -20,6 +20,9 @@ data class GatewayLaunchResult(
     val handoff: GatewayConnectResponse,
 )
 
+/** Runtime status the gateway reports for a process it is currently holding. */
+private const val RUNTIME_STATUS_RUNNING = "running"
+
 /**
  * Starts (or reuses) the gateway runtime for [agentId] and requests the
  * runtime-scoped ACP WebSocket handoff — the two-stage launch every
@@ -27,6 +30,12 @@ data class GatewayLaunchResult(
  *
  * Pass `new = true` to start an isolated agent process instead of reusing
  * an existing one for [agentId].
+ *
+ * Pass [reuseRuntimeId] to skip runtime selection entirely and attach to a
+ * specific runtime the caller has already identified — the case for a chat
+ * returning to the runtime holding its own live gateway session. Without it,
+ * the gateway picks the runtime by its own reuse heuristic, which hands back
+ * whichever session the chosen runtime already holds.
  *
  * Refreshes the stored credential when it is due. Returns [Result.failure]
  * with a user-facing message when the gateway is unpaired or the credential
@@ -40,6 +49,7 @@ suspend fun launchGatewayRuntime(
     agentId: String,
     requireSupportedProtocol: Boolean = false,
     new: Boolean = false,
+    reuseRuntimeId: String? = null,
 ): Result<GatewayLaunchResult> {
     val refreshedSource =
         try {
@@ -68,13 +78,18 @@ suspend fun launchGatewayRuntime(
 
     return runCatching {
         val runtime =
-            withContext(Dispatchers.IO) {
-                gatewayRepository.startAgent(
-                    scheme = refreshedSource.scheme,
-                    host = refreshedSource.host,
-                    gatewayCredential = refreshedSource.gatewayCredential,
-                    agentId = agentId,
-                )
+            if (reuseRuntimeId != null) {
+                GatewayRuntime(id = reuseRuntimeId, status = RUNTIME_STATUS_RUNNING, agentId = agentId)
+            } else {
+                withContext(Dispatchers.IO) {
+                    gatewayRepository.startAgent(
+                        scheme = refreshedSource.scheme,
+                        host = refreshedSource.host,
+                        gatewayCredential = refreshedSource.gatewayCredential,
+                        agentId = agentId,
+                        new = new,
+                    )
+                }
             }
         val handoff =
             withContext(Dispatchers.IO) {
@@ -84,7 +99,6 @@ suspend fun launchGatewayRuntime(
                     gatewayCredential = refreshedSource.gatewayCredential,
                     runtimeId = runtime.id,
                     sessionMode = "resilient",
-                    new = new,
                 )
             }
         GatewayLaunchResult(
