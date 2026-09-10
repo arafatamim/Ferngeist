@@ -31,4 +31,5 @@ dependencies {
     implementation(libs.acp.model)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
+    testImplementation(libs.junit)
 }

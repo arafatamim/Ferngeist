@@ -6,7 +6,9 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -179,6 +182,7 @@ fun SessionListScreen(
         onShowConnectionStatusDialog = { state.showConnectionStatusDialog.value = true },
         onNavigateBack = onNavigateBack,
         onNavigateToChat = onNavigateToChat,
+        onCloseSession = viewModel::closeSession,
         createSession = {
             if (currentCwd.isNullOrBlank()) {
                 state.cwdDialogValue.value = currentCwd.orEmpty()
@@ -196,6 +200,7 @@ fun SessionListScreen(
 
 private class SessionListState(
     val sessions: List<SessionSummary>,
+    val liveSessionIds: Set<String>,
     val isLoading: Boolean,
     val currentCwd: String?,
     val connectionState: ChatConnectionState,
@@ -246,6 +251,7 @@ private fun rememberSessionListState(
     )
     return SessionListState(
         sessions = viewModel.sessions.collectAsState().value,
+        liveSessionIds = viewModel.liveSessionIds.collectAsState().value,
         isLoading = viewModel.isLoading.collectAsState().value,
         currentCwd = currentCwd,
         connectionState = viewModel.connectionState.collectAsState().value,
@@ -353,6 +359,7 @@ private fun SessionListScaffold(
     onShowConnectionStatusDialog: () -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    onCloseSession: (String) -> Unit,
     createSession: () -> Unit,
     onRefresh: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
@@ -397,6 +404,7 @@ private fun SessionListScaffold(
                 padding = padding,
                 state = state,
                 onNavigateToChat = onNavigateToChat,
+                onCloseSession = onCloseSession,
                 createSession = createSession,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -602,6 +610,7 @@ private fun SessionListContent(
     padding: PaddingValues,
     state: SessionListState,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    onCloseSession: (String) -> Unit,
     createSession: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -625,6 +634,8 @@ private fun SessionListContent(
                 groupedSessions = groupedSessions,
                 sessionCount = state.sessions.size,
                 padding = padding,
+                liveSessionIds = state.liveSessionIds,
+                onCloseSession = onCloseSession,
                 onNavigateToChat = onNavigateToChat,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -737,6 +748,8 @@ private fun SessionListLazyColumn(
     groupedSessions: Map<String, List<SessionSummary>>,
     sessionCount: Int,
     padding: PaddingValues,
+    liveSessionIds: Set<String>,
+    onCloseSession: (String) -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -764,6 +777,8 @@ private fun SessionListLazyColumn(
             items(groupSessions, key = { it.id }) { session ->
                 SessionCard(
                     session = session,
+                    isLive = session.id in liveSessionIds,
+                    onLongPress = { onCloseSession(session.id) },
                     onClick = {
                         onNavigateToChat(
                             session.id,
@@ -1014,10 +1029,12 @@ private fun RowScope.SessionCardText(
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SessionCard(
     session: SessionSummary,
+    isLive: Boolean,
+    onLongPress: () -> Unit,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -1037,7 +1054,7 @@ private fun SessionCard(
                         resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                     ).fillMaxWidth()
                     .clip(CardDefaults.shape)
-                    .clickable(onClick = onClick),
+                    .combinedClickable(onClick = onClick, onLongClick = onLongPress),
             colors =
                 CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -1056,6 +1073,15 @@ private fun SessionCard(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                 )
+                if (isLive) {
+                    // Live indicator: this session currently holds a gateway connection.
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(8.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    )
+                }
             }
         }
     }

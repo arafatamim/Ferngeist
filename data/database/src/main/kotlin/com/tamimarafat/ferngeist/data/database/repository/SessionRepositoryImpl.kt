@@ -55,11 +55,26 @@ class SessionRepositoryImpl(
         sessionId: String,
         gatewaySessionId: String?,
     ) {
-        sessionDao.updateGatewaySessionId(
-            sessionId = sessionId,
-            serverId = serverId,
-            gatewaySessionId = gatewaySessionId,
-        )
+        val updated =
+            sessionDao.updateGatewaySessionId(
+                sessionId = sessionId,
+                serverId = serverId,
+                gatewaySessionId = gatewaySessionId,
+            )
+        if (updated == 0 && gatewaySessionId != null) {
+            // Create-on-arrival chats can attach before any list refresh has
+            // inserted the row; seed a minimal one so the mapping survives.
+            sessionDao.insertSession(
+                SessionEntity(
+                    sessionId = sessionId,
+                    serverId = serverId,
+                    title = null,
+                    cwd = null,
+                    updatedAt = null,
+                    gatewaySessionId = gatewaySessionId,
+                ),
+            )
+        }
     }
 
     override suspend fun updateSessionTitle(

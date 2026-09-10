@@ -15,24 +15,37 @@ data class ActiveChat(
 )
 
 /**
- * In-memory record of the chat the user most recently opened, so the foreground
- * connection notification can deep-link straight back to that session instead of
- * dropping the user on the home screen.
+ * In-memory record of the chats the user opened, focus-ordered (head = most
+ * recent), so the foreground connection notification can deep-link straight
+ * back into the chat on screen instead of dropping the user on the home screen.
  *
- * In-memory is sufficient: the value only matters while the connection — and the
- * foreground service that owns the notification — keep the process alive.
+ * With multiple simultaneous chats the whole list matters: closing one chat
+ * promotes the previously-focused one to the head. In-memory is sufficient:
+ * the values only matter while connections — and the foreground service that
+ * owns the notification — keep the process alive.
  */
 class ActiveChatStore {
+    private val _openChats = MutableStateFlow<List<ActiveChat>>(emptyList())
+
+    /** All open chats, most recently focused first. */
+    val openChats: StateFlow<List<ActiveChat>> = _openChats.asStateFlow()
+
     private val _activeChat = MutableStateFlow<ActiveChat?>(null)
+
+    /** Head of [openChats] — the chat currently on screen. */
     val activeChat: StateFlow<ActiveChat?> = _activeChat.asStateFlow()
 
-    /** Records [chat] as the currently-open chat. */
+    /** Records [chat] as the focused chat, moving it to the head of the list. */
     fun setActiveChat(chat: ActiveChat) {
+        _openChats.update { current -> listOf(chat) + current.filterNot { it.sessionId == chat.sessionId } }
         _activeChat.value = chat
     }
 
-    /** Clears the record only if it still points at [sessionId]. */
+    /** Removes [sessionId]; if it was the head, promotes the next most recent. */
     fun clearIfCurrent(sessionId: String) {
-        _activeChat.update { current -> if (current?.sessionId == sessionId) null else current }
+        _openChats.update { current -> current.filterNot { it.sessionId == sessionId } }
+        if (_activeChat.value?.sessionId == sessionId) {
+            _activeChat.value = _openChats.value.firstOrNull()
+        }
     }
 }

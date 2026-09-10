@@ -13,6 +13,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManagerFactory
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -84,6 +86,7 @@ class SessionListViewModel
         private val sessionRepository: SessionRepository,
         private val factory: AcpConnectionManagerFactory,
         private val gatewayRepository: GatewayRepository,
+        private val chatConnectionHub: ChatConnectionHub,
         private val authEnvValueStore: AuthEnvValueStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
         private val recentCwdStore: RecentCwdStore,
@@ -116,6 +119,13 @@ class SessionListViewModel
             sessionRepository
                 .getSessions(serverId)
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+        /** Sessions currently holding a live gateway connection (for the row dot). */
+        val liveSessionIds: StateFlow<Set<String>> =
+            chatConnectionHub.liveChats
+                .map { chats ->
+                    chats.filter { it.connected && it.serverId == serverId }.mapTo(mutableSetOf()) { it.sessionId }
+                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -216,6 +226,55 @@ class SessionListViewModel
                         title = null,
                     ),
                 )
+            }
+        }
+
+        /**
+         * Long-press close: stops the backing agent process by deleting its
+         * gateway session. Hot chats go through the hub; cold chats (tracked
+         * only via the persisted [SessionSummary.gatewaySessionId]) call the
+         * gateway directly.
+         */
+        fun closeSession(sessionId: String) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val gatewaySessionId =
+                    sessions.value.firstOrNull { it.id == sessionId }?.gatewaySessionId
+                if (gatewaySessionId == null) {
+                    _events.emit(SessionListEvent.ShowError("This session has no live process to close."))
+                    return@launch
+                }
+                val target = launchableTargetRepository.getTarget(serverId)
+                val endpoint =
+                    when (target) {
+                        is LaunchableTarget.GatewayAgent ->
+                            GatewayEndpoint(
+                                scheme = target.gatewaySource.scheme,
+                                host = target.gatewaySource.host,
+                                credential = target.gatewaySource.gatewayCredential,
+                            )
+                        else -> {
+                            _events.emit(SessionListEvent.ShowError("Close is only available for gateway sessions."))
+                            return@launch
+                        }
+                    }
+                val chatId = "$serverId/$sessionId"
+                runCatching {
+                    if (chatConnectionHub.liveChats.value.any { it.chatId == chatId }) {
+                        chatConnectionHub.close(chatId, endpoint)
+                    } else {
+                        gatewayRepository.closeSession(
+                            endpoint.scheme,
+                            endpoint.host,
+                            endpoint.credential,
+                            gatewaySessionId,
+                        )
+                        sessionRepository.setGatewaySessionId(serverId, sessionId, null)
+                    }
+                }.onFailure { error ->
+                    _events.emit(
+                        SessionListEvent.ShowError(error.message ?: "Failed to close session."),
+                    )
+                }
             }
         }
 
