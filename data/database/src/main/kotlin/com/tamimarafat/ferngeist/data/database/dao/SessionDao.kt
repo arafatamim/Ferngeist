@@ -61,6 +61,22 @@ interface SessionDao {
     @Query("DELETE FROM sessions WHERE sessionId = :sessionId")
     suspend fun deleteSessionById(sessionId: String)
 
+    /**
+     * Clears [gatewaySessionId] from every other row on [serverId] that still
+     * claims it. A gateway session is leased to exactly one chat, so when the
+     * true owner records its session any stale claimant must release it —
+     * otherwise two chats resume one session and fight over the lease.
+     */
+    @Query(
+        "UPDATE sessions SET gatewaySessionId = NULL WHERE serverId = :serverId " +
+            "AND gatewaySessionId = :gatewaySessionId AND sessionId != :sessionId",
+    )
+    suspend fun clearGatewaySessionClaim(
+        serverId: String,
+        gatewaySessionId: String,
+        sessionId: String,
+    ): Int
+
     @Query("DELETE FROM sessions WHERE serverId = :serverId")
     suspend fun deleteSessionsByServerId(serverId: String)
 

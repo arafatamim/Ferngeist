@@ -72,6 +72,17 @@ class SessionRepositoryImpl(
                 gatewaySessionId = gatewaySessionId,
             )
         }
+        if (gatewaySessionId != null) {
+            // One gateway session serves one chat. Recording it here makes this
+            // row the owner, so any other row still pointing at the same session
+            // releases it — that stale claim would otherwise resume the session
+            // on a cold start and put two chats on one lease.
+            sessionDao.clearGatewaySessionClaim(
+                serverId = serverId,
+                gatewaySessionId = gatewaySessionId,
+                sessionId = sessionId,
+            )
+        }
     }
 
     override suspend fun updateSessionTitle(

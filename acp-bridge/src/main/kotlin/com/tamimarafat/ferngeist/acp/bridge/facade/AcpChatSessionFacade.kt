@@ -20,6 +20,7 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
@@ -27,9 +28,12 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.launchGatewayRuntime
+import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -41,6 +45,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -129,6 +134,11 @@ class AcpChatSessionFacade(
     private var currentAcpCapabilities: AgentCapabilities? = null
     private var shouldRecoverBridge: Boolean = false
     private val bridgeOperationMutex = Mutex()
+
+    // Serializes gateway session lookups. Each spawn/attach path may refresh the
+    // shared gateway credential first, and concurrent refreshes can invalidate
+    // each other's proof (a replayed-proof rejection) on a cold multi-chat start.
+    private val gatewayLookupMutex = Mutex()
 
     private val sessionLoadCoordinator by lazy {
         SessionLoadCoordinator(
@@ -545,16 +555,18 @@ class AcpChatSessionFacade(
         }
         // A second concurrent chat on the same agent needs its own runtime
         // process: the gateway leases one runtime per gateway session, so a
-        // plain connect would resume the other chat's session.
-        val fresh = resolveFreshSpawn(target)
-        if (fresh == null) return null
+        // plain connect would resume the other chat's session. Reattaching to
+        // this chat's own recorded runtime is the exception — that is the same
+        // session, so it must be resumed rather than duplicated.
+        val plan = resolveLaunchPlan(target) ?: return null
         return launchGatewayRuntime(
             gatewayRepository = gatewayRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewaySource = gatewaySource,
             agentId = target.binding.agentId,
             requireSupportedProtocol = true,
-            fresh = fresh,
+            fresh = plan.fresh,
+            reuseRuntimeId = plan.reuseRuntimeId,
         ).fold(
             onSuccess = { result ->
                 resolvedAgentId = target.binding.agentId
@@ -606,23 +618,100 @@ class AcpChatSessionFacade(
     }
 
     /**
-     * Decides whether this connect must mint an isolated runtime process, and
-     * when so, frees a device gateway-session slot first. Returns null when
-     * capacity could not be secured (error already emitted).
+     * Frees a device gateway-session slot, so the following start mints a new
+     * isolated runtime. Returns false when capacity could not be secured (error
+     * already emitted).
      */
-    private suspend fun resolveFreshSpawn(target: LaunchableTarget.GatewayAgent): Boolean? {
-        val gatewaySource = target.gatewaySource
-        if (!hub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId)) return false
-        return runCatching {
+    private suspend fun reserveIsolatedSlot(gatewaySource: GatewaySource): Boolean =
+        runCatching {
             hub.ensureGatewayCapacity(
                 GatewayEndpoint(gatewaySource.scheme, gatewaySource.host, gatewaySource.gatewayCredential),
             )
             true
         }.getOrElse { error ->
             _loadFailed.emit(error.message ?: "All gateway sessions are in use.")
-            null
+            false
         }
+
+    /**
+     * Lists how the gateway currently sees this agent's sessions, or null when
+     * the lookup failed (callers then fall back to in-memory state).
+     */
+    private suspend fun gatewaySessions(
+        gatewaySource: GatewaySource,
+        agentId: String,
+    ): List<GatewaySessionSummary>? =
+        runCatching {
+            gatedGatewayLookup(gatewaySource) { credential ->
+                gatewayRepository.listGatewaySessions(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = credential,
+                )
+            }
+        }.getOrNull()
+            ?.filter { it.agentId == agentId }
+
+    /** The runtime plan for a gateway attach: an explicit reuse target, or a fresh spawn. */
+    private data class GatewayLaunchPlan(
+        val fresh: Boolean,
+        val reuseRuntimeId: String?,
+    )
+
+    /**
+     * Picks the runtime this chat attaches to, or null when an isolated runtime
+     * was needed but its slot could not be secured (error already emitted).
+     *
+     * A gateway runtime leases exactly one session, so two chats that share a
+     * runtime both end up resuming one session and fight over it — the chat
+     * screen never populates. In-memory hub state cannot settle this (it is
+     * empty after process death), so the gateway's own session list is the
+     * authority: one call answers both halves of the decision.
+     */
+    private suspend fun resolveLaunchPlan(target: LaunchableTarget.GatewayAgent): GatewayLaunchPlan? {
+        val gatewaySource = target.gatewaySource
+        val ownSessionId =
+            if (initialSessionId == NEW_SESSION_ARG) {
+                null
+            } else {
+                hub.persistedGatewaySessionId(serverId, initialSessionId)
+            }
+        val sessions = gatewaySessions(gatewaySource, target.binding.agentId)
+
+        // This chat's own session is still live: its runtime is the one to
+        // attach to, rather than minting a second process for the same
+        // conversation (the gateway's own reconnect-after-app-kill path).
+        sessions
+            ?.firstOrNull { it.sessionId == ownSessionId && it.isResumable }
+            ?.let { return GatewayLaunchPlan(fresh = false, reuseRuntimeId = it.runtimeId) }
+
+        // Someone else on this agent holds a live session. A plain start hands
+        // back that runtime, so this chat needs its own process. The in-memory
+        // check also covers a session the listing has not caught up with yet.
+        val heldByAnother =
+            sessions?.any { it.isResumable && it.sessionId != ownSessionId } == true ||
+                hub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId)
+        if (!heldByAnother) return GatewayLaunchPlan(fresh = false, reuseRuntimeId = null)
+        if (!reserveIsolatedSlot(gatewaySource)) return null
+        return GatewayLaunchPlan(fresh = true, reuseRuntimeId = null)
     }
+
+    /**
+     * Runs a gateway read under the shared lookup gate, folding an expired
+     * credential into a null result so the caller falls back to a fresh spawn
+     * instead of failing the whole connect.
+     */
+    private suspend fun <T> gatedGatewayLookup(
+        gatewaySource: GatewaySource,
+        block: suspend (String) -> T,
+    ): T? =
+        gatewayLookupMutex.withLock {
+            val credential =
+                withContext(Dispatchers.IO) {
+                    refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
+                }.gatewayCredential
+            if (credential.isBlank()) null else block(credential)
+        }
 
     private suspend fun attachSessionBridge(bridge: SessionPort) {
         activeSessionId = bridge.sessionId

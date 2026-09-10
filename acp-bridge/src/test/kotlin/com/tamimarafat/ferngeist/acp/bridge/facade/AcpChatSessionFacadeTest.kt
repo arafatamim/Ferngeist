@@ -64,6 +64,11 @@ class AcpChatSessionFacadeTest {
             agentId: String,
         ): Boolean = false
 
+        override suspend fun persistedGatewaySessionId(
+            serverId: String,
+            sessionId: String,
+        ): String? = null
+
         override suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint) = Unit
 
         override fun refresh() = Unit
@@ -138,6 +143,7 @@ class AcpChatSessionFacadeTest {
             host: String,
             gatewayCredential: String,
             agentId: String,
+            new: Boolean,
         ) = TODO("unused in facade tests")
 
         override suspend fun connectRuntime(
@@ -146,7 +152,6 @@ class AcpChatSessionFacadeTest {
             gatewayCredential: String,
             runtimeId: String,
             sessionMode: String?,
-            fresh: Boolean,
         ) = TODO("unused in facade tests")
 
         override suspend fun restartRuntime(

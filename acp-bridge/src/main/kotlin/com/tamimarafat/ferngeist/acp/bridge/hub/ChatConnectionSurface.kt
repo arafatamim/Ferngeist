@@ -57,6 +57,16 @@ interface ChatConnectionSurface {
         agentId: String,
     ): Boolean
 
+    /**
+     * The gateway session recorded on this chat's persisted row, or null when it
+     * has never connected one. Survives process death, unlike the hub's entry
+     * table, so it is what a cold chat reattaches from.
+     */
+    suspend fun persistedGatewaySessionId(
+        serverId: String,
+        sessionId: String,
+    ): String?
+
     /** Frees a device gateway-session slot before a spawn when the device cap is reached. */
     suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint)
 
