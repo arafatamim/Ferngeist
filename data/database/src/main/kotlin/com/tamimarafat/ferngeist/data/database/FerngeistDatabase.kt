@@ -22,7 +22,7 @@ import com.tamimarafat.ferngeist.data.database.entity.SessionEntity
         LaunchableTargetSessionSettingsEntity::class,
     ],
     version = 15,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class FerngeistDatabase : RoomDatabase() {
     abstract fun serverDao(): ServerDao

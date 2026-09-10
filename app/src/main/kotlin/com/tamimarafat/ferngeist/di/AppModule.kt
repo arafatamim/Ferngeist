@@ -15,6 +15,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSe
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
+import com.tamimarafat.ferngeist.data.database.MIGRATION_14_15
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.GatewaySourceRepositoryImpl
@@ -553,13 +554,6 @@ private val MIGRATION_13_14 =
     object : Migration(13, 14) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // No schema change — version bump only
-        }
-    }
-
-private val MIGRATION_14_15 =
-    object : Migration(14, 15) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE sessions ADD COLUMN gatewaySessionId TEXT")
         }
     }
 
