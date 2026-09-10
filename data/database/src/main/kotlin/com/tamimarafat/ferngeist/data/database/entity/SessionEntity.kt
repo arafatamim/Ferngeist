@@ -14,4 +14,6 @@ data class SessionEntity(
     val title: String?,
     val cwd: String?,
     val updatedAt: Long?,
+    /** Live gateway session this chat was last attached to; null for never-connected rows. */
+    val gatewaySessionId: String? = null,
 )

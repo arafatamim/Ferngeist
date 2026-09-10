@@ -36,6 +36,8 @@ class SessionRepositoryImpl(
         serverId: String,
         summary: SessionSummary,
     ) {
+        // REPLACE-insert would clear gatewaySessionId; carry the stored value forward.
+        val existing = sessionDao.getSessionById(summary.id)
         sessionDao.insertSession(
             SessionEntity(
                 sessionId = summary.id,
@@ -43,7 +45,20 @@ class SessionRepositoryImpl(
                 title = summary.title,
                 cwd = summary.cwd,
                 updatedAt = summary.updatedAt,
+                gatewaySessionId = summary.gatewaySessionId ?: existing?.gatewaySessionId,
             ),
+        )
+    }
+
+    override suspend fun setGatewaySessionId(
+        serverId: String,
+        sessionId: String,
+        gatewaySessionId: String?,
+    ) {
+        sessionDao.updateGatewaySessionId(
+            sessionId = sessionId,
+            serverId = serverId,
+            gatewaySessionId = gatewaySessionId,
         )
     }
 
@@ -70,6 +85,7 @@ class SessionRepositoryImpl(
         serverId: String,
         sessions: List<SessionSummary>,
     ) {
+        val existing = sessionDao.getSessionsSnapshot(serverId).associateBy { it.sessionId }
         sessionDao.replaceSessions(
             serverId = serverId,
             sessions =
@@ -80,6 +96,7 @@ class SessionRepositoryImpl(
                         title = summary.title,
                         cwd = summary.cwd,
                         updatedAt = summary.updatedAt,
+                        gatewaySessionId = summary.gatewaySessionId ?: existing[summary.id]?.gatewaySessionId,
                     )
                 },
         )
@@ -92,5 +109,6 @@ class SessionRepositoryImpl(
             cwd = cwd,
             updatedAt = updatedAt,
             serverId = serverId,
+            gatewaySessionId = gatewaySessionId,
         )
 }
