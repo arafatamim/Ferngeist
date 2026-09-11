@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
@@ -49,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
@@ -228,6 +231,7 @@ private data class ComposerInsets(
     val imeBottomPx: Int,
     val showComposerToolbar: Boolean,
     val listBottomPadding: Dp,
+    val bottomFadeBandHeight: Dp,
     val snackbarBottomPadding: Dp,
     val screenWidthDp: Dp,
 )
@@ -280,14 +284,44 @@ private fun rememberComposerInsets(
                     16.dp
             }
         }
+
+    // How far the fade climbs from the bottom of the screen: the composer (plus
+    // the system bar beneath it) rises this far, and the band starts a little
+    // above the composer's own top edge so content begins to dim just before it
+    // slides under the pill.
+    //
+    // [BOTTOM_FADE_LEAD] must stay under the 36dp of clearance the list keeps
+    // above the composer (see [listBottomPadding]), otherwise the last message
+    // would be tinted while at rest.
+    val bottomFadeBandHeight =
+        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
+            if (!showComposerToolbar) {
+                0.dp
+            } else {
+                composerContentHeightDp +
+                    systemBottomInsetDp +
+                    FloatingToolbarDefaults.ScreenOffset +
+                    BOTTOM_FADE_LEAD
+            }
+        }
     return ComposerInsets(
         imeBottomPx = imeBottomPx,
         showComposerToolbar = showComposerToolbar,
         listBottomPadding = listBottomPadding,
+        bottomFadeBandHeight = bottomFadeBandHeight,
         snackbarBottomPadding = snackbarBottomPadding,
         screenWidthDp = screenWidthDp,
     )
 }
+
+// How far above the composer's top edge the bottom fade begins.
+private val BOTTOM_FADE_LEAD = 24.dp
+
+// How much of the surface colour the bottom fade reaches at the very bottom of
+// the screen. Deliberately short of 1f: content going under the composer is
+// dimmed, not dissolved, so it stays faintly readable the way it does when it
+// passes under the top bar.
+private const val BOTTOM_FADE_MAX_ALPHA = 0.75f
 
 private fun rememberSendHandlers(
     viewModel: ChatViewModel,
@@ -403,6 +437,7 @@ private class ChatScreenState(
     val activePermissionRequest: PendingPermissionRequest?,
     val renderedLastMessageId: String?,
     val listBottomPadding: Dp,
+    val bottomFadeBandHeight: Dp,
     val snackbarBottomPadding: Dp,
     val showComposerToolbar: Boolean,
     val screenWidthDp: Dp,
@@ -798,6 +833,7 @@ private fun buildChatScreenState(
         activePermissionRequest = derived.activePermissionRequest,
         renderedLastMessageId = derived.renderedLastMessageId,
         listBottomPadding = insets.listBottomPadding,
+        bottomFadeBandHeight = insets.bottomFadeBandHeight,
         snackbarBottomPadding = insets.snackbarBottomPadding,
         showComposerToolbar = insets.showComposerToolbar,
         screenWidthDp = insets.screenWidthDp,
@@ -1054,7 +1090,41 @@ private fun BoxScope.ChatScreenContentOverlays(
         },
     )
 
+    ChatBottomFade(bandHeight = screenState.bottomFadeBandHeight)
+
     ChatScreenSnackbar(screenState)
+}
+
+/**
+ * Mirrors the top bar at the bottom of the chat: content going under the
+ * composer is dimmed into the surface instead of being cut off by it.
+ *
+ * The band starts just above the composer's top edge and runs to the bottom of
+ * the screen, so content is only dimmed once it reaches the composer — and, at
+ * rest, the last message ends below the band's transparent edge and stays
+ * crisp.
+ *
+ * Unlike the top bar, the band never reaches the surface colour: it bottoms out
+ * at [BOTTOM_FADE_MAX_ALPHA], leaving what has scrolled behind the composer
+ * faintly readable rather than dissolving it away.
+ */
+@Composable
+private fun BoxScope.ChatBottomFade(bandHeight: Dp) {
+    if (bandHeight <= 0.dp) return
+    val surface = MaterialTheme.colorScheme.surface
+    Box(
+        modifier =
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(bandHeight)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        1f to surface.copy(alpha = BOTTOM_FADE_MAX_ALPHA),
+                    ),
+                ),
+    )
 }
 
 @Composable
