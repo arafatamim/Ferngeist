@@ -5,9 +5,9 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -20,8 +20,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -76,7 +77,9 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -92,6 +95,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -108,19 +112,13 @@ import com.tamimarafat.ferngeist.feature.chat.R
 
 private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
 
-/**
- * Computes the target height for the composer based on expansion and attachment state.
- */
-private fun composerTargetHeight(
-    composerExpanded: Boolean,
-    selectedImages: List<ChatImageData>,
-    selectedFiles: List<ChatFileData>,
-): Dp =
-    when {
-        composerExpanded && (selectedImages.isNotEmpty() || selectedFiles.isNotEmpty()) -> 210.dp
-        composerExpanded -> 142.dp
-        else -> 62.dp
-    }
+// Resting height of the collapsed pill.
+private val COLLAPSED_COMPOSER_HEIGHT = 62.dp
+
+// Floor for the expanded composer. There is no matching ceiling: while expanded the
+// panel is sized by its content, and the text field's own line bounds (minLines /
+// maxLines) are what stop it growing and make the text scroll instead.
+private val EXPANDED_COMPOSER_MIN_HEIGHT = 142.dp
 
 /**
  * Main entry point for the chat composer UI.
@@ -191,18 +189,11 @@ internal fun ChatComposerBar(
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
 
-    val animatedHeight by animateDpAsState(
-        targetValue = composerTargetHeight(composerExpanded, selectedImages, selectedFiles),
-        animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium),
-        label = "ComposerHeight",
-    )
     val collapsedMaxToolbarWidth = screenWidth * COLLAPSED_MAX_TOOLBAR_FRACTION
 
     ComposerSurfaceContainer(
         modifier = modifier,
         composerExpanded = composerExpanded,
-        animatedHeight = animatedHeight,
-        collapsedMaxToolbarWidth = collapsedMaxToolbarWidth,
         onHeightChanged = onHeightChanged,
     ) {
         if (composerExpanded) {
@@ -264,58 +255,159 @@ internal fun ChatComposerBar(
 }
 
 /**
+ * Width the panel animates between: whatever its bar currently needs when collapsed,
+ * and the full available width when expanded.
+ *
+ * The collapsed width is only known once its content has been measured, and the first
+ * value reported is a resting width rather than a change to animate. Snapping on that
+ * first target stops the pill growing out of nothing; every later target springs.
+ *
+ * The result never goes below the collapsed width: the panel wraps its bar, so an
+ * undershoot would squeeze the bar, and the squeezed width would then be read back as
+ * the bar's own — walking the target down a little on every collapse.
+ */
+@Composable
+private fun rememberPanelWidth(
+    composerExpanded: Boolean,
+    collapsedWidthPx: Int,
+    expandedWidth: Dp,
+): Dp {
+    val collapsedWidth = with(LocalDensity.current) { collapsedWidthPx.toDp() }
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(collapsedWidthPx) {
+        if (collapsedWidthPx > 0) settled = true
+    }
+    val animatedWidth by animateDpAsState(
+        targetValue = if (composerExpanded) expandedWidth else collapsedWidth,
+        animationSpec =
+            if (settled) {
+                MaterialTheme.motionScheme.defaultSpatialSpec<Dp>()
+            } else {
+                snap()
+            },
+        label = "ComposerWidth",
+    )
+    return animatedWidth.coerceAtLeast(collapsedWidth)
+}
+
+/**
  * The Surface + Row container that wraps either expanded or collapsed composer
  * content, switching based on [composerExpanded].
+ *
+ * The panel animates an explicit size rather than leaning on `animateContentSize`: what
+ * the content needs has to be measured with the panel's own constraint lifted (see
+ * `wrapContentHeight(unbounded = true)`), and that is information an animator watching
+ * the node's own size does not have.
  */
 @Composable
 private fun ComposerSurfaceContainer(
     modifier: Modifier,
     composerExpanded: Boolean,
-    animatedHeight: Dp,
-    collapsedMaxToolbarWidth: Dp,
     onHeightChanged: (Int) -> Unit,
     content: @Composable RowScope.() -> Unit,
 ) {
-    Surface(
-        // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
-        shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
-        color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shadowElevation = 6.dp,
-        modifier =
-            modifier
-                .height(animatedHeight)
-                .then(
-                    if (composerExpanded) {
-                        Modifier.fillMaxWidth(COLLAPSED_MAX_TOOLBAR_FRACTION)
-                    } else {
-                        // Limit width in collapsed state to maintain "pill" look on wide screens
-                        Modifier.widthIn(max = collapsedMaxToolbarWidth)
-                    },
-                ).onSizeChanged { onHeightChanged(it.height) },
-    ) {
-        Row(
+    // The panel has two resting widths and neither is a constant: the collapsed pill hugs
+    // its actions, while the expanded panel fills the width available to it. `maxWidth` is
+    // that available width; the pill's is only known once its actions have been measured.
+    BoxWithConstraints(modifier = modifier) {
+        val expandedWidth = maxWidth * COLLAPSED_MAX_TOOLBAR_FRACTION
+
+        // Height the expanded content needs, measured unconstrained so it reports what the
+        // content wants rather than what the panel currently allows — otherwise the panel
+        // could never grow past its own current size.
+        var expandedContentHeightPx by remember { mutableIntStateOf(0) }
+        // Width the collapsed bar needs, likewise measured rather than assumed.
+        var collapsedContentWidthPx by remember { mutableIntStateOf(0) }
+        val density = LocalDensity.current
+        val expandedHeight =
+            with(density) {
+                expandedContentHeightPx.toDp().coerceAtLeast(EXPANDED_COMPOSER_MIN_HEIGHT)
+            }
+        val widthKnown = composerExpanded || collapsedContentWidthPx > 0
+        val animatedHeight by animateDpAsState(
+            targetValue = if (composerExpanded) expandedHeight else COLLAPSED_COMPOSER_HEIGHT,
+            // Themed rather than hand-tuned, so the composer moves in step with the rest of
+            // the app: a bounds change is spatial motion, so it takes the spatial spec, and
+            // the scheme is already installed app-wide in the theme.
+            animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Dp>(),
+            label = "ComposerHeight",
+        )
+        val animatedWidth = rememberPanelWidth(composerExpanded, collapsedContentWidthPx, expandedWidth)
+
+        Surface(
+            // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
+            shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shadowElevation = 6.dp,
             modifier =
                 Modifier
+                    // Reports the animated height, so the list padding this feeds reflows in
+                    // step with the panel instead of snapping to the target.
+                    .onSizeChanged { onHeightChanged(it.height) }
+                    .height(animatedHeight)
                     .then(
-                        if (composerExpanded) {
-                            Modifier.fillMaxSize()
+                        if (widthKnown) {
+                            Modifier.width(animatedWidth)
                         } else {
-                            Modifier
-                                .fillMaxHeight()
-                                .wrapContentWidth()
+                            // Before the bar has been measured, take its width from its
+                            // content rather than from a guess.
+                            Modifier.widthIn(max = expandedWidth)
                         },
-                    ).animateContentSize(
-                        animationSpec =
-                            spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow,
-                            ),
-                    ).padding(horizontal = 12.dp),
-            verticalAlignment = if (composerExpanded) Alignment.Bottom else Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+                    ),
         ) {
-            content()
+            Box(
+                // Height only: filling the width would stretch the collapsed pill to the
+                // panel's maximum, because the panel's width is content-driven when collapsed.
+                modifier = Modifier.fillMaxHeight(),
+                // Both resting layouts fill the panel, so this only matters mid-resize. Pinning
+                // the collapsed bar to the bottom keeps it at its final position while the panel
+                // shrinks, instead of letting it ride the top edge down the screen. The spring's
+                // undershoot does squeeze it by a few dp at the tail, which reads as a settle.
+                contentAlignment = if (composerExpanded) Alignment.TopCenter else Alignment.BottomCenter,
+            ) {
+                Row(
+                    modifier =
+                        Modifier
+                            .then(
+                                if (composerExpanded) {
+                                    // Measured unconstrained so the content can report its full
+                                    // height while the panel is still growing; the excess is
+                                    // clipped by the panel's shape until the panel catches up.
+                                    Modifier.fillMaxWidth().wrapContentHeight(unbounded = true)
+                                } else {
+                                    // Exactly the resting height, so the bar sits where it will
+                                    // come to rest rather than stretching to the animating panel.
+                                    Modifier
+                                        .height(COLLAPSED_COMPOSER_HEIGHT)
+                                        // Unbounded for the same reason as the height above: the
+                                        // panel's width is this measurement, so a bar measured
+                                        // under the panel's own width could never report wider than
+                                        // it already is. Left bounded, the two lock at whichever
+                                        // width the first frame happened to measure.
+                                        .wrapContentWidth(unbounded = true)
+                                },
+                            )
+                            // Placed before the padding so it reports the padded width, which
+                            // is what the panel itself has to be.
+                            .onSizeChanged {
+                                if (!composerExpanded && collapsedContentWidthPx != it.width) {
+                                    collapsedContentWidthPx = it.width
+                                }
+                            }.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    if (composerExpanded) {
+                        val rowScope = this
+                        Box(modifier = Modifier.fillMaxWidth().onSizeChanged { expandedContentHeightPx = it.height }) {
+                            with(rowScope) { content() }
+                        }
+                    } else {
+                        content()
+                    }
+                }
+            }
         }
     }
 }
@@ -345,7 +437,6 @@ internal fun ExpandedComposerContent(
     Column(
         modifier =
             Modifier
-                .fillMaxHeight()
                 .fillMaxWidth()
                 .padding(top = 12.dp, bottom = 12.dp)
                 .alpha(inputAlpha),
@@ -387,7 +478,7 @@ internal fun ExpandedComposerContent(
  * selection-colors and the placeholder hint.
  */
 @Composable
-private fun ColumnScope.ExpandedComposerTextField(
+private fun ExpandedComposerTextField(
     messageText: String,
     onMessageTextChange: (String) -> Unit,
     focusRequester: FocusRequester,
@@ -415,13 +506,12 @@ private fun ColumnScope.ExpandedComposerTextField(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .weight(1f)
                     .focusRequester(focusRequester),
             decorationBox = { innerTextField ->
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     contentAlignment = Alignment.TopStart,
                 ) {
