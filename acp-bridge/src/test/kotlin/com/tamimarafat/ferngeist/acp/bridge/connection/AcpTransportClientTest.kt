@@ -1,5 +1,11 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -97,6 +103,45 @@ class AcpTransportClientTest {
             assertTrue("attempt $attempt delay $delay exceeds cap", delay <= 30_000L)
             assertTrue("attempt $attempt delay $delay must stay positive", delay > 0L)
         }
+    }
+
+    @Test
+    fun `a connect attempt does not cancel the reconnect loop running it`() =
+        runTest {
+            val client = newClient()
+            val loop = CoroutineScope(coroutineContext).launch { awaitCancellation() }
+
+            setReconnectJob(client, loop)
+            client.prepareForConnectAttempt {}
+            assertTrue(
+                "prepareForConnectAttempt runs inside the loop's own attempt, so cancelling here " +
+                    "would end the loop at its first retry and the client would never reconnect again",
+                loop.isActive,
+            )
+
+            // A fresh, user-initiated connect is the one case that must supersede a pending loop.
+            setReconnectJob(client, loop)
+            client.disconnect {}
+            assertTrue("a user-initiated disconnect must end the pending loop", loop.isCancelled)
+        }
+
+    private fun newClient(): AcpTransportClient =
+        AcpTransportClient(
+            connectivityObserver = ConnectivityObserverStub(initialState = true),
+            gatewayRepository = null,
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            diagnosticsStore = AcpDiagnosticsStore(),
+            updateConnectionState = {},
+            emitManagerEvent = {},
+        )
+
+    private fun setReconnectJob(
+        client: AcpTransportClient,
+        job: Job,
+    ) {
+        val field = client.javaClass.getDeclaredField("reconnectJob")
+        field.isAccessible = true
+        field.set(client, job)
     }
 
     // ---- Diagnostics telemetry ----

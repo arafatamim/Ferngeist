@@ -114,6 +114,7 @@ internal class AcpTransportClient(
         resetState: () -> Unit,
     ): Boolean {
         currentConfig = config
+        cancelReconnectLoop()
         return connectInternal(
             config = config,
             resetState = resetState,
@@ -126,6 +127,7 @@ internal class AcpTransportClient(
         resetState: () -> Unit,
     ): Boolean {
         currentConfig = config
+        cancelReconnectLoop()
         return connectInternal(
             config = config,
             resetState = resetState,
@@ -202,8 +204,7 @@ internal class AcpTransportClient(
     }
 
     fun disconnect(resetState: () -> Unit) {
-        reconnectJob?.cancel()
-        reconnectJob = null
+        cancelReconnectLoop()
         resetState()
         closeTransport()
         updateConnectionState(AcpConnectionState.Disconnected)
@@ -211,12 +212,25 @@ internal class AcpTransportClient(
         scope.launch { emitManagerEvent(AcpManagerEvent.Disconnected) }
     }
 
+    /**
+     * Clears transport state ahead of a connect attempt.
+     *
+     * Deliberately does NOT cancel a pending reconnect loop: this runs inside the
+     * loop's own attempt, so cancelling here would end the loop at the first
+     * suspension of its first retry — the client would then never reconnect again
+     * for the life of the process. Superseding a pending loop belongs to the
+     * user-initiated entries ([connect], [connectWithoutReconnect]) and [disconnect].
+     */
     fun prepareForConnectAttempt(resetState: () -> Unit) {
-        reconnectJob?.cancel()
-        reconnectJob = null
         resetState()
         closeTransport()
         diagnosticsStore.clearRuntimeState()
+    }
+
+    /** Cancels a pending reconnect loop so a fresh connect supersedes it. */
+    private fun cancelReconnectLoop() {
+        reconnectJob?.cancel()
+        reconnectJob = null
     }
 
     suspend fun awaitConnectivityForReconnect() {
