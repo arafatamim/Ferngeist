@@ -124,6 +124,23 @@ internal fun readySnapshot(
 internal fun readySnapshot(message: ChatMessage): ChatSessionSnapshot = readySnapshot(messages = listOf(message))
 
 /**
+ * Builds a snapshot for a load that is still in flight: no messages, no error, and
+ * [ChatLoadState.HYDRATING] — the shape the facade emits between a load starting and
+ * its first transcript event.
+ */
+internal fun hydratingSnapshot(): ChatSessionSnapshot =
+    ChatSessionSnapshot(
+        loadState = ChatLoadState.HYDRATING,
+        messages = emptyList(),
+        isStreaming = false,
+        configOptions = emptyList(),
+        availableCommands = emptyList(),
+        commandsAdvertised = false,
+        error = null,
+        usage = null,
+    )
+
+/**
  * Builds an echo [ChatMessage] with [MessageDeliveryStatus.SENT], simulating the server-side
  * echo that confirms a pending message was received.
  */

@@ -35,7 +35,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +47,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import org.junit.Assert.assertEquals
@@ -350,6 +353,26 @@ class SessionGatewayTest {
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             assertNull("a real load failure must clear the session", gateway.getSession("s1"))
+        }
+
+    @Test
+    fun `loadSession clears the session when the load deadline expires`() =
+        runTest {
+            val gateway = newGateway()
+            val bridge = installBridge(gateway, "s1")
+            // The exception has an internal constructor, so produce a real one the way the
+            // production path does: the deadline on the caller's `withTimeout` fires.
+            val timedOut = runCatching { withTimeout(1) { delay(1_000) } }.exceptionOrNull()!!
+            installSdkClient(gateway, clientFailingSessionLoad(timedOut))
+
+            val result = runCatching { gateway.loadSession("s1", "/some/cwd") }
+
+            assertTrue(result.exceptionOrNull() is TimeoutCancellationException)
+            assertNull(
+                "a timed-out load must not leave the session registered and HYDRATING",
+                gateway.getSession("s1"),
+            )
+            assertEquals(SessionLoadState.FAILED, bridge.snapshot.value.loadState)
         }
 
     @Test

@@ -55,6 +55,10 @@ open class TestFacade(
         sessionReadyFlow.emit(Unit)
     }
 
+    suspend fun emitLoadFailed(message: String) {
+        loadFailedFlow.emit(message)
+    }
+
     suspend fun emitSnapshot(snapshot: ChatSessionSnapshot) {
         sessionSnapshotFlow.emit(snapshot)
     }

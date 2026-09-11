@@ -33,6 +33,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -150,6 +151,13 @@ internal class SessionGateway(
                 registeredBridge
             }
         return result.getOrElse { error ->
+            // The load deadline lives in the caller (`withTimeout`), so it arrives here
+            // as a cancellation — but it is a load failure, not the caller going away.
+            // Without the teardown below the bridge stays registered and HYDRATING for
+            // the life of the process, and the screen keeps rendering its spinner.
+            if (error is TimeoutCancellationException) {
+                return@getOrElse handleLoadSessionFailure(error, sessionId)
+            }
             // A cancelled caller (the chat screen closed mid-load) is not a load
             // failure: rethrow so no local session state is destroyed for an exit.
             if (error is CancellationException) throw error

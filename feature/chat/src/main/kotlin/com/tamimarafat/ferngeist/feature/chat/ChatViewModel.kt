@@ -534,6 +534,13 @@ class ChatViewModel
                 )
             val reconciledPending = reconcileSendingPendingBubbles(snapshot.messages)
             val failed = snapshot.loadState == ChatLoadState.FAILED
+            // A HYDRATING snapshot is an in-flight marker: it asserts that a load is
+            // running, not that a reported failure is over. Letting it rewrite the error
+            // to null and `isLoading` back to true replaces a visible load error with a
+            // spinner that never resolves — the user sees "still loading" forever while
+            // the message explaining why was dropped one emission ago.
+            val loadErrorStands =
+                !failed && snapshot.loadState == ChatLoadState.HYDRATING && state.value.error != null
             updateState {
                 copy(
                     messages = snapshot.messages,
@@ -545,16 +552,21 @@ class ChatViewModel
                     commandsAdvertised = snapshot.commandsAdvertised,
                     configOptions = snapshot.configOptions,
                     isLoading =
-                        snapshot.loadState == ChatLoadState.HYDRATING ||
-                            markdownProjection.pendingInitialHydration,
+                        !loadErrorStands &&
+                            (
+                                snapshot.loadState == ChatLoadState.HYDRATING ||
+                                    markdownProjection.pendingInitialHydration
+                            ),
                     isSessionReady =
                         snapshot.loadState == ChatLoadState.READY &&
                             !markdownProjection.pendingInitialHydration,
                     error =
-                        if (failed) {
-                            snapshot.error ?: "Could not load this session. Check connection and retry."
-                        } else {
-                            null
+                        when {
+                            failed ->
+                                snapshot.error
+                                    ?: "Could not load this session. Check connection and retry."
+                            loadErrorStands -> error
+                            else -> null
                         },
                 )
             }

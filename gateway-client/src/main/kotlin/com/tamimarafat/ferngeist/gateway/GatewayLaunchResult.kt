@@ -42,6 +42,7 @@ private const val RUNTIME_STATUS_RUNNING = "running"
  * expired; rethrows [CancellationException] but surfaces other launch errors
  * (network, protocol, gateway-side) as failures.
  */
+@Suppress("TooGenericExceptionCaught")
 suspend fun launchGatewayRuntime(
     gatewayRepository: GatewayRepository,
     gatewaySourceRepository: GatewaySourceRepository,
@@ -50,6 +51,39 @@ suspend fun launchGatewayRuntime(
     requireSupportedProtocol: Boolean = false,
     new: Boolean = false,
     reuseRuntimeId: String? = null,
+): Result<GatewayLaunchResult> =
+    try {
+        launchRefreshedRuntime(
+            gatewayRepository = gatewayRepository,
+            gatewaySourceRepository = gatewaySourceRepository,
+            gatewaySource = gatewaySource,
+            agentId = agentId,
+            requireSupportedProtocol = requireSupportedProtocol,
+            new = new,
+            reuseRuntimeId = reuseRuntimeId,
+        )
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        // Broad catch: every step here is a network boundary (credential refresh,
+        // protocol probe, agent start, runtime connect). Callers read the Result on
+        // the main dispatcher and render it, so an exception escaping this function
+        // does not surface as an error — it kills the chat screen's load coroutine.
+        Result.failure(error)
+    }
+
+/**
+ * The launch body, free to throw: [launchGatewayRuntime] folds anything other
+ * than cancellation into the [Result] its callers are written against.
+ */
+private suspend fun launchRefreshedRuntime(
+    gatewayRepository: GatewayRepository,
+    gatewaySourceRepository: GatewaySourceRepository,
+    gatewaySource: GatewaySource,
+    agentId: String,
+    requireSupportedProtocol: Boolean,
+    new: Boolean,
+    reuseRuntimeId: String?,
 ): Result<GatewayLaunchResult> {
     val refreshedSource =
         try {

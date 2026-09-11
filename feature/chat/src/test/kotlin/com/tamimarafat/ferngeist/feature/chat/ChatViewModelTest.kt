@@ -329,4 +329,75 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         }
 
     // endregion
+
+    @Test
+    fun `a hydrating snapshot does not replace a reported load failure with a spinner`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade() }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+            val facade = facadeFactory.lastFacade.value!!
+
+            facade.emitLoadFailed("The gateway could not start a session for this agent.")
+            advanceUntilIdle()
+            assertEquals(
+                "The gateway could not start a session for this agent.",
+                viewModel.state.value.error,
+            )
+
+            // A load that is still in flight reports HYDRATING without an error. Treating
+            // that as "the failure is over" drops the message and re-enters loading, which
+            // is the spinner that never resolves.
+            facade.emitSnapshot(hydratingSnapshot())
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals(
+                "an in-flight snapshot must not erase the failure",
+                "The gateway could not start a session for this agent.",
+                state.error,
+            )
+            assertFalse("the screen must not fall back to the loading state", state.isLoading)
+        }
+
+    @Test
+    fun `a hydrating snapshot still enters loading when no failure was reported`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade() }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+            val facade = facadeFactory.lastFacade.value!!
+
+            // Clear the default fake's init failure with a successful load, so the
+            // hydration below starts from a screen with nothing to report.
+            facade.emitSnapshot(readySnapshot())
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.error == null)
+
+            facade.emitSnapshot(hydratingSnapshot())
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertTrue("a fresh hydration must show loading", state.isLoading)
+            assertTrue(state.error == null)
+        }
+
+    @Test
+    fun `a ready snapshot clears an earlier load failure`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade() }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+            val facade = facadeFactory.lastFacade.value!!
+
+            facade.emitLoadFailed("Disconnected. Reconnect to refresh this session.")
+            advanceUntilIdle()
+
+            facade.emitSnapshot(readySnapshot())
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertTrue("a successful load must clear the failure", state.error == null)
+            assertFalse(state.isLoading)
+        }
 }

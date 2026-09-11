@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -92,7 +93,7 @@ internal class ChatSessionCoordinator(
     /** Starts session load, then delegates to the facade. */
     suspend fun loadSession() {
         callbacks.onLoadStarted()
-        facade.loadSession()
+        loadGuarded { facade.loadSession() }
     }
 
     /**
@@ -108,8 +109,34 @@ internal class ChatSessionCoordinator(
         } else {
             callbacks.onLoadStarted()
         }
-        if (!facade.tryRestoreWarmSession()) {
-            if (cached == null) facade.loadSession() else facade.loadSessionQuietly()
+        loadGuarded {
+            if (!facade.tryRestoreWarmSession()) {
+                if (cached == null) facade.loadSession() else facade.loadSessionQuietly()
+            }
+        }
+    }
+
+    /**
+     * Runs a facade load, reporting an escaping failure through [Callbacks.onLoadFailed].
+     *
+     * Loading reaches the network from the main dispatcher, so an exception leaving
+     * this call does not become an error the screen can render: it kills the process
+     * (or, caught further up, strands the screen in its loading state with no
+     * message). The facade's own failures are already surfaced as events — this only
+     * catches what escapes them.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun loadGuarded(load: suspend () -> Unit) {
+        try {
+            load()
+        } catch (error: CancellationException) {
+            // The screen closed mid-load; that is not a load failure.
+            throw error
+        } catch (error: Exception) {
+            callbacks.onLoadFailed(
+                error.message?.takeIf { it.isNotBlank() }
+                    ?: "Could not load this session. Check connection and retry.",
+            )
         }
     }
 
