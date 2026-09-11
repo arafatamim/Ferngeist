@@ -53,7 +53,7 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
@@ -882,8 +882,7 @@ private fun ChatScreenScaffold(
             Scaffold(
                 modifier =
                     Modifier
-                        .fillMaxSize()
-                        .nestedScroll(scrollBehavior.nestedScrollConnection),
+                        .fillMaxSize(),
                 containerColor = Color.Transparent,
                 topBar = {
                     ChatScreenTopBar(
@@ -910,6 +909,7 @@ private fun ChatScreenScaffold(
                         coroutineScope = coroutineScope,
                         focusManager = focusManager,
                         viewModel = viewModel,
+                        appBarScrollConnection = scrollBehavior.nestedScrollConnection,
                     )
                 }
             }
@@ -925,11 +925,13 @@ private fun BoxScope.ChatScreenOverlays(
     coroutineScope: CoroutineScope,
     focusManager: FocusManager,
     viewModel: ChatViewModel,
+    appBarScrollConnection: NestedScrollConnection,
 ) {
     ChatScreenContentOverlays(
         screenState = screenState,
         innerPadding = innerPadding,
         viewModel = viewModel,
+        appBarScrollConnection = appBarScrollConnection,
     )
     ChatScreenSnackbar(screenState)
 
@@ -1052,6 +1054,7 @@ private fun BoxScope.ChatScreenContentOverlays(
     screenState: ChatScreenState,
     innerPadding: PaddingValues,
     viewModel: ChatViewModel,
+    appBarScrollConnection: NestedScrollConnection,
 ) {
     ChatScreenDialogsHost(screenState, viewModel)
     if (screenState.showGitStatusSheet.value) {
@@ -1074,6 +1077,7 @@ private fun BoxScope.ChatScreenContentOverlays(
         state = screenState.state,
         listState = screenState.scrollHandle.listState,
         userScrollDetector = screenState.scrollHandle.userScrollDetector,
+        appBarScrollConnection = appBarScrollConnection,
         renderedLastMessageId = screenState.renderedLastMessageId,
         listTopPadding = innerPadding.calculateTopPadding(),
         listBottomPadding = screenState.listBottomPadding,

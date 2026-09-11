@@ -298,6 +298,7 @@ internal fun ChatScreenBody(
     state: ChatState,
     listState: LazyListState,
     userScrollDetector: NestedScrollConnection,
+    appBarScrollConnection: NestedScrollConnection,
     renderedLastMessageId: String?,
     listTopPadding: Dp,
     listBottomPadding: Dp,
@@ -329,6 +330,7 @@ internal fun ChatScreenBody(
                 state = state,
                 listState = listState,
                 userScrollDetector = userScrollDetector,
+                appBarScrollConnection = appBarScrollConnection,
                 renderedLastMessageId = renderedLastMessageId,
                 listTopPadding = listTopPadding,
                 listBottomPadding = listBottomPadding,
@@ -374,6 +376,7 @@ private fun ChatMessageList(
     state: ChatState,
     listState: LazyListState,
     userScrollDetector: NestedScrollConnection,
+    appBarScrollConnection: NestedScrollConnection,
     renderedLastMessageId: String?,
     listTopPadding: Dp,
     listBottomPadding: Dp,
@@ -397,7 +400,13 @@ private fun ChatMessageList(
         modifier =
             Modifier
                 .fillMaxSize()
-                .nestedScroll(userScrollDetector),
+                .nestedScroll(userScrollDetector)
+                // The app bar is driven by this list alone. Attaching the app bar's
+                // connection at the Scaffold instead would also capture the scroll of any
+                // other Scaffold descendant — notably the composer's text field, which
+                // floats over this list as a sibling — and collapse the bar instead of
+                // scrolling the text.
+                .nestedScroll(appBarScrollConnection),
         contentPadding = PaddingValues(start = 16.dp, top = listTopPadding + 8.dp, end = 16.dp, bottom = 0.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
