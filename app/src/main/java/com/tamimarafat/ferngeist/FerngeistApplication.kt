@@ -2,6 +2,8 @@ package com.tamimarafat.ferngeist
 
 import android.app.Application
 import android.util.Log
+import androidx.compose.ui.ComposeUiFlags
+import androidx.compose.ui.ExperimentalComposeUiApi
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.FcmTokenBootstrap
@@ -45,7 +47,9 @@ class FerngeistApplication : Application() {
         private const val SERVICE_STOP_BACKSTOP_MS = 10_000L
     }
 
+    @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate() {
+        ComposeUiFlags.isMediaQueryIntegrationEnabled = true
         super.onCreate()
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
