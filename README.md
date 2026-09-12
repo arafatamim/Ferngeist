@@ -11,11 +11,7 @@ Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compa
 
 ## Download
 
-Ferngeist is currently in **closed testing** on Google Play. To install:
-
-1. Join the tester group: [ferngeist-testers](https://groups.google.com/g/ferngeist-testers)
-2. Opt-in to the test: [ferngeist on Play Store (testing)](https://play.google.com/apps/testing/com.tamimarafat.ferngeist)
-3. Download:
+Ferngeist is available on Google Play.
 
 <a href="https://play.google.com/store/apps/details?id=com.tamimarafat.ferngeist"><img alt="Google Play" src="https://github.com/pioug/google-play-badges/raw/refs/heads/main/svg/en.svg" width="200" /></a>
 
