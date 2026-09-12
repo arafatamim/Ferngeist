@@ -1,3 +1,131 @@
+## [0.13.0] - 2026-09-12
+
+### Features
+
+- *(sessionlist)* Cwd suggestions bottom sheet ([f93b1a2](https://github.com/arafatamim/Ferngeist/commit/f93b1a25f86f3ee19ec10f573423ca53cad57680))
+- *(gateway)* Thread a fresh-process flag through runtime launch ([5232c90](https://github.com/arafatamim/Ferngeist/commit/5232c9052c3c46b3a6d29462dcf78532ff75f5be))
+- *(acp,chat)* Add the chat connection hub with a hot-connection cap ([686bceb](https://github.com/arafatamim/Ferngeist/commit/686bcebe6f95133b4e24f8c0a56c6ce157d575df))
+- *(db)* Record the gateway session id on session rows (v15) ([03f0b2f](https://github.com/arafatamim/Ferngeist/commit/03f0b2ffe40e326940c11c00a87a91a0e8694cc3))
+- *(chat,sessionlist)* Track open chats and live gateway sessions ([4fa34a1](https://github.com/arafatamim/Ferngeist/commit/4fa34a117323f5ffdc8a87d6ac1ec8c3bfc77d80))
+- *(chat)* Fade messages into the surface beneath the composer ([6f1df5f](https://github.com/arafatamim/Ferngeist/commit/6f1df5feb8e8ab73117c780d8af6d01ca414d60d))
+
+### Fixes
+
+- *(acp-bridge)* Catch exceptions from SDK session close and bridge operations ([91f3c29](https://github.com/arafatamim/Ferngeist/commit/91f3c29c85a9d566535f923ee708a5617fd62641))
+- *(push)* Survive an expired gateway credential at startup ([4e16dcd](https://github.com/arafatamim/Ferngeist/commit/4e16dcd6019cef09adbc050a679fe91e753f4288))
+- *(sessionlist,acp)* Session-list review fixes ([fb41eaf](https://github.com/arafatamim/Ferngeist/commit/fb41eaf5b6f237573ff48f2ed57363aa62004630))
+- *(acp,gateway)* Pin each chat to its own gateway runtime ([f675c44](https://github.com/arafatamim/Ferngeist/commit/f675c44b7c66304bfc66fb66156114ab68a24ccf))
+- *(acp,chat)* Keep turns, permissions and queued prompts alive when the screen dies ([35bb715](https://github.com/arafatamim/Ferngeist/commit/35bb715c7b5265a261eaef944a83680580243309))
+- *(acp,chat)* End interrupted turns and keep queued prompts durable ([2cc745b](https://github.com/arafatamim/Ferngeist/commit/2cc745bce919b6c3e69e011af4f92ad313368520))
+- *(acp,db)* Count leased sessions at the device cap, claim atomically ([8783182](https://github.com/arafatamim/Ferngeist/commit/87831820e1847c493de77b02c6a5726a6cfc7204))
+- *(gateway)* Propagate launch cancellation, and stop lying in the notification ([d720952](https://github.com/arafatamim/Ferngeist/commit/d720952f7448f0926ce98d7b0f7024667a6c2056))
+- *(chat)* Make the model picker search actually filter ([8aa92ad](https://github.com/arafatamim/Ferngeist/commit/8aa92adc45dd5e6ae6017e11701f4fbe70aa1bb2))
+- *(acp)* Keep the context reading across a session reload ([da1dbad](https://github.com/arafatamim/Ferngeist/commit/da1dbadf247f08433e1ea2380fc20cc05e108956))
+- *(chat,acp)* Surface a failed session load instead of a stuck spinner ([e65fd31](https://github.com/arafatamim/Ferngeist/commit/e65fd31a21cba81c8da6ea7def5682f72f295863))
+- *(acp)* Keep the reconnect loop alive across its own attempt ([ae2806d](https://github.com/arafatamim/Ferngeist/commit/ae2806d9d7dd315f49fdda8d6fa492eaec4dc341))
+- *(chat)* Drive the app bar from the message list, not the composer ([6058989](https://github.com/arafatamim/Ferngeist/commit/60589890df46abf63c4aa4f1dc11e924ba381535))
+- *(chat)* Size the composer to its content and animate it with the theme ([4003884](https://github.com/arafatamim/Ferngeist/commit/4003884908a584d0f88018df8e55f918597cd43b))
+
+### Maintenance
+
+- *(build)* Treat compiler warnings as errors and fix all findings ([480363c](https://github.com/arafatamim/Ferngeist/commit/480363cf1b2c011c2c1349edc51c64a4a2cf8377))
+- *(lint)* Fix every warning and enforce warningsAsErrors ([47fce9a](https://github.com/arafatamim/Ferngeist/commit/47fce9abe42407896493c378f914afec2c8f7c3d))
+- Run the gate on master, and fetch tags so the version provider resolves ([c24c85e](https://github.com/arafatamim/Ferngeist/commit/c24c85e071ed3320617c5184250b79563170b9b1))
+
+### Refactoring
+
+- *(acp)* Give every owner its own connection manager ([61680b9](https://github.com/arafatamim/Ferngeist/commit/61680b933c823fd8076932359205581c0568237c))
+- *(acp,model)* Make the hub own presence, and dedupe the session load paths ([2871d98](https://github.com/arafatamim/Ferngeist/commit/2871d98ffbd832e65b8255777090983e7d5d99bf))
+- *(acp)* Pull listing and teardown behind the hub seam ([ae722b3](https://github.com/arafatamim/Ferngeist/commit/ae722b370ec96002f94dd78fd6669a1b585ac43a))
+
+### Testing
+
+- *(db)* Cover the 14->15 migration with exported Room schemas ([0b88849](https://github.com/arafatamim/Ferngeist/commit/0b888490832e1c3e62d6926d365eebceb849d02c))
+
+## [0.12.2] - 2026-08-20
+
+### Features
+
+- *(chat)* Animate git status pill appearance in top bar ([20e6621](https://github.com/arafatamim/Ferngeist/commit/20e6621d28adb87d7711669099301eea04547888))
+
+### Fixes
+
+- *(sessionlist)* Reconnect before creating a session while disconnected ([1b23452](https://github.com/arafatamim/Ferngeist/commit/1b234527122ac3fc024b23963dc5542be630cb71))
+- *(acp)* Survive network failures in reconnect loop ([b913a0d](https://github.com/arafatamim/Ferngeist/commit/b913a0de9e0f048003a938365f0e6b111c862f1b))
+- *(ui)* VerySunny connecting indicator with outline contrast ([f067ff7](https://github.com/arafatamim/Ferngeist/commit/f067ff77c94d238b3f741aedc7cd1c84b07eae75))
+
+### Refactoring
+
+- *(gateway)* Share gateway launch and connect/initialize across VMs ([0fa5bae](https://github.com/arafatamim/Ferngeist/commit/0fa5bae6ad5a43f9b97180d87262398d41eb539f))
+
+## [0.12.1] - 2026-08-19
+
+### Fixes
+
+- *(sessionlist)* Prompt for cwd instead of defaulting to root when creating session ([51b4e94](https://github.com/arafatamim/Ferngeist/commit/51b4e94b5fa40f66f756b253d96ed3e642baeeae))
+- *(chat)* Retry git status fetch when session becomes ready ([b45f440](https://github.com/arafatamim/Ferngeist/commit/b45f4406e97687e5122aae5793498740840ff9a9))
+
+### Maintenance
+
+- *(release)* Add 0.12.0 Play changelog ([6e7e636](https://github.com/arafatamim/Ferngeist/commit/6e7e6360628f41d08120ae468bbaac3557cb592a))
+- *(lint)* Enforce ktlint gate and fix all findings ([e2d9b5e](https://github.com/arafatamim/Ferngeist/commit/e2d9b5e51ef674a2eff46f5fd3e11e279bc78faf))
+
+## [0.12.0] - 2026-08-18
+
+### Features
+
+- *(ui)* Expressive error and empty states ([815940f](https://github.com/arafatamim/Ferngeist/commit/815940fad965401d179c8bcd6e068c11ba76f195))
+- *(serverlist)* Non-collapsing app bar and sheet gesture fixes ([5df9dba](https://github.com/arafatamim/Ferngeist/commit/5df9dba01dff88b590592b83b19f9604b1a28010))
+- *(serverlist)* Fading edges on agents list ([a71fc55](https://github.com/arafatamim/Ferngeist/commit/a71fc555dbbbe5cd89cdc5ceb8189de2db3753a7))
+- *(acp)* Exponential backoff with full jitter for reconnects ([b721b9b](https://github.com/arafatamim/Ferngeist/commit/b721b9bbedc151cb9f6e95c32f44a46f8bef76d0))
+
+### Fixes
+
+- *(chat)* Hide scroll-to-bottom button when at bottom ([86b01e8](https://github.com/arafatamim/Ferngeist/commit/86b01e849a9ecd6f9e121b661539ea9a2e2a618d))
+- *(serverlist)* Animate backdrop sheet collapse on release ([f73f2fe](https://github.com/arafatamim/Ferngeist/commit/f73f2fe26ebfebfa0bf2c0ad59a39938bce6792a))
+- *(serverlist)* Stabilize shared title transition on sheet restore ([883969b](https://github.com/arafatamim/Ferngeist/commit/883969bab934623093249b27d8c8ce86e12805d1))
+- *(chat)* Recompute derived picker selections on id change ([11322e6](https://github.com/arafatamim/Ferngeist/commit/11322e683457ecd304136a25fbbcd08f78dbf59b))
+- *(ui)* Shared EdgeFade with quintic curve, scroll-coupled bands, theme fade color ([ccc4233](https://github.com/arafatamim/Ferngeist/commit/ccc4233ea57b235aed062ad24b851a78f6ec7294))
+- *(chat,serverlist)* Tweak sheet drag behaviour and UI colours ([3bec892](https://github.com/arafatamim/Ferngeist/commit/3bec8928f820920756fc68ca03be797e9548fe8e))
+- *(chat)* Render submodule git status entries as directories ([86b864f](https://github.com/arafatamim/Ferngeist/commit/86b864f2c970ac97f48e4af9398d68a5c8f59878))
+- *(sessionlist)* Atomically replace sessions to stop refresh flicker ([0c1f283](https://github.com/arafatamim/Ferngeist/commit/0c1f2832b9f6bebf8617e27381da84e966c31c5b))
+- *(chat)* Exact 2/2 diff blocks for balanced changes ([dfac03a](https://github.com/arafatamim/Ferngeist/commit/dfac03a6f27d79ea07f0b8a6d21b9fa5f4505603))
+- *(chat)* Localize git status and load-earlier strings ([34c6039](https://github.com/arafatamim/Ferngeist/commit/34c6039fecff2a28e6645b9997a03905fe78b622))
+- *(chat)* Let message list extend edge-to-edge behind nav bar ([cc195e6](https://github.com/arafatamim/Ferngeist/commit/cc195e621eed56b78dce274267bd3f99caa5e79b))
+
+### Maintenance
+
+- *(release)* Add 0.11.0 Play changelog ([0702da5](https://github.com/arafatamim/Ferngeist/commit/0702da5a7456c093dc24520d8e33e744ea8d3638))
+- Run full lint, detekt, and ktlint pass ([5381929](https://github.com/arafatamim/Ferngeist/commit/53819295f3d15d379f03109678d6630b7b89b7e1))
+- Make detekt and ktlint mandatory in check, CI, and pre-commit ([b3698f6](https://github.com/arafatamim/Ferngeist/commit/b3698f6fab37a89ea5ad7654b6cf1f5c9fbb7e17))
+
+### Refactoring
+
+- Resolve all detekt findings across modules ([7cbd70c](https://github.com/arafatamim/Ferngeist/commit/7cbd70c0e4f5fa9d970189100647e0f048ac2b1a))
+
+## [0.11.0] - 2026-08-07
+
+### Features
+
+- *(push)* Coalesce progress pushes per session ([ec77565](https://github.com/arafatamim/Ferngeist/commit/ec77565d06e82ad3df9342fe84d515fe4df8881a))
+- *(chat)* Rich tooltip on session title long-press ([bf2f1e2](https://github.com/arafatamim/Ferngeist/commit/bf2f1e2216c7157ef2732fa347058c5a2295b0fa))
+- *(chat)* Gateway workspace diff indicator and git status sheet ([0d60b67](https://github.com/arafatamim/Ferngeist/commit/0d60b671ee34b8d3eb054fec1ffdd72a0ab5f57a))
+- *(gateway-client)* Surface expired gateway credentials for re-pairing ([dd0a2d0](https://github.com/arafatamim/Ferngeist/commit/dd0a2d0d96df6a7a860bb9f4860292483f0202cc))
+- *(gateway-client)* Gate gateway access on protocol version ([9b21cb7](https://github.com/arafatamim/Ferngeist/commit/9b21cb7c1b2c997bc534fbcc7c2c29b7903bd018))
+- *(chat)* Per-file git diff viewer with hunk rendering ([4380cef](https://github.com/arafatamim/Ferngeist/commit/4380cef6a537108156be2bbfe007541e638445ce))
+
+### Fixes
+
+- *(acp)* Refuse blank cwd on session creation, stop sending / ([fb50057](https://github.com/arafatamim/Ferngeist/commit/fb50057487273de137d10b3cc969751554959196))
+- *(acp-bridge)* Fast-path already-loaded detection via INVALID_PARAMS code ([194734e](https://github.com/arafatamim/Ferngeist/commit/194734e29a708087d6dcb48b7757fd5eea1d9424))
+- *(acp-bridge)* Re-authenticate with stored method after reconnect ([7319bfb](https://github.com/arafatamim/Ferngeist/commit/7319bfb45c53ac7f7af2851173f4ac0b040bfafe))
+- *(acp-bridge)* Gate SDK session close on session/close capability ([69f6267](https://github.com/arafatamim/Ferngeist/commit/69f6267aa0b40f35726ef4747b2aaffc205799d4))
+- *(chat)* Keep title tooltip on-screen on narrow devices ([6fbf370](https://github.com/arafatamim/Ferngeist/commit/6fbf370c1230f9a90fcf9c3c4196eb14954e2968))
+- *(chat)* Render tool-call diffs without nested scroll container ([c4dba44](https://github.com/arafatamim/Ferngeist/commit/c4dba44e2040a40fec7447af4da5647b09a1a882))
+
+### Maintenance
+
+- *(deps)* Upgrade all dependencies to latest versions ([30f72e4](https://github.com/arafatamim/Ferngeist/commit/30f72e434831bab98cd834f47cf2c6093d1fd99c))
 
 ## [0.10.1] - 2026-07-20
 

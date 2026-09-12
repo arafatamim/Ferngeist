@@ -1,0 +1,9 @@
+A smoother, more reliable chat.
+
+• New: the composer grows to fit what you type, and springs as it resizes
+• New: messages fade softly into the surface beneath the composer
+• New: directory suggestions when starting a session
+• Fixed: sessions no longer stick on a loading spinner
+• Fixed: model picker search actually filters
+• Fixed: the top bar collapses smoothly as you scroll
+• Various stability and performance improvements
