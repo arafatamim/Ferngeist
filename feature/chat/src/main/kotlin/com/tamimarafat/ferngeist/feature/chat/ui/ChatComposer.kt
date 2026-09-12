@@ -137,7 +137,6 @@ private val EXPANDED_COMPOSER_MIN_HEIGHT = 142.dp
  * @param currentModeLabel The human-readable label for the current mode.
  * @param showStopAction Whether to show the "Stop" button instead of send/expand.
  * @param canCancelStreaming Whether the current stream can actually be canceled.
- * @param screenWidth Total screen width for calculating layout bounds.
  * @param focusRequester To request focus when expanding.
  * @param onFocusCleared Callback when focus is cleared (e.g., closing the composer).
  * @param onHeightChanged Callback to report the current height of the composer to the parent.
@@ -164,7 +163,6 @@ internal fun ChatComposerBar(
     currentModeLabel: String,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
-    screenWidth: Dp,
     focusRequester: FocusRequester,
     onFocusCleared: () -> Unit,
     onHeightChanged: (Int) -> Unit,
@@ -189,13 +187,11 @@ internal fun ChatComposerBar(
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
 
-    val collapsedMaxToolbarWidth = screenWidth * COLLAPSED_MAX_TOOLBAR_FRACTION
-
     ComposerSurfaceContainer(
         modifier = modifier,
         composerExpanded = composerExpanded,
         onHeightChanged = onHeightChanged,
-    ) {
+    ) { collapsedMaxToolbarWidth ->
         if (composerExpanded) {
             ExpandedComposerContent(
                 messageText,
@@ -304,11 +300,13 @@ private fun ComposerSurfaceContainer(
     modifier: Modifier,
     composerExpanded: Boolean,
     onHeightChanged: (Int) -> Unit,
-    content: @Composable RowScope.() -> Unit,
+    content: @Composable RowScope.(collapsedMaxToolbarWidth: Dp) -> Unit,
 ) {
     // The panel has two resting widths and neither is a constant: the collapsed pill hugs
     // its actions, while the expanded panel fills the width available to it. `maxWidth` is
     // that available width; the pill's is only known once its actions have been measured.
+    // The actions also clamp against the same fraction (handed to the content below), so
+    // this one measurement answers every question about how wide the composer may be.
     BoxWithConstraints(modifier = modifier) {
         val expandedWidth = maxWidth * COLLAPSED_MAX_TOOLBAR_FRACTION
 
@@ -401,10 +399,10 @@ private fun ComposerSurfaceContainer(
                     if (composerExpanded) {
                         val rowScope = this
                         Box(modifier = Modifier.fillMaxWidth().onSizeChanged { expandedContentHeightPx = it.height }) {
-                            with(rowScope) { content() }
+                            with(rowScope) { content(expandedWidth) }
                         }
                     } else {
-                        content()
+                        content(expandedWidth)
                     }
                 }
             }

@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayUiState
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
@@ -279,48 +280,56 @@ private fun AddGatewayScaffoldContent(
     onCheckStatus: () -> Unit,
     onNext: () -> Unit,
 ) {
-    Column(
+    Box(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        AddGatewayTopBar(
-            stepIndex = stepIndex,
-            totalSteps = totalSteps,
-            onBack = onBack,
-        )
+        Column(
+            modifier =
+                Modifier
+                    .formContentMaxWidth()
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+        ) {
+            AddGatewayTopBar(
+                stepIndex = stepIndex,
+                totalSteps = totalSteps,
+                onBack = onBack,
+            )
 
-        Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-        AddGatewayStepCard(
-            step = step,
-            stepIndex = stepIndex,
-            pairingQrPayload = pairingQrPayload,
-            name = name,
-            deviceName = deviceName,
-            scheme = scheme,
-            host = host,
-            uiState = uiState,
-            onUpdatePayload = onUpdatePayload,
-            onScanQr = onScanQr,
-            onUpdateName = onUpdateName,
-            onUpdateDeviceName = onUpdateDeviceName,
-            onSelectScheme = onSelectScheme,
-            onUpdateHost = onUpdateHost,
-            onCheckStatus = onCheckStatus,
-        )
+            AddGatewayStepCard(
+                step = step,
+                stepIndex = stepIndex,
+                pairingQrPayload = pairingQrPayload,
+                name = name,
+                deviceName = deviceName,
+                scheme = scheme,
+                host = host,
+                uiState = uiState,
+                onUpdatePayload = onUpdatePayload,
+                onScanQr = onScanQr,
+                onUpdateName = onUpdateName,
+                onUpdateDeviceName = onUpdateDeviceName,
+                onSelectScheme = onSelectScheme,
+                onUpdateHost = onUpdateHost,
+                onCheckStatus = onCheckStatus,
+            )
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        AddGatewayBottomBar(
-            stepIndex = stepIndex,
-            totalSteps = totalSteps,
-            hasImportedPayload = uiState.importedPairingPayload != null,
-            isSaving = uiState.isSaving,
-            onNext = onNext,
-        )
+            AddGatewayBottomBar(
+                stepIndex = stepIndex,
+                totalSteps = totalSteps,
+                hasImportedPayload = uiState.importedPairingPayload != null,
+                isSaving = uiState.isSaving,
+                onNext = onNext,
+            )
+        }
     }
 }
 
@@ -681,26 +690,31 @@ private fun EditGatewayScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        Box(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            EditGatewayDetailsSection(
-                name = name,
-                scheme = scheme,
-                host = host,
-                uiState = uiState,
-                onUpdateName = viewModel::updateName,
-                onSelectScheme = viewModel::updateScheme,
-                onUpdateHost = viewModel::updateHost,
-                onCheckStatus = viewModel::checkStatus,
-                onSave = viewModel::saveGateway,
-            )
+            Column(
+                modifier =
+                    Modifier
+                        .formContentMaxWidth()
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                EditGatewayDetailsSection(
+                    name = name,
+                    scheme = scheme,
+                    host = host,
+                    uiState = uiState,
+                    onUpdateName = viewModel::updateName,
+                    onSelectScheme = viewModel::updateScheme,
+                    onUpdateHost = viewModel::updateHost,
+                    onCheckStatus = viewModel::checkStatus,
+                    onSave = viewModel::saveGateway,
+                )
+            }
         }
     }
 }

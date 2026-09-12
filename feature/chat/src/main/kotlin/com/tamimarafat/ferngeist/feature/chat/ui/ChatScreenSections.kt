@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -395,47 +396,50 @@ private fun ChatMessageList(
             allMessages.takeLast(windowSize)
         }
 
-    LazyColumn(
-        state = listState,
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .nestedScroll(userScrollDetector)
-                // The app bar is driven by this list alone. Attaching the app bar's
-                // connection at the Scaffold instead would also capture the scroll of any
-                // other Scaffold descendant — notably the composer's text field, which
-                // floats over this list as a sibling — and collapse the bar instead of
-                // scrolling the text.
-                .nestedScroll(appBarScrollConnection),
-        contentPadding = PaddingValues(start = 16.dp, top = listTopPadding + 8.dp, end = 16.dp, bottom = 0.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (windowSize < allMessages.size) {
-            item(key = "__load_older") {
-                OutlinedButton(
-                    onClick = { windowSize += WINDOW_STEP },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                ) {
-                    Text(text = stringResource(R.string.chat_load_earlier))
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier =
+                Modifier
+                    .widthIn(max = 720.dp)
+                    .align(Alignment.TopCenter)
+                    .nestedScroll(userScrollDetector)
+                    // The app bar is driven by this list alone. Attaching the app bar's
+                    // connection at the Scaffold instead would also capture the scroll of any
+                    // other Scaffold descendant — notably the composer's text field, which
+                    // floats over this list as a sibling — and collapse the bar instead of
+                    // scrolling the text.
+                    .nestedScroll(appBarScrollConnection),
+            contentPadding = PaddingValues(start = 16.dp, top = listTopPadding + 8.dp, end = 16.dp, bottom = 0.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (windowSize < allMessages.size) {
+                item(key = "__load_older") {
+                    OutlinedButton(
+                        onClick = { windowSize += WINDOW_STEP },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                    ) {
+                        Text(text = stringResource(R.string.chat_load_earlier))
+                    }
                 }
             }
-        }
-        items(items = windowed, key = { it.id }) { message ->
-            ChatMessageItem(
-                message = message,
-                state = state,
-                renderedLastMessageId = renderedLastMessageId,
-                onThoughtClick = onThoughtClick,
-                onToolCallClick = onToolCallClick,
-                onStreamLayoutSettled = onStreamLayoutSettled,
-                onRetryMessage = onRetryMessage,
-            )
-        }
-        item(key = "__chat_bottom_spacer") {
-            Spacer(modifier = Modifier.height(listBottomPadding))
+            items(items = windowed, key = { it.id }) { message ->
+                ChatMessageItem(
+                    message = message,
+                    state = state,
+                    renderedLastMessageId = renderedLastMessageId,
+                    onThoughtClick = onThoughtClick,
+                    onToolCallClick = onToolCallClick,
+                    onStreamLayoutSettled = onStreamLayoutSettled,
+                    onRetryMessage = onRetryMessage,
+                )
+            }
+            item(key = "__chat_bottom_spacer") {
+                Spacer(modifier = Modifier.height(listBottomPadding))
+            }
         }
     }
 }

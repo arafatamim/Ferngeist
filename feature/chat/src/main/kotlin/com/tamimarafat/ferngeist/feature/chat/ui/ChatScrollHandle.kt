@@ -16,6 +16,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.platform.LocalDensity
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollSnapshot
 import kotlinx.coroutines.CoroutineScope
@@ -84,9 +85,20 @@ internal fun rememberChatScrollState(
             ChatScrollDecisionRunner(listState, scope, policy, isFollowingState)
         }
     val userScrollDetector = remember(runner) { runner.createUserScrollConnection() }
+    // The viewport is measured in pixels; snapshots record it in dp so the value stays
+    // comparable across a fold or rotate (density can change with the display).
+    val density = LocalDensity.current
+    val viewportWidthDp = { with(density) { listState.layoutInfo.viewportSize.width.toDp().value.toInt() } }
     val observer =
-        remember(sessionId, listState, policy, runner, onScrollSnapshotChanged) {
-            ChatScrollSnapshotObserver(listState, policy, runner, { isFollowingState.value }, onScrollSnapshotChanged)
+        remember(sessionId, listState, policy, runner, onScrollSnapshotChanged, density) {
+            ChatScrollSnapshotObserver(
+                listState = listState,
+                policy = policy,
+                runner = runner,
+                isFollowingState = { isFollowingState.value },
+                onScrollSnapshotChanged = onScrollSnapshotChanged,
+                viewportWidthDp = viewportWidthDp,
+            )
         }
     LaunchedEffect(policy, listState) { observer.observeIdleTimeout() }
     LaunchedEffect(policy, activelyStreaming) { observer.observeManualBottomResume(activelyStreaming) }
@@ -137,6 +149,7 @@ private data class ScrollObservation(
     val anchorMessageId: String?,
     val firstVisibleItemIndex: Int,
     val firstVisibleItemScrollOffset: Int,
+    val containerWidthDp: Int,
     val isFollowing: Boolean,
 )
 // endregion
@@ -317,6 +330,8 @@ private class ChatScrollDecisionRunner(
  *
  * Captured state accessors are passed as lambdas so the observer reads
  * the latest values on each invocation without re-creating the object.
+ *
+ * @param viewportWidthDp current list viewport width in dp, read at save/restore time
  */
 private class ChatScrollSnapshotObserver(
     private val listState: LazyListState,
@@ -324,6 +339,7 @@ private class ChatScrollSnapshotObserver(
     private val runner: ChatScrollDecisionRunner,
     private val isFollowingState: () -> Boolean,
     private val onScrollSnapshotChanged: (ChatScrollSnapshot) -> Unit,
+    private val viewportWidthDp: () -> Int,
 ) {
     /**
      * 1. Idle timeout — event-driven. Fires when the list becomes
@@ -382,6 +398,7 @@ private class ChatScrollSnapshotObserver(
                     anchorMessageId = renderedMessages.getOrNull(idx)?.id,
                     firstVisibleItemIndex = idx,
                     firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                    containerWidthDp = viewportWidthDp(),
                     isFollowing = policy.isFollowing,
                 )
             }
@@ -396,6 +413,7 @@ private class ChatScrollSnapshotObserver(
                         firstVisibleItemScrollOffset = observation.firstVisibleItemScrollOffset,
                         isFollowing = observation.isFollowing,
                         savedAt = System.currentTimeMillis(),
+                        containerWidthDp = observation.containerWidthDp,
                     ),
                 )
             }
@@ -422,11 +440,13 @@ private class ChatScrollSnapshotObserver(
                 ?: currentSnapshot.firstVisibleItemIndex.coerceIn(0, renderedMessages.lastIndex)
         // Two-pass: the first scrollToItem positions the index, but layout
         // may not have settled yet. The second pass corrects any offset drift.
+        // The offset is re-anchored to the message top when the viewport width
+        // changed (fold, rotate, multi-window), because item heights re-flowed.
         repeat(2) {
             withFrameNanos { }
             listState.scrollToItem(
                 index = restoredIndex,
-                scrollOffset = currentSnapshot.firstVisibleItemScrollOffset.coerceAtLeast(0),
+                scrollOffset = currentSnapshot.offsetForRestore(viewportWidthDp()).coerceAtLeast(0),
             )
         }
         val decision = policy.markRestored(currentSnapshot.isFollowing)

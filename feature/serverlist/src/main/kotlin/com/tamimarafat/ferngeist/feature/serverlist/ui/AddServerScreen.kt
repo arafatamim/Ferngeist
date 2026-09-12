@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -54,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -123,41 +125,46 @@ private fun AddServerContent(
     isLoading: Boolean,
     onSave: () -> Unit,
 ) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    Box(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        Spacer(modifier = Modifier.height(4.dp))
+        Column(
+            modifier =
+                Modifier
+                    .formContentMaxWidth()
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Spacer(modifier = Modifier.height(4.dp))
 
-        ServerDetailsSection(
-            name = name,
-            onUpdateName = onUpdateName,
-            scheme = scheme,
-            onSelectScheme = onSelectScheme,
-            host = host,
-            onUpdateHost = onUpdateHost,
-        )
+            ServerDetailsSection(
+                name = name,
+                onUpdateName = onUpdateName,
+                scheme = scheme,
+                onSelectScheme = onSelectScheme,
+                host = host,
+                onUpdateHost = onUpdateHost,
+            )
 
-        ServerAuthSection(
-            preferredAuthMethodId = preferredAuthMethodId,
-            isEditMode = isEditMode,
-            clearPreferredAuthMethod = clearPreferredAuthMethod,
-        )
+            ServerAuthSection(
+                preferredAuthMethodId = preferredAuthMethodId,
+                isEditMode = isEditMode,
+                clearPreferredAuthMethod = clearPreferredAuthMethod,
+            )
 
-        Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-        SaveServerButton(
-            isLoading = isLoading,
-            isEditMode = isEditMode,
-            onSave = onSave,
-        )
+            SaveServerButton(
+                isLoading = isLoading,
+                isEditMode = isEditMode,
+                onSave = onSave,
+            )
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }
 
@@ -382,7 +389,7 @@ private fun SaveServerButton(
 ) {
     Button(
         onClick = onSave,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier.widthIn(min = 240.dp).height(56.dp),
         enabled = !isLoading,
         shape = RoundedCornerShape(16.dp),
         colors =

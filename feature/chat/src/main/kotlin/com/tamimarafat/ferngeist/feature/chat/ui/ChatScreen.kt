@@ -57,7 +57,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -233,7 +232,6 @@ private data class ComposerInsets(
     val listBottomPadding: Dp,
     val bottomFadeBandHeight: Dp,
     val snackbarBottomPadding: Dp,
-    val screenWidthDp: Dp,
 )
 
 @Composable
@@ -250,25 +248,21 @@ private fun rememberComposerInsets(
     val showComposerToolbar =
         !state.isLoading && !(state.error != null && state.messages.isEmpty())
     val composerContentHeightDp = with(density) { composerContentHeightPx.value.toDp() }
-    val containerSize = LocalWindowInfo.current.containerSize
     val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
 
-    val screenWidthDp =
-        remember(density, containerSize) {
-            with(density) { containerSize.width.toDp() }
-        }
-
-    // Bottom padding for message list: composer height + floating offset + 36dp.
-    // No system inset: the list extends edge-to-edge behind the nav bar, and the
-    // floating composer still sits above the gesture area via its own padding.
+    // Bottom padding for message list: composer height + floating offset + 36dp, plus any
+    // system inset the floating composer does not already sit above. The window does not
+    // resize for the IME (edge-to-edge + targetSdk 37), so without this the follow-to-bottom
+    // path targets the un-inset screen bottom and the last message settles behind the keyboard.
     val listBottomPadding =
-        remember(showComposerToolbar, composerContentHeightDp) {
+        remember(showComposerToolbar, composerContentHeightDp, systemBottomInsetDp) {
             if (!showComposerToolbar) {
                 0.dp
             } else {
                 composerContentHeightDp +
                     FloatingToolbarDefaults.ScreenOffset +
-                    36.dp
+                    36.dp +
+                    systemBottomInsetDp
             }
         }
 
@@ -310,7 +304,6 @@ private fun rememberComposerInsets(
         listBottomPadding = listBottomPadding,
         bottomFadeBandHeight = bottomFadeBandHeight,
         snackbarBottomPadding = snackbarBottomPadding,
-        screenWidthDp = screenWidthDp,
     )
 }
 
@@ -440,7 +433,6 @@ private class ChatScreenState(
     val bottomFadeBandHeight: Dp,
     val snackbarBottomPadding: Dp,
     val showComposerToolbar: Boolean,
-    val screenWidthDp: Dp,
     val buttonsAlpha: State<Float>,
     val inputAlpha: State<Float>,
     val sendMessage: () -> Unit,
@@ -836,7 +828,6 @@ private fun buildChatScreenState(
         bottomFadeBandHeight = insets.bottomFadeBandHeight,
         snackbarBottomPadding = insets.snackbarBottomPadding,
         showComposerToolbar = insets.showComposerToolbar,
-        screenWidthDp = insets.screenWidthDp,
         buttonsAlpha = derived.buttonsAlphaState,
         inputAlpha = derived.inputAlphaState,
         sendMessage = sendMessage,
@@ -981,7 +972,6 @@ private fun BoxScope.ChatComposerHost(
         currentModeLabel = screenState.currentModeLabel,
         showStopAction = screenState.showStopAction,
         canCancelStreaming = screenState.canCancelStreaming,
-        screenWidth = screenState.screenWidthDp,
         focusRequester = screenState.focusRequester,
         onFocusCleared = { focusManager.clearFocus() },
         onHeightChanged = { screenState.composerContentHeightPx.value = it },

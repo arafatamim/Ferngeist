@@ -56,6 +56,7 @@ class DataStoreChatScrollStateStore
                             firstVisibleItemScrollOffset = prefs[intPreferencesKey("${prefix}offset")] ?: 0,
                             isFollowing = prefs[booleanPreferencesKey("${prefix}following")] ?: true,
                             savedAt = savedAt,
+                            containerWidthDp = prefs[intPreferencesKey("${prefix}widthDp")] ?: 0,
                         )
                     }.first()
             }
@@ -78,6 +79,7 @@ class DataStoreChatScrollStateStore
                     prefs[intPreferencesKey("${prefix}offset")] = snapshot.firstVisibleItemScrollOffset
                     prefs[booleanPreferencesKey("${prefix}following")] = snapshot.isFollowing
                     prefs[longPreferencesKey("${prefix}savedAt")] = snapshot.savedAt
+                    prefs[intPreferencesKey("${prefix}widthDp")] = snapshot.containerWidthDp
                 }
             }
         }

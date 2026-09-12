@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -118,20 +119,41 @@ internal fun AgentsBackdrop(
     var topZonePx by rememberSaveable { mutableIntStateOf(0) } // hero + gap above the sheet
     var recentsPx by rememberSaveable { mutableIntStateOf(0) } // hidden recents block height
     val sheetRevealed = rememberSaveable { mutableStateOf(false) }
-    var savedSheetOffset by rememberSaveable { mutableFloatStateOf(0f) }
+    // Stored as a fraction of the recents block (0f..1f) rather than raw pixels, so
+    // a fold or rotate restores the same proportional position instead of a stale
+    // pixel offset from the previous viewport.
+    var savedSheetFraction by rememberSaveable { mutableFloatStateOf(0f) }
     // Restore the sheet offset across navigation so the sheet is already at its
     // settled position on return; the shared-title transition then targets stable
     // bounds instead of following the sheet's settle animation.
-    val sheetOffset = remember { Animatable(savedSheetOffset) } // 0 = covering recents, recentsPx = fully revealed
+    // Seeded from 0f on purpose: recentsPx is 0 on the first composition, so
+    // remember could never re-derive the offset from the (then zero) height.
+    val sheetOffset = remember { Animatable(0f) } // 0 = covering recents, recentsPx = fully revealed
+    var sheetFractionRestored by remember { mutableStateOf(false) }
     // Persist the live offset only when leaving composition (navigation), not per frame.
-    DisposableEffect(sheetOffset) {
-        onDispose { savedSheetOffset = sheetOffset.value }
+    DisposableEffect(sheetOffset, recentsPx) {
+        onDispose {
+            savedSheetFraction =
+                if (recentsPx > 0) (sheetOffset.value / recentsPx).coerceIn(0f, 1f) else 0f
+        }
     }
     val agentsScrollState = rememberScrollState()
     val canReveal = olderSessions.isNotEmpty()
 
-    LaunchedEffect(recentsPx, sheetRevealed.value, canReveal) {
-        syncSheetOffset(sheetOffset, sheetRevealed, recentsPx, canReveal)
+    // Restore the saved fraction exactly once, as soon as the block has a height.
+    LaunchedEffect(recentsPx, sheetFractionRestored) {
+        if (!sheetFractionRestored && recentsPx > 0) {
+            sheetOffset.snapTo((savedSheetFraction * recentsPx).coerceIn(0f, recentsPx.toFloat()))
+            sheetFractionRestored = true
+        }
+    }
+
+    LaunchedEffect(recentsPx, sheetRevealed.value, canReveal, sheetFractionRestored) {
+        // Hold off until the restore above has landed (or when there is no height
+        // to restore into), so the two effects cannot fight over the offset.
+        if (sheetFractionRestored || recentsPx == 0) {
+            syncSheetOffset(sheetOffset, sheetRevealed, recentsPx, canReveal)
+        }
     }
 
     val sheetConnection =
@@ -262,36 +284,47 @@ private fun FrontSheetLayer(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    AgentsBackdropSheet(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(sheetHeight)
-                .offset { IntOffset(0, topZonePx + sheetOffset.value.roundToInt()) },
-        headerDragModifier =
-            if (canReveal) {
-                Modifier.sheetDrag(
-                    scope = scope,
-                    sheetOffset = sheetOffset,
-                    sheetRevealed = sheetRevealed,
-                    recentsPx = recentsPx,
-                    overscrollRefPx = overscrollRefPx,
-                    maxTopOverscrollPx = maxTopOverscrollPx,
-                )
-            } else {
+    // Full-bleed container: the sheet surface is capped and centered on wide windows, but
+    // the drag/scroll envelope (the outer BoxWithConstraints' nestedScroll, and the offset
+    // math above) still spans the whole viewport.
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        AgentsBackdropSheet(
+            modifier =
                 Modifier
-            },
-        servers = servers,
-        uiState = uiState,
-        liveServerIds = liveServerIds,
-        onConnect = onConnect,
-        onEdit = onEdit,
-        onDelete = onDelete,
-        sharedTransitionScope = sharedTransitionScope,
-        animatedContentScope = animatedContentScope,
-        scrollState = scrollState,
-        viewportHeightPx = viewportHeightPx,
-    )
+                    // Cap must be outside `fillMaxWidth`, which otherwise passes fixed
+                    // width constraints that `widthIn` cannot shrink.
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .height(sheetHeight)
+                    .offset { IntOffset(0, topZonePx + sheetOffset.value.roundToInt()) },
+            headerDragModifier =
+                if (canReveal) {
+                    Modifier.sheetDrag(
+                        scope = scope,
+                        sheetOffset = sheetOffset,
+                        sheetRevealed = sheetRevealed,
+                        recentsPx = recentsPx,
+                        overscrollRefPx = overscrollRefPx,
+                        maxTopOverscrollPx = maxTopOverscrollPx,
+                    )
+                } else {
+                    Modifier
+                },
+            servers = servers,
+            uiState = uiState,
+            liveServerIds = liveServerIds,
+            onConnect = onConnect,
+            onEdit = onEdit,
+            onDelete = onDelete,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+            scrollState = scrollState,
+            viewportHeightPx = viewportHeightPx,
+        )
+    }
 }
 
 /** Per-gesture scratch state for the sheet's nested-scroll connection. */
