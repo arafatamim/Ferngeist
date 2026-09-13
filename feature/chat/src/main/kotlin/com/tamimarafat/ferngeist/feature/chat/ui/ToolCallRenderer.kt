@@ -63,7 +63,6 @@ private fun TextContentBlock(text: String) {
                 text = displayText,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(12.dp),
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                 softWrap = false,
                 overflow = TextOverflow.Visible,
             )
@@ -166,7 +165,6 @@ private fun ResourceContentBlock(resource: EmbeddedResourceResource) {
                     Text(
                         text = resource.text,
                         style = MaterialTheme.typography.bodySmall,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
                 }
             }

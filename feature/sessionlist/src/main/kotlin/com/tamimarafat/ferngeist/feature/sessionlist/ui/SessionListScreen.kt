@@ -78,7 +78,6 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -553,10 +552,7 @@ private fun SessionListTopBarSubtitle(
         )
         Text(
             text = currentCwd.orEmpty(),
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -834,7 +830,7 @@ private fun SessionListLazyColumn(
                     Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp, bottom = 8.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
@@ -1032,7 +1028,7 @@ private fun RowScope.SessionCardText(
                         ?: stringResource(
                             R.string.sessionlist_untitled,
                         ),
-                style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
                 modifier =

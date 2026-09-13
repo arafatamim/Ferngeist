@@ -227,7 +227,6 @@ private fun DiffRowItem(row: LineDiffRow) {
         Text(
             text = "$prefix${row.text}",
             style = MaterialTheme.typography.bodySmall,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             color = textColor,
             softWrap = false,
             overflow = TextOverflow.Visible,

@@ -53,7 +53,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
@@ -206,10 +205,7 @@ private fun TopBarSubtitleContent(
     if (expanded) {
         Text(
             text = model,
-            style =
-                MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -315,10 +311,7 @@ internal fun ChatTopBarTitle(
                 title = {
                     Text(
                         text = sessionTitle,
-                        style =
-                            MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                            ),
+                        style = MaterialTheme.typography.titleMedium,
                     )
                 },
                 text = {
@@ -363,20 +356,14 @@ private fun TooltipMetadataRows(
         cwd?.takeIf { it.isNotBlank() }?.let { value ->
             Text(
                 text = value,
-                style =
-                    MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                    ),
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
         model?.takeIf { it.isNotBlank() }?.let { value ->
             Text(
                 text = value,
-                style =
-                    MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                    ),
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
@@ -397,10 +384,7 @@ private fun ExpandedTitleText(
     with(sharedTransitionScope) {
         Text(
             text = sessionTitle,
-            style =
-                MaterialTheme.typography.titleLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
+            style = MaterialTheme.typography.titleLarge,
             maxLines = 2,
             softWrap = true,
             overflow = TextOverflow.MiddleEllipsis,
@@ -461,10 +445,7 @@ private fun CollapsedTitleSurface(
         with(sharedTransitionScope) {
             Text(
                 text = sessionTitle,
-                style =
-                    MaterialTheme.typography.titleSmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                    ),
+                style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
                 modifier =

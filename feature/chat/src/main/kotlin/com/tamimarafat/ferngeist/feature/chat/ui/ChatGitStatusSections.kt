@@ -143,7 +143,6 @@ private fun GitStatusBranchMeta(status: GatewayGitStatus) {
             Text(
                 text = status.branch.ifBlank { stringResource(R.string.chat_git_no_branch) },
                 style = MaterialTheme.typography.labelMedium,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }
@@ -306,7 +305,6 @@ private fun GitDiffDetailHeader(
                 Text(
                     text = fileNameOf(file.path),
                     style = MaterialTheme.typography.titleSmall,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     maxLines = 1,
                     overflow = TextOverflow.StartEllipsis,
                 )
@@ -345,7 +343,6 @@ private fun GitStatusBadge(status: String) {
         Text(
             text = status,
             style = MaterialTheme.typography.labelMedium,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             color = statusColor,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
         )
@@ -490,7 +487,6 @@ private fun ChangedFileRow(
             Text(
                 text = file.path,
                 style = MaterialTheme.typography.bodyMedium,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                 maxLines = 1,
                 overflow = TextOverflow.StartEllipsis,
                 modifier = Modifier.weight(1f),

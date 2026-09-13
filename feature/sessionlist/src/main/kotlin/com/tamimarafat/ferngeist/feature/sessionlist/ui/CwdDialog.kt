@@ -35,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -193,10 +192,7 @@ private fun CwdSuggestionRow(
             softWrap = true,
             maxLines = 1,
             modifier = Modifier.weight(1f),
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
