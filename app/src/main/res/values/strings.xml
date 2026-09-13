@@ -20,4 +20,5 @@
     <string name="push_channel_updates_description">Completed turns and routine updates from your agent sessions</string>
     <string name="push_default_title">Ferngeist</string>
     <string name="push_default_body">You have a new notification</string>
+    <string name="workspace_no_selection">Select an agent or session</string>
 </resources>

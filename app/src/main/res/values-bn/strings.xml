@@ -13,4 +13,5 @@
     <string name="battery_opt_open_settings">সেটিংস খুলুন</string>
     <string name="notification_agent_fallback">এজেন্ট</string>
     <string name="app_untitled_session">শিরোনামহীন সেশন</string>
+    <string name="workspace_no_selection">একজন এজেন্ট বা সেশন নির্বাচন করুন</string>
 </resources>

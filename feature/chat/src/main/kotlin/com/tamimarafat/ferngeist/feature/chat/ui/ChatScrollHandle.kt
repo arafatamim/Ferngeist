@@ -88,7 +88,10 @@ internal fun rememberChatScrollState(
     // The viewport is measured in pixels; snapshots record it in dp so the value stays
     // comparable across a fold or rotate (density can change with the display).
     val density = LocalDensity.current
-    val viewportWidthDp = { with(density) { listState.layoutInfo.viewportSize.width.toDp().value.toInt() } }
+    val viewportWidthDp = {
+        val viewportPx = listState.layoutInfo.viewportSize.width
+        with(density) { viewportPx.toDp().value.toInt() }
+    }
     val observer =
         remember(sessionId, listState, policy, runner, onScrollSnapshotChanged, density) {
             ChatScrollSnapshotObserver(

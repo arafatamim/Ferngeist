@@ -4,15 +4,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ChatScrollSnapshotWidthTest {
-    private fun snapshot(width: Int, offset: Int) =
-        ChatScrollSnapshot(
-            anchorMessageId = "m42",
-            firstVisibleItemIndex = 10,
-            firstVisibleItemScrollOffset = offset,
-            isFollowing = false,
-            savedAt = 1L,
-            containerWidthDp = width,
-        )
+    private fun snapshot(
+        width: Int,
+        offset: Int,
+    ) = ChatScrollSnapshot(
+        anchorMessageId = "m42",
+        firstVisibleItemIndex = 10,
+        firstVisibleItemScrollOffset = offset,
+        isFollowing = false,
+        savedAt = 1L,
+        containerWidthDp = width,
+    )
 
     @Test
     fun offsetSurvives_whenWidthIsUnchanged() {

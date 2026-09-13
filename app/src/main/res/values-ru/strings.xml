@@ -13,4 +13,5 @@
     <string name="battery_opt_open_settings">Открыть настройки</string>
     <string name="notification_agent_fallback">агент</string>
     <string name="app_untitled_session">Сессия без названия</string>
+    <string name="workspace_no_selection">Выберите агента или сессию</string>
 </resources>

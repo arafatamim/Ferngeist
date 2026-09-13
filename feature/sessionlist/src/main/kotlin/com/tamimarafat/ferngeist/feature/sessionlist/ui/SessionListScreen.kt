@@ -128,6 +128,8 @@ fun SessionListScreen(
     loadedName: String?,
     serverId: String,
     openCreateSessionDialogOnLaunch: Boolean = false,
+    showBackButton: Boolean = true,
+    sharedBoundsEnabled: Boolean = true,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     viewModel: SessionListViewModel,
@@ -185,6 +187,8 @@ fun SessionListScreen(
             state.showCwdDialog.value = true
         },
         onShowConnectionStatusDialog = { state.showConnectionStatusDialog.value = true },
+        showBackButton = showBackButton,
+        sharedBoundsEnabled = sharedBoundsEnabled,
         onNavigateBack = onNavigateBack,
         onNavigateToChat = onNavigateToChat,
         onCloseSession = viewModel::closeSession,
@@ -361,6 +365,8 @@ private fun SessionListScaffold(
     state: SessionListState,
     serverId: String,
     currentCwd: String?,
+    showBackButton: Boolean,
+    sharedBoundsEnabled: Boolean,
     onShowCwdDialog: () -> Unit,
     onShowConnectionStatusDialog: () -> Unit,
     onNavigateBack: () -> Unit,
@@ -397,6 +403,8 @@ private fun SessionListScaffold(
                     titleStyle = titleStyle,
                     onShowCwdDialog = onShowCwdDialog,
                     onShowConnectionStatusDialog = onShowConnectionStatusDialog,
+                    showBackButton = showBackButton,
+                    sharedBoundsEnabled = sharedBoundsEnabled,
                     onNavigateBack = onNavigateBack,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -416,6 +424,7 @@ private fun SessionListScaffold(
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
+                sharedBoundsEnabled = sharedBoundsEnabled,
             )
         }
 
@@ -471,6 +480,8 @@ private fun SessionListTopBar(
     titleStyle: TextStyle,
     onShowCwdDialog: () -> Unit,
     onShowConnectionStatusDialog: () -> Unit,
+    showBackButton: Boolean,
+    sharedBoundsEnabled: Boolean,
     onNavigateBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -487,6 +498,7 @@ private fun SessionListTopBar(
                 titleStyle = titleStyle,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
+                sharedBoundsEnabled = sharedBoundsEnabled,
             )
         },
         subtitle = { expanded ->
@@ -495,14 +507,16 @@ private fun SessionListTopBar(
             }
         },
         navigationIcon = {
-            FilledTonalIconButton(onClick = onNavigateBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription =
-                        stringResource(
-                            R.string.sessionlist_back_desc,
-                        ),
-                )
+            if (showBackButton) {
+                FilledTonalIconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription =
+                            stringResource(
+                                R.string.sessionlist_back_desc,
+                            ),
+                    )
+                }
             }
         },
         actions = {
@@ -623,6 +637,7 @@ private fun SessionListContent(
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    sharedBoundsEnabled: Boolean,
 ) {
     when {
         state.isLoading && state.sessions.isEmpty() -> {
@@ -649,6 +664,7 @@ private fun SessionListContent(
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
+                sharedBoundsEnabled = sharedBoundsEnabled,
             )
         }
     }
@@ -764,6 +780,7 @@ private fun SessionListLazyColumn(
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    sharedBoundsEnabled: Boolean,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -801,6 +818,7 @@ private fun SessionListLazyColumn(
                     },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
+                    sharedBoundsEnabled = sharedBoundsEnabled,
                 )
             }
         }
@@ -1004,6 +1022,7 @@ private fun RowScope.SessionCardText(
     session: SessionSummary,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    sharedBoundsEnabled: Boolean,
 ) {
     with(sharedTransitionScope) {
         Column(modifier = Modifier.weight(1f)) {
@@ -1017,16 +1036,22 @@ private fun RowScope.SessionCardText(
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
                 modifier =
-                    Modifier.sharedBounds(
-                        sharedContentState =
-                            rememberSharedContentState(
-                                key = SessionTitleSharedBoundsKey(session.id),
-                            ),
-                        animatedVisibilityScope = animatedContentScope,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                    ),
+                    if (sharedBoundsEnabled) {
+                        with(sharedTransitionScope) {
+                            Modifier.sharedBounds(
+                                sharedContentState =
+                                    rememberSharedContentState(
+                                        key = SessionTitleSharedBoundsKey(session.id),
+                                    ),
+                                animatedVisibilityScope = animatedContentScope,
+                                enter = fadeIn(),
+                                exit = fadeOut(),
+                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                            )
+                        }
+                    } else {
+                        Modifier
+                    },
             )
             session.cwd?.let { cwd ->
                 Text(
@@ -1054,6 +1079,7 @@ private fun SessionCard(
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    sharedBoundsEnabled: Boolean,
 ) {
     // Live sessions tint the card container exactly like active server cards;
     // the card itself is the status indicator, no trailing dot.
@@ -1067,20 +1093,30 @@ private fun SessionCard(
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "sessionCardContainer",
     )
+    // Two claimants for one key scale the card to the other's bounds; the workspace shows the
+    // agent list beside this list, so panes take no bounds at all.
+    val boundsModifier =
+        if (sharedBoundsEnabled) {
+            with(sharedTransitionScope) {
+                Modifier.sharedBounds(
+                    sharedContentState =
+                        rememberSharedContentState(
+                            key = SessionSharedBoundsKey(session.id),
+                        ),
+                    animatedVisibilityScope = animatedContentScope,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                )
+            }
+        } else {
+            Modifier
+        }
     with(sharedTransitionScope) {
         Card(
             modifier =
-                Modifier
-                    .sharedBounds(
-                        sharedContentState =
-                            rememberSharedContentState(
-                                key = SessionSharedBoundsKey(session.id),
-                            ),
-                        animatedVisibilityScope = animatedContentScope,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                    ).fillMaxWidth()
+                boundsModifier
+                    .fillMaxWidth()
                     .clip(CardDefaults.shape)
                     .combinedClickable(onClick = onClick, onLongClick = onLongPress),
             colors =
@@ -1099,6 +1135,7 @@ private fun SessionCard(
                     session = session,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
+                    sharedBoundsEnabled = sharedBoundsEnabled,
                 )
             }
         }
@@ -1166,17 +1203,23 @@ private fun SessionListTopBarTitle(
     titleStyle: TextStyle,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    sharedBoundsEnabled: Boolean = true,
 ) {
     val sharedContentState =
         with(sharedTransitionScope) {
             rememberSharedContentState(key = ServerNameSharedBoundsKey(serverId))
         }
+    // Suppressed while the workspace shows this list beside the agent list. The agent card
+    // registers this same key for the same server, and two live claimants make the title scale
+    // to the card's bounds as the pair changes — the title visibly resizing as the session list
+    // opens. One claimant restores the plain text.
     val ownsSharedTitleBounds =
-        if (expanded) {
-            collapsedFraction < 0.5f
-        } else {
-            collapsedFraction >= 0.5f
-        }
+        sharedBoundsEnabled &&
+            if (expanded) {
+                collapsedFraction < 0.5f
+            } else {
+                collapsedFraction >= 0.5f
+            }
     val baseModifier =
         if (ownsSharedTitleBounds) {
             with(sharedTransitionScope) {

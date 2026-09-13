@@ -96,6 +96,7 @@ class DataStoreChatScrollStateStore
                     prefs.remove(intPreferencesKey("${prefix}offset"))
                     prefs.remove(booleanPreferencesKey("${prefix}following"))
                     prefs.remove(longPreferencesKey("${prefix}savedAt"))
+                    prefs.remove(intPreferencesKey("${prefix}widthDp"))
                 }
             }
         }

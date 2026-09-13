@@ -94,6 +94,8 @@ internal fun ChatTopBar(
     onTitleClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
+    showBackButton: Boolean = true,
+    sharedBoundsEnabled: Boolean = true,
 ) {
     val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
 
@@ -101,7 +103,11 @@ internal fun ChatTopBar(
         modifier = Modifier.chatTopBarGradient(collapsedFraction),
     ) {
         TwoRowsTopAppBar(
-            navigationIcon = { TopBarBackButton(onNavigateBack) },
+            navigationIcon = {
+                if (showBackButton) {
+                    TopBarBackButton(onNavigateBack)
+                }
+            },
             title = { expanded ->
                 ChatTopBarTitle(
                     expanded = expanded,
@@ -113,6 +119,7 @@ internal fun ChatTopBar(
                     onTitleClick = onTitleClick,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
+                    sharedBoundsEnabled = sharedBoundsEnabled,
                 )
             },
             subtitle =
@@ -276,16 +283,22 @@ internal fun ChatTopBarTitle(
     onTitleClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
+    sharedBoundsEnabled: Boolean = true,
 ) {
     // Both expanded and collapsed forms render, but only one owns the
     // shared-bounds transition at a time. Ownership flips at the 50% mark
     // to avoid both forms trying to drive the same shared element.
+    //
+    // Suppressed entirely while another node claims the same key: the workspace's session list
+    // registers this key for the same session, and two claimants left the title with nothing
+    // to animate to — it rendered as zero pixels, keeping its semantics but no text.
     val ownsSharedTitleBounds =
-        if (expanded) {
-            collapsedFraction < 0.5f
-        } else {
-            collapsedFraction >= 0.5f
-        }
+        sharedBoundsEnabled &&
+            if (expanded) {
+                collapsedFraction < 0.5f
+            } else {
+                collapsedFraction >= 0.5f
+            }
     val tooltipState = rememberTooltipState()
     val scope = rememberCoroutineScope()
     val showTitleTooltip: () -> Unit = {

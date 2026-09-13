@@ -111,6 +111,9 @@ fun ChatScreen(
     onNavigateBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    modifier: Modifier = Modifier,
+    showBackButton: Boolean = true,
+    sharedBoundsEnabled: Boolean = true,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val screenState = rememberChatScreenState(viewModel, sessionId)
@@ -133,6 +136,9 @@ fun ChatScreen(
         onNavigateBack = onNavigateBack,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
+        modifier = modifier,
+        showBackButton = showBackButton,
+        sharedBoundsEnabled = sharedBoundsEnabled,
     )
 }
 
@@ -848,61 +854,78 @@ private fun ChatScreenScaffold(
     onNavigateBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    modifier: Modifier = Modifier,
+    showBackButton: Boolean = true,
+    sharedBoundsEnabled: Boolean = true,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
-    with(sharedTransitionScope) {
-        Box(
+    // Suppressed while the workspace shows the session list beside this chat. The list's
+    // session card registers both of these keys for the same session, so two nodes claiming
+    // one key made the shell animate to nothing: the chat pane's top bar rendered with no
+    // title, no model subtitle and no cwd, visible only in semantics. One claimant restores it.
+    val transitionModifier =
+        if (sharedBoundsEnabled) {
+            with(sharedTransitionScope) {
+                Modifier.sharedBounds(
+                    sharedContentState =
+                        rememberSharedContentState(
+                            key = SessionSharedBoundsKey(sessionId),
+                        ),
+                    animatedVisibilityScope = animatedContentScope,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                )
+            }
+        } else {
+            Modifier
+        }
+
+    Box(
+        modifier =
+            transitionModifier
+                .fillMaxSize()
+                .then(modifier)
+                .background(MaterialTheme.colorScheme.surface),
+    ) {
+        val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
+        Scaffold(
             modifier =
                 Modifier
-                    .sharedBounds(
-                        sharedContentState =
-                            rememberSharedContentState(
-                                key = SessionSharedBoundsKey(sessionId),
-                            ),
-                        animatedVisibilityScope = animatedContentScope,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                    ).fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface),
-        ) {
-            val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-
-            Scaffold(
+                    .fillMaxSize(),
+            containerColor = Color.Transparent,
+            topBar = {
+                ChatScreenTopBar(
+                    screenState = screenState,
+                    sessionId = sessionId,
+                    sessionTitle = sessionTitle,
+                    scrollBehavior = scrollBehavior,
+                    coroutineScope = coroutineScope,
+                    viewModel = viewModel,
+                    onNavigateBack = onNavigateBack,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    showBackButton = showBackButton,
+                    sharedBoundsEnabled = sharedBoundsEnabled,
+                )
+            },
+        ) { innerPadding ->
+            Box(
                 modifier =
                     Modifier
                         .fillMaxSize(),
-                containerColor = Color.Transparent,
-                topBar = {
-                    ChatScreenTopBar(
-                        screenState = screenState,
-                        sessionId = sessionId,
-                        sessionTitle = sessionTitle,
-                        scrollBehavior = scrollBehavior,
-                        coroutineScope = coroutineScope,
-                        viewModel = viewModel,
-                        onNavigateBack = onNavigateBack,
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                    )
-                },
-            ) { innerPadding ->
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize(),
-                ) {
-                    ChatScreenOverlays(
-                        screenState = screenState,
-                        innerPadding = innerPadding,
-                        coroutineScope = coroutineScope,
-                        focusManager = focusManager,
-                        viewModel = viewModel,
-                        appBarScrollConnection = scrollBehavior.nestedScrollConnection,
-                    )
-                }
+            ) {
+                ChatScreenOverlays(
+                    screenState = screenState,
+                    innerPadding = innerPadding,
+                    coroutineScope = coroutineScope,
+                    focusManager = focusManager,
+                    viewModel = viewModel,
+                    appBarScrollConnection = scrollBehavior.nestedScrollConnection,
+                )
             }
         }
     }
@@ -1005,6 +1028,8 @@ private fun ChatScreenTopBar(
     onNavigateBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    showBackButton: Boolean = true,
+    sharedBoundsEnabled: Boolean = true,
 ) {
     ChatTopBar(
         sessionId = sessionId,
@@ -1036,6 +1061,8 @@ private fun ChatScreenTopBar(
         },
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
+        showBackButton = showBackButton,
+        sharedBoundsEnabled = sharedBoundsEnabled,
     )
 }
 

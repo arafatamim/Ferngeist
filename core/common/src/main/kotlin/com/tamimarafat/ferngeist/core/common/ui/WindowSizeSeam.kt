@@ -5,7 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.ExperimentalMediaQueryApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.UiMediaScope
 import androidx.compose.ui.derivedMediaQuery
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
@@ -23,14 +22,6 @@ fun isWindowCompact(): Boolean {
         windowWidth < WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND.dp
     }
     return narrowerThanMedium
-}
-
-/** True when the device is half-folded like a laptop — content above the fold, controls below. */
-@OptIn(ExperimentalMediaQueryApi::class)
-@Composable
-fun isWindowTabletop(): Boolean {
-    val tabletop by derivedMediaQuery { windowPosture == UiMediaScope.Posture.Tabletop }
-    return tabletop
 }
 
 /**
