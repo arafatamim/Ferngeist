@@ -1,0 +1,8 @@
+A layout that adapts to your screen.
+
+• New: tablets, foldables and desktop windows get a three-pane workspace — agents, sessions and the chat side by side
+• New: the session list stays put while you move around, so the chat never disappears
+• New: resizing keeps everything where you left it
+• Fixed: text no longer stretches edge to edge on a wide screen
+• Fixed: the app no longer crashes crossing into a two-pane layout
+• Fixed: the monospace font renders consistently, offline included

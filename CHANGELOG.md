@@ -1,3 +1,18 @@
+## [0.14.0] - 2026-09-13
+
+### Features
+
+- *(app)* Add the pinned-chat three-pane workspace ([815db4d](https://github.com/arafatamim/Ferngeist/commit/815db4d425d1853274495fe6a29c9d8129ae2525))
+
+### Fixes
+
+- *(ui)* Make the existing screens width-aware ([ff07b52](https://github.com/arafatamim/Ferngeist/commit/ff07b52900e1fa0b32215b0015c0898605243720))
+- *(app)* Bundle Roboto Mono so the theme font never falls back ([ea8a06a](https://github.com/arafatamim/Ferngeist/commit/ea8a06a4f4df3119a5f448a5735e1f1e2c8edcf3))
+
+### Maintenance
+
+- Add the adaptive dependencies and the window size seam ([06c4623](https://github.com/arafatamim/Ferngeist/commit/06c462370997d1cf29ef799df28beb5c3e7717a6))
+
 ## [0.13.0] - 2026-09-12
 
 ### Features
