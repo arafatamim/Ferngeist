@@ -10,6 +10,12 @@ android {
     namespace = "com.tamimarafat.ferngeist.feature.serverlist"
     compileSdk = 37
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("google") { dimension = "distribution" }
+        create("foss") { dimension = "distribution" }
+    }
+
     defaultConfig {
         minSdk = 30
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -64,7 +70,8 @@ dependencies {
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.play.services.code.scanner)
+    // Google Code Scanner (ML Kit). Google-only: FOSS flavour omits it.
+    "googleImplementation"(libs.play.services.code.scanner)
 
     // Hilt Setup
     implementation(libs.hilt.android)

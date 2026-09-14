@@ -1,0 +1,6 @@
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingTranslation">
+    <!-- Push fallback text. Google-only: only the FCM service references these. -->
+    <string name="push_default_title">Ferngeist</string>
+    <string name="push_default_body">You have a new notification</string>
+</resources>

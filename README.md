@@ -79,12 +79,21 @@ Any agent implementing [ACP](https://agentclientprotocol.com/), including Codex 
 - Hilt / Room / Kotlin Coroutines and Flow / KSP
 - ACP Kotlin SDK
 
-Requires Android 13+ (`minSdk = 33`).
+Requires Android 10+ (`minSdk = 30`).
 
 ## Build
 
+The app has two product flavours under the `distribution` dimension:
+
+- `google` — the full build with Firebase Cloud Messaging push notifications and
+  ML Kit QR scanning. This is what ships to Google Play and GitHub releases.
+- `foss` — a Fully Open-Source Software build for F-Droid. It omits Firebase and
+  ML Kit entirely, so **push notifications don't work** and QR scanning is replaced
+  by the manual pairing-code field. The agent keeps running on your gateway; you
+  just don't get tapped when it finishes.
+
 ```powershell
-cmd /c gradlew.bat :app:assembleDebug
+cmd /c gradlew.bat :app:assembleGoogleDebug
 ```
 
 ## Architecture

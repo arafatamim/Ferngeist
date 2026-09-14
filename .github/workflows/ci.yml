@@ -30,11 +30,14 @@ jobs:
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
 
-      - name: Compile debug Kotlin
-        run: ./gradlew :app:compileDebugKotlin
+      - name: Compile foss debug Kotlin
+        run: ./gradlew :app:compileFossDebugKotlin
 
-      - name: Run debug unit tests
-        run: ./gradlew testDebugUnitTest
+      - name: Compile google debug Kotlin
+        run: ./gradlew :app:compileGoogleDebugKotlin
 
-      - name: Run detekt + ktlint + lint
-        run: ./gradlew detekt ktlintCheck lintDebug
+      - name: Run foss + google unit tests
+        run: ./gradlew :app:testFossDebugUnitTest :app:testGoogleDebugUnitTest
+
+      - name: Run detekt + ktlint + lint (foss + google)
+        run: ./gradlew detekt ktlintCheck :app:lintFossDebug :app:lintGoogleDebug

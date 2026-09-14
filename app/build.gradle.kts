@@ -50,7 +50,6 @@ val hasReleaseSigning =
         !releaseKeyPassword.isNullOrBlank()
 
 kotlin {
-    jvmToolchain(17)
     compilerOptions {
         jvmTarget = JvmTarget.fromTarget("17")
         allWarningsAsErrors = true
@@ -60,6 +59,16 @@ kotlin {
 android {
     namespace = "com.tamimarafat.ferngeist"
     compileSdk = 37
+
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("google") {
+            dimension = "distribution"
+        }
+        create("foss") {
+            dimension = "distribution"
+        }
+    }
 
     defaultConfig {
         applicationId = "com.tamimarafat.ferngeist"
@@ -149,23 +158,20 @@ dependencies {
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-
-    // Hilt Setup
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.android)
 
     implementation(libs.androidx.datastore.preferences)
+    ksp(libs.hilt.compiler)
+    // Firebase Cloud Messaging (push notifications). Google-only: F-Droid's FOSS
+    // flavour omits this entirely, so no proprietary push code ships there.
+    "googleImplementation"(platform(libs.firebase.bom))
+    "googleImplementation"(libs.firebase.messaging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
-
-    // Firebase Cloud Messaging (push notifications). Compiles without
-    // google-services.json; stays inert at runtime until one is added.
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -97,7 +97,7 @@ class FerngeistMessagingService : FirebaseMessagingService() {
         // Progress pushes are throttled server-side to one per ~15s per session, so they
         // should replace (not stack) the previous "Agent working" notification for that
         // session. Other categories keep stacking via the incrementing id.
-        val notifyId = notificationIdFor(category, sessionId) { notificationId.incrementAndGet() }
+        val notifyId = notificationIdFor(category, sessionId, notificationId::incrementAndGet)
 
         // Route urgent categories to the heads-up Alerts channel, routine ones to the quiet
         // Updates channel. On Android O+ the channel — not per-notification priority —
@@ -147,27 +147,5 @@ class FerngeistMessagingService : FirebaseMessagingService() {
         // request codes likewise stop FLAG_UPDATE_CURRENT from clobbering extras.
         val notificationId = AtomicInteger(1000)
         val requestCode = AtomicInteger(2000)
-
-        // Progress pushes coalesce per session into a fixed id range so they replace
-        // (not stack) the previous "Agent working" notification for that session.
-        const val PROGRESS_NOTIFICATION_ID_BASE = 5000
-        const val PROGRESS_NOTIFICATION_ID_RANGE = 1000
     }
-
-    /**
-     * Picks the notification id for a push. `progress` pushes coalesce per session — the
-     * same session reuses a stable id so each new push replaces the previous "Agent working"
-     * notification instead of stacking. Everything else (including progress without a
-     * session id) falls back to [next].
-     */
-    internal fun notificationIdFor(
-        category: String?,
-        sessionId: String?,
-        next: () -> Int,
-    ): Int =
-        if (category == PUSH_CATEGORY_PROGRESS && sessionId != null) {
-            PROGRESS_NOTIFICATION_ID_BASE + (sessionId.hashCode() and Int.MAX_VALUE) % PROGRESS_NOTIFICATION_ID_RANGE
-        } else {
-            next()
-        }
 }

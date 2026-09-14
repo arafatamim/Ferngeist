@@ -17,11 +17,11 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build a signed release App Bundle (.aab). Requires the ANDROID_KEYSTORE_* env vars."
+  desc "Build a signed release App Bundle (.aab) for the Google (Play) flavour. Requires the ANDROID_KEYSTORE_* env vars."
   lane :build do
     ensure_release_signing
     gradle(task: "clean")
-    gradle(task: "bundle", build_type: "Release")
+    gradle(task: "bundleGoogleRelease")
     UI.success("Built AAB: #{lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]}")
   end
 

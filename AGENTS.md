@@ -15,10 +15,10 @@ Main code is under `src/main/kotlin`; unit tests are in `src/test/kotlin`.
 ## Build, Test, and Development Commands
 Run commands from repository root with the Gradle wrapper:
 
-- `cmd /c gradlew.bat :app:assembleDebug`: build full debug APK.
+- `cmd /c gradlew.bat :app:assembleGoogleDebug`: build full debug APK (or `:app:assembleFossDebug` for the F-Droid flavour).
 - `cmd /c gradlew.bat :feature:chat:compileDebugKotlin`: fast compile check for chat changes.
 - `cmd /c gradlew.bat :acp-bridge:testDebugUnitTest`: run ACP bridge unit tests.
-- `cmd /c gradlew.bat testDebugUnitTest`: run all debug unit tests.
+- `cmd /c gradlew.bat :app:testFossDebugUnitTest :app:testGoogleDebugUnitTest`: run app unit tests (bare `testDebugUnitTest` skips the app module once flavours exist).
 
 ## Coding Style & Naming Conventions
 - Use idiomatic Kotlin with 4-space indentation.

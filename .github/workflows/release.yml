@@ -49,14 +49,15 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease :app:bundleRelease
+        run: ./gradlew :app:assembleGoogleRelease :app:bundleGoogleRelease :app:assembleFossRelease
 
       - name: Rename artifacts with version
         run: |
           VERSION="${{ github.event.release.tag_name }}"
           VERSION="${VERSION#v}"
-          cp app/build/outputs/apk/release/app-release.apk "Ferngeist-${VERSION}.apk"
-          cp app/build/outputs/bundle/release/app-release.aab "Ferngeist-${VERSION}.aab"
+          cp app/build/outputs/apk/google/release/app-google-release.apk "Ferngeist-${VERSION}.apk"
+          cp app/build/outputs/bundle/googleRelease/app-google-release.aab "Ferngeist-${VERSION}.aab"
+          cp app/build/outputs/apk/foss/release/app-foss-release.apk "Ferngeist-${VERSION}-foss.apk"
 
       - name: Upload assets to GitHub release
         env:
@@ -67,4 +68,5 @@ jobs:
           gh release upload "${{ github.event.release.tag_name }}" \
             "Ferngeist-${VERSION}.apk" \
             "Ferngeist-${VERSION}.aab" \
+            "Ferngeist-${VERSION}-foss.apk" \
             --clobber
