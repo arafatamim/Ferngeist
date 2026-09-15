@@ -11,6 +11,7 @@ permissions:
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Check out repository
@@ -49,7 +50,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleGoogleRelease :app:bundleGoogleRelease :app:assembleFossRelease
+        run: ./gradlew :app:assembleGoogleRelease :app:bundleGoogleRelease :app:assembleFossRelease --no-daemon
 
       - name: Rename artifacts with version
         run: |
