@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist
 
+import android.app.Application
 import android.os.Build
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -31,10 +32,12 @@ data class AddGatewayUiState(
 class AddGatewayViewModel
     @Inject
     constructor(
+        private val application: Application,
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val gatewayRepository: GatewayRepository,
         savedStateHandle: SavedStateHandle,
     ) : ViewModel() {
+        private val resources get() = application.resources
         private val initialServerId: String? = savedStateHandle.get<String>("serverId")
         private var existingGateway: GatewaySource? = null
 
@@ -99,7 +102,7 @@ class AddGatewayViewModel
             if (payload == null) {
                 viewModelScope.launch {
                     emitError(
-                        "Pairing payload is invalid. Scan the QR from `ferngeist pair` or paste the full payload.",
+                        resources.getString(R.string.serverlist_error_invalid_payload),
                     )
                 }
                 return
@@ -208,7 +211,7 @@ class AddGatewayViewModel
                     resolvePairingChallenge(gatewayHost, importedPayload, manualCode) ?: return@launch
 
                 if (resolvedCode.isBlank()) {
-                    emitError("Scan QR, paste payload, or type pairing code first")
+                    emitError(resources.getString(R.string.serverlist_error_scan_or_paste))
                     return@launch
                 }
 

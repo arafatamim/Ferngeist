@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.QrCode2
@@ -55,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -337,11 +339,27 @@ private fun AddGatewayScaffoldContent(
 private fun rememberGatewaySteps(): List<GatewayPairingStep> {
     val stepRunTitle = stringResource(R.string.serverlist_add_gateway_step_run_title)
     val stepRunBody = stringResource(R.string.serverlist_add_gateway_step_run_body)
-    val stepScanTitle = stringResource(R.string.serverlist_add_gateway_step_scan_title)
-    val stepScanBody = stringResource(R.string.serverlist_add_gateway_step_scan_body)
+    val stepScanBody =
+        if (booleanResource(R.bool.serverlist_qr_scan_available)) {
+            stringResource(R.string.serverlist_add_gateway_step_scan_body)
+        } else {
+            stringResource(R.string.serverlist_add_gateway_step_paste_body)
+        }
+    val stepScanTitle =
+        if (booleanResource(R.bool.serverlist_qr_scan_available)) {
+            stringResource(R.string.serverlist_add_gateway_step_scan_title)
+        } else {
+            stringResource(R.string.serverlist_add_gateway_step_paste_title)
+        }
+    val stepScanIcon =
+        if (booleanResource(R.bool.serverlist_qr_scan_available)) {
+            Icons.Default.QrCode2
+        } else {
+            Icons.Default.ContentPaste
+        }
     val stepAddTitle = stringResource(R.string.serverlist_add_gateway_step_add_title)
     val stepAddBody = stringResource(R.string.serverlist_add_gateway_step_add_body)
-    return remember {
+    return remember(stepScanTitle, stepScanBody) {
         listOf(
             GatewayPairingStep(
                 title = stepRunTitle,
@@ -351,7 +369,7 @@ private fun rememberGatewaySteps(): List<GatewayPairingStep> {
             GatewayPairingStep(
                 title = stepScanTitle,
                 body = stepScanBody,
-                icon = Icons.Default.QrCode2,
+                icon = stepScanIcon,
             ),
             GatewayPairingStep(
                 title = stepAddTitle,
@@ -815,34 +833,36 @@ private fun ImportPairingStep(
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = {
                     Icon(
-                        Icons.Default.QrCode2,
-                        contentDescription = stringResource(R.string.serverlist_gateway_qr_label),
+                        Icons.Default.ContentPaste,
+                        contentDescription = null,
                     )
                 },
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                HorizontalDivider(modifier = Modifier.weight(1f))
-                Text(
-                    text = stringResource(R.string.serverlist_add_gateway_or),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
-                HorizontalDivider(modifier = Modifier.weight(1f))
-            }
+            if (booleanResource(R.bool.serverlist_qr_scan_available)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    HorizontalDivider(modifier = Modifier.weight(1f))
+                    Text(
+                        text = stringResource(R.string.serverlist_add_gateway_or),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+                    HorizontalDivider(modifier = Modifier.weight(1f))
+                }
 
-            OutlinedButton(
-                onClick = onScanQr,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.serverlist_scan_qr_desc))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.serverlist_add_gateway_step_scan_title))
+                OutlinedButton(
+                    onClick = onScanQr,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.serverlist_add_gateway_step_scan_title))
+                }
             }
 
             importedPayload?.let { payload ->

@@ -78,6 +78,8 @@
     <string name="serverlist_add_gateway_step_run_body">Install and run Ferngeist Gateway on your computer, then start pairing.</string>
     <string name="serverlist_add_gateway_step_scan_title">Scan QR</string>
     <string name="serverlist_add_gateway_step_scan_body">Scan the QR code, or paste the payload from the terminal.</string>
+    <string name="serverlist_add_gateway_step_paste_title">Paste payload</string>
+    <string name="serverlist_add_gateway_step_paste_body">Copy the payload from the terminal and paste it below.</string>
     <string name="serverlist_add_gateway_step_add_title">Add gateway</string>
     <string name="serverlist_add_gateway_step_add_body">Check the details, name the gateway, then save it.</string>
     <string name="serverlist_add_gateway_step_count">Step %1$d of %2$d</string>
@@ -87,7 +89,7 @@
     <string name="serverlist_add_gateway_pairing_code_title">Enter pairing code</string>
     <string name="serverlist_add_gateway_pairing_code_label">Pairing code</string>
     <string name="serverlist_add_gateway_command_label">Command to run</string>
-    <string name="serverlist_add_gateway_scan_instruction">When the QR code appears, continue to the next step.</string>
+    <string name="serverlist_add_gateway_scan_instruction">When the pairing payload appears, continue to the next step.</string>
     <string name="serverlist_add_gateway_edit_title">Edit Gateway</string>
     <string name="serverlist_add_gateway_details_title">Gateway Details</string>
     <string name="serverlist_add_gateway_details_subtitle">Update how this gateway is saved in Ferngeist.</string>
@@ -149,7 +151,7 @@
     <string name="serverlist_gateway_list_delete">Delete</string>
 
     <!-- Serverlist error messages -->
-    <string name="serverlist_error_invalid_payload">Pairing payload is invalid. Scan the QR from ferngeist pair or paste the full payload.</string>
+    <string name="serverlist_error_invalid_payload">Pairing payload is invalid. Paste the full payload from `ferngeist pair`.</string>
     <string name="serverlist_error_gateway_host_required">Gateway host is required</string>
     <string name="serverlist_error_gateway_reach">Could not reach gateway: %1$s</string>
     <string name="serverlist_error_name_required">Name is required</string>
@@ -159,7 +161,7 @@
     <string name="serverlist_error_complete_pairing">Could not complete pairing: %1$s</string>
     <string name="serverlist_error_gateway_loaded">Gateway could not be loaded</string>
     <string name="serverlist_error_save_gateway">Could not save gateway: %1$s</string>
-    <string name="serverlist_error_scan_or_paste">Scan QR, paste payload, or type pairing code first</string>
+    <string name="serverlist_error_scan_or_paste">Paste the payload or type the pairing code first</string>
     <string name="serverlist_error_corrupted_gateway">Gateway could not be loaded. The credential may be corrupted. Please remove and re-pair.</string>
     <string name="serverlist_error_corrupted_server">Server could not be loaded. The credential may be corrupted. Please remove and re-add the server.</string>
     <string name="serverlist_error_launch">Failed to launch %1$s</string>

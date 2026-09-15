@@ -1,0 +1,4 @@
+<resources>
+    <!-- FOSS flavour links no barcode scanner; pairing is paste-only. -->
+    <bool name="serverlist_qr_scan_available">false</bool>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <!-- ML Kit QR scanner is linked in the Google flavour. -->
+    <bool name="serverlist_qr_scan_available">true</bool>
+</resources>

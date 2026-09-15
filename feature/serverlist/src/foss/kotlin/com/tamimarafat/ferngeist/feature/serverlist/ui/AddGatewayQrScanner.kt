@@ -7,12 +7,14 @@ import com.tamimarafat.ferngeist.feature.serverlist.R
 
 /**
  * FOSS flavour: no proprietary barcode scanner is linked, so QR scanning is unavailable.
- * Directs the user to paste the pairing payload instead. The Google flavour uses ML Kit.
+ * Unreachable in practice — the scan button is hidden when
+ * `serverlist_qr_scan_available` is false — but the seam requires a body.
+ * Reuses the paste-first error copy so any stray call still guides correctly.
  */
 fun performQrScan(
     context: Context,
     resources: Resources,
     viewModel: AddGatewayViewModel,
 ) {
-    viewModel.showMessage(resources.getString(R.string.serverlist_qr_error_no_scanner))
+    viewModel.showMessage(resources.getString(R.string.serverlist_error_scan_or_paste))
 }
