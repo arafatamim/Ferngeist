@@ -17,9 +17,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
-          # The app version comes from `git describe --tags` at configuration
-          # time, so a shallow checkout has no tags and the build fails.
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Verify release tag matches Gradle version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          TAG="${TAG#v}"
+          NAME=$(grep -oP 'val appVersionName = "\K[^"]+' app/build.gradle.kts)
+          CODE=$(grep -oP 'val appVersionCode = \K\d+' app/build.gradle.kts)
+          if [ "$TAG" != "$NAME" ]; then
+            echo "::error::Release tag v$TAG does not match appVersionName $NAME in app/build.gradle.kts. Bump the literals before releasing."
+            exit 1
+          fi
+          test -n "$CODE" || { echo "::error::appVersionCode literal missing in app/build.gradle.kts."; exit 1; }
+          echo "version $NAME ($CODE) confirmed for tag v$TAG"
 
       - name: Set up Java 17
         uses: actions/setup-java@v4

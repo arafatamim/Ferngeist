@@ -1,0 +1,5 @@
+Static versioning for F-Droid auto-updates.
+
+• Fully Open-Source build flavour (F-Droid ready)
+• F-Droid listing icon, screenshots and store notes
+• CI builds a separate FOSS APK alongside the Play APK/AAB

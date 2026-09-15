@@ -20,24 +20,13 @@ if (file("google-services.json").exists()) {
     )
 }
 
-val appVersionName =
-    providers
-        .exec {
-            commandLine("git", "describe", "--tags", "--abbrev=0")
-        }.standardOutput.asText
-        .get()
-        .trim()
-        .removePrefix("v")
-        .ifEmpty { "0.0.0" }
-
-val appVersionCode =
-    run {
-        val parts = appVersionName.split(".")
-        val major = parts.getOrElse(0) { "0" }.toIntOrNull() ?: 0
-        val minor = parts.getOrElse(1) { "0" }.toIntOrNull() ?: 0
-        val patch = parts.getOrElse(2) { "0" }.toIntOrNull() ?: 0
-        major * 10000 + minor * 100 + patch
-    }
+// Release version. Bump versionName and versionCode together when cutting a
+// release, and tag the release commit as "v$versionName" — the tag, these
+// literals, and the GitHub release asset names ("Ferngeist-$versionName.apk")
+// must all agree. F-Droid's checkupdates parses these literal values, so
+// they MUST NOT be computed (e.g. via git describe).
+val appVersionName = "0.14.2"
+val appVersionCode = 1402
 
 val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.trim()?.replaceFirst(Regex("[\\\\/]+$"), "")
 val releaseKeystorePassword: String? = System.getenv("ANDROID_KEYSTORE_PASSWORD")
@@ -74,8 +63,8 @@ android {
         applicationId = "com.tamimarafat.ferngeist"
         minSdk = 30
         targetSdk = 37
-        versionCode = appVersionCode
-        versionName = appVersionName
+        versionCode = 1402
+        versionName = "0.14.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
