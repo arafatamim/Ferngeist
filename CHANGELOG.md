@@ -1,3 +1,13 @@
+## [0.14.1] - 2026-09-15
+
+### Features
+
+- *(build)* Add google/foss distribution flavors for F-Droid ([caeca3b](https://github.com/arafatamim/Ferngeist/commit/caeca3b1cc24d4df95f075e6dc5d12b45e66713f0))
+
+### Docs
+
+- *(metadata)* Add F-Droid listing icon and screenshots ([d02648d](https://github.com/arafatamim/Ferngeist/commit/d02648d7c5e932d8092ba0c436468d74858742b9))
+
 ## [0.14.0] - 2026-09-13
 
 ### Features

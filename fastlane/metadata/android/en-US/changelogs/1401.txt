@@ -1,0 +1,6 @@
+F-Droid ready, same app for everyone else.
+
+• New: a Fully Open-Source build flavour for F-Droid — no Firebase, no ML Kit
+• New: F-Droid listing assets (icon, screenshots, per-version notes)
+• New: GitHub releases now ship a -foss APK alongside the Play APK/AAB
+• Fixed: foreground-service entry kept in the shared manifest during the split
