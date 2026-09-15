@@ -44,13 +44,23 @@ jobs:
           fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
 
-      - name: Build signed release artifacts
+      - name: Build signed Google release artifacts
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleGoogleRelease :app:bundleGoogleRelease :app:assembleFossRelease --no-daemon
+          GRADLE_OPTS: -Xmx6g -Dfile.encoding=UTF-8
+        run: ./gradlew :app:assembleGoogleRelease :app:bundleGoogleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx6g -Dfile.encoding=UTF-8"
+
+      - name: Build signed FOSS release artifact
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GRADLE_OPTS: -Xmx6g -Dfile.encoding=UTF-8
+        run: ./gradlew :app:assembleFossRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx6g -Dfile.encoding=UTF-8"
 
       - name: Rename artifacts with version
         run: |
