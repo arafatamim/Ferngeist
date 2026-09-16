@@ -18,8 +18,15 @@ Ferngeist is available on Google Play.
 Alternatively, download the APK from [GitHub Releases](https://github.com/arafatamim/ferngeist/releases/latest) (manual updates only — Play Store is recommended for auto-updates).
 
 ## Screenshots
-<img height="500" alt="01-agents-list" src="https://github.com/user-attachments/assets/6b3d8f2d-496c-474b-83b9-413d5fbd40cf" />
-<img height="500" alt="03-chat" src="https://github.com/user-attachments/assets/e6317469-0b97-42f4-aab4-44aee6acefee" />
+#### Phone — agents & chat
+<img height="500" alt="Agents list" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" />
+<img height="500" alt="Chat" src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" />
+
+#### 10" tablet — three-pane workspace
+<img height="500" alt="Tablet workspace" src="fastlane/metadata/android/en-US/images/tenInchScreenshots/1.png" />
+
+#### 7" tablet — two-pane
+<img height="500" alt="7-inch two-pane" src="fastlane/metadata/android/en-US/images/sevenInchScreenshots/1.png" />
 
 ## Usage
 Two ways to add ACP agents:
