@@ -7,11 +7,11 @@ import androidx.compose.ui.ExperimentalMediaQueryApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.derivedMediaQuery
 import androidx.compose.ui.unit.dp
-import androidx.window.core.layout.WindowSizeClass
 
 /**
- * True when the window is narrower than the *medium* width class (< 600dp), i.e. one pane
- * at most. Reads `LocalUiMediaScope` internally, so callers need nothing threaded down to
+ * True when the window is narrower than 480dp, i.e. one pane at most. Phone portrait
+ * stays single-pane; 7" landscape (600dp) and wider get the multi-pane workspace.
+ * Reads `LocalUiMediaScope` internally, so callers need nothing threaded down to
  * them. [derivedMediaQuery] wraps the read in `derivedStateOf`, which matters because
  * `windowWidth` updates on every resize frame.
  */
@@ -19,7 +19,7 @@ import androidx.window.core.layout.WindowSizeClass
 @Composable
 fun isWindowCompact(): Boolean {
     val narrowerThanMedium by derivedMediaQuery {
-        windowWidth < WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND.dp
+        windowWidth < 480.dp
     }
     return narrowerThanMedium
 }
