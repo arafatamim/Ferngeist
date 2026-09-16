@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -127,9 +128,53 @@ private suspend fun launchRefreshedRuntime(
  * cancelled caller sees cancellation instead of a launch error it would render on a
  * screen that is already gone. Every other exception is the launch failure the
  * function's contract promises to surface.
+ *
+ * When the connect stage reports a held runtime lease (another device attached
+ * first), the picked runtime is unusable, so the launch retries once as an
+ * isolated spawn instead of failing the chat. The retry runs only for a
+ * gateway-picked runtime: an explicit [reuseRuntimeId] names this chat's own
+ * session, which must be resumed rather than duplicated, and a retry that
+ * already asked for an isolated runtime has nothing left to escalate to.
  */
-@Suppress("TooGenericExceptionCaught")
 private suspend fun startAndConnect(
+    gatewayRepository: GatewayRepository,
+    gatewaySource: GatewaySource,
+    agentId: String,
+    new: Boolean,
+    reuseRuntimeId: String?,
+): Result<GatewayLaunchResult> {
+    val first =
+        attemptStartAndConnect(gatewayRepository, gatewaySource, agentId, new, reuseRuntimeId)
+    if (!shouldRetryIsolated(first, new, reuseRuntimeId)) return first
+    return attemptStartAndConnect(gatewayRepository, gatewaySource, agentId, new = true, reuseRuntimeId = null)
+}
+
+/**
+ * True when [first] refused a gateway-picked runtime on a held lease: retrying
+ * as an isolated spawn can still succeed, while any other outcome (success,
+ * own-session reattach, already-isolated attempt, unrelated failure) must
+ * keep its result.
+ */
+private fun shouldRetryIsolated(
+    first: Result<GatewayLaunchResult>,
+    new: Boolean,
+    reuseRuntimeId: String?,
+): Boolean {
+    if (new || reuseRuntimeId != null) return false
+    val failure = first.exceptionOrNull() ?: return false
+    return isRuntimeLeaseHeld(failure)
+}
+
+/** The gateway's held-lease marker on a refused connect: HTTP 409 with its error body. */
+private const val RUNTIME_LEASE_HELD_MARKER = "runtime_lease_held"
+
+private fun isRuntimeLeaseHeld(error: Throwable): Boolean =
+    error is GatewayRequestException &&
+        error.statusCode == HttpStatusCode.Conflict.value &&
+        error.message.contains(RUNTIME_LEASE_HELD_MARKER)
+
+@Suppress("TooGenericExceptionCaught")
+private suspend fun attemptStartAndConnect(
     gatewayRepository: GatewayRepository,
     gatewaySource: GatewaySource,
     agentId: String,
