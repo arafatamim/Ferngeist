@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -218,6 +219,30 @@ class AcpChatSessionFacadeTest {
             gatewayCredential: String,
             runtimeId: String,
             path: String?,
+        ) = TODO("unused in facade tests")
+
+        override suspend fun createCustomAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            displayName: String,
+            command: String,
+            args: List<String>,
+            hint: String,
+        ): GatewayAgent = TODO("unused in facade tests")
+
+        override suspend fun deleteCustomAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
+        ) = TODO("unused in facade tests")
+
+        override suspend fun stopAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
         ) = TODO("unused in facade tests")
     }
 

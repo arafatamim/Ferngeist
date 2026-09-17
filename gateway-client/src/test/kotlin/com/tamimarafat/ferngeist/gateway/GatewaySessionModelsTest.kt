@@ -217,6 +217,30 @@ class GatewaySessionModelsTest {
                     runtimeId: String,
                     path: String?,
                 ): List<com.agentclientprotocol.model.ToolCallContent.Diff> = TODO()
+
+                override suspend fun createCustomAgent(
+                    scheme: String,
+                    host: String,
+                    gatewayCredential: String,
+                    displayName: String,
+                    command: String,
+                    args: List<String>,
+                    hint: String,
+                ): GatewayAgent = TODO()
+
+                override suspend fun deleteCustomAgent(
+                    scheme: String,
+                    host: String,
+                    gatewayCredential: String,
+                    agentId: String,
+                ) = TODO()
+
+                override suspend fun stopAgent(
+                    scheme: String,
+                    host: String,
+                    gatewayCredential: String,
+                    agentId: String,
+                ) = TODO()
             }
         assertNotNull(impl)
     }

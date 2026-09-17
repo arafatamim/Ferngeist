@@ -437,7 +437,7 @@ private fun SaveServerButton(
 }
 
 @Composable
-private fun WarningSurface(message: String) {
+internal fun WarningSurface(message: String) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -605,7 +605,7 @@ internal fun SectionCard(
 }
 
 @Composable
-private fun sectionTextFieldColors() =
+internal fun sectionTextFieldColors() =
     OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,

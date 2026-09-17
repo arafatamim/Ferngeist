@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,10 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.AlertDialog
@@ -25,12 +29,17 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.DropdownMenuGroup
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -62,6 +71,8 @@ import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 
+private const val CUSTOM_AGENT_SOURCE = "custom"
+
 /**
  * Displays the launchable agent inventory for one paired gateway and
  * lets the user add specific agents into the main server list.
@@ -70,9 +81,11 @@ import com.tamimarafat.ferngeist.gateway.GatewayAgent
 @Composable
 fun GatewayAgentsScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToAddCustomAgent: () -> Unit,
     viewModel: GatewayAgentsViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val pendingDelete by viewModel.pendingDelete.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingAddAgent by rememberSaveable { mutableStateOf<GatewayAgent?>(null) }
 
@@ -94,6 +107,12 @@ fun GatewayAgentsScreen(
         )
     }
 
+    CustomAgentDeleteDialogHost(
+        pending = pendingDelete,
+        onConfirm = { stopFirst -> pendingDelete?.let { viewModel.confirmDelete(it.agent, stopFirst) } },
+        onDismiss = viewModel::dismissDelete,
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -109,6 +128,15 @@ fun GatewayAgentsScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            if (!uiState.isLoading && uiState.loadError == null) {
+                ExtendedFloatingActionButton(
+                    onClick = onNavigateToAddCustomAgent,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.serverlist_custom_agent_title)) },
+                )
+            }
+        },
     ) { padding ->
         when {
             uiState.isLoading -> LoadingContent(modifier = Modifier.padding(padding))
@@ -124,6 +152,7 @@ fun GatewayAgentsScreen(
                     agents = uiState.agents,
                     addedAgentIds = uiState.addedAgentIds,
                     onAgentClick = { pendingAddAgent = it },
+                    onDeleteAgent = viewModel::requestDelete,
                     modifier = Modifier.padding(padding),
                 )
         }
@@ -175,63 +204,151 @@ private fun AgentList(
     agents: List<GatewayAgent>,
     addedAgentIds: Set<String>,
     onAgentClick: (GatewayAgent) -> Unit,
+    onDeleteAgent: (GatewayAgent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Custom agents are the user's own entries, so they lead the list in their own
+    // section instead of sitting wherever the gateway happens to inject them. The
+    // gateway group is labelled too when both groups are present, so the list does
+    // not read as one long "Custom agents" section.
+    val (customAgents, gatewayAgents) = agents.partition { it.source == CUSTOM_AGENT_SOURCE }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(agents, key = { it.id }) { agent ->
-            AgentCard(
-                agent = agent,
-                alreadyAdded = agent.id in addedAgentIds,
-                canAdd = agent.manifestValid && agent.id !in addedAgentIds,
-                onClick = { onAgentClick(agent) },
-            )
+        if (customAgents.isNotEmpty()) {
+            // Headers carry no key on purpose: keys live in the same space as agent ids, so a
+            // gateway-supplied id could collide with a header key and break the list.
+            item {
+                SectionHeader(title = stringResource(R.string.serverlist_section_custom_agents))
+            }
+            agentItems(customAgents, addedAgentIds, onAgentClick, onDeleteAgent)
+        }
+        if (gatewayAgents.isNotEmpty()) {
+            if (customAgents.isNotEmpty()) {
+                item {
+                    SectionHeader(title = stringResource(R.string.serverlist_section_built_in_agents))
+                }
+            }
+            agentItems(gatewayAgents, addedAgentIds, onAgentClick, onDeleteAgent)
         }
     }
 }
 
+private fun LazyListScope.agentItems(
+    agents: List<GatewayAgent>,
+    addedAgentIds: Set<String>,
+    onAgentClick: (GatewayAgent) -> Unit,
+    onDeleteAgent: (GatewayAgent) -> Unit,
+) {
+    items(agents, key = { it.id }) { agent ->
+        AgentCard(
+            agent = agent,
+            alreadyAdded = agent.id in addedAgentIds,
+            canAdd = agent.manifestValid && agent.id !in addedAgentIds,
+            onClick = { onAgentClick(agent) },
+            onDelete = { onDeleteAgent(agent) },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AgentCard(
     agent: GatewayAgent,
     alreadyAdded: Boolean,
     canAdd: Boolean,
     onClick: () -> Unit,
+    onDelete: () -> Unit,
 ) {
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .then(
-                    if (canAdd) {
-                        Modifier
-                            .clickable(onClick = onClick)
-                            .semantics {
-                                contentDescription = agent.displayName
-                            }
-                    } else {
-                        Modifier
-                    },
+    var showActionsMenu by rememberSaveable { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isCustom = agent.source == CUSTOM_AGENT_SOURCE
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .then(
+                        when {
+                            // Custom agents are deletable at any time, so they carry the long press;
+                            // tapping still only adds them when they can be added.
+                            isCustom ->
+                                Modifier
+                                    .combinedClickable(
+                                        onClick = { if (canAdd) onClick() },
+                                        onLongClick = { showActionsMenu = true },
+                                    ).semantics {
+                                        contentDescription = agent.displayName
+                                    }
+                            canAdd ->
+                                Modifier
+                                    .clickable(onClick = onClick)
+                                    .semantics {
+                                        contentDescription = agent.displayName
+                                    }
+                            else ->
+                                Modifier
+                        },
+                    ),
+            shape = RoundedCornerShape(24.dp),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor =
+                        if (alreadyAdded) {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        },
                 ),
-        shape = RoundedCornerShape(24.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor =
-                    if (alreadyAdded) {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainerLow
-                    },
-            ),
+        ) {
+            AgentCardBody(
+                agent = agent,
+                alreadyAdded = alreadyAdded,
+                canAdd = canAdd,
+            )
+        }
+
+        if (isCustom) {
+            CustomAgentActionsMenu(
+                expanded = showActionsMenu,
+                onDismiss = { showActionsMenu = false },
+                interactionSource = interactionSource,
+                onDelete = {
+                    showActionsMenu = false
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomAgentActionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    interactionSource: MutableInteractionSource,
+    onDelete: () -> Unit,
+) {
+    DropdownMenuPopup(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
     ) {
-        AgentCardBody(
-            agent = agent,
-            alreadyAdded = alreadyAdded,
-            canAdd = canAdd,
-        )
+        DropdownMenuGroup(
+            shapes = MenuDefaults.groupShape(0, 1),
+            interactionSource = interactionSource,
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.serverlist_custom_agent_delete)) },
+                onClick = {
+                    onDismiss()
+                    onDelete()
+                },
+            )
+        }
     }
 }
 
@@ -273,6 +390,13 @@ private fun AgentCardBody(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (agent.source == CUSTOM_AGENT_SOURCE && !agent.detected) {
+            Text(
+                text = stringResource(R.string.serverlist_gateway_agents_custom_not_detected),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 
@@ -285,6 +409,9 @@ private fun AgentChipRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        if (agent.source == CUSTOM_AGENT_SOURCE) {
+            CompactAgentChip(label = stringResource(R.string.serverlist_gateway_agents_custom))
+        }
         CompactAgentChip(
             label =
                 if (agent.detected) {

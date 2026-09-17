@@ -59,11 +59,13 @@ import com.tamimarafat.ferngeist.core.common.ui.isWindowCompact
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
+import com.tamimarafat.ferngeist.feature.serverlist.AddCustomAgentViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
+import com.tamimarafat.ferngeist.feature.serverlist.ui.AddCustomAgentScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayAgentsScreen
@@ -243,6 +245,7 @@ private fun NavGraphBuilder.FerngeistDestinations(
     AddGatewayDestination(navController)
     EditGatewayDestination(navController)
     GatewayAgentsDestination(navController)
+    AddCustomAgentDestination(navController)
     EditServerDestination(navController)
     SessionsDestination(navController, sharedTransitionLayout)
     ChatDestination(navController, sharedTransitionLayout)
@@ -554,15 +557,50 @@ private fun NavGraphBuilder.EditGatewayDestination(navController: NavHostControl
     }
 }
 
+/**
+ * Nav result key: the custom-agent form reports a successful create to the gateway-agents
+ * screen, which re-reads the gateway's agent list so the new agent is actually visible.
+ */
+private const val CUSTOM_AGENT_CREATED_RESULT = "customAgentCreated"
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.AddCustomAgentDestination(navController: NavHostController) {
+    composable(
+        route = "add_custom_agent/{serverId}",
+        arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
+    ) {
+        val viewModel: AddCustomAgentViewModel = hiltViewModel()
+        AddCustomAgentScreen(
+            onNavigateBack = { navController.popBackStack() },
+            onCreated = {
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set(CUSTOM_AGENT_CREATED_RESULT, true)
+                navController.popBackStack()
+            },
+            viewModel = viewModel,
+        )
+    }
+}
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.GatewayAgentsDestination(navController: NavHostController) {
     composable(
         route = "gateway_agents/{serverId}",
         arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
-    ) {
+    ) { entry ->
         val viewModel: GatewayAgentsViewModel = hiltViewModel()
+        val createdState = entry.savedStateHandle.getStateFlow(CUSTOM_AGENT_CREATED_RESULT, false)
+        val customAgentCreated by createdState.collectAsStateWithLifecycle()
+        LaunchedEffect(customAgentCreated) {
+            if (customAgentCreated) {
+                entry.savedStateHandle[CUSTOM_AGENT_CREATED_RESULT] = false
+                viewModel.refresh()
+            }
+        }
         GatewayAgentsScreen(
             onNavigateBack = { navController.popBackStack() },
+            onNavigateToAddCustomAgent = { navController.navigate("add_custom_agent/${viewModel.gatewayId}") },
             viewModel = viewModel,
         )
     }

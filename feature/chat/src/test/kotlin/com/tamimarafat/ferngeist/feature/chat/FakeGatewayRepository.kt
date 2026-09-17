@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayFileRead
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -146,4 +147,28 @@ class FakeGatewayRepository : GatewayRepository {
         fetchGitDiffError?.let { throw it }
         return path?.let { fetchGitDiffResults[it] } ?: fetchGitDiffResult
     }
+
+    override suspend fun createCustomAgent(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        displayName: String,
+        command: String,
+        args: List<String>,
+        hint: String,
+    ): GatewayAgent = TODO()
+
+    override suspend fun deleteCustomAgent(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+    ) = TODO()
+
+    override suspend fun stopAgent(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+    ) = TODO()
 }

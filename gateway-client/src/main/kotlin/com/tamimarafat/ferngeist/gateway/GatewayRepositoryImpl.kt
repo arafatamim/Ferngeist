@@ -33,7 +33,8 @@ class GatewayRepositoryImpl
         GatewayRuntimeRepository,
         GatewaySessionRepository,
         GatewayPushRepository,
-        GatewayWorkspaceRepository {
+        GatewayWorkspaceRepository,
+        GatewayCustomAgentRepository {
         override suspend fun fetchStatus(
             scheme: String,
             host: String,
@@ -121,6 +122,60 @@ class GatewayRepositoryImpl
                     body = buildStartAgentRequestBody(new),
                 )
             return response.runtime
+        }
+
+        override suspend fun createCustomAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            displayName: String,
+            command: String,
+            args: List<String>,
+            hint: String,
+        ): GatewayAgent =
+            httpClient.postJson(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "agents",
+                "custom",
+                body = buildCustomAgentRequestBody(displayName, command, args, hint),
+            )
+
+        override suspend fun deleteCustomAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
+        ) {
+            httpClient.deleteJsonUnit(
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "agents",
+                "custom",
+                agentId,
+            )
+        }
+
+        override suspend fun stopAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
+        ) {
+            httpClient.postJsonUnit(
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "agents",
+                agentId,
+                "stop",
+            )
         }
 
         override suspend fun connectRuntime(
@@ -621,6 +676,26 @@ internal fun buildStartAgentRequestBody(new: Boolean): String? =
         null
     }
 
+/**
+ * Serializes the custom agent body. Uses the same `encodeDefaults = false` instance
+ * as the other request bodies, so empty args and a blank hint are omitted rather
+ * than sent as explicit empties.
+ */
+internal fun buildCustomAgentRequestBody(
+    displayName: String,
+    command: String,
+    args: List<String>,
+    hint: String,
+): String =
+    requestBodyJson.encodeToString(
+        GatewayCustomAgentRequest(
+            displayName = displayName,
+            command = command,
+            args = args,
+            hint = hint,
+        ),
+    )
+
 private fun normalizeControlScheme(scheme: String): String =
     when (scheme.trim().lowercase()) {
         "", "http", "ws" -> "http"
@@ -657,6 +732,8 @@ class GatewayCredentialExpiredException(
 class GatewayRequestException(
     val statusCode: Int,
     override val message: String,
+    /** The raw response body, so callers can read the gateway's `{"error": "..."}` envelope. */
+    val responseBody: String? = null,
 ) : IllegalStateException(message)
 
 private fun gatewayRequestException(
@@ -695,7 +772,11 @@ private fun gatewayRequestException(
                 }
             }
         }
-    return GatewayRequestException(statusCode = statusCode, message = message)
+    return GatewayRequestException(
+        statusCode = statusCode,
+        message = message,
+        responseBody = normalizedBody.takeIf { it.isNotBlank() },
+    )
 }
 
 private fun io.ktor.client.request.HttpRequestBuilder.applyGatewayAuthHeaders(headers: GatewayAuthHeaders) {

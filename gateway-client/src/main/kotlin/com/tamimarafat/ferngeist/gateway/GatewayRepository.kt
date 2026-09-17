@@ -160,6 +160,34 @@ interface GatewayWorkspaceRepository {
     ): List<ToolCallContent.Diff>
 }
 
+/** Client-registered custom agent operations. */
+interface GatewayCustomAgentRepository {
+    suspend fun createCustomAgent(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        displayName: String,
+        command: String,
+        args: List<String>,
+        hint: String,
+    ): GatewayAgent
+
+    suspend fun deleteCustomAgent(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+    )
+
+    /** Stops every runtime for the agent; required before deleting a used agent. */
+    suspend fun stopAgent(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+    )
+}
+
 /**
  * Composite gateway API — extends all sub-interfaces so callers depend on a single
  * type while each concern stays under the function-count threshold.
@@ -170,4 +198,5 @@ interface GatewayRepository :
     GatewayRuntimeRepository,
     GatewaySessionRepository,
     GatewayPushRepository,
-    GatewayWorkspaceRepository
+    GatewayWorkspaceRepository,
+    GatewayCustomAgentRepository

@@ -4,6 +4,7 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 @Serializable
 data class GatewayStatus(
@@ -68,6 +69,8 @@ data class GatewayAgent(
     val running: Boolean = false,
     val runtimeId: String? = null,
     val runtimeStatus: String? = null,
+    // "embedded" | "registry" | "custom"; null on gateways that predate custom agents.
+    val source: String? = null,
 )
 
 @Serializable
@@ -155,6 +158,15 @@ data class GatewayConnectRequest(
 @Serializable
 data class GatewayStartRequest(
     @SerialName("new") val new: Boolean,
+)
+
+/** Body of `POST /v1/agents/custom`. */
+@Serializable
+data class GatewayCustomAgentRequest(
+    val displayName: String,
+    val command: String,
+    val args: List<String> = emptyList(),
+    val hint: String = "",
 )
 
 @Serializable
@@ -285,3 +297,24 @@ fun GatewayStatus.requireSupportedProtocol() {
         throw GatewayProtocolMismatchException(protocolVersion)
     }
 }
+
+/** The gateway's error envelope: every non-2xx response body is `{"error": "..."}`. */
+@Serializable
+data class GatewayErrorResponse(
+    val error: String? = null,
+)
+
+private val errorBodyJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * The gateway's own message from a non-2xx body, or null when it is not the envelope.
+ *
+ * Public rather than module-internal: the catalog/chat features read the gateway's
+ * refused-delete body, and [GatewayRequestException] carries only the raw text.
+ */
+fun gatewayErrorMessage(responseBody: String?): String? =
+    responseBody
+        ?.takeIf { it.isNotBlank() }
+        ?.let { body ->
+            runCatching { errorBodyJson.decodeFromString<GatewayErrorResponse>(body).error }.getOrNull()
+        }?.takeIf { it.isNotBlank() }

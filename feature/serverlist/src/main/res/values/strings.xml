@@ -27,6 +27,8 @@
     <string name="serverlist_fab_close">Close menu</string>
     <string name="serverlist_resume_sessions">Resume sessions</string>
     <string name="serverlist_section_agents">Your agents</string>
+    <string name="serverlist_section_custom_agents">Custom agents</string>
+    <string name="serverlist_section_built_in_agents">Built-in agents</string>
     <string name="serverlist_continue_resume_desc">Resume session</string>
 
     <string name="serverlist_card_from_gateway">From gateway</string>
@@ -133,6 +135,8 @@
     <string name="serverlist_gateway_agents_add_title">Add agent to list?</string>
     <string name="serverlist_gateway_agents_detected">Detected</string>
     <string name="serverlist_gateway_agents_not_detected">Not detected</string>
+    <string name="serverlist_gateway_agents_custom">Custom</string>
+    <string name="serverlist_gateway_agents_custom_not_detected">The gateway could not find this command on its host. Starting it will fail — delete it and check the command.</string>
     <string name="serverlist_gateway_agents_valid">Valid</string>
     <string name="serverlist_gateway_agents_invalid">Invalid</string>
     <string name="serverlist_gateway_agents_added">Added</string>
@@ -143,6 +147,47 @@
     <string name="serverlist_gateway_agents_cancel">Cancel</string>
     <string name="serverlist_gateway_agents_retry">Retry</string>
     <string name="serverlist_gateway_agents_error_title">Couldn\'t load agents</string>
+
+    <!-- Custom Agent - Create Form -->
+    <string name="serverlist_custom_agent_title">Add custom agent</string>
+    <string name="serverlist_custom_agent_identity_title">Identity</string>
+    <string name="serverlist_custom_agent_identity_subtitle">How this agent appears in your agent list.</string>
+    <string name="serverlist_custom_agent_name_label">Display name</string>
+    <string name="serverlist_custom_agent_name_placeholder">My Agent</string>
+    <string name="serverlist_custom_agent_hint_label">Note (optional)</string>
+    <string name="serverlist_custom_agent_hint_placeholder">Shown on the agent card</string>
+    <string name="serverlist_custom_agent_command_title">Command</string>
+    <string name="serverlist_custom_agent_command_subtitle">Runs on the gateway host.</string>
+    <string name="serverlist_custom_agent_command_label">Command</string>
+    <string name="serverlist_custom_agent_command_placeholder">my-agent</string>
+    <string name="serverlist_custom_agent_arguments_label">Arguments (optional)</string>
+    <string name="serverlist_custom_agent_arguments_placeholder">--acp --verbose</string>
+    <string name="serverlist_custom_agent_arguments_support">Separated by spaces. A single argument cannot contain a space.</string>
+    <string name="serverlist_custom_agent_warning">This command runs on the gateway host as the gateway user. Anyone paired to this gateway can start it.</string>
+    <string name="serverlist_custom_agent_submit">Add agent</string>
+
+    <!-- Custom Agent - Create Form Errors -->
+    <string name="serverlist_custom_agent_error_name_required">Agent name is required</string>
+    <string name="serverlist_custom_agent_error_name_too_long">Agent name must be at most 80 characters</string>
+    <string name="serverlist_custom_agent_error_command_required">Command is required</string>
+    <string name="serverlist_custom_agent_error_command_too_long">Command must be at most 1024 characters</string>
+    <string name="serverlist_custom_agent_error_command_single_name">Command must be a single executable name</string>
+    <string name="serverlist_custom_agent_error_command_absolute_or_name">Command must be an absolute path or a single executable name</string>
+    <string name="serverlist_custom_agent_error_too_many_args">At most 20 arguments</string>
+    <string name="serverlist_custom_agent_error_arg_too_long">Each argument must be at most 1024 characters</string>
+    <string name="serverlist_custom_agent_error_gateway_missing">This gateway is no longer paired</string>
+    <string name="serverlist_custom_agent_error_credential_expired">Gateway credential expired. Please pair this gateway again.</string>
+    <string name="serverlist_custom_agent_error_create_failed">Could not create the agent</string>
+
+    <!-- Custom Agent - Delete -->
+    <string name="serverlist_custom_agent_deleted">Deleted %1$s</string>
+    <string name="serverlist_custom_agent_error_delete_failed">Could not delete the agent</string>
+    <string name="serverlist_custom_agent_delete">Delete</string>
+    <string name="serverlist_custom_agent_delete_title">Delete agent</string>
+    <string name="serverlist_custom_agent_delete_body">Remove \"%1$s\" from the gateway host? This cannot be undone.</string>
+    <string name="serverlist_custom_agent_delete_running_title">Agent is running</string>
+    <string name="serverlist_custom_agent_delete_running_body">This agent has a live runtime. Stop it and delete? The agent\'s running process will be stopped.</string>
+    <string name="serverlist_custom_agent_delete_running_confirm">Stop and delete</string>
 
     <!-- Gateway List -->
     <string name="serverlist_gateway_list_title">Ferngeist Gateways</string>

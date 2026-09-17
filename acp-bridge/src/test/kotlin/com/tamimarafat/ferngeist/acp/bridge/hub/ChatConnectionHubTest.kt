@@ -5,6 +5,7 @@ import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
@@ -148,6 +149,30 @@ class ChatConnectionHubTest {
             gatewayCredential: String,
             runtimeId: String,
             path: String?,
+        ) = TODO("unused in hub tests")
+
+        override suspend fun createCustomAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            displayName: String,
+            command: String,
+            args: List<String>,
+            hint: String,
+        ): GatewayAgent = TODO("unused in hub tests")
+
+        override suspend fun deleteCustomAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
+        ) = TODO("unused in hub tests")
+
+        override suspend fun stopAgent(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
         ) = TODO("unused in hub tests")
     }
 
