@@ -1,3 +1,18 @@
+## [0.15.0] - 2026-09-17
+
+### Documentation
+
+- *(readme)* Show fresh phone and tablet screenshots with labels ([25663c2](https://github.com/arafatamim/Ferngeist/commit/25663c29adfa7bb3c4f7baed8f22d7dc0dc02c6c))
+
+### Features
+
+- *(serverlist)* Create and delete custom agents on a paired gateway ([0998566](https://github.com/arafatamim/Ferngeist/commit/0998566f50df3893ef71f26cda7e59ce530ed9ac))
+
+### Fixes
+
+- *(ui)* Show the multi-pane workspace on 7-inch landscape ([f94f9d5](https://github.com/arafatamim/Ferngeist/commit/f94f9d55335316b33cdd771cf536be1ed7eeacd5))
+- *(gateway)* Retry a held runtime lease as an isolated spawn ([552ce36](https://github.com/arafatamim/Ferngeist/commit/552ce36a0eae507edb2f803e36818d573744432a))
+
 ## [0.14.1] - 2026-09-15
 
 ### Features
@@ -200,6 +215,7 @@
 - *(chat)* Use SDK ToolKind and ToolCallStatus enums instead of strings ([4d2bdd6](https://github.com/arafatamim/Ferngeist/commit/4d2bdd64a2dd0b355dca3d18ae05ba6038fa0359))
 - *(acp-bridge)* Generalize session usage cost tracking ([224fc3a](https://github.com/arafatamim/Ferngeist/commit/224fc3a1ca9ec568c044aea685f6cfd8ad70610e))
 - *(chat)* Robust auto-scroll system and UI component refactor ([e233af3](https://github.com/arafatamim/Ferngeist/commit/e233af356ec794f4d021754c11630d3c329c9334))
+
 ## [0.6.0] - 2026-05-10
 
 ### Documentation
@@ -235,6 +251,7 @@
 - *(gateway)* Rename helper to gateway ([4f4a2bf](https://github.com/arafatamim/Ferngeist/commit/4f4a2bfe962695e053a733f54bc3e5e771801160))
 - *(crypto)* Migrate deprecated credential encryption to AndroidKeyStore-backed AES-GCM ([a8287df](https://github.com/arafatamim/Ferngeist/commit/a8287df5ab2cc537d16c0b9ec3c35223a65f58b3))
 - *(core.common)* Extract ConnectionStatusPill ([76cfb69](https://github.com/arafatamim/Ferngeist/commit/76cfb69d2b3c99b808ade669e6e3c7aa8c2300d0))
+
 ## [0.5.0] - 2026-04-19
 
 ### Features
@@ -244,6 +261,7 @@
 ### Maintenance
 
 - *(release)* Derive app version from git tag ([ea32cc3](https://github.com/arafatamim/Ferngeist/commit/ea32cc3639ed67451d926f73e700b881260a09e3))
+
 ## [0.4.0] - 2026-04-18
 
 ### Documentation
@@ -268,6 +286,7 @@
 - *(docs)* Setup workflow for docs ([e569b8c](https://github.com/arafatamim/Ferngeist/commit/e569b8c1cd7ac096fb4b2087ed77028a6b69d061))
 - *(docs)* Add Jekyll build and restrict trigger ([acd7412](https://github.com/arafatamim/Ferngeist/commit/acd7412f56b7788e4114341a361f227723cfe13d))
 - *(release)* Create tag-triggered releases and fix Jekyll builds ([70e6117](https://github.com/arafatamim/Ferngeist/commit/70e611775010a8a79432e313e07029afab1f423a))
+
 ## [0.3.0] - 2026-04-12
 
 ### Documentation
@@ -336,6 +355,7 @@
 - *(ui)* Remove first-launch onboarding and improve server setup guidance ([d768a34](https://github.com/arafatamim/Ferngeist/commit/d768a349601cfee7a6d5a1c5ffa2a6b8c1b2565c))
 - *(desktop-helper)* Extract daemon CLI ([0cb7a8a](https://github.com/arafatamim/Ferngeist/commit/0cb7a8a3ecf33ef417cd0860d376ce5b0f10276a))
 - *(desktop-helper)* Remove helperd shim and add CLI version flag ([8ec3dd6](https://github.com/arafatamim/Ferngeist/commit/8ec3dd665e541628ff5eaec720fc7e8ac7c2acff))
+
 ## [0.2.0-beta01] - 2026-03-12
 
 ### Features
@@ -371,6 +391,7 @@
 
 - *(onboarding)* Clean up ([8d870f1](https://github.com/arafatamim/Ferngeist/commit/8d870f1524fb1f68cc080432758ce3eec3cb4bee))
 - *(chat)* Refine composer UI ([5392598](https://github.com/arafatamim/Ferngeist/commit/5392598eb3d61118cf650bb63533a8ebb8643c59))
+
 ## [0.1.0-alpha01] - 2026-03-08
 
 ### Documentation

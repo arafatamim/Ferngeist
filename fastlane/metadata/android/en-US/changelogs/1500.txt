@@ -1,0 +1,6 @@
+Custom ACP agents you can manage from the app.
+
+• Add and delete your own agents on a paired gateway
+• The agent list now separates "Custom agents" from "Built-in agents"
+• Fixed: the multi-pane workspace on 7-inch landscape tablets
+• Fixed: a new chat no longer borrows another chat's agent process
