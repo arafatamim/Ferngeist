@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
@@ -133,11 +134,18 @@ object AppModule {
     @Singleton
     fun provideApplicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    /** Single network-availability observer shared by the hub and the screens. */
+    @Provides
+    @Singleton
+    fun provideConnectivityObserver(
+        @ApplicationContext context: Context,
+    ): ConnectivityObserver = AndroidConnectivityObserver(context)
+
     /** Tracks every open chat's connection; owns every ACP manager lifetime in the process. */
     @Provides
     @Singleton
     fun provideChatConnectionHub(
-        @ApplicationContext context: Context,
+        connectivityObserver: ConnectivityObserver,
         gatewayRepository: GatewayRepository,
         sessionRepository: SessionRepository,
         launchableTargetRepository: LaunchableTargetRepository,
@@ -147,7 +155,7 @@ object AppModule {
         ChatConnectionHub(
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
-            connectivityObserver = AndroidConnectivityObserver(context),
+            connectivityObserver = connectivityObserver,
             sessionRepository = sessionRepository,
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,

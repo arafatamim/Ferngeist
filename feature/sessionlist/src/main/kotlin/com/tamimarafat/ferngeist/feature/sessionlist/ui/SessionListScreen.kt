@@ -259,7 +259,7 @@ private fun rememberSessionListState(
         label = "cwdAlpha",
     )
     return SessionListState(
-        sessions = viewModel.sessions.collectAsState().value,
+        sessions = viewModel.visibleSessions.collectAsState().value,
         liveSessionIds = viewModel.liveSessionIds.collectAsState().value,
         isLoading = viewModel.isLoading.collectAsState().value,
         currentCwd = currentCwd,

@@ -7,6 +7,7 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
+import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildEnvPayload
 import com.tamimarafat.ferngeist.acp.bridge.connection.loadPersistedEnvValues
 import com.tamimarafat.ferngeist.acp.bridge.connection.persistEnvValues
@@ -25,6 +26,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSe
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.filterSessionsByCwd
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -92,6 +95,7 @@ class SessionListViewModel
         private val sessionRepository: SessionRepository,
         private val gatewayRepository: GatewayRepository,
         private val chatConnectionHub: ChatConnectionHub,
+        private val connectivityObserver: ConnectivityObserver,
         private val authEnvValueStore: AuthEnvValueStore,
         private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
         private val recentCwdStore: RecentCwdStore,
@@ -123,6 +127,17 @@ class SessionListViewModel
             sessionRepository
                 .getSessions(serverId)
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+        /**
+         * The rows the list shows: the cached sessions narrowed by the active
+         * working directory. Filtering locally keeps the list truthful while
+         * the agent is unreachable — the hub's listing can only filter by
+         * re-asking the gateway, and its result replaces this same cache.
+         */
+        val visibleSessions: StateFlow<List<SessionSummary>> =
+            combine(sessions, sessionSettings) { cached, settings ->
+                filterSessionsByCwd(cached, settings.cwd)
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         /** Sessions currently holding a live gateway connection (for the row dot). */
         val liveSessionIds: StateFlow<Set<String>> =
@@ -171,8 +186,23 @@ class SessionListViewModel
         private var refreshJob: kotlinx.coroutines.Job? = null
         private var refreshGeneration = 0
 
+        /** True when the last listing attempt never reached the agent. */
+        private var lastListingFailed = false
+
         init {
             refreshSessions()
+            viewModelScope.launch {
+                // A listing that failed while the network was down is stale the
+                // moment the network returns: nothing else re-runs it, so the
+                // locally filtered cache would keep standing in for the agent's
+                // own answer. One retry per network transition — a listing that
+                // fails again leaves the flag set but no new transition to fire on.
+                connectivityObserver.isConnected.collect { connected ->
+                    if (connected && lastListingFailed) {
+                        refreshSessions()
+                    }
+                }
+            }
             viewModelScope.launch {
                 chatConnectionHub.warmServers.collect { warmServers ->
                     val hasWarmHub = serverId in warmServers
@@ -221,19 +251,23 @@ class SessionListViewModel
                         _isLoading.value = true
                         when (val result = chatConnectionHub.listSessions(serverId, cwd)) {
                             is ListSessionsResult.Listed -> {
+                                lastListingFailed = false
                                 result.agentCapabilities?.let { _agentCapabilities.value = it }
                             }
 
                             is ListSessionsResult.Unsupported -> {
+                                lastListingFailed = false
                                 result.agentCapabilities?.let { _agentCapabilities.value = it }
                             }
 
                             is ListSessionsResult.AuthRequired -> {
+                                lastListingFailed = false
                                 handleAuthenticationRequired(result, PendingAuthAction.RefreshSessions)
                                 return@launch
                             }
 
                             is ListSessionsResult.Failed -> {
+                                lastListingFailed = true
                                 // Silent on an auto resume refresh with cached rows; a
                                 // warm socket mid-reconnect would otherwise toast on
                                 // every return from chat. Still loud for a pull-to-refresh
@@ -359,7 +393,12 @@ class SessionListViewModel
             createSession(normalizedCwd)
         }
 
-        /** Persists [cwd] to settings, records it in the recent list, then refreshes sessions. */
+        /**
+         * Persists [cwd] to settings, records it in the recent list, then
+         * refreshes sessions. The refresh counts as user-initiated: the list
+         * already narrows to [cwd] locally, so a listing the agent could not
+         * answer must say so instead of passing for an empty directory.
+         */
         fun updateCurrentCwd(cwd: String) {
             viewModelScope.launch {
                 sessionSettingsRepository.updateCwd(serverId, cwd)
@@ -367,7 +406,7 @@ class SessionListViewModel
                 if (normalized.isNotBlank()) {
                     recentCwdStore.addCwd(serverId, normalized)
                 }
-                refreshSessions()
+                refreshSessions(isUserInitiated = true)
                 if (pendingCreateAfterCwd) {
                     pendingCreateAfterCwd = false
                     createSessionWithCurrentCwd()
