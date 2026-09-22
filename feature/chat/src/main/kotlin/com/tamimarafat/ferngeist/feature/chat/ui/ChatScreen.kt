@@ -1126,6 +1126,22 @@ private fun BoxScope.ChatComposerHost(
             coroutineScope = coroutineScope,
             onSwitchSession = onSwitchSession,
         )
+    val composerDragModifier =
+        if (!screenState.composerExpanded.value && switcherState.hasOthers) {
+            Modifier.switcherDrag(
+                onDragStart = {
+                    if (!switcherHintSeen) {
+                        viewModel.dispatch(ChatIntent.MarkSwitcherHintSeen)
+                    }
+                    switcherDrag.onDragStart()
+                },
+                onDragDelta = switcherDrag.onDragDelta,
+                onDragStopped = switcherDrag.onDragStopped,
+                onDragCancel = switcherDrag.onDragCancel,
+            )
+        } else {
+            Modifier
+        }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement =
@@ -1144,6 +1160,7 @@ private fun BoxScope.ChatComposerHost(
                 .zIndex(1f),
     ) {
         ChatComposerBar(
+            modifier = composerDragModifier,
             state = screenState.state,
             toolbarConfigOptions = screenState.toolbarConfigOptions,
             composerExpanded = screenState.composerExpanded.value,

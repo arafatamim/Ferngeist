@@ -115,7 +115,7 @@ private val SWITCHER_HINT_GAP = 8.dp
  * total plus fling velocity on release, cancellation when the gesture dies.
  * Taps pass through untouched — the detector only fires past touch slop.
  */
-private fun Modifier.switcherDrag(
+internal fun Modifier.switcherDrag(
     onDragStart: () -> Unit,
     onDragDelta: (Float) -> Unit,
     onDragStopped: (totalPx: Float, velocityPxPerSec: Float) -> Unit,
