@@ -1,0 +1,5 @@
+Switch between live sessions without leaving chat.
+
+• New session switcher next to the message box, with a first-run hint
+• Swipe sideways on the counter to jump straight to the next session
+• Fixed: the session list now filters by working directory

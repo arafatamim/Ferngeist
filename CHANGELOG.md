@@ -1,3 +1,13 @@
+## [0.16.0-alpha] - 2026-09-22
+
+### Features
+
+- *(chat)* Add live-session switcher with drag switch and coach-mark hint ([fa6e90c](https://github.com/arafatamim/Ferngeist/commit/fa6e90cfbe83e7ae3d3144397e467ff53278c419))
+
+### Fixes
+
+- *(sessionlist)* Filter by the working directory without the agent ([58b2077](https://github.com/arafatamim/Ferngeist/commit/58b2077261c72c2a9a42f471b3aa5d6c3dde1fd9))
+
 ## [0.15.0] - 2026-09-17
 
 ### Documentation
