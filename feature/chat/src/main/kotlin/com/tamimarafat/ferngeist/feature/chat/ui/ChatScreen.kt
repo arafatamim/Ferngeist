@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animateFloatAsState
@@ -15,9 +17,11 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,8 +61,10 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -79,9 +85,16 @@ import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.SlideDirection
+import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
+import com.tamimarafat.ferngeist.feature.chat.resolveSwipeTarget
+import com.tamimarafat.ferngeist.feature.chat.switcherNeighbors
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // region: ChatScreen
 
@@ -109,6 +122,7 @@ fun ChatScreen(
     sessionId: String,
     sessionTitle: String,
     onNavigateBack: () -> Unit,
+    onSwitchSession: OnSwitchSession,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
@@ -134,6 +148,7 @@ fun ChatScreen(
         sessionTitle = sessionTitle,
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
+        onSwitchSession = onSwitchSession,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
         modifier = modifier,
@@ -322,6 +337,17 @@ private val BOTTOM_FADE_LEAD = 24.dp
 // passes under the top bar.
 private const val BOTTOM_FADE_MAX_ALPHA = 0.75f
 
+// Settle wait before the switcher bubble slides in after a collapse: covers
+// the keyboard dismissal plus the pill shrink, so the entrance reads purely
+// horizontal instead of summing with the row's downward travel.
+private const val SWITCHER_COLLAPSE_SETTLE_DELAY_MS = 250L
+
+// Commit rules for the Chrome-style drag switch: past a quarter of the screen
+// width — or flung fast regardless of distance — the chat flies off and the
+// target session opens; anything shorter springs back.
+private const val SWITCHER_COMMIT_FRACTION = 0.25f
+private const val SWITCHER_FLING_VELOCITY_PX_PER_SEC = 1000f
+
 private fun rememberSendHandlers(
     viewModel: ChatViewModel,
     state: ChatState,
@@ -372,6 +398,7 @@ private data class ChatScreenMutations(
     val showCommandsDialog: MutableState<Boolean>,
     val showConnectionStatusDialog: MutableState<Boolean>,
     val showGitStatusSheet: MutableState<Boolean>,
+    val showSwitcherSheet: MutableState<Boolean>,
     val composerContentHeightPx: MutableState<Int>,
     val messageText: MutableState<String>,
     val selectedImages: MutableState<List<ChatImageData>>,
@@ -390,6 +417,7 @@ private fun rememberChatScreenMutations(): ChatScreenMutations =
         showCommandsDialog = remember { mutableStateOf(false) },
         showConnectionStatusDialog = remember { mutableStateOf(false) },
         showGitStatusSheet = remember { mutableStateOf(false) },
+        showSwitcherSheet = remember { mutableStateOf(false) },
         composerContentHeightPx = remember { mutableIntStateOf(0) },
         messageText = remember { mutableStateOf("") },
         selectedImages = remember { mutableStateOf<List<ChatImageData>>(emptyList()) },
@@ -408,6 +436,7 @@ private class ChatScreenState(
     val showCommandsDialog: MutableState<Boolean>,
     val showConnectionStatusDialog: MutableState<Boolean>,
     val showGitStatusSheet: MutableState<Boolean>,
+    val showSwitcherSheet: MutableState<Boolean>,
     val composerContentHeightPx: MutableState<Int>,
     val messageText: MutableState<String>,
     val selectedImages: MutableState<List<ChatImageData>>,
@@ -803,6 +832,7 @@ private fun buildChatScreenState(
         showCommandsDialog = mutations.showCommandsDialog,
         showConnectionStatusDialog = mutations.showConnectionStatusDialog,
         showGitStatusSheet = mutations.showGitStatusSheet,
+        showSwitcherSheet = mutations.showSwitcherSheet,
         composerContentHeightPx = mutations.composerContentHeightPx,
         messageText = mutations.messageText,
         selectedImages = mutations.selectedImages,
@@ -852,6 +882,7 @@ private fun ChatScreenScaffold(
     sessionTitle: String,
     viewModel: ChatViewModel,
     onNavigateBack: () -> Unit,
+    onSwitchSession: OnSwitchSession,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
@@ -891,11 +922,18 @@ private fun ChatScreenScaffold(
                 .background(MaterialTheme.colorScheme.surface),
     ) {
         val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+        // Chrome-style switch: the whole chat rides the bubble drag 1:1 in the
+        // layout phase (no recomposition per frame), springs back or flies off
+        // on release. The surface behind is the plain background.
+        val chatOffset = remember { Animatable(0f) }
 
         Scaffold(
             modifier =
                 Modifier
-                    .fillMaxSize(),
+                    .fillMaxSize()
+                    .offset {
+                        IntOffset(chatOffset.value.roundToInt(), 0)
+                    },
             containerColor = Color.Transparent,
             topBar = {
                 ChatScreenTopBar(
@@ -924,6 +962,8 @@ private fun ChatScreenScaffold(
                     coroutineScope = coroutineScope,
                     focusManager = focusManager,
                     viewModel = viewModel,
+                    chatOffset = chatOffset,
+                    onSwitchSession = onSwitchSession,
                     appBarScrollConnection = scrollBehavior.nestedScrollConnection,
                 )
             }
@@ -939,12 +979,17 @@ private fun BoxScope.ChatScreenOverlays(
     coroutineScope: CoroutineScope,
     focusManager: FocusManager,
     viewModel: ChatViewModel,
+    chatOffset: Animatable<Float, AnimationVector1D>,
+    onSwitchSession: OnSwitchSession,
     appBarScrollConnection: NestedScrollConnection,
 ) {
+    val switcherState by viewModel.switcherUiState.collectAsStateWithLifecycle()
     ChatScreenContentOverlays(
         screenState = screenState,
         innerPadding = innerPadding,
         viewModel = viewModel,
+        switcherState = switcherState,
+        onSwitchSession = onSwitchSession,
         appBarScrollConnection = appBarScrollConnection,
     )
     ChatScreenSnackbar(screenState)
@@ -955,6 +1000,86 @@ private fun BoxScope.ChatScreenOverlays(
             coroutineScope = coroutineScope,
             focusManager = focusManager,
             viewModel = viewModel,
+            switcherState = switcherState,
+            chatOffset = chatOffset,
+            onSwitchSession = onSwitchSession,
+            onSwitcherClick = { screenState.showSwitcherSheet.value = true },
+        )
+    }
+}
+
+/** Bubble drag callbacks: everything the Chrome-style switch needs, nothing the row does. */
+private data class SwitcherDragHandlers(
+    val onDragStart: () -> Unit,
+    val onDragDelta: (Float) -> Unit,
+    val onDragStopped: (totalPx: Float, velocityPxPerSec: Float) -> Unit,
+    val onDragCancel: () -> Unit,
+)
+
+/**
+ * Neighbors in stable recency order plus the drag-to-commit wiring: threshold
+ * from the screen width, release commits the swipe target (travel picks the
+ * direction) or springs back. Lives outside [ChatComposerHost] so the row
+ * stays a row — neighbor lookup and gesture math live here.
+ */
+@Composable
+private fun rememberSwitcherDragHandlers(
+    switcherState: SwitcherUiState,
+    chatOffset: Animatable<Float, AnimationVector1D>,
+    coroutineScope: CoroutineScope,
+    onSwitchSession: OnSwitchSession,
+): SwitcherDragHandlers {
+    val (previousSession, nextSession) = remember(switcherState) { switcherNeighbors(switcherState.groups) }
+    // Window width in px (not Configuration.screenWidthDp: its inset behavior
+    // varies by target SDK and it rounds to Dp, so it mismeasures the drag).
+    val screenWidthPx = LocalWindowInfo.current.containerSize.width * 1f
+    val commitThresholdPx = screenWidthPx * SWITCHER_COMMIT_FRACTION
+    return remember(previousSession, nextSession, screenWidthPx, chatOffset, coroutineScope, onSwitchSession) {
+        SwitcherDragHandlers(
+            onDragStart = {
+                coroutineScope.launch { chatOffset.stop() }
+            },
+            onDragDelta = { totalPx ->
+                coroutineScope.launch {
+                    chatOffset.snapTo(totalPx.coerceIn(-screenWidthPx, screenWidthPx))
+                }
+            },
+            onDragStopped = { totalPx, velocityPxPerSec ->
+                val target =
+                    resolveSwipeTarget(
+                        totalPx = totalPx,
+                        velocityPxPerSec = velocityPxPerSec,
+                        commitThresholdPx = commitThresholdPx,
+                        flingThresholdPxPerSec = SWITCHER_FLING_VELOCITY_PX_PER_SEC,
+                        previous = previousSession,
+                        next = nextSession,
+                    )
+                if (target != null) {
+                    // No fly-off animation here: navigate immediately and let
+                    // the directional exit transition continue the drag from
+                    // the finger's release point — one motion, no blank gap.
+                    val direction = if (totalPx != 0f) totalPx else velocityPxPerSec
+                    onSwitchSession(
+                        target,
+                        if (direction < 0) SlideDirection.LEFT else SlideDirection.RIGHT,
+                    )
+                } else {
+                    coroutineScope.launch {
+                        chatOffset.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                        )
+                    }
+                }
+            },
+            onDragCancel = {
+                coroutineScope.launch {
+                    chatOffset.animateTo(
+                        targetValue = 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                    )
+                }
+            },
         )
     }
 }
@@ -966,54 +1091,105 @@ private fun BoxScope.ChatComposerHost(
     coroutineScope: CoroutineScope,
     focusManager: FocusManager,
     viewModel: ChatViewModel,
+    switcherState: SwitcherUiState,
+    chatOffset: Animatable<Float, AnimationVector1D>,
+    onSwitchSession: OnSwitchSession,
+    onSwitcherClick: () -> Unit,
 ) {
+    val switcherHintSeen by viewModel.switcherHintSeen.collectAsStateWithLifecycle()
     val callbacks =
         rememberComposerCallbacks(
             screenState = screenState,
             coroutineScope = coroutineScope,
             viewModel = viewModel,
         )
-    ChatComposerBar(
+    // Staggers the bubble entrance after a collapse: closing clears focus, so
+    // the keyboard dismisses and the whole row travels down while the pill
+    // shrinks. Entering mid-travel sums to a diagonal (the "top-right"
+    // fly-in); waiting out the settle keeps the slide purely horizontal.
+    // Skipped on first open — the row never traveled, so no wait is needed.
+    var switcherEntranceReady by remember { mutableStateOf(true) }
+    var composerWasExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(screenState.composerExpanded.value) {
+        if (screenState.composerExpanded.value) {
+            composerWasExpanded = true
+            switcherEntranceReady = false
+        } else if (composerWasExpanded) {
+            delay(SWITCHER_COLLAPSE_SETTLE_DELAY_MS)
+            switcherEntranceReady = true
+        }
+    }
+    val switcherDrag =
+        rememberSwitcherDragHandlers(
+            switcherState = switcherState,
+            chatOffset = chatOffset,
+            coroutineScope = coroutineScope,
+            onSwitchSession = onSwitchSession,
+        )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                space = 8.dp,
+                alignment = Alignment.CenterHorizontally,
+            ),
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)
+                .fillMaxWidth()
                 .navigationBarsPadding()
                 .imePadding()
                 .padding(horizontal = 1.dp)
                 .offset(y = -FloatingToolbarDefaults.ScreenOffset)
                 .zIndex(1f),
-        state = screenState.state,
-        toolbarConfigOptions = screenState.toolbarConfigOptions,
-        composerExpanded = screenState.composerExpanded.value,
-        onComposerExpandedChange = { screenState.composerExpanded.value = it },
-        messageText = screenState.messageText.value,
-        onMessageTextChange = { screenState.messageText.value = it },
-        inputAlpha = screenState.inputAlpha.value,
-        buttonsAlpha = screenState.buttonsAlpha.value,
-        showModeButton = screenState.showModeButton,
-        modeOption = screenState.modeOption,
-        currentModeLabel = screenState.currentModeLabel,
-        showStopAction = screenState.showStopAction,
-        canCancelStreaming = screenState.canCancelStreaming,
-        focusRequester = screenState.focusRequester,
-        onFocusCleared = { focusManager.clearFocus() },
-        onHeightChanged = { screenState.composerContentHeightPx.value = it },
-        onSend = screenState.sendMessage,
-        onCancelStreaming = callbacks.onCancelStreaming,
-        onSetStringConfigOption = callbacks.onSetStringConfigOption,
-        onSetBooleanConfigOption = callbacks.onSetBooleanConfigOption,
-        onShowCommands = callbacks.onShowCommands,
-        onShowConfigOptionPicker = callbacks.onShowConfigOptionPicker,
-        showJumpToBottom = screenState.showJumpToBottom.value,
-        onJumpToBottom = callbacks.onJumpToBottom,
-        canSendImages = screenState.state.canSendImages,
-        selectedImages = screenState.selectedImages.value,
-        onImagesChanged = { screenState.selectedImages.value = it },
-        canSendFiles = screenState.state.supportsEmbeddedContext,
-        selectedFiles = screenState.selectedFiles.value,
-        onFilesChanged = { screenState.selectedFiles.value = it },
-        onAttach = { screenState.attachmentPickerLauncher.launch(arrayOf("*/*")) },
-    )
+    ) {
+        ChatComposerBar(
+            state = screenState.state,
+            toolbarConfigOptions = screenState.toolbarConfigOptions,
+            composerExpanded = screenState.composerExpanded.value,
+            onComposerExpandedChange = { screenState.composerExpanded.value = it },
+            messageText = screenState.messageText.value,
+            onMessageTextChange = { screenState.messageText.value = it },
+            inputAlpha = screenState.inputAlpha.value,
+            buttonsAlpha = screenState.buttonsAlpha.value,
+            showModeButton = screenState.showModeButton,
+            modeOption = screenState.modeOption,
+            currentModeLabel = screenState.currentModeLabel,
+            showStopAction = screenState.showStopAction,
+            canCancelStreaming = screenState.canCancelStreaming,
+            focusRequester = screenState.focusRequester,
+            onFocusCleared = { focusManager.clearFocus() },
+            onHeightChanged = { screenState.composerContentHeightPx.value = it },
+            onSend = screenState.sendMessage,
+            onCancelStreaming = callbacks.onCancelStreaming,
+            onSetStringConfigOption = callbacks.onSetStringConfigOption,
+            onSetBooleanConfigOption = callbacks.onSetBooleanConfigOption,
+            onShowCommands = callbacks.onShowCommands,
+            onShowConfigOptionPicker = callbacks.onShowConfigOptionPicker,
+            showJumpToBottom = screenState.showJumpToBottom.value,
+            onJumpToBottom = callbacks.onJumpToBottom,
+            canSendImages = screenState.state.canSendImages,
+            selectedImages = screenState.selectedImages.value,
+            onImagesChanged = { screenState.selectedImages.value = it },
+            canSendFiles = screenState.state.supportsEmbeddedContext,
+            selectedFiles = screenState.selectedFiles.value,
+            onFilesChanged = { screenState.selectedFiles.value = it },
+            onAttach = { screenState.attachmentPickerLauncher.launch(arrayOf("*/*")) },
+        )
+        if (!screenState.composerExpanded.value) {
+            SessionSwitcherBubble(
+                count = switcherState.liveTotalCount,
+                visible = switcherState.hasOthers && switcherEntranceReady,
+                hintSeen = switcherHintSeen,
+                onHintSeen = { viewModel.dispatch(ChatIntent.MarkSwitcherHintSeen) },
+                onClick = onSwitcherClick,
+                onDragStart = switcherDrag.onDragStart,
+                onDragDelta = switcherDrag.onDragDelta,
+                onDragStopped = switcherDrag.onDragStopped,
+                onDragCancel = switcherDrag.onDragCancel,
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
@@ -1071,6 +1247,8 @@ private fun BoxScope.ChatScreenContentOverlays(
     screenState: ChatScreenState,
     innerPadding: PaddingValues,
     viewModel: ChatViewModel,
+    switcherState: SwitcherUiState,
+    onSwitchSession: OnSwitchSession,
     appBarScrollConnection: NestedScrollConnection,
 ) {
     ChatScreenDialogsHost(screenState, viewModel)
@@ -1088,6 +1266,16 @@ private fun BoxScope.ChatScreenContentOverlays(
                 onDismiss = { screenState.showGitStatusSheet.value = false },
             )
         }
+    }
+    if (screenState.showSwitcherSheet.value) {
+        SessionSwitcherSheet(
+            uiState = switcherState,
+            onSwitch = { session ->
+                screenState.showSwitcherSheet.value = false
+                onSwitchSession(session, null)
+            },
+            onDismiss = { screenState.showSwitcherSheet.value = false },
+        )
     }
 
     ChatScreenBody(

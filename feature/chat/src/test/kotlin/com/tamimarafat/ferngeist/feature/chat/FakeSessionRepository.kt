@@ -3,10 +3,21 @@ package com.tamimarafat.ferngeist.feature.chat
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /** In-memory session repository stub. */
 class FakeSessionRepository : SessionRepository {
+    private val sessionsFlows = mutableMapOf<String, MutableStateFlow<List<SessionSummary>>>()
+
+    /** Test hook: sets the session list emitted for a server. */
+    fun setSessions(
+        serverId: String,
+        sessions: List<SessionSummary>,
+    ) {
+        sessionsFlows.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = sessions
+    }
+
     var getSessionResult: SessionSummary? = null
     var getSessionCalls: Int = 0
 
@@ -20,7 +31,8 @@ class FakeSessionRepository : SessionRepository {
         updateTitleCalls.add(Triple(serverId, sessionId, title))
     }
 
-    override fun getSessions(serverId: String): Flow<List<SessionSummary>> = emptyFlow()
+    override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
+        sessionsFlows.getOrPut(serverId) { MutableStateFlow(emptyList()) }
 
     override fun getRecentSessions(limit: Int): Flow<List<SessionSummary>> = emptyFlow()
 

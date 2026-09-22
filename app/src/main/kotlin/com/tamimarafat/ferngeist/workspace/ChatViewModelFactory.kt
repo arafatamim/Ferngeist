@@ -3,11 +3,13 @@ package com.tamimarafat.ferngeist.workspace
 import androidx.lifecycle.SavedStateHandle
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
+import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,9 +29,11 @@ class ChatViewModelFactory
         private val sessionRepository: SessionRepository,
         private val chatScrollStateStore: ChatScrollStateStore,
         private val pendingPromptStore: PendingPromptStore,
+        private val switcherHintStore: SwitcherHintStore,
         private val recentSelectionStore: RecentSelectionStore,
         private val chatConnectionHub: ChatConnectionHub,
         private val gatewayRepository: GatewayRepository,
+        private val launchableTargetRepository: LaunchableTargetRepository,
     ) {
         /**
          * A [ChatViewModel] reads every id out of its handle, so blank ids would build a
@@ -50,9 +54,11 @@ class ChatViewModelFactory
                 sessionRepository = sessionRepository,
                 chatScrollStateStore = chatScrollStateStore,
                 pendingPromptStore = pendingPromptStore,
+                switcherHintStore = switcherHintStore,
                 recentSelectionStore = recentSelectionStore,
                 chatConnectionHub = chatConnectionHub,
                 gatewayRepository = gatewayRepository,
+                launchableTargetRepository = launchableTargetRepository,
                 // `SavedStateHandle` is public API; lint's VisibleForTests check calls the
                 // constructor test-only here, so this one function suppresses it.
                 savedStateHandle =

@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.CoroutineScope
@@ -56,19 +57,23 @@ open class ChatViewModelTestBase {
                 ),
             ),
         sessionRepository: SessionRepository = FakeSessionRepository(),
+        launchableTargetRepository: LaunchableTargetRepository = FakeLaunchableTargetRepository(),
         facadeFactory: ChatSessionFacadeFactory = FakeChatSessionFacadeFactory(),
         gatewayRepository: GatewayRepository = FakeGatewayRepository(),
         chatConnectionHub: ChatConnectionHub = newChatConnectionHub(),
         pendingPromptStore: PendingPromptStore = InMemoryPendingPromptStore(),
+        switcherHintStore: SwitcherHintStore = InMemorySwitcherHintStore(),
     ): ChatViewModel =
         ChatViewModel(
             sessionFacadeFactory = facadeFactory,
             sessionRepository = sessionRepository,
             chatScrollStateStore = chatScrollStateStore,
             pendingPromptStore = pendingPromptStore,
+            switcherHintStore = switcherHintStore,
             recentSelectionStore = FakeRecentSelectionStore(),
             chatConnectionHub = chatConnectionHub,
             gatewayRepository = gatewayRepository,
+            launchableTargetRepository = launchableTargetRepository,
             savedStateHandle = savedStateHandle,
         )
 }

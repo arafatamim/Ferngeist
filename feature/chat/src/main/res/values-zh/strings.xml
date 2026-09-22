@@ -144,4 +144,11 @@
     <plurals name="chat_git_files_changed">
         <item quantity="other">%1$d 个文件已更改</item>
     </plurals>
+    <string name="switcher_content_desc">切换会话</string>
+    <string name="switcher_first_run_hint">滑动即可切换会话</string>
+    <string name="switcher_title">活动会话</string>
+    <string name="switcher_empty">没有其他进行中的会话</string>
+    <string name="switcher_untitled">未命名</string>
+    <string name="switcher_generating">生成中</string>
+    <string name="switcher_current_desc">当前会话</string>
 </resources>

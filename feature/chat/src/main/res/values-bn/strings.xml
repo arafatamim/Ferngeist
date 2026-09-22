@@ -145,4 +145,11 @@
         <item quantity="one">%1$dটি ফাইল পরিবর্তিত হয়েছে</item>
         <item quantity="other">%1$dটি ফাইল পরিবর্তিত হয়েছে</item>
     </plurals>
+    <string name="switcher_content_desc">সেশন বদলান</string>
+    <string name="switcher_first_run_hint">সেশন বদলাতে সোয়াইপ করুন</string>
+    <string name="switcher_title">সক্রিয় সেশনগুলি</string>
+    <string name="switcher_empty">অন্য কোনো সক্রিয় সেশন নেই</string>
+    <string name="switcher_untitled">শিরোনামহীন</string>
+    <string name="switcher_generating">তৈরি হচ্ছে</string>
+    <string name="switcher_current_desc">বর্তমান সেশন</string>
 </resources>

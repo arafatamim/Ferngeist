@@ -156,4 +156,11 @@
         <item quantity="few">%1$d файла изменено</item>
         <item quantity="many">%1$d файлов изменено</item>
     </plurals>
+    <string name="switcher_content_desc">Переключить сеанс</string>
+    <string name="switcher_first_run_hint">Проведите, чтобы переключить сеанс</string>
+    <string name="switcher_title">Активные сеансы</string>
+    <string name="switcher_empty">Нет других активных сеансов</string>
+    <string name="switcher_untitled">Без названия</string>
+    <string name="switcher_generating">Генерация</string>
+    <string name="switcher_current_desc">Текущий сеанс</string>
 </resources>

@@ -36,6 +36,24 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `switcher hint is offered while unseen and never again once marked`() =
+        runTest {
+            val viewModel = createViewModel(switcherHintStore = InMemorySwitcherHintStore())
+            viewModel.switcherHintSeen.test {
+                // The state starts "seen" so nothing flashes while the store
+                // answers; the store then reports the real unseen flag.
+                assertTrue(awaitItem())
+                assertFalse(awaitItem())
+
+                viewModel.dispatch(ChatIntent.MarkSwitcherHintSeen)
+                advanceUntilIdle()
+
+                assertTrue(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `a rebuilt create-on-arrival chat reattaches instead of minting a second session`() =
         runTest {
             val facadeFactory = TestFacadeFactory { TestFacade() }

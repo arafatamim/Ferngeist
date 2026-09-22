@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /** In-memory scroll state store for tests. */
@@ -25,6 +27,18 @@ class InMemoryChatScrollStateStore : ChatScrollStateStore {
         sessionId: String,
     ) {
         entries.remove(serverId to sessionId)
+    }
+}
+
+/** In-memory switcher hint store for tests; unseen until marked. */
+class InMemorySwitcherHintStore(
+    seen: Boolean = false,
+) : SwitcherHintStore {
+    private val state = MutableStateFlow(seen)
+    override val seen: StateFlow<Boolean> = state
+
+    override suspend fun markSeen() {
+        state.value = true
     }
 }
 

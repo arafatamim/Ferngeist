@@ -152,4 +152,11 @@
         <item quantity="other">%1$d arquivos alterados</item>
         <item quantity="many">%1$d arquivos alterados</item>
     </plurals>
+    <string name="switcher_content_desc">Mudar de sessão</string>
+    <string name="switcher_first_run_hint">Deslize para mudar de sessão</string>
+    <string name="switcher_title">Sessões ativas</string>
+    <string name="switcher_empty">Nenhuma outra sessão ativa</string>
+    <string name="switcher_untitled">Sem título</string>
+    <string name="switcher_generating">Gerando</string>
+    <string name="switcher_current_desc">Sessão atual</string>
 </resources>

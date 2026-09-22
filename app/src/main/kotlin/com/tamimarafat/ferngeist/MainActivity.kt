@@ -677,7 +677,7 @@ private fun NavGraphBuilder.ChatDestination(
     composable(
         route =
             "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}" +
-                "&gatewayId={gatewayId}",
+                "&gatewayId={gatewayId}&slide={slide}",
         arguments =
             listOf(
                 navArgument("serverId") { type = NavType.StringType },
@@ -701,6 +701,11 @@ private fun NavGraphBuilder.ChatDestination(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("slide") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
             ),
     ) { backStackEntry ->
         val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
@@ -708,10 +713,14 @@ private fun NavGraphBuilder.ChatDestination(
             Uri.decode(
                 backStackEntry.arguments?.getString("title") ?: stringResource(R.string.app_untitled_session),
             )
+        val fallbackTitle = stringResource(R.string.app_untitled_session)
         ChatScreen(
             sessionId = sessionId,
             sessionTitle = title,
             onNavigateBack = { navController.popBackStack() },
+            onSwitchSession = { session, slideDirection ->
+                navController.switchToChat(session, slideDirection, fallbackTitle)
+            },
             sharedTransitionScope = sharedTransitionLayout,
             animatedContentScope = this,
         )
@@ -757,6 +766,11 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.navEnterTransition
     when {
         isSessionChatTransition() -> EnterTransition.None
         isServerListSessionsTransition() -> fadeIn(animationSpec = navFadeSpring)
+        isChatChatTransition() ->
+            slideIntoContainer(
+                towards = chatChatDirection(),
+                animationSpec = navSpring,
+            ) + fadeIn(animationSpec = navFadeSpring)
         else ->
             slideIntoContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Left,
@@ -771,6 +785,11 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.navExitTransition(
     when {
         isSessionChatTransition() -> ExitTransition.None
         isServerListSessionsTransition() -> fadeOut(animationSpec = navFadeSpring)
+        isChatChatTransition() ->
+            slideOutOfContainer(
+                towards = chatChatDirection(),
+                animationSpec = navSpring,
+            ) + fadeOut(animationSpec = navFadeSpring)
         else ->
             slideOutOfContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Left,

@@ -112,8 +112,9 @@ import com.tamimarafat.ferngeist.feature.chat.R
 
 private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
 
-// Resting height of the collapsed pill.
-private val COLLAPSED_COMPOSER_HEIGHT = 62.dp
+// Resting height of the collapsed pill. Shared with the session switcher bubble
+// so its circle always matches the pill's height.
+internal val COLLAPSED_COMPOSER_HEIGHT = 62.dp
 
 // Floor for the expanded composer. There is no matching ceiling: while expanded the
 // panel is sized by its content, and the text field's own line bounds (minLines /

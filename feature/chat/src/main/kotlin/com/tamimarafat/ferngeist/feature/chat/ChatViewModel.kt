@@ -26,13 +26,22 @@ import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -53,9 +62,11 @@ class ChatViewModel
         private val sessionRepository: SessionRepository,
         private val chatScrollStateStore: ChatScrollStateStore,
         private val pendingPromptStore: PendingPromptStore,
+        private val switcherHintStore: SwitcherHintStore,
         val recentSelectionStore: RecentSelectionStore,
         private val chatConnectionHub: ChatConnectionHub,
         private val gatewayRepository: GatewayRepository,
+        private val launchableTargetRepository: LaunchableTargetRepository,
         private val savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(initialChatState()) {
         companion object {
@@ -281,6 +292,66 @@ class ChatViewModel
          * cancellable, and the identity guard inside the lock retains latest-wins.
          */
         private val gitFileDiffMutex = Mutex()
+
+        /** Live sessions across all servers, current included, for the chat switcher. */
+        val switcherUiState: StateFlow<SwitcherUiState> =
+            switcherFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SwitcherUiState())
+
+        /**
+         * False until the first-run swipe hint has been seen: gates the bubble's
+         * auto-showing tooltip. Starts true so a device that already saw the
+         * hint never flashes it while the store answers.
+         */
+        val switcherHintSeen: StateFlow<Boolean> =
+            switcherHintStore.seen
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        private fun switcherFlow(): Flow<SwitcherUiState> =
+            chatConnectionHub.warmServers
+                .flatMapLatest { serverIds ->
+                    if (serverIds.isEmpty()) {
+                        flowOf(SwitcherUiState())
+                    } else {
+                        combineSwitcherRows(serverIds.sorted())
+                    }
+                }
+
+        private fun combineSwitcherRows(serverIds: List<String>): Flow<SwitcherUiState> =
+            combine(
+                serverIds.map { sid ->
+                    combine(
+                        sessionRepository.getSessions(sid),
+                        chatConnectionHub.connectedSessionIds(sid),
+                    ) { sessions, liveIds ->
+                        Triple(sid, sessions, liveIds)
+                    }
+                },
+            ) { triples ->
+                val sessionsByServer = triples.associate { it.first to it.second }
+                val liveByServer = triples.associate { it.first to it.third }
+                val servers =
+                    triples.map { it.first }.distinct().map { sid ->
+                        SwitcherServer(
+                            id = sid,
+                            name = launchableTargetRepository.getTarget(sid)?.name ?: sid,
+                        )
+                    }
+                val groups =
+                    deriveSwitcherGroups(
+                        servers = servers,
+                        sessionsByServer = sessionsByServer,
+                        liveIdsByServer = liveByServer,
+                        isGenerating = { sid, sess -> chatConnectionHub.isStreaming(sid, sess) },
+                        currentServerId = serverId,
+                        currentSessionId = trackedSessionId,
+                    )
+                SwitcherUiState(
+                    groups = groups,
+                    liveTotalCount = groups.sumOf { it.sessions.size },
+                    hasOthers = groups.any { group -> group.sessions.any { !it.isCurrent } },
+                )
+            }
 
         init {
             updateState { copy(serverId = serverId) }
@@ -668,7 +739,18 @@ class ChatViewModel
                 is ChatIntent.RetryMessage -> retryMessage(intent.clientId)
                 is ChatIntent.RefreshGitStatus ->
                     state.value.gatewayWorkspaceConnection?.let { refreshGitStatus(it) }
+                is ChatIntent.LoadGitDiff,
+                is ChatIntent.MarkSwitcherHintSeen,
+                -> handleAuxIntent(intent)
+            }
+        }
+
+        /** One-shot intents outside the send/streaming core: diff fetch, hint flag. */
+        private suspend fun handleAuxIntent(intent: ChatIntent) {
+            when (intent) {
                 is ChatIntent.LoadGitDiff -> loadGitFileDiff(intent.path)
+                is ChatIntent.MarkSwitcherHintSeen -> switcherHintStore.markSeen()
+                else -> Unit
             }
         }
 
@@ -1017,6 +1099,9 @@ sealed interface ChatIntent {
     data class LoadGitDiff(
         val path: String,
     ) : ChatIntent
+
+    /** Consumes the switcher bubble's first-run swipe hint so it never shows again. */
+    data object MarkSwitcherHintSeen : ChatIntent
 }
 
 /** One-shot effects emitted to the UI layer (snackbar, navigation, etc.). */

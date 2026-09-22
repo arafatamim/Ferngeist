@@ -172,6 +172,7 @@ fun WorkspaceScreen(
                         // calling the same action on one screen is one button too many.
                         showBackButton = false,
                         onNavigateBack = workspace::backToAgents,
+                        onSelectSession = workspace::selectSession,
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
                     )
@@ -197,11 +198,13 @@ private fun ChatPane(
     chatViewModelFactory: ChatViewModelFactory,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
+    onSelectSession: (WorkspaceSelection) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
     val serverId = selection.serverId
     val sessionId = selection.sessionId
+    val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
     // A fresh owner per selection: replacing the remembered key forgets the old owner, and the
     // effect below clears the store it held — which is what actually runs `onCleared`.
     val paneOwner = remember(serverId, sessionId) { SelectionViewModelStoreOwner() }
@@ -230,6 +233,16 @@ private fun ChatPane(
         sessionId = sessionId,
         sessionTitle = selection.title,
         onNavigateBack = onNavigateBack,
+        onSwitchSession = { session, _ ->
+            onSelectSession(
+                WorkspaceSelection(
+                    serverId = session.serverId,
+                    sessionId = session.sessionId,
+                    cwd = session.cwd.orEmpty(),
+                    title = session.title ?: fallbackSessionTitle,
+                ),
+            )
+        },
         // No modifier: ChatScreen's root already fills its constraints
         // (`.fillMaxSize().then(modifier)`), and the pane measures it with fixed bounds — a
         // second `fillMaxSize()` here would be a no-op and a fixed size would fight the pane.
