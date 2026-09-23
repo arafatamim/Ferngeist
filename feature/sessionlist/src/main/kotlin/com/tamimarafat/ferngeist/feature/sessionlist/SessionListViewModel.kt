@@ -230,6 +230,38 @@ class SessionListViewModel
         }
 
         /**
+         * Resolves the gateway REST endpoint for [serverId], or null for
+         * non-gateway targets (manual agents have no gateway leg).
+         */
+        private suspend fun gatewayEndpoint(): GatewayEndpoint? =
+            when (val target = launchableTargetRepository.getTarget(serverId)) {
+                is LaunchableTarget.GatewayAgent -> gatewayEndpoint(target)
+                else -> null
+            }
+
+        private fun gatewayEndpoint(target: LaunchableTarget.GatewayAgent): GatewayEndpoint =
+            GatewayEndpoint(
+                scheme = target.gatewaySource.scheme,
+                host = target.gatewaySource.host,
+                credential = target.gatewaySource.gatewayCredential,
+            )
+
+        /**
+         * Drops gateway leases the gateway forgot while the app was away, so
+         * the list stops offering disconnects that can only fail. Only when
+         * the transport worked — a failed listing means the gateway is likely
+         * unreachable too, so a second call could only fail. Skipped for
+         * non-gateway targets and on auth challenges (which return before
+         * reaching here).
+         */
+        private suspend fun reconcileGatewayLeases(result: ListSessionsResult) {
+            if (result !is ListSessionsResult.Listed && result !is ListSessionsResult.Unsupported) return
+            gatewayEndpoint()?.let { endpoint ->
+                chatConnectionHub.reconcileGatewaySessions(serverId, endpoint)
+            }
+        }
+
+        /**
          * Refreshes the session list through the hub's listing seam. The hub
          * borrows a warm chat transport when one holds the gateway slot, else
          * runs its own browser transport; both the Room write and the
@@ -249,7 +281,8 @@ class SessionListViewModel
                         val cwd = settings?.cwd?.trim()?.ifBlank { null }
                         if (isUserInitiated) _refreshing.value = true
                         _isLoading.value = true
-                        when (val result = chatConnectionHub.listSessions(serverId, cwd)) {
+                        val result = chatConnectionHub.listSessions(serverId, cwd)
+                        when (result) {
                             is ListSessionsResult.Listed -> {
                                 lastListingFailed = false
                                 result.agentCapabilities?.let { _agentCapabilities.value = it }
@@ -279,6 +312,9 @@ class SessionListViewModel
                                 }
                             }
                         }
+                        // Drop gateway leases the gateway forgot while the app was
+                        // away (details in reconcileGatewayLeases).
+                        reconcileGatewayLeases(result)
                         syncHubObservables()
                     } finally {
                         if (generation == refreshGeneration) {
@@ -357,12 +393,7 @@ class SessionListViewModel
                 val target = launchableTargetRepository.getTarget(serverId)
                 val endpoint =
                     when (target) {
-                        is LaunchableTarget.GatewayAgent ->
-                            GatewayEndpoint(
-                                scheme = target.gatewaySource.scheme,
-                                host = target.gatewaySource.host,
-                                credential = target.gatewaySource.gatewayCredential,
-                            )
+                        is LaunchableTarget.GatewayAgent -> gatewayEndpoint(target)
                         else -> {
                             _events.emit(SessionListEvent.ShowError("Close is only available for gateway sessions."))
                             return@launch
@@ -377,6 +408,37 @@ class SessionListViewModel
                 }.onFailure { error ->
                     _events.emit(
                         SessionListEvent.ShowError(error.message ?: "Failed to close session."),
+                    )
+                }
+            }
+        }
+
+        /**
+         * Long-press delete: best-effort ACP `session/delete` when the agent
+         * advertises it, gateway DELETE when a process is attached, then the
+         * local row. Unlike [closeSession] a non-gateway target is not an
+         * error — there is simply no remote leg to run.
+         */
+        fun deleteSession(sessionId: String) {
+            viewModelScope.launch(Dispatchers.IO) {
+                if (chatConnectionHub.isStreaming(serverId, sessionId)) {
+                    _events.emit(
+                        SessionListEvent.ShowError(
+                            "This session is still responding. Cancel or close it from inside the chat first.",
+                        ),
+                    )
+                    return@launch
+                }
+                val endpoint = gatewayEndpoint()
+                runCatching {
+                    chatConnectionHub.deleteSession(serverId, sessionId, endpoint)
+                }.onSuccess { deleted ->
+                    if (!deleted) {
+                        _events.emit(SessionListEvent.ShowError("This session could not be found."))
+                    }
+                }.onFailure { error ->
+                    _events.emit(
+                        SessionListEvent.ShowError(error.message ?: "Failed to delete session."),
                     )
                 }
             }

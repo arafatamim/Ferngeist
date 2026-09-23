@@ -125,6 +125,27 @@ interface SessionDao {
     @Query("DELETE FROM sessions WHERE serverId = :serverId")
     suspend fun deleteSessionsByServerId(serverId: String)
 
+    /**
+     * Drops recorded gateway leases on [serverId] that are absent from
+     * [liveIds]. Callers must branch on an empty [liveIds]: Room expands an
+     * empty `NOT IN` list to `NOT IN (NULL)`, which matches nothing — but an
+     * empty live set means every pointer is stale.
+     */
+    @Query(
+        "UPDATE sessions SET gatewaySessionId = NULL WHERE serverId = :serverId " +
+            "AND gatewaySessionId IS NOT NULL AND gatewaySessionId NOT IN (:liveIds)",
+    )
+    suspend fun clearStaleGatewaySessions(
+        serverId: String,
+        liveIds: Set<String>,
+    ): Int
+
+    @Query(
+        "UPDATE sessions SET gatewaySessionId = NULL WHERE serverId = :serverId " +
+            "AND gatewaySessionId IS NOT NULL",
+    )
+    suspend fun clearAllGatewaySessions(serverId: String): Int
+
     @Query("DELETE FROM sessions WHERE serverId = :serverId AND sessionId NOT IN (:sessionIds)")
     suspend fun deleteSessionsNotIn(
         serverId: String,

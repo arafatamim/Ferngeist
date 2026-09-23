@@ -5,8 +5,11 @@ import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import kotlinx.coroutines.CoroutineScope
@@ -14,8 +17,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -23,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -30,6 +36,8 @@ class ChatConnectionHubTest {
     private class FakeGatewayRepo : GatewayRepository {
         val closed = mutableListOf<String>()
         var sessions: List<GatewaySessionSummary> = emptyList()
+        var closeFailure: Exception? = null
+        var listFailure: Exception? = null
 
         override suspend fun fetchStatus(
             scheme: String,
@@ -109,7 +117,10 @@ class ChatConnectionHubTest {
             scheme: String,
             host: String,
             gatewayCredential: String,
-        ): List<GatewaySessionSummary> = sessions
+        ): List<GatewaySessionSummary> {
+            listFailure?.let { throw it }
+            return sessions
+        }
 
         override suspend fun closeSession(
             scheme: String,
@@ -118,6 +129,7 @@ class ChatConnectionHubTest {
             sessionId: String,
         ) {
             closed += sessionId
+            closeFailure?.let { throw it }
         }
 
         override suspend fun registerPushToken(
@@ -180,10 +192,88 @@ class ChatConnectionHubTest {
     private var ticks = 0L
     private val clock: () -> Long = { ++ticks }
 
+    private class FakeSessionRepo : SessionRepository {
+        private val rows = linkedMapOf<String, SessionSummary>()
+
+        private fun key(
+            serverId: String,
+            sessionId: String,
+        ) = "$serverId/$sessionId"
+
+        override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
+            flowOf(rows.filterKeys { it.startsWith("$serverId/") }.values.toList())
+
+        override fun getRecentSessions(limit: Int): Flow<List<SessionSummary>> =
+            flowOf(rows.values.sortedByDescending { it.updatedAt }.take(limit))
+
+        override suspend fun getSession(
+            serverId: String,
+            sessionId: String,
+        ): SessionSummary? = rows[key(serverId, sessionId)]
+
+        override suspend fun upsertSession(
+            serverId: String,
+            summary: SessionSummary,
+        ) {
+            rows[key(serverId, summary.id)] = summary.copy(serverId = serverId)
+        }
+
+        override suspend fun updateSessionTitle(
+            serverId: String,
+            sessionId: String,
+            title: String,
+        ) {
+            rows[key(serverId, sessionId)]?.let { rows[key(serverId, sessionId)] = it.copy(title = title) }
+        }
+
+        override suspend fun setGatewaySessionId(
+            serverId: String,
+            sessionId: String,
+            gatewaySessionId: String?,
+        ) {
+            rows[key(serverId, sessionId)]?.let {
+                rows[key(serverId, sessionId)] = it.copy(gatewaySessionId = gatewaySessionId)
+            }
+        }
+
+        override suspend fun deleteSession(
+            serverId: String,
+            sessionId: String,
+        ) {
+            rows.remove(key(serverId, sessionId))
+        }
+
+        override suspend fun clearStaleGatewaySessions(
+            serverId: String,
+            liveGatewaySessionIds: Set<String>,
+        ): Int {
+            val stale =
+                rows.keys.filter { key ->
+                    key.startsWith("$serverId/") &&
+                        rows[key]?.gatewaySessionId.let { id -> id != null && id !in liveGatewaySessionIds }
+                }
+            stale.forEach { rows[it] = rows.getValue(it).copy(gatewaySessionId = null) }
+            return stale.size
+        }
+
+        override suspend fun clearSessions(serverId: String) {
+            rows.keys.removeAll { it.startsWith("$serverId/") }
+        }
+
+        override suspend fun replaceSessions(
+            serverId: String,
+            sessions: List<SessionSummary>,
+        ) {
+            clearSessions(serverId)
+            sessions.forEach { upsertSession(serverId, it) }
+        }
+    }
+
     private fun newHub(
         repo: GatewayRepository? = null,
         maxHot: Int = 3,
         maxGateway: Int = 5,
+        sessionRepository: SessionRepository? = null,
     ): ChatConnectionHub =
         ChatConnectionHub(
             gatewayRepository = repo,
@@ -192,6 +282,7 @@ class ChatConnectionHubTest {
             maxHotConnections = maxHot,
             maxGatewaySessionsPerDevice = maxGateway,
             clock = clock,
+            sessionRepository = sessionRepository,
         )
 
     private suspend fun ChatConnectionHub.registerChat(
@@ -362,6 +453,147 @@ class ChatConnectionHubTest {
             assertEquals(listOf("g1"), repo.closed)
             assertFalse(hub.isTracked("srv", "s1"))
             assertEquals(0, hub.trackedCount())
+        }
+
+    @Test
+    fun `deleteSession removes local row and reports known for a cold session`() =
+        runTest {
+            val sessions = FakeSessionRepo()
+            val hub = newHub(sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "s1"))
+
+            val deleted = hub.deleteSession("srv", "s1", endpoint = null)
+
+            assertTrue(deleted)
+            assertNull(sessions.getSession("srv", "s1"))
+        }
+
+    @Test
+    fun `deleteSession closes the gateway session then drops row and tracking`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val sessions = FakeSessionRepo()
+            val hub = newHub(repo, sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "s1"))
+            hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
+
+            val deleted =
+                hub.deleteSession("srv", "s1", GatewayEndpoint("http", "gw", "cred"))
+
+            assertTrue(deleted)
+            assertEquals(listOf("g1"), repo.closed)
+            assertNull(sessions.getSession("srv", "s1"))
+            assertFalse(hub.isTracked("srv", "s1"))
+        }
+
+    @Test
+    fun `deleteSession without endpoint tears down a tracked chat with no REST call`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val sessions = FakeSessionRepo()
+            val hub = newHub(repo, sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "s1"))
+            hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
+
+            val deleted = hub.deleteSession("srv", "s1", endpoint = null)
+
+            assertTrue(deleted)
+            assertTrue(repo.closed.isEmpty())
+            assertNull(sessions.getSession("srv", "s1"))
+            assertFalse(hub.isTracked("srv", "s1"))
+        }
+
+    @Test
+    fun `deleteSession on an unknown session returns false without throwing`() =
+        runTest {
+            val sessions = FakeSessionRepo()
+            val hub = newHub(sessionRepository = sessions)
+
+            assertFalse(hub.deleteSession("srv", "ghost", endpoint = null))
+        }
+
+    @Test
+    fun `closeSession clears stale pointer when gateway reports 404`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val sessions = FakeSessionRepo()
+            val hub = newHub(repo, sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "gw-dead"))
+            repo.closeFailure = GatewayRequestException(404, "gone", null)
+
+            val closed = hub.closeSession("srv", "s1", GatewayEndpoint("http", "gw", "cred"))
+
+            assertTrue(closed)
+            assertEquals(listOf("gw-dead"), repo.closed)
+            assertNull(sessions.getSession("srv", "s1")?.gatewaySessionId)
+        }
+
+    @Test
+    fun `closeSession keeps pointer and propagates non-404 gateway failures`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val sessions = FakeSessionRepo()
+            val hub = newHub(repo, sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "gw-1"))
+            repo.closeFailure = GatewayRequestException(500, "boom", null)
+
+            try {
+                hub.closeSession("srv", "s1", GatewayEndpoint("http", "gw", "cred"))
+                fail("expected GatewayRequestException")
+            } catch (error: GatewayRequestException) {
+                assertEquals(500, error.statusCode)
+            }
+            assertEquals("gw-1", sessions.getSession("srv", "s1")?.gatewaySessionId)
+        }
+
+    @Test
+    fun `closeSession on tracked chat clears pointer when gateway reports 404`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val sessions = FakeSessionRepo()
+            val hub = newHub(repo, sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "g1"))
+            hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
+            repo.closeFailure = GatewayRequestException(404, "gone", null)
+
+            val closed = hub.closeSession("srv", "s1", GatewayEndpoint("http", "gw", "cred"))
+
+            assertTrue(closed)
+            assertFalse(hub.isTracked("srv", "s1"))
+            assertNull(sessions.getSession("srv", "s1")?.gatewaySessionId)
+        }
+
+    @Test
+    fun `reconcileGatewaySessions clears stale pointers and keeps live ones`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val sessions = FakeSessionRepo()
+            val hub = newHub(repo, sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "alive", gatewaySessionId = "g-live"))
+            sessions.upsertSession("srv", SessionSummary(id = "dead", gatewaySessionId = "g-dead"))
+            sessions.upsertSession("srv", SessionSummary(id = "plain"))
+            repo.sessions =
+                listOf(GatewaySessionSummary("g-live", "r-live", "agent-1", "active", "2026-09-22T00:00:00Z"))
+
+            hub.reconcileGatewaySessions("srv", GatewayEndpoint("http", "gw", "cred"))
+
+            assertEquals("g-live", sessions.getSession("srv", "alive")?.gatewaySessionId)
+            assertNull(sessions.getSession("srv", "dead")?.gatewaySessionId)
+            assertNull(sessions.getSession("srv", "plain")?.gatewaySessionId)
+        }
+
+    @Test
+    fun `reconcileGatewaySessions keeps pointers when the gateway list fails`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val sessions = FakeSessionRepo()
+            val hub = newHub(repo, sessionRepository = sessions)
+            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "g-1"))
+            repo.listFailure = GatewayRequestException(500, "boom", null)
+
+            hub.reconcileGatewaySessions("srv", GatewayEndpoint("http", "gw", "cred"))
+
+            assertEquals("g-1", sessions.getSession("srv", "s1")?.gatewaySessionId)
         }
 
     @Test

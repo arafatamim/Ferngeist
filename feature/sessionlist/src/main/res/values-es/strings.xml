@@ -29,6 +29,8 @@
     <string name="sessionlist_empty_subtitle_offline">Las sesiones que crees en este dispositivo aparecerán aquí</string>
     <string name="sessionlist_empty_action">Crear nueva sesión</string>
     <string name="sessionlist_topbar_title">Sesiones</string>
+    <string name="sessionlist_action_disconnect">Desconectar</string>
+    <string name="sessionlist_action_delete">Eliminar</string>
 
     <string name="sessionlist_cwd_title">Directorio de trabajo</string>
     <string name="sessionlist_cwd_body">Define el directorio de trabajo actual para este agente. Déjalo vacío para mostrar todas las sesiones.</string>

@@ -81,6 +81,16 @@ class SessionRepositoryImpl(
         sessionDao.deleteSessionById(sessionId)
     }
 
+    override suspend fun clearStaleGatewaySessions(
+        serverId: String,
+        liveGatewaySessionIds: Set<String>,
+    ): Int =
+        if (liveGatewaySessionIds.isEmpty()) {
+            sessionDao.clearAllGatewaySessions(serverId)
+        } else {
+            sessionDao.clearStaleGatewaySessions(serverId, liveGatewaySessionIds)
+        }
+
     override suspend fun clearSessions(serverId: String) {
         sessionDao.deleteSessionsByServerId(serverId)
     }

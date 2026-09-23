@@ -30,6 +30,8 @@
     <string name="sessionlist_empty_subtitle_offline">Здесь появятся сессии, созданные на этом устройстве</string>
     <string name="sessionlist_empty_action">Создать сессию</string>
     <string name="sessionlist_topbar_title">Сессии</string>
+    <string name="sessionlist_action_disconnect">Отключить</string>
+    <string name="sessionlist_action_delete">Удалить</string>
 
     <!-- CWD Dialog -->
     <string name="sessionlist_cwd_title">Рабочая директория</string>

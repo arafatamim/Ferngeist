@@ -191,6 +191,7 @@ fun SessionListScreen(
         onNavigateBack = onNavigateBack,
         onNavigateToChat = onNavigateToChat,
         onCloseSession = viewModel::closeSession,
+        onDeleteSession = viewModel::deleteSession,
         createSession = {
             if (currentCwd.isNullOrBlank()) {
                 state.cwdDialogValue.value = currentCwd.orEmpty()
@@ -225,6 +226,8 @@ private class SessionListState(
     val isRefreshing: Boolean,
     val pullToRefreshState: PullToRefreshState,
     val supportsSessionList: Boolean,
+    /** True when the agent advertised `sessionCapabilities.delete` — gates the menu's Delete item. */
+    val supportsSessionDelete: Boolean,
     val serverName: String,
     val cwdAlpha: Float,
     val scrollBehavior: TopAppBarScrollBehavior,
@@ -254,6 +257,7 @@ private fun rememberSessionListState(
             stringResource(R.string.sessionlist_topbar_title),
         )
     val supportsSessionList = agentCapabilities?.sessionCapabilities?.list != null
+    val supportsSessionDelete = agentCapabilities?.sessionCapabilities?.delete != null
     val cwdAlpha by animateFloatAsState(
         targetValue = if (!currentCwd.isNullOrBlank()) 1f else 0f,
         label = "cwdAlpha",
@@ -289,6 +293,7 @@ private fun rememberSessionListState(
         isRefreshing = viewModel.refreshing.collectAsState().value,
         pullToRefreshState = rememberPullToRefreshState(),
         supportsSessionList = supportsSessionList,
+        supportsSessionDelete = supportsSessionDelete,
         serverName = serverName,
         cwdAlpha = cwdAlpha,
         scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
@@ -371,6 +376,7 @@ private fun SessionListScaffold(
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     onCloseSession: (String) -> Unit,
+    onDeleteSession: (String) -> Unit,
     createSession: () -> Unit,
     onRefresh: () -> Unit,
     onChatOpened: () -> Unit,
@@ -419,6 +425,7 @@ private fun SessionListScaffold(
                 state = state,
                 onNavigateToChat = onNavigateToChat,
                 onCloseSession = onCloseSession,
+                onDeleteSession = onDeleteSession,
                 createSession = createSession,
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
@@ -629,6 +636,7 @@ private fun SessionListContent(
     state: SessionListState,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     onCloseSession: (String) -> Unit,
+    onDeleteSession: (String) -> Unit,
     createSession: () -> Unit,
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
@@ -656,6 +664,8 @@ private fun SessionListContent(
                 padding = padding,
                 liveSessionIds = state.liveSessionIds,
                 onCloseSession = onCloseSession,
+                onDeleteSession = onDeleteSession,
+                canDeleteSession = state.supportsSessionDelete,
                 onNavigateToChat = onNavigateToChat,
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
@@ -772,6 +782,8 @@ private fun SessionListLazyColumn(
     padding: PaddingValues,
     liveSessionIds: Set<String>,
     onCloseSession: (String) -> Unit,
+    onDeleteSession: (String) -> Unit,
+    canDeleteSession: Boolean,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
@@ -802,7 +814,18 @@ private fun SessionListLazyColumn(
                 SessionCard(
                     session = session,
                     isLive = session.id in liveSessionIds,
-                    onLongPress = { onCloseSession(session.id) },
+                    onDisconnect =
+                        if (session.id in liveSessionIds || session.gatewaySessionId != null) {
+                            { onCloseSession(session.id) }
+                        } else {
+                            null
+                        },
+                    onDelete =
+                        if (canDeleteSession) {
+                            { onDeleteSession(session.id) }
+                        } else {
+                            null
+                        },
                     onClick = {
                         onChatOpened()
                         onNavigateToChat(
@@ -1071,12 +1094,15 @@ private fun RowScope.SessionCardText(
 private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
-    onLongPress: () -> Unit,
+    onDisconnect: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
 ) {
+    var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
+    val hasMenuActions = onDisconnect != null || onDelete != null
     // Live sessions tint the card container exactly like active server cards;
     // the card itself is the status indicator, no trailing dot.
     val containerColor by animateColorAsState(
@@ -1108,33 +1134,49 @@ private fun SessionCard(
         } else {
             Modifier
         }
-    with(sharedTransitionScope) {
-        Card(
-            modifier =
-                boundsModifier
-                    .fillMaxWidth()
-                    .clip(CardDefaults.shape)
-                    .combinedClickable(onClick = onClick, onLongClick = onLongPress),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = containerColor,
-                ),
-        ) {
-            Row(
+    Box {
+        with(sharedTransitionScope) {
+            Card(
                 modifier =
-                    Modifier
+                    boundsModifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                        .clip(CardDefaults.shape)
+                        .combinedClickable(
+                            onClick = onClick,
+                            onLongClick = {
+                                if (hasMenuActions) {
+                                    showActionsMenu = true
+                                }
+                            },
+                        ),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = containerColor,
+                    ),
             ) {
-                SessionCardText(
-                    session = session,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    sharedBoundsEnabled = sharedBoundsEnabled,
-                )
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SessionCardText(
+                        session = session,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        sharedBoundsEnabled = sharedBoundsEnabled,
+                    )
+                }
             }
         }
+
+        SessionActionsMenu(
+            expanded = showActionsMenu,
+            onDismiss = { showActionsMenu = false },
+            onDisconnect = onDisconnect,
+            onDelete = onDelete,
+        )
     }
 }
 

@@ -22,12 +22,14 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,6 +40,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Gateway endpoint triple needed for session-scoped REST calls (list/close). */
@@ -46,6 +49,15 @@ data class GatewayEndpoint(
     val host: String,
     val credential: String,
 )
+
+/**
+ * The gateway no longer knows the session id it is asked to delete — the
+ * recorded lease pointer is stale (restart/reap) and safe to drop.
+ */
+private const val GATEWAY_NOT_FOUND_STATUS = 404
+
+/** Bounds the lease-reconciliation list call so a slow gateway cannot stall a refresh. */
+private const val RECONCILE_TIMEOUT_MS = 10_000L
 
 /**
  * Single owner of every ACP manager lifetime *and* chat presence in the process.
@@ -843,7 +855,14 @@ class ChatConnectionHub(
         val chatId = chatIdFor(serverId, sessionId)
         val sessionRepository = sessionRepository
         if (isTracked(serverId, sessionId)) {
-            close(chatId, endpoint)
+            try {
+                close(chatId, endpoint)
+            } catch (error: GatewayRequestException) {
+                if (error.statusCode != GATEWAY_NOT_FOUND_STATUS) throw error
+                // The gateway already forgot the session (restart/reap): the
+                // local transport is released, so drop the stale pointer below
+                // instead of failing the disconnect the user just asked for.
+            }
             sessionRepository?.setGatewaySessionId(serverId, sessionId, null)
             return true
         }
@@ -853,14 +872,136 @@ class ChatConnectionHub(
         if (sessionRepository == null || repository == null || gatewaySessionId == null) {
             return false
         }
-        repository.closeSession(
-            scheme = endpoint.scheme,
-            host = endpoint.host,
-            gatewayCredential = endpoint.credential,
-            sessionId = gatewaySessionId,
-        )
+        try {
+            repository.closeSession(
+                scheme = endpoint.scheme,
+                host = endpoint.host,
+                gatewayCredential = endpoint.credential,
+                sessionId = gatewaySessionId,
+            )
+        } catch (error: GatewayRequestException) {
+            if (error.statusCode != GATEWAY_NOT_FOUND_STATUS) throw error
+            // Same stale-pointer case without a tracked chat: nothing existed
+            // remotely, so clearing the pointer completes the disconnect.
+        }
         sessionRepository.setGatewaySessionId(serverId, sessionId, null)
         return true
+    }
+
+    /**
+     * Best-effort delete: ask the agent to forget the session via ACP
+     * `session/delete` (only when it advertises `sessionCapabilities.delete`),
+     * then run the [closeSession] path so a live gateway process stops, then
+     * drop the local row. The ACP leg swallows its own failures — an agent
+     * that rejects the call must not keep the row the user just deleted — but
+     * the gateway DELETE still propagates, exactly as [closeSession] does, so
+     * a leaked process slot stays visible. Returns false only when nothing in
+     * the app knew the session.
+     */
+    suspend fun deleteSession(
+        serverId: String,
+        sessionId: String,
+        endpoint: GatewayEndpoint?,
+    ): Boolean {
+        val known =
+            isTracked(serverId, sessionId) ||
+                sessionRepository?.getSession(serverId, sessionId) != null
+        deleteOnAgentBestEffort(serverId, sessionId)
+        when {
+            endpoint != null -> closeSession(serverId, sessionId, endpoint)
+            isTracked(serverId, sessionId) -> close(chatIdFor(serverId, sessionId), endpoint = null)
+        }
+        sessionRepository?.deleteSession(serverId, sessionId)
+        return known
+    }
+
+    /**
+     * Reconciles recorded gateway leases against the gateway's live session
+     * list, dropping pointers the gateway forgot while the app was away
+     * (restart/reap) so the session list stops offering disconnects that can
+     * only fail. Best-effort: any failure keeps the pointers — fail-safe
+     * toward preserving the disconnect kill-switch over hiding a phantom
+     * option. Cancellation propagates.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    suspend fun reconcileGatewaySessions(
+        serverId: String,
+        endpoint: GatewayEndpoint,
+    ) {
+        val repository = gatewayRepository ?: return
+        try {
+            val live =
+                withTimeout(RECONCILE_TIMEOUT_MS) {
+                    repository
+                        .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
+                        .map { it.sessionId }
+                        .toSet()
+                }
+            sessionRepository?.clearStaleGatewaySessions(serverId, live)
+        } catch (error: CancellationException) {
+            // A timeout degrades to "keep the pointers" so a slow gateway
+            // cannot cancel the refresh this runs inside; anything else
+            // cancels normally.
+            if (error !is TimeoutCancellationException) throw error
+        } catch (_: Throwable) {
+            // Best-effort by contract: stale pointers are harmless (a tap
+            // self-heals through the 404 path in closeSession).
+        }
+    }
+
+    /**
+     * Sends `session/delete` over any usable transport for [serverId]: the
+     * warm chat transport when one is connected, else the hub's listing
+     * transport, connected on demand and hung up afterwards. Quietly skips
+     * when capabilities are unknown or `sessionCapabilities.delete` is not
+     * advertised, and swallows rejections — this leg is best-effort by
+     * contract. Cancellation always propagates.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    @OptIn(UnstableApi::class)
+    private suspend fun deleteOnAgentBestEffort(
+        serverId: String,
+        sessionId: String,
+    ) {
+        try {
+            val warm = warmManagerFor(serverId)
+            if (warm != null) {
+                if (warm.agentCapabilities.value
+                        ?.sessionCapabilities
+                        ?.delete != null
+                ) {
+                    warm.deleteSession(sessionId)
+                }
+                return
+            }
+            val target = launchableTargetRepository?.getTarget(serverId) ?: return
+            val transport = listingSession(serverId).browserTransport
+            try {
+                val connected =
+                    transport.isConnected ||
+                        run {
+                            val config = buildListingConfig(target)
+                            config != null &&
+                                withContext(Dispatchers.IO) {
+                                    transport.connectAndInitializeWithoutReconnect(config)
+                                } != null
+                        }
+                if (
+                    connected &&
+                    transport.agentCapabilities.value
+                        ?.sessionCapabilities
+                        ?.delete != null
+                ) {
+                    transport.deleteSession(sessionId)
+                }
+            } finally {
+                hangUpListing(transport)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            // Best-effort by contract: the caller still removes the local row.
+        }
     }
 
     /** Agent capabilities observed by the last listing for [serverId]. */

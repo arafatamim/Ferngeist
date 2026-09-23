@@ -28,6 +28,8 @@
     <string name="sessionlist_empty_subtitle_offline">Sessions you create on this device will appear here</string>
     <string name="sessionlist_empty_action">Create new session</string>
     <string name="sessionlist_topbar_title">Sessions</string>
+    <string name="sessionlist_action_disconnect">Disconnect</string>
+    <string name="sessionlist_action_delete">Delete</string>
 
     <!-- CWD Dialog -->
     <string name="sessionlist_cwd_title">Working Directory</string>

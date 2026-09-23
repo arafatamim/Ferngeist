@@ -28,6 +28,8 @@
     <string name="sessionlist_empty_subtitle_offline">এই ডিভাইসে তৈরি সেশনগুলো এখানে দেখাবে</string>
     <string name="sessionlist_empty_action">নতুন সেশন তৈরি করুন</string>
     <string name="sessionlist_topbar_title">সেশন</string>
+    <string name="sessionlist_action_disconnect">সংযোগ বিচ্ছিন্ন করুন</string>
+    <string name="sessionlist_action_delete">মুছে ফেলুন</string>
 
     <string name="sessionlist_cwd_title">কাজের ডিরেক্টরি</string>
     <string name="sessionlist_cwd_body">এই এজেন্টের জন্য বর্তমান কাজের ডিরেক্টরি সেট করুন। সব সেশন দেখাতে খালি রাখুন।</string>

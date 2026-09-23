@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.model.AgentCapabilities
+import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -26,6 +27,7 @@ internal class ConnectionOrchestrator(
     companion object {
         private const val TRACE_TAG = "TSAcpLoad"
         private const val LIST_SESSIONS_TIMEOUT_MS = 30_000L
+        private const val DELETE_SESSION_TIMEOUT_MS = 10_000L
     }
 
     /** Exposes the raw transport state — Connected, Connecting, Disconnected, Failed. */
@@ -154,6 +156,29 @@ internal class ConnectionOrchestrator(
                 formatAcpErrorMessage(it, "Failed to list sessions"),
             )
             emptyList()
+        }
+    }
+
+    /**
+     * Sends `session/delete` for [sessionId]. Returns false when no client is
+     * connected or the agent rejected the call; timeouts degrade the same way,
+     * while a plain cancellation propagates like [listSessions].
+     */
+    @OptIn(UnstableApi::class)
+    suspend fun deleteSession(sessionId: String): Boolean {
+        val client = transportClient.sdkClient ?: return false
+        return runCatching {
+            withTimeout(DELETE_SESSION_TIMEOUT_MS) {
+                client.deleteSession(SessionId(sessionId))
+            }
+            true
+        }.getOrElse {
+            if (it is CancellationException && it !is kotlinx.coroutines.TimeoutCancellationException) throw it
+            diagnosticsStore.appendError(
+                "session/delete",
+                formatAcpErrorMessage(it, "Failed to delete session"),
+            )
+            false
         }
     }
 

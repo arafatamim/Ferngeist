@@ -27,6 +27,8 @@
     <string name="sessionlist_empty_subtitle_offline">您在此设备上创建的会话将显示在此处</string>
     <string name="sessionlist_empty_action">创建新会话</string>
     <string name="sessionlist_topbar_title">会话</string>
+    <string name="sessionlist_action_disconnect">断开连接</string>
+    <string name="sessionlist_action_delete">删除</string>
 
     <!-- CWD Dialog -->
     <string name="sessionlist_cwd_title">工作目录</string>

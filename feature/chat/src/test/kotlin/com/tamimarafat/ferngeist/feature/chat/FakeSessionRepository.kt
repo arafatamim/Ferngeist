@@ -62,6 +62,11 @@ class FakeSessionRepository : SessionRepository {
         gatewaySessionId: String?,
     ) = Unit
 
+    override suspend fun clearStaleGatewaySessions(
+        serverId: String,
+        liveGatewaySessionIds: Set<String>,
+    ): Int = 0
+
     override suspend fun replaceSessions(
         serverId: String,
         sessions: List<SessionSummary>,

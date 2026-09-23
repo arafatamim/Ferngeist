@@ -157,6 +157,9 @@ class AcpConnectionManager(
         gateway.cancelSession(sessionId)
     }
 
+    /** Sends `session/delete`; false when there is no client or the agent rejected it. */
+    suspend fun deleteSession(sessionId: String): Boolean = orchestra.deleteSession(sessionId)
+
     suspend fun setSessionMode(
         sessionId: String,
         modeId: String,

@@ -99,6 +99,16 @@ interface SessionRepository {
         sessionId: String,
     )
 
+    /**
+     * Drops recorded gateway leases on [serverId] whose ids are absent from
+     * [liveGatewaySessionIds] — the gateway forgot them (restart/reap) while
+     * the app was away. Returns the number of rows cleared.
+     */
+    suspend fun clearStaleGatewaySessions(
+        serverId: String,
+        liveGatewaySessionIds: Set<String>,
+    ): Int
+
     suspend fun clearSessions(serverId: String)
 
     /**

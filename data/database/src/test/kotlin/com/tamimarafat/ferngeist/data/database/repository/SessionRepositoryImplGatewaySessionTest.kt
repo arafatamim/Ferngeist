@@ -86,6 +86,34 @@ class SessionRepositoryImplGatewaySessionTest {
         }
 
     @Test
+    fun clearStaleGatewaySessions_dropsUnknownLeasesAndKeepsLiveOnes() =
+        runTest {
+            seedSession(sessionId = "chat-a", gatewaySessionId = "gw-live")
+            seedSession(sessionId = "chat-b", gatewaySessionId = "gw-dead")
+            seedSession(sessionId = "chat-c")
+
+            val cleared = repository.clearStaleGatewaySessions(SERVER_ID, setOf("gw-live"))
+
+            assertEquals(1, cleared)
+            assertEquals("gw-live", repository.getSession(SERVER_ID, "chat-a")?.gatewaySessionId)
+            assertNull(repository.getSession(SERVER_ID, "chat-b")?.gatewaySessionId)
+            assertNull(repository.getSession(SERVER_ID, "chat-c")?.gatewaySessionId)
+        }
+
+    @Test
+    fun clearStaleGatewaySessions_emptyLiveSetClearsEveryPointer() =
+        runTest {
+            seedSession(sessionId = "chat-a", gatewaySessionId = "gw-1")
+            seedSession(sessionId = "chat-b", gatewaySessionId = "gw-2")
+
+            val cleared = repository.clearStaleGatewaySessions(SERVER_ID, emptySet())
+
+            assertEquals(2, cleared)
+            assertNull(repository.getSession(SERVER_ID, "chat-a")?.gatewaySessionId)
+            assertNull(repository.getSession(SERVER_ID, "chat-b")?.gatewaySessionId)
+        }
+
+    @Test
     fun concurrentClaimsForOneGatewaySession_leaveExactlyOneOwner() =
         runTest {
             seedSession(sessionId = "chat-a")

@@ -43,7 +43,7 @@ firebaseBom = "34.18.0"
 googleServices = "4.5.0"
 
 # ACP Kotlin SDK
-acp = "0.28.1"
+acp = "0.30.1"
 
 # Ktor
 ktor = "3.5.2"
