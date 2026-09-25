@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.core.common.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +8,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -35,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalLocale
@@ -92,7 +99,7 @@ fun ConnectionStatusPill(
             contentPadding = PaddingValues(12.dp),
             modifier =
                 modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .semantics {
                         contentDescription = connectionStatusDesc
                         stateDescription = connectionLabel
@@ -140,63 +147,113 @@ private fun ConnectionStateIcon(
     totalTokens: Int?,
     contextWindowTokens: Int?,
 ) {
-    when (connectionState) {
-        is ChatConnectionState.Connecting -> {
-            // Constantly rotating Material "VerySunny" shape as the connecting indicator,
-            // matching the server card's connecting state.
-            val rotation by rememberInfiniteTransition().animateFloat(
-                initialValue = 0f,
-                targetValue = 360f,
-                animationSpec =
-                    infiniteRepeatable(
-                        animation = tween(CONNECTING_ROTATION_MS, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart,
-                    ),
-            )
-            Box(
-                modifier =
-                    Modifier
-                        .size(14.dp)
-                        .rotate(rotation)
-                        .clip(MaterialShapes.VerySunny.toShape())
-                        .background(MaterialTheme.colorScheme.secondary),
-            )
+    // Keyed on the icon kind (not the full state) so token-count updates
+    // don't replay the transition.
+    val iconKind = statusIconKind(connectionState, totalTokens, contextWindowTokens)
+    AnimatedContent(
+        targetState = iconKind,
+        transitionSpec = {
+            fadeIn(animationSpec = tween(durationMillis = 300)) +
+                scaleIn(
+                    animationSpec = tween(durationMillis = 300),
+                    initialScale = 0.6f,
+                ) togetherWith
+                fadeOut(animationSpec = tween(durationMillis = 200)) +
+                scaleOut(
+                    animationSpec = tween(durationMillis = 200),
+                    targetScale = 0.6f,
+                )
+        },
+        label = "StatusIcon",
+    ) { kind ->
+        when (kind) {
+            StatusIconKind.Connecting -> ConnectingSunnyIcon()
+            StatusIconKind.UsageRing ->
+                UsageRingIcon(
+                    totalTokens = totalTokens ?: 0,
+                    contextWindowTokens = contextWindowTokens ?: 1,
+                )
+            StatusIconKind.Connected -> StatusDot(color = MaterialTheme.colorScheme.primary)
+            StatusIconKind.Failed -> StatusDot(color = MaterialTheme.colorScheme.error)
+            StatusIconKind.Disconnected -> StatusDot(color = MaterialTheme.colorScheme.outline)
         }
+    }
+}
 
+/** Icon variants of [ConnectionStateIcon], used as the transition key. */
+private enum class StatusIconKind {
+    Connecting,
+    UsageRing,
+    Connected,
+    Failed,
+    Disconnected,
+}
+
+private fun statusIconKind(
+    connectionState: ChatConnectionState,
+    totalTokens: Int?,
+    contextWindowTokens: Int?,
+): StatusIconKind =
+    when (connectionState) {
+        is ChatConnectionState.Connecting -> StatusIconKind.Connecting
         is ChatConnectionState.Connected ->
             if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
-                val ratio by animateFloatAsState(
-                    targetValue =
-                        (totalTokens.toFloat() / contextWindowTokens.toFloat())
-                            .coerceIn(0f, 1f),
-                    animationSpec = tween(500),
-                )
-                DonutRing(
-                    ratio = ratio,
-                    modifier = Modifier.size(16.dp),
-                )
+                StatusIconKind.UsageRing
             } else {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(10.dp),
-                ) {}
+                StatusIconKind.Connected
             }
-
-        is ChatConnectionState.Failed ->
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(10.dp),
-            ) {}
-
-        is ChatConnectionState.Disconnected ->
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(10.dp),
-            ) {}
+        is ChatConnectionState.Failed -> StatusIconKind.Failed
+        is ChatConnectionState.Disconnected -> StatusIconKind.Disconnected
     }
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ConnectingSunnyIcon() {
+    // Constantly rotating Material "VerySunny" shape as the connecting indicator,
+    // matching the server card's connecting state.
+    val rotation by rememberInfiniteTransition().animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(CONNECTING_ROTATION_MS, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+    )
+    Box(
+        modifier =
+            Modifier
+                .size(20.dp)
+                .rotate(rotation)
+                .clip(MaterialShapes.VerySunny.toShape())
+                .background(MaterialTheme.colorScheme.secondary),
+    )
+}
+
+@Composable
+private fun UsageRingIcon(
+    totalTokens: Int,
+    contextWindowTokens: Int,
+) {
+    val ratio by animateFloatAsState(
+        targetValue =
+            (totalTokens.toFloat() / contextWindowTokens.toFloat())
+                .coerceIn(0f, 1f),
+        animationSpec = tween(500),
+    )
+    DonutRing(
+        ratio = ratio,
+        modifier = Modifier.size(16.dp),
+    )
+}
+
+@Composable
+private fun StatusDot(color: Color) {
+    Surface(
+        shape = CircleShape,
+        color = color,
+        modifier = Modifier.size(10.dp),
+    ) {}
 }
 
 /**
@@ -225,7 +282,7 @@ private fun DonutRing(
             MaterialTheme.colorScheme.primary
         }
     val ringColor = MaterialTheme.colorScheme.outline
-    // 16dp canvas inside a 40dp button with 12dp content padding leaves
+    // 16dp canvas inside a 44dp button with 12dp content padding leaves
     // enough room for a readable 3dp ring.
     Canvas(modifier = modifier) {
         val stroke = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)

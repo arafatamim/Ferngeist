@@ -4,25 +4,33 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.content.res.Resources
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialShapes
@@ -31,6 +39,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
@@ -47,10 +56,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
@@ -80,6 +93,11 @@ import com.mikepenz.markdown.model.State as MarkdownRenderState
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
+private const val SKELETON_SHIMMER_BAND_PX = 200f
+private const val SKELETON_SHIMMER_MILLIS = 800
+private val SKELETON_USER_LINE = listOf(1f)
+private val SKELETON_ASSISTANT_LINES_PRIMARY = listOf(1f, 0.92f, 0.78f, 0.6f)
+private val SKELETON_ASSISTANT_LINES_SECONDARY = listOf(0.95f, 0.7f)
 
 /**
  * Processes picked URIs into images and file attachments, returning the combined
@@ -311,12 +329,7 @@ internal fun ChatScreenBody(
 ) {
     when {
         state.isLoading && state.messages.isEmpty() -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularWavyProgressIndicator(modifier = Modifier.size(64.dp))
-            }
+            ChatLoadingSkeleton(listTopPadding = listTopPadding)
         }
 
         state.error != null && state.messages.isEmpty() -> {
@@ -341,6 +354,126 @@ internal fun ChatScreenBody(
                 onRetryMessage = onRetryMessage,
             )
         }
+    }
+}
+
+/**
+ * Shimmer skeleton shown while the first snapshot loads with an empty cache.
+ * Mirrors the message list (user bubbles right, assistant bubbles left) so the
+ * layout doesn't jump when real content paints. Only reachable on a true
+ * cold open — cached transcripts render immediately instead.
+ */
+@Composable
+private fun ChatLoadingSkeleton(
+    listTopPadding: Dp,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        // Sweep the full measured width: a fixed pixel range leaves wide
+        // screens half-static.
+        val sweepWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
+        val lineBrush = rememberSkeletonShimmerBrush(sweepWidthPx)
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(start = 16.dp, top = listTopPadding + 24.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SkeletonBlock(
+                brush = lineBrush,
+                alignment = Alignment.End,
+                widthFraction = 0.5f,
+                lineFractions = SKELETON_USER_LINE,
+            )
+            SkeletonBlock(
+                brush = lineBrush,
+                alignment = Alignment.Start,
+                widthFraction = 1f,
+                lineFractions = SKELETON_ASSISTANT_LINES_PRIMARY,
+            )
+            SkeletonBlock(
+                brush = lineBrush,
+                alignment = Alignment.End,
+                widthFraction = 0.38f,
+                lineFractions = SKELETON_USER_LINE,
+            )
+            SkeletonBlock(
+                brush = lineBrush,
+                alignment = Alignment.Start,
+                widthFraction = 1f,
+                lineFractions = SKELETON_ASSISTANT_LINES_SECONDARY,
+            )
+        }
+    }
+}
+
+/**
+ * One skeleton message: bare shimmer text lines, right-aligned for user
+ * messages and full-width for assistant ones.
+ */
+@Composable
+private fun ColumnScope.SkeletonBlock(
+    brush: Brush,
+    alignment: Alignment.Horizontal,
+    widthFraction: Float,
+    lineFractions: List<Float>,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth(widthFraction)
+                .align(alignment),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        lineFractions.forEach { fraction ->
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth(fraction)
+                        .height(12.dp)
+                        .background(brush, CircleShape),
+            )
+        }
+    }
+}
+
+/**
+ * Highlight band sweeping across the skeleton's full width, matching the
+ * streaming-text shimmer's 1400ms rhythm so the skeleton hands off to
+ * content seamlessly.
+ */
+@Composable
+private fun rememberSkeletonShimmerBrush(sweepWidthPx: Float): Brush {
+    val baseColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val shimmer = rememberInfiniteTransition(label = "ChatSkeletonShimmer")
+    val offset by shimmer.animateFloat(
+        initialValue = -sweepWidthPx,
+        targetValue = sweepWidthPx * 2,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(durationMillis = SKELETON_SHIMMER_MILLIS, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "ChatSkeletonShimmerOffset",
+    )
+    return Brush.linearGradient(
+        colors =
+            listOf(
+                baseColor.copy(alpha = 0.55f),
+                baseColor,
+                baseColor.copy(alpha = 0.55f),
+            ),
+        start = Offset(offset - SKELETON_SHIMMER_BAND_PX, 0f),
+        end = Offset(offset, 0f),
+    )
+}
+
+@Preview
+@Composable
+private fun ChatLoadingSkeletonPreview() {
+    Surface {
+        ChatLoadingSkeleton(listTopPadding = 0.dp)
     }
 }
 
