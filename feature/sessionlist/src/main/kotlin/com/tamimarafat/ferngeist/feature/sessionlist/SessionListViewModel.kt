@@ -220,12 +220,12 @@ class SessionListViewModel
         }
 
         /**
-         * Resume-path refresh. The hub picks its transport per call: a warm
-         * chat manager lists over the chat's own socket, otherwise it runs the
-         * browser listing — so this never opens a competing transport, and the
-         * list refreshes on resume without a manual pull.
+         * Resume-path refresh. Skips the network listing when cached rows exist
+         * and the last listing succeeded — the hub still repaints instantly
+         * from Room, so a resume with warm cache needs no refetch.
          */
         fun refreshSessionsIfCold() {
+            if (sessions.value.isNotEmpty() && !lastListingFailed) return
             refreshSessions()
         }
 
@@ -312,10 +312,9 @@ class SessionListViewModel
                                 }
                             }
                         }
-                        // Drop gateway leases the gateway forgot while the app was
-                        // away (details in reconcileGatewayLeases).
-                        reconcileGatewayLeases(result)
-                        syncHubObservables()
+                        // Paint first, then reconcile leases in the background
+                        // (details in publishListingAndReconcile).
+                        publishListingAndReconcile(result, generation)
                     } finally {
                         if (generation == refreshGeneration) {
                             _isLoading.value = false
@@ -323,6 +322,27 @@ class SessionListViewModel
                         }
                     }
                 }
+        }
+
+        /**
+         * Publishes hub snapshots and clears the loading flags for first
+         * paint, then reconciles stale gateway leases in the background: the
+         * reconcile's up-to-10s REST window must never extend the spinner. It
+         * only prunes Room rows, which re-emit when they land.
+         */
+        private fun publishListingAndReconcile(
+            result: ListSessionsResult,
+            generation: Int,
+        ) {
+            syncHubObservables()
+            if (generation == refreshGeneration) {
+                _isLoading.value = false
+                _refreshing.value = false
+            }
+            viewModelScope.launch {
+                reconcileGatewayLeases(result)
+                if (generation == refreshGeneration) syncHubObservables()
+            }
         }
 
         /** Pulls the hub's last-known capability/diagnostic snapshots into local state. */

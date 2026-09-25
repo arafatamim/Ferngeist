@@ -265,9 +265,12 @@ private fun rememberComposerInsets(
     val navBottomPx = WindowInsets.navigationBars.getBottom(density)
     val systemBottomInsetPx = if (imeBottomPx > navBottomPx) imeBottomPx else navBottomPx
 
-    // Composer is hidden during initial loading or when error + empty state
+    // Composer is hidden on error + empty state, and while the initial load
+    // has no content yet. Cached messages stay typable during markdown
+    // hydration: sends queue offline until the session is ready.
     val showComposerToolbar =
-        !state.isLoading && !(state.error != null && state.messages.isEmpty())
+        !(state.error != null && state.messages.isEmpty()) &&
+            (!state.isLoading || state.messages.isNotEmpty())
     val composerContentHeightDp = with(density) { composerContentHeightPx.value.toDp() }
     val systemBottomInsetDp = with(density) { systemBottomInsetPx.toDp() }
 

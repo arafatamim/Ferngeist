@@ -129,7 +129,7 @@ fun GatewayAgentsScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (!uiState.isLoading && uiState.loadError == null) {
+            if (uiState.loadError == null && (!uiState.isLoading || uiState.agents.isNotEmpty())) {
                 ExtendedFloatingActionButton(
                     onClick = onNavigateToAddCustomAgent,
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -139,8 +139,9 @@ fun GatewayAgentsScreen(
         },
     ) { padding ->
         when {
-            uiState.isLoading -> LoadingContent(modifier = Modifier.padding(padding))
-            uiState.loadError != null -> {
+            uiState.isLoading && uiState.agents.isEmpty() ->
+                LoadingContent(modifier = Modifier.padding(padding))
+            uiState.loadError != null && uiState.agents.isEmpty() -> {
                 ErrorContent(
                     message = uiState.loadError.orEmpty(),
                     onRetry = viewModel::refresh,

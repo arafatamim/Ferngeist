@@ -34,11 +34,21 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
+
+/** Bounds whole-call REST latency so network-backed spinners can never hang. */
+private const val HTTP_REQUEST_TIMEOUT_MS = 30_000L
+
+/** Bounds TCP/TLS establishment for gateway REST calls. */
+private const val HTTP_CONNECT_TIMEOUT_MS = 10_000L
+
+/** Bounds inactivity between response packets for gateway REST calls. */
+private const val HTTP_SOCKET_TIMEOUT_MS = 30_000L
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -200,10 +210,17 @@ object AppModule {
             ignoreUnknownKeys = true
         }
 
-    /** Provides a singleton Ktor HTTP client. */
+    /** Provides a singleton Ktor HTTP client with bounded timeouts so REST-backed spinners can never hang. */
     @Provides
     @Singleton
-    fun provideHttpClient(): HttpClient = HttpClient(CIO)
+    fun provideHttpClient(): HttpClient =
+        HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = HTTP_REQUEST_TIMEOUT_MS
+                connectTimeoutMillis = HTTP_CONNECT_TIMEOUT_MS
+                socketTimeoutMillis = HTTP_SOCKET_TIMEOUT_MS
+            }
+        }
 }
 
 private val MIGRATION_1_2 =

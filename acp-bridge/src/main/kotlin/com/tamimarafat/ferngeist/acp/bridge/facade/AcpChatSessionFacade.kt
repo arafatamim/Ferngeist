@@ -70,7 +70,7 @@ class AcpChatSessionFacade(
     private val initialSessionId: String,
     private val cwd: String,
     private val hub: ChatConnectionSurface,
-    private val sessionLoadTimeoutMs: Long = 180_000L,
+    private val sessionLoadTimeoutMs: Long = 60_000L,
     private val bridgeRecoveryRetryDelayMs: Long = 3_000L,
     initialCachedSnapshot: ChatSessionSnapshot? = null,
 ) : ChatSessionFacade {

@@ -234,6 +234,7 @@ class ServerListViewModel
                     connectionManager.isConnected &&
                     _uiState.value.pendingAuthentication == null
                 ) {
+                    _uiState.update { it.copy(connectingServerId = null) }
                     openConnectedServer(server.id, server.name)
                     return@launch
                 }
@@ -243,6 +244,7 @@ class ServerListViewModel
                 // evict the live chat socket (gateway logs the intentional
                 // CloseNow as "use of closed network connection").
                 if (hasWarmHubChat(server.id) && _uiState.value.pendingAuthentication == null) {
+                    _uiState.update { it.copy(connectingServerId = null) }
                     openConnectedServer(server.id, server.name)
                     return@launch
                 }
