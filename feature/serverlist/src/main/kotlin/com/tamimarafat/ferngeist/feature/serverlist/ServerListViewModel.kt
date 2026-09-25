@@ -34,6 +34,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentSt
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -406,9 +407,10 @@ class ServerListViewModel
                         savePreferredAuthMethod(server.id, authenticatedMethodId)
                     }
                     val capabilityLabels = initializeResult.agentCapabilities.displayLabels()
+                    // Keep connectingServerId set through the prewarm listing:
+                    // the spinner stays up until navigation, with no dead gap.
                     _uiState.update {
                         it.copy(
-                            connectingServerId = null,
                             pendingAuthentication = null,
                             connectedServerState =
                                 it.connectedServerState?.copy(
@@ -422,7 +424,11 @@ class ServerListViewModel
                     // this verification transport so it doesn't steal the slot from
                     // a hot chat and trigger mutual reconnect-loops.
                     connectionManager.disconnect()
-                    openConnectedServer(server.id, server.name)
+                    // Warm the session cache before navigating so the session
+                    // list paints rows instantly instead of showing a second
+                    // spinner. Safe here: the verification transport above is
+                    // already down, so the listing can't contend for the slot.
+                    openConnectedServer(server.id, server.name, prewarmSessions = true)
                 }
 
                 is AcpInitializeResult.AuthenticationRequired -> {
@@ -508,15 +514,16 @@ class ServerListViewModel
 
                 savePreferredAuthMethod(serverId, methodId)
 
+                // Spinner stays up through the prewarm listing below;
+                // openConnectedServer clears it on navigate.
                 _uiState.update {
                     it.copy(
-                        connectingServerId = null,
                         pendingAuthentication = null,
                         connectedServerState = it.connectedServerState?.copy(isInitializing = false),
                     )
                 }
                 val serverName = pending.serverName
-                openConnectedServer(serverId, serverName)
+                openConnectedServer(serverId, serverName, prewarmSessions = true)
             }
         }
 
@@ -650,9 +657,10 @@ class ServerListViewModel
             applyInitializeUiState(server.id, updatedPending, initializeResult)
             if (!authenticateWithMethod(method.id)) return false
             savePreferredAuthMethod(server.id, method.id)
+            // Spinner stays up through the prewarm listing below;
+            // openConnectedServer clears it on navigate.
             _uiState.update {
                 it.copy(
-                    connectingServerId = null,
                     pendingAuthentication = null,
                     connectedServerState = it.connectedServerState?.copy(isInitializing = false),
                 )
@@ -742,7 +750,7 @@ class ServerListViewModel
             ) {
                 return
             }
-            openConnectedServer(server.id, server.name)
+            openConnectedServer(server.id, server.name, prewarmSessions = true)
         }
 
         /**
@@ -880,10 +888,29 @@ class ServerListViewModel
             }
         }
 
+        /**
+         * Warms the Room session cache through the hub's listing seam before
+         * navigating, so the session list paints rows instantly instead of
+         * showing a second spinner. Best-effort: any failure (including auth
+         * challenges) still navigates — the session screen surfaces listing
+         * failures exactly as it does today.
+         */
         private suspend fun openConnectedServer(
             serverId: String,
             serverName: String,
+            prewarmSessions: Boolean = false,
         ) {
+            if (prewarmSessions) {
+                runCatching {
+                    chatConnectionHub.listSessions(serverId, cwd = null)
+                }.onFailure { error ->
+                    if (error is CancellationException) throw error
+                }
+            }
+            // Single choke point for navigation: the spinner clears exactly
+            // when the next screen is coming, so no dead gap — and no
+            // stranded spinner — can survive past this point.
+            _uiState.update { it.copy(connectingServerId = null) }
             _events.emit(
                 ServerListEvent.NavigateToSessions(
                     serverId = serverId,
