@@ -1,8 +1,21 @@
+## [0.16.0-alpha2] - 2026-09-26
+
+### Features
+
+- *(chat)* Enable session-switch drag from composer pill ([447f0ea](https://github.com/arafatamim/Ferngeist/commit/447f0ea0d16638bd6eeeea5f6239ecc39e80f438))
+- *(sessionlist)* Add disconnect/delete menu with lease reconciliation ([7bdbdc3](https://github.com/arafatamim/Ferngeist/commit/7bdbdc3f27a945b894c47de13c20bd56b9599d4f))
+- *(chat)* Shimmer skeleton for cold open, larger status sunny with transition ([778253d](https://github.com/arafatamim/Ferngeist/commit/778253dbc07905c26dedf21efe02ba84f70a7e44))
+- *(serverlist)* Prewarm sessions during connect for single loading state ([6403f5f](https://github.com/arafatamim/Ferngeist/commit/6403f5f6eb1e1702f145049b75a63fa0ed6f78e0))
+
+### Fixes
+
+- *(loading)* Bound REST timeouts and unblock cached screens ([18ef625](https://github.com/arafatamim/Ferngeist/commit/18ef625e56bb6e0ef880eb9a7afcf7bd1453d254))
+
 ## [0.16.0-alpha] - 2026-09-22
 
 ### Features
 
-- *(chat)* Add live-session switcher with drag switch and coach-mark hint ([fa6e90c](https://github.com/arafatamim/Ferngeist/commit/fa6e90cfbe83e7ae3d3144397e467ff53278c419))
+- *(chat)* Add live-session switcher with drag switch and coach-mark hint ([f7787b2](https://github.com/arafatamim/Ferngeist/commit/f7787b2698ed2772bb7c5b15412bb666297af7fa))
 
 ### Fixes
 

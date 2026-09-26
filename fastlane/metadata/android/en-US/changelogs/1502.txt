@@ -1,0 +1,6 @@
+Faster loads, smarter switching.
+
+• Drag the composer's session pill to switch chats mid-stream
+• Disconnect or delete a session from its menu in the list
+• Cold-opened chats show a shimmer skeleton instead of a blank screen
+• Fixed: loading screens that never resolved — network timeouts are bounded
