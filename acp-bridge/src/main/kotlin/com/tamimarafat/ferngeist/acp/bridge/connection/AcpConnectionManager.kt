@@ -144,6 +144,16 @@ class AcpConnectionManager(
         cwd: String,
     ): SessionPort? = gateway.loadSession(sessionId, cwd)
 
+    /**
+     * Reattaches to an existing session without replaying its history
+     * (`session/resume`). Only for agents advertising `sessionCapabilities.resume`;
+     * they see no transcript, the conversation continues from the agent's context.
+     */
+    suspend fun resumeSession(
+        sessionId: String,
+        cwd: String,
+    ): SessionPort? = gateway.resumeSession(sessionId, cwd)
+
     suspend fun sendSessionMessage(
         sessionId: String,
         content: String,

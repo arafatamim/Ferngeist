@@ -27,6 +27,7 @@ import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.agentclientprotocol.rpc.JsonRpcMessage
+import com.agentclientprotocol.rpc.JsonRpcRequest
 import com.agentclientprotocol.transport.Transport
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
@@ -207,31 +208,40 @@ class SessionGatewayTest {
     }
 
     /**
-     * A [Client] whose next outbound `session/load` throws [error].
+     * A [Client] whose next outbound request is failed by [transport].
      *
      * The SDK's [Client] is a final class — it can be neither proxied nor subclassed — and
      * this module has no mocking library. Its collaborator [Transport] is an interface
      * though, so the failure is injected at the wire instead: a real client over a real
      * protocol whose transport refuses every message. Only requests routed through it fail.
      */
-    private fun clientFailingSessionLoad(error: Throwable): Client =
+    private fun clientOver(transport: Transport): Client =
         Client(
             Protocol(
                 parentScope = CoroutineScope(Dispatchers.Unconfined),
-                transport = FailingSendTransport(error),
+                transport = transport,
                 options = ProtocolOptions(protocolDebugName = "SessionGatewayTest"),
             ),
         )
+
+    /** A [Client] whose every outbound request fails with [error]. */
+    private fun clientFailingSessionLoad(error: Throwable): Client = clientOver(FailingSendTransport(error))
 
     /** A [Transport] whose every outbound message fails with [error]. */
     private class FailingSendTransport(
         private val error: Throwable,
     ) : Transport {
+        /** Methods of the requests sent through this transport, in order. */
+        val sentMethods = mutableListOf<String>()
+
         override val state: StateFlow<Transport.State> = MutableStateFlow(Transport.State.STARTED)
 
         override fun start() = Unit
 
-        override fun send(message: JsonRpcMessage): Unit = throw error
+        override fun send(message: JsonRpcMessage) {
+            sentMethods += (message as? JsonRpcRequest)?.method?.name ?: message.toString()
+            throw error
+        }
 
         override fun onMessage(handler: (JsonRpcMessage) -> Unit) = Unit
 
@@ -373,6 +383,24 @@ class SessionGatewayTest {
                 gateway.getSession("s1"),
             )
             assertEquals(SessionLoadState.FAILED, bridge.snapshot.value.loadState)
+        }
+
+    @Test
+    fun `resumeSession sends session resume rather than session load`() =
+        runTest {
+            val gateway = newGateway()
+            installBridge(gateway, "s1")
+            val transport = FailingSendTransport(IllegalStateException("transport boom"))
+            installSdkClient(gateway, clientOver(transport))
+
+            val result = runCatching { gateway.resumeSession("s1", "/some/cwd") }
+
+            assertTrue(result.exceptionOrNull() is IllegalStateException)
+            assertEquals(
+                "a resume-only agent must be sent session/resume, never session/load",
+                listOf("session/resume"),
+                transport.sentMethods,
+            )
         }
 
     @Test

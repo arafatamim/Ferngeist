@@ -83,6 +83,13 @@ class AcpDisconnectedException :
         "Not connected to the ACP server",
     )
 
+/**
+ * True when the agent advertises `sessionCapabilities.resume`, i.e. it can
+ * reattach to an existing session without replaying the conversation.
+ */
+@OptIn(UnstableApi::class)
+fun AgentCapabilities.supportsResume(): Boolean = sessionCapabilities.resume != null
+
 @OptIn(UnstableApi::class)
 fun AgentCapabilities.displayLabels(): List<String> =
     buildList {
@@ -93,7 +100,7 @@ fun AgentCapabilities.displayLabels(): List<String> =
         if (mcpCapabilities.http) add("MCP HTTP")
         if (mcpCapabilities.sse) add("MCP SSE")
         if (sessionCapabilities.list != null) add("List")
-        if (sessionCapabilities.resume != null) add("Resume")
+        if (supportsResume()) add("Resume")
         if (sessionCapabilities.fork != null) add("Fork")
     }
 
