@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -85,6 +86,7 @@ import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
+import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
@@ -206,16 +208,17 @@ internal fun CollectChatEffects(
     snackbarHostState: SnackbarHostState,
     onNavigateBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ShowError -> {
                     android.util.Log.e("ChatScreen", "Chat effect error: ${effect.message}")
-                    snackbarHostState.showSnackbar(effect.message)
+                    snackbarHostState.showSnackbar(localizeChatError(context, effect.message))
                 }
 
                 is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ShowMessage -> {
-                    snackbarHostState.showSnackbar(effect.message)
+                    snackbarHostState.showSnackbar(localizeChatError(context, effect.message))
                 }
 
                 is com.tamimarafat.ferngeist.feature.chat.ChatEffect.NavigateBack ->
@@ -494,7 +497,7 @@ private fun ChatLoadError(
     ) {
         ErrorStateCard(
             headline = stringResource(R.string.chat_load_error_title),
-            body = message,
+            body = localizeChatError(LocalContext.current, message),
             icon = Icons.Rounded.CloudOff,
             medallionContainer = MaterialTheme.colorScheme.errorContainer,
             medallionContent = MaterialTheme.colorScheme.onErrorContainer,

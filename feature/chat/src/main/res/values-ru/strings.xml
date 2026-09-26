@@ -95,6 +95,7 @@
     <string name="chat_session_error_could_not_load">Не удалось загрузить сессию.</string>
     <string name="chat_session_error_not_ready">Сессия не готова.</string>
     <string name="chat_session_error_no_image">Агент не поддерживает изображения в запросах.</string>
+    <string name="chat_session_error_no_file">Агент не поддерживает прикрепление файлов.</string>
     <string name="chat_session_error_cancel_failed">Не удалось отменить операцию.</string>
     <string name="chat_session_error_auth_reconnect">Требуется ACP аутентификация. Переподключитесь через список серверов.</string>
     <string name="chat_session_error_gateway_unpaired">Шлюз не сопряжен для %1$s.</string>

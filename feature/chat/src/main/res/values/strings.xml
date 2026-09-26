@@ -254,6 +254,7 @@
     <string name="chat_session_error_could_not_load">Could not load this session. Check connection and retry.</string>
     <string name="chat_session_error_not_ready">Session is not ready. Please retry in a moment.</string>
     <string name="chat_session_error_no_image">This agent does not advertise image prompt support.</string>
+    <string name="chat_session_error_no_file">This agent does not advertise file attachment support.</string>
     <string name="chat_session_error_cancel_failed">Failed to cancel the current turn</string>
     <string name="chat_session_error_auth_reconnect">ACP authentication is required for this server. Reconnect from the server list and choose an auth method.</string>
     <string name="chat_session_error_gateway_unpaired">Gateway is not paired for %1$s.</string>

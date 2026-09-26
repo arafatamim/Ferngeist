@@ -91,6 +91,7 @@
     <string name="chat_session_error_could_not_load">এই সেশন লোড করা যায়নি। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_not_ready">সেশন প্রস্তুত নয়। কিছুক্ষণ পরে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_no_image">এই এজেন্ট ছবি (ইমেজ) প্রম্পট সমর্থন জানায় না।</string>
+    <string name="chat_session_error_no_file">এই এজেন্ট ফাইল সংযুক্তি সমর্থন জানায় না।</string>
     <string name="chat_session_error_cancel_failed">বর্তমান টার্ন বাতিল করা যায়নি</string>
     <string name="chat_session_error_auth_reconnect">এই সার্ভারের জন্য ACP প্রমাণীকরণ প্রয়োজন। সার্ভার তালিকা থেকে পুনরায় সংযোগ করুন এবং একটি প্রমাণীকরণ পদ্ধতি বেছে নিন।</string>
     <string name="chat_session_error_gateway_unpaired">%1$s-এর জন্য গেটওয়ে পেয়ার করা নেই।</string>

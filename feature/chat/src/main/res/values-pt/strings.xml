@@ -91,6 +91,7 @@
     <string name="chat_session_error_could_not_load">Não foi possível carregar esta sessão. Verifique a conexão e tente novamente.</string>
     <string name="chat_session_error_not_ready">A sessão não está pronta. Tente novamente em instantes.</string>
     <string name="chat_session_error_no_image">Este agente não anuncia suporte a solicitação de imagem.</string>
+    <string name="chat_session_error_no_file">Este agente não anuncia suporte a anexos de ficheiro.</string>
     <string name="chat_session_error_cancel_failed">Falha ao cancelar a rodada atual</string>
     <string name="chat_session_error_auth_reconnect">A autenticação ACP é necessária para este servidor. Reconecte pela lista de servidores e escolha um método de autenticação.</string>
     <string name="chat_session_error_gateway_unpaired">A gateway não está pareada para %1$s.</string>
