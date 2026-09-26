@@ -174,7 +174,7 @@ class SessionGatewayTest {
 
     /**
      * Registers a bridge for [sessionId] without an SDK session. Only this shape reaches
-     * `loadSession`'s real `session/load` path: an SDK session in the registry makes it
+     * `attachSession`'s real `session/load` path: an SDK session in the registry makes it
      * treat the session as already loaded and return early.
      */
     private fun installBridge(
@@ -192,7 +192,7 @@ class SessionGatewayTest {
     /**
      * Installs an SDK client on the orchestrator's transport. `AcpTransportClient.sdkClient`
      * is `private set` and only assigned by a real connect, so a test that needs
-     * `loadSession` past its disconnected check has to set it reflectively.
+     * `attachSession` past its disconnected check has to set it reflectively.
      */
     private fun installSdkClient(
         gateway: SessionGateway,
@@ -339,13 +339,13 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `loadSession rethrows cancellation instead of clearing the session`() =
+    fun `attachSession rethrows cancellation instead of clearing the session`() =
         runTest {
             val gateway = newGateway()
             val bridge = installBridge(gateway, "s1")
             installSdkClient(gateway, clientFailingSessionLoad(CancellationException("screen closed")))
 
-            val result = runCatching { gateway.loadSession("s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is CancellationException)
             assertSame("cancellation must not tear the session down", bridge, gateway.getSession("s1"))
@@ -353,20 +353,20 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `loadSession still clears the session on a real load failure`() =
+    fun `attachSession still clears the session on a real attach failure`() =
         runTest {
             val gateway = newGateway()
             installBridge(gateway, "s1")
             installSdkClient(gateway, clientFailingSessionLoad(IllegalStateException("transport boom")))
 
-            val result = runCatching { gateway.loadSession("s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             assertNull("a real load failure must clear the session", gateway.getSession("s1"))
         }
 
     @Test
-    fun `loadSession clears the session when the load deadline expires`() =
+    fun `attachSession clears the session when the attach deadline expires`() =
         runTest {
             val gateway = newGateway()
             val bridge = installBridge(gateway, "s1")
@@ -375,7 +375,7 @@ class SessionGatewayTest {
             val timedOut = runCatching { withTimeout(1) { delay(1_000) } }.exceptionOrNull()!!
             installSdkClient(gateway, clientFailingSessionLoad(timedOut))
 
-            val result = runCatching { gateway.loadSession("s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is TimeoutCancellationException)
             assertNull(
@@ -386,14 +386,14 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `resumeSession sends session resume rather than session load`() =
+    fun `attachSession with Resume sends session resume rather than session load`() =
         runTest {
             val gateway = newGateway()
             installBridge(gateway, "s1")
             val transport = FailingSendTransport(IllegalStateException("transport boom"))
             installSdkClient(gateway, clientOver(transport))
 
-            val result = runCatching { gateway.resumeSession("s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.Resume, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             assertEquals(

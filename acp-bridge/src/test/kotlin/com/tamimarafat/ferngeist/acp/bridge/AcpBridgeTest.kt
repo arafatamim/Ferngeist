@@ -17,8 +17,10 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpDiagnosticsStore
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.PermissionFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
@@ -373,5 +375,54 @@ class AcpAgentCapabilitiesTest {
     @Test
     fun `display labels are empty when nothing is advertised`() {
         assertTrue(AgentCapabilities().displayLabels().isEmpty())
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `attach RPC is load when the agent advertises load`() {
+        assertEquals(
+            SessionAttachRpc.Load,
+            AgentCapabilities(loadSession = true).sessionAttachRpc(),
+        )
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `attach RPC is load while the capabilities are still unobserved`() {
+        val capabilities: AgentCapabilities? = null
+
+        assertEquals(SessionAttachRpc.Load, capabilities.sessionAttachRpc())
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `attach RPC prefers load over resume when both are advertised`() {
+        val capabilities =
+            AgentCapabilities(
+                loadSession = true,
+                sessionCapabilities = SessionCapabilities(resume = SessionResumeCapabilities()),
+            )
+
+        assertEquals(SessionAttachRpc.Load, capabilities.sessionAttachRpc())
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `attach RPC is resume for a resume-only agent`() {
+        val capabilities =
+            AgentCapabilities(
+                loadSession = false,
+                sessionCapabilities = SessionCapabilities(resume = SessionResumeCapabilities()),
+            )
+
+        assertEquals(SessionAttachRpc.Resume, capabilities.sessionAttachRpc())
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `attach RPC is null when the agent advertises neither load nor resume`() {
+        val capabilities = AgentCapabilities(loadSession = false)
+
+        assertNull(capabilities.sessionAttachRpc())
     }
 }

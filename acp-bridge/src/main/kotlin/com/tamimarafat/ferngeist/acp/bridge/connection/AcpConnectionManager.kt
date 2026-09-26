@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
  * - [PermissionFlow] (pending permission tracking)
  *
  * ## Session lifecycle
- * Sessions are created via [createSession] (fresh) or [loadSession] (restored).
+ * Sessions are created via [createSession] (fresh) or [attachSession] (restored).
  * Both return a [SessionPort] — the chat layer never sees the concrete
  * [SessionBridge]. Internally, the manager delegates to [SessionGateway] which
  * stores [SessionBridge] references and calls its internal methods
@@ -139,20 +139,17 @@ class AcpConnectionManager(
 
     suspend fun createSession(cwd: String = ""): SessionPort? = gateway.createSession(cwd)
 
-    suspend fun loadSession(
-        sessionId: String,
-        cwd: String,
-    ): SessionPort? = gateway.loadSession(sessionId, cwd)
-
     /**
-     * Reattaches to an existing session without replaying its history
-     * (`session/resume`). Only for agents advertising `sessionCapabilities.resume`;
-     * they see no transcript, the conversation continues from the agent's context.
+     * Attaches to an existing session through the RPC the agent advertises:
+     * `session/load` (history replay) or `session/resume` (reattach only, no
+     * transcript — the conversation continues from the agent's context). Callers
+     * pick the RPC with [sessionAttachRpc].
      */
-    suspend fun resumeSession(
+    suspend fun attachSession(
+        rpc: SessionAttachRpc,
         sessionId: String,
         cwd: String,
-    ): SessionPort? = gateway.resumeSession(sessionId, cwd)
+    ): SessionPort? = gateway.attachSession(rpc, sessionId, cwd)
 
     suspend fun sendSessionMessage(
         sessionId: String,

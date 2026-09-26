@@ -6,8 +6,9 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequired
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
+import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.acp.bridge.connection.supportsResume
+import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
@@ -877,16 +878,17 @@ class AcpChatSessionFacade(
         }
 
         publishCapabilities()
-        val capabilities = currentAcpCapabilities ?: connectionManager.agentCapabilities.value
-        if (capabilities != null && !capabilities.loadSession && !capabilities.supportsResume()) {
+        val rpc = (currentAcpCapabilities ?: connectionManager.agentCapabilities.value).sessionAttachRpc()
+        if (rpc == null) {
+            // The agent can reopen no session at all. Deliberate: a screen whose
+            // bridge died must still end up with a usable session.
             val created =
                 runCatching { connectionManager.createSession(cwd) }.getOrNull() ?: return null
             attachSessionBridge(created)
             return created
         }
 
-        val resume = capabilities != null && !capabilities.loadSession
-        return attachExistingSession(resume)?.also { attachSessionBridge(it) }
+        return attachExistingSession(rpc)?.also { attachSessionBridge(it) }
     }
 
     /**
@@ -897,14 +899,10 @@ class AcpChatSessionFacade(
      * screen's Retry action re-arms recovery.
      */
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun attachExistingSession(resume: Boolean): SessionPort? =
+    private suspend fun attachExistingSession(rpc: SessionAttachRpc): SessionPort? =
         try {
             withTimeout(sessionLoadTimeoutMs) {
-                if (resume) {
-                    connectionManager.resumeSession(activeSessionId, cwd)
-                } else {
-                    connectionManager.loadSession(activeSessionId, cwd)
-                }
+                connectionManager.attachSession(rpc, activeSessionId, cwd)
             }
         } catch (_: AcpAuthenticationRequiredException) {
             shouldRecoverBridge = false
@@ -916,15 +914,15 @@ class AcpChatSessionFacade(
         } catch (_: TimeoutCancellationException) {
             null
         } catch (error: CancellationException) {
-            // The chat screen was closed mid-load: cancellation must not be
+            // The chat screen was closed mid-attach: cancellation must not be
             // reported as a load failure (and must not fabricate a session).
             throw error
         } catch (error: JsonRpcException) {
             shouldRecoverBridge = false
-            _loadFailed.emit(formatAcpErrorMessage(error, attachFailureLabel(resume)))
+            _loadFailed.emit(formatAcpErrorMessage(error, rpc.failureLabel))
             null
         } catch (error: Exception) {
-            _loadFailed.emit(formatAcpErrorMessage(error, attachFailureLabel(resume)))
+            _loadFailed.emit(formatAcpErrorMessage(error, rpc.failureLabel))
             null
         }
 
@@ -978,32 +976,26 @@ internal class SessionLoadCoordinator(
             return SessionLoadOutcome.Attached
         }
 
-        val capabilities = currentCapabilitiesProvider()
         // `session/load` replays history, `session/resume` only reattaches. Agents
         // that advertise neither have no way back into an existing session.
-        val canLoad = capabilities?.loadSession ?: true
-        val canResume = capabilities?.supportsResume() == true
-        if (!canLoad && !canResume) {
+        val rpc = currentCapabilitiesProvider().sessionAttachRpc()
+        if (rpc == null) {
             onRecoveryDisabled()
             return SessionLoadOutcome.Failed("This agent does not advertise session/load support.")
         }
 
-        return loadWithTimeout(announceReady, resume = !canLoad)
+        return loadWithTimeout(announceReady, rpc)
     }
 
     @Suppress("TooGenericExceptionCaught")
     private suspend fun loadWithTimeout(
         announceReady: Boolean,
-        resume: Boolean = false,
+        rpc: SessionAttachRpc,
     ): SessionLoadOutcome {
         val bridge =
             try {
                 withTimeout(sessionLoadTimeoutMs) {
-                    if (resume) {
-                        connectionManager.resumeSession(initialSessionId, cwd)
-                    } else {
-                        connectionManager.loadSession(initialSessionId, cwd)
-                    }
+                    connectionManager.attachSession(rpc, initialSessionId, cwd)
                 }
             } catch (_: AcpAuthenticationRequiredException) {
                 return SessionLoadOutcome.Failed(
@@ -1021,7 +1013,7 @@ internal class SessionLoadCoordinator(
                 // protocol errors; each is surfaced as a load failure instead of
                 // crashing the loading coroutine. Destroyed-bridge errors fall
                 // back to a fresh session so the user can keep chatting.
-                return handleLoadFailure(error, announceReady, resume)
+                return handleLoadFailure(error, announceReady, rpc)
             }
         return if (bridge != null) {
             onAttachBridge(bridge)
@@ -1035,7 +1027,7 @@ internal class SessionLoadCoordinator(
     private suspend fun handleLoadFailure(
         error: Exception,
         announceReady: Boolean = true,
-        resume: Boolean = false,
+        rpc: SessionAttachRpc,
     ): SessionLoadOutcome {
         // Cancellation means the caller went away, not that the load failed:
         // rethrow before any failure mapping so the createSession fallback
@@ -1067,10 +1059,6 @@ internal class SessionLoadCoordinator(
             // recovery stops here; the screen's Retry action re-arms it.
             onRecoveryDisabled()
         }
-        return SessionLoadOutcome.Failed(formatAcpErrorMessage(error, attachFailureLabel(resume)))
+        return SessionLoadOutcome.Failed(formatAcpErrorMessage(error, rpc.failureLabel))
     }
 }
-
-/** Failure fallback wording for the attach RPC the agent was sent. */
-private fun attachFailureLabel(resume: Boolean): String =
-    if (resume) "Failed to resume session" else "Failed to load session"

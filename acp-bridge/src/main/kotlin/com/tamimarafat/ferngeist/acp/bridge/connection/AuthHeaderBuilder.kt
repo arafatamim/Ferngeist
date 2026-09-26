@@ -90,6 +90,32 @@ class AcpDisconnectedException :
 @OptIn(UnstableApi::class)
 fun AgentCapabilities.supportsResume(): Boolean = sessionCapabilities.resume != null
 
+/**
+ * The session-attach RPC an agent's capabilities permit: `session/load` replays
+ * the conversation, `session/resume` only reattaches, and null means it
+ * advertises neither — an existing session cannot be reopened over ACP.
+ *
+ * Unobserved capabilities (still null) count as load-capable, matching what the
+ * callers did before this predicate existed.
+ */
+enum class SessionAttachRpc(
+    val rpc: String,
+    val failureLabel: String,
+) {
+    Load("session/load", "Failed to load session"),
+    Resume("session/resume", "Failed to resume session"),
+}
+
+/** Single capability→RPC decision; see [SessionAttachRpc]. */
+fun AgentCapabilities?.sessionAttachRpc(): SessionAttachRpc? {
+    if (this == null) return SessionAttachRpc.Load
+    return when {
+        loadSession -> SessionAttachRpc.Load
+        supportsResume() -> SessionAttachRpc.Resume
+        else -> null
+    }
+}
+
 @OptIn(UnstableApi::class)
 fun AgentCapabilities.displayLabels(): List<String> =
     buildList {

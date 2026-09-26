@@ -108,17 +108,24 @@ internal class SessionGateway(
     }
 
     /**
-     * Loads (or reattaches to) an existing session and returns a [SessionPort].
+     * Attaches to an existing session through the RPC the agent advertises:
+     * `session/load` (history replay) or `session/resume` (reattach only) — see
+     * [SessionAttachRpc].
      *
-     * Short-circuits if the session is already in the registry. Otherwise sends a
-     * `session/load` RPC with history-buffering via [SessionBridge.beginHydration].
-     * On completion the buffered history is committed via [SessionBridge.completeHydration].
+     * Short-circuits if the session is already in the registry. Otherwise the
+     * bridge is registered *before* the RPC so `notify()` callbacks during the
+     * attach have a target for history buffering ([SessionBridge.beginHydration]),
+     * and the buffered history is committed afterwards
+     * ([SessionBridge.completeHydration]). A resume replays nothing, so its bridge
+     * simply publishes its empty snapshot.
      *
      * A JSON-RPC -32602 / "already loaded" error is handled separately: if the
      * bridge exists locally it is reused; otherwise the session is assumed active
      * on another client and null is returned.
      */
-    suspend fun loadSession(
+    @OptIn(UnstableApi::class)
+    suspend fun attachSession(
+        rpc: SessionAttachRpc,
         sessionId: String,
         cwd: String,
     ): SessionPort? {
@@ -127,10 +134,10 @@ internal class SessionGateway(
         val client =
             orchestra.sdkClient
                 ?: throw AcpDisconnectedException()
-        orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, RPC_LOAD)
+        orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, rpc.rpc)
         val result =
             runCatching {
-                // Store bridge before client.loadSession() so BridgeSessionOperations
+                // Store bridge before the attach RPC so BridgeSessionOperations
                 // notify() callbacks during loading have a target for history buffering.
                 val bridge =
                     sessionRegistry.getBridge(sessionId)
@@ -139,80 +146,40 @@ internal class SessionGateway(
                         }
                 bridge.beginHydration()
 
+                val parameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList())
                 val session =
-                    client.loadSession(
-                        sessionId = SessionId(sessionId),
-                        sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
-                        operationsFactory = operationsFactory,
-                    )
+                    when (rpc) {
+                        SessionAttachRpc.Load ->
+                            client.loadSession(
+                                sessionId = SessionId(sessionId),
+                                sessionParameters = parameters,
+                                operationsFactory = operationsFactory,
+                            )
+
+                        SessionAttachRpc.Resume ->
+                            client.resumeSession(
+                                sessionId = SessionId(sessionId),
+                                sessionParameters = parameters,
+                                operationsFactory = operationsFactory,
+                            )
+                    }
                 val registeredBridge = registerSession(session)
                 registeredBridge.completeHydration()
                 registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
                 registeredBridge
             }
         return result.getOrElse { error ->
-            // The load deadline lives in the caller (`withTimeout`), so it arrives here
-            // as a cancellation — but it is a load failure, not the caller going away.
+            // The attach deadline lives in the caller (`withTimeout`), so it arrives here
+            // as a cancellation — but it is an attach failure, not the caller going away.
             // Without the teardown below the bridge stays registered and HYDRATING for
             // the life of the process, and the screen keeps rendering its spinner.
             if (error is TimeoutCancellationException) {
-                return@getOrElse handleSessionAttachFailure(error, sessionId, RPC_LOAD)
+                return@getOrElse handleSessionAttachFailure(error, sessionId, rpc)
             }
-            // A cancelled caller (the chat screen closed mid-load) is not a load
+            // A cancelled caller (the chat screen closed mid-attach) is not a
             // failure: rethrow so no local session state is destroyed for an exit.
             if (error is CancellationException) throw error
-            handleSessionAttachFailure(error, sessionId, RPC_LOAD)
-        }
-    }
-
-    /**
-     * Reattaches to an existing session *without* replaying its history
-     * (`session/resume`, advertised as `sessionCapabilities.resume`).
-     *
-     * Same lifecycle as [loadSession] — bridge stored before the RPC, hydration
-     * opened and completed around it — but the spec forbids a resume replay, so
-     * nothing is buffered: the bridge publishes its (empty) snapshot on
-     * registration and subsequent turns stream in as usual.
-     */
-    @OptIn(UnstableApi::class)
-    suspend fun resumeSession(
-        sessionId: String,
-        cwd: String,
-    ): SessionPort? {
-        getLoadedSession(sessionId)?.let { existing -> return existing }
-
-        val client =
-            orchestra.sdkClient
-                ?: throw AcpDisconnectedException()
-        orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, RPC_RESUME)
-        val result =
-            runCatching {
-                val bridge =
-                    sessionRegistry.getBridge(sessionId)
-                        ?: bridgeFactory(sessionId).also {
-                            sessionRegistry.storeBridge(sessionId, it)
-                        }
-                bridge.beginHydration()
-
-                val session =
-                    client.resumeSession(
-                        sessionId = SessionId(sessionId),
-                        sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
-                        operationsFactory = operationsFactory,
-                    )
-                val registeredBridge = registerSession(session)
-                registeredBridge.completeHydration()
-                registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
-                registeredBridge
-            }
-        return result.getOrElse { error ->
-            if (error is TimeoutCancellationException) {
-                return@getOrElse handleSessionAttachFailure(error, sessionId, RPC_RESUME)
-            }
-            // A cancelled caller (the chat screen closed mid-resume) is not a
-            // failure: rethrow so no local session state is destroyed for an exit.
-            if (error is CancellationException) throw error
-            handleSessionAttachFailure(error, sessionId, RPC_RESUME)
+            handleSessionAttachFailure(error, sessionId, rpc)
         }
     }
 
@@ -227,18 +194,18 @@ internal class SessionGateway(
      * lock acquisition would throw before [clearSessionState] runs, stranding the
      * bridge in HYDRATING.
      *
-     * @param rpc the failed RPC name, used for diagnostics and the failure label.
+     * @param rpc the attach RPC that failed, for diagnostics and the failure label.
      */
     private suspend fun handleSessionAttachFailure(
         error: Throwable,
         sessionId: String,
-        rpc: String,
+        rpc: SessionAttachRpc,
     ): SessionPort? {
         orchestra.toAuthRequiredException(error)?.let { authError -> throw authError }
         if (isSessionAlreadyLoadedError(error)) {
             getLoadedSession(sessionId)?.let { existing ->
                 orchestra.diagnosticsStore.appendError(
-                    rpc,
+                    rpc.rpc,
                     "Session is already loaded locally. Reusing the active session.",
                 )
                 return existing
@@ -254,26 +221,21 @@ internal class SessionGateway(
                 sessionRegistry.getBridge(sessionId)?.failHydration(message)
                 clearSessionState(sessionId, closeBridge = true)
             }
-            orchestra.diagnosticsStore.appendError(rpc, message)
+            orchestra.diagnosticsStore.appendError(rpc.rpc, message)
             return null
         }
 
         val message =
             formatAcpErrorMessage(
                 error,
-                if (rpc == RPC_LOAD) "Failed to load session" else "Failed to resume session",
+                rpc.failureLabel,
             )
         withContext(NonCancellable) {
             sessionRegistry.getBridge(sessionId)?.failHydration(message)
             clearSessionState(sessionId, closeBridge = true)
         }
-        orchestra.diagnosticsStore.appendError(rpc, message)
+        orchestra.diagnosticsStore.appendError(rpc.rpc, message)
         throw error
-    }
-
-    private companion object {
-        const val RPC_LOAD = "session/load"
-        const val RPC_RESUME = "session/resume"
     }
 
     /**
