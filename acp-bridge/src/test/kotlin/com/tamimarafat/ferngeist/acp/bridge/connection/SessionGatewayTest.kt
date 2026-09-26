@@ -55,6 +55,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -263,16 +264,20 @@ class SessionGatewayTest {
         flowOf(Event.PromptResponseEvent(PromptResponse(stopReason = StopReason.END_TURN)))
 
     @Test
-    fun `JsonRpcException with INVALID_PARAMS code and non-matching message is already loaded`() =
+    fun `JsonRpcException with INVALID_PARAMS code and non-matching message is not already loaded`() =
         runTest {
             val gateway = newGateway()
+            // -32602 is JSON-RPC's generic "invalid params": agents also return it for a
+            // bad cwd, an unknown session id and a malformed request. Reading it as
+            // "held" told those users to disconnect a session that was never held, and
+            // replaced the agent's own message with that instruction.
             val error =
                 JsonRpcException(
                     code = JsonRpcErrorCode.INVALID_PARAMS.code,
                     message = "Some unrelated server error text",
                     data = JsonNull,
                 )
-            assertTrue(gateway.isSessionAlreadyLoadedError(error))
+            assertFalse(gateway.isSessionAlreadyLoadedError(error))
         }
 
     @Test
@@ -297,7 +302,7 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `INVALID_PARAMS code deep in cause chain matches`() =
+    fun `INVALID_PARAMS code deep in cause chain is not enough without session wording`() =
         runTest {
             val gateway = newGateway()
             val rpcError =
@@ -307,6 +312,19 @@ class SessionGatewayTest {
                     data = JsonNull,
                 )
             val error = IllegalStateException("outer failure", rpcError)
+            assertFalse(gateway.isSessionAlreadyLoadedError(error))
+        }
+
+    @Test
+    fun `session wording still matches when the code is INVALID_PARAMS`() =
+        runTest {
+            val gateway = newGateway()
+            val error =
+                JsonRpcException(
+                    code = JsonRpcErrorCode.INVALID_PARAMS.code,
+                    message = "Invalid params: session is already active: s1",
+                    data = JsonNull,
+                )
             assertTrue(gateway.isSessionAlreadyLoadedError(error))
         }
 
@@ -480,6 +498,46 @@ class SessionGatewayTest {
                 "This session is already active elsewhere. " +
                     "Disconnect it from the session list, then reopen.",
                 result.exceptionOrNull()?.message,
+            )
+            assertNull(gateway.getSession("s1"))
+        }
+
+    /**
+     * The harness injects failures at the transport's `send()`, so the SDK wraps them and a
+     * wire-level JSON-RPC error response never reaches the classifier as a
+     * [JsonRpcException]. The bare-code rule is therefore covered by the predicate tests
+     * above; this pins the end-to-end guarantee that does survive here — a failure the
+     * classifier does not claim relays the agent's own message rather than the disconnect
+     * instruction.
+     */
+    @Test
+    fun `attachSession relays the agent message instead of the held-session instruction`() =
+        runTest {
+            val gateway = newGateway()
+            installBridge(gateway, "s1")
+            installSdkClient(
+                gateway,
+                clientFailingSessionLoad(
+                    JsonRpcException(
+                        code = JsonRpcErrorCode.INVALID_PARAMS.code,
+                        message = "Invalid params: cwd does not exist",
+                        data = JsonNull,
+                    ),
+                ),
+            )
+
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.Resume, "s1", "/some/cwd") }
+
+            val message = result.exceptionOrNull()?.message
+            assertNotEquals(
+                "a bare INVALID_PARAMS is not evidence that the session is held",
+                "This session is already active elsewhere. " +
+                    "Disconnect it from the session list, then reopen.",
+                message,
+            )
+            assertTrue(
+                "the agent's own message must reach the caller: $message",
+                message?.contains("cwd does not exist") == true,
             )
             assertNull(gateway.getSession("s1"))
         }

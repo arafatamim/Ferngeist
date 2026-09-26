@@ -226,6 +226,13 @@ internal class SessionGateway(
                 clearSessionState(sessionId, closeBridge = true)
             }
             orchestra.diagnosticsStore.appendError(rpc.rpc, message)
+            // The user-facing text is an instruction, not a diagnosis. Keep the agent's own
+            // words beside it, so a refusal classified from wording stays diagnosable when
+            // that wording turns out to have meant something else.
+            orchestra.diagnosticsStore.appendError(
+                rpc.rpc,
+                formatAcpErrorMessage(error, "Attach refused"),
+            )
             // Thrown rather than returned: the callers' null path collapses every
             // cause into "Could not load this session. Check connection and retry.",
             // which hides the one instruction that helps — release it elsewhere.
@@ -850,24 +857,31 @@ internal class SessionGateway(
     /**
      * Checks whether an error means the session is already loaded on the agent.
      *
-     * Agents surface this differently — a [JsonRpcException] with a standard
-     * INVALID_PARAMS code, a provider-specific code, or a message-only exception —
-     * so the code fast-path is backed by the wordings the bridged agents use when
-     * they still hold the session: "already loaded", "already active" (the
-     * harness has it in memory) and "active write handle" (another handle owns
-     * its store). For gateway sessions the gateway recovers from this
-     * transparently; this remains the fallback for direct (Manual) connections to
-     * an agent that keeps the session loaded.
+     * Agents surface this differently — a [JsonRpcException] with a provider-specific
+     * code, a standard INVALID_PARAMS code, or a message-only exception — so the
+     * wordings the bridged agents use when they still hold the session are matched
+     * anywhere in the cause chain: "already loaded", "already active" (the harness has
+     * it in memory) and "active write handle" (another handle owns its store).
+     *
+     * The JSON-RPC code alone is deliberately *not* evidence. INVALID_PARAMS is the
+     * protocol's generic "invalid params", returned just as readily for a bad cwd, an
+     * unknown session id or a malformed request; reading it as "held" replaced those
+     * users' real cause with the disconnect instruction. An unrecognised refusal is
+     * relayed as the agent worded it, which keeps the cause visible. The cost is a
+     * missed classification for an agent that signals a held session with a bare code
+     * and unrecognised wording: that degrades to the generic load failure instead of
+     * inventing a cause the evidence does not support. For gateway sessions the gateway
+     * recovers from this transparently; this remains the fallback for direct (Manual)
+     * connections to an agent that keeps the session loaded.
      */
     internal fun isSessionAlreadyLoadedError(error: Throwable): Boolean =
         generateSequence(error as Throwable?) { it.cause }.any { cause ->
-            (cause as? JsonRpcException)?.code == JsonRpcErrorCode.INVALID_PARAMS.code ||
-                SESSION_ACTIVE_MARKERS.any { marker ->
-                    // Details ride in the JSON-RPC `data` field, so match the
-                    // formatted text ("Internal error: {"details":"…"}") rather than
-                    // `message` alone.
-                    formatAcpErrorMessage(cause, "").contains(marker, ignoreCase = true)
-                }
+            SESSION_ACTIVE_MARKERS.any { marker ->
+                // Details ride in the JSON-RPC `data` field, so match the
+                // formatted text ("Internal error: {"details":"…"}") rather than
+                // `message` alone.
+                formatAcpErrorMessage(cause, "").contains(marker, ignoreCase = true)
+            }
         }
 
     /**
