@@ -4,10 +4,12 @@ import android.net.Uri
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
 import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
+import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -42,9 +44,11 @@ class ChatViewModelFactoryTest {
             sessionRepository = mockk<SessionRepository>(relaxed = true),
             chatScrollStateStore = mockk<ChatScrollStateStore>(relaxed = true),
             pendingPromptStore = mockk<PendingPromptStore>(relaxed = true),
+            switcherHintStore = mockk<SwitcherHintStore>(relaxed = true),
             recentSelectionStore = mockk<RecentSelectionStore>(relaxed = true),
             chatConnectionHub = chatConnectionHub,
             gatewayRepository = mockk<GatewayRepository>(relaxed = true),
+            launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true),
         )
 
     @Before
