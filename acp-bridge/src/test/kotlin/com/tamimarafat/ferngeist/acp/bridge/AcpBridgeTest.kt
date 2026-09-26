@@ -21,6 +21,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
+import com.tamimarafat.ferngeist.acp.bridge.facade.mapCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
@@ -424,5 +425,23 @@ class AcpAgentCapabilitiesTest {
         val capabilities = AgentCapabilities(loadSession = false)
 
         assertNull(capabilities.sessionAttachRpc())
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `resume-only agent maps to chat capabilities without history replay`() {
+        val capabilities =
+            AgentCapabilities(
+                loadSession = false,
+                sessionCapabilities = SessionCapabilities(resume = SessionResumeCapabilities()),
+            )
+
+        assertFalse(mapCapabilities(capabilities).supportsHistoryReplay)
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `load-capable agent maps to chat capabilities with history replay`() {
+        assertTrue(mapCapabilities(AgentCapabilities(loadSession = true)).supportsHistoryReplay)
     }
 }

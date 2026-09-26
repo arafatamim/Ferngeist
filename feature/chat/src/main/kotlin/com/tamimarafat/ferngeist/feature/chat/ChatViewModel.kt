@@ -106,6 +106,14 @@ class ChatViewModel
         private var trackedSessionId: String = mintedSessionId ?: sessionId
 
         /**
+         * True when this screen was opened on an existing session rather than the
+         * create-on-arrival sentinel. Only an existing session can be attached
+         * with `session/load`/`session/resume`, so only then can the transcript
+         * be missing history the agent never replays.
+         */
+        private val openedExistingSession: Boolean = sessionId != NEW_SESSION_ARG
+
+        /**
          * Identity for this chat's own local records (the durable prompt queue and
          * the scroll snapshot), or null while the chat is still the
          * [NEW_SESSION_ARG] sentinel.
@@ -255,6 +263,8 @@ class ChatViewModel
                                 copy(
                                     canSendImages = capabilities.canSendImages,
                                     supportsEmbeddedContext = capabilities.supportsEmbeddedContext,
+                                    resumedSession =
+                                        openedExistingSession && !capabilities.supportsHistoryReplay,
                                 )
                             }
                         }
@@ -1051,6 +1061,12 @@ data class ChatState(
     val commandsAdvertised: Boolean = false,
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
+    /**
+     * True when this screen attached to an existing session whose agent cannot
+     * replay history, so earlier turns exist only on the agent's side and the
+     * transcript starts empty. Drives the top-of-transcript resumed-session notice.
+     */
+    val resumedSession: Boolean = false,
     val gatewayWorkspaceConnection: GatewayWorkspaceConnection? = null,
     val gitStatus: GatewayGitStatus? = null,
     val gitDiffStats: GitDiffStats? = null,

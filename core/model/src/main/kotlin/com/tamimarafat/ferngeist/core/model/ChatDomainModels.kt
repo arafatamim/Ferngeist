@@ -148,6 +148,15 @@ data class ChatConnectionDiagnostics(
 data class ChatAgentCapabilities(
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
+    /**
+     * True when reopening an existing session replays its earlier messages to this
+     * client (`session/load`). False for a resume-only agent, whose reattached
+     * sessions start with an empty transcript here.
+     *
+     * Unobserved capabilities count as replay-capable, matching the attach-RPC
+     * decision that assumes `session/load` until the agent says otherwise.
+     */
+    val supportsHistoryReplay: Boolean = true,
 )
 
 /**

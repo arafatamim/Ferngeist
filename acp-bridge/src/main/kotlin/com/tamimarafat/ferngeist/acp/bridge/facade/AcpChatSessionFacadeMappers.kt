@@ -3,7 +3,9 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
+import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
@@ -50,6 +52,10 @@ internal fun mapCapabilities(caps: AgentCapabilities): ChatAgentCapabilities =
     ChatAgentCapabilities(
         canSendImages = caps.promptCapabilities.image,
         supportsEmbeddedContext = caps.promptCapabilities.embeddedContext,
+        // Reuse the attach decision rather than re-reading the capability flags:
+        // resume-only agents (and those that can attach no session at all) never
+        // replay history into this client.
+        supportsHistoryReplay = caps.sessionAttachRpc() == SessionAttachRpc.Load,
     )
 
 internal fun mapSnapshot(snapshot: SessionSnapshot): ChatSessionSnapshot =

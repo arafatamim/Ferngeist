@@ -93,6 +93,7 @@
     <string name="chat_session_error_no_load">此代理不支持 session/load。</string>
     <string name="chat_session_error_auth_required">此服务器需要 ACP 身份验证。请返回会话列表并先进行验证。</string>
     <string name="chat_session_error_bridge_restarted">加载此会话时 ACP 桥接进程已重启。已开启新的实时会话。</string>
+    <string name="chat_session_error_already_active">此会话已在其他地方处于活动状态。请在会话列表中将其断开，然后重新打开。</string>
     <string name="chat_session_error_load_timeout">会话加载超时。请检查服务器连接并重试。</string>
     <string name="chat_session_error_could_not_load">无法加载此会话。请检查连接并重试。</string>
     <string name="chat_session_error_not_ready">会话未就绪。请稍后重试。</string>
@@ -152,4 +153,5 @@
     <string name="switcher_untitled">未命名</string>
     <string name="switcher_generating">生成中</string>
     <string name="switcher_current_desc">当前会话</string>
+    <string name="chat_resumed_session">已恢复</string>
 </resources>

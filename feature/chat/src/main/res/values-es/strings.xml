@@ -87,6 +87,7 @@
     <string name="chat_session_error_no_load">Este agente no anuncia compatibilidad con session/load.</string>
     <string name="chat_session_error_auth_required">Este servidor requiere autenticación ACP. Vuelve a la lista de sesiones y autentícate primero.</string>
     <string name="chat_session_error_bridge_restarted">El proceso del puente ACP se reinició mientras se cargaba esta sesión. Se abrió una nueva sesión en vivo.</string>
+    <string name="chat_session_error_already_active">Esta sesión ya está activa en otro lugar. Desconéctala desde la lista de sesiones y vuelve a abrirla.</string>
     <string name="chat_session_error_load_timeout">Se agotó el tiempo de carga de la sesión. Comprueba la conexión al servidor e inténtalo de nuevo.</string>
     <string name="chat_session_error_could_not_load">No se pudo cargar esta sesión. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="chat_session_error_not_ready">La sesión no está lista. Vuelve a intentarlo en unos momentos.</string>
@@ -160,4 +161,5 @@
     <string name="switcher_untitled">Sin título</string>
     <string name="switcher_generating">Generando</string>
     <string name="switcher_current_desc">Sesión actual</string>
+    <string name="chat_resumed_session">Reanudada</string>
 </resources>

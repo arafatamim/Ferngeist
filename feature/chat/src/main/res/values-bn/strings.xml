@@ -87,6 +87,7 @@
     <string name="chat_session_error_no_load">এই এজেন্ট সেশন/লোড (session/load) সমর্থন জানায় না।</string>
     <string name="chat_session_error_auth_required">এই সার্ভারের জন্য এসিপি (ACP) প্রমাণীকরণ প্রয়োজন। সেশন তালিকায় ফিরে গিয়ে আগে প্রমাণীকরণ করুন।</string>
     <string name="chat_session_error_bridge_restarted">এই সেশন লোড করার সময় এসিপি (ACP) ব্রিজ প্রক্রিয়া পুনরায় চালু হয়েছে। নতুন লাইভ সেশন খোলা হয়েছে।</string>
+    <string name="chat_session_error_already_active">এই সেশনটি ইতিমধ্যেই অন্যত্র সক্রিয়। সেশন তালিকা থেকে এটি ডিসকানেক্ট করে আবার খুলুন।</string>
     <string name="chat_session_error_load_timeout">সেশন লোডের সময়সীমা শেষ হয়েছে। সার্ভার সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_could_not_load">এই সেশন লোড করা যায়নি। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_not_ready">সেশন প্রস্তুত নয়। কিছুক্ষণ পরে আবার চেষ্টা করুন।</string>
@@ -153,4 +154,5 @@
     <string name="switcher_untitled">শিরোনামহীন</string>
     <string name="switcher_generating">তৈরি হচ্ছে</string>
     <string name="switcher_current_desc">বর্তমান সেশন</string>
+    <string name="chat_resumed_session">পুনরায় শুরু</string>
 </resources>
