@@ -186,8 +186,8 @@ internal class SessionGateway(
     /**
      * Routes a failed `session/load` or `session/resume` to the appropriate
      * recovery: an auth-required error rethrows, an "already loaded" error reuses
-     * the local session or reports the remote-active case, and any other failure
-     * is logged and rethrown.
+     * the local session or raises [SessionAlreadyActiveException] for the
+     * remote-active case, and any other failure is logged and rethrown.
      *
      * The `failHydration` + [clearSessionState] teardown runs in [NonCancellable]:
      * `failHydration` takes the runtime mutex, so on an already-cancelled context the
@@ -195,7 +195,11 @@ internal class SessionGateway(
      * bridge in HYDRATING.
      *
      * @param rpc the attach RPC that failed, for diagnostics and the failure label.
+     *
+     * Suppresses `ThrowsCount`: this is the single funnel for every attach failure —
+     * auth rethrow, remote-active, and the original error.
      */
+    @Suppress("ThrowsCount")
     private suspend fun handleSessionAttachFailure(
         error: Throwable,
         sessionId: String,
@@ -213,7 +217,7 @@ internal class SessionGateway(
 
             val message =
                 "This session is already active elsewhere. " +
-                    "Reconnect or open a new session instead."
+                    "Disconnect it from the session list, then reopen."
             // failHydration takes the runtime mutex; on an already-cancelled context the
             // lock acquisition throws and clearSessionState never runs, leaving the
             // bridge stuck in HYDRATING (which buffers every event and publishes nothing).
@@ -222,7 +226,10 @@ internal class SessionGateway(
                 clearSessionState(sessionId, closeBridge = true)
             }
             orchestra.diagnosticsStore.appendError(rpc.rpc, message)
-            return null
+            // Thrown rather than returned: the callers' null path collapses every
+            // cause into "Could not load this session. Check connection and retry.",
+            // which hides the one instruction that helps — release it elsewhere.
+            throw SessionAlreadyActiveException(message)
         }
 
         val message =
@@ -843,20 +850,24 @@ internal class SessionGateway(
     /**
      * Checks whether an error means the session is already loaded on the agent.
      *
-     * Agents surface this differently — a [JsonRpcException] with varying error
-     * codes, or a plain message-only exception. We first fast-path on the
-     * JSON-RPC error code: a [JsonRpcException] with code
-     * [JsonRpcErrorCode.INVALID_PARAMS] means the session is already loaded when
-     * the agent signals it via a standard JSON-RPC error. Otherwise we fall back
-     * to matching the message anywhere in the cause chain. For gateway sessions
-     * the gateway recovers from this transparently; this remains the fallback
-     * for direct (Manual) connections to an agent that keeps the session loaded.
+     * Agents surface this differently — a [JsonRpcException] with a standard
+     * INVALID_PARAMS code, a provider-specific code, or a message-only exception —
+     * so the code fast-path is backed by the wordings the bridged agents use when
+     * they still hold the session: "already loaded", "already active" (the
+     * harness has it in memory) and "active write handle" (another handle owns
+     * its store). For gateway sessions the gateway recovers from this
+     * transparently; this remains the fallback for direct (Manual) connections to
+     * an agent that keeps the session loaded.
      */
     internal fun isSessionAlreadyLoadedError(error: Throwable): Boolean =
-        generateSequence(error as Throwable?) { it.cause }.any {
-            it is JsonRpcException &&
-                it.code == JsonRpcErrorCode.INVALID_PARAMS.code ||
-                it.message?.contains("already loaded", ignoreCase = true) == true
+        generateSequence(error as Throwable?) { it.cause }.any { cause ->
+            (cause as? JsonRpcException)?.code == JsonRpcErrorCode.INVALID_PARAMS.code ||
+                SESSION_ACTIVE_MARKERS.any { marker ->
+                    // Details ride in the JSON-RPC `data` field, so match the
+                    // formatted text ("Internal error: {"details":"…"}") rather than
+                    // `message` alone.
+                    formatAcpErrorMessage(cause, "").contains(marker, ignoreCase = true)
+                }
         }
 
     /**
@@ -887,3 +898,10 @@ internal class SessionGateway(
             is SessionConfigValue.UnknownValue -> error("Unsupported config option value: $this")
         }
 }
+
+/**
+ * Wordings agents use when they refuse an attach because they still hold the
+ * session — the ACP harness says "session is already active", its session store
+ * says "already owned by an active write handle".
+ */
+private val SESSION_ACTIVE_MARKERS = listOf("already loaded", "already active", "active write handle")

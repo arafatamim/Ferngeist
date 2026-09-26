@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequired
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
+import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAlreadyActiveException
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
@@ -917,6 +918,13 @@ class AcpChatSessionFacade(
             // The chat screen was closed mid-attach: cancellation must not be
             // reported as a load failure (and must not fabricate a session).
             throw error
+        } catch (_: SessionAlreadyActiveException) {
+            // The agent still holds the session. Recovery keeps retrying and the
+            // harness often frees it within a few seconds, so one toast per attempt
+            // is noise — and its advice (disconnect it) is wrong for a session that
+            // then attaches. The user-triggered open still reports it through the
+            // load outcome, and the attach failure is recorded in diagnostics.
+            null
         } catch (error: JsonRpcException) {
             shouldRecoverBridge = false
             _loadFailed.emit(formatAcpErrorMessage(error, rpc.failureLabel))

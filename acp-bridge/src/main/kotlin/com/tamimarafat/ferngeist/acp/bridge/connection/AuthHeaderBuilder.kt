@@ -84,6 +84,16 @@ class AcpDisconnectedException :
     )
 
 /**
+ * Raised when the agent refuses to attach a session because it still holds it —
+ * another client is attached, or an earlier attach was never released. Only
+ * releasing the session frees it (the session list's Disconnect), so the message
+ * carries that instruction instead of the raw agent error.
+ */
+class SessionAlreadyActiveException(
+    message: String,
+) : IllegalStateException(message)
+
+/**
  * True when the agent advertises `sessionCapabilities.resume`, i.e. it can
  * reattach to an existing session without replaying the conversation.
  */

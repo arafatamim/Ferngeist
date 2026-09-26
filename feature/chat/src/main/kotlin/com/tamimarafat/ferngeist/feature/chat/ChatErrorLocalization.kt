@@ -70,6 +70,8 @@ private val chatErrorResources: Map<String, Int> =
             to R.string.chat_session_error_auth_required,
         "ACP authentication is required for this server. Reconnect from the server list and choose an auth method."
             to R.string.chat_session_error_auth_reconnect,
+        "This session is already active elsewhere. Disconnect it from the session list, then reopen."
+            to R.string.chat_session_error_already_active,
         "The ACP bridge process restarted while loading this session. Opened a new live session."
             to R.string.chat_session_error_bridge_restarted,
     )

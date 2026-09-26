@@ -51,6 +51,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -317,6 +319,59 @@ class SessionGatewayTest {
         }
 
     @Test
+    fun `harness already active wording matches with a non-INVALID_PARAMS code`() =
+        runTest {
+            val gateway = newGateway()
+            val error =
+                JsonRpcException(
+                    code = JsonRpcErrorCode.INTERNAL_ERROR.code,
+                    message = "Invalid params: session is already active: 970999b8",
+                    data = JsonNull,
+                )
+            assertTrue(gateway.isSessionAlreadyLoadedError(error))
+        }
+
+    @Test
+    fun `session store active write handle wording matches`() =
+        runTest {
+            val gateway = newGateway()
+            val error =
+                IllegalStateException(
+                    "Internal error: {\"details\":\"session \\\"x\\\" is already owned by an active write handle\"}",
+                )
+            assertTrue(gateway.isSessionAlreadyLoadedError(error))
+        }
+
+    @Test
+    fun `write handle detail in json rpc data matches`() =
+        runTest {
+            val gateway = newGateway()
+            val error =
+                JsonRpcException(
+                    code = JsonRpcErrorCode.INTERNAL_ERROR.code,
+                    message = "Internal error",
+                    data =
+                        buildJsonObject {
+                            put("details", "session \"x\" is already owned by an active write handle")
+                        },
+                )
+            assertTrue(gateway.isSessionAlreadyLoadedError(error))
+        }
+
+    @Test
+    fun `unresumable session is not an already-loaded error`() =
+        runTest {
+            val gateway = newGateway()
+            val error =
+                JsonRpcException(
+                    code = JsonRpcErrorCode.INTERNAL_ERROR.code,
+                    message = "Invalid params: session is not resumable: 970999b8",
+                    data = JsonNull,
+                )
+            assertFalse(gateway.isSessionAlreadyLoadedError(error))
+        }
+
+    @Test
     fun `createSession with blank cwd returns null`() =
         runTest {
             val gateway = newGateway()
@@ -401,6 +456,32 @@ class SessionGatewayTest {
                 listOf("session/resume"),
                 transport.sentMethods,
             )
+        }
+
+    @Test
+    fun `attachSession raises the actionable error when the agent still holds the session`() =
+        runTest {
+            val gateway = newGateway()
+            installBridge(gateway, "s1")
+            installSdkClient(
+                gateway,
+                clientFailingSessionLoad(
+                    JsonRpcException(
+                        code = JsonRpcErrorCode.INTERNAL_ERROR.code,
+                        message = "Invalid params: session is already active: s1",
+                        data = JsonNull,
+                    ),
+                ),
+            )
+
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.Resume, "s1", "/some/cwd") }
+
+            assertEquals(
+                "This session is already active elsewhere. " +
+                    "Disconnect it from the session list, then reopen.",
+                result.exceptionOrNull()?.message,
+            )
+            assertNull(gateway.getSession("s1"))
         }
 
     @Test
