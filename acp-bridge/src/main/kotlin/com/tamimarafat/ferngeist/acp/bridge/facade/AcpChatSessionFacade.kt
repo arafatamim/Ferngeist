@@ -5,6 +5,7 @@ import com.agentclientprotocol.protocol.JsonRpcException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAlreadyActiveException
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
@@ -640,7 +641,8 @@ class AcpChatSessionFacade(
 
     /**
      * Lists how the gateway currently sees this agent's sessions, or null when
-     * the lookup failed (callers then fall back to in-memory state).
+     * the lookup failed. The caller must not read null as "nobody holds one": it
+     * asks for an isolated runtime instead, per [gatedGatewayLookup]'s contract.
      */
     private suspend fun gatewaySessions(
         gatewaySource: GatewaySource,
@@ -693,10 +695,18 @@ class AcpChatSessionFacade(
         // Someone else on this agent holds a live session. A plain start hands
         // back that runtime, so this chat needs its own process. The in-memory
         // check also covers a session the listing has not caught up with yet.
+        //
+        // A *failed* lookup ([sessions] == null, the "fall back to a fresh spawn"
+        // contract of [gatedGatewayLookup]) takes the same path as "someone else holds
+        // one". Reading the failure as "nobody holds it" asked for a plain reuse start,
+        // and the gateway's own reuse heuristic then hands back whichever session its
+        // chosen runtime already holds — possibly another chat's — which is precisely
+        // the fight this decision exists to prevent, and it is decided from memory that
+        // is empty after process death.
         val heldByAnother =
             sessions?.any { it.isResumable && it.sessionId != ownSessionId } == true ||
                 hub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId)
-        if (!heldByAnother) return GatewayLaunchPlan(new = false, reuseRuntimeId = null)
+        if (!heldByAnother && sessions != null) return GatewayLaunchPlan(new = false, reuseRuntimeId = null)
         if (!reserveIsolatedSlot(gatewaySource)) return null
         return GatewayLaunchPlan(new = true, reuseRuntimeId = null)
     }
@@ -1041,9 +1051,11 @@ internal class SessionLoadCoordinator(
         // rethrow before any failure mapping so the createSession fallback
         // can never mint a session for a closed screen.
         if (error is CancellationException) throw error
-        if (isDestroyedBridgeStreamError(error)) {
-            // If the bridge process restarted mid-load, create a new session
-            // so the user can keep chatting without reopening the screen.
+        if (!transportIsConnected() && isDestroyedBridgeStreamError(error)) {
+            // Two conditions, because the wording alone was never evidence: it let any
+            // error carrying that phrase mint a session — spawning an agent process for
+            // a gateway agent — while reporting a cause ("the bridge restarted") that
+            // nothing had observed. The transport state is the measured half.
             val fallbackBridge =
                 runCatching { connectionManager.createSession(cwd) }.getOrNull()
             if (fallbackBridge != null) {
@@ -1052,7 +1064,7 @@ internal class SessionLoadCoordinator(
                 onOperationError(
                     ChatOperationError(
                         message =
-                            "The ACP bridge process restarted while loading this session. " +
+                            "The connection to the ACP bridge was lost while loading this session. " +
                                 "Opened a new live session.",
                         stopStreaming = false,
                     ),
@@ -1069,4 +1081,8 @@ internal class SessionLoadCoordinator(
         }
         return SessionLoadOutcome.Failed(formatAcpErrorMessage(error, rpc.failureLabel))
     }
+
+    /** True when the transport reports a live connection; the measured half of a recovery decision. */
+    private fun transportIsConnected(): Boolean =
+        connectionManager.connectionState.value is AcpConnectionState.Connected
 }

@@ -72,6 +72,6 @@ private val chatErrorResources: Map<String, Int> =
             to R.string.chat_session_error_auth_reconnect,
         "This session is already active elsewhere. Disconnect it from the session list, then reopen."
             to R.string.chat_session_error_already_active,
-        "The ACP bridge process restarted while loading this session. Opened a new live session."
-            to R.string.chat_session_error_bridge_restarted,
+        "The connection to the ACP bridge was lost while loading this session. Opened a new live session."
+            to R.string.chat_session_error_bridge_connection_lost,
     )

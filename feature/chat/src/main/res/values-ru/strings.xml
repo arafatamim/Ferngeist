@@ -90,7 +90,7 @@
     <string name="chat_session_error_disconnected">Отключено. Переподключитесь для обновления.</string>
     <string name="chat_session_error_no_load">Агент не поддерживает session/load.</string>
     <string name="chat_session_error_auth_required">Требуется ACP аутентификация. Перейдите в список сессий для аутентификации.</string>
-    <string name="chat_session_error_bridge_restarted">ACP мост был перезагружен. Открыта новая сессия.</string>
+    <string name="chat_session_error_bridge_connection_lost">Соединение с ACP-мостом было потеряно при загрузке этой сессии. Открыта новая сессия.</string>
     <string name="chat_session_error_already_active">Эта сессия уже активна в другом месте. Отключите её в списке сессий и откройте заново.</string>
     <string name="chat_session_error_load_timeout">Время загрузки сессии истекло.</string>
     <string name="chat_session_error_could_not_load">Не удалось загрузить сессию.</string>

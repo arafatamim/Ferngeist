@@ -86,7 +86,7 @@
     <string name="chat_session_error_disconnected">Desconectado. Reconecte para atualizar esta sessão.</string>
     <string name="chat_session_error_no_load">Este agente não anuncia suporte a session/load.</string>
     <string name="chat_session_error_auth_required">A autenticação ACP é necessária para este servidor. Volte para a lista de sessões e autentique primeiro.</string>
-    <string name="chat_session_error_bridge_restarted">O processo da ponte ACP foi reiniciado enquanto esta sessão carregava. Foi aberta uma nova sessão ao vivo.</string>
+    <string name="chat_session_error_bridge_connection_lost">A conexão com a ponte ACP foi perdida ao carregar esta sessão. Foi aberta uma nova sessão ao vivo.</string>
     <string name="chat_session_error_already_active">Esta sessão já está ativa em outro lugar. Desconecte-a na lista de sessões e abra novamente.</string>
     <string name="chat_session_error_load_timeout">O carregamento da sessão expirou. Verifique a conexão com o servidor e tente novamente.</string>
     <string name="chat_session_error_could_not_load">Não foi possível carregar esta sessão. Verifique a conexão e tente novamente.</string>
