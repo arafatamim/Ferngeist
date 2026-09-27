@@ -61,10 +61,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -98,15 +104,51 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
 import com.mikepenz.markdown.model.State as MarkdownRenderState
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
 private const val SKELETON_SHIMMER_BAND_PX = 200f
 private const val SKELETON_SHIMMER_MILLIS = 800
+
+/** Ceiling on pattern repeats: unbounded constraints would otherwise loop forever. */
+private const val SKELETON_MAX_PASSES = 16
+private val SKELETON_LINE_HEIGHT = 12.dp
+private val SKELETON_LINE_GAP = 8.dp
+
+/** Gap between turns. Deliberately wider than [SKELETON_LINE_GAP] so the pattern reads as separate messages. */
+private val SKELETON_GROUP_GAP = 20.dp
 private val SKELETON_USER_LINE = listOf(1f)
+
+// Assistant blocks stay between 4 and 7 lines: long enough to read as a response.
 private val SKELETON_ASSISTANT_LINES_PRIMARY = listOf(1f, 0.92f, 0.78f, 0.6f)
-private val SKELETON_ASSISTANT_LINES_SECONDARY = listOf(0.95f, 0.7f)
+private val SKELETON_ASSISTANT_LINES_EXTENDED = listOf(1f, 0.95f, 0.88f, 0.97f, 0.9f, 0.86f, 0.5f)
+
+/** One placeholder message: right-aligned and short for the user, full-width for the assistant. */
+private data class SkeletonMessageSpec(
+    val alignment: Alignment.Horizontal,
+    val widthFraction: Float,
+    val lineFractions: List<Float>,
+)
+
+private val SKELETON_PATTERN =
+    listOf(
+        SkeletonMessageSpec(Alignment.End, 0.5f, SKELETON_USER_LINE),
+        SkeletonMessageSpec(Alignment.Start, 1f, SKELETON_ASSISTANT_LINES_PRIMARY),
+        SkeletonMessageSpec(Alignment.End, 0.38f, SKELETON_USER_LINE),
+        SkeletonMessageSpec(Alignment.Start, 1f, SKELETON_ASSISTANT_LINES_EXTENDED),
+        SkeletonMessageSpec(Alignment.End, 0.44f, SKELETON_USER_LINE),
+        SkeletonMessageSpec(Alignment.Start, 1f, SKELETON_ASSISTANT_LINES_PRIMARY),
+    )
+
+/** Height of one full pass of [SKELETON_PATTERN], including the gap that follows it. */
+private val SKELETON_PATTERN_HEIGHT: Dp =
+    SKELETON_PATTERN.fold(SKELETON_GROUP_GAP * SKELETON_PATTERN.size) { total, message ->
+        total +
+            SKELETON_LINE_HEIGHT * message.lineFractions.size +
+            SKELETON_LINE_GAP * (message.lineFractions.size - 1)
+    }
 
 /**
  * Processes picked URIs into images and file attachments, returning the combined
@@ -372,48 +414,56 @@ internal fun ChatScreenBody(
  * Mirrors the message list (user bubbles right, assistant bubbles left) so the
  * layout doesn't jump when real content paints. Only reachable on a true
  * cold open — cached transcripts render immediately instead.
+ *
+ * The pattern repeats until it covers the viewport and dissolves toward the
+ * bottom, so the screen reads as "transcript on the way" rather than four
+ * bubbles floating above empty space.
  */
 @Composable
 private fun ChatLoadingSkeleton(
     listTopPadding: Dp,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().clipToBounds()) {
         // Sweep the full measured width: a fixed pixel range leaves wide
         // screens half-static.
         val sweepWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
         val lineBrush = rememberSkeletonShimmerBrush(sweepWidthPx)
+        val contentTopPadding = listTopPadding + 24.dp
+        val passes =
+            ceil((maxHeight - contentTopPadding) / SKELETON_PATTERN_HEIGHT)
+                .toInt()
+                .coerceIn(1, SKELETON_MAX_PASSES)
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(start = 16.dp, top = listTopPadding + 24.dp, end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(start = 16.dp, top = contentTopPadding, end = 16.dp)
+                    // Offscreen so the erase below cuts only the skeleton, not the
+                    // chat surface drawn behind it.
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush =
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color.Transparent, Color.Black),
+                                ),
+                            blendMode = BlendMode.DstOut,
+                        )
+                    },
+            verticalArrangement = Arrangement.spacedBy(SKELETON_GROUP_GAP),
         ) {
-            SkeletonBlock(
-                brush = lineBrush,
-                alignment = Alignment.End,
-                widthFraction = 0.5f,
-                lineFractions = SKELETON_USER_LINE,
-            )
-            SkeletonBlock(
-                brush = lineBrush,
-                alignment = Alignment.Start,
-                widthFraction = 1f,
-                lineFractions = SKELETON_ASSISTANT_LINES_PRIMARY,
-            )
-            SkeletonBlock(
-                brush = lineBrush,
-                alignment = Alignment.End,
-                widthFraction = 0.38f,
-                lineFractions = SKELETON_USER_LINE,
-            )
-            SkeletonBlock(
-                brush = lineBrush,
-                alignment = Alignment.Start,
-                widthFraction = 1f,
-                lineFractions = SKELETON_ASSISTANT_LINES_SECONDARY,
-            )
+            repeat(passes) {
+                SKELETON_PATTERN.forEach { message ->
+                    SkeletonBlock(
+                        brush = lineBrush,
+                        alignment = message.alignment,
+                        widthFraction = message.widthFraction,
+                        lineFractions = message.lineFractions,
+                    )
+                }
+            }
         }
     }
 }
@@ -434,14 +484,14 @@ private fun ColumnScope.SkeletonBlock(
             Modifier
                 .fillMaxWidth(widthFraction)
                 .align(alignment),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(SKELETON_LINE_GAP),
     ) {
         lineFractions.forEach { fraction ->
             Box(
                 modifier =
                     Modifier
                         .fillMaxWidth(fraction)
-                        .height(12.dp)
+                        .height(SKELETON_LINE_HEIGHT)
                         .background(brush, CircleShape),
             )
         }
