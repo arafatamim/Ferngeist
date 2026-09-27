@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
+import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -64,7 +65,8 @@ class EncryptedAuthEnvValueStore
                 val existingEncrypted = context.encryptedDataStore.data.first()[preferencesKey]
                 val existing =
                     if (existingEncrypted != null) {
-                        decodeValues(cipherProvider.decrypt(existingEncrypted))
+                        decodeValuesOrNull(cipherProvider.decrypt(existingEncrypted))
+                            ?: throw AuthEnvValuesUnreadableException(serverId)
                     } else {
                         emptyMap()
                     }
@@ -89,18 +91,23 @@ class EncryptedAuthEnvValueStore
                 }
             }
 
-        private fun decodeValues(encoded: String?): Map<String, String> {
+        private fun decodeValues(encoded: String?): Map<String, String> = decodeValuesOrNull(encoded) ?: emptyMap()
+
+        /**
+         * Decodes the stored map, or null when the blob decrypts but cannot be parsed.
+         *
+         * [getValues] degrades that to an empty map (the dialog can only render blanks),
+         * but [updateValues] must not: an empty base silently replaced the values it could
+         * not read. That path raises [AuthEnvValuesUnreadableException] instead.
+         */
+        private fun decodeValuesOrNull(encoded: String?): Map<String, String>? {
             if (encoded.isNullOrBlank()) {
                 return emptyMap()
             }
-            return runCatching {
+            return try {
                 json.decodeFromString(valueSerializer, encoded)
-            }.getOrElse { error ->
-                if (error is SerializationException) {
-                    emptyMap()
-                } else {
-                    throw error
-                }
+            } catch (_: SerializationException) {
+                null
             }
         }
 

@@ -28,6 +28,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
+import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
@@ -722,6 +723,10 @@ class ServerListViewModel
                 gatewaySourceRepository = gatewaySourceRepository,
             )
 
+        // Each failure path exits early — a missing runtime, no auth context, an unreadable
+        // stored copy, a failed handoff — so the exit count is inherent to the sequence, not a
+        // sign of nested conditions that want flattening.
+        @Suppress("ReturnCount")
         private suspend fun authenticateGatewayEnvVar(
             pending: PendingAuthentication,
             method: AcpAuthMethodInfo,
@@ -734,7 +739,17 @@ class ServerListViewModel
             val gatewaySource = gatewayContext.gatewaySource
 
             val envPayload = buildEnvPayload(method, envValues)
-            persistEnvValues(authEnvValueStore, server.id, method, envValues)
+            try {
+                persistEnvValues(authEnvValueStore, server.id, method, envValues)
+            } catch (error: AuthEnvValuesUnreadableException) {
+                // The stored copy decrypts but cannot be parsed, so this write's base was an
+                // empty map. Continuing would destroy secrets the user still has; the stored
+                // blob is left untouched for them to replace.
+                _uiState.update {
+                    it.copy(pendingAuthentication = pending.copy(authErrorMessage = error.message))
+                }
+                return
+            }
             val handoff =
                 restartGatewayRuntime(pending, server, gatewaySource, gatewayRuntime, envPayload) ?: return
             val updatedPending =

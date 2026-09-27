@@ -25,6 +25,7 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
+import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.filterSessionsByCwd
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -787,7 +788,12 @@ class SessionListViewModel
 
         /**
          * Handles gateway-backed env authentication by restarting the runtime with env vars.
+         *
+         * Each failure path exits early — no auth context, an unreadable stored copy, a failed
+         * handoff — so the exit count is inherent to the sequence rather than a sign of nested
+         * conditions that want flattening.
          */
+        @Suppress("ReturnCount")
         private suspend fun authenticateGatewayEnvVar(
             pending: SessionListPendingAuthentication,
             method: AcpAuthMethodInfo,
@@ -800,7 +806,19 @@ class SessionListViewModel
             val currentServer = context.server
             val gatewaySource = context.gatewaySource
 
-            persistEnvValues(authEnvValueStore, currentServer.id, method, envValues)
+            try {
+                persistEnvValues(authEnvValueStore, currentServer.id, method, envValues)
+            } catch (error: AuthEnvValuesUnreadableException) {
+                // The stored copy decrypts but cannot be parsed, so this write's base was an
+                // empty map. Continuing would destroy secrets the user still has; the stored
+                // blob is left untouched for them to replace.
+                _events.emit(
+                    SessionListEvent.ShowError(
+                        error.message ?: "Saved environment values could not be read on this device.",
+                    ),
+                )
+                return
+            }
             val handoff =
                 restartAndReconnect(
                     pending = pending,
