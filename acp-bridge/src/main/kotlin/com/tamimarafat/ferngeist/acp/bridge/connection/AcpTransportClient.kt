@@ -234,7 +234,9 @@ internal class AcpTransportClient(
     }
 
     suspend fun awaitConnectivityForReconnect() {
-        val currentlyOnline = runCatching { connectivityObserver.isConnected.first() }.getOrDefault(true)
+        // A connectivity read that fails is not evidence that the device is online:
+        // assuming "online" skips the wait and spends a reconnect attempt while offline.
+        val currentlyOnline = runCatching { connectivityObserver.isConnected.first() }.getOrDefault(false)
         if (currentlyOnline) return
 
         reconnectAttempts = 0
@@ -568,14 +570,28 @@ internal class AcpTransportClient(
                             }
 
                         if (reconnected) {
-                            initialize()
+                            val initialized = initialize()
                             // ACP auth state is per-connection: a fresh socket after reconnect
                             // has no authenticated session, so re-run authentication with the
                             // stored preferred method before session ops resume.
-                            currentConfig?.preferredAuthMethodId?.let { methodId ->
-                                authenticate(methodId)
+                            val authenticated =
+                                currentConfig?.preferredAuthMethodId?.let { methodId ->
+                                    authenticate(methodId)
+                                }
+                            // An open socket is not a usable connection. Breaking out here
+                            // regardless left the state Connected, and every reuse guard reads
+                            // that as "already connected and initialized" (ServerListViewModel's
+                            // reuse guard, ChatConnectionHub's listing/delete legs): session ops
+                            // then ran on a client whose handshake never completed, and their
+                            // failure was recorded as an empty result. Drop the socket and let
+                            // the loop retry with backoff instead.
+                            if (initialized != null && authenticated !is AcpAuthenticateResult.Failure) {
+                                break
                             }
-                            break
+                            runCatching { sdkClient?.protocol?.close() }
+                            sdkClient = null
+                            updateConnectionState(AcpConnectionState.Disconnected)
+                            diagnosticsStore.markDisconnected()
                         }
                     }
                 } finally {

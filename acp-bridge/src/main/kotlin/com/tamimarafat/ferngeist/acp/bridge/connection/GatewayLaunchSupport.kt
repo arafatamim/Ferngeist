@@ -172,10 +172,15 @@ suspend fun buildInitializeFailureMessage(
                 }
             }
 
-    if (runtimeHint.isNullOrBlank() || diagnosticMessage.contains(runtimeHint, ignoreCase = true)) {
+    // De-dup by the exact line this function would append. Substring containment
+    // suppressed the runtime hint whenever some *shorter* stderr line happened to be a
+    // substring of the diagnostic message — throwing away the line that explained the
+    // failure. Duplicating a hint costs a line; dropping it costs the diagnosis.
+    val hint = runtimeHint?.takeIf { it.isNotBlank() }
+    if (hint == null || diagnosticMessage.endsWith("Gateway runtime: $hint", ignoreCase = true)) {
         return diagnosticMessage
     }
-    return "$diagnosticMessage\nGateway runtime: $runtimeHint"
+    return "$diagnosticMessage\nGateway runtime: $hint"
 }
 
 fun shortInitializeFailureMessage(server: LaunchableTarget): String =
