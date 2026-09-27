@@ -636,7 +636,11 @@ class ChatConnectionHub(
     ): ListSessionsResult {
         val target =
             launchableTargetRepository?.getTarget(serverId)
-                ?: return ListSessionsResult.Failed("Server was removed before listing sessions.")
+                ?: return ListSessionsResult.Failed(
+                    // Not necessarily "removed": a stored credential this device can no longer
+                    // decrypt surfaces here as a missing target too, so name only what is known.
+                    "This server is no longer available to the app. Add it again from the server list.",
+                )
         val listing = listingSession(serverId)
         val warm = warmManagerFor(serverId)
         return if (warm != null) {
@@ -698,9 +702,11 @@ class ChatConnectionHub(
                 true
             } else {
                 val config =
-                    buildListingConfig(target) ?: return ListSessionsResult.Failed(
-                        "Failed to launch ${target.name}",
-                    )
+                    buildListingConfig(target).getOrElse { error ->
+                        return ListSessionsResult.Failed(
+                            formatAcpErrorMessage(error, "Failed to launch ${target.name}"),
+                        )
+                    }
                 try {
                     withContext(Dispatchers.IO) {
                         transport.connectAndInitializeWithoutReconnect(config)
@@ -980,7 +986,7 @@ class ChatConnectionHub(
                 val connected =
                     transport.isConnected ||
                         run {
-                            val config = buildListingConfig(target)
+                            val config = buildListingConfig(target).getOrNull()
                             config != null &&
                                 withContext(Dispatchers.IO) {
                                     transport.connectAndInitializeWithoutReconnect(config)
@@ -1048,26 +1054,42 @@ class ChatConnectionHub(
             )
         }
 
-    private suspend fun buildListingConfig(target: LaunchableTarget): AcpConnectionConfig? =
+    /**
+     * Builds the config for a listing or delete leg on [target].
+     *
+     * A failure keeps its cause. The launch context already carries the actionable
+     * reason ("Gateway credential expired. Please pair this gateway again."), and
+     * folding it into `null` replaced that with a locally authored
+     * "Failed to launch X" — the user was never told to re-pair.
+     */
+    private suspend fun buildListingConfig(target: LaunchableTarget): Result<AcpConnectionConfig> =
         when (target) {
             is LaunchableTarget.GatewayAgent -> {
                 val gatewaySourceRepository = gatewaySourceRepository
                 val gatewayRepository = gatewayRepository
                 if (gatewaySourceRepository == null || gatewayRepository == null) {
-                    return null
+                    Result.failure(
+                        IllegalStateException(
+                            "No gateway is configured for ${target.name}. Re-add it from the server list.",
+                        ),
+                    )
+                } else {
+                    buildGatewayLaunchContext(
+                        gatewayRepository = gatewayRepository,
+                        gatewaySourceRepository = gatewaySourceRepository,
+                        server = target,
+                    ).map { it.config }
                 }
-                buildGatewayLaunchContext(
-                    gatewayRepository = gatewayRepository,
-                    gatewaySourceRepository = gatewaySourceRepository,
-                    server = target,
-                ).getOrNull()?.config
             }
+
             is LaunchableTarget.Manual ->
-                AcpConnectionConfig(
-                    scheme = target.server.scheme,
-                    host = target.server.host,
-                    preferredAuthMethodId = target.server.preferredAuthMethodId,
-                    serverDisplayName = target.name,
+                Result.success(
+                    AcpConnectionConfig(
+                        scheme = target.server.scheme,
+                        host = target.server.host,
+                        preferredAuthMethodId = target.server.preferredAuthMethodId,
+                        serverDisplayName = target.name,
+                    ),
                 )
         }
 

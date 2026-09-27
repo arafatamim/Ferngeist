@@ -132,8 +132,26 @@ internal class ConnectionOrchestrator(
         transportClient.close()
     }
 
+    /**
+     * Lists the agent's sessions for [cwd].
+     *
+     * A failure is *thrown*, never folded into an empty list. "The agent could not
+     * answer" and "the agent has no sessions" are different facts, and the caller
+     * persists what it receives ([ChatConnectionHub] replaces the stored rows): an
+     * empty list on failure deleted the user's cached sessions and painted an empty
+     * directory. The 10s bound is converted into a failure for the same reason — as a
+     * [kotlinx.coroutines.TimeoutCancellationException] it reads as a cancellation and
+     * disappears into the caller's coroutine instead of reaching the retry path.
+     *
+     * @throws SessionListingUnavailableException when no connected client can list.
+     * @throws AcpAuthenticationRequiredException when the agent demands authentication.
+     */
     suspend fun listSessions(cwd: String? = null): List<SessionSummary> {
-        val client = transportClient.sdkClient ?: return emptyList()
+        val client =
+            transportClient.sdkClient
+                ?: throw SessionListingUnavailableException(
+                    "The agent is not connected, so its sessions could not be listed.",
+                )
         return runCatching {
             // client.listSessions returns a cold, finite Flow; .toList() collects
             // all items into memory — safe because the server returns a bounded set.
@@ -148,14 +166,38 @@ internal class ConnectionOrchestrator(
                     )
                 }
             }
-        }.getOrElse {
-            if (it is CancellationException && it !is kotlinx.coroutines.TimeoutCancellationException) throw it
-            toAuthRequiredException(it)?.let { error -> throw error }
-            diagnosticsStore.appendError(
-                "session/list",
-                formatAcpErrorMessage(it, "Failed to list sessions"),
-            )
-            emptyList()
+        }.getOrElse { error ->
+            // A real cancellation — not our own 10s bound — is the caller going away, so it
+            // passes through untouched. Everything else is raised as itself: an auth challenge
+            // replaces the failure and is not also logged as a listing error, and any other
+            // cause is recorded before it is re-raised, because the caller needs the failure
+            // rather than an empty list that reads as "this agent has no sessions".
+            val realCancellation =
+                error is CancellationException &&
+                    error !is kotlinx.coroutines.TimeoutCancellationException
+            val toRaise =
+                if (realCancellation) {
+                    error
+                } else {
+                    val failure =
+                        if (error is kotlinx.coroutines.TimeoutCancellationException) {
+                            SessionListingUnavailableException(
+                                "Timed out waiting for the agent to list its sessions " +
+                                    "(${LIST_SESSIONS_TIMEOUT_MS / 1000}s). Check the connection and retry.",
+                            )
+                        } else {
+                            error
+                        }
+                    val auth = toAuthRequiredException(failure)
+                    if (auth == null) {
+                        diagnosticsStore.appendError(
+                            "session/list",
+                            formatAcpErrorMessage(failure, "Failed to list sessions"),
+                        )
+                    }
+                    auth ?: failure
+                }
+            throw toRaise
         }
     }
 
@@ -223,19 +265,31 @@ internal class ConnectionOrchestrator(
         )
     }
 
+    /**
+     * True when the failure is the agent asking *this client* to authenticate.
+     *
+     * The protocol's own signal is [JsonRpcErrorCode.AUTH_REQUIRED]; the wording
+     * fallback exists for agents that report it as a plain error. It reads
+     * [Throwable.message] only: the JSON-RPC `data` field is agent-authored payload
+     * (a provider failure such as "authentication required for provider X" travels
+     * there), and matching it presented an agent-side auth problem as this client's
+     * own ACP auth flow — a remedy that cannot fix it, while killing background
+     * recovery.
+     */
     private fun isAuthenticationRequiredError(error: Throwable): Boolean {
         val rpcError = error as? JsonRpcException
         if (rpcError?.code == JsonRpcErrorCode.AUTH_REQUIRED.code) return true
-        val message =
-            buildString {
-                append(error.message.orEmpty())
-                if (rpcError != null) {
-                    append(' ')
-                    append(rpcError.data?.toString().orEmpty())
-                }
-            }
+        val message = error.message.orEmpty()
         return message.contains("auth_required", ignoreCase = true) ||
             message.contains("authentication required", ignoreCase = true) ||
             message.contains("requires authentication", ignoreCase = true)
     }
 }
+
+/**
+ * Thrown when a session listing cannot run or could not complete, so the caller can
+ * tell an unanswered listing apart from an empty one.
+ */
+class SessionListingUnavailableException(
+    message: String,
+) : IllegalStateException(message)
