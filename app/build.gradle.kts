@@ -25,8 +25,8 @@ if (file("google-services.json").exists()) {
 // literals, and the GitHub release asset names ("Ferngeist-$versionName.apk")
 // must all agree. F-Droid's checkupdates parses these literal values, so
 // they MUST NOT be computed (e.g. via git describe).
-val appVersionName = "0.16.0-alpha2"
-val appVersionCode = 1502
+val appVersionName = "0.16.0-alpha3"
+val appVersionCode = 1503
 
 val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.trim()?.replaceFirst(Regex("[\\\\/]+$"), "")
 val releaseKeystorePassword: String? = System.getenv("ANDROID_KEYSTORE_PASSWORD")
@@ -63,8 +63,8 @@ android {
         applicationId = "com.tamimarafat.ferngeist"
         minSdk = 30
         targetSdk = 37
-        versionCode = 1502
-        versionName = "0.16.0-alpha2"
+        versionCode = 1503
+        versionName = "0.16.0-alpha3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

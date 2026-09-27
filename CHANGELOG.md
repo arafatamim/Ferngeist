@@ -1,3 +1,26 @@
+## [0.16.0-alpha3] - 2026-09-27
+
+### Features
+
+- *(acp)* Resume sessions on agents that advertise session/resume ([9d17185](https://github.com/arafatamim/Ferngeist/commit/9d171859a5d59e937745a21793c381abb57e8dcd))
+- *(chat)* Localize facade error messages at display ([e5be13e](https://github.com/arafatamim/Ferngeist/commit/e5be13eae981ee694f43dec33adf4328b1be0bd6))
+- *(chat)* Mark a transcript resumed without history replay ([9fee4f3](https://github.com/arafatamim/Ferngeist/commit/9fee4f3ad046ba461b4147526e356ca23e0873df))
+
+### Fixes
+
+- *(acp)* Surface held-session attach as an actionable error ([6af6580](https://github.com/arafatamim/Ferngeist/commit/6af6580ffe6dde771a04590c3f39d3782f09d41c))
+- *(acp)* Stop reading a generic params code as a held session ([ca61369](https://github.com/arafatamim/Ferngeist/commit/ca61369d9b88540a3c72186dc189f100b9d5bead))
+- *(acp)* Stop reading a failed session listing as an empty one ([c655a95](https://github.com/arafatamim/Ferngeist/commit/c655a9535869d6e67f2687e7d8eed645b3694d81))
+- *(acp)* Propagate cancel and config failures instead of swallowing them ([8ecae62](https://github.com/arafatamim/Ferngeist/commit/8ecae624244b0ab786e2c8e4f0b99aeb0572b6d3))
+- *(acp)* Require a measured transport state before recovering a load ([b1d0a55](https://github.com/arafatamim/Ferngeist/commit/b1d0a55f3191a1e9d78eff61280d2be900b3809b))
+- *(acp)* Classify cancellation from the type, not the wording ([de0715e](https://github.com/arafatamim/Ferngeist/commit/de0715ea6ae0625b46f3c25fdb99d468ccd925a9))
+- *(gateway)* Read a held runtime lease from the response body ([0b7769e](https://github.com/arafatamim/Ferngeist/commit/0b7769e005668c2364ec631ce2e8945f46ee4bd9))
+- *(auth)* Refuse to overwrite env values that cannot be read ([2a5945b](https://github.com/arafatamim/Ferngeist/commit/2a5945b050c8992ac945c1a68d329cd059b9a97a))
+
+### Refactoring
+
+- *(acp)* Collapse session attach onto one RPC decision point ([ea91f3a](https://github.com/arafatamim/Ferngeist/commit/ea91f3aca42c1a452d92da037ef843106c830301))
+
 ## [0.16.0-alpha2] - 2026-09-26
 
 ### Features

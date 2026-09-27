@@ -1,0 +1,6 @@
+Resume-only agents work, and failures say what went wrong.
+
+• Open existing sessions on agents that support session/resume but not session/load
+• Error messages are translated instead of always English
+• Fixed: a failed session list no longer wipes your saved sessions
+• Fixed: cancelling a turn, or changing model and mode, now reports a failure instead of pretending it worked
