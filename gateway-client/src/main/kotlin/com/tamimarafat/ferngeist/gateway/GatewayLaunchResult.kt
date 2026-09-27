@@ -168,10 +168,19 @@ private fun shouldRetryIsolated(
 /** The gateway's held-lease marker on a refused connect: HTTP 409 with its error body. */
 private const val RUNTIME_LEASE_HELD_MARKER = "runtime_lease_held"
 
+/**
+ * True when a refused connect means the picked runtime's lease is held.
+ *
+ * The marker is read from the response body, never from `message`: that message is a
+ * human-facing sentence that embeds the raw body ("Gateway request failed: 409 Conflict
+ * at <endpoint>. Response: {…}"), so matching it classified *any* 409 quoting the marker
+ * as a held lease and retried as an isolated spawn — a second runtime and agent process
+ * for the same agent. The catalog's agent-delete check reads the body the same way.
+ */
 private fun isRuntimeLeaseHeld(error: Throwable): Boolean =
     error is GatewayRequestException &&
         error.statusCode == HttpStatusCode.Conflict.value &&
-        error.message.contains(RUNTIME_LEASE_HELD_MARKER)
+        gatewayErrorMessage(error.responseBody)?.contains(RUNTIME_LEASE_HELD_MARKER) == true
 
 @Suppress("TooGenericExceptionCaught")
 private suspend fun attemptStartAndConnect(
