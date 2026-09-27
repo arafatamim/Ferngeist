@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
 import com.agentclientprotocol.model.AgentCapabilities
+import com.agentclientprotocol.protocol.JsonRpcException
+import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
@@ -24,6 +26,8 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.UsageState
+import kotlinx.coroutines.TimeoutCancellationException
+import java.net.SocketTimeoutException
 
 /** Upper bound on a user-facing send-error string, so error payloads never flood the UI. */
 private const val MAX_SEND_ERROR_CHARS = 240
@@ -166,16 +170,20 @@ internal fun toAcpConfigValue(chat: ChatConfigValue): SessionConfigValue =
 
 // ---- Error classification helpers ----
 
-/** Maps a send error to a concise, bounded user-facing message. */
+/**
+ * Maps a send error to a concise, bounded user-facing message.
+ *
+ * Classification reads the JSON-RPC code, never the wording. "Invalid params" is the
+ * protocol's generic label and the agent's own detail rides in `message`/`data`
+ * ("cwd does not exist"), so matching the text also replaced that detail with a locally
+ * authored sentence that told the user nothing.
+ */
 internal fun userFacingSendError(error: Throwable): String {
-    val detailedMessage = formatAcpErrorMessage(error, "Send failed")
-    val raw = error.message.orEmpty()
     val message =
         when {
-            raw.contains("Request timeout", true) -> "Request timed out. Please try again."
-            raw.contains("Invalid params", true) -> "Send failed due to an invalid request format."
-            detailedMessage != "Send failed" -> detailedMessage
-            else -> "Send failed due to an unknown error."
+            error.isRequestTimeout() -> "Request timed out. Please try again."
+            error.isInvalidParams() -> "Send failed due to an invalid request format."
+            else -> formatAcpErrorMessage(error, "Send failed due to an unknown error.")
         }
     return if (message.length > MAX_SEND_ERROR_CHARS) {
         message.take(MAX_SEND_ERROR_CHARS).trimEnd() + "…"
@@ -184,16 +192,46 @@ internal fun userFacingSendError(error: Throwable): String {
     }
 }
 
-/** Returns true when the error indicates the server does not support session/cancel. */
-internal fun isSessionCancelUnsupported(error: Throwable): Boolean {
-    val raw = error.message.orEmpty()
-    return raw.contains("Method not found", true) &&
-        raw.contains("session/cancel", true)
-}
+/**
+ * True for a client-side request deadline. Our own bounds raise a
+ * [TimeoutCancellationException]; the SDK's request deadline surfaces as a plain error,
+ * so its own prefix is the only signal it offers. This matches the client library's
+ * wording, never the agent's payload.
+ */
+private fun Throwable.isRequestTimeout(): Boolean =
+    generateSequence(this as Throwable?) { it.cause }.any { cause ->
+        cause is TimeoutCancellationException ||
+            cause is SocketTimeoutException ||
+            cause.message.orEmpty().startsWith("Request timeout", ignoreCase = true)
+    }
 
-/** Returns true when the error indicates the stream was destroyed (stale bridge). */
-internal fun isDestroyedBridgeStreamError(error: Throwable): Boolean {
-    val message = formatAcpErrorMessage(error, "").lowercase()
-    return message.contains("write after a stream was destroyed") ||
-        message.contains("stream was destroyed")
-}
+/** True when the agent rejected the request's parameters, per the JSON-RPC code. */
+private fun Throwable.isInvalidParams(): Boolean =
+    (this as? JsonRpcException)?.code == JsonRpcErrorCode.INVALID_PARAMS.code
+
+/**
+ * Returns true when the server does not implement `session/cancel`.
+ *
+ * Only the code is read. The method identity is not in dispute — the call site that
+ * produced this error is the one cancelling — so requiring "Method not found" *and*
+ * "session/cancel" in the message added no evidence and one false negative: an agent
+ * answering a bare `-32601 Method not found`, which is legal JSON-RPC, left the flag
+ * unset and the user with a Cancel button that could never work.
+ */
+internal fun isSessionCancelUnsupported(error: Throwable): Boolean =
+    (error as? JsonRpcException)?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code
+
+/**
+ * Returns true when the error indicates the stream was destroyed (stale bridge).
+ *
+ * Reads raw messages across the cause chain rather than the formatted text, so the
+ * agent's JSON-RPC `data` cannot inject the phrase. A phrase is still not evidence that
+ * the bridge died — callers must pair this with a measured transport state before
+ * acting on it; see `AcpChatSessionFacade.handleLoadFailure`.
+ */
+internal fun isDestroyedBridgeStreamError(error: Throwable): Boolean =
+    generateSequence(error as Throwable?) { it.cause }.any { cause ->
+        val message = cause.message.orEmpty().lowercase()
+        message.contains("write after a stream was destroyed") ||
+            message.contains("stream was destroyed")
+    }

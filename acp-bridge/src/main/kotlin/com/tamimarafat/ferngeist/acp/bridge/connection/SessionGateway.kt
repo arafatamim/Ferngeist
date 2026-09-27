@@ -405,9 +405,10 @@ internal class SessionGateway(
      * pending permission requests are completed as [RequestPermissionOutcome.Cancelled]:
      * [BridgeSessionOperations.requestPermissions] suspends on its deferred, so leaving
      * one pending would block the agent's tool call forever. On failure
-     * [handleSessionCancelFailure] checks whether the error is a "Method not found"
-     * (server does not support cancel) vs. a genuine transport error, and sets the
-     * diagnostics flag accordingly.
+     * [handleSessionCancelFailure] records the error and, for a `-32601`, marks cancel
+     * unsupported — then the failure **propagates**. Swallowing it here left the UI
+     * reporting a cancelled turn the agent never received, and made both of
+     * [AcpChatSessionFacade.cancelStreaming]'s failure branches unreachable.
      */
     suspend fun cancelSession(sessionId: String) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
@@ -415,24 +416,32 @@ internal class SessionGateway(
         // in flight, and it consumes this mark to report "cancelled". Marking after
         // the call would let that turn end as "end_turn" and leave the mark behind.
         cancelsRequested += sessionId
-        var cancelled = false
-        runCatching {
-            orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/cancel")
-            session.cancel()
-            cancelled = true
-            orchestra.diagnosticsStore.setSessionCancelSupport(isSupported = true)
-        }.onFailure { handleSessionCancelFailure(it) }
-        if (!cancelled) {
+        val outcome =
+            runCatching {
+                orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/cancel")
+                session.cancel()
+            }
+        outcome.onFailure { error ->
+            handleSessionCancelFailure(error)
+            // Unmark before rethrowing: no cancel reached the agent, so a prompt stream
+            // that ends now must not report itself as cancelled.
             cancelsRequested -= sessionId
-            return
         }
+        outcome.getOrThrow()
+        orchestra.diagnosticsStore.setSessionCancelSupport(isSupported = true)
 
         permissionFlow.cancelPendingForSession(sessionId).forEach { toolCallId ->
             emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
         }
     }
 
-    /** Sets the session's active mode via `session/set_mode` RPC. */
+    /**
+     * Sets the session's active mode via `session/set_mode` RPC.
+     *
+     * The failure propagates. Diagnostics-only was not enough: [SessionBridge] emits
+     * its optimistic config event regardless of this call's outcome, so a rejected
+     * mode rendered as the current one with no error anywhere.
+     */
     suspend fun setSessionMode(
         sessionId: String,
         modeId: String,
@@ -446,7 +455,7 @@ internal class SessionGateway(
                 "session/set_mode",
                 formatAcpErrorMessage(it, "Set mode failed"),
             )
-        }
+        }.getOrThrow()
     }
 
     /** Sets the session's legacy model via `session/set_model` RPC (unstable ACP API). */
@@ -464,7 +473,7 @@ internal class SessionGateway(
                 "session/set_model",
                 formatAcpErrorMessage(it, "Set model failed"),
             )
-        }
+        }.getOrThrow()
     }
 
     /**
@@ -507,7 +516,7 @@ internal class SessionGateway(
                 "session/set_config_option",
                 formatAcpErrorMessage(it, "Set config option failed"),
             )
-        }
+        }.getOrThrow()
     }
 
     /**
@@ -891,9 +900,11 @@ internal class SessionGateway(
      */
     private fun handleSessionCancelFailure(error: Throwable) {
         val rpcError = error as? JsonRpcException
-        val unsupported =
-            rpcError?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code &&
-                rpcError.message.contains("session/cancel", ignoreCase = true)
+        // Only the code is evidence. The method identity is not in dispute: this is the
+        // session/cancel call site. Requiring "session/cancel" to appear in the message
+        // added nothing but a false negative — a legal bare `-32601 Method not found`
+        // left the flag unset and the user with a Cancel button that cannot work.
+        val unsupported = rpcError?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code
         if (unsupported) {
             orchestra.diagnosticsStore.setSessionCancelSupport(isSupported = false)
         }

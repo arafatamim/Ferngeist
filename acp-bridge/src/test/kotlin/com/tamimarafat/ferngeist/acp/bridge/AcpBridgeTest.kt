@@ -10,6 +10,7 @@ import com.agentclientprotocol.model.SessionCapabilities
 import com.agentclientprotocol.model.SessionListCapabilities
 import com.agentclientprotocol.model.SessionResumeCapabilities
 import com.agentclientprotocol.protocol.JsonRpcException
+import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
@@ -20,8 +21,11 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.PermissionFlow
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.isCancellationLikeError
 import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
+import com.tamimarafat.ferngeist.acp.bridge.facade.isSessionCancelUnsupported
 import com.tamimarafat.ferngeist.acp.bridge.facade.mapCapabilities
+import com.tamimarafat.ferngeist.acp.bridge.facade.userFacingSendError
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
@@ -32,10 +36,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -44,6 +52,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 class SessionBridgeTest {
     @Test
@@ -347,6 +356,96 @@ class AcpErrorFormattingTest {
         val formatted = formatAcpErrorMessage(error, "Connection lost")
 
         assertEquals("Connection lost", formatted)
+    }
+
+    @Test
+    fun `a failure that only mentions cancellation is not treated as one`() {
+        // The old wording test also matched *failures*: a gateway error body, a peer's
+        // "handshake was cancelled by the peer". Callers route on this predicate, and a
+        // misread marked the connection Disconnected — no reconnect, no diagnostics entry —
+        // so a real failure produced a dead chat with no cause on record.
+        val error = IOException("handshake was cancelled by the peer")
+
+        assertFalse(isCancellationLikeError(error))
+        assertEquals("handshake was cancelled by the peer", formatAcpErrorMessage(error, "Connection lost"))
+    }
+
+    @Test
+    fun `a timeout is a failure rather than a cancellation`() =
+        runTest {
+            // TimeoutCancellationException extends CancellationException by inheritance but
+            // means "we ran out of time", which must still surface as a failure and a reconnect.
+            // Its constructor is internal, so the timeout is produced the way production does.
+            val timeout = runCatching { withTimeout(1) { delay(50) } }.exceptionOrNull()
+
+            assertTrue("expected a timeout, got $timeout", timeout is TimeoutCancellationException)
+            assertFalse(isCancellationLikeError(timeout!!))
+        }
+
+    @Test
+    fun `a real cancellation is still recognised through a wrapper`() {
+        assertTrue(isCancellationLikeError(CancellationException("StandaloneCoroutine was cancelled")))
+        assertTrue(isCancellationLikeError(IllegalStateException("wrapped", CancellationException("gone"))))
+    }
+}
+
+/**
+ * Classification of send/cancel failures. Both predicates used to read the peer's prose;
+ * one replaced the agent's own message, the other needed wording the protocol does not
+ * require, so both now read the JSON-RPC code.
+ */
+class AcpSendErrorClassificationTest {
+    @Test
+    fun `a generic error keeps the agent's own detail`() {
+        val error =
+            JsonRpcException(
+                code = JsonRpcErrorCode.INTERNAL_ERROR.code,
+                message = "Invalid params: cwd does not exist",
+                data = JsonNull,
+            )
+
+        assertTrue(
+            "the agent's detail is the only actionable part: ${userFacingSendError(error)}",
+            userFacingSendError(error).contains("cwd does not exist"),
+        )
+    }
+
+    @Test
+    fun `an invalid-params code is classified without reading the message`() {
+        val error =
+            JsonRpcException(
+                code = JsonRpcErrorCode.INVALID_PARAMS.code,
+                message = "Something else entirely",
+                data = JsonNull,
+            )
+
+        assertEquals("Send failed due to an invalid request format.", userFacingSendError(error))
+    }
+
+    @Test
+    fun `the code alone says the agent cannot cancel`() {
+        // A legal bare -32601 carries no method name. Requiring one left the flag unset and
+        // the user with a Cancel button that could never work.
+        val error =
+            JsonRpcException(
+                code = JsonRpcErrorCode.METHOD_NOT_FOUND.code,
+                message = "Method not found",
+                data = JsonNull,
+            )
+
+        assertTrue(isSessionCancelUnsupported(error))
+    }
+
+    @Test
+    fun `wording alone does not say the agent cannot cancel`() {
+        val error =
+            JsonRpcException(
+                code = JsonRpcErrorCode.INTERNAL_ERROR.code,
+                message = "Method not found: session/cancel",
+                data = JsonNull,
+            )
+
+        assertFalse(isSessionCancelUnsupported(error))
     }
 }
 

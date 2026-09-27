@@ -77,6 +77,7 @@ class SessionGatewayTest {
     private class FakeClientSession(
         private val turns: List<Flow<Event>>,
         val cancelGate: CompletableDeferred<Unit>? = null,
+        private val cancelError: Throwable? = null,
     ) : ClientSession {
         private var turnIndex = 0
 
@@ -100,6 +101,7 @@ class SessionGatewayTest {
         override suspend fun cancel() {
             cancelStarted.complete(Unit)
             cancelGate?.await()
+            cancelError?.let { throw it }
         }
 
         override suspend fun close(_meta: JsonElement?): CloseSessionResponse = error("unused")
@@ -603,6 +605,33 @@ class SessionGatewayTest {
             gateway.sendSessionMessage("s1", "second")
 
             assertEquals(listOf("end_turn", "end_turn"), turnReasons(bridge))
+        }
+
+    @Test
+    fun `a failing cancel propagates and leaves the turn unmarked`() =
+        runTest {
+            val gateway = newGateway()
+            val failure =
+                JsonRpcException(
+                    code = JsonRpcErrorCode.METHOD_NOT_FOUND.code,
+                    message = "Method not found",
+                    data = JsonNull,
+                )
+            val bridge =
+                installSession(
+                    gateway,
+                    "s1",
+                    FakeClientSession(listOf(responseTurn(), emptyFlow()), cancelError = failure),
+                )
+
+            val result = runCatching { gateway.cancelSession("s1") }
+
+            // Swallowing this used to leave the UI reporting a cancelled turn the agent never
+            // received, and made both of the facade's cancel-failure branches unreachable.
+            assertSame(failure, result.exceptionOrNull())
+            // No cancel reached the agent, so a stream that ends now must not claim one.
+            gateway.sendSessionMessage("s1", "first")
+            assertEquals(listOf("end_turn"), turnReasons(bridge))
         }
 
     @Test
