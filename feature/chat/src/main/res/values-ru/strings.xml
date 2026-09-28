@@ -92,6 +92,9 @@
     <string name="chat_session_error_auth_required">Требуется ACP аутентификация. Перейдите в список сессий для аутентификации.</string>
     <string name="chat_session_error_bridge_connection_lost">Соединение с ACP-мостом было потеряно при загрузке этой сессии. Открыта новая сессия.</string>
     <string name="chat_session_error_already_active">Эта сессия уже активна в другом месте. Отключите её в списке сессий и откройте заново.</string>
+    <string name="chat_session_error_close_streaming">Эта сессия всё ещё отвечает. Сначала отмените или закройте её в чате.</string>
+    <string name="chat_session_error_close_gateway_only">Закрытие доступно только для сессий через шлюз.</string>
+    <string name="chat_session_error_close_failed">Не удалось закрыть сессию.</string>
     <string name="chat_session_error_load_timeout">Время загрузки сессии истекло.</string>
     <string name="chat_session_error_could_not_load">Не удалось загрузить сессию.</string>
     <string name="chat_session_error_not_ready">Сессия не готова.</string>

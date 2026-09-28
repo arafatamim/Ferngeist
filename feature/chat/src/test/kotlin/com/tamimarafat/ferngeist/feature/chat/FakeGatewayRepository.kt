@@ -24,6 +24,9 @@ class FakeGatewayRepository : GatewayRepository {
     val fetchGitDiffResults: MutableMap<String, List<ToolCallContent.Diff>> = mutableMapOf()
     val gitDiffRequests: MutableList<Pair<String?, GatewayWorkspaceConnection>> = mutableListOf()
 
+    /** Gateway sessions a close asked to delete, as (host, sessionId). */
+    val closedSessions: MutableList<Pair<String, String>> = mutableListOf()
+
     override suspend fun fetchStatus(
         scheme: String,
         host: String,
@@ -109,7 +112,9 @@ class FakeGatewayRepository : GatewayRepository {
         host: String,
         gatewayCredential: String,
         sessionId: String,
-    ) = Unit
+    ) {
+        closedSessions.add(host to sessionId)
+    }
 
     override suspend fun registerPushToken(
         scheme: String,

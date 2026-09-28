@@ -3,6 +3,9 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.BoundsTransform
+import androidx.compose.animation.animateBounds
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
@@ -37,15 +40,20 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,9 +61,13 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.LookaheadScope
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -75,6 +87,7 @@ import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
+import kotlin.math.abs
 
 /** Muted alpha for the current-session row: reads as inactive, not broken. */
 private const val CURRENT_ROW_CONTENT_ALPHA = 0.6f
@@ -85,6 +98,16 @@ private const val CURRENT_ROW_CONTENT_ALPHA = 0.6f
  * slightly under the pill height (centered by the host row).
  */
 private val SWITCHER_BUBBLE_OPTICAL_INSET = 4.dp
+
+/** How long a dismissed row waits for the model to drop it before springing back. */
+private const val DISMISS_REMOVE_GRACE_MS = 600L
+
+/** Spring the switcher rows and containers share when a row leaves the list. */
+private fun <T> switcherShiftSpring() =
+    spring<T>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMedium,
+    )
 
 /** Count box: landscape rounded rectangle one digit sits in; wider counts grow it. */
 private val SWITCHER_COUNT_BOX_MIN_WIDTH = 24.dp
@@ -396,6 +419,7 @@ private fun SwitcherHintBubble(modifier: Modifier = Modifier) {
 internal fun SessionSwitcherSheet(
     uiState: SwitcherUiState,
     onSwitch: (SwitcherSession) -> Unit,
+    onClose: (SwitcherSession) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -419,11 +443,27 @@ internal fun SessionSwitcherSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
             )
         } else {
-            uiState.groups.forEach { group ->
-                SwitcherServerGroup(
-                    group = group,
-                    onSwitch = onSwitch,
-                )
+            // LookaheadScope lets every row FLIP into its new slot when a row above it
+            // leaves. animateContentSize alone only tweens the container height, so
+            // rows snap while the box glides.
+            LookaheadScope {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(animationSpec = switcherShiftSpring()),
+                ) {
+                    uiState.groups.forEach { group ->
+                        key(group.serverId) {
+                            SwitcherServerGroup(
+                                group = group,
+                                lookaheadScope = this@LookaheadScope,
+                                onSwitch = onSwitch,
+                                onClose = onClose,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -432,41 +472,130 @@ internal fun SessionSwitcherSheet(
 @Composable
 private fun SwitcherServerGroup(
     group: SwitcherGroup,
+    lookaheadScope: LookaheadScope,
     onSwitch: (SwitcherSession) -> Unit,
+    onClose: (SwitcherSession) -> Unit,
 ) {
-    Text(
-        text = group.serverName,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-    )
-    group.sessions.forEach { session ->
-        SwitcherRow(
-            session = session,
-            onSwitch = { onSwitch(session) },
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .animateContentSize(animationSpec = switcherShiftSpring()),
+    ) {
+        Text(
+            text = group.serverName,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
         )
+        group.sessions.forEach { session ->
+            // Keys matter: without one, the row that slides into this slot inherits
+            // the removed row's remembered dismiss state, renders off-screen, and
+            // its settle effect closes that session too.
+            key(session.sessionId) {
+                SwitcherRow(
+                    session = session,
+                    lookaheadScope = lookaheadScope,
+                    onSwitch = { onSwitch(session) },
+                    onClose = { onClose(session) },
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun SwitcherRow(
     session: SwitcherSession,
+    lookaheadScope: LookaheadScope,
     onSwitch: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val rowPadding = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+    if (session.isCurrent) {
+        // The session you are reading closes from inside the chat, not here.
+        SwitcherRowContent(
+            session = session,
+            modifier = rowPadding.alpha(CURRENT_ROW_CONTENT_ALPHA),
+        )
+        return
+    }
+    // Swipe either way to release the session. Material3 leaves a dismissed row
+    // off-screen (and gesture-disabled) until it is reset, so put it back here: the
+    // list is driven by live hub state, and the row must disappear through the model
+    // — which also means a refused close springs back into place instead of leaving
+    // a blank slot. No background: the gesture is the affordance, and a label there
+    // would be noise.
+    val dismissState = rememberSwipeToDismissBoxState()
+    LaunchedEffect(dismissState.settledValue, onClose) {
+        if (dismissState.settledValue != SwipeToDismissBoxValue.Settled) {
+            onClose()
+            // Give the model a beat to drop the row: a successful close removes it
+            // from the list, which disposes this effect before the reset — the card
+            // pops out while still off-screen, no bounce. Still here after the grace
+            // (refused or slow close) means spring it back instead of leaving a blank
+            // slot. Resetting immediately bounces the card home before the removal.
+            delay(DISMISS_REMOVE_GRACE_MS)
+            dismissState.reset()
+        }
+    }
+    // animateBounds FLIPs this row into the slot its predecessor vacates. The padding
+    // goes in as the intermediate modifier only — chaining it too would apply it
+    // twice and inset the card 32dp on each side.
+    val shiftBounds =
+        remember {
+            BoundsTransform { _, _ -> switcherShiftSpring<Rect>() }
+        }
+    // Fade by the box's own swipe offset: requireOffset() is the animated x-translation
+    // SwipeToDismissBox applies to its content, so offset/width is the drag fraction in
+    // either direction — 0 at rest, 1 at the dismiss edge, and it follows the spring back.
+    // (`state.progress` can't do this: it reads 1f whenever the settled and target anchors
+    // coincide, i.e. at rest, and flips denominator mid-drag when the target flips.)
+    val rowWidth = remember { mutableIntStateOf(0) }
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .animateBounds(
+                    lookaheadScope = lookaheadScope,
+                    modifier = rowPadding,
+                    boundsTransform = shiftBounds,
+                ),
+        backgroundContent = {},
+    ) {
+        SwitcherRowContent(
+            session = session,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onSwitch)
+                    .onGloballyPositioned { rowWidth.intValue = it.size.width }
+                    .graphicsLayer {
+                        // requireOffset throws during semantics collection before
+                        // first layout; until then the row is at rest, so alpha 1.
+                        val offset =
+                            try {
+                                dismissState.requireOffset()
+                            } catch (_: IllegalStateException) {
+                                0f
+                            }
+                        val fraction = abs(offset) / rowWidth.intValue.coerceAtLeast(1)
+                        alpha = 1f - fraction.coerceIn(0f, 1f)
+                    },
+        )
+    }
+}
+
+@Composable
+private fun SwitcherRowContent(
+    session: SwitcherSession,
+    modifier: Modifier,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = MaterialTheme.shapes.medium,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-                .then(
-                    if (session.isCurrent) {
-                        Modifier.alpha(CURRENT_ROW_CONTENT_ALPHA)
-                    } else {
-                        Modifier.clickable(onClick = onSwitch)
-                    },
-                ),
+        modifier = modifier,
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(

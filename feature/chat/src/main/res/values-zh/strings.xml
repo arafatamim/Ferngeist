@@ -94,6 +94,9 @@
     <string name="chat_session_error_auth_required">此服务器需要 ACP 身份验证。请返回会话列表并先进行验证。</string>
     <string name="chat_session_error_bridge_connection_lost">加载此会话时与 ACP 桥接的连接已断开。已开启新的实时会话。</string>
     <string name="chat_session_error_already_active">此会话已在其他地方处于活动状态。请在会话列表中将其断开，然后重新打开。</string>
+    <string name="chat_session_error_close_streaming">该会话仍在响应中。请先在聊天中取消或关闭它。</string>
+    <string name="chat_session_error_close_gateway_only">仅网关会话支持关闭。</string>
+    <string name="chat_session_error_close_failed">无法关闭会话。</string>
     <string name="chat_session_error_load_timeout">会话加载超时。请检查服务器连接并重试。</string>
     <string name="chat_session_error_could_not_load">无法加载此会话。请检查连接并重试。</string>
     <string name="chat_session_error_not_ready">会话未就绪。请稍后重试。</string>

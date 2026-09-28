@@ -88,6 +88,9 @@
     <string name="chat_session_error_auth_required">এই সার্ভারের জন্য এসিপি (ACP) প্রমাণীকরণ প্রয়োজন। সেশন তালিকায় ফিরে গিয়ে আগে প্রমাণীকরণ করুন।</string>
     <string name="chat_session_error_bridge_connection_lost">এই সেশন লোড করার সময় এসিপি (ACP) ব্রিজের সংযোগ বিচ্ছিন্ন হয়েছে। নতুন লাইভ সেশন খোলা হয়েছে।</string>
     <string name="chat_session_error_already_active">এই সেশনটি ইতিমধ্যেই অন্যত্র সক্রিয়। সেশন তালিকা থেকে এটি ডিসকানেক্ট করে আবার খুলুন।</string>
+    <string name="chat_session_error_close_streaming">এই সেশনটি এখনও সাড়া দিচ্ছে। আগে চ্যাটের ভেতর থেকে বাতিল বা বন্ধ করুন।</string>
+    <string name="chat_session_error_close_gateway_only">শুধু গেটওয়ে সেশন বন্ধ করা যায়।</string>
+    <string name="chat_session_error_close_failed">সেশন বন্ধ করা যায়নি।</string>
     <string name="chat_session_error_load_timeout">সেশন লোডের সময়সীমা শেষ হয়েছে। সার্ভার সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_could_not_load">এই সেশন লোড করা যায়নি। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_not_ready">সেশন প্রস্তুত নয়। কিছুক্ষণ পরে আবার চেষ্টা করুন।</string>

@@ -251,6 +251,9 @@
     <string name="chat_session_error_auth_required">ACP authentication is required for this server. Return to the session list and authenticate first.</string>
     <string name="chat_session_error_bridge_connection_lost">The connection to the ACP bridge was lost while loading this session. Opened a new live session.</string>
     <string name="chat_session_error_already_active">This session is already active elsewhere. Disconnect it from the session list, then reopen.</string>
+    <string name="chat_session_error_close_streaming">This session is still responding. Cancel or close it from inside the chat first.</string>
+    <string name="chat_session_error_close_gateway_only">Close is only available for gateway sessions.</string>
+    <string name="chat_session_error_close_failed">Failed to close session.</string>
     <string name="chat_session_error_load_timeout">Session load timed out. Check server connection and retry.</string>
     <string name="chat_session_error_could_not_load">Could not load this session. Check connection and retry.</string>
     <string name="chat_session_error_not_ready">Session is not ready. Please retry in a moment.</string>

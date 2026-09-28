@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
 import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatCommand
@@ -21,6 +22,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
@@ -78,6 +80,16 @@ class ChatViewModel
              * minting a second one.
              */
             private const val KEY_MINTED_SESSION_ID = "mintedSessionId"
+
+            /**
+             * Byte-identical to the emitters the session list uses for the same
+             * refusals: one rule, one phrasing, and [localizeChatError] finds the
+             * resource for these keys.
+             */
+            private const val CLOSE_STREAMING_MESSAGE =
+                "This session is still responding. Cancel or close it from inside the chat first."
+            private const val CLOSE_GATEWAY_ONLY_MESSAGE = "Close is only available for gateway sessions."
+            private const val CLOSE_FAILED_MESSAGE = "Failed to close session."
 
             private fun initialChatState(): ChatState = ChatState()
         }
@@ -751,18 +763,58 @@ class ChatViewModel
                     state.value.gatewayWorkspaceConnection?.let { refreshGitStatus(it) }
                 is ChatIntent.LoadGitDiff,
                 is ChatIntent.MarkSwitcherHintSeen,
+                is ChatIntent.CloseSession,
                 -> handleAuxIntent(intent)
             }
         }
 
-        /** One-shot intents outside the send/streaming core: diff fetch, hint flag. */
+        /** One-shot intents outside the send/streaming core: diff fetch, hint flag, session close. */
         private suspend fun handleAuxIntent(intent: ChatIntent) {
             when (intent) {
                 is ChatIntent.LoadGitDiff -> loadGitFileDiff(intent.path)
                 is ChatIntent.MarkSwitcherHintSeen -> switcherHintStore.markSeen()
+                is ChatIntent.CloseSession -> closeSwitcherSession(intent.serverId, intent.sessionId)
                 else -> Unit
             }
         }
+
+        /**
+         * Releases a live session the switcher listed, through the same hub call the
+         * session list's Disconnect makes so both surfaces mean one thing by
+         * "close": the gateway process stops and the local transport is released.
+         * Refused while the session streams — the gateway would cut a live turn —
+         * and for manual agents, which have no gateway leg to release.
+         */
+        private suspend fun closeSwitcherSession(
+            targetServerId: String,
+            targetSessionId: String,
+        ) {
+            if (chatConnectionHub.isStreaming(targetServerId, targetSessionId)) {
+                emitEffect(ChatEffect.ShowError(CLOSE_STREAMING_MESSAGE))
+                return
+            }
+            val endpoint = gatewayEndpoint(targetServerId)
+            if (endpoint == null) {
+                emitEffect(ChatEffect.ShowError(CLOSE_GATEWAY_ONLY_MESSAGE))
+                return
+            }
+            runCatching {
+                chatConnectionHub.closeSession(targetServerId, targetSessionId, endpoint)
+            }.onFailure { error ->
+                emitEffect(ChatEffect.ShowError(error.message ?: CLOSE_FAILED_MESSAGE))
+            }
+        }
+
+        /** Gateway REST endpoint for [targetServerId], or null when the target is not gateway-backed. */
+        private suspend fun gatewayEndpoint(targetServerId: String): GatewayEndpoint? =
+            (launchableTargetRepository.getTarget(targetServerId) as? LaunchableTarget.GatewayAgent)
+                ?.let { target ->
+                    GatewayEndpoint(
+                        scheme = target.gatewaySource.scheme,
+                        host = target.gatewaySource.host,
+                        credential = target.gatewaySource.gatewayCredential,
+                    )
+                }
 
         // region: Offline queue
 
@@ -1118,6 +1170,16 @@ sealed interface ChatIntent {
 
     /** Consumes the switcher bubble's first-run swipe hint so it never shows again. */
     data object MarkSwitcherHintSeen : ChatIntent
+
+    /**
+     * Releases another live session the switcher listed, the way the session
+     * list's Disconnect does. Carries the row's own ids: the sheet lists every
+     * warm server, so the target is not always this chat's server.
+     */
+    data class CloseSession(
+        val serverId: String,
+        val sessionId: String,
+    ) : ChatIntent
 }
 
 /** One-shot effects emitted to the UI layer (snackbar, navigation, etc.). */

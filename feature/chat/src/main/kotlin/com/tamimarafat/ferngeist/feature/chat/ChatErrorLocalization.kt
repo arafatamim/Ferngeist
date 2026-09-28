@@ -72,6 +72,12 @@ private val chatErrorResources: Map<String, Int> =
             to R.string.chat_session_error_auth_reconnect,
         "This session is already active elsewhere. Disconnect it from the session list, then reopen."
             to R.string.chat_session_error_already_active,
+        "This session is still responding. Cancel or close it from inside the chat first."
+            to R.string.chat_session_error_close_streaming,
+        "Close is only available for gateway sessions."
+            to R.string.chat_session_error_close_gateway_only,
+        "Failed to close session."
+            to R.string.chat_session_error_close_failed,
         "The connection to the ACP bridge was lost while loading this session. Opened a new live session."
             to R.string.chat_session_error_bridge_connection_lost,
     )

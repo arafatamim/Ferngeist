@@ -88,6 +88,9 @@
     <string name="chat_session_error_auth_required">Este servidor requiere autenticación ACP. Vuelve a la lista de sesiones y autentícate primero.</string>
     <string name="chat_session_error_bridge_connection_lost">La conexión con el puente ACP se perdió mientras se cargaba esta sesión. Se abrió una nueva sesión en vivo.</string>
     <string name="chat_session_error_already_active">Esta sesión ya está activa en otro lugar. Desconéctala desde la lista de sesiones y vuelve a abrirla.</string>
+    <string name="chat_session_error_close_streaming">Esta sesión sigue respondiendo. Cancélala o ciérrala primero desde el chat.</string>
+    <string name="chat_session_error_close_gateway_only">Cerrar solo está disponible para sesiones de puerta de enlace.</string>
+    <string name="chat_session_error_close_failed">No se pudo cerrar la sesión.</string>
     <string name="chat_session_error_load_timeout">Se agotó el tiempo de carga de la sesión. Comprueba la conexión al servidor e inténtalo de nuevo.</string>
     <string name="chat_session_error_could_not_load">No se pudo cargar esta sesión. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="chat_session_error_not_ready">La sesión no está lista. Vuelve a intentarlo en unos momentos.</string>
