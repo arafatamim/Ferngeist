@@ -61,6 +61,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
@@ -566,9 +567,13 @@ private fun SwitcherRow(
     ) {
         SwitcherRowContent(
             session = session,
+            // clip() on the card, not the swipe box: the Surface draws the rounded
+            // medium shape, and without this the click ripple is a full-width rect
+            // that spills past the corners.
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.medium)
                     .clickable(onClick = onSwitch)
                     .onGloballyPositioned { rowWidth.intValue = it.size.width }
                     .graphicsLayer {
