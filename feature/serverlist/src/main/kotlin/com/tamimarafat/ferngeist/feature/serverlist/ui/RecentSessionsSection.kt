@@ -16,8 +16,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -43,7 +43,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.Card
@@ -72,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -79,15 +81,19 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
@@ -234,8 +240,8 @@ private fun BackdropLayers(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     scope: CoroutineScope,
-    density: androidx.compose.ui.unit.Density,
-    sheetOverhang: androidx.compose.ui.unit.Dp,
+    density: Density,
+    sheetOverhang: Dp,
     canReveal: Boolean,
     sheetConnection: NestedScrollConnection,
     sheetOffset: Animatable<Float, AnimationVector1D>,
@@ -295,7 +301,7 @@ private fun FrontSheetLayer(
     overscrollRefPx: Float,
     maxTopOverscrollPx: Float,
     canReveal: Boolean,
-    sheetHeight: androidx.compose.ui.unit.Dp,
+    sheetHeight: Dp,
     topZonePx: Int,
     viewportHeightPx: Float,
     scrollState: ScrollState,
@@ -350,6 +356,37 @@ private fun FrontSheetLayer(
         )
     }
 }
+
+/**
+ * Resistance multiplier for the sheet rubber band: 1:1 inside the range, progressively
+ * stiffer past an edge.
+ *
+ * Shared by the nested-scroll connection and the header drag, which must agree or the
+ * sheet feels different depending on which one the gesture happens to start on.
+ *
+ * Pulling up past the collapsed edge covers the hero and is deliberately stiffer than
+ * the reveal direction, so covering the hero takes progressively more effort while the
+ * recents reveal stays loose. [HERO_RISE_BAND_RATIO] scales that band with the travel
+ * cap, keeping the resistance proportional to however far the sheet is allowed to rise.
+ */
+private fun rubberBandDelta(
+    current: Float,
+    delta: Float,
+    max: Float,
+    revealRefPx: Float,
+    maxTopOverscrollPx: Float,
+): Float {
+    val pushingOut =
+        (current <= 0f && delta < 0f) ||
+            (current >= max && delta > 0f)
+    if (!pushingOut) return delta
+    val overshoot = if (current <= 0f) -current else current - max
+    val ref = if (current <= 0f) maxTopOverscrollPx * HERO_RISE_BAND_RATIO else revealRefPx
+    return delta * (1f / (1f + overshoot / ref))
+}
+
+/** How much stiffer covering the hero is than revealing the recents. */
+private const val HERO_RISE_BAND_RATIO = 0.2f
 
 /** Per-gesture scratch state for the sheet's nested-scroll connection. */
 private class SheetGestureState {
@@ -424,26 +461,9 @@ private fun rememberSheetConnection(
             }
             val max = recentsPx.toFloat()
             val current = sheetOffset.value
-            val pushingOut =
-                (current <= 0f && delta < 0f) ||
-                    (current >= max && delta > 0f)
-            val applied =
-                if (pushingOut) {
-                    val overshoot =
-                        if (current <= 0f) -current else current - max
-                    // Pulling up past the collapsed edge covers the hero: use a
-                    // much stiffer band than the reveal-direction rubber band,
-                    // so covering the hero takes progressively more effort
-                    // (~3.6x finger travel at 60dp of coverage) while the
-                    // recents reveal stays loose. 0.2x the travel cap keeps
-                    // the resistance proportional to the allowed rise.
-                    val ref =
-                        if (current <= 0f) maxTopOverscrollPx * 0.2f else overscrollRefPx
-                    delta * (1f / (1f + overshoot / ref))
-                } else {
-                    delta
-                }
-            val next = (current + applied).coerceAtLeast(-maxTopOverscrollPx)
+            val next =
+                (current + rubberBandDelta(current, delta, max, overscrollRefPx, maxTopOverscrollPx))
+                    .coerceAtLeast(-maxTopOverscrollPx)
             val consumedY = next - current
             if (consumedY != 0f) {
                 gesture.sheetDragged = true
@@ -527,27 +547,11 @@ private fun Modifier.sheetDrag(
                 scope.launch {
                     val max = recentsPx.toFloat()
                     val current = sheetOffset.value
-                    // Past an edge and pushing further out: rubber-band with
-                    // progressively stronger resistance. Otherwise track 1:1.
-                    val pushingOut =
-                        (current <= 0f && delta < 0f) ||
-                            (current >= max && delta > 0f)
-                    val applied =
-                        if (pushingOut) {
-                            val overshoot =
-                                if (current <= 0f) -current else current - max
-                            // Same stiffer upward band as the nested-scroll
-                            // connection: covering the hero is resisted.
-                            val ref =
-                                if (current <= 0f) maxTopOverscrollPx * 0.2f else overscrollRefPx
-                            delta * (1f / (1f + overshoot / ref))
-                        } else {
-                            delta
-                        }
                     // Clamp upward travel so the sheet's bottom never lifts past
                     // its overhang.
                     sheetOffset.snapTo(
-                        (current + applied).coerceAtLeast(-maxTopOverscrollPx),
+                        (current + rubberBandDelta(current, delta, max, overscrollRefPx, maxTopOverscrollPx))
+                            .coerceAtLeast(-maxTopOverscrollPx),
                     )
                 }
             },
@@ -669,7 +673,7 @@ private fun FrontLayerContent(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     scrollState: ScrollState,
-    viewportDp: androidx.compose.ui.unit.Dp,
+    viewportDp: Dp,
     headerDragModifier: Modifier,
 ) {
     // Header pinned; only cards scroll. Outer is capped to viewport so
@@ -823,6 +827,7 @@ private fun ContinueSessionCardContent(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         RotatingCloverBadge(
+            session = session,
             rotation = rotation,
             pop = pop,
             contentDescription = stringResource(R.string.serverlist_continue_resume_desc),
@@ -833,20 +838,35 @@ private fun ContinueSessionCardContent(
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
             )
-            Text(
-                text = session.target.name,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            // The clover holds a real logo, so the name would be redundant. An agent
+            // on the fallback glyph gets its name here, where it carries information.
+            FolderNamePrefix(
+                cwd = session.cwd,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                after = session.target.name.takeIf { session.target.iconUrl == null },
             )
-            Text(
-                text = targetDeviceLabel(session.target),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
+            // get the icon, manual targets keep the bare host.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (session.target is LaunchableTarget.GatewayAgent) {
+                    Icon(
+                        imageVector = Icons.Default.Devices,
+                        contentDescription = stringResource(R.string.serverlist_card_from_gateway),
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                    )
+                }
+                Text(
+                    text = targetDeviceLabel(session.target),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -863,9 +883,83 @@ private fun targetDeviceLabel(target: LaunchableTarget): String =
             )
     }
 
+/**
+ * Just the leaf directory name — the full path is noise at card width, and the
+ * folder is what identifies the working copy. Null when no cwd is recorded.
+ */
+internal fun workingFolderName(cwd: String?): String? =
+    cwd
+        ?.trim()
+        ?.trimEnd('/', '\\')
+        ?.substringAfterLast('/')
+        ?.substringAfterLast('\\')
+        ?.takeIf { it.isNotBlank() && !it.matches(DRIVE_ROOT) }
+
+private val DRIVE_ROOT = Regex("""[A-Za-z]:""")
+
+/** Separator between the folder and the agent name on the same line. */
+private const val BULLET_SEPARATOR = "•"
+
+/**
+ * The folder line: a folder icon and leaf name, optionally followed by [after] as
+ * "folder - name".
+ *
+ * [after] carries the agent name only when the badge cannot. A registry logo already
+ * names the agent, so repeating it in text is the redundancy the badge removed. An
+ * agent with no registry icon falls back to a generic glyph, which names nothing, so
+ * the name goes here instead.
+ */
+@Composable
+private fun FolderNamePrefix(
+    cwd: String?,
+    tint: Color,
+    after: String? = null,
+) {
+    val folder = workingFolderName(cwd)
+    if (folder == null && after == null) return
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(end = 6.dp),
+    ) {
+        if (folder != null) {
+            Icon(
+                imageVector = Icons.Filled.FolderOpen,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = tint,
+            )
+            Text(
+                text = folder,
+                style = MaterialTheme.typography.bodySmall,
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (folder != null && after != null) {
+            Text(
+                text = BULLET_SEPARATOR,
+                style = MaterialTheme.typography.bodySmall,
+                color = tint.copy(alpha = 0.6f),
+            )
+        }
+        if (after != null) {
+            Text(
+                text = after,
+                style = MaterialTheme.typography.bodySmall,
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RotatingCloverBadge(
+    session: RecentSession,
     rotation: Float,
     pop: Float,
     contentDescription: String,
@@ -883,17 +977,20 @@ private fun RotatingCloverBadge(
                     }.clip(MaterialShapes.Clover4Leaf.toShape())
                     .background(MaterialTheme.colorScheme.primary),
         )
-        Icon(
-            imageVector = Icons.Rounded.History,
-            contentDescription = contentDescription,
+        // The agent's logo riding the clover: the clover is the hero's animated
+        // accent, so the mark sits in its shape rather than being framed again.
+        AgentIconBadge(
+            iconUrl = session.target.iconUrl,
+            fallback = Icons.Rounded.History,
+            size = 22.dp,
+            containerSize = null,
             tint = MaterialTheme.colorScheme.onPrimary,
+            contentDescription = contentDescription,
             modifier =
-                Modifier
-                    .size(26.dp)
-                    .graphicsLayer {
-                        scaleX = pop
-                        scaleY = pop
-                    },
+                Modifier.graphicsLayer {
+                    scaleX = pop
+                    scaleY = pop
+                },
         )
     }
 }
@@ -940,13 +1037,14 @@ private fun RecentSessionCardRow(
                 .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = Icons.Default.History,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
+        AgentIconBadge(
+            target = session.target,
+            fallback = Icons.Default.History,
+            size = 18.dp,
+            containerSize = 28.dp,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             with(sharedTransitionScope) {
                 Text(
@@ -967,24 +1065,19 @@ private fun RecentSessionCardRow(
                         ),
                 )
             }
-            Text(
-                text = session.target.name,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            // A registry logo names the agent, so the name would be redundant. An
+            // agent without one falls back to a generic glyph that names nothing,
+            // so the name goes on the folder line instead.
+            FolderNamePrefix(
+                cwd = session.cwd,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                after = session.target.name.takeIf { session.target.iconUrl == null },
             )
             ServerSubtitle(
                 server = session.target,
                 hasSavedAuthMethod = false,
             )
         }
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        )
     }
 }
 

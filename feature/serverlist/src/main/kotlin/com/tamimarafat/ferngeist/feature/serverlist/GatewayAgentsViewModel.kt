@@ -99,8 +99,9 @@ class GatewayAgentsViewModel
                 runCatching {
                     // Verify protocol compatibility before touching the agent API.
                     gatewayRepository.fetchStatus(gateway.scheme, gateway.host)
-                    gatewayRepository.fetchAgents(gateway.scheme, gateway.host, gateway.gatewayCredential)
-                }.onSuccess { agents ->
+                    val agents =
+                        gatewayRepository.fetchAgents(gateway.scheme, gateway.host, gateway.gatewayCredential)
+                    backfillBindingIcons(bindings, agents)
                     _uiState.value =
                         GatewayAgentsUiState(
                             gateway = gateway,
@@ -134,10 +135,38 @@ class GatewayAgentsViewModel
                         name = agent.displayName,
                         gatewaySourceId = gateway.id,
                         agentId = agent.id,
+                        // Only registry agents report one; embedded/custom stay null.
+                        icon = agent.registry?.icon,
                     )
                 gatewayAgentBindingRepository.addBinding(binding)
                 _uiState.value = state.copy(addedAgentIds = state.addedAgentIds + agent.id)
                 _events.emit("Added ${agent.displayName}")
+            }
+        }
+
+        /**
+         * Fill in icon (and current display name) on bindings stored before the
+         * gateway exposed them, or before an agent gained a logo.
+         *
+         * The icon is captured once when an agent is added, so a binding written by
+         * an older app — or against a gateway that predates icon exposure — would
+         * keep a permanently null icon and never show a logo. The agents list is the
+         * only place the gateway's current view is in hand, so that is where it gets
+         * repaired. Runs on each refresh and is a no-op once the values match.
+         */
+        private suspend fun backfillBindingIcons(
+            bindings: List<GatewayAgentBinding>,
+            agents: List<GatewayAgent>,
+        ) {
+            if (bindings.isEmpty()) return
+            val byAgentId = agents.associateBy { it.id }
+            bindings.forEach { binding ->
+                val agent = byAgentId[binding.agentId] ?: return@forEach
+                val icon = agent.registry?.icon
+                if (icon == binding.icon && agent.displayName == binding.name) return@forEach
+                gatewayAgentBindingRepository.updateBinding(
+                    binding.copy(icon = icon, name = agent.displayName),
+                )
             }
         }
 

@@ -16,3 +16,15 @@ val MIGRATION_14_15: Migration =
             db.execSQL("ALTER TABLE sessions ADD COLUMN gatewaySessionId TEXT")
         }
     }
+
+/**
+ * Records the registry logo URL reported by the gateway on agent bindings
+ * (v15 → v16). Null for custom and embedded agents, which have no registry
+ * entry and therefore no logo.
+ */
+val MIGRATION_15_16: Migration =
+    object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE gateway_agent_bindings ADD COLUMN icon TEXT")
+        }
+    }

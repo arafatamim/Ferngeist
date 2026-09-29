@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -65,6 +66,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsUiState
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
@@ -363,11 +365,23 @@ private fun AgentCardBody(
         modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            agent.displayName,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            AgentIconBadge(
+                iconUrl = agent.registry?.icon,
+                fallback = Icons.Default.SmartToy,
+                size = 20.dp,
+                containerSize = 32.dp,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                agent.displayName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         Text(
             agent.id,
             style = MaterialTheme.typography.bodySmall,

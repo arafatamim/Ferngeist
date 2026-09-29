@@ -23,4 +23,5 @@ data class GatewayAgentBindingEntity(
     val gatewaySourceId: String,
     val agentId: String,
     val preferredAuthMethodId: String?,
+    val icon: String?,
 )

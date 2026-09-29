@@ -8,6 +8,11 @@ data class GatewayAgentBinding(
     val gatewaySourceId: String,
     val agentId: String,
     val preferredAuthMethodId: String? = null,
+    /**
+     * Logo URL reported by the gateway for a registry-sourced agent, else null.
+     * Custom and embedded agents have no registry entry, so they never have one.
+     */
+    val icon: String? = null,
 )
 
 sealed interface LaunchableTarget {

@@ -17,6 +17,7 @@ import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.MIGRATION_14_15
+import com.tamimarafat.ferngeist.data.database.MIGRATION_15_16
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.GatewaySourceRepositoryImpl
@@ -79,6 +80,7 @@ object AppModule {
                 MIGRATION_12_13,
                 MIGRATION_13_14,
                 MIGRATION_14_15,
+                MIGRATION_15_16,
             ).fallbackToDestructiveMigration(false)
             .build()
 

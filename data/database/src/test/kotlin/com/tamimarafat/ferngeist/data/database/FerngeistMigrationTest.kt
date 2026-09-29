@@ -57,6 +57,41 @@ class FerngeistMigrationTest {
         }
     }
 
+    @Test
+    fun migrate15To16_keepsBindingsAndAddsNullIcon() {
+        helper.createDatabase(TEST_DB, 15).use { db ->
+            db.execSQL(
+                "INSERT INTO gateway_sources (id, name, scheme, host, gatewayCredential) " +
+                    "VALUES ('gw-1', 'gw', 'wss', '10.0.0.1', 'cred')",
+            )
+            db.execSQL(
+                "INSERT INTO gateway_agent_bindings " +
+                    "(id, name, gatewaySourceId, agentId, preferredAuthMethodId) " +
+                    "VALUES ('b-1', 'Codex', 'gw-1', 'codex-acp', NULL)",
+            )
+        }
+
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 16, true, MIGRATION_15_16)
+        migrated.use { db ->
+            db
+                .query(
+                    "SELECT id, name, gatewaySourceId, agentId, preferredAuthMethodId, icon " +
+                        "FROM gateway_agent_bindings",
+                ).use { cursor ->
+                    assertTrue(cursor.moveToFirst())
+                    assertEquals("b-1", cursor.getString(0))
+                    assertEquals("Codex", cursor.getString(1))
+                    assertEquals("gw-1", cursor.getString(2))
+                    assertEquals("codex-acp", cursor.getString(3))
+                    assertNull(cursor.getString(4))
+                    // Pre-existing bindings have no registry provenance, so the
+                    // column must land null rather than a fabricated URL.
+                    assertNull(cursor.getString(5))
+                    assertFalse(cursor.moveToNext())
+                }
+        }
+    }
+
     private companion object {
         /**
          * Absolute path on purpose: Room 2.8 resolves the database file through

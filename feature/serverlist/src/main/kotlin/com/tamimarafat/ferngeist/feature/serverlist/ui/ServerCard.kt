@@ -1,24 +1,13 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -37,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,12 +36,10 @@ import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -62,7 +50,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -73,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -97,6 +85,7 @@ internal fun ServerCard(
 ) {
     val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
+    val cardInteractionSource = remember { MutableInteractionSource() }
     val hasSavedAuthMethod = server.preferredAuthMethodId?.isNotBlank() == true
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showActionsMenu by rememberSaveable { mutableStateOf(false) }
@@ -117,7 +106,7 @@ internal fun ServerCard(
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "containerColor",
     )
-    val cardCorner by rememberCardCorner()
+    val cardCorner by rememberCardCorner(cardInteractionSource)
     val cardShape = RoundedCornerShape(cardCorner)
 
     Box(modifier = modifier.fillMaxWidth()) {
@@ -125,6 +114,7 @@ internal fun ServerCard(
             server = server,
             connectionState = connectionState,
             containerColor = containerColor,
+            cardInteractionSource = cardInteractionSource,
             cardShape = cardShape,
             hasSavedAuthMethod = hasSavedAuthMethod,
             onClick = onClick,
@@ -156,13 +146,13 @@ private fun ServerCardSurface(
     connectionState: ServerConnectionUiState,
     containerColor: Color,
     cardShape: RoundedCornerShape,
+    cardInteractionSource: MutableInteractionSource,
     hasSavedAuthMethod: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    val cardInteractionSource = remember { MutableInteractionSource() }
     Card(
         modifier =
             Modifier
@@ -190,6 +180,7 @@ private fun ServerCardSurface(
         ) {
             ServerCardTitleRow(
                 server = server,
+                containerColor = containerColor,
                 isConnecting = connectionState.isConnecting,
                 hasSavedAuthMethod = hasSavedAuthMethod,
                 sharedTransitionScope = sharedTransitionScope,
@@ -202,6 +193,7 @@ private fun ServerCardSurface(
 @Composable
 private fun ServerCardTitleRow(
     server: LaunchableTarget,
+    containerColor: Color,
     isConnecting: Boolean,
     hasSavedAuthMethod: Boolean,
     sharedTransitionScope: SharedTransitionScope,
@@ -211,7 +203,19 @@ private fun ServerCardTitleRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ConnectingTitleIndicator(visible = isConnecting)
+        AgentIconBadge(
+            target = server,
+            fallback = Icons.Default.SmartToy,
+            size = 18.dp,
+            containerSize = 28.dp,
+            // The frame follows the card's own tint, one shade darker, so a
+            // connected or failed card reads as one surface instead of a neutral
+            // chip sitting on a colored one.
+            containerColor = containerColor.darken(BADGE_FRAME_DARKEN),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            loading = isConnecting,
+        )
+        Spacer(modifier = Modifier.width(14.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             with(sharedTransitionScope) {
@@ -243,9 +247,21 @@ private fun ServerCardTitleRow(
     }
 }
 
+/** How far the badge frame is darkened from the card behind it. */
+private const val BADGE_FRAME_DARKEN = 0.06f
+
+/** Darkens a color by [amount] toward black, keeping its alpha. */
+private fun Color.darken(amount: Float): Color =
+    Color(
+        red = red * (1f - amount),
+        green = green * (1f - amount),
+        blue = blue * (1f - amount),
+        alpha = alpha,
+    )
+
+/** Press feedback: corners spring in toward a squarer shape, matching the hero card. */
 @Composable
-private fun rememberCardCorner(): State<Dp> {
-    val interactionSource = remember { MutableInteractionSource() }
+private fun rememberCardCorner(interactionSource: MutableInteractionSource): State<Dp> {
     val pressed by interactionSource.collectIsPressedAsState()
     return animateDpAsState(
         targetValue = if (pressed) 12.dp else 24.dp,
@@ -393,50 +409,6 @@ internal fun ServerSubtitle(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ConnectingTitleIndicator(visible: Boolean) {
-    val slotWidth by animateDpAsState(
-        targetValue = if (visible) 42.dp else 0.dp,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 500f),
-        label = "indicatorSlotWidth",
-    )
-    val infiniteTransition = rememberInfiniteTransition(label = "sunny")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec =
-            infiniteRepeatable(
-                animation = tween(4200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-        label = "sunnyRotation",
-    )
-    Box(
-        modifier = Modifier.width(slotWidth),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        AnimatedVisibility(
-            visible = visible,
-            enter =
-                fadeIn(animationSpec = spring(stiffness = 500f)) +
-                    scaleIn(animationSpec = spring(dampingRatio = 0.62f, stiffness = 500f)),
-            exit =
-                fadeOut(animationSpec = spring(stiffness = 500f)) +
-                    scaleOut(animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f)),
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(24.dp)
-                        .rotate(rotation)
-                        .clip(MaterialShapes.VerySunny.toShape())
-                        .background(MaterialTheme.colorScheme.secondary),
-            )
         }
     }
 }

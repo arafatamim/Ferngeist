@@ -42,6 +42,7 @@ private fun GatewayAgentBindingEntity.toDomain(): GatewayAgentBinding =
         gatewaySourceId = gatewaySourceId,
         agentId = agentId,
         preferredAuthMethodId = preferredAuthMethodId,
+        icon = icon,
     )
 
 private fun GatewayAgentBinding.toEntity(): GatewayAgentBindingEntity =
@@ -51,4 +52,5 @@ private fun GatewayAgentBinding.toEntity(): GatewayAgentBindingEntity =
         gatewaySourceId = gatewaySourceId,
         agentId = agentId,
         preferredAuthMethodId = preferredAuthMethodId,
+        icon = icon,
     )

@@ -71,6 +71,14 @@ data class GatewayAgent(
     val runtimeStatus: String? = null,
     // "embedded" | "registry" | "custom"; null on gateways that predate custom agents.
     val source: String? = null,
+    // Registry logo URL under `registry.icon`; absent for embedded/custom agents and on
+    // gateways that predate icon exposure.
+    val registry: GatewayAgentRegistry? = null,
+)
+
+@Serializable
+data class GatewayAgentRegistry(
+    val icon: String? = null,
 )
 
 @Serializable
