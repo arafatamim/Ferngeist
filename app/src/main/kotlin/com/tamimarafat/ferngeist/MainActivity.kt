@@ -115,6 +115,11 @@ class MainActivity : ComponentActivity() {
     // tap can deep-link to the active chat on both cold start and warm resume.
     private val latestIntent = MutableStateFlow<Intent?>(null)
 
+    // Splash stays up until the home screen has its data and has drawn it. Without
+    // this the system splash exits on the first frame, which on a cold start lands
+    // before the agent list has anything to show.
+    private val homeScreenReady = MutableStateFlow(false)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -122,7 +127,12 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
+        // Hold the splash until `homeScreenReady` flips, which happens on the first
+        // frame that has both the agent data and a laid-out home screen. Without a
+        // condition the system splash exits on the first frame, which on a cold start
+        // lands before the agent list has anything to show.
+        splashScreen.setKeepOnScreenCondition { !homeScreenReady.value }
         super.onCreate(savedInstanceState)
         latestIntent.value = intent
         enableEdgeToEdge(
@@ -151,6 +161,7 @@ class MainActivity : ComponentActivity() {
                         },
                         chatConnectionHub = chatConnectionHub,
                         chatViewModelFactory = chatViewModelFactory,
+                        onHomeScreenReady = { homeScreenReady.value = it },
                     )
                 }
             }
@@ -179,6 +190,7 @@ fun FerngeistNavHost(
     translateGatewayId: suspend (String) -> String? = { null },
     chatConnectionHub: ChatConnectionHub,
     chatViewModelFactory: ChatViewModelFactory,
+    onHomeScreenReady: (Boolean) -> Unit = {},
 ) {
     val navController = rememberNavController()
     val navSpring = spring<IntOffset>()
@@ -219,6 +231,7 @@ fun FerngeistNavHost(
                 workspace = workspace,
                 chatConnectionHub = chatConnectionHub,
                 chatViewModelFactory = chatViewModelFactory,
+                onHomeScreenReady = onHomeScreenReady,
             )
         }
     }
@@ -232,6 +245,7 @@ private fun NavGraphBuilder.FerngeistDestinations(
     workspace: WorkspaceState,
     chatConnectionHub: ChatConnectionHub,
     chatViewModelFactory: ChatViewModelFactory,
+    onHomeScreenReady: (Boolean) -> Unit,
 ) {
     ServerListDestination(
         navController = navController,
@@ -239,6 +253,7 @@ private fun NavGraphBuilder.FerngeistDestinations(
         workspace = workspace,
         chatConnectionHub = chatConnectionHub,
         chatViewModelFactory = chatViewModelFactory,
+        onHomeScreenReady = onHomeScreenReady,
     )
     GatewaysDestination(navController)
     AddServerDestination(navController)
@@ -353,6 +368,7 @@ private fun NavGraphBuilder.ServerListDestination(
     workspace: WorkspaceState,
     chatConnectionHub: ChatConnectionHub,
     chatViewModelFactory: ChatViewModelFactory,
+    onHomeScreenReady: (Boolean) -> Unit,
 ) {
     composable("server_list") {
         val viewModel: ServerListViewModel = hiltViewModel()
@@ -368,6 +384,7 @@ private fun NavGraphBuilder.ServerListDestination(
                 viewModel = viewModel,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
+                onHomeScreenReady = onHomeScreenReady,
             )
         } else {
             WorkspaceServerList(
@@ -378,6 +395,7 @@ private fun NavGraphBuilder.ServerListDestination(
                 chatViewModelFactory = chatViewModelFactory,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
+                onHomeScreenReady = onHomeScreenReady,
             )
         }
     }
@@ -391,6 +409,7 @@ private fun CompactServerList(
     viewModel: ServerListViewModel,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    onHomeScreenReady: (Boolean) -> Unit,
 ) {
     ServerListScreen(
         onNavigateToAddServer = { navController.navigate("add_server") },
@@ -419,6 +438,7 @@ private fun CompactServerList(
         viewModel = viewModel,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
+        onHomeScreenReady = onHomeScreenReady,
     )
 }
 
@@ -433,6 +453,7 @@ private fun WorkspaceServerList(
     chatViewModelFactory: ChatViewModelFactory,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    onHomeScreenReady: (Boolean) -> Unit,
 ) {
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
 
@@ -473,6 +494,7 @@ private fun WorkspaceServerList(
                 viewModel = viewModel,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
+                onHomeScreenReady = onHomeScreenReady,
             )
         },
         sessionsPane = { serverId, showBackButton ->

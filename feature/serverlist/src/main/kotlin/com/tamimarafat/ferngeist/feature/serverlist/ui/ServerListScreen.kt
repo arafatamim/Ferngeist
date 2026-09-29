@@ -49,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -119,6 +120,7 @@ fun ServerListScreen(
     viewModel: ServerListViewModel,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    onHomeScreenReady: (Boolean) -> Unit = {},
 ) {
     val screenState = rememberServerListState(viewModel)
     val servers = screenState.servers
@@ -129,6 +131,16 @@ fun ServerListScreen(
     val snackbarHostState = screenState.snackbarHostState
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
+
+    // Hold the launch splash until the agent list has data and has drawn it. Waiting
+    // a frame after the load flag clears means the frame the splash hands over to is
+    // already the populated list, not a blank scaffold that fills in a beat later.
+    LaunchedEffect(isLoading) {
+        if (!isLoading) {
+            withFrameNanos { }
+            onHomeScreenReady(true)
+        }
+    }
 
     ServerListDialogsAndEffects(
         viewModel = viewModel,
@@ -406,7 +418,12 @@ private fun ServerListContent(
                 .fillMaxSize(),
     ) {
         when {
-            isLoading && servers.isEmpty() -> ServerListLoadingContent()
+            // The backdrop is not composed until BOTH queries have landed. It seeds its
+            // sheet position on a one-shot flag the first time the recents block has a
+            // height, and that block has height even while empty (it ends in a spacer).
+            // Composing early with no sessions would spend that flag before any session
+            // exists, so the single-server expand would never happen.
+            isLoading -> ServerListLoadingContent()
             servers.isEmpty() ->
                 EmptyServerContent(
                     heroSession = heroSession,

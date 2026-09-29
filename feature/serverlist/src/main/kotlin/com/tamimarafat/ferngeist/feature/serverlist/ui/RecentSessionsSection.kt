@@ -17,7 +17,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -78,6 +80,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
@@ -91,6 +94,9 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+/** A single agent cannot fill the sheet, so the recents start on show. */
+private const val SINGLE_SERVER_COUNT = 1
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -118,7 +124,16 @@ internal fun AgentsBackdrop(
     val maxTopOverscrollPx = with(density) { sheetOverhang.toPx() }
     var topZonePx by rememberSaveable { mutableIntStateOf(0) } // hero + gap above the sheet
     var recentsPx by rememberSaveable { mutableIntStateOf(0) } // hidden recents block height
+    val canReveal = olderSessions.isNotEmpty()
     val sheetRevealed = rememberSaveable { mutableStateOf(false) }
+    // A lone server leaves the front sheet too short to cover the recents block, so
+    // open revealed and show the session list without a drag. This cannot be a
+    // rememberSaveable seed: the first composition usually still sees the empty
+    // StateFlow defaults for `servers`/`recentSessions`, and a seed evaluated then
+    // would lock in the wrong branch depending on which flow emitted first. Seeding
+    // happens in the restore pass below instead, which is the first frame that knows
+    // both the condition and how far "revealed" actually is.
+    val shouldStartRevealed = servers.size == SINGLE_SERVER_COUNT && canReveal
     // Stored as a fraction of the recents block (0f..1f) rather than raw pixels, so
     // a fold or rotate restores the same proportional position instead of a stale
     // pixel offset from the previous viewport.
@@ -138,12 +153,21 @@ internal fun AgentsBackdrop(
         }
     }
     val agentsScrollState = rememberScrollState()
-    val canReveal = olderSessions.isNotEmpty()
 
-    // Restore the saved fraction exactly once, as soon as the block has a height.
+    // Position the sheet once, as soon as the block has a height. The single-server
+    // rule applies on this first pass and wins over any saved position: it decides the
+    // initial state, and gating it on `savedSheetFraction == 0f` was wrong because that
+    // is ambiguous — a user who closed the sheet and a screen that was never positioned
+    // both read as 0f, and the seed silently lost. Saved fractions exist for returning
+    // from navigation mid-session, where the user's own drag is the intent.
     LaunchedEffect(recentsPx, sheetFractionRestored) {
         if (!sheetFractionRestored && recentsPx > 0) {
-            sheetOffset.snapTo((savedSheetFraction * recentsPx).coerceIn(0f, recentsPx.toFloat()))
+            if (shouldStartRevealed) {
+                sheetRevealed.value = true
+                sheetOffset.snapTo(recentsPx.toFloat())
+            } else {
+                sheetOffset.snapTo((savedSheetFraction * recentsPx).coerceIn(0f, recentsPx.toFloat()))
+            }
             sheetFractionRestored = true
         }
     }
@@ -748,11 +772,23 @@ internal fun ContinueSessionCard(
         label = "cloverRotation",
     )
 
+    val shape = RoundedCornerShape(corner)
     Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(corner),
-        interactionSource = interactionSource,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                // clip() before clickable so the ripple is bounded by the morphing
+                // shape instead of spilling into a full-width rectangle. Same wiring
+                // as ServerCard: Card(onClick=) gives no control over the indication,
+                // and its built-in ripple never showed on this card.
+                .clip(shape)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    role = Role.Button,
+                    onClick = onClick,
+                ),
+        shape = shape,
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,

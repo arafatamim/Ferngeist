@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -186,9 +187,20 @@ class ServerListViewModel
                 }
             }
 
-            // Mark list as loaded on first emission
+            // Mark loaded only once BOTH underlying queries have actually run. `servers`
+            // and `recentSessions` are each StateFlows seeded with emptyList(), so
+            // collecting either clears the flag on that synthetic initial value — a
+            // frame before any real row. That is what flashed "no agents yet" before the
+            // list, and let the launch splash drop while the recents were still empty so
+            // the sheet popped open a frame later. Each repository flow's first emission
+            // is a completed query, empty when there is genuinely nothing, so awaiting
+            // one from each is the honest signal. `first()` cancels on delivery: two
+            // short-lived subscriptions, no lasting duplicate collectors alongside the
+            // stateIn ones.
             viewModelScope.launch {
-                servers.collect { _isLoading.value = false }
+                launchableTargetRepository.getTargets().first()
+                sessionRepository.getRecentSessions(RECENT_SESSIONS_LIMIT).first()
+                _isLoading.value = false
             }
         }
 

@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -60,6 +61,11 @@ class ServerListViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
 
+        // The viewmodel clears `isLoading` on the first real emission of each query,
+        // so both repository flows must actually emit. A relaxed mock returns a flow
+        // that never does, and the loading flag would never clear.
+        every { launchableTargetRepository.getTargets() } returns flowOf(emptyList())
+        every { sessionRepository.getRecentSessions(any()) } returns flowOf(emptyList())
         every { connectionManager.connectionState } returns connectionStateFlow
         every { connectionManager.events } returns eventsFlow
         every { chatConnectionHub.createBrowserManager(any()) } returns connectionManager
