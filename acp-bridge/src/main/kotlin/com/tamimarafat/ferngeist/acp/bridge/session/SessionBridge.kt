@@ -16,19 +16,24 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.shareIn
 import kotlinx.serialization.json.JsonElement
+
+/**
+ * How many raw events [SessionBridge.events] replays to a collector that attaches late.
+ * The stream has no app-level consumer, so the tail only needs to cover the turn(s) in
+ * flight — a few update events and their terminal event — not a whole session history.
+ */
+private const val EVENT_REPLAY_TAIL = 8
 
 /**
  * SessionBridge is the UI-facing handle to a single ACP session, implementing [SessionPort].
  *
  * It owns a [SessionStateEngine] (the runtime) and forwards user actions to the
  * [AcpConnectionManager]. Events from the SDK are fed into the runtime via [emitEvent],
- * and a separate [events] SharedFlow allows collectors to observe all events in order.
+ * which also forwards them to the raw [events] stream and to the narrow
+ * [modelSelectionEvents] flow.
  *
  * ## Interface contract
  * SessionBridge implements [SessionPort] so the chat layer never imports the concrete
@@ -37,9 +42,9 @@ import kotlinx.serialization.json.JsonElement
  * [AcpConnectionManager] (which retains a [SessionBridge] reference internally).
  *
  * ## Lifecycle
- * An internal event scope CoroutineScope backs [modelSelectionEvents] (the filtered
- * flow exposed via [SessionPort.modelSelectionEvents]). That scope is cancelled in
- * [close], which is called by [AcpSessionRegistry.clearSession] or
+ * An internal event scope CoroutineScope backs [startTurn]: a prompt turn must outlive
+ * the screen that started it, so it runs on that scope rather than the caller's. The
+ * scope is cancelled in [close], which is called by [AcpSessionRegistry.clearSession] or
  * [AcpSessionRegistry.clearAll] when the session is torn down.
  */
 class SessionBridge(
@@ -49,26 +54,34 @@ class SessionBridge(
     internal val runtime: SessionStateEngine = SessionRuntime(sessionId = sessionId)
     override val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
 
-    // Replay must be large because session/load history often arrives as many chunk events
-    // before ChatViewModel attaches its collector.
+    // Raw event stream, for an observer that needs the events as they are emitted. No app
+    // code collects it — the chat UI renders from [snapshot] — so the replay tail is kept
+    // short instead of the 5000 entries it used to retain: a live session held every
+    // assistant message, tool-call payload and plan it had ever seen alive for readers that
+    // no longer exist. Only the tail is replayed to a late collector.
     private val _events =
         MutableSharedFlow<AppSessionEvent>(
-            replay = 5000,
+            replay = EVENT_REPLAY_TAIL,
             extraBufferCapacity = 2048,
         )
     val events: SharedFlow<AppSessionEvent> = _events.asSharedFlow()
 
-    private val eventScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val _modelSelectionEvents =
+        MutableSharedFlow<AppSessionEvent.ModelSelectionConfirmed>(
+            replay = 1,
+            extraBufferCapacity = 1,
+        )
 
     /**
      * Narrow, purpose-built flow of [AppSessionEvent.ModelSelectionConfirmed] events, exposed
      * via [SessionPort.modelSelectionEvents] so consumers can react to model changes without
-     * importing the concrete bridge type.
+     * importing the concrete bridge type. Fed by an explicit type check in [emitEvent]; only
+     * this event type is retained.
      */
     override val modelSelectionEvents: SharedFlow<AppSessionEvent.ModelSelectionConfirmed> =
-        _events
-            .filterIsInstance<AppSessionEvent.ModelSelectionConfirmed>()
-            .shareIn(eventScope, SharingStarted.WhileSubscribed(), replay = 1)
+        _modelSelectionEvents.asSharedFlow()
+
+    private val eventScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val traceTag = "TSBridge"
 
@@ -78,9 +91,12 @@ class SessionBridge(
      * Ordering matters: runtime state is updated before observers see the event.
      */
     suspend fun emitEvent(event: AppSessionEvent) {
-        debug("emitEvent type=${event::class.simpleName}")
+        debug { "emitEvent type=${event::class.simpleName}" }
         runtime.onEvent(event)
         _events.emit(event)
+        if (event is AppSessionEvent.ModelSelectionConfirmed) {
+            _modelSelectionEvents.emit(event)
+        }
     }
 
     /**
@@ -209,17 +225,17 @@ class SessionBridge(
     }
 
     /**
-     * Cancels the internal [eventScope], stopping the [modelSelectionEvents] shared flow.
-     * Called by [AcpSessionRegistry] when the session is removed. After close, no further
-     * events will be emitted through [modelSelectionEvents].
+     * Cancels the internal [eventScope], killing in-flight prompt turns. Called by
+     * [AcpSessionRegistry] when the session is removed. After close, nothing more is
+     * emitted through [modelSelectionEvents].
      */
     fun close() {
         eventScope.cancel()
     }
 
     /** Emits a debug log entry if logging is available. */
-    private fun debug(message: String) {
-        runCatching { android.util.Log.d(traceTag, "[$sessionId] $message") }
+    private fun debug(message: () -> String) {
+        SessionDebug.d(traceTag, sessionId, message)
     }
 }
 

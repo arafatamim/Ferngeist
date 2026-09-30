@@ -63,7 +63,7 @@ class SessionRuntime(
 
     override suspend fun beginHydration() {
         mutex.withLock {
-            debug("beginHydration: clearing buffered/live snapshot view")
+            debug { "beginHydration: clearing buffered/live snapshot view" }
             buffered = RuntimeData()
             // `usage` is deliberately NOT cleared here: it describes the context window of
             // this same session, and agents only emit `usage_update` at the end of a turn
@@ -83,10 +83,10 @@ class SessionRuntime(
 
     override suspend fun completeHydration() {
         mutex.withLock {
-            debug(
+            debug {
                 "completeHydration: committing buffered messages=${buffered.messages.size}, " +
-                    "bufferedStreaming=${buffered.isStreaming}",
-            )
+                    "bufferedStreaming=${buffered.isStreaming}"
+            }
             // session/load never replays a TurnComplete, so every assistant bubble built by
             // the reducer is left isStreaming=true. Finalize ALL of them (not just the last)
             // so a loaded transcript can never carry a stray streaming flag — and derive the
@@ -110,7 +110,7 @@ class SessionRuntime(
 
     override suspend fun failHydration(error: String?) {
         mutex.withLock {
-            debug("failHydration: error=${error ?: "unknown"}")
+            debug { "failHydration: error=${error ?: "unknown"}" }
             _snapshot.value =
                 _snapshot.value.copy(
                     loadState = SessionLoadState.FAILED,
@@ -123,10 +123,10 @@ class SessionRuntime(
     override suspend fun markReady() {
         mutex.withLock {
             if (_snapshot.value.loadState == SessionLoadState.HYDRATING) {
-                debug("markReady: ignored while HYDRATING")
+                debug { "markReady: ignored while HYDRATING" }
                 return@withLock
             }
-            debug("markReady: publishing READY with liveMessages=${live.messages.size}")
+            debug { "markReady: publishing READY with liveMessages=${live.messages.size}" }
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -135,20 +135,20 @@ class SessionRuntime(
         mutex.withLock {
             val seq = ++eventSeq
             val loadState = _snapshot.value.loadState
-            debug(
+            debug {
                 "event#$seq state=$loadState type=${event::class.simpleName} " +
-                    "summary=${summarizeEvent(event)}",
-            )
+                    "summary=${summarizeEvent(event)}"
+            }
             if (_snapshot.value.loadState == SessionLoadState.HYDRATING) {
                 buffered = reduce(buffered, event)
-                debug(
+                debug {
                     "event#$seq bufferedApplied messages=${buffered.messages.size} " +
-                        "streaming=${buffered.isStreaming}",
-                )
+                        "streaming=${buffered.isStreaming}"
+                }
                 return@withLock
             }
             live = reduce(live, event)
-            debug("event#$seq liveApplied messages=${live.messages.size} streaming=${live.isStreaming}")
+            debug { "event#$seq liveApplied messages=${live.messages.size} streaming=${live.isStreaming}" }
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -160,11 +160,11 @@ class SessionRuntime(
     ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) {
-                debug("onLocalPromptStarted ignored: loadState=${_snapshot.value.loadState}")
+                debug { "onLocalPromptStarted ignored: loadState=${_snapshot.value.loadState}" }
                 return@withLock
             }
 
-            debug("onLocalPromptStarted textLen=${text.length}, images=${images.size}, files=${files.size}")
+            debug { "onLocalPromptStarted textLen=${text.length}, images=${images.size}, files=${files.size}" }
             val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, text, images, files)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
@@ -179,7 +179,7 @@ class SessionRuntime(
 
     override suspend fun onPromptSendFailed() {
         mutex.withLock {
-            debug("onPromptSendFailed: finishing local streaming placeholder")
+            debug { "onPromptSendFailed: finishing local streaming placeholder" }
             live =
                 live.copy(
                     messages = SessionMessageReducer.finishStreaming(live.messages),
@@ -191,7 +191,7 @@ class SessionRuntime(
 
     override suspend fun onLocalCancel() {
         mutex.withLock {
-            debug("onLocalCancel: finishing local streaming placeholder")
+            debug { "onLocalCancel: finishing local streaming placeholder" }
             live =
                 live.copy(
                     messages = SessionMessageReducer.finishStreaming(live.messages),
@@ -240,7 +240,10 @@ class SessionRuntime(
         if (event is AppSessionEvent.TurnComplete || event is AppSessionEvent.SessionLoadComplete) {
             isStreaming = false
         }
-        val derivedStreaming = isStreaming || messages.any { it.isStreaming }
+        // Only the trailing bubble can be mid-stream: finishStreaming clears the flag on
+        // every message it closes, and a new streaming bubble is always appended last.
+        // A full scan is O(messages) and this runs per event.
+        val derivedStreaming = isStreaming || messages.lastOrNull()?.isStreaming == true
         return current.copy(
             messages = messages,
             toolCallIndex = toolCallIndex,
@@ -403,11 +406,11 @@ class SessionRuntime(
                 title = live.title,
                 error = error,
             )
-        debug(
+        debug {
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +
                 "lastRole=$lastRole lastLen=$lastLen lastSegments=$lastSegments " +
-                "commands=${live.availableCommands.size} configOptions=${effectiveConfigOptions.size}",
-        )
+                "commands=${live.availableCommands.size} configOptions=${effectiveConfigOptions.size}"
+        }
     }
 
     /**
@@ -442,7 +445,7 @@ class SessionRuntime(
             is AppSessionEvent.Unknown -> "unknownRawLen=${event.raw.length}"
         }
 
-    private fun debug(message: String) {
-        runCatching { android.util.Log.d(TAG, "[$sessionId] $message") }
+    private fun debug(message: () -> String) {
+        SessionDebug.d(TAG, sessionId, message)
     }
 }

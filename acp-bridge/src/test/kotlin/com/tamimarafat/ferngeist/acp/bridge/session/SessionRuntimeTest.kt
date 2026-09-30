@@ -60,6 +60,9 @@ class SessionRuntimeTest {
                 }
 
             runtime.completeHydration()
+            // SessionGateway emits SessionLoadComplete right after completeHydration; that event
+            // is the finalize pass that derives the transcript's flat content.
+            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
 
             val snapshot = runtime.snapshot.value
             assertEquals(SessionLoadState.READY, snapshot.loadState)
@@ -514,4 +517,43 @@ class SessionRuntimeTest {
         assertEquals("report.pdf", userMsg.files[0].name)
         assertTrue(afterFileEcho.messages[1].isStreaming)
     }
+
+    /**
+     * Pins the invariant the trailing-message streaming check in [SessionRuntime.reduce] relies
+     * on: mid-turn only the last bubble streams, and a completed turn clears the snapshot flag
+     * while leaving no message with a stray `isStreaming = true` anywhere in the list.
+     */
+    @Test
+    fun completed_turn_leaves_no_message_streaming() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+
+            runtime.onEvent(AppSessionEvent.UserMessage(text = "hey", append = true))
+            runtime.onEvent(AppSessionEvent.AgentMessage("hello"))
+
+            val midTurn = runtime.snapshot.value
+            assertTrue(midTurn.isStreaming)
+            assertTrue("trailing bubble must be streaming mid-turn", midTurn.messages.last().isStreaming)
+            assertTrue(
+                "no earlier message may be streaming mid-turn",
+                midTurn.messages.dropLast(1).none { it.isStreaming },
+            )
+
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
+
+            val settled = runtime.snapshot.value
+            assertFalse("turn completion must clear the snapshot streaming flag", settled.isStreaming)
+            assertTrue(
+                "no message may keep a stray streaming flag after a turn",
+                settled.messages.none { it.isStreaming },
+            )
+
+            // A second turn on the same runtime must settle exactly the same way.
+            runtime.onEvent(AppSessionEvent.AgentMessage(" again"))
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
+
+            val afterSecondTurn = runtime.snapshot.value
+            assertFalse(afterSecondTurn.isStreaming)
+            assertTrue(afterSecondTurn.messages.none { it.isStreaming })
+        }
 }

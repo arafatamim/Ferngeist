@@ -116,6 +116,45 @@ class SessionBridgeTest {
         }
 
     @Test
+    fun `SessionBridge should deliver model selection confirmations on the narrow flow`() =
+        runTest {
+            val bridge = SessionBridge("test_session", null)
+
+            bridge.modelSelectionEvents.test {
+                bridge.emitEvent(AppSessionEvent.ModelSelectionConfirmed("gpt-5"))
+                assertEquals("gpt-5", awaitItem().modelId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `SessionBridge should not deliver other events on modelSelectionEvents`() =
+        runTest {
+            val bridge = SessionBridge("test_session", null)
+
+            bridge.modelSelectionEvents.test {
+                bridge.emitEvent(AppSessionEvent.AgentMessage("hello"))
+                bridge.emitEvent(AppSessionEvent.TurnComplete("end_turn"))
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `SessionBridge should not replay the whole session history to a late collector`() =
+        runTest {
+            val bridge = SessionBridge("test_session", null)
+            repeat(50) { index -> bridge.emitEvent(AppSessionEvent.AgentMessage("chunk $index")) }
+
+            val replayed =
+                bridge.events.replayCache.map { (it as AppSessionEvent.AgentMessage).text }
+
+            // The fix: a live session must not keep every event it has ever emitted.
+            assertFalse("the whole event history must not be retained", replayed.contains("chunk 0"))
+            assertEquals("chunk 49", replayed.last())
+        }
+
+    @Test
     fun `SessionBridge sendPrompt should execute without throwing`() =
         runTest {
             val bridge = SessionBridge("test_session", null)
