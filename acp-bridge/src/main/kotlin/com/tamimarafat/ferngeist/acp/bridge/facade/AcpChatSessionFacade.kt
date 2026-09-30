@@ -760,7 +760,7 @@ class AcpChatSessionFacade(
                     }
                 },
                 scope.launch {
-                    bridge.modelSelectionEvents?.collect { event ->
+                    bridge.modelSelectionEvents.collect { event ->
                         // Fires [sessionModelUpdated] when the confirmed model matches the
                         // user's pending selection (or the selection is blank).
                         val pendingModel = pendingModelSelectionId

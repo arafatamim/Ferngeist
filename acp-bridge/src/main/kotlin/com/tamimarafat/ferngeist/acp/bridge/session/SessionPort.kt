@@ -24,11 +24,9 @@ interface SessionPort {
      * Stream of [ModelSelectionConfirmed] events emitted by the session bridge.
      *
      * This is a narrow, purpose-built flow — it does not expose the full
-     * event stream. Non-ACP implementations may return null if they don't
-     * separately track model selection confirmations (the snapshot already
-     * carries the current model value).
+     * event stream.
      */
-    val modelSelectionEvents: SharedFlow<AppSessionEvent.ModelSelectionConfirmed>?
+    val modelSelectionEvents: SharedFlow<AppSessionEvent.ModelSelectionConfirmed>
 
     /** Sends a prompt message to the agent. Optionally includes inline image data. */
     suspend fun sendPrompt(
