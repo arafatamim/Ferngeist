@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.mutate
+import kotlinx.collections.immutable.toPersistentList
 import java.util.UUID
 
 /**
@@ -278,30 +279,23 @@ object SessionMessageReducer {
 
         val message = mutableMessages[targetIndex]
 
-        // Coalesce consecutive segments of the same kind (e.g. two MESSAGE chunks from
-        // interleaved tool calls) into one segment instead of stacking many tiny entries.
-        // The PersistentList.mutate builder shares structure when no mutation occurs and
-        // otherwise appends in O(log n) instead of copying the segment list on every chunk.
+        // One segment per chunk. Folding the chunk into the trailing segment's text would copy
+        // the whole accumulated bubble on every chunk — O(n^2) bytes across a replay, which is
+        // what made long transcripts slow to load. So chunks land as their own segments and
+        // [finishStreaming] folds adjacent MESSAGE segments into one per turn, which is also where
+        // the flat `content` view is derived. Markdown is parsed per segment, not per message, so
+        // until that fold a live reply renders as one document per chunk and a construct split
+        // across a chunk boundary shows as literal text — the fold is what makes the settled
+        // reply a single document again.
         val newSegments: PersistentList<AssistantSegment> =
             message.segments.mutate { segments ->
-                val last = segments.lastOrNull()
-                if (last != null && last.kind == kind && last.toolCall == null) {
-                    segments[segments.lastIndex] = last.copy(text = last.text + text)
-                } else {
-                    segments.add(AssistantSegment(id = UUID.randomUUID().toString(), kind = kind, text = text))
-                }
+                segments.add(AssistantSegment(id = UUID.randomUUID().toString(), kind = kind, text = text))
             }
-
-        // Derive the flat content string from MESSAGE segments for backward-compatible access
-        val updatedContent =
-            newSegments
-                .filter { it.kind == AssistantSegment.Kind.MESSAGE }
-                .joinToString("") { it.text }
 
         mutableMessages[targetIndex] =
             message.copy(
                 segments = newSegments,
-                content = updatedContent,
+                content = "",
                 isStreaming = true,
             )
         return ReducerResult(mutableMessages, toolCallIndex)
@@ -354,10 +348,7 @@ object SessionMessageReducer {
                 }
             }
 
-        val updatedContent =
-            newSegments
-                .filter { it.kind == AssistantSegment.Kind.MESSAGE }
-                .joinToString("") { it.text }
+        val updatedContent = derivedContent(newSegments)
 
         mutableMessages[targetIndex] =
             message.copy(
@@ -427,8 +418,8 @@ object SessionMessageReducer {
         event: AppSessionEvent.ToolCallUpdated,
     ): ReducerResult {
         val incomingToolCallId = event.toolCallId.ifBlank { "tool_${UUID.randomUUID()}" }
-        val location = toolCallIndex[incomingToolCallId]
-        if (location == null) {
+        val located = locateToolCall(messages, toolCallIndex, incomingToolCallId)
+        if (located == null) {
             // Out-of-order event: ToolCallUpdated arrived before ToolCallStarted. Bootstrap a
             // ToolCallStarted entry first and then apply the update on top. The bootstrap
             // populates the index, so the recursive call resolves in O(1).
@@ -451,6 +442,7 @@ object SessionMessageReducer {
             )
         }
 
+        val (location, resolvedIndex) = located
         val messageIndex = location.messageIndex
         val segmentIndex = location.segmentIndex
         val mutableMessages = messages.toMutableList()
@@ -474,7 +466,7 @@ object SessionMessageReducer {
                     )
             }
         mutableMessages[messageIndex] = message.copy(segments = newSegments)
-        return ReducerResult(mutableMessages, toolCallIndex)
+        return ReducerResult(mutableMessages, resolvedIndex)
     }
 
     private fun updateToolCallPermission(
@@ -500,7 +492,10 @@ object SessionMessageReducer {
                 )
             }
 
-        val location = bootstrapped.toolCallIndex[event.toolCallId] ?: return bootstrapped
+        val located =
+            locateToolCall(bootstrapped.messages, bootstrapped.toolCallIndex, event.toolCallId)
+                ?: return bootstrapped
+        val (location, resolvedIndex) = located
         val mutableMessages = bootstrapped.messages.toMutableList()
         val message = mutableMessages[location.messageIndex]
         val oldSegment = message.segments[location.segmentIndex]
@@ -527,7 +522,7 @@ object SessionMessageReducer {
                     )
             }
         mutableMessages[location.messageIndex] = message.copy(segments = newSegments)
-        return ReducerResult(mutableMessages, bootstrapped.toolCallIndex)
+        return ReducerResult(mutableMessages, resolvedIndex)
     }
 
     private fun clearToolCallPermission(
@@ -535,11 +530,14 @@ object SessionMessageReducer {
         toolCallIndex: Map<String, ToolCallLocation>,
         toolCallId: String,
     ): ReducerResult {
-        val location = toolCallIndex[toolCallId] ?: return ReducerResult(messages, toolCallIndex)
+        val located =
+            locateToolCall(messages, toolCallIndex, toolCallId)
+                ?: return ReducerResult(messages, toolCallIndex)
+        val (location, resolvedIndex) = located
         val mutableMessages = messages.toMutableList()
         val message = mutableMessages[location.messageIndex]
         val oldSegment = message.segments[location.segmentIndex]
-        val oldToolCall = oldSegment.toolCall ?: return ReducerResult(messages, toolCallIndex)
+        val oldToolCall = oldSegment.toolCall ?: return ReducerResult(messages, resolvedIndex)
 
         val newSegments: PersistentList<AssistantSegment> =
             message.segments.mutate { segments ->
@@ -563,8 +561,50 @@ object SessionMessageReducer {
                     )
             }
         mutableMessages[location.messageIndex] = message.copy(segments = newSegments)
-        return ReducerResult(mutableMessages, toolCallIndex)
+        return ReducerResult(mutableMessages, resolvedIndex)
     }
+
+    /**
+     * Resolves where [toolCallId] lives right now, repairing the index when it points at some
+     * other segment. The index is a cache, not a fixed address: [finishStreaming] folds adjacent
+     * MESSAGE segments into one when a turn closes, which moves every tool call that follows them
+     * down, and the index is not rebuilt on the runtime-owned close paths. Without the re-check a
+     * late update would write to whatever segment now sits at the recorded index (or throw).
+     *
+     * Returns the location plus the (possibly repaired) index, or null when the id is nowhere to
+     * be found — the caller's bootstrap path.
+     */
+    private fun locateToolCall(
+        messages: List<ChatMessage>,
+        toolCallIndex: Map<String, ToolCallLocation>,
+        toolCallId: String,
+    ): Pair<ToolCallLocation, Map<String, ToolCallLocation>>? {
+        val indexed = toolCallIndex[toolCallId]
+        if (indexed != null && toolCallIdAt(messages, indexed) == toolCallId) {
+            return indexed to toolCallIndex
+        }
+        messages.forEachIndexed { messageIndex, message ->
+            message.segments.forEachIndexed { segmentIndex, segment ->
+                if (segment.toolCall?.toolCallId == toolCallId) {
+                    val location = ToolCallLocation(messageIndex, segmentIndex)
+                    return location to (toolCallIndex + (toolCallId to location))
+                }
+            }
+        }
+        return null
+    }
+
+    /** The tool call id recorded at [location], or null when the location points at nothing. */
+    private fun toolCallIdAt(
+        messages: List<ChatMessage>,
+        location: ToolCallLocation,
+    ): String? =
+        messages
+            .getOrNull(location.messageIndex)
+            ?.segments
+            ?.getOrNull(location.segmentIndex)
+            ?.toolCall
+            ?.toolCallId
 
     /**
      * Clears the streaming flag on every message that carries it.
@@ -574,11 +614,103 @@ object SessionMessageReducer {
      * runtime derives its streaming flag as an OR over all messages (SessionRuntime.reduce), and
      * the chat UI's STOP action is driven by that flag, so every streaming bubble must be cleared -
      * a single orphan left behind keeps the snapshot streaming forever and strands the user on STOP.
+     *
+     * Also settles what the bubble renders (see [closedByTurnClose]): chunks arrive as one segment
+     * each ([appendText]), so this is where adjacent MESSAGE segments fold back into a single
+     * markdown document and where the flat `content` view is derived. Both run once per turn,
+     * which is the point - doing either per chunk is the O(n^2) copy that the segment-per-chunk
+     * shape exists to avoid. [SessionRuntime.reduce] routes SessionLoadComplete through this method
+     * too, which is what gives a hydrated transcript its content and its single-segment replies.
      */
     fun finishStreaming(messages: List<ChatMessage>): List<ChatMessage> {
-        if (messages.none { it.isStreaming }) return messages
-        return messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it }
+        if (messages.none { it.needsTurnCloseRewrite() }) return messages
+        return messages.map { message ->
+            if (message.needsTurnCloseRewrite()) message.closedByTurnClose() else message
+        }
     }
+
+    /**
+     * True when turn close must rewrite [message]: it is still streaming, its flat `content` view
+     * has not been derived yet, or its reply chunks still stand as one segment each and need
+     * folding into one MESSAGE segment (see [mergedMessageSegments]).
+     */
+    private fun ChatMessage.needsTurnCloseRewrite(): Boolean =
+        isStreaming ||
+            (
+                role == ChatMessage.Role.ASSISTANT &&
+                    (needsDerivedContent() || segments.hasAdjacentMessageSegments())
+            )
+
+    /**
+     * Settles a bubble for rendering: clears the streaming flag, folds adjacent MESSAGE segments
+     * into one markdown document per run, and derives the flat `content` view when it is still
+     * empty. The fold does not change that view - it is the join of every MESSAGE segment's text in
+     * order - so an already-derived `content` is carried through untouched.
+     */
+    private fun ChatMessage.closedByTurnClose(): ChatMessage {
+        if (role != ChatMessage.Role.ASSISTANT) return copy(isStreaming = false)
+        val merged = mergedMessageSegments(segments)
+        return copy(
+            isStreaming = false,
+            segments = merged,
+            content = if (content.isEmpty()) derivedContent(merged) else content,
+        )
+    }
+
+    /**
+     * Folds every run of adjacent MESSAGE segments into a single segment whose text is their
+     * concatenation, keeping the run's first id so the key set is stable - the absorbed trailing
+     * ids simply drop out. (The cached markdown entry is still re-parsed: its text no longer
+     * matches the first chunk's.) Non-MESSAGE segments (thoughts, tool calls, plans) keep their
+     * place and are never absorbed, so a THOUGHT between two runs leaves those runs separate.
+     *
+     * Linear in the run length: one StringBuilder per run, rather than one `text +` per segment
+     * (which would be O(n^2) inside the run - the very cost the per-chunk shape avoids).
+     */
+    private fun mergedMessageSegments(segments: PersistentList<AssistantSegment>): PersistentList<AssistantSegment> {
+        if (!segments.hasAdjacentMessageSegments()) return segments
+        val merged = ArrayList<AssistantSegment>(segments.size)
+        var index = 0
+        while (index < segments.size) {
+            val segment = segments[index]
+            if (segment.kind != AssistantSegment.Kind.MESSAGE) {
+                merged.add(segment)
+                index++
+                continue
+            }
+            val runText = StringBuilder(segment.text)
+            index++
+            while (index < segments.size && segments[index].kind == AssistantSegment.Kind.MESSAGE) {
+                runText.append(segments[index].text)
+                index++
+            }
+            merged.add(segment.copy(text = runText.toString()))
+        }
+        return merged.toPersistentList()
+    }
+
+    /** True when two MESSAGE segments sit next to each other - the shape a chunked stream leaves
+     * behind, and the only shape [mergedMessageSegments] has to rewrite. */
+    private fun List<AssistantSegment>.hasAdjacentMessageSegments(): Boolean =
+        (1 until size).any { index ->
+            this[index].kind == AssistantSegment.Kind.MESSAGE &&
+                this[index - 1].kind == AssistantSegment.Kind.MESSAGE
+        }
+
+    /** Flat text view of the MESSAGE segments, in the order the agent emitted them. */
+    private fun derivedContent(segments: List<AssistantSegment>): String =
+        segments
+            .filter { it.kind == AssistantSegment.Kind.MESSAGE }
+            .joinToString("") { it.text }
+
+    /** True when [this] is an assistant bubble whose flat `content` has not been derived yet.
+     * Requires a MESSAGE segment specifically: a tool-call- or thought-only bubble derives
+     * an empty string, so treating it as pending would make this never settle and re-derive
+     * the whole list on every turn close. */
+    private fun ChatMessage.needsDerivedContent(): Boolean =
+        role == ChatMessage.Role.ASSISTANT &&
+            content.isEmpty() &&
+            segments.any { it.kind == AssistantSegment.Kind.MESSAGE }
 
     /** True when [lastMessage] is an empty streaming assistant placeholder whose preceding USER
      * message starts with or equals [text] (echo dedup on the server-echo path). */

@@ -271,9 +271,16 @@ class SessionMessageReducerTest {
                 emptyMap(),
                 AppSessionEvent.AgentMessage(" you?"),
             )
+        // The flat `content` is derived when a turn closes, so close the turn before asserting it.
+        val (finished, _) =
+            apply(
+                resumedChunk,
+                emptyMap(),
+                AppSessionEvent.TurnComplete("end_turn"),
+            )
 
-        assertEquals(1, resumedChunk.size)
-        assertEquals("how are you?", resumedChunk.last().content)
+        assertEquals(1, finished.size)
+        assertEquals("how are you?", finished.last().content)
     }
 
     @Test
@@ -301,8 +308,15 @@ class SessionMessageReducerTest {
                 emptyMap(),
                 AppSessionEvent.AgentMessage(" world"),
             )
+        // The flat `content` is derived when a turn closes, so close the turn before asserting it.
+        val (finished, _) =
+            apply(
+                second,
+                emptyMap(),
+                AppSessionEvent.TurnComplete("end_turn"),
+            )
 
-        assertEquals("hello world", second.last().content)
+        assertEquals("hello world", finished.last().content)
     }
 
     @Test
