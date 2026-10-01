@@ -4,12 +4,15 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.content.res.Resources
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -624,7 +627,21 @@ private fun ChatMessageList(
                     }
                 }
             }
-            items(items = windowed, key = { it.id }) { message ->
+            items(
+                items = windowed,
+                key = { it.id },
+                // Bubbles differ in structure (user, plain assistant, segmented assistant), so
+                // without a contentType Compose cannot tell a like-for-like slot from a
+                // different one and re-does the work on every markdown emit. Coarse on purpose:
+                // the value only has to match for rows that can share a slot.
+                contentType = {
+                    when {
+                        it.role == ChatMessage.Role.USER -> 0
+                        it.segments.isEmpty() -> 1
+                        else -> 2
+                    }
+                },
+            ) { message ->
                 ChatMessageItem(
                     message = message,
                     state = state,
@@ -638,6 +655,14 @@ private fun ChatMessageList(
             item(key = "__chat_bottom_spacer") {
                 Spacer(modifier = Modifier.height(listBottomPadding))
             }
+        }
+        AnimatedVisibility(
+            visible = allMessages.isEmpty() && !state.resumedSession,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            ChatEmptyHero(iconUrl = state.iconUrl)
         }
     }
 }

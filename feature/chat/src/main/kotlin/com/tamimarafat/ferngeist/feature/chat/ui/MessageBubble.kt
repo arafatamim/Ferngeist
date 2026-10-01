@@ -377,7 +377,7 @@ private fun AssistantMessageContent(
         }
 
         if (message.segments.isEmpty() && message.content.isNotBlank()) {
-            MarkdownText(state = markdownStates[message.id])
+            MarkdownText(text = message.content, state = markdownStates[message.id])
         }
 
         if (showStreamingIndicator && message.segments.isEmpty() && message.content.isBlank()) {
@@ -400,7 +400,7 @@ private fun AssistantSegmentContent(
     when (segment.kind) {
         AssistantSegment.Kind.MESSAGE -> {
             if (segment.text.isNotBlank()) {
-                MarkdownText(state = markdownState)
+                MarkdownText(text = segment.text, state = markdownState)
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
@@ -430,8 +430,24 @@ private fun AssistantSegmentContent(
     }
 }
 
+/**
+ * Renders [text] as markdown once [state] is available.
+ *
+ * While the parse is still in flight this falls back to the raw text at body typography. A
+ * missing parse is not a reason to render nothing: an unparsed bubble with no fallback
+ * measures zero height, so when the parse lands the bubble grows from nothing to full height
+ * and shoves every message below it down the viewport. That is the transcript jitter - it
+ * repeats once per markdown batch (24 entries) as hydration drains.
+ *
+ * The fallback is plain text, not a fixed-height placeholder, because a guessed height is
+ * still wrong: real markdown height varies with the content, so a placeholder that reserves
+ * the wrong number of lines jitters just as much. Rendering the text itself means the height
+ * is already correct when the parse swaps in, and the swap is then a formatting change within
+ * an unchanged line count.
+ */
 @Composable
 private fun MarkdownText(
+    text: String,
     state: MarkdownRenderState?,
     modifier: Modifier = Modifier,
 ) {
@@ -462,6 +478,15 @@ private fun MarkdownText(
                 modifier = modifier.fillMaxWidth(),
             )
         }
+    } else {
+        // The parse has not landed yet. Render the text plainly so the bubble occupies its
+        // real height now; when the parse arrives the formatting swaps in without the
+        // surrounding list having to re-measure.
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = modifier.fillMaxWidth(),
+        )
     }
 }
 

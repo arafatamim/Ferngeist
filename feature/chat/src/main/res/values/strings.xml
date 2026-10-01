@@ -219,6 +219,16 @@
     <string name="chat_git_directory">Directory</string>
     <string name="chat_git_file_deleted">File is no longer in the working tree: %1$s</string>
     <string name="chat_load_earlier">Load earlier messages</string>
+    <string-array name="chat_empty_titles">
+        <item>What do you want to build today?</item>
+        <item>What are we making?</item>
+        <item>Where to, builder?</item>
+        <item>What\'s on your mind?</item>
+        <item>Ready when you are.</item>
+        <item>What shall we create?</item>
+        <item>New session, new ideas.</item>
+        <item>What needs building?</item>
+    </string-array>
     <string name="chat_picker_empty">No items.</string>
     <string name="chat_picker_no_results">No matching items.</string>
     <string name="chat_search_desc">Search</string>

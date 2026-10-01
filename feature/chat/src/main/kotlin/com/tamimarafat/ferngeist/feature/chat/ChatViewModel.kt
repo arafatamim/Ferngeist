@@ -28,6 +28,7 @@ import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
@@ -593,21 +594,29 @@ class ChatViewModel
         }
 
         /**
-         * Populates [ChatState.title] for the app bar. The deep-link path (push
-         * notification tap) can't carry the real session name, so the nav-arg
-         * `title` is blank and we look it up from the local session store. When the
-         * nav arg already has a title (session list -> chat) we use that and skip the
-         * lookup to avoid a stale read.
+         * Populates [ChatState.title] for the app bar, and the agent logo URL for
+         * identity marks. The deep-link path (push notification tap) can't carry
+         * the real session name, so the nav-arg `title` is blank and we look it
+         * up from the local session store. When the nav arg already has a title
+         * (session list -> chat) we use that and skip the lookup to avoid a
+         * stale read. Custom and manual agents have no registry logo, so a null
+         * icon simply keeps the fallback.
          */
         private fun resolveSessionTitle() {
             if (sessionTitle.isNotBlank()) {
                 updateState { copy(title = sessionTitle) }
-                return
+            } else {
+                viewModelScope.launch {
+                    val resolved = sessionRepository.getSession(serverId, sessionId)?.title
+                    if (!resolved.isNullOrBlank() && state.value.title.isNullOrBlank()) {
+                        updateState { copy(title = resolved) }
+                    }
+                }
             }
             viewModelScope.launch {
-                val resolved = sessionRepository.getSession(serverId, sessionId)?.title
-                if (!resolved.isNullOrBlank() && state.value.title.isNullOrBlank()) {
-                    updateState { copy(title = resolved) }
+                val icon = launchableTargetRepository.getTarget(serverId)?.iconUrl
+                if (icon != null) {
+                    updateState { copy(iconUrl = icon) }
                 }
             }
         }
@@ -1127,6 +1136,11 @@ data class ChatState(
     val isGitFileDiffLoading: Boolean = false,
     val gitFileDiffError: String? = null,
     val error: String? = null,
+    /**
+     * Registry logo URL for this chat's agent, for identity marks like the
+     * empty-session hero. Null for manual agents or when unresolved.
+     */
+    val iconUrl: String? = null,
 )
 
 /** User intents emitted from the chat UI. */

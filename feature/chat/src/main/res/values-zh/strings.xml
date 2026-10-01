@@ -124,6 +124,16 @@
     <string name="chat_git_directory">目录</string>
     <string name="chat_git_file_deleted">文件已不在工作区中：%1$s</string>
     <string name="chat_load_earlier">加载更早的消息</string>
+    <string-array name="chat_empty_titles">
+        <item>今天想构建什么？</item>
+        <item>我们在做什么？</item>
+        <item>出发吧，建造者。</item>
+        <item>你在想什么？</item>
+        <item>你准备好了，我随时待命。</item>
+        <item>我们来创造什么？</item>
+        <item>新会话，新想法。</item>
+        <item>需要构建什么？</item>
+    </string-array>
     <string name="chat_status_sending">发送中</string>
     <string name="chat_status_queued">排队中</string>
     <string name="chat_status_failed">发送失败</string>

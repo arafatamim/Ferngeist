@@ -122,6 +122,16 @@
     <string name="chat_git_directory">Каталог</string>
     <string name="chat_git_file_deleted">Файла больше нет в рабочем дереве: %1$s</string>
     <string name="chat_load_earlier">Загрузить более ранние сообщения</string>
+    <string-array name="chat_empty_titles">
+        <item>Что будем строить сегодня?</item>
+        <item>Что создаём?</item>
+        <item>Куда отправимся, строитель?</item>
+        <item>О чём думаешь?</item>
+        <item>Готов, когда ты готов.</item>
+        <item>Что создадим?</item>
+        <item>Новая сессия — новые идеи.</item>
+        <item>Что нужно построить?</item>
+    </string-array>
     <string name="chat_status_sending">Отправка</string>
     <string name="chat_status_queued">В очереди</string>
     <string name="chat_status_failed">Не удалось отправить</string>

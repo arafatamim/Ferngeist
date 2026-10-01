@@ -118,6 +118,16 @@
     <string name="chat_git_directory">ডিরেক্টরি</string>
     <string name="chat_git_file_deleted">ফাইলটি আর ওয়ার্কিং ট্রিতে নেই: %1$s</string>
     <string name="chat_load_earlier">আগের বার্তাগুলো লোড করুন</string>
+    <string-array name="chat_empty_titles">
+        <item>আজ কী বানাতে চাও?</item>
+        <item>আমরা কী বানাচ্ছি?</item>
+        <item>কোন দিকে যাব, নির্মাতা?</item>
+        <item>তোমার মনে কী চলছে?</item>
+        <item>তুমি প্রস্তুত হলেই আমি প্রস্তুত।</item>
+        <item>কী সৃষ্টি করব?</item>
+        <item>নতুন সেশন, নতুন ভাবনা।</item>
+        <item>কী বানানো দরকার?</item>
+    </string-array>
     <string name="chat_status_sending">পাঠানো হচ্ছে</string>
     <string name="chat_status_queued">সারিতে</string>
     <string name="chat_status_failed">পাঠানো ব্যর্থ হয়েছে</string>
