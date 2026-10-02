@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -211,7 +210,8 @@ fun SessionListScreen(
 private class SessionListState(
     val sessions: List<SessionSummary>,
     val liveSessionIds: Set<String>,
-    val isLoading: Boolean,
+    /** False only until the cache's first emission; see `SessionRows.loaded`. */
+    val cacheRead: Boolean,
     val currentCwd: String?,
     val connectionState: ChatConnectionState,
     val connectionDiagnostics: ChatConnectionDiagnostics,
@@ -249,6 +249,7 @@ private fun rememberSessionListState(
     val sessionSettings by viewModel.sessionSettings.collectAsState()
     val agentCapabilities by viewModel.agentCapabilities.collectAsState()
     val pendingAuthentication by viewModel.pendingAuthentication.collectAsState()
+    val sessionRows by viewModel.sessionRows.collectAsState()
     val currentCwd = sessionSettings.cwd
     val serverName =
         resolveServerDisplayName(
@@ -263,9 +264,9 @@ private fun rememberSessionListState(
         label = "cwdAlpha",
     )
     return SessionListState(
-        sessions = viewModel.visibleSessions.collectAsState().value,
+        sessions = sessionRows.rows,
         liveSessionIds = viewModel.liveSessionIds.collectAsState().value,
-        isLoading = viewModel.isLoading.collectAsState().value,
+        cacheRead = sessionRows.loaded,
         currentCwd = currentCwd,
         connectionState = viewModel.connectionState.collectAsState().value,
         connectionDiagnostics = viewModel.connectionDiagnostics.collectAsState().value,
@@ -644,8 +645,14 @@ private fun SessionListContent(
     sharedBoundsEnabled: Boolean,
 ) {
     when {
-        state.isLoading && state.sessions.isEmpty() -> {
-            SessionListLoadingContent(padding)
+        // Unknown is a third state, not a flavour of empty. While the cache has
+        // not answered there is nothing truthful to draw — a spinner claims a
+        // wait the user never feels (the rows are already on disk), and the
+        // empty state claims "no sessions" when the list is merely unread. So
+        // paint neither: the rows or the empty state arrive on the next frame,
+        // and with no spinner there is no flash on the way there.
+        !state.cacheRead -> {
+            Box(modifier = Modifier.fillMaxSize().padding(padding))
         }
 
         state.sessions.isEmpty() -> {
@@ -673,21 +680,6 @@ private fun SessionListContent(
                 sharedBoundsEnabled = sharedBoundsEnabled,
             )
         }
-    }
-}
-
-@Composable
-private fun SessionListLoadingContent(padding: PaddingValues) {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(padding),
-        contentAlignment = Alignment.Center,
-    ) {
-        CircularWavyProgressIndicator(
-            modifier = Modifier.size(64.dp),
-        )
     }
 }
 

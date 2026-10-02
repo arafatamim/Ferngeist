@@ -124,21 +124,51 @@ class SessionListViewModel
                 .getRecentCwds(serverId)
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-        val sessions: StateFlow<List<SessionSummary>> =
+        /**
+         * Raw cached rows, unfiltered.
+         *
+         * Internal callers use these to ask whether the cache holds anything at
+         * all. [sessionRows] deliberately does NOT derive from them: a
+         * `stateIn` seed is indistinguishable from a real empty read to a new
+         * collector, so loaded-ness has to come from the cold flow itself.
+         */
+        private val sessions: StateFlow<List<SessionSummary>> =
             sessionRepository
                 .getSessions(serverId)
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+                .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
         /**
-         * The rows the list shows: the cached sessions narrowed by the active
-         * working directory. Filtering locally keeps the list truthful while
-         * the agent is unreachable — the hub's listing can only filter by
-         * re-asking the gateway, and its result replaces this same cache.
+         * The rows the list shows, plus whether the cache has actually answered
+         * yet.
+         *
+         * Rows and [SessionRows.loaded] travel together deliberately. The
+         * `sessions` StateFlow above cannot supply `loaded`: it is seeded
+         * empty, so every new collector sees that seed at once and an
+         * empty-state flash beats the data to the screen. Deriving both from
+         * the repository's cold flow makes the first emission a real Room read,
+         * and carrying them in one value keeps them from disagreeing mid-paint.
          */
-        val visibleSessions: StateFlow<List<SessionSummary>> =
-            combine(sessions, sessionSettings) { cached, settings ->
-                filterSessionsByCwd(cached, settings.cwd)
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        val sessionRows: StateFlow<SessionRows> =
+            combine(
+                sessionRepository.getSessions(serverId).map { cached -> cached to true },
+                sessionSettings,
+            ) { (cached, loaded), settings ->
+                // Filtering locally keeps the list truthful while the agent is
+                // unreachable — the hub's listing can only filter by re-asking
+                // the gateway, and its result replaces this same cache.
+                SessionRows(rows = filterSessionsByCwd(cached, settings.cwd), loaded = loaded)
+            }.stateIn(
+                viewModelScope,
+                // Eagerly, not WhileSubscribed: this view model is scoped to one
+                // nav entry, so every open builds a fresh stateIn whose seed is
+                // an empty list. Starting only on first subscription puts the
+                // whole Room round trip after the first frame, which shows up as
+                // a blank screen mid-transition. Subscribing at construction
+                // gives the query the navigation animation to land in, and Room's
+                // Flow is an invalidation observer, so idling here costs nothing.
+                SharingStarted.Eagerly,
+                SessionRows(rows = emptyList(), loaded = false),
+            )
 
         /** Sessions currently holding a live gateway connection (for the row dot). */
         val liveSessionIds: StateFlow<Set<String>> =
@@ -883,3 +913,15 @@ sealed interface SessionListEvent {
         val message: String,
     ) : SessionListEvent
 }
+
+/**
+ * Session rows and the answer to "has the cache answered yet?".
+ *
+ * [loaded] is false only before the cache's first real emission. It exists
+ * because a list seeded empty cannot distinguish "nothing stored" from "not
+ * read yet", and that difference is a visible flash of the wrong screen.
+ */
+data class SessionRows(
+    val rows: List<SessionSummary>,
+    val loaded: Boolean,
+)
