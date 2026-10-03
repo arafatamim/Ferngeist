@@ -1,0 +1,8 @@
+Polish pass: smoother scrolling, text that reveals as it streams, and a livelier list.
+
+• Scrolling to either end of a chat now eases instead of jumping
+• The transcript keeps following as a reply grows, until you scroll away
+• Streamed replies reveal their markdown as chunks arrive
+• Swipe a session away in the chat switcher sheet
+• Geist Mono ships with the app, and agents show logo badges
+• Fixed: the session list no longer blanks out while it loads
