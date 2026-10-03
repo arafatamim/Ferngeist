@@ -1,13 +1,13 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.adamglin.compose.markdown.core.model.BlockNode
+import com.adamglin.compose.markdown.core.model.InlineNode
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,13 +21,8 @@ class MarkdownStateStoreTest {
     fun `onSnapshot during hydration keeps loading pending and parses assistant segments`(): Unit =
         runTest {
             var currentMessages = emptyList<ChatMessage>()
-            val emittedStates = mutableListOf<Map<String, *>>()
             val store =
-                createStore(
-                    scope = backgroundScope,
-                    currentMessages = { currentMessages },
-                    onMarkdownStatesChanged = { emittedStates += it },
-                )
+                MarkdownStateStore()
             val message =
                 assistantMessage(
                     id = "message_1",
@@ -50,8 +45,7 @@ class MarkdownStateStoreTest {
                 )
 
             assertTrue(projection.pendingInitialHydration)
-            assertEquals(setOf("segment_1"), projection.markdownStates.keys)
-            assertTrue(emittedStates.isEmpty())
+            assertEquals(setOf("segment_1"), projection.documents.keys)
         }
 
     @Test
@@ -62,10 +56,7 @@ class MarkdownStateStoreTest {
                     assistantMessage(id = "message_1", text = "**before**"),
                 )
             val store =
-                createStore(
-                    scope = backgroundScope,
-                    currentMessages = { currentMessages },
-                )
+                MarkdownStateStore()
 
             val initial =
                 store.onSnapshot(
@@ -73,7 +64,7 @@ class MarkdownStateStoreTest {
                     loadState = ChatLoadState.READY,
                 )
             assertFalse(initial.pendingInitialHydration)
-            assertEquals(setOf("message_1"), initial.markdownStates.keys)
+            assertEquals(setOf("message_1"), initial.documents.keys)
 
             currentMessages =
                 listOf(
@@ -85,9 +76,7 @@ class MarkdownStateStoreTest {
                     loadState = ChatLoadState.READY,
                 )
 
-            assertEquals(setOf("message_1"), changed.markdownStates.keys)
-
-            advanceUntilIdle()
+            assertEquals(setOf("message_1"), changed.documents.keys)
 
             val settled =
                 store.onSnapshot(
@@ -96,7 +85,7 @@ class MarkdownStateStoreTest {
                 )
 
             assertFalse(settled.pendingInitialHydration)
-            assertEquals(setOf("message_1"), settled.markdownStates.keys)
+            assertEquals(setOf("message_1"), settled.documents.keys)
         }
 
     @Test
@@ -107,17 +96,14 @@ class MarkdownStateStoreTest {
                     assistantMessage(id = "message_1", text = "**hello**"),
                 )
             val store =
-                createStore(
-                    scope = backgroundScope,
-                    currentMessages = { currentMessages },
-                )
+                MarkdownStateStore()
 
             val initial =
                 store.onSnapshot(
                     messages = currentMessages,
                     loadState = ChatLoadState.READY,
                 )
-            assertEquals(setOf("message_1"), initial.markdownStates.keys)
+            assertEquals(setOf("message_1"), initial.documents.keys)
 
             currentMessages = emptyList()
             val cleared =
@@ -126,21 +112,55 @@ class MarkdownStateStoreTest {
                     loadState = ChatLoadState.READY,
                 )
 
-            assertTrue(cleared.markdownStates.isEmpty())
+            assertTrue(cleared.documents.isEmpty())
             assertFalse(cleared.pendingInitialHydration)
         }
 
-    /** Builds a markdown store for tests with overridable callbacks. */
-    private fun createStore(
-        scope: CoroutineScope,
-        currentMessages: () -> List<ChatMessage>,
-        onMarkdownStatesChanged: (Map<String, *>) -> Unit = {},
-    ): MarkdownStateStore =
-        MarkdownStateStore(
-            scope = scope,
-            currentMessages = currentMessages,
-            onMarkdownStatesChanged = { onMarkdownStatesChanged(it) },
-        )
+    @Test
+    fun `repeated hydration snapshots parse a run once, not once per snapshot`() =
+        runTest {
+            val store = MarkdownStateStore()
+            val message = assistantMessage(id = "message_1", text = "Hello world")
+
+            store.onSnapshot(listOf(message), ChatLoadState.HYDRATING)
+            store.onSnapshot(listOf(message), ChatLoadState.HYDRATING)
+            val grown =
+                store.onSnapshot(
+                    listOf(message.copy(content = "Hello world, more")),
+                    ChatLoadState.READY,
+                )
+
+            assertEquals("Hello world, more", grown.documents.getValue("message_1").plainText())
+        }
+
+    @Test
+    fun `run that stops being a prefix of what was parsed starts over`() =
+        runTest {
+            val store = MarkdownStateStore()
+            store.onSnapshot(listOf(assistantMessage(id = "message_1", text = "First draft")), ChatLoadState.READY)
+
+            val rewritten =
+                store.onSnapshot(listOf(assistantMessage(id = "message_1", text = "Second")), ChatLoadState.READY)
+
+            assertEquals("Second", rewritten.documents.getValue("message_1").plainText())
+        }
+
+    @Test
+    fun `unchanged run keeps the same document instance`() =
+        runTest {
+            val store = MarkdownStateStore()
+            val messages = listOf(assistantMessage(id = "message_1", text = "Stable"))
+
+            val first = store.onSnapshot(messages, ChatLoadState.READY)
+            val second = store.onSnapshot(messages, ChatLoadState.READY)
+
+            assertTrue(first.documents.getValue("message_1") === second.documents.getValue("message_1"))
+        }
+
+    private fun MarkdownRenderedDocument.plainText(): String =
+        blocks.joinToString("|") { block ->
+            (block as BlockNode.Paragraph).children.joinToString("") { (it as InlineNode.Text).literal }
+        }
 
     /** Helper for creating assistant messages with optional segments. */
     private fun assistantMessage(

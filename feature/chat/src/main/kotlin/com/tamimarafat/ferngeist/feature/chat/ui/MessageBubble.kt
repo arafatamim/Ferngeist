@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -31,7 +32,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -64,6 +64,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -96,10 +100,6 @@ import com.agentclientprotocol.model.PlanEntryPriority
 import com.agentclientprotocol.model.PlanEntryStatus
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
-import com.mikepenz.markdown.m3.Markdown
-import com.mikepenz.markdown.m3.markdownTypography
-import com.mikepenz.markdown.model.markdownAnimations
-import com.mikepenz.markdown.model.markdownDimens
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatFileData
@@ -109,25 +109,38 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.SegmentBlock
+import com.tamimarafat.ferngeist.feature.chat.displayBlocks
+import com.tamimarafat.ferngeist.feature.chat.markdown.MarkdownBlocks
+import com.tamimarafat.ferngeist.feature.chat.markdown.MarkdownTypography
+import com.tamimarafat.ferngeist.feature.chat.markdown.RunReveal
+import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
+import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
-import com.mikepenz.markdown.model.State as MarkdownRenderState
 
 @Composable
 fun MessageBubble(
     message: ChatMessage,
-    markdownStates: ImmutableMap<String, MarkdownRenderState>,
+    markdownDocuments: ImmutableMap<String, MarkdownRenderedDocument>,
     showStreamingIndicator: Boolean,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isLastMessage: Boolean = false,
     onStreamLayoutSettled: () -> Unit = {},
     onRetryMessage: ((String) -> Unit)? = null,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
+    val reveals = remember(message.id) { BubbleReveals() }
+    // Re-derived per message change so runs added by the latest chunk are tracked. Text can still
+    // be revealing after the stream ends, and the bubble keeps growing until it settles.
+    val revealing by remember(message) { derivedStateOf { reveals.isRevealing } }
+    val growing = message.isStreaming || revealing
     val contentColor =
         if (isUser) {
             MaterialTheme.colorScheme.onPrimaryContainer
@@ -139,7 +152,7 @@ fun MessageBubble(
     Box(
         modifier =
             modifier.fillMaxWidth().then(
-                if (showStreamingIndicator) Modifier.onSizeChanged { onStreamLayoutSettled() } else Modifier,
+                if (isLastMessage && growing) Modifier.onSizeChanged { onStreamLayoutSettled() } else Modifier,
             ),
         contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
@@ -153,11 +166,23 @@ fun MessageBubble(
         } else {
             AssistantMessageContent(
                 message = message,
-                markdownStates = markdownStates,
+                markdownDocuments = markdownDocuments,
+                reveals = reveals,
                 showStreamingIndicator = showStreamingIndicator,
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
-                modifier = Modifier.fillMaxWidth(),
+                // Height springs to each new line instead of jumping by a line at a time. Only while
+                // growing: on settled history it would animate unrelated size changes (rotation).
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (growing) {
+                                Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+                            } else {
+                                Modifier
+                            },
+                        ),
             )
         }
     }
@@ -356,28 +381,64 @@ private fun FailedStatusContent(onRetry: (() -> Unit)?) {
 @Composable
 private fun AssistantMessageContent(
     message: ChatMessage,
-    markdownStates: ImmutableMap<String, MarkdownRenderState>,
+    markdownDocuments: ImmutableMap<String, MarkdownRenderedDocument>,
+    reveals: BubbleReveals,
     showStreamingIndicator: Boolean,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        // Render segments in order
-        message.segments.forEach { segment ->
-            key(segment.id) {
-                AssistantSegmentContent(
-                    segment = segment,
-                    message = message,
-                    markdownState = markdownStates[segment.id],
-                    onThoughtClick = onThoughtClick,
-                    onToolCallClick = onToolCallClick,
-                )
+        // Blocks after a run that is still revealing wait for it, so a tool card never appears
+        // below prose that is still being written.
+        var gateOpen = true
+        // One block per run, walked in segment order so a turn that interleaves reasoning, prose
+        // and tool calls still reads the way the agent produced it. Grouping must not reorder:
+        // collecting thoughts and prose in separate passes would hoist every reasoning bubble
+        // above the prose that preceded it.
+        message.segments.displayBlocks().forEach { block ->
+            if (!gateOpen) return@forEach
+            key(block.key) {
+                when (block) {
+                    is SegmentBlock.Run ->
+                        if (block.kind == AssistantSegment.Kind.THOUGHT) {
+                            AssistantSegmentContent(
+                                // The run's LAST chunk, not the first: AssistantSegmentContent
+                                // decides the streaming shimmer by comparing against
+                                // segments.lastOrNull(), so the shimmer follows the growing edge.
+                                segment = block.segments.last(),
+                                message = message,
+                                onThoughtClick = onThoughtClick,
+                                onToolCallClick = onToolCallClick,
+                            )
+                        } else if (block.text.isNotBlank()) {
+                            // Keyed by the run's first chunk: MarkdownStateStore caches the whole
+                            // run's parse under that id, and the key is stable as chunks arrive,
+                            // so the node survives and the bubble grows instead of resetting
+                            // every chunk.
+                            val document = markdownDocuments[block.key]
+                            val total = remember(document) { document?.blocks?.sumOf { it.revealLength() } ?: 0 }
+                            val reveal = reveals.forRun(block.key, startHidden = message.isStreaming, total)
+                            SideEffect { reveal.target = total }
+                            RenderedMarkdown(text = block.text, document = document, reveal = reveal)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val settled by remember(reveal) { derivedStateOf { reveal.isSettled } }
+                            gateOpen = settled
+                        }
+
+                    is SegmentBlock.Single ->
+                        AssistantSegmentContent(
+                            segment = block.segment,
+                            message = message,
+                            onThoughtClick = onThoughtClick,
+                            onToolCallClick = onToolCallClick,
+                        )
+                }
             }
         }
 
         if (message.segments.isEmpty() && message.content.isNotBlank()) {
-            MarkdownText(text = message.content, state = markdownStates[message.id])
+            RenderedMarkdown(text = message.content, document = markdownDocuments[message.id])
         }
 
         if (showStreamingIndicator && message.segments.isEmpty() && message.content.isBlank()) {
@@ -389,21 +450,41 @@ private fun AssistantMessageContent(
     }
 }
 
+/**
+ * The reveal cursors of one bubble's MESSAGE runs, keyed by run key. Plain map: it lives exactly
+ * as long as the list item is composed, and a run first seen while its message is not streaming
+ * starts fully shown, so history and scroll-back never animate.
+ */
+@Stable
+internal class BubbleReveals {
+    private val runs = HashMap<String, RunReveal>()
+
+    fun forRun(
+        key: String,
+        startHidden: Boolean,
+        target: Int,
+    ): RunReveal = runs.getOrPut(key) { RunReveal(startHidden).also { it.target = target } }
+
+    val isRevealing: Boolean
+        get() = runs.values.any { !it.isSettled }
+}
+
+/**
+ * Renders one non-MESSAGE segment.
+ *
+ * MESSAGE never reaches here: a streamed reply arrives one segment per chunk, and rendering each
+ * of those as its own markdown block puts one word per line until the reducer folds the run at
+ * turn close. [AssistantMessageContent] renders MESSAGE through `displayBlocks()` instead.
+ */
 @Composable
 private fun AssistantSegmentContent(
     segment: AssistantSegment,
     message: ChatMessage,
-    markdownState: MarkdownRenderState?,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
 ) {
     when (segment.kind) {
-        AssistantSegment.Kind.MESSAGE -> {
-            if (segment.text.isNotBlank()) {
-                MarkdownText(text = segment.text, state = markdownState)
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
+        AssistantSegment.Kind.MESSAGE -> Unit
 
         AssistantSegment.Kind.THOUGHT -> {
             ThoughtBubble(
@@ -431,13 +512,12 @@ private fun AssistantSegmentContent(
 }
 
 /**
- * Renders [text] as markdown once [state] is available.
+ * Renders [text] as markdown, fading in each block the parser just created.
  *
  * While the parse is still in flight this falls back to the raw text at body typography. A
  * missing parse is not a reason to render nothing: an unparsed bubble with no fallback
  * measures zero height, so when the parse lands the bubble grows from nothing to full height
- * and shoves every message below it down the viewport. That is the transcript jitter - it
- * repeats once per markdown batch (24 entries) as hydration drains.
+ * and shoves every message below it down the viewport.
  *
  * The fallback is plain text, not a fixed-height placeholder, because a guessed height is
  * still wrong: real markdown height varies with the content, so a placeholder that reserves
@@ -446,42 +526,39 @@ private fun AssistantSegmentContent(
  * an unchanged line count.
  */
 @Composable
-private fun MarkdownText(
+private fun RenderedMarkdown(
     text: String,
-    state: MarkdownRenderState?,
+    document: MarkdownRenderedDocument?,
     modifier: Modifier = Modifier,
+    reveal: RunReveal? = null,
 ) {
-    val compactTypography =
-        markdownTypography(
-            h1 = MaterialTheme.typography.titleLarge,
-            h2 = MaterialTheme.typography.titleMedium,
-            h3 = MaterialTheme.typography.titleSmall,
-            h4 = MaterialTheme.typography.bodyLarge,
-            h5 = MaterialTheme.typography.bodyMedium,
-            h6 = MaterialTheme.typography.bodySmall,
-            text = MaterialTheme.typography.bodyMedium,
-            paragraph = MaterialTheme.typography.bodyMedium,
-            list = MaterialTheme.typography.bodyMedium,
-            bullet = MaterialTheme.typography.bodyMedium,
-            ordered = MaterialTheme.typography.bodyMedium,
+    if (reveal != null && reveal.animates) {
+        val reducedMotion = rememberReducedMotion()
+        LaunchedEffect(reveal) { reveal.run(reducedMotion) }
+    }
+    if (document != null && document.blocks.isNotEmpty()) {
+        MarkdownBlocks(
+            blocks = document.blocks,
+            modifier = modifier.fillMaxWidth(),
+            reveal = reveal?.takeIf { it.animates },
+            typography =
+                MarkdownTypography(
+                    headlineLarge = MaterialTheme.typography.titleLarge,
+                    headlineMedium = MaterialTheme.typography.titleMedium,
+                    headlineSmall = MaterialTheme.typography.titleSmall,
+                    titleLarge = MaterialTheme.typography.titleMedium,
+                    titleMedium = MaterialTheme.typography.bodyMedium,
+                    titleSmall = MaterialTheme.typography.bodySmall,
+                    bodyLarge = MaterialTheme.typography.bodyMedium,
+                    bodyMedium = MaterialTheme.typography.bodyMedium,
+                    labelMedium = MaterialTheme.typography.labelSmall,
+                ),
         )
-    if (state != null) {
-        SelectionContainer {
-            Markdown(
-                state = state,
-                typography = compactTypography,
-                animations =
-                    markdownAnimations(
-                        animateTextSize = { this },
-                    ),
-                dimens = markdownDimens(),
-                modifier = modifier.fillMaxWidth(),
-            )
-        }
-    } else {
+    } else if (reveal == null || !reveal.animates) {
         // The parse has not landed yet. Render the text plainly so the bubble occupies its
         // real height now; when the parse arrives the formatting swaps in without the
-        // surrounding list having to re-measure.
+        // surrounding list having to re-measure. A streaming run renders nothing instead:
+        // raw text there would show everything at once, then collapse to the reveal.
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,

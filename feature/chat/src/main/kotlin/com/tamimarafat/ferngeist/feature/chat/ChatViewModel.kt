@@ -50,7 +50,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
-import com.mikepenz.markdown.model.State as MarkdownRenderState
 
 /**
  * Orchestrates chat UI state by binding the session facade, scroll state, and markdown parsing.
@@ -148,20 +147,7 @@ class ChatViewModel
                 sessionId = trackedSessionId,
                 cwd = cwd,
             )
-        private val markdownStateStore =
-            MarkdownStateStore(
-                scope = viewModelScope,
-                currentMessages = { state.value.messages },
-                onMarkdownStatesChanged = { markdownStates ->
-                    updateState {
-                        if (markdownStates == this.markdownStates) {
-                            this
-                        } else {
-                            copy(markdownStates = markdownStates)
-                        }
-                    }
-                },
-            )
+        private val markdownStateStore = MarkdownStateStore()
         private val sessionCoordinator =
             ChatSessionCoordinator(
                 scope = viewModelScope,
@@ -173,7 +159,7 @@ class ChatViewModel
                             updateState {
                                 copy(
                                     messages = emptyList(),
-                                    markdownStates = emptyMap(),
+                                    markdownDocuments = emptyMap(),
                                     isLoading = true,
                                     isStreaming = false,
                                     isSessionReady = false,
@@ -647,7 +633,7 @@ class ChatViewModel
                 copy(
                     messages = snapshot.messages,
                     pendingMessages = reconciledPending,
-                    markdownStates = markdownProjection.markdownStates,
+                    markdownDocuments = markdownProjection.documents,
                     isStreaming = snapshot.isStreaming,
                     usage = snapshot.usage,
                     availableCommands = snapshot.availableCommands,
@@ -734,7 +720,6 @@ class ChatViewModel
         }
 
         override fun onCleared() {
-            markdownStateStore.dispose()
             sessionCoordinator.clear()
             // Leaving the screen drops this chat's screen presence: the pooled
             // transport entry survives (screenOpen=false) as the notification
@@ -1108,7 +1093,7 @@ data class ChatState(
     val title: String? = null,
     val messages: List<ChatMessage> = emptyList(),
     val pendingMessages: List<ChatMessage> = emptyList(),
-    val markdownStates: Map<String, MarkdownRenderState> = emptyMap(),
+    val markdownDocuments: Map<String, MarkdownRenderedDocument> = emptyMap(),
     val restoredScrollSnapshot: ChatScrollSnapshot? = null,
     val isLoading: Boolean = false,
     val isStreaming: Boolean = false,

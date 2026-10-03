@@ -89,7 +89,6 @@ import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
-import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -100,15 +99,17 @@ import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
+import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
+import com.tamimarafat.ferngeist.feature.chat.displayBlocks
 import com.tamimarafat.ferngeist.feature.chat.localizeChatError
+import com.tamimarafat.ferngeist.feature.chat.thoughtRuns
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
-import com.mikepenz.markdown.model.State as MarkdownRenderState
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
@@ -725,23 +726,26 @@ private fun ChatMessageItem(
     onStreamLayoutSettled: () -> Unit,
     onRetryMessage: ((String) -> Unit)?,
 ) {
+    // Keyed by the same keys the renderer draws from (run keys, not segment ids), so the document
+    // looked up here is the one [MessageBubble] will ask for.
     val messageMarkdown =
-        remember(message, state.markdownStates) {
+        remember(message, state.markdownDocuments) {
             if (message.role != ChatMessage.Role.ASSISTANT) {
-                persistentMapOf<String, MarkdownRenderState>()
+                persistentMapOf<String, MarkdownRenderedDocument>()
             } else {
                 buildMap {
-                    message.segments.forEach { seg ->
-                        state.markdownStates[seg.id]?.let { put(seg.id, it) }
+                    message.segments.displayBlocks().forEach { block ->
+                        state.markdownDocuments[block.key]?.let { put(block.key, it) }
                     }
-                    state.markdownStates[message.id]?.let { put(message.id, it) }
+                    state.markdownDocuments[message.id]?.let { put(message.id, it) }
                 }.toPersistentMap()
             }
         }
     MessageBubble(
         message = message,
-        markdownStates = messageMarkdown,
+        markdownDocuments = messageMarkdown,
         showStreamingIndicator = message.isStreaming && message.id == renderedLastMessageId,
+        isLastMessage = message.id == renderedLastMessageId,
         onThoughtClick = onThoughtClick,
         onToolCallClick = onToolCallClick,
         onStreamLayoutSettled = onStreamLayoutSettled,
@@ -789,9 +793,12 @@ internal fun List<ChatMessage>.toolCallForSegment(segmentId: String?): ToolCallD
 internal fun List<ChatMessage>.thoughtForSegment(segmentId: String?): String? {
     val targetId = segmentId ?: return null
     return asReversed().firstNotNullOfOrNull { message ->
+        // Resolved to the whole run, not the tapped chunk. A streamed thought arrives one segment
+        // per chunk, so matching on the segment id alone returned a single fragment and the sheet
+        // opened on what looked like broken content.
         message.segments
-            .asReversed()
-            .firstOrNull { it.id == targetId && it.kind == AssistantSegment.Kind.THOUGHT }
+            .thoughtRuns()
+            .firstOrNull { run -> run.segments.any { it.id == targetId } }
             ?.text
             ?.takeIf { it.isNotBlank() }
     }

@@ -79,6 +79,13 @@ internal sealed class ScrollDecision {
     /** Immediately snap to the last item in a single frame-synced pass. */
     data object SnapToBottom : ScrollDecision()
 
+    /**
+     * The streaming bubble grew: keep the list on its end in place. Fires every frame while the
+     * bubble's height animates, so the caller pins synchronously rather than launching a job that
+     * would cancel a pending follow.
+     */
+    data object FollowGrowth : ScrollDecision()
+
     /** Wait [delayMs] then scroll to bottom. */
     data class DelayedFollow(
         val delayMs: Long,
@@ -147,8 +154,16 @@ internal class ChatScrollPolicy(
     }
 
     /**
+     * Whether growth at the bottom (keyboard opening, composer expanding, a message sent or
+     * arriving) should keep the transcript on its end, frame by frame. Same gate as [onInsetsChanged], without consuming
+     * the post-restore skip — that settle pass still owns it.
+     */
+    fun shouldFollowGrowth(): Boolean = _state is AutoScrollState.Following && !skipNextInsetsFollow
+
+    /**
      * Keyboard/composer insets changed.
-     * Uses [AutoScrollConfig.COMPOSER_FOLLOW_SETTLE_MS] as a trailing settle delay.
+     * Uses [AutoScrollConfig.COMPOSER_FOLLOW_SETTLE_MS] as a trailing settle delay. By then
+     * [shouldFollowGrowth] has normally kept the list pinned, so this is a backstop.
      * Respects [skipNextInsetsFollow] (set by [markRestored]).
      *
      * @param messageCount number of messages currently rendered (0 = no scroll)
@@ -175,12 +190,12 @@ internal class ChatScrollPolicy(
         if (_state !is AutoScrollState.Following) return ScrollDecision.None
         // First resize needs a longer settle (420ms) so the initial render
         // finishes before scrolling. Subsequent resizes during the same
-        // stream snap immediately — the content is already on screen.
+        // stream follow the growth in place — the content is already on screen.
         if (!hasHandledInitialFollow) {
             hasHandledInitialFollow = true
             return ScrollDecision.DelayedFollow(AutoScrollConfig.INITIAL_FOLLOW_SETTLE_MS)
         }
-        return ScrollDecision.SnapToBottom
+        return ScrollDecision.FollowGrowth
     }
 
     /**

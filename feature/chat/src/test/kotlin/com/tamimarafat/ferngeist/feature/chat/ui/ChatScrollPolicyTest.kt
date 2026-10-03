@@ -33,13 +33,13 @@ class ChatScrollPolicyTest {
     }
 
     @Test
-    fun `subsequent streaming bubble resize returns SnapToBottom`() {
+    fun `subsequent streaming bubble resize follows growth in place`() {
         val (policy, tick) = policyWithClock()
         tick()
 
         policy.onStreamingBubbleResized() // first call → DelayedFollow
         val decision = policy.onStreamingBubbleResized() // second call
-        assertTrue(decision is ScrollDecision.SnapToBottom)
+        assertTrue(decision is ScrollDecision.FollowGrowth)
     }
 
     @Test
@@ -82,6 +82,21 @@ class ChatScrollPolicyTest {
         val decision = policy.onUserScrolled()
         assertFalse(policy.isFollowing)
         assertTrue(decision is ScrollDecision.CancelPending)
+    }
+
+    @Test
+    fun `bottom growth is followed only while following and not right after a restore`() {
+        val (policy, tick) = policyWithClock()
+        tick()
+        assertTrue(policy.shouldFollowGrowth())
+
+        policy.markRestored(isFollowing = true)
+        assertFalse(policy.shouldFollowGrowth())
+        policy.onInsetsChanged(messageCount = 5) // consumes the post-restore skip
+        assertTrue(policy.shouldFollowGrowth())
+
+        policy.onUserScrolled()
+        assertFalse(policy.shouldFollowGrowth())
     }
 
     @Test

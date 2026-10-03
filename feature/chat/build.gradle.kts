@@ -68,8 +68,10 @@ dependencies {
     implementation(libs.androidx.compose.material3.adaptive.navigation)
     implementation(libs.androidx.window)
     implementation(libs.androidx.material.icons.extended)
-    implementation(libs.multiplatform.markdown.renderer)
-    implementation(libs.multiplatform.markdown.renderer.m3)
+    // Incremental markdown: stable block identity across appends is what lets settled blocks
+    // stay mounted while only the trailing one animates. Supersedes multiplatform-markdown-renderer.
+    implementation(libs.compose.markdown.core)
+    implementation(libs.compose.markdown.renderer)
 
     // Diff
     implementation(libs.diff.kotlin)

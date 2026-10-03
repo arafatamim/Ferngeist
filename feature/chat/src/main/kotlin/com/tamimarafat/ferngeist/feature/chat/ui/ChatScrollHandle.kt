@@ -255,7 +255,7 @@ private class ChatScrollDecisionRunner(
                         delay(AutoScrollConfig.SEND_FOLLOW_DELAY_MS)
                     }
                 }
-                is ScrollDecision.None, is ScrollDecision.CancelPending -> Unit
+                is ScrollDecision.None, is ScrollDecision.CancelPending, is ScrollDecision.FollowGrowth -> Unit
             }
         } finally {
             programmaticScrolling = false
@@ -285,9 +285,25 @@ private class ChatScrollDecisionRunner(
             }
         }
 
+    /**
+     * Keeps the list on its end while the streaming bubble grows. Not routed through [run]: it must
+     * land in this frame's measure, so it cannot wait for a coroutine.
+     *
+     * A position request, not a scroll delta: resting at the end, the list reports it cannot scroll
+     * forward and drops a forward delta before the bigger content is even measured. Asking for the
+     * last item (the bottom spacer) at the top lets the measure clamp the content end onto the
+     * viewport end.
+     */
+    fun followGrowth() {
+        if (!policy.shouldFollowGrowth()) return
+        val lastIndex = listState.layoutInfo.totalItemsCount - 1
+        if (lastIndex >= 0) listState.requestScrollToItem(lastIndex)
+    }
+
     /** Streaming resize: delegate to policy and apply the decision. */
     fun onStreamLayoutSettled() {
-        run(policy.onStreamingBubbleResized())
+        val decision = policy.onStreamingBubbleResized()
+        if (decision is ScrollDecision.FollowGrowth) followGrowth() else run(decision)
     }
 
     /** Send button: delegate to policy and apply the decision. */
