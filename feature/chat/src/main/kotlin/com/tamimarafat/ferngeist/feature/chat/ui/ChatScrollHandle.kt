@@ -1,6 +1,11 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.animation.core.EaseInOutCubic
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,8 +33,22 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.min
 
 private const val USER_SCROLL_DELTA_THRESHOLD = 0.5f
+
+/** Duration of the shortest jump-button scroll; longer ones scale up to [EASE_MAX_MS]. */
+internal const val EASE_MIN_MS = 650
+
+/** Duration of a jump that travels the full [EASE_MAX_VIEWPORTS]. */
+private const val EASE_MAX_MS = 1000
+
+/**
+ * Farthest a jump eases, in viewports. A farther target is first placed this far away in one
+ * frame, so the ease never has to compose the whole transcript.
+ */
+private const val EASE_MAX_VIEWPORTS = 2.5f
 
 // region: Public Handle
 
@@ -220,6 +239,89 @@ internal suspend fun LazyListState.scrollToBottom() {
         if (it < AutoScrollConfig.SCROLL_CORRECTION_MAX_PASSES - 1) withFrameNanos { }
     }
 }
+
+/**
+ * Eases to the top of item 0 along an exact, measured distance. See [glideOnto].
+ */
+internal suspend fun LazyListState.easeScrollToTop() {
+    val anchor = layoutInfo.visibleItemsInfo.firstOrNull() ?: return
+    val estimate = -distanceToTop()
+    scrollToItem(0)
+    // Where the item that was at the top now sits gives the exact distance travelled; only when
+    // it has scrolled out of view is the distance an estimate, and then the start jumps anyway.
+    val landed = layoutInfo.visibleItemsInfo.firstOrNull { it.index == anchor.index }
+    val distance = landed?.let { (it.offset - anchor.offset).toFloat() } ?: min(estimate, maxEasePx())
+    glideOnto(-distance, exact = landed != null)
+}
+
+/**
+ * Eases to the end of the content along an exact, measured distance. See [glideOnto].
+ */
+internal suspend fun LazyListState.easeScrollToBottom() {
+    val anchor = layoutInfo.visibleItemsInfo.lastOrNull() ?: return
+    val estimate = distanceToBottom()
+    scrollToItem(layoutInfo.totalItemsCount - 1)
+    val landed = layoutInfo.visibleItemsInfo.firstOrNull { it.index == anchor.index }
+    val distance =
+        landed?.let { (anchor.offset + anchor.size - (it.offset + it.size)).toFloat() } ?: min(estimate, maxEasePx())
+    glideOnto(distance, exact = landed != null)
+    // A reply still streaming may have grown during the ease; settle onto the new end.
+    distanceToBottom().takeIf { it > 0f }?.let { scrollBy(it) }
+}
+
+/**
+ * Called with the list already resting on its target: steps back [travel] pixels and eases
+ * forward onto the target again.
+ *
+ * The step back happens in the same frame as the snap to the target, so when the distance was
+ * measured [exact]ly the list visibly never moves before the ease starts — it simply glides from
+ * where it was. Easing a known distance is what makes the curve a real curve: an ease that
+ * re-estimates an off-screen target every frame keeps stretching as taller items come into view
+ * and reads as a linear scroll with a hard stop.
+ *
+ * A far target cannot be measured without composing everything in between, so the start jumps to
+ * [EASE_MAX_VIEWPORTS] away and eases out only — the jump reads as the fast start of the motion.
+ */
+private suspend fun LazyListState.glideOnto(
+    travel: Float,
+    exact: Boolean,
+) {
+    if (travel == 0f) return
+    val stepped = -scrollBy(-travel)
+    val fraction = (abs(stepped) / maxEasePx()).coerceAtMost(1f)
+    animateScrollBy(
+        value = stepped,
+        animationSpec =
+            tween(
+                durationMillis = EASE_MIN_MS + ((EASE_MAX_MS - EASE_MIN_MS) * fraction).toInt(),
+                easing = if (exact) EaseInOutCubic else EaseOutCubic,
+            ),
+    )
+}
+
+private fun LazyListState.maxEasePx(): Float =
+    layoutInfo.let { it.viewportEndOffset - it.viewportStartOffset } * EASE_MAX_VIEWPORTS
+
+/** Signed pixels from the current position to the top of item 0; negative scrolls up. */
+private fun LazyListState.distanceToTop(): Float {
+    val info = layoutInfo
+    info.visibleItemsInfo.firstOrNull { it.index == 0 }?.let { return it.offset.toFloat() }
+    return -(firstVisibleItemIndex * info.averageItemSpan() + firstVisibleItemScrollOffset)
+}
+
+/** Signed pixels from the current position to the end of the content; positive scrolls down. */
+private fun LazyListState.distanceToBottom(): Float {
+    val info = layoutInfo
+    val last = info.visibleItemsInfo.lastOrNull() ?: return 0f
+    val itemsBelow = info.totalItemsCount - 1 - last.index
+    return itemsBelow * info.averageItemSpan() + (last.offset + last.size - info.viewportEndOffset)
+}
+
+private fun LazyListLayoutInfo.averageItemSpan(): Float {
+    val items = visibleItemsInfo
+    if (items.isEmpty()) return 0f
+    return items.sumOf { it.size }.toFloat() / items.size + mainAxisItemSpacing
+}
 // endregion
 
 // region: Decision Runner
@@ -239,6 +341,9 @@ private class ChatScrollDecisionRunner(
 
     private var scrollJob: Job? = null
 
+    /** True while a jump button's ease is running. See [ease]. */
+    private var easing = false
+
     /**
      * Applies a [ScrollDecision] from the policy:
      * - [ScrollDecision.None]: syncs following state, no scroll.
@@ -247,7 +352,7 @@ private class ChatScrollDecisionRunner(
      */
     fun run(decision: ScrollDecision) {
         isFollowingState.value = policy.isFollowing
-        if (decision is ScrollDecision.None) return
+        if (decision is ScrollDecision.None || easing) return
         if (decision is ScrollDecision.CancelPending) {
             scrollJob?.cancel()
             scrollJob = null
@@ -316,7 +421,7 @@ private class ChatScrollDecisionRunner(
      * end; pass the new item count through if that ever happens.
      */
     fun followGrowth() {
-        if (!policy.shouldFollowGrowth()) return
+        if (easing || !policy.shouldFollowGrowth()) return
         val lastIndex = listState.layoutInfo.totalItemsCount - 1
         if (lastIndex >= 0) listState.requestScrollToItem(lastIndex)
     }
@@ -332,7 +437,7 @@ private class ChatScrollDecisionRunner(
         run(policy.requestScrollToBottomForSend())
     }
 
-    /** Scroll to top: route through policy as a user scroll, then animate. */
+    /** Scroll to top: route through policy as a user scroll, then ease there. */
     suspend fun jumpToTop() {
         // Tapping "scroll to top" is a deliberate move away from the bottom.
         // Route it through the same transition as a manual scroll so the policy
@@ -340,23 +445,33 @@ private class ChatScrollDecisionRunner(
         // Following-state mechanisms (streaming-bubble resize, insets follow)
         // immediately scroll back to the bottom and fight this jump.
         run(policy.onUserScrolled())
-        programmaticScrolling = true
-        try {
-            listState.animateScrollToItem(0)
-        } finally {
-            programmaticScrolling = false
-        }
+        ease { listState.easeScrollToTop() }
     }
 
-    /** Scroll to bottom: resume following without the multi-pass send follow. */
+    /** Scroll to bottom: resume following without the multi-pass send follow, then ease there. */
     suspend fun jumpToBottom() {
         // Resume following without firing the multi-pass send follow.
         // The user-initiated jump should be a single smooth animation, not
         // the 3-pass scroll-to-bottom that sending a message uses.
         run(policy.resumeFollowing())
-        val lastIndex = listState.layoutInfo.totalItemsCount - 1
-        if (lastIndex >= 0) {
-            listState.animateScrollToItem(lastIndex)
+        ease { listState.easeScrollToBottom() }
+    }
+
+    /**
+     * Runs a jump animation with every other scroll decision held off. Any of them (a streaming
+     * follow, the bottom-arrival snap as the jump nears the end) takes the list's scroll mutex
+     * and would cut the ease short. Policy state still updates; only the scroll is skipped, and
+     * the jump re-measures its target every frame, so it lands where the follow would have.
+     */
+    private suspend fun ease(animation: suspend () -> Unit) {
+        scrollJob?.cancel()
+        easing = true
+        programmaticScrolling = true
+        try {
+            animation()
+        } finally {
+            easing = false
+            programmaticScrolling = false
         }
     }
 }

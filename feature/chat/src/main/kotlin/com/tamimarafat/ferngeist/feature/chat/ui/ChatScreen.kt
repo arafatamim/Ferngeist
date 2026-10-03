@@ -10,10 +10,13 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.EaseInOutCubic
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -1251,8 +1254,17 @@ private fun ChatScreenTopBar(
         onGitStatusLongPress = { viewModel.dispatch(ChatIntent.RefreshGitStatus) },
         onTitleClick = {
             coroutineScope.launch {
+                // Expand the bar alongside the scroll. A programmatic scroll never reaches the
+                // bar's nested-scroll connection, so setting it after the jump popped it open
+                // at the very end of the ease.
+                launch {
+                    animate(
+                        initialValue = scrollBehavior.state.heightOffset,
+                        targetValue = 0f,
+                        animationSpec = tween(EASE_MIN_MS, easing = EaseInOutCubic),
+                    ) { value, _ -> scrollBehavior.state.heightOffset = value }
+                }
                 screenState.scrollHandle.jumpToTop()
-                scrollBehavior.state.heightOffset = 0f
             }
         },
         sharedTransitionScope = sharedTransitionScope,
