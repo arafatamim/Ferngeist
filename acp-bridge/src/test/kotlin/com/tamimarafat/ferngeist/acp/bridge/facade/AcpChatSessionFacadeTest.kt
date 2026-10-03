@@ -73,6 +73,12 @@ class AcpChatSessionFacadeTest {
         override suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint) = Unit
 
         override fun refresh() = Unit
+
+        override suspend fun resolveSessionTitle(
+            serverId: String,
+            sessionId: String,
+            cwd: String?,
+        ): String? = null
     }
 
     private class FakeLaunchableTargets : LaunchableTargetRepository {

@@ -72,4 +72,22 @@ interface ChatConnectionSurface {
 
     /** Recomputes screen presence from the entry table; call after transport changes. */
     fun refresh()
+
+    /**
+     * Reads the agent's current title for one session over a live listing
+     * transport, or null when it is not knowable.
+     *
+     * An open chat calls this once its first response finishes, because some
+     * agents generate a title server-side but never push it over
+     * `session_info_update` — it only shows up in a `session/list` response.
+     *
+     * Read-only: unlike the listing seam, this never writes the session table.
+     * Null means "no title to apply" (agent cannot list, no live transport, the
+     * request failed, or the session has no title yet) — never an error.
+     */
+    suspend fun resolveSessionTitle(
+        serverId: String,
+        sessionId: String,
+        cwd: String?,
+    ): String?
 }

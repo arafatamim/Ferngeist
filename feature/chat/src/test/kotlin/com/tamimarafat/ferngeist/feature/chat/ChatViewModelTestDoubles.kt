@@ -176,6 +176,24 @@ open class FakeChatSessionFacade : ChatSessionFacade {
         // No-op: reconnect is not exercised in this fake.
     }
 
+    /** Title a `session/list` title fallback would return; null means nothing to apply. */
+    var fetchedSessionTitle: String? = null
+
+    /**
+     * Titles keyed by 1-based attempt number, for exercising the fallback's retries. An
+     * absent key falls back to [fetchedSessionTitle].
+     */
+    var fetchedSessionTitlesByCall: Map<Int, String?> = emptyMap()
+
+    /** Number of times the view model asked the agent for this session's title. */
+    var fetchSessionTitleCalls = 0
+        private set
+
+    override suspend fun fetchSessionTitle(): String? {
+        fetchSessionTitleCalls++
+        return fetchedSessionTitlesByCall[fetchSessionTitleCalls] ?: fetchedSessionTitle
+    }
+
     protected suspend fun emitOperationError() {
         operationErrorFlow.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
     }

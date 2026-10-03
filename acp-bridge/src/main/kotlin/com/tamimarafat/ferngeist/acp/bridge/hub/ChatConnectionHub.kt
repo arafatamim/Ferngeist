@@ -651,6 +651,34 @@ class ChatConnectionHub(
     }
 
     /**
+     * Reads one session's current title without writing the session table.
+     *
+     * Warm-transport only: the caller is an open chat, so an absent warm
+     * transport means the chat is not connected and there is nothing to ask.
+     * The agent may also be unable to list sessions, the request may fail, or
+     * the session may be absent from the response — all read as null, because a
+     * title the chat cannot resolve must never surface as a chat error.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    @OptIn(UnstableApi::class)
+    override suspend fun resolveSessionTitle(
+        serverId: String,
+        sessionId: String,
+        cwd: String?,
+    ): String? {
+        val warm = warmManagerFor(serverId) ?: return null
+        val caps = warm.agentCapabilities.value
+        if (caps != null && caps.sessionCapabilities.list == null) return null
+        return try {
+            val sessions = warm.listSessions(cwd = cwd)
+            sessions.firstOrNull { it.id == sessionId }?.title?.takeIf { it.isNotBlank() }
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            null
+        }
+    }
+
+    /**
      * Lists through [warm], a hub-tracked chat transport owning the gateway
      * slot. Never disconnects it — the chat owns it.
      */

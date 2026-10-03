@@ -16,10 +16,9 @@ import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
 internal fun NavHostController.switchToChat(
     session: SwitcherSession,
     slideDirection: SlideDirection?,
-    fallbackTitle: String,
 ) {
     val encodedCwd = Uri.encode(session.cwd.orEmpty())
-    val encodedTitle = Uri.encode(session.title ?: fallbackTitle)
+    val encodedTitle = Uri.encode(session.title.orEmpty())
     val updatedAtParam = session.updatedAt ?: -1L
     val slideParam = slideDirection?.let { "&slide=${it.routeValue}" }.orEmpty()
     navigate(

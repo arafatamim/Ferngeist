@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
 import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
@@ -608,7 +609,7 @@ private fun SwitcherRowContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = session.title ?: stringResource(R.string.switcher_untitled),
+                    text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.MiddleEllipsis,

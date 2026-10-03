@@ -94,6 +94,7 @@ import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.iconUrl
+import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
@@ -1004,7 +1005,7 @@ private fun SharedSessionTitle(
 ) {
     with(sharedTransitionScope) {
         Text(
-            text = session.title,
+            text = sessionTitleOrNull(session.title) ?: stringResource(R.string.serverlist_untitled_session),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -1048,7 +1049,7 @@ private fun RecentSessionCardRow(
         Column(modifier = Modifier.weight(1f)) {
             with(sharedTransitionScope) {
                 Text(
-                    text = session.title,
+                    text = sessionTitleOrNull(session.title) ?: stringResource(R.string.serverlist_untitled_session),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

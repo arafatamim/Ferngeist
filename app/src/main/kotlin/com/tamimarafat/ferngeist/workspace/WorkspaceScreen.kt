@@ -105,7 +105,7 @@ fun WorkspaceScreen(
                     serverId = recent.serverId,
                     sessionId = recent.sessionId,
                     cwd = recent.cwd ?: "/",
-                    title = recent.title,
+                    title = recent.title.orEmpty(),
                 ),
             )
         } else {
@@ -231,7 +231,9 @@ private fun ChatPane(
         )
     ChatScreen(
         sessionId = sessionId,
-        sessionTitle = selection.title,
+        // The view model resolves the title (nav arg, then the session store); this is
+        // only the placeholder for the frame before the first snapshot lands.
+        fallbackTitle = fallbackSessionTitle,
         onNavigateBack = onNavigateBack,
         onSwitchSession = { session, _ ->
             onSelectSession(
@@ -239,7 +241,7 @@ private fun ChatPane(
                     serverId = session.serverId,
                     sessionId = session.sessionId,
                     cwd = session.cwd.orEmpty(),
-                    title = session.title ?: fallbackSessionTitle,
+                    title = session.title.orEmpty(),
                 ),
             )
         },

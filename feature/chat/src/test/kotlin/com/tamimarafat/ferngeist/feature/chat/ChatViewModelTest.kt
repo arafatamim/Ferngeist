@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -11,6 +12,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -206,15 +208,14 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `resolves title from session repository when nav arg title is blank`() =
+    fun `resolves title from the session store when nav arg title is blank`() =
         runTest {
             val sessionRepository =
                 FakeSessionRepository().apply {
-                    getSessionResult =
-                        SessionSummary(
-                            id = "session_1",
-                            title = "Refactoring auth module",
-                        )
+                    setSessions(
+                        "server_1",
+                        listOf(SessionSummary(id = "session_1", title = "Refactoring auth module")),
+                    )
                 }
 
             val viewModel =
@@ -231,7 +232,6 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                 )
             advanceUntilIdle()
 
-            assertTrue(sessionRepository.getSessionCalls == 1)
             assertTrue(viewModel.state.value.title == "Refactoring auth module")
         }
 
@@ -257,16 +257,16 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     // region: Auto-title tests
 
     @Test
-    fun `keeps existing non-blank nav arg title when server title arrives in snapshot`() =
+    fun `agent pushed title replaces the title the session list reported`() =
         runTest {
-            val sessionRepository = FakeSessionRepository()
-            val snapshot =
-                readySnapshot(
-                    title = "Generated Title",
-                )
-            // Start with a non-blank title from the DB (simulating resolveSessionTitle DB path)
-            sessionRepository.getSessionResult =
-                SessionSummary(id = "session_1", title = "Existing DB Title")
+            val sessionRepository =
+                FakeSessionRepository().apply {
+                    setSessions(
+                        "server_1",
+                        listOf(SessionSummary(id = "session_1", title = "Listed Title")),
+                    )
+                }
+            val snapshot = readySnapshot(title = "Agent Named Title")
             val viewModel =
                 createViewModel(
                     savedStateHandle =
@@ -282,10 +282,9 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                 )
             advanceUntilIdle()
 
-            // The DB title was resolved first (not blank), then the server title arrived.
-            // The server title must not overwrite the existing non-blank title.
-            assertEquals("Existing DB Title", viewModel.state.value.title)
-            assertTrue(sessionRepository.updateTitleCalls.isEmpty())
+            // The agent naming the session outranks whatever its session list reported.
+            assertEquals("Agent Named Title", viewModel.state.value.title)
+            assertTrue(sessionRepository.updateTitleCalls.any { it.third == "Agent Named Title" })
         }
 
     @Test
@@ -345,6 +344,300 @@ class ChatViewModelTest : ChatViewModelTestBase() {
             val secondCallCount = sessionRepository.updateTitleCalls.size
             assertEquals(1, secondCallCount)
         }
+
+    @Test
+    fun `fetches the agent title from the session list when nothing was pushed`() =
+        runTest {
+            val sessionRepository = FakeSessionRepository()
+            val facade =
+                TestFacade().apply {
+                    fetchedSessionTitle = "Agent Generated Title"
+                    emitSnapshot(readySnapshot(messages = listOf(assistantMessage())))
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    sessionRepository = sessionRepository,
+                    facadeFactory = TestFacadeFactory { facade },
+                )
+            advanceUntilIdle()
+
+            // Some agents generate a session name server-side but never push it over
+            // session_info_update; it only shows up in a session/list response.
+            assertEquals(1, facade.fetchSessionTitleCalls)
+            assertEquals("Agent Generated Title", viewModel.state.value.title)
+            val (serverId, sessionId, title) = sessionRepository.updateTitleCalls.single()
+            assertEquals("server_1", serverId)
+            assertEquals("session_1", sessionId)
+            assertEquals("Agent Generated Title", title)
+        }
+
+    @Test
+    fun `does not fetch the session list title while the first response is still streaming`() =
+        runTest {
+            val facade =
+                TestFacade().apply {
+                    fetchedSessionTitle = "Agent Generated Title"
+                    emitSnapshot(
+                        readySnapshot(
+                            messages = listOf(assistantMessage(isStreaming = true)),
+                            isStreaming = true,
+                        ),
+                    )
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    facadeFactory = TestFacadeFactory { facade },
+                )
+            advanceUntilIdle()
+
+            assertEquals(0, facade.fetchSessionTitleCalls)
+            assertTrue(viewModel.state.value.title == null)
+        }
+
+    @Test
+    fun `does not fetch the session list title when the agent already pushed one`() =
+        runTest {
+            val facade =
+                TestFacade().apply {
+                    fetchedSessionTitle = "Agent Generated Title"
+                    emitSnapshot(
+                        readySnapshot(
+                            title = "Pushed Title",
+                            messages = listOf(assistantMessage()),
+                        ),
+                    )
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    facadeFactory = TestFacadeFactory { facade },
+                )
+            advanceUntilIdle()
+
+            // The push is applied before the fallback runs inside the same snapshot,
+            // so the fallback must stand down rather than query the agent.
+            assertEquals("Pushed Title", viewModel.state.value.title)
+            assertEquals(0, facade.fetchSessionTitleCalls)
+        }
+
+    @Test
+    fun `ignores a session list title that is just the first prompt`() =
+        runTest {
+            val sessionRepository = FakeSessionRepository()
+            val facade =
+                TestFacade().apply {
+                    // What an agent synthesises when it has not really named the session.
+                    fetchedSessionTitle = "do the thing"
+                    emitSnapshot(
+                        readySnapshot(
+                            messages = listOf(userMessage("do the thing"), assistantMessage()),
+                        ),
+                    )
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    sessionRepository = sessionRepository,
+                    facadeFactory = TestFacadeFactory { facade },
+                )
+            advanceUntilIdle()
+
+            assertTrue(
+                "the prompt must never become the title",
+                viewModel.state.value.title == null,
+            )
+            assertTrue(sessionRepository.updateTitleCalls.isEmpty())
+        }
+
+    @Test
+    fun `retries the session list until the agent names the session`() =
+        runTest {
+            val sessionRepository = FakeSessionRepository()
+            val facade =
+                TestFacade().apply {
+                    // First attempt still sees the synthesised prompt; the agent names it later.
+                    fetchedSessionTitlesByCall = mapOf(1 to "do the thing", 2 to "Add retry logic")
+                    emitSnapshot(
+                        readySnapshot(
+                            messages = listOf(userMessage("do the thing"), assistantMessage()),
+                        ),
+                    )
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    sessionRepository = sessionRepository,
+                    facadeFactory = TestFacadeFactory { facade },
+                )
+            advanceUntilIdle()
+
+            assertEquals(2, facade.fetchSessionTitleCalls)
+            assertEquals("Add retry logic", viewModel.state.value.title)
+            assertEquals("Add retry logic", sessionRepository.updateTitleCalls.single().third)
+        }
+
+    @Test
+    fun `a pushed title replaces a fallback title`() =
+        runTest {
+            val facade =
+                TestFacade().apply {
+                    fetchedSessionTitle = "Fallback Title"
+                    emitSnapshot(readySnapshot(messages = listOf(assistantMessage())))
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    facadeFactory = TestFacadeFactory { facade },
+                )
+            advanceUntilIdle()
+            assertEquals("Fallback Title", viewModel.state.value.title)
+
+            // The agent's canonical title arrives after the speculative fallback.
+            facade.emitSnapshot(
+                readySnapshot(
+                    title = "Pushed Title",
+                    messages = listOf(assistantMessage(id = "assistant_2")),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("Pushed Title", viewModel.state.value.title)
+        }
+
+    @Test
+    fun `adopts a title the session list reports after the chat has opened`() =
+        runTest {
+            val sessionRepository = FakeSessionRepository()
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    sessionRepository = sessionRepository,
+                )
+            advanceUntilIdle()
+            assertNull(viewModel.state.value.title)
+
+            // The agent names the session later and a session list refresh records it.
+            sessionRepository.setSessions(
+                "server_1",
+                listOf(SessionSummary(id = "session_1", title = "Agent Named Title")),
+            )
+            advanceUntilIdle()
+
+            assertEquals("Agent Named Title", viewModel.state.value.title)
+        }
+
+    @Test
+    fun `never shows the prompt as the title even when the session store holds one`() =
+        runTest {
+            val sessionRepository =
+                FakeSessionRepository().apply {
+                    setSessions(
+                        "server_1",
+                        listOf(SessionSummary(id = "session_1", title = "do the thing")),
+                    )
+                }
+            val facade =
+                TestFacade().apply {
+                    emitSnapshot(
+                        readySnapshot(
+                            messages = listOf(userMessage("do the thing"), assistantMessage()),
+                        ),
+                    )
+                }
+
+            val viewModel =
+                createViewModel(
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                    sessionRepository = sessionRepository,
+                    facadeFactory = TestFacadeFactory { facade },
+                )
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.title)
+            assertTrue(sessionRepository.updateTitleCalls.isEmpty())
+        }
+
+    private fun assistantMessage(
+        id: String = "assistant_1",
+        isStreaming: Boolean = false,
+    ): ChatMessage =
+        ChatMessage(
+            id = id,
+            role = ChatMessage.Role.ASSISTANT,
+            content = "hello",
+            isStreaming = isStreaming,
+        )
+
+    private fun userMessage(content: String): ChatMessage =
+        ChatMessage(
+            id = "user_1",
+            role = ChatMessage.Role.USER,
+            content = content,
+        )
 
     // endregion
 

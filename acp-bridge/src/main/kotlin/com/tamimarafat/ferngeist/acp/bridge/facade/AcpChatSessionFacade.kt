@@ -234,6 +234,13 @@ class AcpChatSessionFacade(
         }
     }
 
+    override suspend fun fetchSessionTitle(): String? =
+        hub.resolveSessionTitle(
+            serverId = serverId,
+            sessionId = activeSessionId,
+            cwd = cwd.takeIf { it.isNotBlank() },
+        )
+
     override suspend fun tryRestoreWarmSession(): Boolean =
         bridgeOperationMutex.withLock {
             if (!connectionManager.isConnected) return@withLock false

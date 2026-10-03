@@ -31,6 +31,7 @@ import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,6 +39,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +58,7 @@ import javax.inject.Inject
  *
  * The view model holds no ACP details; all transport-specific logic is delegated to the facade.
  */
+@Suppress("TooManyFunctions")
 @HiltViewModel
 class ChatViewModel
     @Inject
@@ -73,6 +76,13 @@ class ChatViewModel
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(initialChatState()) {
         companion object {
             private const val TRACE_TAG = "TSChatVM"
+
+            /**
+             * Delay before each `session/list` title attempt, relative to the end of the
+             * first response. The first is immediate; the rest give a slow agent time to
+             * name the session — it often does so just after the turn settles.
+             */
+            private val TITLE_FETCH_RETRY_DELAYS_MS = listOf(0L, 3_000L, 8_000L)
 
             /**
              * [SavedStateHandle] key holding the session id a create-on-arrival chat
@@ -139,6 +149,18 @@ class ChatViewModel
          */
         private val durableSessionId: String?
             get() = trackedSessionId.takeIf { it != NEW_SESSION_ARG }
+
+        /**
+         * True once the agent pushed a title over `session_info_update`. A pushed title is
+         * the agent naming the session, so it is canonical: nothing replaces it afterwards.
+         */
+        private var titlePushedByAgent = false
+
+        /**
+         * True once this chat has asked the agent's session list for a title. Reset when a
+         * new turn starts, so a name the agent assigns at any point still reaches the bar.
+         */
+        private var titleFetchDone = false
 
         private val sessionFacade: ChatSessionFacade =
             sessionFacadeFactory.create(
@@ -581,22 +603,23 @@ class ChatViewModel
 
         /**
          * Populates [ChatState.title] for the app bar, and the agent logo URL for
-         * identity marks. The deep-link path (push notification tap) can't carry
-         * the real session name, so the nav-arg `title` is blank and we look it
-         * up from the local session store. When the nav arg already has a title
-         * (session list -> chat) we use that and skip the lookup to avoid a
-         * stale read. Custom and manual agents have no registry logo, so a null
-         * icon simply keeps the fallback.
+         * identity marks. Custom and manual agents have no registry logo, so a null icon
+         * simply keeps the fallback.
+         *
+         * The nav arg carries the title the session list had when this chat was opened
+         * (blank on the deep-link path, which cannot carry one) and seeds the first frame;
+         * from there the session store is the source of truth, because every path that
+         * learns a title writes it — the agent's push, this chat's `session/list` read,
+         * and the session list's own refresh. A name the agent reports late then reaches
+         * an already-open chat instead of being frozen at whatever the row said when the
+         * user tapped it.
          */
         private fun resolveSessionTitle() {
-            if (sessionTitle.isNotBlank()) {
-                updateState { copy(title = sessionTitle) }
-            } else {
-                viewModelScope.launch {
-                    val resolved = sessionRepository.getSession(serverId, sessionId)?.title
-                    if (!resolved.isNullOrBlank() && state.value.title.isNullOrBlank()) {
-                        updateState { copy(title = resolved) }
-                    }
+            adoptTitle(sessionTitle)
+            viewModelScope.launch {
+                sessionRepository.getSessions(serverId).collect { sessions ->
+                    val currentId = durableSessionId ?: return@collect
+                    adoptTitle(sessions.firstOrNull { it.id == currentId }?.title)
                 }
             }
             viewModelScope.launch {
@@ -658,7 +681,17 @@ class ChatViewModel
                         },
                 )
             }
+            // A title stored before this chat knew its first message can be the prompt
+            // itself, since that is what an agent synthesises for a session it has not
+            // named. Now that the transcript can tell, drop it and let a real name land.
+            val storedTitle = state.value.title
+            val storedTitleIsThePrompt =
+                storedTitle != null && sessionTitleOrNull(storedTitle, firstMessage()) == null
+            if (!titlePushedByAgent && storedTitleIsThePrompt) {
+                updateState { copy(title = null) }
+            }
             applyServerTitle(snapshot.title)
+            fetchGeneratedTitleIfNeeded(snapshot)
         }
 
         /**
@@ -704,20 +737,93 @@ class ChatViewModel
         }
 
         /**
-         * Applies the server-provided session title when the current session has no title yet.
-         * The server emits SessionInfoUpdate after the first assistant response completes;
-         * this title is the canonical session name and should not overwrite an existing one.
-         * Uses a targeted UPDATE (not upsert) to preserve updatedAt and all other columns.
+         * Adopts [candidate] as the app-bar title, from any path that learns one: the nav
+         * arg, the session store, or this chat's `session/list` read. Refused when the
+         * agent already pushed a title — that is the agent's own name for the session, and
+         * nothing replaces it — and when [sessionTitleOrNull] says the candidate is not a
+         * name at all. Returns whether it was adopted.
+         */
+        private fun adoptTitle(candidate: String?): Boolean {
+            if (titlePushedByAgent) return false
+            val name = sessionTitleOrNull(candidate, firstMessage()) ?: return false
+            if (state.value.title != name) {
+                updateState { copy(title = name) }
+            }
+            return true
+        }
+
+        /**
+         * Applies the title the agent pushed over `session_info_update`. Pushing a name is
+         * the agent telling the client what to call the session, so it wins over anything
+         * the session list reported and closes the app bar to further changes. Uses a
+         * targeted UPDATE (not upsert) to preserve updatedAt and all other columns.
          */
         private suspend fun applyServerTitle(serverTitle: String?) {
-            if (serverTitle.isNullOrBlank() || !state.value.title.isNullOrBlank()) return
+            if (serverTitle.isNullOrBlank()) return
+            if (titlePushedByAgent && state.value.title == serverTitle) return
+            titlePushedByAgent = true
             updateState { copy(title = serverTitle) }
+            // A create-on-arrival chat's nav arg is still the sentinel; only the
+            // minted id names a real row.
+            val targetId = durableSessionId ?: return
             sessionRepository.updateSessionTitle(
                 serverId = serverId,
-                sessionId = sessionId,
+                sessionId = targetId,
                 title = serverTitle,
             )
         }
+
+        /**
+         * Asks the agent's session list for this session's title. An agent that names a
+         * session server-side does not necessarily push it — pi-acp pushes a name only for
+         * an explicit `/name` — so the list is the only way to learn it. Re-armed for every
+         * turn, and once on open for a session with history, so a name an agent assigns
+         * later still reaches the app bar.
+         */
+        private fun fetchGeneratedTitleIfNeeded(snapshot: ChatSessionSnapshot) {
+            if (snapshot.isStreaming) {
+                // A turn is running; whether the agent has named the session is only
+                // answerable once it settles, so re-arm the read for that snapshot.
+                titleFetchDone = false
+                return
+            }
+            if (!shouldAskForGeneratedTitle(snapshot)) return
+            titleFetchDone = true
+            viewModelScope.launch {
+                for (delayMs in TITLE_FETCH_RETRY_DELAYS_MS) {
+                    delay(delayMs)
+                    if (titlePushedByAgent || !state.value.title.isNullOrBlank()) return@launch
+                    val title = sessionFacade.fetchSessionTitle()
+                    if (title.isNullOrBlank() || !adoptTitle(title)) continue
+                    // Record it so the session list and every other screen see the same name.
+                    val targetId = durableSessionId ?: return@launch
+                    sessionRepository.updateSessionTitle(serverId, targetId, title)
+                    return@launch
+                }
+            }
+        }
+
+        /**
+         * Whether this settled snapshot is a moment to ask the agent's session list for a
+         * title: the chat is loaded with a response in it, still has no title, and has not
+         * already asked since the last turn began.
+         */
+        private fun shouldAskForGeneratedTitle(snapshot: ChatSessionSnapshot): Boolean =
+            !titleFetchDone &&
+                !titlePushedByAgent &&
+                snapshot.loadState == ChatLoadState.READY &&
+                state.value.title.isNullOrBlank() &&
+                snapshot.messages.any { it.role == ChatMessage.Role.ASSISTANT } &&
+                durableSessionId != null
+
+        /**
+         * The first thing the user said, which is what an agent synthesises a session
+         * title from when it has not named the session itself.
+         */
+        private fun firstMessage(): String? =
+            state.value.messages
+                .firstOrNull { it.role == ChatMessage.Role.USER }
+                ?.content
 
         override fun onCleared() {
             sessionCoordinator.clear()

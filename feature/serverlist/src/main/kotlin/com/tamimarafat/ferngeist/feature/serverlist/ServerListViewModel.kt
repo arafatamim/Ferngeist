@@ -77,7 +77,7 @@ data class ServerListUiState(
 
 data class RecentSession(
     val sessionId: String,
-    val title: String,
+    val title: String?,
     val serverId: String,
     val target: LaunchableTarget,
     val cwd: String?,
@@ -157,7 +157,7 @@ class ServerListViewModel
                                 launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
                             RecentSession(
                                 sessionId = summary.id,
-                                title = summary.title ?: "Untitled session",
+                                title = summary.title,
                                 serverId = summary.serverId,
                                 target = target,
                                 cwd = summary.cwd,

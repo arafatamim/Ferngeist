@@ -123,7 +123,7 @@ import kotlin.math.roundToInt
 @Composable
 fun ChatScreen(
     sessionId: String,
-    sessionTitle: String,
+    fallbackTitle: String,
     onNavigateBack: () -> Unit,
     onSwitchSession: OnSwitchSession,
     sharedTransitionScope: SharedTransitionScope,
@@ -148,7 +148,7 @@ fun ChatScreen(
     ChatScreenScaffold(
         screenState = screenState,
         sessionId = sessionId,
-        sessionTitle = sessionTitle,
+        fallbackTitle = fallbackTitle,
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
         onSwitchSession = onSwitchSession,
@@ -885,7 +885,7 @@ private fun buildChatScreenState(
 private fun ChatScreenScaffold(
     screenState: ChatScreenState,
     sessionId: String,
-    sessionTitle: String,
+    fallbackTitle: String,
     viewModel: ChatViewModel,
     onNavigateBack: () -> Unit,
     onSwitchSession: OnSwitchSession,
@@ -945,7 +945,7 @@ private fun ChatScreenScaffold(
                 ChatScreenTopBar(
                     screenState = screenState,
                     sessionId = sessionId,
-                    sessionTitle = sessionTitle,
+                    fallbackTitle = fallbackTitle,
                     scrollBehavior = scrollBehavior,
                     coroutineScope = coroutineScope,
                     viewModel = viewModel,
@@ -1220,7 +1220,7 @@ private fun BoxScope.ChatComposerHost(
 private fun ChatScreenTopBar(
     screenState: ChatScreenState,
     sessionId: String,
-    sessionTitle: String,
+    fallbackTitle: String,
     scrollBehavior: TopAppBarScrollBehavior,
     coroutineScope: CoroutineScope,
     viewModel: ChatViewModel,
@@ -1232,7 +1232,10 @@ private fun ChatScreenTopBar(
 ) {
     ChatTopBar(
         sessionId = sessionId,
-        sessionTitle = screenState.state.title ?: sessionTitle,
+        // The view model owns the title: it is the one place that knows whether a title
+        // came from the agent or is just the prompt, so a rejected title must not fall
+        // back to the string this screen was opened with.
+        sessionTitle = screenState.state.title ?: fallbackTitle,
         cwd = viewModel.cwd,
         activeModel = screenState.activeModel,
         connectionState = screenState.state.connectionState,

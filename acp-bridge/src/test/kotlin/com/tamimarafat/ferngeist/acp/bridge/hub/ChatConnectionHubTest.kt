@@ -195,6 +195,14 @@ class ChatConnectionHubTest {
     private class FakeSessionRepo : SessionRepository {
         private val rows = linkedMapOf<String, SessionSummary>()
 
+        /** Title writes, so read-only paths can assert they wrote nothing. */
+        var titleWrites = 0
+            private set
+
+        /** Whole-table replacements, so read-only paths can assert they wrote nothing. */
+        var replaceCount = 0
+            private set
+
         private fun key(
             serverId: String,
             sessionId: String,
@@ -223,6 +231,7 @@ class ChatConnectionHubTest {
             sessionId: String,
             title: String,
         ) {
+            titleWrites++
             rows[key(serverId, sessionId)]?.let { rows[key(serverId, sessionId)] = it.copy(title = title) }
         }
 
@@ -264,6 +273,7 @@ class ChatConnectionHubTest {
             serverId: String,
             sessions: List<SessionSummary>,
         ) {
+            replaceCount++
             clearSessions(serverId)
             sessions.forEach { upsertSession(serverId, it) }
         }
@@ -305,6 +315,35 @@ class ChatConnectionHubTest {
             isStreaming = { streaming },
             manager = manager,
         )
+
+    @Test
+    fun `resolveSessionTitle is read-only and null while no transport is warm`() =
+        runTest {
+            val sessionRepo = FakeSessionRepo()
+            val hub = newHub(sessionRepository = sessionRepo)
+
+            val title = hub.resolveSessionTitle(serverId = "srv", sessionId = "s1", cwd = "/w")
+
+            assertNull(title)
+            assertEquals(0, sessionRepo.replaceCount)
+            assertEquals(0, sessionRepo.titleWrites)
+        }
+
+    @Test
+    fun `resolveSessionTitle swallows a listing failure instead of raising it into the chat`() =
+        runTest {
+            val sessionRepo = FakeSessionRepo()
+            val hub = newHub(sessionRepository = sessionRepo)
+            // Warm transport that is registered as connected but holds no SDK client,
+            // so the listing call fails the way a half-open socket does.
+            hub.registerChat(sessionId = "s1", manager = hub.acquireChatManager())
+
+            val title = hub.resolveSessionTitle(serverId = "srv", sessionId = "s1", cwd = "/w")
+
+            assertNull(title)
+            assertEquals(0, sessionRepo.replaceCount)
+            assertEquals(0, sessionRepo.titleWrites)
+        }
 
     @Test
     fun `register returns stable chatIds for same server and session`() =

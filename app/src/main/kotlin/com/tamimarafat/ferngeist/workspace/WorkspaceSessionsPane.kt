@@ -7,7 +7,6 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.rememberHiltViewModelFactory
 import androidx.lifecycle.DEFAULT_ARGS_KEY
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -15,7 +14,6 @@ import androidx.lifecycle.defaultViewModelCreationExtras
 import androidx.lifecycle.viewmodel.MutableCreationExtras
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
 
@@ -54,7 +52,6 @@ fun WorkspaceSessionsPane(
             extras = extras,
         )
     val server by viewModel.server.collectAsStateWithLifecycle()
-    val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
 
     SessionListScreen(
         navArgName = null,
@@ -75,7 +72,7 @@ fun WorkspaceSessionsPane(
                     serverId = serverId,
                     sessionId = sessionId,
                     cwd = cwd,
-                    title = title ?: fallbackSessionTitle,
+                    title = title.orEmpty(),
                 ),
             )
         },

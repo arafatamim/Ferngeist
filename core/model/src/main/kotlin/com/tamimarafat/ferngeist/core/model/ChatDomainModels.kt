@@ -250,6 +250,17 @@ interface ChatSessionFacade {
      */
     suspend fun tryRestoreWarmSession(): Boolean = false
 
+    /**
+     * Asks the agent for this session's canonical title via `session/list`, or
+     * null when there is nothing to apply.
+     *
+     * The fallback for agents that generate a session title server-side but
+     * never push it over `session_info_update`: the chat asks once the first
+     * response finishes and it still has no title. Read-only — it never writes
+     * to the session store, which is the caller's job ([SessionRepository.updateSessionTitle]).
+     */
+    suspend fun fetchSessionTitle(): String? = null
+
     /** Loads an existing session or creates a new one. Emits [loadFailed] on error. */
     suspend fun loadSession()
 

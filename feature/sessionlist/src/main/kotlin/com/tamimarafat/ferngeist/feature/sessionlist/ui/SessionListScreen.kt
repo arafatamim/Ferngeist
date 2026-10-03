@@ -93,6 +93,7 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
@@ -1038,11 +1039,7 @@ private fun RowScope.SessionCardText(
     with(sharedTransitionScope) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text =
-                    session.title
-                        ?: stringResource(
-                            R.string.sessionlist_untitled,
-                        ),
+                text = sessionTitleOrNull(session.title) ?: stringResource(R.string.sessionlist_untitled),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,

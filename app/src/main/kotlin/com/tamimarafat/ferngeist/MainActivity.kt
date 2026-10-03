@@ -436,7 +436,7 @@ private fun CompactServerList(
         },
         onResumeSession = { session ->
             val encodedCwd = Uri.encode(session.cwd ?: "")
-            val encodedTitle = Uri.encode(session.title)
+            val encodedTitle = Uri.encode(session.title.orEmpty())
             navController.navigate(
                 "chat/${session.serverId}/${session.sessionId}?cwd=$encodedCwd&title=$encodedTitle",
             )
@@ -493,7 +493,7 @@ private fun WorkspaceServerList(
                             serverId = session.serverId,
                             sessionId = session.sessionId,
                             cwd = session.cwd ?: "/",
-                            title = session.title,
+                            title = session.title.orEmpty(),
                         ),
                     )
                 },
@@ -673,7 +673,6 @@ private fun NavGraphBuilder.SessionsDestination(
         val serverNameArg = backStackEntry.arguments?.getString("name")
         val openCreateSessionDialog = backStackEntry.arguments?.getBoolean("create") == true
         val viewModel: SessionListViewModel = hiltViewModel()
-        val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
 
         val server by viewModel.server.collectAsState()
         SessionListScreen(
@@ -684,7 +683,7 @@ private fun NavGraphBuilder.SessionsDestination(
             onNavigateBack = { navController.popBackStack() },
             onNavigateToChat = { sessionId, cwd, updatedAt, title ->
                 val encodedCwd = Uri.encode(cwd)
-                val encodedTitle = Uri.encode(title ?: fallbackSessionTitle)
+                val encodedTitle = Uri.encode(title.orEmpty())
                 val updatedAtParam = updatedAt ?: -1L
                 navController.navigate(
                     "chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=$updatedAtParam&title=$encodedTitle",
@@ -722,7 +721,7 @@ private fun NavGraphBuilder.ChatDestination(
                 navArgument("title") {
                     type = NavType.StringType
                     nullable = true
-                    defaultValue = "Untitled Session"
+                    defaultValue = null
                 },
                 navArgument("gatewayId") {
                     type = NavType.StringType
@@ -737,17 +736,16 @@ private fun NavGraphBuilder.ChatDestination(
             ),
     ) { backStackEntry ->
         val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
-        val title =
-            Uri.decode(
-                backStackEntry.arguments?.getString("title") ?: stringResource(R.string.app_untitled_session),
-            )
+        // The route carries the session's real title, which the view model reads from the
+        // nav args and then keeps in sync with the session store; the placeholder is
+        // display-only and only covers the frame before the first snapshot lands.
         val fallbackTitle = stringResource(R.string.app_untitled_session)
         ChatScreen(
             sessionId = sessionId,
-            sessionTitle = title,
+            fallbackTitle = fallbackTitle,
             onNavigateBack = { navController.popBackStack() },
             onSwitchSession = { session, slideDirection ->
-                navController.switchToChat(session, slideDirection, fallbackTitle)
+                navController.switchToChat(session, slideDirection)
             },
             sharedTransitionScope = sharedTransitionLayout,
             animatedContentScope = this,
