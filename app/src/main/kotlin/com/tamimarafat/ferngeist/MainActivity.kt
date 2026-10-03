@@ -130,11 +130,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
-        // Hold the splash until `homeScreenReady` flips, which happens on the first
-        // frame that has both the agent data and a laid-out home screen. Without a
-        // condition the system splash exits on the first frame, which on a cold start
-        // lands before the agent list has anything to show.
-        splashScreen.setKeepOnScreenCondition { !homeScreenReady.value }
+        // Hold the splash on a cold start until the agent list has data and has drawn it; without
+        // a condition the system splash exits on the first frame, which lands before the list has
+        // anything to show. Only a cold start lands on `server_list`, the screen that flips
+        // `homeScreenReady`. A config-change relaunch restores whatever was on top — chat included
+        // — never composes `server_list`, and would hold the splash forever with the window
+        // unshown: a black screen with no focused window, then an ANR. Nothing is lost on a
+        // relaunch, because the list ViewModel survives it and draws populated either way.
+        val coldStart = savedInstanceState == null
+        splashScreen.setKeepOnScreenCondition { coldStart && !homeScreenReady.value }
         super.onCreate(savedInstanceState)
         latestIntent.value = intent
         enableEdgeToEdge(
