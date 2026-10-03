@@ -24,9 +24,9 @@ import com.tamimarafat.ferngeist.feature.chat.ChatScrollSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 private const val USER_SCROLL_DELTA_THRESHOLD = 0.5f
@@ -382,21 +382,33 @@ private class ChatScrollSnapshotObserver(
     private val viewportWidthDp: () -> Int,
 ) {
     /**
-     * 1. Idle timeout — event-driven. Fires when the list becomes
-     * (paused && at bottom), waits out the policy's quiet window, then
+     * 1. Idle timeout. Event-driven: arms when the list comes to rest at the
+     * bottom with following paused, waits out the policy's quiet window, then
      * re-checks once against fresh state.
      *
-     * No poll: the only time-based condition (quiet window since the last
-     * user scroll) is scheduled on demand from the pause-at-bottom event.
-     * If the user scrolls during the wait, the fresh re-check sees the new
-     * scroll time and rejects; the next bottom-arrival re-arms it.
+     * "At rest" includes no scroll in progress. Without it this armed the moment
+     * the list reached the bottom, usually with the finger still down dragging
+     * into the end, so the check saw a fresh user scroll and rejected; nothing
+     * re-armed it, and following stayed paused after any hand scroll to the
+     * bottom. Now lifting the finger is the event, and scrolling again cancels
+     * the pending check (collectLatest) and re-arms on the next rest.
+     *
+     * Every input is snapshot state, and all of it is read on every pass. The
+     * flow re-runs only when state it read last time changes: reading the plain
+     * `policy.isFollowing` first let `&&` short-circuit while following, leaving
+     * no dependencies at all, so the flow never ran again and this resume never
+     * fired. [isFollowingState] is the observable mirror of the policy.
      */
     suspend fun observeIdleTimeout() {
         snapshotFlow {
-            !policy.isFollowing && listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
+            val atRest =
+                !listState.isScrollInProgress &&
+                    listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
+            val paused = !isFollowingState()
+            atRest && paused
         }.distinctUntilChanged()
-            .filter { it }
-            .collect {
+            .collectLatest { restingAtBottom ->
+                if (!restingAtBottom) return@collectLatest
                 delay(AutoScrollConfig.USER_RESUME_IDLE_MS)
                 runner.run(
                     policy.onIdleTimeout(
@@ -439,7 +451,7 @@ private class ChatScrollSnapshotObserver(
                     firstVisibleItemIndex = idx,
                     firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
                     containerWidthDp = viewportWidthDp(),
-                    isFollowing = policy.isFollowing,
+                    isFollowing = isFollowingState(),
                 )
             }
         }.distinctUntilChanged()
