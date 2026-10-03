@@ -5,8 +5,10 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -85,6 +87,22 @@ internal fun rememberChatScrollState(
             ChatScrollDecisionRunner(listState, scope, policy, isFollowingState)
         }
     val userScrollDetector = remember(runner) { runner.createUserScrollConnection() }
+    // The keyboard and an expanding composer grow the bottom inset a little every frame, and a sent
+    // or arriving message extends the list below the viewport. Pinning in that same frame —
+    // SideEffect runs before the list measures — keeps the end in view as it happens. The
+    // settle-delayed follows only fire once things stop changing, and on send the collapsing
+    // composer restarts (and cancels) them every frame, so on their own the transcript sat still
+    // and then snapped. A shrinking inset needs no help: the list clamps to its end.
+    val bottomInsetPx = composerContentHeightPx + imeBottomPx
+    val messageCount = renderedMessages.size
+    val lastBottomInsetPx = remember(sessionId) { mutableIntStateOf(bottomInsetPx) }
+    val lastMessageCount = remember(sessionId) { mutableIntStateOf(messageCount) }
+    SideEffect {
+        val grew = bottomInsetPx > lastBottomInsetPx.intValue || messageCount > lastMessageCount.intValue
+        lastBottomInsetPx.intValue = bottomInsetPx
+        lastMessageCount.intValue = messageCount
+        if (grew && !restorePending) runner.followGrowth()
+    }
     // The viewport is measured in pixels; snapshots record it in dp so the value stays
     // comparable across a fold or rotate (density can change with the display).
     val density = LocalDensity.current
@@ -286,13 +304,16 @@ private class ChatScrollDecisionRunner(
         }
 
     /**
-     * Keeps the list on its end while the streaming bubble grows. Not routed through [run]: it must
-     * land in this frame's measure, so it cannot wait for a coroutine.
+     * Keeps the list on its end while the streaming bubble, the bottom inset or the message list
+     * grows. Not routed through [run]: it must land in this frame's measure, so it cannot wait for
+     * a coroutine.
      *
      * A position request, not a scroll delta: resting at the end, the list reports it cannot scroll
-     * forward and drops a forward delta before the bigger content is even measured. Asking for the
-     * last item (the bottom spacer) at the top lets the measure clamp the content end onto the
-     * viewport end.
+     * forward and drops a forward delta before the bigger spacer is even measured. The index comes
+     * from the previous layout, so after an append it names the first new item (or still the
+     * spacer, once the window is full); either way the measure clamps the content end onto the
+     * viewport end. ponytail: a new message taller than the viewport would show its top, not its
+     * end; pass the new item count through if that ever happens.
      */
     fun followGrowth() {
         if (!policy.shouldFollowGrowth()) return
