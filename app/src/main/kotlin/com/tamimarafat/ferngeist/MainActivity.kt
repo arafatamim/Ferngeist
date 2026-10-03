@@ -39,8 +39,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -216,14 +218,18 @@ fun FerngeistNavHost(
         if (isWindowCompact()) null else workspace,
     )
 
+    // The compact sessions screen only drifts a short distance while it cross-fades; a full-height
+    // slide reads as a page push, which this pair is not.
+    val sessionListSlidePx = with(LocalDensity.current) { SESSION_LIST_SLIDE_DP.dp.roundToPx() }
+
     SharedTransitionLayout {
         NavHost(
             navController = navController,
             startDestination = "server_list",
-            enterTransition = { navEnterTransition(navSpring, navFadeSpring) },
-            exitTransition = { navExitTransition(navSpring, navFadeSpring) },
-            popEnterTransition = { navPopEnterTransition(navSpring, navFadeSpring) },
-            popExitTransition = { navPopExitTransition(navSpring, navFadeSpring) },
+            enterTransition = { navEnterTransition(navSpring, navFadeSpring, sessionListSlidePx) },
+            exitTransition = { navExitTransition(navSpring, navFadeSpring, sessionListSlidePx) },
+            popEnterTransition = { navPopEnterTransition(navSpring, navFadeSpring, sessionListSlidePx) },
+            popExitTransition = { navPopExitTransition(navSpring, navFadeSpring, sessionListSlidePx) },
         ) {
             FerngeistDestinations(
                 navController = navController,
@@ -774,6 +780,9 @@ private fun NotificationPermissionEffect() {
     }
 }
 
+/** How far the compact sessions screen drifts while it cross-fades, in dp. */
+private const val SESSION_LIST_SLIDE_DP = 40
+
 /**
  * Returns `true` when navigating between `sessions/{id}` and `chat/{id}`.
  *
@@ -784,10 +793,16 @@ private fun NotificationPermissionEffect() {
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.navEnterTransition(
     navSpring: SpringSpec<IntOffset>,
     navFadeSpring: SpringSpec<Float>,
+    sessionListSlidePx: Int,
 ): EnterTransition =
     when {
         isSessionChatTransition() -> EnterTransition.None
-        isServerListSessionsTransition() -> fadeIn(animationSpec = navFadeSpring)
+        isServerListSessionsTransition() ->
+            slideIntoContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                animationSpec = navSpring,
+                initialOffset = { sessionListSlidePx },
+            ) + fadeIn(animationSpec = navFadeSpring)
         isChatChatTransition() ->
             slideIntoContainer(
                 towards = chatChatDirection(),
@@ -803,10 +818,16 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.navEnterTransition
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.navExitTransition(
     navSpring: SpringSpec<IntOffset>,
     navFadeSpring: SpringSpec<Float>,
+    sessionListSlidePx: Int,
 ): ExitTransition =
     when {
         isSessionChatTransition() -> ExitTransition.None
-        isServerListSessionsTransition() -> fadeOut(animationSpec = navFadeSpring)
+        isServerListSessionsTransition() ->
+            slideOutOfContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                animationSpec = navSpring,
+                targetOffset = { sessionListSlidePx },
+            ) + fadeOut(animationSpec = navFadeSpring)
         isChatChatTransition() ->
             slideOutOfContainer(
                 towards = chatChatDirection(),
@@ -822,10 +843,16 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.navExitTransition(
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.navPopEnterTransition(
     navSpring: SpringSpec<IntOffset>,
     navFadeSpring: SpringSpec<Float>,
+    sessionListSlidePx: Int,
 ): EnterTransition =
     when {
         isSessionChatTransition() -> EnterTransition.None
-        isServerListSessionsTransition() -> fadeIn(animationSpec = navFadeSpring)
+        isServerListSessionsTransition() ->
+            slideIntoContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                animationSpec = navSpring,
+                initialOffset = { sessionListSlidePx },
+            ) + fadeIn(animationSpec = navFadeSpring)
         else ->
             slideIntoContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Right,
@@ -836,10 +863,16 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.navPopEnterTransit
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.navPopExitTransition(
     navSpring: SpringSpec<IntOffset>,
     navFadeSpring: SpringSpec<Float>,
+    sessionListSlidePx: Int,
 ): ExitTransition =
     when {
         isSessionChatTransition() -> ExitTransition.None
-        isServerListSessionsTransition() -> fadeOut(animationSpec = navFadeSpring)
+        isServerListSessionsTransition() ->
+            slideOutOfContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                animationSpec = navSpring,
+                targetOffset = { sessionListSlidePx },
+            ) + fadeOut(animationSpec = navFadeSpring)
         else ->
             slideOutOfContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Right,
