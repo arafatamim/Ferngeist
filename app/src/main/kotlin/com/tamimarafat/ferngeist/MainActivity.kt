@@ -54,6 +54,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
@@ -81,11 +82,16 @@ import com.tamimarafat.ferngeist.service.BatteryOptimizationHelper
 import com.tamimarafat.ferngeist.service.BatteryOptimizationPreferences
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
 import com.tamimarafat.ferngeist.workspace.ChatViewModelFactory
+import com.tamimarafat.ferngeist.workspace.SERVER_LIST_ROUTE
+import com.tamimarafat.ferngeist.workspace.WorkspaceRouteAction
 import com.tamimarafat.ferngeist.workspace.WorkspaceScreen
 import com.tamimarafat.ferngeist.workspace.WorkspaceSelection
 import com.tamimarafat.ferngeist.workspace.WorkspaceSessionsPane
 import com.tamimarafat.ferngeist.workspace.WorkspaceState
+import com.tamimarafat.ferngeist.workspace.compactChatRoute
 import com.tamimarafat.ferngeist.workspace.rememberWorkspaceState
+import com.tamimarafat.ferngeist.workspace.sessionsRouteFor
+import com.tamimarafat.ferngeist.workspace.workspaceRouteAction
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -211,6 +217,7 @@ fun FerngeistNavHost(
     // lost a destination cannot restore that stack and throws. One graph, one start
     // destination, one route set, at every width.
     val workspace = rememberWorkspaceState()
+    val compact = isWindowCompact()
 
     // A chat notification selects the pinned pane on a wide window instead of pushing the
     // full-screen chat route over the workspace; compact windows have no workspace to select.
@@ -219,8 +226,70 @@ fun FerngeistNavHost(
         latestIntent,
         translateGatewayId,
         onIntentConsumed,
-        if (isWindowCompact()) null else workspace,
+        if (compact) null else workspace,
     )
+
+    // The workspace holds its selection in saveable state, not on the back stack, so a window
+    // class change has to convert between the two representations: folding with a chat open used
+    // to land on the agent list, and unfolding used to leave the full-screen chat route covering
+    // the workspace it should be a pane of. Keying on the entry is also what makes this wait for
+    // `NavHost` to install the graph; neither branch suspends, so a navigation it starts cannot
+    // be cancelled half-done by the key change that navigation causes.
+    val currentEntry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(compact, currentEntry) {
+        val entry = currentEntry ?: return@LaunchedEffect
+        val action =
+            workspaceRouteAction(
+                compact = compact,
+                route = entry.destination.route,
+                selectedServerId = workspace.selectedServerId,
+                selectedSessionId = workspace.selectedSessionId,
+            )
+        when (action) {
+            WorkspaceRouteAction.None -> Unit
+
+            WorkspaceRouteAction.AbsorbIntoWorkspace -> {
+                val args = entry.arguments ?: return@LaunchedEffect
+                val serverId = args.getString("serverId") ?: return@LaunchedEffect
+                val sessionId = args.getString("sessionId")
+                if (sessionId == null) {
+                    workspace.selectAgent(serverId)
+                } else {
+                    workspace.selectSession(
+                        WorkspaceSelection(
+                            serverId = serverId,
+                            sessionId = sessionId,
+                            cwd = Uri.decode(args.getString("cwd").orEmpty()).orEmpty().ifEmpty { "/" },
+                            title = Uri.decode(args.getString("title").orEmpty()).orEmpty(),
+                        ),
+                    )
+                }
+                navController.popBackStack(SERVER_LIST_ROUTE, inclusive = false)
+            }
+
+            is WorkspaceRouteAction.RestoreCompact -> {
+                val cwd = workspace.cwd
+                val title = workspace.title
+                // A create-on-arrival chat's selection still holds the placeholder id; the real
+                // one it minted is the only id the compact route can reopen.
+                val sessionId = workspace.mintedSessionId ?: action.sessionId
+                workspace.clearSelection()
+                // The compact flow's own stack, so back from the chat reaches the session list
+                // exactly as it would had the user navigated there themselves.
+                navController.navigate(sessionsRouteFor(action.serverId))
+                if (sessionId != null) {
+                    navController.navigate(
+                        compactChatRoute(
+                            serverId = action.serverId,
+                            sessionId = sessionId,
+                            encodedCwd = Uri.encode(cwd),
+                            encodedTitle = Uri.encode(title),
+                        ),
+                    )
+                }
+            }
+        }
+    }
 
     // The compact sessions screen only drifts a short distance while it cross-fades; a full-height
     // slide reads as a page push, which this pair is not.

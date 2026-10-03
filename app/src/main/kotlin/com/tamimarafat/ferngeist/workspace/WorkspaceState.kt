@@ -99,6 +99,22 @@ class WorkspaceState(
         agentsInLeft = true
     }
 
+    /**
+     * Drops the selection because the compact routes have taken the presentation over.
+     *
+     * Keeping it would leave the two fighting: back from the chat would land on the agent list
+     * with the selection still set, and the selection would immediately reopen the chat. The
+     * route carries the same identity, and widening converts it back — see `WorkspaceRouting`.
+     */
+    fun clearSelection() {
+        selectedServerId = null
+        selectedSessionId = null
+        mintedSessionId = null
+        cwd = ""
+        title = ""
+        agentsInLeft = false
+    }
+
     @OptIn(ExperimentalMaterial3AdaptiveApi::class)
     fun paneValue(maxPartitions: Int): ThreePaneScaffoldValue =
         workspacePaneValue(maxPartitions, selectedServerId, selectedSessionId, agentsInLeft)

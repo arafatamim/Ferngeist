@@ -6,3 +6,4 @@ Polish pass: smoother scrolling, text that reveals as it streams, and a livelier
 • Swipe a session away in the chat switcher sheet
 • Geist Mono ships with the app, and agents show logo badges
 • Fixed: the session list no longer blanks out while it loads
+• Fixed: folding the screen keeps you in the chat you were reading instead of dropping you back to the agent list
