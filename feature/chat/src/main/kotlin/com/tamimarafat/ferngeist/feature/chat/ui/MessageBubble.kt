@@ -488,6 +488,9 @@ private fun AssistantSegmentContent(
 
         AssistantSegment.Kind.THOUGHT -> {
             ThoughtBubble(
+                // The message id, not the segment id: the segment id changes on every chunk, and
+                // the polygon set and verb must stay put for the whole turn or the row flickers.
+                streamKey = message.id,
                 isStreaming = message.isStreaming && message.segments.lastOrNull()?.id == segment.id,
                 onClick = { onThoughtClick(segment.id) },
             )
@@ -569,18 +572,12 @@ private fun RenderedMarkdown(
 
 @Composable
 private fun ThoughtBubble(
+    streamKey: String,
     isStreaming: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val baseColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val textBrush =
-        rememberShimmerTextBrush(
-            isActive = isStreaming,
-            baseColor = baseColor,
-            labelPrefix = "reasoning",
-        )
-
     val reasoningDesc = stringResource(R.string.chat_reasoning_desc)
 
     Row(
@@ -593,28 +590,28 @@ private fun ThoughtBubble(
                 },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text =
-                if (isStreaming) {
-                    stringResource(
-                        R.string.chat_reasoning,
-                    )
-                } else {
-                    stringResource(R.string.chat_show_reasoning)
-                },
-            style =
-                MaterialTheme.typography.bodySmall.copy(
-                    brush = textBrush,
-                ),
-            modifier = Modifier.padding(vertical = 4.dp),
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Icon(
-            imageVector = Icons.Rounded.ChevronRight,
-            contentDescription = stringResource(R.string.chat_reasoning_desc),
-            tint = baseColor,
-            modifier = Modifier.size(16.dp),
-        )
+        if (isStreaming) {
+            // Same indicator a streamed reply gets. The chevron is deliberately withheld: it
+            // marks the settled row that expands on tap, not the in-flight one.
+            StreamingIndicator(
+                streamKey = streamKey,
+                baseColor = baseColor,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.chat_show_reasoning),
+                style = MaterialTheme.typography.bodySmall.copy(color = baseColor),
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = reasoningDesc,
+                tint = baseColor,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
@@ -974,6 +971,7 @@ private fun ImageAttachmentItem(
 private fun StreamingIndicator(
     streamKey: String,
     modifier: Modifier = Modifier,
+    baseColor: Color = LocalContentColor.current.copy(alpha = 0.8f),
 ) {
     val resources = LocalResources.current
     val spinnerVerb =
@@ -982,7 +980,6 @@ private fun StreamingIndicator(
             verbs[Random.nextInt(verbs.size)]
         }
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
-    val baseColor = LocalContentColor.current.copy(alpha = 0.8f)
     val textBrush =
         rememberShimmerTextBrush(
             isActive = true,
