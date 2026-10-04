@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
 import java.util.UUID
 
 /**
@@ -142,14 +143,14 @@ object SessionMessageReducer {
         timestampMs: Long?,
     ): List<ChatMessage> {
         if (text.isEmpty() && images.isEmpty() && files.isEmpty()) return messages
-        val mutableMessages = messages.toMutableList()
+        val mutableMessages = messages.mutableCopy()
         val lastMessage = mutableMessages.lastOrNull()
 
         // Dedup against the already-present user bubble (or the streaming placeholder that
         // follows it) before appending a new one. Returns non-null when the caller should
         // use the returned list instead of appending.
         deduplicateOrMergeUserMessage(mutableMessages, lastMessage, text, images, files, append)?.let {
-            return it
+            return it.toPersistentList()
         }
 
         // A new user message arriving means any running assistant turn is obsolete — close it
@@ -162,14 +163,16 @@ object SessionMessageReducer {
             mutableMessages[lastStreamingIndex] = streaming.copy(isStreaming = false)
         }
 
-        return mutableMessages +
+        mutableMessages.add(
             ChatMessage(
                 role = ChatMessage.Role.USER,
                 content = text,
                 images = images,
                 files = files,
                 createdAt = timestampMs ?: System.currentTimeMillis(),
-            )
+            ),
+        )
+        return mutableMessages.build()
     }
 
     /**
@@ -258,7 +261,7 @@ object SessionMessageReducer {
         timestampMs: Long?,
     ): ReducerResult {
         if (text.isEmpty()) return ReducerResult(messages, toolCallIndex)
-        val mutableMessages = messages.toMutableList()
+        val mutableMessages = messages.mutableCopy()
 
         val lastMessage = mutableMessages.lastOrNull()
         val targetIndex =
@@ -298,7 +301,7 @@ object SessionMessageReducer {
                 content = "",
                 isStreaming = true,
             )
-        return ReducerResult(mutableMessages, toolCallIndex)
+        return ReducerResult(mutableMessages.build(), toolCallIndex)
     }
 
     private fun updatePlan(
@@ -307,7 +310,7 @@ object SessionMessageReducer {
         timestampMs: Long?,
     ): List<ChatMessage> {
         if (entries.isEmpty()) return messages
-        val mutableMessages = messages.toMutableList()
+        val mutableMessages = messages.mutableCopy()
 
         val lastMessage = mutableMessages.lastOrNull()
         val targetIndex =
@@ -356,7 +359,7 @@ object SessionMessageReducer {
                 content = updatedContent,
                 isStreaming = true,
             )
-        return mutableMessages
+        return mutableMessages.build()
     }
 
     private fun upsertToolCall(
@@ -373,7 +376,7 @@ object SessionMessageReducer {
             return ReducerResult(messages, toolCallIndex)
         }
 
-        val mutableMessages = messages.toMutableList()
+        val mutableMessages = messages.mutableCopy()
         val lastMessage = mutableMessages.lastOrNull()
         val targetIndex =
             if (lastMessage?.role == ChatMessage.Role.ASSISTANT && lastMessage.isStreaming) {
@@ -408,8 +411,9 @@ object SessionMessageReducer {
             )
         val newSegments = message.segments.adding(newSegment)
         mutableMessages[targetIndex] = message.copy(segments = newSegments)
-        val newIndex = toolCallIndex + (toolCallId to ToolCallLocation(targetIndex, newSegmentIndex))
-        return ReducerResult(mutableMessages, newIndex)
+        val location = ToolCallLocation(targetIndex, newSegmentIndex)
+        val newIndex = toolCallIndex.toPersistentMap().putting(toolCallId, location)
+        return ReducerResult(mutableMessages.build(), newIndex)
     }
 
     private fun updateToolCall(
@@ -445,7 +449,7 @@ object SessionMessageReducer {
         val (location, resolvedIndex) = located
         val messageIndex = location.messageIndex
         val segmentIndex = location.segmentIndex
-        val mutableMessages = messages.toMutableList()
+        val mutableMessages = messages.mutableCopy()
         val message = mutableMessages[messageIndex]
 
         val newSegments: PersistentList<AssistantSegment> =
@@ -466,7 +470,7 @@ object SessionMessageReducer {
                     )
             }
         mutableMessages[messageIndex] = message.copy(segments = newSegments)
-        return ReducerResult(mutableMessages, resolvedIndex)
+        return ReducerResult(mutableMessages.build(), resolvedIndex)
     }
 
     private fun updateToolCallPermission(
@@ -496,7 +500,7 @@ object SessionMessageReducer {
             locateToolCall(bootstrapped.messages, bootstrapped.toolCallIndex, event.toolCallId)
                 ?: return bootstrapped
         val (location, resolvedIndex) = located
-        val mutableMessages = bootstrapped.messages.toMutableList()
+        val mutableMessages = bootstrapped.messages.mutableCopy()
         val message = mutableMessages[location.messageIndex]
         val oldSegment = message.segments[location.segmentIndex]
         val oldToolCall = oldSegment.toolCall ?: return bootstrapped
@@ -522,7 +526,7 @@ object SessionMessageReducer {
                     )
             }
         mutableMessages[location.messageIndex] = message.copy(segments = newSegments)
-        return ReducerResult(mutableMessages, resolvedIndex)
+        return ReducerResult(mutableMessages.build(), resolvedIndex)
     }
 
     private fun clearToolCallPermission(
@@ -534,7 +538,7 @@ object SessionMessageReducer {
             locateToolCall(messages, toolCallIndex, toolCallId)
                 ?: return ReducerResult(messages, toolCallIndex)
         val (location, resolvedIndex) = located
-        val mutableMessages = messages.toMutableList()
+        val mutableMessages = messages.mutableCopy()
         val message = mutableMessages[location.messageIndex]
         val oldSegment = message.segments[location.segmentIndex]
         val oldToolCall = oldSegment.toolCall ?: return ReducerResult(messages, resolvedIndex)
@@ -561,7 +565,7 @@ object SessionMessageReducer {
                     )
             }
         mutableMessages[location.messageIndex] = message.copy(segments = newSegments)
-        return ReducerResult(mutableMessages, resolvedIndex)
+        return ReducerResult(mutableMessages.build(), resolvedIndex)
     }
 
     /**
@@ -587,12 +591,19 @@ object SessionMessageReducer {
             message.segments.forEachIndexed { segmentIndex, segment ->
                 if (segment.toolCall?.toolCallId == toolCallId) {
                     val location = ToolCallLocation(messageIndex, segmentIndex)
-                    return location to (toolCallIndex + (toolCallId to location))
+                    return location to toolCallIndex.toPersistentMap().putting(toolCallId, location)
                 }
             }
         }
         return null
     }
+
+    /**
+     * A mutable view that shares structure with [this] list. Every event edits one message near
+     * the tail, so copying the whole list per event made a `session/load` replay
+     * O(events x messages) - long transcripts outran the load deadline.
+     */
+    private fun List<ChatMessage>.mutableCopy(): PersistentList.Builder<ChatMessage> = toPersistentList().builder()
 
     /** The tool call id recorded at [location], or null when the location points at nothing. */
     private fun toolCallIdAt(
