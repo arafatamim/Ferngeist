@@ -58,6 +58,8 @@
     <string name="chat_permission_title">অনুমতি প্রয়োজন</string>
     <string name="chat_permission_body">চালিয়ে যাওয়ার আগে এজেন্ট আপনার অনুমতির অপেক্ষায় আছে।</string>
     <string name="chat_deny">অস্বীকার</string>
+    <string name="chat_cancel">বাতিল</string>
+    <string name="chat_submit">জমা দিন</string>
     <string name="chat_no_tool_output">কোনো টুল আউটপুট নেই।</string>
     <string name="chat_picker_empty">কোনো আইটেম নেই।</string>
     <string name="chat_picker_no_results">মিলছে এমন কোনো আইটেম নেই।</string>

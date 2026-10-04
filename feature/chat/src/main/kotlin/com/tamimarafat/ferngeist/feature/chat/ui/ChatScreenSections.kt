@@ -49,7 +49,6 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
@@ -78,7 +77,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -87,7 +86,6 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
-import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -748,32 +746,7 @@ private fun ChatMessageItem(
     )
 }
 
-internal data class PendingPermissionRequest(
-    val toolCallId: String,
-    val requestId: String?,
-    val title: String,
-    val kind: ToolKind?,
-    val options: List<AcpPermissionOption>,
-)
-
-internal fun List<ChatMessage>.latestPendingPermissionRequest(): PendingPermissionRequest? {
-    return asReversed().firstNotNullOfOrNull { message ->
-        message.segments.asReversed().firstNotNullOfOrNull { segment ->
-            val toolCall = segment.toolCall ?: return@firstNotNullOfOrNull null
-            val toolCallId = toolCall.toolCallId ?: return@firstNotNullOfOrNull null
-            val permissionOptions =
-                toolCall.permissionOptions?.takeIf { it.isNotEmpty() }
-                    ?: return@firstNotNullOfOrNull null
-            PendingPermissionRequest(
-                toolCallId = toolCallId,
-                requestId = toolCall.permissionRequestId,
-                title = toolCall.title,
-                kind = toolCall.kind,
-                options = permissionOptions,
-            )
-        }
-    }
-}
+private const val AGENT_TEXT_MAX_LINES = 3
 
 internal fun List<ChatMessage>.toolCallForSegment(segmentId: String?): ToolCallDisplay? {
     val targetId = segmentId ?: return null
@@ -796,99 +769,6 @@ internal fun List<ChatMessage>.thoughtForSegment(segmentId: String?): String? {
             .firstOrNull { run -> run.segments.any { it.id == targetId } }
             ?.text
             ?.takeIf { it.isNotBlank() }
-    }
-}
-
-@Composable
-private fun PermissionRequestSheet(
-    request: PendingPermissionRequest,
-    onGrantPermission: (String, String) -> Unit,
-    onDenyPermission: (String) -> Unit,
-) {
-    val sheetState =
-        rememberBottomSheetState(
-            initialValue = SheetValue.Hidden,
-            confirmValueChange = { value -> value != SheetValue.Hidden },
-        )
-    ModalBottomSheet(
-        onDismissRequest = {},
-        sheetState = sheetState,
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.chat_permission_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            PermissionRequestHeader(request = request)
-            PermissionRequestOptions(
-                request = request,
-                onGrantPermission = onGrantPermission,
-            )
-            TextButton(
-                onClick = { onDenyPermission(request.toolCallId) },
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text(stringResource(R.string.chat_deny))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionRequestHeader(request: PendingPermissionRequest) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = request.title.ifBlank { stringResource(R.string.chat_permission_request) },
-            style = MaterialTheme.typography.titleMedium,
-        )
-        request.kind?.let { kind ->
-            Text(
-                text = toolKindLabel(kind),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            text = stringResource(R.string.chat_permission_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun PermissionRequestOptions(
-    request: PendingPermissionRequest,
-    onGrantPermission: (String, String) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        request.options.forEach { option ->
-            OutlinedButton(
-                onClick = { onGrantPermission(request.toolCallId, option.id) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = option.label,
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        text = permissionKindLabel(option.kind),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -925,6 +805,10 @@ private fun ToolCallDetailsHeader(toolCall: ToolCallDisplay) {
         Text(
             text = toolCallSheetTitle,
             style = MaterialTheme.typography.bodyLarge,
+            // Same reason as the permission sheet: an agent can dump an entire transcript
+            // into the tool title, so cap it rather than let it push the body off-screen.
+            maxLines = AGENT_TEXT_MAX_LINES,
+            overflow = TextOverflow.Ellipsis,
         )
         toolCall.kind?.let { kind ->
             Text(

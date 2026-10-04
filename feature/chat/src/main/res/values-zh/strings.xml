@@ -64,6 +64,8 @@
     <string name="chat_permission_title">需要权限</string>
     <string name="chat_permission_body">代理正在等待您的批准以继续操作。</string>
     <string name="chat_deny">拒绝</string>
+    <string name="chat_cancel">取消</string>
+    <string name="chat_submit">提交</string>
     <string name="chat_no_tool_output">无工具输出。</string>
     <string name="chat_picker_empty">暂无项目</string>
     <string name="chat_picker_no_results">没有匹配的项目。</string>

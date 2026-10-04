@@ -62,6 +62,8 @@
     <string name="chat_permission_title">Требуется разрешение</string>
     <string name="chat_permission_body">Агент ожидает вашего разрешения перед продолжением.</string>
     <string name="chat_deny">Отклонить</string>
+    <string name="chat_cancel">Отмена</string>
+    <string name="chat_submit">Отправить</string>
     <string name="chat_no_tool_output">Нет вывода инструмента.</string>
     <string name="chat_picker_empty">Пусто.</string>
     <string name="chat_picker_no_results">Ничего не найдено.</string>

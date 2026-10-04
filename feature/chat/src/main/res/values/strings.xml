@@ -206,6 +206,8 @@
     <string name="chat_permission_title">Permission Required</string>
     <string name="chat_permission_body">The agent is waiting for your approval before it can continue.</string>
     <string name="chat_deny">Deny</string>
+    <string name="chat_cancel">Cancel</string>
+    <string name="chat_submit">Submit</string>
     <string name="chat_no_tool_output">No tool output.</string>
     <string name="chat_git_status_title">Git status</string>
     <string name="chat_git_no_branch">(no branch)</string>

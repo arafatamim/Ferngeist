@@ -58,6 +58,8 @@
     <string name="chat_permission_title">Permissão necessária</string>
     <string name="chat_permission_body">O agente está aguardando sua aprovação antes de continuar.</string>
     <string name="chat_deny">Negar</string>
+    <string name="chat_cancel">Cancelar</string>
+    <string name="chat_submit">Enviar</string>
     <string name="chat_no_tool_output">Sem saída da ferramenta.</string>
     <string name="chat_picker_empty">Sem itens.</string>
     <string name="chat_picker_no_results">Nenhum item correspondente.</string>
