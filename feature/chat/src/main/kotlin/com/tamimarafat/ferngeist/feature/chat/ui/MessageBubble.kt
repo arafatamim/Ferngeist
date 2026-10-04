@@ -1116,7 +1116,7 @@ private fun toolKindIcon(kind: ToolKind?): ImageVector =
     }
 
 @Composable
-private fun rememberShimmerTextBrush(
+internal fun rememberShimmerTextBrush(
     isActive: Boolean,
     baseColor: Color,
     labelPrefix: String,

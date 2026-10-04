@@ -166,7 +166,6 @@
     <string name="switcher_title">活动会话</string>
     <string name="switcher_empty">没有其他进行中的会话</string>
     <string name="switcher_untitled">未命名</string>
-    <string name="switcher_generating">生成中</string>
     <string name="switcher_current_desc">当前会话</string>
     <string name="chat_resumed_session">已恢复</string>
 </resources>

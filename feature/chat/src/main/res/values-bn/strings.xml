@@ -167,7 +167,6 @@
     <string name="switcher_title">সক্রিয় সেশনগুলি</string>
     <string name="switcher_empty">অন্য কোনো সক্রিয় সেশন নেই</string>
     <string name="switcher_untitled">শিরোনামহীন</string>
-    <string name="switcher_generating">তৈরি হচ্ছে</string>
     <string name="switcher_current_desc">বর্তমান সেশন</string>
     <string name="chat_resumed_session">পুনরায় শুরু</string>
 </resources>

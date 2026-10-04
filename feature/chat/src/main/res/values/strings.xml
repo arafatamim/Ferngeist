@@ -294,7 +294,6 @@
     <string name="switcher_title">Active sessions</string>
     <string name="switcher_empty">No other live sessions</string>
     <string name="switcher_untitled">Untitled</string>
-    <string name="switcher_generating">Generating</string>
     <string name="switcher_current_desc">Current session</string>
     <string name="chat_resumed_session">Resumed</string>
 </resources>

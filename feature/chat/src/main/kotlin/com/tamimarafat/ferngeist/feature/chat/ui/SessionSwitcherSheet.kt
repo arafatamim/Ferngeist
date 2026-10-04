@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PlainTooltip
@@ -608,20 +609,24 @@ private fun SwitcherRowContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // A live session shimmers its own title rather than showing a
+                // "Generating" chip beside it: the row has exactly one text slot,
+                // and a second label reads as a status field bolted on. The
+                // current session is skipped — you can already see it streaming.
+                val generating = session.isGenerating && !session.isCurrent
+                val titleBrush =
+                    rememberShimmerTextBrush(
+                        isActive = generating,
+                        baseColor = LocalContentColor.current,
+                        labelPrefix = "switcherTitle",
+                    )
                 Text(
                     text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(brush = titleBrush),
                     maxLines = 1,
                     overflow = TextOverflow.MiddleEllipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (session.isGenerating && !session.isCurrent) {
-                    Text(
-                        text = stringResource(R.string.switcher_generating),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
                 if (session.isCurrent) {
                     Icon(
                         imageVector = Icons.Rounded.Check,

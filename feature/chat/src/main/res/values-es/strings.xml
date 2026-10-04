@@ -174,7 +174,6 @@
     <string name="switcher_title">Sesiones activas</string>
     <string name="switcher_empty">No hay otras sesiones activas</string>
     <string name="switcher_untitled">Sin título</string>
-    <string name="switcher_generating">Generando</string>
     <string name="switcher_current_desc">Sesión actual</string>
     <string name="chat_resumed_session">Reanudada</string>
 </resources>

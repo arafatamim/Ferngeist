@@ -178,7 +178,6 @@
     <string name="switcher_title">Активные сеансы</string>
     <string name="switcher_empty">Нет других активных сеансов</string>
     <string name="switcher_untitled">Без названия</string>
-    <string name="switcher_generating">Генерация</string>
     <string name="switcher_current_desc">Текущий сеанс</string>
     <string name="chat_resumed_session">Возобновлена</string>
 </resources>
