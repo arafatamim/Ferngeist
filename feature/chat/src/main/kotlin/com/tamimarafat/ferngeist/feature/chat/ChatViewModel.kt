@@ -643,7 +643,7 @@ class ChatViewModel
                     messages = snapshot.messages,
                     loadState = snapshot.loadState,
                 )
-            val reconciledPending = reconcileSendingPendingBubbles(snapshot.messages)
+            val (reconciledPending, echoKeys) = reconcileSendingPendingBubbles(snapshot.messages)
             val failed = snapshot.loadState == ChatLoadState.FAILED
             // A HYDRATING snapshot is an in-flight marker: it asserts that a load is
             // running, not that a reported failure is over. Letting it rewrite the error
@@ -656,6 +656,7 @@ class ChatViewModel
                 copy(
                     messages = snapshot.messages,
                     pendingMessages = reconciledPending,
+                    listKeys = if (echoKeys.isEmpty()) listKeys else listKeys + echoKeys,
                     markdownDocuments = markdownProjection.documents,
                     isStreaming = snapshot.isStreaming,
                     usage = snapshot.usage,
@@ -700,41 +701,36 @@ class ChatViewModel
          * snapshot (content + images + files match), because the echoed message
          * in [messages] is the canonical delivery.
          */
-        private fun reconcileSendingPendingBubbles(messages: List<ChatMessage>): List<ChatMessage> {
-            val pendingSending =
-                state.value.pendingMessages.filter {
-                    it.status == MessageDeliveryStatus.SENDING
-                }
-            if (pendingSending.isEmpty()) return state.value.pendingMessages
-            val echoClientIds = findEchoedClientIds(pendingSending, messages)
-            return if (echoClientIds.isEmpty()) {
-                state.value.pendingMessages
-            } else {
-                state.value.pendingMessages.filterNot {
-                    (it.clientId ?: it.id) in echoClientIds
-                }
-            }
+        private fun reconcileSendingPendingBubbles(
+            messages: List<ChatMessage>,
+        ): Pair<List<ChatMessage>, Map<String, String>> {
+            val pending = state.value.pendingMessages
+            val pendingSending = pending.filter { it.status == MessageDeliveryStatus.SENDING }
+            if (pendingSending.isEmpty()) return pending to emptyMap()
+            val echoes = findEchoes(pendingSending, messages)
+            if (echoes.isEmpty()) return pending to emptyMap()
+            val echoedClientIds = echoes.values.toSet()
+            return pending.filterNot { (it.clientId ?: it.id) in echoedClientIds } to echoes
         }
 
-        private fun findEchoedClientIds(
+        /** Echo message id to the client id of the pending bubble it delivers. */
+        private fun findEchoes(
             pendingSending: List<ChatMessage>,
             messages: List<ChatMessage>,
-        ): Set<String> {
-            val echoClientIds = mutableSetOf<String>()
-            for (sending in pendingSending) {
-                val echoed =
-                    messages.firstOrNull { msg ->
-                        msg.role == ChatMessage.Role.USER &&
-                            msg.content == sending.content &&
-                            msg.images == sending.images &&
-                            msg.files == sending.files
-                    }
-                if (echoed != null) {
-                    echoClientIds.add(sending.clientId ?: sending.id)
+        ): Map<String, String> =
+            buildMap {
+                for (sending in pendingSending) {
+                    // The last match: an identical earlier prompt ("continue") is not this echo.
+                    val echoed =
+                        messages.lastOrNull { msg ->
+                            msg.role == ChatMessage.Role.USER &&
+                                msg.content == sending.content &&
+                                msg.images == sending.images &&
+                                msg.files == sending.files
+                        }
+                    if (echoed != null) put(echoed.id, sending.clientId ?: sending.id)
                 }
             }
-            return echoClientIds
-        }
 
         /**
          * Adopts [candidate] as the app-bar title, from any path that learns one: the nav
@@ -1199,6 +1195,12 @@ data class ChatState(
     val title: String? = null,
     val messages: List<ChatMessage> = emptyList(),
     val pendingMessages: List<ChatMessage> = emptyList(),
+    /**
+     * Transcript list key per message id, where it differs from the id: the reducer's echo of a
+     * sent prompt has a new id, and keeps the pending bubble's key so the list moves the same
+     * item instead of swapping one for another.
+     */
+    val listKeys: Map<String, String> = emptyMap(),
     val markdownDocuments: Map<String, MarkdownRenderedDocument> = emptyMap(),
     val restoredScrollSnapshot: ChatScrollSnapshot? = null,
     val isLoading: Boolean = false,
