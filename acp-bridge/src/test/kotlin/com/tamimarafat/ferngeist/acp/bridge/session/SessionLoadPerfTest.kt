@@ -1,6 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.agentclientprotocol.model.ToolCallStatus
+import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent.AgentMessage
+import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent.ToolCallStarted
+import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent.ToolCallUpdated
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent.UserMessage
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -60,5 +64,29 @@ class SessionLoadPerfTest {
             println("PERF tailAfter0Ms=$elapsedMs for 2000 chunks")
             runtime.completeHydration()
             assertEquals(1, runtime.snapshot.value.messages.size)
+        }
+
+    @Test
+    fun alternatingTurnsReplay() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "perf4")
+            runtime.beginHydration()
+            // The shape of a real long transcript: the message list grows every turn and each
+            // turn carries chunks and tool calls, so per-event cost tracks history length.
+            val turns = 2_000
+            val start = System.nanoTime()
+            repeat(turns) { turn ->
+                runtime.onEvent(UserMessage("prompt $turn"))
+                repeat(3) { tool ->
+                    val id = "t$turn-$tool"
+                    runtime.onEvent(ToolCallStarted(id, "Read", ToolKind.READ, ToolCallStatus.PENDING))
+                    runtime.onEvent(ToolCallUpdated(id, ToolCallStatus.COMPLETED, null, null))
+                }
+                repeat(40) { i -> runtime.onEvent(AgentMessage("chunk $i " + "w".repeat(40))) }
+            }
+            val elapsedMs = (System.nanoTime() - start) / 1_000_000
+            println("PERF alternatingTurnsMs=$elapsedMs for $turns turns")
+            runtime.completeHydration()
+            assertEquals(turns * 2, runtime.snapshot.value.messages.size)
         }
 }

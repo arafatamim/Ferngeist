@@ -13,6 +13,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
+import com.tamimarafat.ferngeist.acp.bridge.hub.IdleListingSession
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
@@ -146,6 +147,10 @@ class AcpChatSessionFacade(
     // each other's proof (a replayed-proof rejection) on a cold multi-chat start.
     private val gatewayLookupMutex = Mutex()
 
+    // Times the steps of the open in flight; null outside one. Only touched under
+    // bridgeOperationMutex, so it needs no further synchronization.
+    private var openTimer: OpenStepTimer? = null
+
     private val sessionLoadCoordinator by lazy {
         SessionLoadCoordinator(
             connectionManager = connectionManager,
@@ -204,34 +209,43 @@ class AcpChatSessionFacade(
      */
     private suspend fun loadSessionInternal(quiet: Boolean) {
         bridgeOperationMutex.withLock {
-            shouldRecoverBridge = true
-            cancelBridgeRecovery()
-
-            if (!ensureConnectedAndInitialized()) {
-                _loadFailed.emit("Disconnected. Reconnect to refresh this session.")
-                return
-            }
-
-            publishCapabilities()
-
-            if (initialSessionId == NEW_SESSION_ARG) {
-                // Create-on-arrival: the session list no longer pre-creates on its
-                // browser transport; this chat's own connection mints the session.
-                val bridge = connectionManager.createSession(cwd)
-                if (bridge == null) {
-                    _loadFailed.emit("Failed to create a new session.")
-                    return
-                }
-                attachSessionBridge(bridge)
-                _sessionReady.emit(Unit)
-                return
-            }
-
-            when (val outcome = sessionLoadCoordinator.run(announceReady = !quiet)) {
-                is SessionLoadOutcome.Attached -> return
-                is SessionLoadOutcome.Failed -> _loadFailed.emit(outcome.message)
+            val timer = OpenStepTimer().also { openTimer = it }
+            try {
+                loadSessionLocked(quiet)
+            } finally {
+                openTimer = null
+                connectionManager.recordTiming("open", timer.report(sessionId = initialSessionId))
             }
         }
+    }
+
+    private suspend fun loadSessionLocked(quiet: Boolean) {
+        shouldRecoverBridge = true
+        cancelBridgeRecovery()
+
+        if (!ensureConnectedAndInitialized()) {
+            _loadFailed.emit("Disconnected. Reconnect to refresh this session.")
+            return
+        }
+
+        publishCapabilities()
+
+        if (initialSessionId == NEW_SESSION_ARG) {
+            // Create-on-arrival: the session list no longer pre-creates on its
+            // browser transport; this chat's own connection mints the session.
+            val bridge = connectionManager.createSession(cwd)
+            if (bridge == null) {
+                _loadFailed.emit("Failed to create a new session.")
+                return
+            }
+            attachSessionBridge(bridge)
+            _sessionReady.emit(Unit)
+            return
+        }
+
+        val outcome = sessionLoadCoordinator.run(announceReady = !quiet)
+        openTimer?.mark(if (outcome is SessionLoadOutcome.Attached) "load" else "loadFailed")
+        if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
     }
 
     override suspend fun fetchSessionTitle(): String? =
@@ -471,11 +485,14 @@ class AcpChatSessionFacade(
                 }
             publishCapabilities()
             registerConnectingWithHub()
+            openTimer?.mark("alreadyConnected")
             return true
         }
         val server = launchableTargetRepository.getTarget(serverId) ?: return false
         val connected = connectForTarget(server) ?: return false
+        openTimer?.mark("websocket")
         val initialized = connected && initializeSession() != null
+        openTimer?.mark("initialize")
         if (initialized) registerConnectingWithHub()
         return initialized
     }
@@ -571,7 +588,7 @@ class AcpChatSessionFacade(
         // plain connect would resume the other chat's session. Reattaching to
         // this chat's own recorded runtime is the exception — that is the same
         // session, so it must be resumed rather than duplicated.
-        val plan = resolveLaunchPlan(target) ?: return null
+        val plan = resolveLaunchPlan(target)?.also { openTimer?.mark("plan") } ?: return null
         return launchGatewayRuntime(
             gatewayRepository = gatewayRepository,
             gatewaySourceRepository = gatewaySourceRepository,
@@ -580,7 +597,7 @@ class AcpChatSessionFacade(
             requireSupportedProtocol = true,
             new = plan.new,
             reuseRuntimeId = plan.reuseRuntimeId,
-        ).fold(
+        ).also { openTimer?.mark(if (plan.new) "launchNew" else "launch") }.fold(
             onSuccess = { result ->
                 resolvedAgentId = target.binding.agentId
                 val source = result.gatewaySource
@@ -666,21 +683,10 @@ class AcpChatSessionFacade(
         }.getOrNull()
             ?.filter { it.agentId == agentId }
 
-    /** The runtime plan for a gateway attach: an explicit reuse target, or a fresh spawn. */
-    private data class GatewayLaunchPlan(
-        val new: Boolean,
-        val reuseRuntimeId: String?,
-    )
-
     /**
      * Picks the runtime this chat attaches to, or null when an isolated runtime
      * was needed but its slot could not be secured (error already emitted).
-     *
-     * A gateway runtime leases exactly one session, so two chats that share a
-     * runtime both end up resuming one session and fight over it — the chat
-     * screen never populates. In-memory hub state cannot settle this (it is
-     * empty after process death), so the gateway's own session list is the
-     * authority: one call answers both halves of the decision.
+     * The decision itself is [planGatewayLaunch].
      */
     private suspend fun resolveLaunchPlan(target: LaunchableTarget.GatewayAgent): GatewayLaunchPlan? {
         val gatewaySource = target.gatewaySource
@@ -690,32 +696,15 @@ class AcpChatSessionFacade(
             } else {
                 hub.persistedGatewaySessionId(serverId, initialSessionId)
             }
-        val sessions = gatewaySessions(gatewaySource, target.binding.agentId)
-
-        // This chat's own session is still live: its runtime is the one to
-        // attach to, rather than minting a second process for the same
-        // conversation (the gateway's own reconnect-after-app-kill path).
-        sessions
-            ?.firstOrNull { it.sessionId == ownSessionId && it.isResumable }
-            ?.let { return GatewayLaunchPlan(new = false, reuseRuntimeId = it.runtimeId) }
-
-        // Someone else on this agent holds a live session. A plain start hands
-        // back that runtime, so this chat needs its own process. The in-memory
-        // check also covers a session the listing has not caught up with yet.
-        //
-        // A *failed* lookup ([sessions] == null, the "fall back to a fresh spawn"
-        // contract of [gatedGatewayLookup]) takes the same path as "someone else holds
-        // one". Reading the failure as "nobody holds it" asked for a plain reuse start,
-        // and the gateway's own reuse heuristic then hands back whichever session its
-        // chosen runtime already holds — possibly another chat's — which is precisely
-        // the fight this decision exists to prevent, and it is decided from memory that
-        // is empty after process death.
-        val heldByAnother =
-            sessions?.any { it.isResumable && it.sessionId != ownSessionId } == true ||
-                hub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId)
-        if (!heldByAnother && sessions != null) return GatewayLaunchPlan(new = false, reuseRuntimeId = null)
-        if (!reserveIsolatedSlot(gatewaySource)) return null
-        return GatewayLaunchPlan(new = true, reuseRuntimeId = null)
+        val plan =
+            planGatewayLaunch(
+                sessions = gatewaySessions(gatewaySource, target.binding.agentId),
+                ownSessionId = ownSessionId,
+                idleListing = hub.claimIdleListingSession(serverId),
+                liveInHub = hub.hasLiveGatewaySession(gatewaySource.id, target.binding.agentId),
+            )
+        if (plan.new && !reserveIsolatedSlot(gatewaySource)) return null
+        return plan
     }
 
     /**
@@ -1092,4 +1081,84 @@ internal class SessionLoadCoordinator(
     /** True when the transport reports a live connection; the measured half of a recovery decision. */
     private fun transportIsConnected(): Boolean =
         connectionManager.connectionState.value is AcpConnectionState.Connected
+}
+
+/**
+ * Wall-clock of each step of one chat open, logged as a single line under the
+ * `FerngeistLoad` tag and to the diagnostics RPC log, next to the per-attach timing. `plan` is the gateway
+ * session listing; `launch` is the protocol probe, agent start (`launchNew` when
+ * it spawned a process) and runtime connect; `load` is session/load.
+ */
+private class OpenStepTimer {
+    private val startNanos = System.nanoTime()
+    private var markNanos = startNanos
+    private val steps = StringBuilder()
+
+    fun mark(step: String) {
+        val now = System.nanoTime()
+        steps.append("$step=${(now - markNanos) / NANOS_PER_MS}ms ")
+        markNanos = now
+    }
+
+    /** Logs the open and returns its summary for the diagnostics log. */
+    fun report(sessionId: String): String {
+        val total = (System.nanoTime() - startNanos) / NANOS_PER_MS
+        val summary = "${steps}total=${total}ms"
+        runCatching { android.util.Log.i("FerngeistLoad", "open sid=$sessionId $summary") }
+        return summary
+    }
+
+    private companion object {
+        const val NANOS_PER_MS = 1_000_000L
+    }
+}
+
+/** The runtime plan for a gateway attach: an explicit reuse target, or a fresh spawn. */
+internal data class GatewayLaunchPlan(
+    val new: Boolean,
+    val reuseRuntimeId: String?,
+)
+
+/**
+ * Decides which runtime a chat attaches to.
+ *
+ * A gateway runtime leases exactly one session, so two chats that share a runtime
+ * both end up resuming one session and fight over it — the chat screen never
+ * populates. In-memory hub state cannot settle this (it is empty after process
+ * death), so the gateway's own session list ([sessions], this agent's only) is the
+ * authority.
+ *
+ * - This chat's own session is still live: attach to its runtime rather than minting
+ *   a second process for the same conversation (reconnect after an app kill).
+ * - Someone else on this agent holds a live session ([liveInHub] also covers one the
+ *   listing has not caught up with): a plain start hands back that runtime, so this
+ *   chat needs its own process.
+ * - A failed lookup ([sessions] == null) takes the same path as "someone else holds
+ *   one". Read as "nobody holds it", it asked for a plain reuse start, and the
+ *   gateway's reuse heuristic then handed back whichever session its chosen runtime
+ *   held — possibly another chat's.
+ * - The session list's own, now disconnected, listing session ([idleListing]) is not
+ *   another holder: attaching to its runtime reuses an agent that is already running
+ *   and initialized instead of spawning a second process and paying its cold start.
+ */
+internal fun planGatewayLaunch(
+    sessions: List<GatewaySessionSummary>?,
+    ownSessionId: String?,
+    idleListing: IdleListingSession?,
+    liveInHub: Boolean,
+): GatewayLaunchPlan {
+    sessions
+        ?.firstOrNull { it.sessionId == ownSessionId && it.isResumable }
+        ?.let { return GatewayLaunchPlan(new = false, reuseRuntimeId = it.runtimeId) }
+    if (sessions == null || liveInHub) return GatewayLaunchPlan(new = true, reuseRuntimeId = null)
+    val spare =
+        idleListing?.takeIf { idle ->
+            sessions.any { it.sessionId == idle.gatewaySessionId && it.isResumable }
+        }
+    val heldByAnother =
+        sessions.any {
+            it.isResumable && it.sessionId != ownSessionId && it.sessionId != spare?.gatewaySessionId
+        }
+    if (heldByAnother) return GatewayLaunchPlan(new = true, reuseRuntimeId = null)
+    return GatewayLaunchPlan(new = false, reuseRuntimeId = spare?.runtimeId)
 }

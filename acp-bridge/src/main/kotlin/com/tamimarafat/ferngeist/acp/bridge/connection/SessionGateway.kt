@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.annotations.UnstableApi
+import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientOperationsFactory
 import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.common.ClientSessionOperations
@@ -73,6 +74,15 @@ internal class SessionGateway(
      */
     private val cancelsRequested = ConcurrentHashMap.newKeySet<String>()
 
+    /** Timing of each in-flight attach, keyed by session id; see [AttachTiming]. */
+    private val attachTimings = ConcurrentHashMap<String, AttachTiming>()
+
+    /** Working directory of each registered session, kept so a reconnect can re-attach it. */
+    private val sessionCwds = ConcurrentHashMap<String, String>()
+
+    /** The registered sessions and their working directories. */
+    fun registeredSessionCwds(): Map<String, String> = sessionCwds.toMap()
+
     /**
      * Creates a new ACP session and returns a [SessionPort] for the chat layer.
      *
@@ -96,7 +106,7 @@ internal class SessionGateway(
                     sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
                     operationsFactory = operationsFactory,
                 )
-            registerSession(session)
+            registerSession(session).also { sessionCwds[session.sessionId.value] = cwd }
         }.getOrElse {
             orchestra.toAuthRequiredException(it)?.let { error -> throw error }
             orchestra.diagnosticsStore.appendError(
@@ -135,6 +145,23 @@ internal class SessionGateway(
             orchestra.sdkClient
                 ?: throw AcpDisconnectedException()
         orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, rpc.rpc)
+        val timing = AttachTiming().also { attachTimings[sessionId] = it }
+        var succeeded = false
+        try {
+            return attachAndHydrate(client, rpc, sessionId, cwd).also { succeeded = it != null }
+        } finally {
+            attachTimings.remove(sessionId, timing)
+            reportAttachTiming(rpc, sessionId, timing, succeeded)
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    private suspend fun attachAndHydrate(
+        client: Client,
+        rpc: SessionAttachRpc,
+        sessionId: String,
+        cwd: String,
+    ): SessionPort? {
         val result =
             runCatching {
                 // Store bridge before the attach RPC so BridgeSessionOperations
@@ -164,6 +191,7 @@ internal class SessionGateway(
                             )
                     }
                 val registeredBridge = registerSession(session)
+                sessionCwds[sessionId] = cwd
                 registeredBridge.completeHydration()
                 registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
                 registeredBridge
@@ -627,10 +655,15 @@ internal class SessionGateway(
             notification: SessionUpdate,
             _meta: kotlinx.serialization.json.JsonElement?,
         ) {
-            // mapSessionUpdateToEvent covers known SessionUpdate subtypes; null
-            // is defensive for unrecognized SDK types — skip silently.
-            val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(notification) ?: return
-            emitToBridge(sessionId, appEvent)
+            val receivedNanos = System.nanoTime()
+            try {
+                // mapSessionUpdateToEvent covers known SessionUpdate subtypes; null
+                // is defensive for unrecognized SDK types — skip silently.
+                val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(notification) ?: return
+                emitToBridge(sessionId, appEvent)
+            } finally {
+                attachTimings[sessionId]?.record(receivedNanos, System.nanoTime())
+            }
         }
     }
 
@@ -810,7 +843,6 @@ internal class SessionGateway(
     ) {
         val bridge = sessionRegistry.getBridge(sessionId)
         if (bridge != null) {
-            orchestra.trace("emitToBridge sid=$sessionId event=${event::class.simpleName}")
             bridge.emitEvent(event)
             return
         }
@@ -824,10 +856,32 @@ internal class SessionGateway(
         )
     }
 
+    /**
+     * Logs where an attach spent its time, to logcat (tag `FerngeistLoad`) and the
+     * diagnostics RPC log. `wait` (time to the first update) and the share of `span` not
+     * spent in `handling` are the agent and gateway; `handling` is this client reducing updates;
+     * `tail` is the response after the last update plus committing the hydrated transcript.
+     */
+    private fun reportAttachTiming(
+        rpc: SessionAttachRpc,
+        sessionId: String,
+        timing: AttachTiming,
+        succeeded: Boolean,
+    ) {
+        val summary = timing.summary(endNanos = System.nanoTime(), succeeded = succeeded)
+        runCatching { android.util.Log.i("FerngeistLoad", "${rpc.rpc} sid=$sessionId $summary") }
+        orchestra.diagnosticsStore.appendRpcEntry(
+            if (succeeded) RpcDirection.InboundResult else RpcDirection.InboundError,
+            rpc.rpc,
+            summary = summary,
+        )
+    }
+
     /** Clears all bridges, SDK sessions, pending permissions, and reactive observers. */
     private fun clearAllSessionState(closeBridges: Boolean) {
         observerJobs.values.forEach { jobs -> jobs.forEach { it.cancel() } }
         observerJobs.clear()
+        sessionCwds.clear()
         sessionRegistry.clearAll(closeBridges = closeBridges)
         permissionFlow.cancelAll()
     }
@@ -841,6 +895,7 @@ internal class SessionGateway(
         closeBridge: Boolean,
     ) {
         observerJobs.remove(sessionId)?.forEach { it.cancel() }
+        sessionCwds.remove(sessionId)
         sessionRegistry.clearSession(sessionId, closeBridge = closeBridge)
         permissionFlow.cancelForSession(sessionId)
     }
@@ -930,3 +985,43 @@ internal class SessionGateway(
  * says "already owned by an active write handle".
  */
 private val SESSION_ACTIVE_MARKERS = listOf("already loaded", "already active", "active write handle")
+
+/**
+ * Splits one `session/load` (or `session/resume`) into time spent waiting on the agent and
+ * gateway versus time spent handling replayed updates here. Updates for one session arrive
+ * sequentially, so [record] needs no locking.
+ */
+internal class AttachTiming(
+    private val startNanos: Long = System.nanoTime(),
+) {
+    private var updates = 0
+    private var firstNanos = 0L
+    private var lastNanos = 0L
+    private var handlingNanos = 0L
+
+    fun record(
+        receivedNanos: Long,
+        handledNanos: Long,
+    ) {
+        if (updates == 0) firstNanos = receivedNanos
+        updates++
+        lastNanos = handledNanos
+        handlingNanos += handledNanos - receivedNanos
+    }
+
+    fun summary(
+        endNanos: Long,
+        succeeded: Boolean,
+    ): String {
+        fun ms(nanos: Long) = nanos / NANOS_PER_MS
+        val outcome = if (succeeded) "ok" else "failed"
+        if (updates == 0) return "$outcome total=${ms(endNanos - startNanos)}ms updates=0"
+        return "$outcome total=${ms(endNanos - startNanos)}ms " +
+            "wait=${ms(firstNanos - startNanos)}ms span=${ms(lastNanos - firstNanos)}ms " +
+            "handling=${ms(handlingNanos)}ms tail=${ms(endNanos - lastNanos)}ms updates=$updates"
+    }
+
+    private companion object {
+        const val NANOS_PER_MS = 1_000_000L
+    }
+}

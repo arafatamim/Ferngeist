@@ -133,7 +133,20 @@ class ChatConnectionHub(
         val serverId: String,
         val browserTransport: AcpConnectionManager,
         var authTransport: AcpConnectionManager? = null,
-    )
+        // The gateway session the browser transport last connected; see claimIdleListingSession.
+        var gatewaySession: IdleListingSession? = null,
+    ) {
+        fun rememberGatewaySession(config: AcpConnectionConfig) {
+            val gatewaySessionId = config.sessionId
+            val runtimeId = config.gatewayRuntimeId
+            gatewaySession =
+                if (gatewaySessionId != null && runtimeId != null) {
+                    IdleListingSession(gatewaySessionId, runtimeId)
+                } else {
+                    null
+                }
+        }
+    }
 
     private val listingSessions = LinkedHashMap<String, ListingSession>()
 
@@ -182,7 +195,12 @@ class ChatConnectionHub(
                 }
             }.stateIn(scope, SharingStarted.Eagerly, false)
 
-    /** True when any tracked manager is connected or mid-connect. */
+    /**
+     * True when any tracked manager is connected, mid-connect, or waiting out a
+     * reconnect backoff. The backoff counts: it reads Disconnected/Failed, and
+     * treating it as idle stopped the foreground service on every background
+     * blip — the cached process was then frozen and never reconnected.
+     */
     val anyActive: StateFlow<Boolean> =
         revision
             .flatMapLatest {
@@ -190,11 +208,22 @@ class ChatConnectionHub(
                 if (managers.isEmpty()) {
                     flowOf(false)
                 } else {
-                    combine(managers.map { it.connectionState }) { states ->
-                        states.any { it is AcpConnectionState.Connected || it is AcpConnectionState.Connecting }
-                    }
+                    combine(
+                        managers.map { manager ->
+                            combine(manager.connectionState, manager.reconnectPending) { state, reconnecting ->
+                                reconnecting ||
+                                    state is AcpConnectionState.Connected ||
+                                    state is AcpConnectionState.Connecting
+                            }
+                        },
+                    ) { active -> active.any { it } }
                 }
             }.stateIn(scope, SharingStarted.Eagerly, false)
+
+    /** Pings every connected transport so one whose peer vanished while backgrounded fails now. */
+    fun probeConnections() {
+        allManagers().forEach { it.probeConnection() }
+    }
 
     /**
      * Creates an app-scoped chat manager, tracked as pending until [register]
@@ -419,6 +448,12 @@ class ChatConnectionHub(
     ): Boolean = entries[chatIdFor(serverId, sessionId)]?.isStreaming() == true
 
     /** True when this agent on this source already holds a live (connected) gateway session. */
+    override fun claimIdleListingSession(serverId: String): IdleListingSession? {
+        val listing = listingSessions[serverId] ?: return null
+        if (listing.browserTransport.isConnected) return null
+        return listing.gatewaySession.also { listing.gatewaySession = null }
+    }
+
     override fun hasLiveGatewaySession(
         gatewaySourceId: String,
         agentId: String,
@@ -735,6 +770,7 @@ class ChatConnectionHub(
                             formatAcpErrorMessage(error, "Failed to launch ${target.name}"),
                         )
                     }
+                listing.rememberGatewaySession(config)
                 try {
                     withContext(Dispatchers.IO) {
                         transport.connectAndInitializeWithoutReconnect(config)
