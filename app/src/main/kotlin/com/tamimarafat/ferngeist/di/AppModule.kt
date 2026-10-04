@@ -34,7 +34,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
+import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -216,7 +216,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideHttpClient(): HttpClient =
-        HttpClient(CIO) {
+        // Android engine (platform HttpURLConnection), not CIO: CIO dials a fresh
+        // connection for every request that is not a pipelined GET and closes it after
+        // the response, so each gateway call in a chat open paid a TCP connect (and a TLS
+        // handshake over HTTPS). HttpURLConnection pools keep-alive connections.
+        HttpClient(Android) {
             install(HttpTimeout) {
                 requestTimeoutMillis = HTTP_REQUEST_TIMEOUT_MS
                 connectTimeoutMillis = HTTP_CONNECT_TIMEOUT_MS
