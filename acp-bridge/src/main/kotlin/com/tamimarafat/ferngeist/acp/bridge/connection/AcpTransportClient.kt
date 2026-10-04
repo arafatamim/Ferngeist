@@ -14,15 +14,23 @@ import com.agentclientprotocol.transport.WebSocketTransport
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
+import io.ktor.websocket.Frame
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.IOException
@@ -72,8 +80,21 @@ internal class AcpTransportClient(
     private val diagnosticsStore: AcpDiagnosticsStore,
     private val updateConnectionState: (AcpConnectionState) -> Unit,
     private val emitManagerEvent: suspend (AcpManagerEvent) -> Unit,
+    // Runs after a background reconnect's handshake, before Connected is announced.
+    private val onReconnected: suspend (AcpInitializeResult) -> Unit = {},
 ) {
     private var reconnectJob: Job? = null
+
+    // A reconnect loop is armed. Between attempts the state reads Disconnected/Failed,
+    // yet the connection is not idle: the foreground service must outlive the backoff,
+    // or the cached process is frozen and the loop never gets to run.
+    private val _reconnectPending = MutableStateFlow(false)
+    val reconnectPending: StateFlow<Boolean> = _reconnectPending.asStateFlow()
+
+    // Set while the reconnect loop owns the attempt: Connected then waits for the
+    // handshake (and session restore) instead of firing when the socket opens.
+    private var deferConnectedState = false
+    private var activeWebSocket: DefaultClientWebSocketSession? = null
     private var reconnectAttempts = 0
     private var currentConfig: AcpConnectionConfig? = null
 
@@ -231,6 +252,21 @@ internal class AcpTransportClient(
     private fun cancelReconnectLoop() {
         reconnectJob?.cancel()
         reconnectJob = null
+        _reconnectPending.value = false
+        // Reset here, not in the loop's finally: a cancelled loop finishes after its
+        // replacement started, and would clear the flag under the new attempt.
+        deferConnectedState = false
+    }
+
+    /**
+     * Writes a ping on the open socket. After the process was frozen or the network
+     * changed, the socket can still read Connected while its peer is gone; a write
+     * draws the reset at once, where the next scheduled ping could be 15s away.
+     * The reset surfaces through the transport's onError/onClose and the reconnect
+     * path. A live peer just answers with a pong, which the session drops.
+     */
+    fun probe() {
+        activeWebSocket?.outgoing?.trySend(Frame.Ping(ByteArray(0)))
     }
 
     suspend fun awaitConnectivityForReconnect() {
@@ -522,21 +558,29 @@ internal class AcpTransportClient(
         protocol.start()
 
         sdkClient = Client(protocol)
+        activeWebSocket = webSocketSession
+        if (!deferConnectedState) announceConnected()
+        return true
+    }
+
+    private fun announceConnected() {
         updateConnectionState(AcpConnectionState.Connected)
         diagnosticsStore.setWebSocketState(WebSocketState.OPEN)
         diagnosticsStore.setReconnectAttempt(0)
         reconnectAttempts = 0
         scope.launch { emitManagerEvent(AcpManagerEvent.Connected) }
-        return true
     }
 
     @Suppress("TooGenericExceptionCaught")
     private fun scheduleReconnect(resetState: () -> Unit) {
         if (reconnectJob != null) return
+        _reconnectPending.value = true
+        // Lazy: assigned before it runs, so the finally's ownership check sees itself
+        // even when the loop completes without suspending.
         reconnectJob =
-            scope.launch {
-                val config = currentConfig ?: return@launch
+            scope.launch(start = CoroutineStart.LAZY) {
                 try {
+                    val config = currentConfig ?: return@launch
                     while (sdkClient == null) {
                         // Wait until the device is actually online before spending a retry.
                         // This also resets the backoff counter when connectivity had dropped,
@@ -550,6 +594,7 @@ internal class AcpTransportClient(
                         // Capped at 30s; retries forever (no attempt cap).
                         delay(computeReconnectDelayMs(reconnectAttempts))
 
+                        deferConnectedState = true
                         val reconnected =
                             try {
                                 if (config.isResilientSession) {
@@ -586,6 +631,13 @@ internal class AcpTransportClient(
                             // failure was recorded as an empty result. Drop the socket and let
                             // the loop retry with backoff instead.
                             if (initialized != null && authenticated !is AcpAuthenticateResult.Failure) {
+                                // Announced only now: Connected sent the facade straight into
+                                // session/load while initialize was still in flight, and a
+                                // failed handshake then closed the socket under that load.
+                                // Sessions are restored first, so whoever reacts to Connected
+                                // finds them registered instead of loading them a second time.
+                                onReconnected(initialized)
+                                announceConnected()
                                 break
                             }
                             runCatching { sdkClient?.protocol?.close() }
@@ -595,9 +647,15 @@ internal class AcpTransportClient(
                         }
                     }
                 } finally {
-                    reconnectJob = null
+                    // A transport drop mid-attempt cancels this loop and arms a new one;
+                    // clearing the field unconditionally here would orphan that loop.
+                    if (reconnectJob == currentCoroutineContext().job) {
+                        reconnectJob = null
+                        _reconnectPending.value = false
+                    }
                 }
             }
+        reconnectJob?.start()
     }
 
     private suspend fun handleUnexpectedTransportTermination(
@@ -613,6 +671,7 @@ internal class AcpTransportClient(
         resetState()
         runCatching { sdkClient?.protocol?.close() }
         sdkClient = null
+        activeWebSocket = null
 
         if (error == null || isCancellationLikeError(error)) {
             updateConnectionState(AcpConnectionState.Disconnected)
@@ -642,6 +701,7 @@ internal class AcpTransportClient(
         activeTransportGeneration++
         runCatching { sdkClient?.protocol?.close() }
         sdkClient = null
+        activeWebSocket = null
 
         ignoreTransportCallbacks = false
     }

@@ -25,7 +25,6 @@ internal class ConnectionOrchestrator(
     private val scope: CoroutineScope,
 ) {
     companion object {
-        private const val TRACE_TAG = "TSAcpLoad"
         private const val LIST_SESSIONS_TIMEOUT_MS = 30_000L
         private const val DELETE_SESSION_TIMEOUT_MS = 10_000L
     }
@@ -59,6 +58,9 @@ internal class ConnectionOrchestrator(
 
     internal val sdkClient: Client? get() = transportClient.sdkClient
 
+    /** Runs after a background reconnect's handshake, before Connected is announced. */
+    var onReconnected: suspend (AcpInitializeResult) -> Unit = {}
+
     /**
      * Lightweight wrapper around the SDK's raw transport (TCP or WebSocket).
      * Owns connection lifecycle, reconnection, and diagnostics reporting.
@@ -71,7 +73,12 @@ internal class ConnectionOrchestrator(
             diagnosticsStore = diagnosticsStore,
             updateConnectionState = { state -> _connectionState.value = state },
             emitManagerEvent = { event -> _events.emit(event) },
+            onReconnected = { result -> onReconnected(result) },
         )
+
+    val reconnectPending: StateFlow<Boolean> = transportClient.reconnectPending
+
+    fun probe() = transportClient.probe()
 
     // Bridge between the one-shot event stream (emitted by AcpTransportClient)
     // and the StateFlow-based reactive state exposed to consumers. Without this
@@ -239,10 +246,6 @@ internal class ConnectionOrchestrator(
         throwable: Throwable? = null,
     ) {
         runCatching { android.util.Log.e("AcpConnectionManager", message, throwable) }
-    }
-
-    internal fun trace(message: String) {
-        runCatching { android.util.Log.d(TRACE_TAG, message) }
     }
 
     internal fun toAuthRequiredException(error: Throwable): AcpAuthenticationRequiredException? {

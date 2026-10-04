@@ -13,9 +13,11 @@ import com.tamimarafat.ferngeist.service.ForegroundServiceController
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,7 +26,8 @@ import javax.inject.Inject
  *
  * Observes [ChatConnectionHub.anyConnected] to request the foreground service
  * start when any ACP manager is connected and reset the tracking flag (with a
- * delayed stop backstop) when none remain connected.
+ * delayed stop backstop) once none is active — connected, connecting, or waiting
+ * out a reconnect backoff.
  *
  * A delayed [ForegroundServiceController.stop] backstop ensures the service is
  * torn down even if its internal observation coroutine died before self-stopping.
@@ -42,6 +45,7 @@ class FerngeistApplication : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var isServiceRunning = false
+    private var serviceStopBackstop: Job? = null
 
     companion object {
         private const val SERVICE_STOP_BACKSTOP_MS = 10_000L
@@ -66,22 +70,32 @@ class FerngeistApplication : Application() {
         ensurePushChannels(this)
         FcmTokenBootstrap.start(this, pushTokenRegistrar)
 
+        // The stop backstop keys on anyActive, not anyConnected, and is cancelled when
+        // the connection comes back. Keyed on a drop, it stopped the service 10s after
+        // any blip even once reconnected — and a backgrounded app may not start it again.
         appScope.launch {
-            chatConnectionHub.anyConnected
-                .collect { anyConnected ->
-                    if (anyConnected) {
-                        if (!isServiceRunning) {
-                            isServiceRunning = true
-                            ForegroundServiceController.start(this@FerngeistApplication)
-                        }
-                    } else {
+            combine(chatConnectionHub.anyConnected, chatConnectionHub.anyActive, ::Pair)
+                .collect { (anyConnected, anyActive) ->
+                    if (anyConnected && !isServiceRunning) {
+                        isServiceRunning = true
+                        ForegroundServiceController.start(this@FerngeistApplication)
+                    }
+                    serviceStopBackstop?.cancel()
+                    if (!anyActive) {
                         isServiceRunning = false
-                        appScope.launch {
-                            delay(SERVICE_STOP_BACKSTOP_MS)
-                            ForegroundServiceController.stop(this@FerngeistApplication)
-                        }
+                        serviceStopBackstop =
+                            appScope.launch {
+                                delay(SERVICE_STOP_BACKSTOP_MS)
+                                ForegroundServiceController.stop(this@FerngeistApplication)
+                            }
                     }
                 }
+        }
+        // Main: the hub's chat table is confined to the main thread.
+        appScope.launch(Dispatchers.Main) {
+            appForegroundState.isForeground.collect { foreground ->
+                if (foreground) chatConnectionHub.probeConnections()
+            }
         }
     }
 

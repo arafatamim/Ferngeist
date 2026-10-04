@@ -125,9 +125,48 @@ class AcpTransportClientTest {
             assertTrue("a user-initiated disconnect must end the pending loop", loop.isCancelled)
         }
 
-    private fun newClient(): AcpTransportClient =
+    @Test
+    fun `reconnect stays pending through its offline wait until a disconnect ends it`() {
+        // Offline: the loop parks in its connectivity wait, the state a backgrounded
+        // drop sits in. The foreground service keys on this flag to stay up.
+        val client = newClient(online = false)
+        setField(client, "currentConfig", AcpConnectionConfig(host = "127.0.0.1:1"))
+
+        scheduleReconnect(client)
+        assertTrue(client.reconnectPending.value)
+
+        client.disconnect {}
+        assertFalse(client.reconnectPending.value)
+    }
+
+    @Test
+    fun `a reconnect loop with no config to retry does not stay pending`() {
+        val client = newClient()
+
+        scheduleReconnect(client)
+
+        assertFalse(client.reconnectPending.value)
+    }
+
+    private fun scheduleReconnect(client: AcpTransportClient) {
+        val method = client.javaClass.getDeclaredMethod("scheduleReconnect", Function0::class.java)
+        method.isAccessible = true
+        method.invoke(client, {})
+    }
+
+    private fun setField(
+        client: AcpTransportClient,
+        name: String,
+        value: Any?,
+    ) {
+        val field = client.javaClass.getDeclaredField(name)
+        field.isAccessible = true
+        field.set(client, value)
+    }
+
+    private fun newClient(online: Boolean = true): AcpTransportClient =
         AcpTransportClient(
-            connectivityObserver = ConnectivityObserverStub(initialState = true),
+            connectivityObserver = ConnectivityObserverStub(initialState = online),
             gatewayRepository = null,
             scope = CoroutineScope(Dispatchers.Unconfined),
             diagnosticsStore = AcpDiagnosticsStore(),

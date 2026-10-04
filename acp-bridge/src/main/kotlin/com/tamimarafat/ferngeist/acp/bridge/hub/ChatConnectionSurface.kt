@@ -67,6 +67,15 @@ interface ChatConnectionSurface {
         sessionId: String,
     ): String?
 
+    /**
+     * Takes the gateway session the session list's listing transport left behind on
+     * [serverId], or null when there is none or the listing is still connected. The
+     * listing hangs up after each list, but its gateway session — and the running,
+     * initialized agent behind it — stays up; it is this device's spare, not another
+     * chat's. Taking it clears the record so it is handed out once.
+     */
+    fun claimIdleListingSession(serverId: String): IdleListingSession? = null
+
     /** Frees a device gateway-session slot before a spawn when the device cap is reached. */
     suspend fun ensureGatewayCapacity(endpoint: GatewayEndpoint)
 
@@ -91,3 +100,9 @@ interface ChatConnectionSurface {
         cwd: String?,
     ): String?
 }
+
+/** A gateway session a disconnected listing transport left on [runtimeId]. */
+data class IdleListingSession(
+    val gatewaySessionId: String,
+    val runtimeId: String,
+)

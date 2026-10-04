@@ -7,9 +7,13 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Central orchestrator for ACP transport and session lifecycle.
@@ -33,6 +37,7 @@ import kotlinx.coroutines.flow.StateFlow
  * from error messages (not vendor-specific codes) to maximise ACP server
  * compatibility.
  */
+@Suppress("TooManyFunctions") // the module's single entry point; each member is a one-line delegation
 class AcpConnectionManager(
     connectivityObserver: ConnectivityObserver,
     private val gatewayRepository: com.tamimarafat.ferngeist.gateway.GatewayRepository?,
@@ -51,6 +56,21 @@ class AcpConnectionManager(
     /** Exposes the raw transport state — Connected, Connecting, Disconnected, Failed. */
     val connectionState: StateFlow<AcpConnectionState> = orchestra.connectionState
 
+    /** True while a background reconnect loop is armed, including its backoff waits. */
+    val reconnectPending: StateFlow<Boolean> = orchestra.reconnectPending
+
+    // Sessions this connection held when its transport dropped, keyed to their cwd.
+    // A fresh socket starts with an empty SDK session table, so until each is
+    // attached again the SDK rejects the agent's traffic for it ("Session … not
+    // found") — streamed output is lost and permission requests fail the turn. A
+    // chat screen re-attaches its own session, but a pooled chat has no screen, so
+    // the connection restores them itself; see [restoreSessions].
+    private val sessionsToRestore = ConcurrentHashMap<String, String>()
+
+    init {
+        orchestra.onReconnected = ::restoreSessions
+    }
+
     /**
      * Scoped management events: connected/disconnected, initialized, authenticated,
      * and transport errors.
@@ -66,15 +86,49 @@ class AcpConnectionManager(
     /** Append-only diagnostic timeline for debugging and error display. */
     val diagnostics: StateFlow<ConnectionDiagnostics> = orchestra.diagnostics
 
+    /** Records a timing summary in the diagnostics RPC log, readable on-device without adb. */
+    internal fun recordTiming(
+        label: String,
+        summary: String,
+    ) {
+        orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.InboundResult, label, summary = summary)
+    }
+
     val isConnected: Boolean get() = orchestra.isConnected
 
     private fun resetConnectionState() {
+        sessionsToRestore.putAll(gateway.registeredSessionCwds())
         orchestra.resetAgentMetadata()
         gateway.clearAllSessions()
     }
 
+    /**
+     * Re-attaches the sessions held before a background reconnect. Runs before the
+     * reconnect announces Connected, so a chat screen's own recovery then finds its
+     * session registered instead of loading it a second time. A failure is left to
+     * that recovery (and recorded in diagnostics by the attach itself).
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun restoreSessions(result: AcpInitializeResult) {
+        val rpc = result.agentCapabilities.sessionAttachRpc()
+        val sessions = sessionsToRestore.toMap()
+        sessionsToRestore.clear()
+        if (rpc == null) return
+        for ((sessionId, cwd) in sessions) {
+            try {
+                withTimeout(SESSION_RESTORE_TIMEOUT_MS) { gateway.attachSession(rpc, sessionId, cwd) }
+            } catch (_: TimeoutCancellationException) {
+                orchestra.diagnosticsStore.appendError(rpc.rpc, "Restoring session $sessionId timed out")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Already recorded by the attach; the screen's recovery retries it.
+            }
+        }
+    }
+
     suspend fun connect(config: AcpConnectionConfig): Boolean =
-        orchestra.connect(config, resetState = ::resetConnectionState)
+        orchestra.connect(config, resetState = ::resetConnectionState).also { sessionsToRestore.clear() }
 
     /**
      * Connects the transport and runs the ACP initialize handshake.
@@ -99,7 +153,9 @@ class AcpConnectionManager(
      * @return the initialize result, or null when connect or initialize failed.
      */
     suspend fun connectAndInitializeWithoutReconnect(config: AcpConnectionConfig): AcpInitializeResult? {
-        if (!orchestra.connectWithoutReconnect(config, resetState = ::resetConnectionState)) return null
+        val connected = orchestra.connectWithoutReconnect(config, resetState = ::resetConnectionState)
+        sessionsToRestore.clear()
+        if (!connected) return null
         return initialize()
     }
 
@@ -111,7 +167,11 @@ class AcpConnectionManager(
 
     fun disconnect() {
         orchestra.disconnect(resetState = ::resetConnectionState)
+        sessionsToRestore.clear()
     }
+
+    /** Writes a ping so a socket whose peer vanished fails now; see [AcpTransportClient.probe]. */
+    fun probeConnection() = orchestra.probe()
 
     /**
      * Hard release: cancels any reconnect loop, wipes sessions and the SDK
@@ -214,6 +274,9 @@ class AcpConnectionManager(
         orchestra.awaitConnectivityForReconnect()
     }
 }
+
+// Same deadline a chat screen gives its own session/load.
+private const val SESSION_RESTORE_TIMEOUT_MS = 60_000L
 
 /** Agent metadata from the ACP initialize handshake. */
 data class AgentInfo(
