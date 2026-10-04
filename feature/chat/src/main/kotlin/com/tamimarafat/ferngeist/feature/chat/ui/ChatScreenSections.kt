@@ -56,7 +56,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -111,8 +110,6 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 
-private const val INITIAL_WINDOW = 50
-private const val WINDOW_STEP = 50
 private const val SKELETON_SHIMMER_BAND_PX = 200f
 private const val SKELETON_SHIMMER_MILLIS = 800
 
@@ -587,11 +584,9 @@ private fun ChatMessageList(
         remember(state.messages, state.pendingMessages) {
             state.messages + state.pendingMessages
         }
-    var windowSize by rememberSaveable(state.serverId) { mutableIntStateOf(INITIAL_WINDOW) }
-    val windowed =
-        remember(allMessages, windowSize) {
-            allMessages.takeLast(windowSize)
-        }
+    val itemKey: (ChatMessage) -> String = { state.listKeys[it.id] ?: it.id }
+    val window = rememberMessageWindow(state, allMessages, listState, itemKey)
+    val windowed = window.messages
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -615,10 +610,10 @@ private fun ChatMessageList(
                     ResumedSessionNotice()
                 }
             }
-            if (windowSize < allMessages.size) {
+            if (window.hasOlder) {
                 item(key = "__load_older") {
                     OutlinedButton(
-                        onClick = { windowSize += WINDOW_STEP },
+                        onClick = window.loadOlder,
                         modifier =
                             Modifier
                                 .fillMaxWidth()
@@ -630,7 +625,7 @@ private fun ChatMessageList(
             }
             items(
                 items = windowed,
-                key = { it.id },
+                key = itemKey,
                 // Bubbles differ in structure (user, plain assistant, segmented assistant), so
                 // without a contentType Compose cannot tell a like-for-like slot from a
                 // different one and re-does the work on every markdown emit. Coarse on purpose:
