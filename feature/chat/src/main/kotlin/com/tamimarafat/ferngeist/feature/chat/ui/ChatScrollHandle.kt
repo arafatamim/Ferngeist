@@ -50,6 +50,12 @@ private const val EASE_MAX_MS = 1000
  */
 private const val EASE_MAX_VIEWPORTS = 2.5f
 
+/** Duration of a short settle onto the end: a follow resuming, or a jump chasing a stream. */
+private const val SETTLE_MS = 220
+
+/** Most chase eases a jump to the bottom runs after its main ease; following takes over after. */
+private const val CHASE_PASSES = 3
+
 // region: Public Handle
 
 /**
@@ -142,11 +148,12 @@ internal fun rememberChatScrollState(
         }
     LaunchedEffect(policy, listState) { observer.observeIdleTimeout() }
     LaunchedEffect(policy, activelyStreaming) { observer.observeManualBottomResume(activelyStreaming) }
+    // Not keyed on the following state: every resume already settles onto the end, and a second
+    // settle queued by the state flip made a resume move twice.
     LaunchedEffect(
         composerContentHeightPx,
         imeBottomPx,
         renderedMessages.size,
-        isFollowingState.value,
         restorePending,
     ) {
         observer.onInsetsChanged(renderedMessages.size, restorePending)
@@ -265,8 +272,26 @@ internal suspend fun LazyListState.easeScrollToBottom() {
     val distance =
         landed?.let { (anchor.offset + anchor.size - (it.offset + it.size)).toFloat() } ?: min(estimate, maxEasePx())
     glideOnto(distance, exact = landed != null)
-    // A reply still streaming may have grown during the ease; settle onto the new end.
-    distanceToBottom().takeIf { it > 0f }?.let { scrollBy(it) }
+    // A reply still streaming grows during the ease, past the distance it set out to cover. Chase
+    // the new end in short eases; snapping onto it hopped by every line that streamed meanwhile.
+    repeat(CHASE_PASSES) {
+        val left = distanceToBottom()
+        if (left < 1f) return
+        animateScrollBy(left, tween(SETTLE_MS, easing = EaseOutCubic))
+    }
+}
+
+/**
+ * Brings the end of the content into view: eases there when it is on screen, snaps otherwise.
+ * For the follow resumes, where the list is already near its end; a snap there read as a jolt.
+ */
+internal suspend fun LazyListState.settleToBottom() {
+    withFrameNanos { }
+    val info = layoutInfo
+    val last = info.visibleItemsInfo.lastOrNull()
+    if (last == null || last.index != info.totalItemsCount - 1) return scrollToBottom()
+    val distance = (last.offset + last.size - info.viewportEndOffset).toFloat()
+    if (distance >= 1f) animateScrollBy(distance, tween(SETTLE_MS, easing = EaseOutCubic))
 }
 
 /**
@@ -367,10 +392,10 @@ private class ChatScrollDecisionRunner(
         programmaticScrolling = true
         try {
             when (decision) {
-                is ScrollDecision.SnapToBottom -> listState.scrollToBottom()
+                is ScrollDecision.SnapToBottom -> listState.settleToBottom()
                 is ScrollDecision.DelayedFollow -> {
                     delay(decision.delayMs)
-                    listState.scrollToBottom()
+                    listState.settleToBottom()
                 }
                 is ScrollDecision.SendFollow -> {
                     repeat(AutoScrollConfig.SEND_FOLLOW_PASSES) {
@@ -533,13 +558,17 @@ private class ChatScrollSnapshotObserver(
             }
     }
 
-    /** 2. Manual bottom resume — fires when user drags to bottom mid-stream. */
+    /**
+     * 2. Manual bottom resume — fires when the user brings the list to rest at the bottom
+     * mid-stream. At rest, not on arrival: resuming with the finger still down let the stream's
+     * follow pull the list to its end under the drag.
+     */
     suspend fun observeManualBottomResume(activelyStreaming: Boolean) {
-        snapshotFlow { listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX) }
-            .distinctUntilChanged()
-            .collect {
-                val atBottom = listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
-                runner.run(policy.checkManualBottomResume(atBottom, activelyStreaming))
+        snapshotFlow {
+            !listState.isScrollInProgress && listState.isAtBottom(AutoScrollConfig.RESUME_TOLERANCE_PX)
+        }.distinctUntilChanged()
+            .collect { restingAtBottom ->
+                runner.run(policy.checkManualBottomResume(restingAtBottom, activelyStreaming))
             }
     }
 
