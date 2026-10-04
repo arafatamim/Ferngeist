@@ -1204,7 +1204,13 @@ private fun BoxScope.ChatComposerHost(
                 .zIndex(1f),
     ) {
         ChatComposerBar(
-            modifier = composerDragModifier,
+            // `weight(fill = false)`: a Row measures its non-weighted children first, so the
+            // switcher bubble claims its square and the composer takes what is left. Without
+            // it the composer is measured first against the full row and — being content-driven
+            // and allowed to reach 92% of that width — clamps to the whole row on a narrow
+            // window, leaving the switcher a zero-width sliver. `fill = false` keeps the pill
+            // hugging its actions instead of stretching to the share.
+            modifier = composerDragModifier.weight(1f, fill = false),
             state = screenState.state,
             toolbarConfigOptions = screenState.toolbarConfigOptions,
             composerExpanded = screenState.composerExpanded.value,
