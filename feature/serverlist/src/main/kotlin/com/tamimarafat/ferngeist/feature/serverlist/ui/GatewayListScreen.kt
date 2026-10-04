@@ -91,12 +91,14 @@ fun GatewayListScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(gateways, key = { it.id }) { gateway ->
-                GatewayCard(
-                    gateway = gateway,
-                    onOpenGatewayAgents = { onOpenGatewayAgents(gateway.id) },
-                    onEditGateway = { onEditGateway(gateway) },
-                    onDeleteGateway = { viewModel.deleteGateway(gateway) },
-                )
+                Box(Modifier.animateItem()) {
+                    GatewayCard(
+                        gateway = gateway,
+                        onOpenGatewayAgents = { onOpenGatewayAgents(gateway.id) },
+                        onEditGateway = { onEditGateway(gateway) },
+                        onDeleteGateway = { viewModel.deleteGateway(gateway) },
+                    )
+                }
             }
         }
     }

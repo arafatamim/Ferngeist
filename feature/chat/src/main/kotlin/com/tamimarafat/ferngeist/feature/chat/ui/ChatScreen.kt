@@ -60,9 +60,11 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
@@ -97,6 +99,7 @@ import com.tamimarafat.ferngeist.feature.chat.switcherNeighbors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // region: ChatScreen
@@ -143,6 +146,30 @@ fun ChatScreen(
         if (screenState.composerExpanded.value) {
             screenState.focusRequester.requestFocus()
         }
+    }
+
+    // --- Event haptics ---
+    // A permission request blocks the agent, so it earns an unmistakable tick; a finished reply
+    // gets one so the moment can be noticed without watching. Both key off state that only moves
+    // one way per event, so neither can fire twice for the same occurrence.
+    val haptics = LocalHapticFeedback.current
+    val awaitingPermission =
+        remember(screenState.state.messages) {
+            screenState.state.messages.sumOf { message ->
+                message.segments.count { !it.toolCall?.permissionOptions.isNullOrEmpty() }
+            }
+        }
+    LaunchedEffect(awaitingPermission) {
+        if (awaitingPermission > 0) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+    }
+    var wasStreaming by remember { mutableStateOf(screenState.state.isStreaming) }
+    LaunchedEffect(screenState.state.isStreaming) {
+        if (wasStreaming && !screenState.state.isStreaming) {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        wasStreaming = screenState.state.isStreaming
     }
 
     ChatScreenScaffold(
@@ -1040,14 +1067,25 @@ private fun rememberSwitcherDragHandlers(
     // varies by target SDK and it rounds to Dp, so it mismeasures the drag).
     val screenWidthPx = LocalWindowInfo.current.containerSize.width * 1f
     val commitThresholdPx = screenWidthPx * SWITCHER_COMMIT_FRACTION
+    val haptics = LocalHapticFeedback.current
+    val crossedCommit = remember { mutableStateOf(false) }
     return remember(previousSession, nextSession, screenWidthPx, chatOffset, coroutineScope, onSwitchSession) {
         SwitcherDragHandlers(
             onDragStart = {
+                crossedCommit.value = false
                 coroutineScope.launch { chatOffset.stop() }
             },
             onDragDelta = { totalPx ->
                 coroutineScope.launch {
                     chatOffset.snapTo(totalPx.coerceIn(-screenWidthPx, screenWidthPx))
+                }
+                // Tick once as the drag crosses the commit point, so the release is a decision the
+                // finger already felt. Latches so a long drag past the threshold buzzes once, not
+                // on every frame.
+                val pastCommit = abs(totalPx) >= commitThresholdPx
+                if (pastCommit != crossedCommit.value) {
+                    crossedCommit.value = pastCommit
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             },
             onDragStopped = { totalPx, velocityPxPerSec ->

@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.sessionlist.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -146,11 +147,13 @@ private fun CwdSuggestionList(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         items(suggestions, key = { it.cwd }) { suggestion ->
-            CwdSuggestionRow(
-                suggestion = suggestion,
-                onCwdSelected = onCwdSelected,
-                onRemoveRecentCwd = onRemoveRecentCwd,
-            )
+            Box(Modifier.animateItem()) {
+                CwdSuggestionRow(
+                    suggestion = suggestion,
+                    onCwdSelected = onCwdSelected,
+                    onRemoveRecentCwd = onRemoveRecentCwd,
+                )
+            }
         }
     }
 }

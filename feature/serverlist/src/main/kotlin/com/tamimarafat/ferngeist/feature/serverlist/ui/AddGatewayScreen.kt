@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +56,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.booleanResource
@@ -69,8 +72,12 @@ import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
+import kotlin.math.abs
 
 private const val CHALLENGE_ID_DISPLAY_LENGTH = 10
+private const val STEP_CARD_SLIDE_MS = 260
+private const val STEP_CARD_SLIDE_FRACTION = 0.08f
+private const val STEP_CARD_MIN_ALPHA = 0.6f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -437,8 +444,26 @@ private fun ColumnScope.AddGatewayStepCard(
     onUpdateHost: (String) -> Unit,
     onCheckStatus: () -> Unit,
 ) {
+    // Slide in the direction of travel: forward steps enter from the right, back steps from the
+    // left, so the wizard reads as one continuous flow rather than a hard cut between steps.
+    val previousStep = remember { mutableIntStateOf(stepIndex) }
+    val direction = if (stepIndex >= previousStep.intValue) 1 else -1
+    val slide = remember { Animatable(0f) }
+    LaunchedEffect(stepIndex) {
+        previousStep.intValue = stepIndex
+        slide.snapTo(STEP_CARD_SLIDE_FRACTION * direction)
+        slide.animateTo(0f, tween(STEP_CARD_SLIDE_MS))
+    }
+
     ElevatedCard(
-        modifier = Modifier.weight(1f),
+        modifier =
+            Modifier
+                .weight(1f)
+                .graphicsLayer {
+                    translationX = slide.value * size.width
+                    alpha = STEP_CARD_MIN_ALPHA + (1f - STEP_CARD_MIN_ALPHA) *
+                        (1f - abs(slide.value))
+                },
         colors =
             CardDefaults.elevatedCardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow,

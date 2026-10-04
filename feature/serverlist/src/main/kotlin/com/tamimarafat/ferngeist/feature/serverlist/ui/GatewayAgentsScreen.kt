@@ -246,13 +246,15 @@ private fun LazyListScope.agentItems(
     onDeleteAgent: (GatewayAgent) -> Unit,
 ) {
     items(agents, key = { it.id }) { agent ->
-        AgentCard(
-            agent = agent,
-            alreadyAdded = agent.id in addedAgentIds,
-            canAdd = agent.manifestValid && agent.id !in addedAgentIds,
-            onClick = { onAgentClick(agent) },
-            onDelete = { onDeleteAgent(agent) },
-        )
+        Box(Modifier.animateItem()) {
+            AgentCard(
+                agent = agent,
+                alreadyAdded = agent.id in addedAgentIds,
+                canAdd = agent.manifestValid && agent.id !in addedAgentIds,
+                onClick = { onAgentClick(agent) },
+                onDelete = { onDeleteAgent(agent) },
+            )
+        }
     }
 }
 

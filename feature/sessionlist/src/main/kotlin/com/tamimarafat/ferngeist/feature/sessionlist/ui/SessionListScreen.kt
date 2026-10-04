@@ -71,7 +71,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
@@ -804,34 +806,36 @@ private fun SessionListLazyColumn(
                 )
             }
             items(groupSessions, key = { it.id }) { session ->
-                SessionCard(
-                    session = session,
-                    isLive = session.id in liveSessionIds,
-                    onDisconnect =
-                        if (session.id in liveSessionIds || session.gatewaySessionId != null) {
-                            { onCloseSession(session.id) }
-                        } else {
-                            null
+                Box(Modifier.animateItem()) {
+                    SessionCard(
+                        session = session,
+                        isLive = session.id in liveSessionIds,
+                        onDisconnect =
+                            if (session.id in liveSessionIds || session.gatewaySessionId != null) {
+                                { onCloseSession(session.id) }
+                            } else {
+                                null
+                            },
+                        onDelete =
+                            if (canDeleteSession) {
+                                { onDeleteSession(session.id) }
+                            } else {
+                                null
+                            },
+                        onClick = {
+                            onChatOpened()
+                            onNavigateToChat(
+                                session.id,
+                                session.cwd ?: "",
+                                session.updatedAt,
+                                session.title,
+                            )
                         },
-                    onDelete =
-                        if (canDeleteSession) {
-                            { onDeleteSession(session.id) }
-                        } else {
-                            null
-                        },
-                    onClick = {
-                        onChatOpened()
-                        onNavigateToChat(
-                            session.id,
-                            session.cwd ?: "",
-                            session.updatedAt,
-                            session.title,
-                        )
-                    },
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    sharedBoundsEnabled = sharedBoundsEnabled,
-                )
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        sharedBoundsEnabled = sharedBoundsEnabled,
+                    )
+                }
             }
         }
         item {
@@ -1090,6 +1094,7 @@ private fun SessionCard(
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
 ) {
+    val haptics = LocalHapticFeedback.current
     var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
     val hasMenuActions = onDisconnect != null || onDelete != null
     // Live sessions tint the card container exactly like active server cards;
@@ -1134,6 +1139,7 @@ private fun SessionCard(
                             onClick = onClick,
                             onLongClick = {
                                 if (hasMenuActions) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     showActionsMenu = true
                                 }
                             },

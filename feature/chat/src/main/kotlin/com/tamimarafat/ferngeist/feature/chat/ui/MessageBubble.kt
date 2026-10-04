@@ -3,19 +3,25 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -83,6 +89,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -141,6 +148,14 @@ fun MessageBubble(
     // be revealing after the stream ends, and the bubble keeps growing until it settles.
     val revealing by remember(message) { derivedStateOf { reveals.isRevealing } }
     val growing = message.isStreaming || revealing
+    // Appended while this screen watched (a reply streaming in, a message just sent), as opposed
+    // to history. Such a bubble expands in, and keeps animating its height and following the
+    // bottom for as long as it stays composed: dropping both the moment the stream and reveal
+    // ended cut the last line's height spring short, and the bubble popped to full height
+    // unfollowed. History never moves on its own, so a restored scroll position is never pulled.
+    val bornLive = remember { message.isStreaming || message.status != MessageDeliveryStatus.SENT }
+    val live = bornLive || growing
+    val entrance = remember { MutableTransitionState(!bornLive).apply { targetState = true } }
     val contentColor =
         if (isUser) {
             MaterialTheme.colorScheme.onPrimaryContainer
@@ -149,41 +164,49 @@ fun MessageBubble(
         }
     var fullscreenImage by remember { mutableStateOf<ChatImageData?>(null) }
 
-    Box(
+    AnimatedVisibility(
+        visibleState = entrance,
         modifier =
             modifier.fillMaxWidth().then(
-                if (isLastMessage && growing) Modifier.onSizeChanged { onStreamLayoutSettled() } else Modifier,
+                if (isLastMessage && live) Modifier.onSizeChanged { onStreamLayoutSettled() } else Modifier,
             ),
-        contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
+        enter =
+            fadeIn(tween(ENTRANCE_FADE_MS)) +
+                expandVertically(spring(stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top),
     ) {
-        if (isUser) {
-            UserMessageBubble(
-                message = message,
-                contentColor = contentColor,
-                onRetryMessage = onRetryMessage,
-                onImageClick = { fullscreenImage = it },
-            )
-        } else {
-            AssistantMessageContent(
-                message = message,
-                markdownDocuments = markdownDocuments,
-                reveals = reveals,
-                showStreamingIndicator = showStreamingIndicator,
-                onThoughtClick = onThoughtClick,
-                onToolCallClick = onToolCallClick,
-                // Height springs to each new line instead of jumping by a line at a time. Only while
-                // growing: on settled history it would animate unrelated size changes (rotation).
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (growing) {
-                                Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
-                            } else {
-                                Modifier
-                            },
-                        ),
-            )
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
+        ) {
+            if (isUser) {
+                UserMessageBubble(
+                    message = message,
+                    contentColor = contentColor,
+                    onRetryMessage = onRetryMessage,
+                    onImageClick = { fullscreenImage = it },
+                )
+            } else {
+                AssistantMessageContent(
+                    message = message,
+                    markdownDocuments = markdownDocuments,
+                    reveals = reveals,
+                    showStreamingIndicator = showStreamingIndicator,
+                    onThoughtClick = onThoughtClick,
+                    onToolCallClick = onToolCallClick,
+                    // Height springs to each new line instead of jumping by a line at a time. Only on a
+                    // live bubble: on history it would animate unrelated size changes (rotation).
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (live) {
+                                    Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                )
+            }
         }
     }
 
@@ -192,6 +215,7 @@ fun MessageBubble(
     }
 }
 
+private const val ENTRANCE_FADE_MS = 220
 private const val SHIMMER_START_OFFSET = -200f
 private const val SHIMMER_END_OFFSET = 600f
 
@@ -265,15 +289,20 @@ private fun UserMessageContent(
             FileAttachments(message.files)
         }
 
-        // Status badge for non-SENT delivery states
-        if (message.role == ChatMessage.Role.USER &&
-            message.status != MessageDeliveryStatus.SENT
+        // Status badge for non-SENT delivery states. Shrinks out rather than vanishing: on delivery
+        // the bubble losing the badge's height in one frame dropped the transcript by as much.
+        AnimatedVisibility(
+            visible = message.role == ChatMessage.Role.USER && message.status != MessageDeliveryStatus.SENT,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
         ) {
-            Spacer(modifier = Modifier.height(6.dp))
-            DeliveryStatusBadge(
-                status = message.status,
-                onRetry = onRetry,
-            )
+            Column {
+                Spacer(modifier = Modifier.height(6.dp))
+                DeliveryStatusBadge(
+                    status = message.status,
+                    onRetry = onRetry,
+                )
+            }
         }
     }
 }
@@ -652,14 +681,24 @@ private fun PlanEntryItem(entry: PlanEntry) {
         } else {
             MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
         }
-    val textColor =
-        if (isPending) {
-            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-        } else if (isInProgress) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-        }
+    val textColor by animateColorAsState(
+        targetValue =
+            if (isPending) {
+                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+            } else if (isInProgress) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+            },
+        label = "planTextColor",
+    )
+
+    // Pop the checkbox when it ticks, so a completed step is felt rather than read.
+    val tick by animateFloatAsState(
+        targetValue = if (isCompleted) 1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "planTick",
+    )
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -674,7 +713,19 @@ private fun PlanEntryItem(entry: PlanEntry) {
                     stringResource(R.string.chat_plan_desc)
                 },
             tint = iconTint,
-            modifier = Modifier.size(18.dp),
+            modifier =
+                Modifier
+                    .size(18.dp)
+                    .graphicsLayer {
+                        val pop =
+                            if (isCompleted) {
+                                PLAN_TICK_POP_MIN_SCALE + (1f - PLAN_TICK_POP_MIN_SCALE) * tick
+                            } else {
+                                1f
+                            }
+                        scaleX = pop
+                        scaleY = pop
+                    },
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
@@ -767,10 +818,33 @@ private fun ToolCallCardHeader(
     }
 }
 
+private const val TOOL_STATUS_SETTLE_MS = 180
+private const val TOOL_STATUS_MIN_SCALE = 0.6f
+private const val PLAN_TICK_POP_MIN_SCALE = 0.4f
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
     toolCall.status?.let { status ->
+        val isTerminal = status == ToolCallStatus.COMPLETED || status == ToolCallStatus.FAILED
+        val containerColor by animateColorAsState(
+            targetValue =
+                if (status == ToolCallStatus.FAILED) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+            label = "toolStatusContainer",
+        )
+
+        // Scale+fade the terminal state in rather than swapping it in: the swap used to land on the
+        // frame the spinner stopped, so a whole step of the agent's work passed with no signal.
+        val settle by animateFloatAsState(
+            targetValue = if (isTerminal) 1f else 0f,
+            animationSpec = tween(if (isTerminal) TOOL_STATUS_SETTLE_MS else 0),
+            label = "toolStatusSettle",
+        )
+
         when (status) {
             ToolCallStatus.PENDING, ToolCallStatus.IN_PROGRESS ->
                 ContainedLoadingIndicator(
@@ -781,37 +855,38 @@ private fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
                     modifier = Modifier.size(32.dp),
                 )
 
-            ToolCallStatus.COMPLETED ->
+            ToolCallStatus.COMPLETED, ToolCallStatus.FAILED -> {
+                val failed = status == ToolCallStatus.FAILED
                 Surface(
-                    modifier = Modifier.size(32.dp),
+                    modifier =
+                        Modifier
+                            .size(32.dp)
+                            .graphicsLayer {
+                                scaleX = TOOL_STATUS_MIN_SCALE + (1f - TOOL_STATUS_MIN_SCALE) * settle
+                                scaleY = scaleX
+                                alpha = settle
+                            },
                     shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = containerColor,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             modifier = Modifier.size(20.dp),
-                            imageVector = toolKindIcon(toolCall.kind),
-                            contentDescription = stringResource(R.string.chat_completed_desc),
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            imageVector = if (failed) Icons.Rounded.Error else toolKindIcon(toolCall.kind),
+                            contentDescription =
+                                stringResource(
+                                    if (failed) R.string.chat_error_desc else R.string.chat_completed_desc,
+                                ),
+                            tint =
+                                if (failed) {
+                                    MaterialTheme.colorScheme.onError
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimary
+                                },
                         )
                     }
                 }
-
-            ToolCallStatus.FAILED ->
-                Surface(
-                    modifier = Modifier.size(32.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.error,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            modifier = Modifier.size(20.dp),
-                            imageVector = Icons.Rounded.Error,
-                            contentDescription = stringResource(R.string.chat_error_desc),
-                            tint = MaterialTheme.colorScheme.onError,
-                        )
-                    }
-                }
+            }
         }
     }
 }

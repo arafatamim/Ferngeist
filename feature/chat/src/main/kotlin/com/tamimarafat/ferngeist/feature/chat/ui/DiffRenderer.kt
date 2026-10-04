@@ -1,5 +1,12 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,6 +58,7 @@ import io.github.diff.DeltaType
 import io.github.diff.generatePatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.absoluteValue
 
 internal fun isDirectoryPath(path: String): Boolean = path.endsWith('/')
 
@@ -531,9 +539,9 @@ internal fun DiffSummaryRow(
                 modifier = modifier,
             ) {
                 if (totalAdds > 0) {
-                    Text(
-                        text = "+$totalAdds",
-                        style = MaterialTheme.typography.labelSmall,
+                    RollingCount(
+                        value = totalAdds,
+                        prefix = "+",
                         color = LocalGitSemanticColors.current.added,
                     )
                 }
@@ -542,9 +550,9 @@ internal fun DiffSummaryRow(
                     deletions = totalDels,
                 )
                 if (totalDels > 0) {
-                    Text(
-                        text = "-$totalDels",
-                        style = MaterialTheme.typography.labelSmall,
+                    RollingCount(
+                        value = totalDels,
+                        prefix = "-",
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -708,19 +716,58 @@ private fun GitStatusButtonContent(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (additions > 0) {
-            Text(
-                text = "+$additions",
-                style = MaterialTheme.typography.labelSmall,
+            RollingCount(
+                value = additions,
+                prefix = "+",
                 color = LocalGitSemanticColors.current.added,
             )
         }
         DiffBlocks(additions = additions, deletions = deletions)
         if (deletions > 0) {
-            Text(
-                text = "-$deletions",
-                style = MaterialTheme.typography.labelSmall,
+            RollingCount(
+                value = deletions,
+                prefix = "-",
                 color = LocalGitSemanticColors.current.deleted,
             )
+        }
+    }
+}
+
+/**
+ * A count that rolls when it changes, sliding up when it rises and down when it falls.
+ *
+ * The sign is rendered outside the animation: it is a symbol, not a digit, and keeping it static
+ * stops the whole chip shifting sideways each time a count crosses zero.
+ */
+@Composable
+internal fun RollingCount(
+    value: Int,
+    prefix: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    val digits = value.absoluteValue.toString()
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        if (value != 0) {
+            Text(text = prefix, style = MaterialTheme.typography.labelSmall, color = color)
+        }
+        AnimatedContent(
+            targetState = digits,
+            transitionSpec = {
+                val up =
+                    targetState.length > initialState.length ||
+                        (targetState.length == initialState.length && targetState > initialState)
+                if (up) {
+                    slideInVertically { it } + fadeIn() togetherWith
+                        slideOutVertically { -it } + fadeOut()
+                } else {
+                    slideInVertically { -it } + fadeIn() togetherWith
+                        slideOutVertically { it } + fadeOut()
+                }.using(SizeTransform(clip = false))
+            },
+            label = "rollingCount",
+        ) { text ->
+            Text(text = text, style = MaterialTheme.typography.labelSmall, color = color)
         }
     }
 }
