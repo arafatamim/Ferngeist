@@ -93,6 +93,7 @@ import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SlideDirection
+import com.tamimarafat.ferngeist.feature.chat.SwitchSlide
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import com.tamimarafat.ferngeist.feature.chat.resolveSwipeTarget
 import com.tamimarafat.ferngeist.feature.chat.switcherNeighbors
@@ -1105,7 +1106,10 @@ private fun rememberSwitcherDragHandlers(
                     val direction = if (totalPx != 0f) totalPx else velocityPxPerSec
                     onSwitchSession(
                         target,
-                        if (direction < 0) SlideDirection.LEFT else SlideDirection.RIGHT,
+                        SwitchSlide(
+                            direction = if (direction < 0) SlideDirection.LEFT else SlideDirection.RIGHT,
+                            travelled = (abs(chatOffset.value) / screenWidthPx).coerceIn(0f, 1f),
+                        ),
                     )
                 } else {
                     coroutineScope.launch {

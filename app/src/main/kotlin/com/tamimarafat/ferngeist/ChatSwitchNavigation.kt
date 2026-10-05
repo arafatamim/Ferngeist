@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import com.tamimarafat.ferngeist.feature.chat.SlideDirection
+import com.tamimarafat.ferngeist.feature.chat.SwitchSlide
 import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
 
 /**
@@ -15,12 +16,12 @@ import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
  */
 internal fun NavHostController.switchToChat(
     session: SwitcherSession,
-    slideDirection: SlideDirection?,
+    slide: SwitchSlide?,
 ) {
     val encodedCwd = Uri.encode(session.cwd.orEmpty())
     val encodedTitle = Uri.encode(session.title.orEmpty())
     val updatedAtParam = session.updatedAt ?: -1L
-    val slideParam = slideDirection?.let { "&slide=${it.routeValue}" }.orEmpty()
+    val slideParam = slide?.let { "&slide=${it.direction.routeValue}&travel=${it.travelled}" }.orEmpty()
     navigate(
         "chat/${session.serverId}/${session.sessionId}?cwd=$encodedCwd&updatedAt=$updatedAtParam&title=$encodedTitle$slideParam",
     ) {
@@ -37,6 +38,13 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.isChatChatTransit
     val toRoute = targetState.destination.route ?: return false
     return fromRoute.startsWith("chat/") && toRoute.startsWith("chat/")
 }
+
+/**
+ * How far a chat→chat switch still has to slide, as a fraction of the width: what the drag
+ * left over. A switch without a drag (sheet tap) slides the full width.
+ */
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.chatChatRemaining(): Float =
+    1f - (targetState.arguments?.getFloat("travel") ?: 0f)
 
 /** Which way a chat→chat switch slides: right only on an explicit rightward commit. */
 internal fun AnimatedContentTransitionScope<NavBackStackEntry>.chatChatDirection():

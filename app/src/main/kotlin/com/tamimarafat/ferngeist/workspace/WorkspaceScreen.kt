@@ -2,9 +2,16 @@ package com.tamimarafat.ferngeist.workspace
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
@@ -35,8 +43,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
+import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
+import com.tamimarafat.ferngeist.feature.chat.SlideDirection
+import com.tamimarafat.ferngeist.feature.chat.SwitchSlide
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
+import kotlin.math.roundToInt
 
 /**
  * The wide-window workspace: agents, sessions and chat side by side, chat pinned on the right.
@@ -156,7 +168,7 @@ fun WorkspaceScreen(
                 if (serverId == null || sessionId == null) {
                     EmptyPanePlaceholder()
                 } else {
-                    ChatPane(
+                    SwitchingChatPane(
                         selection =
                             WorkspaceSelection(
                                 serverId = serverId,
@@ -183,6 +195,70 @@ fun WorkspaceScreen(
 }
 
 /**
+ * The chat pane across session switches. Each session gets its own composition: one shared
+ * across switches carried the previous chat's remembered state into the next, including the
+ * drag offset a swipe left behind, so the new chat appeared shifted and never slid. A swipe
+ * slides on from where the finger let go, as the compact flow does; any other pick crossfades.
+ */
+@Composable
+private fun SwitchingChatPane(
+    selection: WorkspaceSelection,
+    mintedSessionId: String?,
+    chatViewModelFactory: ChatViewModelFactory,
+    showBackButton: Boolean,
+    onNavigateBack: () -> Unit,
+    onSelectSession: (WorkspaceSelection) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    // The swipe that picked a session, kept only for that session: a later pick from the list
+    // must not reuse its direction.
+    var swipe by remember { mutableStateOf<Pair<String, SwitchSlide>?>(null) }
+    AnimatedContent(
+        targetState = selection,
+        contentKey = { it.serverId to it.sessionId },
+        transitionSpec = {
+            val slide = swipe?.takeIf { it.first == targetState.chatKey() }?.second
+            if (slide == null) {
+                fadeIn(spring()) togetherWith fadeOut(spring())
+            } else {
+                // LEFT: the finger pushed the chat off to the left, so the next one comes from the right.
+                val sign = if (slide.direction == SlideDirection.LEFT) 1 else -1
+                val remaining = 1f - slide.travelled
+                slideInHorizontally(spring()) { (sign * it * remaining).roundToInt() } togetherWith
+                    slideOutHorizontally(spring()) { (-sign * it * remaining).roundToInt() }
+            }
+        },
+        modifier = Modifier.clipToBounds(),
+        label = "chatPane",
+    ) { shown ->
+        ChatPane(
+            selection = shown,
+            // The minted id belongs to the current selection, not to one sliding out.
+            mintedSessionId = mintedSessionId.takeIf { shown.chatKey() == selection.chatKey() },
+            chatViewModelFactory = chatViewModelFactory,
+            showBackButton = showBackButton,
+            onNavigateBack = onNavigateBack,
+            onSwitchSession = { session, slide ->
+                val next =
+                    WorkspaceSelection(
+                        serverId = session.serverId,
+                        sessionId = session.sessionId,
+                        cwd = session.cwd.orEmpty(),
+                        title = session.title.orEmpty(),
+                    )
+                swipe = slide?.let { next.chatKey() to it }
+                onSelectSession(next)
+            },
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+        )
+    }
+}
+
+private fun WorkspaceSelection.chatKey(): String = "$serverId/$sessionId"
+
+/**
  * Hosts one session's chat in the right pane.
  *
  * The view model is built from this session's ids instead of `hiltViewModel()`: panes are not
@@ -198,7 +274,7 @@ private fun ChatPane(
     chatViewModelFactory: ChatViewModelFactory,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
-    onSelectSession: (WorkspaceSelection) -> Unit,
+    onSwitchSession: OnSwitchSession,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -235,16 +311,7 @@ private fun ChatPane(
         // only the placeholder for the frame before the first snapshot lands.
         fallbackTitle = fallbackSessionTitle,
         onNavigateBack = onNavigateBack,
-        onSwitchSession = { session, _ ->
-            onSelectSession(
-                WorkspaceSelection(
-                    serverId = session.serverId,
-                    sessionId = session.sessionId,
-                    cwd = session.cwd.orEmpty(),
-                    title = session.title.orEmpty(),
-                ),
-            )
-        },
+        onSwitchSession = onSwitchSession,
         // No modifier: ChatScreen's root already fills its constraints
         // (`.fillMaxSize().then(modifier)`), and the pane measures it with fixed bounds — a
         // second `fillMaxSize()` here would be a no-op and a fixed size would fight the pane.

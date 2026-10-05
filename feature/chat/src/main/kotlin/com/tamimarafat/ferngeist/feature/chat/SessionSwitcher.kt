@@ -50,13 +50,24 @@ enum class SlideDirection(
 }
 
 /**
- * Opens another chat. [slideDirection] is non-null for a drag commit (so the
- * navigation can continue the finger's direction) and null for everything
- * else (sheet taps, deep links), which keeps the default transition.
+ * Where a drag commit let go: its [direction], and how far the chat had already
+ * travelled, as a fraction of the width ([travelled], 0..1). The transition
+ * starts from there, so the outgoing chat and the incoming one move as one sheet
+ * instead of the incoming one jumping in from the far edge.
+ */
+data class SwitchSlide(
+    val direction: SlideDirection,
+    val travelled: Float,
+)
+
+/**
+ * Opens another chat. [slide] is non-null for a drag commit (so the navigation
+ * can continue the finger's motion) and null for everything else (sheet taps,
+ * deep links), which keeps the default transition.
  */
 typealias OnSwitchSession = (
     session: SwitcherSession,
-    slideDirection: SlideDirection?,
+    slide: SwitchSlide?,
 ) -> Unit
 
 /**

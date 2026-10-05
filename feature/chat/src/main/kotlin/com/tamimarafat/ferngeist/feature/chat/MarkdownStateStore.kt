@@ -7,6 +7,8 @@ import com.adamglin.compose.markdown.core.model.BlockNode
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 
+private const val LOAD_FACTOR = 0.75f
+
 /**
  * Maintains parsed markdown per assistant *run*, driven by an append-only incremental engine.
  *
@@ -21,12 +23,34 @@ import com.tamimarafat.ferngeist.core.model.ChatMessage
  * keeps its id across appends, so the renderer keyed on it keeps the node mounted.
  */
 internal class MarkdownStateStore {
-    private companion object {
+    companion object {
         /**
          * GfmCompat rather than ChatFast: it keeps reference links (ChatFast disables them and
          * agents do emit them) and adds table alignment. Definitions are single-line only.
          */
-        val DIALECT = MarkdownDialect.GfmCompat
+        private val DIALECT = MarkdownDialect.GfmCompat
+
+        /** Chats whose parsed transcript outlives their screen; covers every switcher target. */
+        private const val RETAINED_CHATS = 8
+
+        private val retained =
+            object : LinkedHashMap<String, MarkdownStateStore>(RETAINED_CHATS, LOAD_FACTOR, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, MarkdownStateStore>) =
+                    size > RETAINED_CHATS
+            }
+
+        /**
+         * The store for [chatKey], kept across screens. A switch builds a new view model, and it
+         * used to parse the whole cached transcript on main inside the first frame of the slide.
+         * A retained store has already fed that text, so reopening feeds nothing. Null [chatKey]
+         * (a chat with no identity yet) gets a fresh store.
+         */
+        fun retainedFor(chatKey: String?): MarkdownStateStore =
+            if (chatKey == null) {
+                MarkdownStateStore()
+            } else {
+                synchronized(retained) { retained.getOrPut(chatKey) { MarkdownStateStore() } }
+            }
     }
 
     private val runs = linkedMapOf<String, RunEntry>()
@@ -36,9 +60,10 @@ internal class MarkdownStateStore {
      * Parses what changed in [messages] and returns the projection to render.
      *
      * Runs on the caller's thread (the snapshot collector, on main). A streaming chunk is a tail
-     * append and costs little. ponytail: opening a long history parses every run here at once;
-     * inject a background dispatcher (one thread, so the engines never see two writers) if session
-     * open measurably janks.
+     * append and costs little, and a reopened chat's store ([retainedFor]) has its history parsed
+     * already. ponytail: the first open of a long history still parses every run here at once;
+     * inject a background dispatcher (one thread, so the engines never see two writers) if that
+     * measurably janks.
      */
     fun onSnapshot(
         messages: List<ChatMessage>,

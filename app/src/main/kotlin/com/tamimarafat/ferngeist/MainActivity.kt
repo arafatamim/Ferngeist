@@ -97,6 +97,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 /**
  * The single-activity entry point for Ferngeist.
@@ -385,14 +386,26 @@ private fun DeepLinkEffect(
                     )
                 }
             } else {
-                val gatewayIdParam = target.gatewayId?.let { "&gatewayId=${Uri.encode(it)}" } ?: ""
-                val titleParam =
-                    if (target.title.isNotBlank()) "&title=${Uri.encode(target.title)}" else ""
-                navController.navigate(
-                    "chat/${target.serverId}/${target.sessionId}" +
-                        "?cwd=${Uri.encode(target.cwd)}$titleParam$gatewayIdParam",
-                ) {
-                    launchSingleTop = true
+                val current = navController.currentBackStackEntry
+                val currentChatRoute = current?.destination?.route?.takeIf { it.startsWith("chat/") }
+                val alreadyOpen =
+                    currentChatRoute != null &&
+                        current.arguments?.getString("serverId") == target.serverId &&
+                        current.arguments?.getString("sessionId") == target.sessionId
+                if (!alreadyOpen) {
+                    val gatewayIdParam = target.gatewayId?.let { "&gatewayId=${Uri.encode(it)}" } ?: ""
+                    val titleParam =
+                        if (target.title.isNotBlank()) "&title=${Uri.encode(target.title)}" else ""
+                    navController.navigate(
+                        "chat/${target.serverId}/${target.sessionId}" +
+                            "?cwd=${Uri.encode(target.cwd)}$titleParam$gatewayIdParam",
+                    ) {
+                        // Single-top alone would keep the open chat's entry, and with it that
+                        // chat's view model, and only swap its arguments: the tap would land
+                        // back on the chat already showing. Replace it, as the switcher does.
+                        currentChatRoute?.let { popUpTo(it) { inclusive = true } }
+                        launchSingleTop = true
+                    }
                 }
             }
         }
@@ -777,7 +790,7 @@ private fun NavGraphBuilder.ChatDestination(
     composable(
         route =
             "chat/{serverId}/{sessionId}?cwd={cwd}&updatedAt={updatedAt}&title={title}" +
-                "&gatewayId={gatewayId}&slide={slide}",
+                "&gatewayId={gatewayId}&slide={slide}&travel={travel}",
         arguments =
             listOf(
                 navArgument("serverId") { type = NavType.StringType },
@@ -806,6 +819,10 @@ private fun NavGraphBuilder.ChatDestination(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("travel") {
+                    type = NavType.FloatType
+                    defaultValue = 0f
+                },
             ),
     ) { backStackEntry ->
         val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
@@ -817,8 +834,8 @@ private fun NavGraphBuilder.ChatDestination(
             sessionId = sessionId,
             fallbackTitle = fallbackTitle,
             onNavigateBack = { navController.popBackStack() },
-            onSwitchSession = { session, slideDirection ->
-                navController.switchToChat(session, slideDirection)
+            onSwitchSession = { session, slide ->
+                navController.switchToChat(session, slide)
             },
             sharedTransitionScope = sharedTransitionLayout,
             animatedContentScope = this,
@@ -874,11 +891,16 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.navEnterTransition
                 animationSpec = navSpring,
                 initialOffset = { sessionListSlidePx },
             ) + fadeIn(animationSpec = navFadeSpring)
-        isChatChatTransition() ->
+        // One sheet: the incoming chat starts against the edge of the released one and both
+        // cover the same remaining distance. A crossfade over the slide only ghosted the two.
+        isChatChatTransition() -> {
+            val remaining = chatChatRemaining()
             slideIntoContainer(
                 towards = chatChatDirection(),
                 animationSpec = navSpring,
-            ) + fadeIn(animationSpec = navFadeSpring)
+                initialOffset = { (it * remaining).roundToInt() },
+            )
+        }
         else ->
             slideIntoContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Left,
@@ -899,11 +921,15 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.navExitTransition(
                 animationSpec = navSpring,
                 targetOffset = { sessionListSlidePx },
             ) + fadeOut(animationSpec = navFadeSpring)
-        isChatChatTransition() ->
+        isChatChatTransition() -> {
+            // The released chat is already offset by the drag, so it only has the rest to go.
+            val remaining = chatChatRemaining()
             slideOutOfContainer(
                 towards = chatChatDirection(),
                 animationSpec = navSpring,
-            ) + fadeOut(animationSpec = navFadeSpring)
+                targetOffset = { (it * remaining).roundToInt() },
+            )
+        }
         else ->
             slideOutOfContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Left,
