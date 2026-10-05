@@ -1,3 +1,63 @@
+
+## [1.0.0] - 2026-10-05
+
+### Documentation
+
+- *(play)* Refresh screenshots from the alpha11 build ([7287a71](https://github.com/arafatamim/Ferngeist/commit/7287a713084e9321c46387c442923e5231c11f8d))
+
+### Features
+
+- *(chat)* Fill the loading skeleton to the viewport and fade it out ([1623026](https://github.com/arafatamim/Ferngeist/commit/162302620710d8304aa2a121c42d06de0dfb7531))
+- *(chat)* Swipe to close a session from the switcher sheet ([90cc1e2](https://github.com/arafatamim/Ferngeist/commit/90cc1e2431cbd5aabdcafd8965c8b2f816eadc01))
+- *(launch)* Better first launch experience ([9cd25b0](https://github.com/arafatamim/Ferngeist/commit/9cd25b0d15ee0a84b747a9207c7df2387634b870))
+- *(serverlist)* Agent logo badges, busy sun replaces icon in place ([d64f985](https://github.com/arafatamim/Ferngeist/commit/d64f9856227c1010a0618805ab7ebfba88a42b57))
+- *(app)* Bundle Geist Mono variable font ([65c573e](https://github.com/arafatamim/Ferngeist/commit/65c573e5c37e8435eb8edc6400e7ad8e2c81dabd))
+- *(chat)* Add randomised empty-session hero ([1209531](https://github.com/arafatamim/Ferngeist/commit/120953167fbf046198b464e7ab2ab3faa17170db))
+- *(chat)* Reveal streamed markdown in the composition ([dc5741f](https://github.com/arafatamim/Ferngeist/commit/dc5741fafb750bd9a98e8a9cc5e06cfc7f7926f5))
+- *(chat)* Ease the jump-to-top and jump-to-bottom scrolls ([b52d5b0](https://github.com/arafatamim/Ferngeist/commit/b52d5b061ef1f70542a733c1c6f6ed3223256854))
+- *(ui)* Drift the session list in on a short fade-and-slide ([b77ba58](https://github.com/arafatamim/Ferngeist/commit/b77ba586d8b9b191d39ed0e21ca7e24e557b19c5))
+- *(ui)* Add motion to lists, tool calls, plans and counts ([1cef668](https://github.com/arafatamim/Ferngeist/commit/1cef668a9388c50d42f1b4118a1c64bce3b1a612))
+- *(chat)* Shimmer a live session's title in the switcher ([3c8b40b](https://github.com/arafatamim/Ferngeist/commit/3c8b40b54af5ce08eca25b3263878d7e99f3d090))
+- *(acp)* Carry tool-call locations through to the message model ([62bede3](https://github.com/arafatamim/Ferngeist/commit/62bede3ea0b4dd8613ee6e81b4f619895b8fea6f))
+- *(chat)* Replace the tool-call cards with an activity rail ([2270241](https://github.com/arafatamim/Ferngeist/commit/2270241284fff4f494ef060a281145530f222442))
+- *(chat)* Pin the turn's prompt above its answer while it scrolls ([4c9aa37](https://github.com/arafatamim/Ferngeist/commit/4c9aa37622bc2ef8143f5731ccd6ea97eb43a03d))
+
+### Fixes
+
+- *(chat)* Clip switcher row ripple to card shape ([8a1b7de](https://github.com/arafatamim/Ferngeist/commit/8a1b7de769f29ed8d4a5141fc90123a16ccd3fed))
+- *(acp-bridge)* Fold adjacent message segments at turn close ([e46cbfb](https://github.com/arafatamim/Ferngeist/commit/e46cbfb21cd5c052432a724492649fe6bd2efb30))
+- *(sessionlist)* Paint nothing while the session cache is unread ([5f8a5f2](https://github.com/arafatamim/Ferngeist/commit/5f8a5f2d51d4c2ace7f5b67ce1a7ea1fc6fdf6e3))
+- *(chat)* Keep the transcript on its end as the bottom grows ([f49e533](https://github.com/arafatamim/Ferngeist/commit/f49e533a889bc25658b02072d9d311945f13dc66))
+- *(chat)* Resume following after a hand scroll to the bottom ([2fed4da](https://github.com/arafatamim/Ferngeist/commit/2fed4dacc8da5fab8adc468d7fffc0a8a546f44a))
+- *(chat)* Take the session title from the agent, never from the prompt ([d2e18e5](https://github.com/arafatamim/Ferngeist/commit/d2e18e5f19330f666940314943c3fdca46823b0b))
+- *(chat)* Render the reasoning row with the streaming indicator ([427298c](https://github.com/arafatamim/Ferngeist/commit/427298cb9a630511f858beab8a03fc4f9205c7f9))
+- *(app)* Hold the launch splash only on a cold start ([2616521](https://github.com/arafatamim/Ferngeist/commit/2616521a77a48edee12cdade14b9787d6787c0e4))
+- *(workspace)* Keep the open chat across a window class change ([0ce920f](https://github.com/arafatamim/Ferngeist/commit/0ce920fba0bd2680ba9e50e22e678e82e187a73c))
+- *(acp)* Announce Connected only after the reconnect handshake ([bb44391](https://github.com/arafatamim/Ferngeist/commit/bb44391c581a1a74cd0e57a64f1bd1aa1b42fdf3))
+- *(acp)* Restore sessions before announcing Connected ([5c82279](https://github.com/arafatamim/Ferngeist/commit/5c82279186579bc51987ab94150e24f49c04284a))
+- *(chat)* Key pending echoes so the list does not restart ([ccdd403](https://github.com/arafatamim/Ferngeist/commit/ccdd4031b43eb5cdde89504c65235610cda064c6))
+- *(chat)* Window the transcript by id, not by size ([9371403](https://github.com/arafatamim/Ferngeist/commit/93714035ccd53224cdbb55d1ce9099ac5479bdb5))
+- *(chat)* Chase the streaming end in short settles ([8e37072](https://github.com/arafatamim/Ferngeist/commit/8e37072b76b45142f78baa5d2c01cc6efc900c3e))
+- *(chat)* Cap agent text and switch long elicitation options to radio choices ([b56ce96](https://github.com/arafatamim/Ferngeist/commit/b56ce96ff71868e48f8682da79a587bbecf7da8e))
+- *(chat)* Keep the switcher bubble square beside a wide composer ([49e1ce8](https://github.com/arafatamim/Ferngeist/commit/49e1ce802cf4f0054c71309beb5d4da20b58180e))
+- *(session)* Survive switching away, transport resets and backgrounding ([0ade0a7](https://github.com/arafatamim/Ferngeist/commit/0ade0a7120cb416bfbef38b315744b229507e195))
+- *(acp)* End a turn the gateway reports finished on an earlier connection ([fbf7f1c](https://github.com/arafatamim/Ferngeist/commit/fbf7f1c40608ed58d8077226cb6959417e4e09cd))
+
+### Performance
+
+- *(acp-bridge)* Stop rebuilding accumulated text on every chunk ([ee44d1d](https://github.com/arafatamim/Ferngeist/commit/ee44d1d4868905ca8d74d607496e0b3deed14c74))
+- *(acp)* Build reducer output with persistent collections ([03b04f7](https://github.com/arafatamim/Ferngeist/commit/03b04f7f5fb798f2a679e48f4532a365e115cdb2))
+- *(app)* Use the Android HTTP engine and bump to 0.16.0-alpha8 ([be046ba](https://github.com/arafatamim/Ferngeist/commit/be046ba0ac7e120c8cef512e99568cf544cfd9d4))
+- *(chat)* Smooth session swipe and workspace pane switching ([d851102](https://github.com/arafatamim/Ferngeist/commit/d8511029d8244e9b2913df0add17b37e29d7e368))
+
+### Refactoring
+
+- *(acp-bridge)* Make modelSelectionEvents non-null ([e22eda8](https://github.com/arafatamim/Ferngeist/commit/e22eda83a1f54099c653f5dbf54be9d1c3fba93e))
+- *(chat)* Group a turn's file changes and expose the diff stats row ([1cbe98c](https://github.com/arafatamim/Ferngeist/commit/1cbe98c5777bc9af91f3f806652d70fbf4eb7ef5))
+
+### Release
+
+- *(0.16.0-alpha4)* Version bump and internal-track notes ([11c3e4f](https://github.com/arafatamim/Ferngeist/commit/11c3e4fad557873b8835b106e1ff2669124d7862))
 ## [0.16.0-alpha3] - 2026-09-27
 
 ### Features

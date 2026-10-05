@@ -1,0 +1,1 @@
+Ferngeist 1.0 — the biggest release yet. The chat experience is smoother throughout, with new animations and a redesigned transcript that's easier to read. The rest of the app gets smoother animations, along with a new font face and agent logos, and assorted bug fixes.
