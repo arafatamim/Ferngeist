@@ -219,6 +219,15 @@ fun MessageBubble(
 }
 
 private const val ENTRANCE_FADE_MS = 220
+
+/** Shared with [PinnedPrompt], whose chip must read as the same bubble. */
+internal val UserBubbleShape =
+    RoundedCornerShape(
+        topStart = 20.dp,
+        topEnd = 20.dp,
+        bottomStart = 20.dp,
+        bottomEnd = 8.dp,
+    )
 private const val SHIMMER_START_OFFSET = -200f
 private const val SHIMMER_END_OFFSET = 600f
 
@@ -242,13 +251,7 @@ private fun UserMessageBubble(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = contentColor,
             ),
-        shape =
-            RoundedCornerShape(
-                topStart = 20.dp,
-                topEnd = 20.dp,
-                bottomStart = 20.dp,
-                bottomEnd = 8.dp,
-            ),
+        shape = UserBubbleShape,
         modifier = Modifier.widthIn(max = 420.dp),
     ) {
         UserMessageContent(

@@ -55,7 +55,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -584,8 +586,41 @@ private fun ChatMessageList(
             state.messages + state.pendingMessages
         }
     val itemKey: (ChatMessage) -> String = { state.listKeys[it.id] ?: it.id }
+    val contentTop = listTopPadding + 8.dp
     val window = rememberMessageWindow(state, allMessages, listState, itemKey)
     val windowed = window.messages
+    // The rows above the transcript shift every message's index; the pinned prompt needs its own
+    // index to find its slot and to scroll its turn back into view.
+    val leadingRows = (if (state.resumedSession) 1 else 0) + (if (window.hasOlder) 1 else 0)
+    val userRows =
+        remember(windowed, leadingRows) {
+            windowed.indices
+                .filter { windowed[it].role == ChatMessage.Role.USER && windowed[it].content.isNotBlank() }
+                .map { leadingRows + it }
+        }
+    val pinnedRows by remember(userRows, listState) {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            // The first laid-out row, not firstVisibleItemIndex: the streaming follow requests the
+            // last index ahead of each measure, so that value names the bottom spacer for a frame
+            // and pinned the current prompt on every chunk.
+            val firstLaidOut = info.visibleItemsInfo.firstOrNull()?.index ?: 0
+            pinnedPromptRows(userRows, firstLaidOut) { row ->
+                info.visibleItemsInfo.firstOrNull { it.index == row }?.let { it.offset..it.offset + it.size }
+            }
+        }
+    }
+    val messageRow: @Composable (ChatMessage) -> Unit = { message ->
+        ChatMessageItem(
+            message = message,
+            state = state,
+            renderedLastMessageId = renderedLastMessageId,
+            onThoughtClick = onThoughtClick,
+            onToolCallClick = onToolCallClick,
+            onStreamLayoutSettled = onStreamLayoutSettled,
+            onRetryMessage = onRetryMessage,
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -601,7 +636,7 @@ private fun ChatMessageList(
                     // floats over this list as a sibling — and collapse the bar instead of
                     // scrolling the text.
                     .nestedScroll(appBarScrollConnection),
-            contentPadding = PaddingValues(start = 16.dp, top = listTopPadding + 8.dp, end = 16.dp, bottom = 0.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = contentTop, end = 16.dp, bottom = 0.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (state.resumedSession) {
@@ -622,13 +657,13 @@ private fun ChatMessageList(
                     }
                 }
             }
+            // Rows differ in structure (user, plain assistant, segmented assistant), so each
+            // carries a contentType: without one Compose cannot tell a like-for-like slot from a
+            // different one and re-does the work on every markdown emit. Coarse on purpose — the
+            // value only has to match for rows that can share a slot.
             items(
                 items = windowed,
                 key = itemKey,
-                // Bubbles differ in structure (user, plain assistant, segmented assistant), so
-                // without a contentType Compose cannot tell a like-for-like slot from a
-                // different one and re-does the work on every markdown emit. Coarse on purpose:
-                // the value only has to match for rows that can share a slot.
                 contentType = {
                     when {
                         it.role == ChatMessage.Role.USER -> 0
@@ -637,18 +672,27 @@ private fun ChatMessageList(
                     }
                 },
             ) { message ->
-                ChatMessageItem(
-                    message = message,
-                    state = state,
-                    renderedLastMessageId = renderedLastMessageId,
-                    onThoughtClick = onThoughtClick,
-                    onToolCallClick = onToolCallClick,
-                    onStreamLayoutSettled = onStreamLayoutSettled,
-                    onRetryMessage = onRetryMessage,
-                )
+                messageRow(message)
             }
             item(key = "__chat_bottom_spacer") {
                 Spacer(modifier = Modifier.height(listBottomPadding))
+            }
+        }
+        // Keyed so the pinned chip, once displaced, carries on as the same node instead of being
+        // rebuilt mid-push.
+        pinnedRows.forEach { row ->
+            key(row) {
+                PinnedPrompt(
+                    text = windowed[row - leadingRows].content,
+                    row = row,
+                    nextRow = userRows.firstOrNull { it > row },
+                    listState = listState,
+                    modifier =
+                        Modifier
+                            .widthIn(max = 720.dp)
+                            .align(Alignment.TopCenter)
+                            .padding(start = 16.dp, top = contentTop, end = 16.dp),
+                )
             }
         }
         AnimatedVisibility(
