@@ -296,4 +296,47 @@
     <string name="switcher_untitled">Untitled</string>
     <string name="switcher_current_desc">Current session</string>
     <string name="chat_resumed_session">Resumed</string>
+    <!-- Tool group summary parts, joined with " · " -->
+    <string name="chat_tool_summary_thought_twice">thought twice</string>
+    <plurals name="chat_tool_summary_thought">
+        <item quantity="one">thought once</item>
+        <item quantity="other">thought %1$d times</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute">
+        <item quantity="one">ran a command</item>
+        <item quantity="other">ran %1$d commands</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read">
+        <item quantity="one">read a file</item>
+        <item quantity="other">read %1$d files</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit">
+        <item quantity="one">edited a file</item>
+        <item quantity="other">edited %1$d files</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete">
+        <item quantity="one">deleted a file</item>
+        <item quantity="other">deleted %1$d files</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move">
+        <item quantity="one">moved a file</item>
+        <item quantity="other">moved %1$d files</item>
+    </plurals>
+    <string name="chat_tool_summary_search_twice">searched twice</string>
+    <plurals name="chat_tool_summary_search">
+        <item quantity="one">searched once</item>
+        <item quantity="other">searched %1$d times</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch">
+        <item quantity="one">fetched a URL</item>
+        <item quantity="other">fetched %1$d URLs</item>
+    </plurals>
+    <plurals name="chat_tool_summary_failed">
+        <item quantity="one">one failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other">
+        <item quantity="one">used a tool</item>
+        <item quantity="other">used %1$d tools</item>
+    </plurals>
 </resources>

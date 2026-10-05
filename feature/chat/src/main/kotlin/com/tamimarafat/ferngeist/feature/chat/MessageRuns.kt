@@ -25,8 +25,12 @@ internal fun List<AssistantSegment>.messageRuns(): List<SegmentBlock.Run> = runs
 /** Runs of adjacent THOUGHT segments, for the single reasoning bubble a streamed thought should be. */
 internal fun List<AssistantSegment>.thoughtRuns(): List<SegmentBlock.Run> = runsOf(AssistantSegment.Kind.THOUGHT)
 
+// Groups are flattened: a thought rendered as a rail row is still a run the sheet resolves.
 private fun List<AssistantSegment>.runsOf(kind: AssistantSegment.Kind): List<SegmentBlock.Run> =
-    displayBlocks().filterIsInstance<SegmentBlock.Run>().filter { it.kind == kind }
+    displayBlocks()
+        .flatMap { if (it is SegmentBlock.Group) it.items else listOf(it) }
+        .filterIsInstance<SegmentBlock.Run>()
+        .filter { it.kind == kind }
 
 /** One rendered block of an assistant bubble. */
 internal sealed interface SegmentBlock {
@@ -45,7 +49,17 @@ internal sealed interface SegmentBlock {
         val segments: List<AssistantSegment>,
     ) : SegmentBlock
 
-    /** A segment that renders on its own: a tool call or a plan. */
+    /**
+     * Adjacent tool calls and reasoning, rendered as one foldable activity. [items] are THOUGHT
+     * [Run]s and one TOOL_CALL [Single] per call. [key] is the FIRST segment's id, so the group's
+     * fold and reveal state survive a newly appended item.
+     */
+    class Group internal constructor(
+        override val key: String,
+        val items: List<SegmentBlock>,
+    ) : SegmentBlock
+
+    /** A segment that renders on its own: a plan, or a tool call inside a [Group]. */
     class Single internal constructor(
         val segment: AssistantSegment,
     ) : SegmentBlock {
@@ -56,18 +70,53 @@ internal sealed interface SegmentBlock {
 /**
  * The blocks an assistant bubble renders, in segment order.
  *
- * Adjacent MESSAGE and adjacent THOUGHT segments become one [SegmentBlock.Run] each; TOOL_CALL and
- * PLAN segments render on their own as [SegmentBlock.Single]. Order is preserved so a turn that
- * interleaves reasoning, prose and tool calls still reads the way the agent produced it.
+ * Adjacent MESSAGE segments become one [SegmentBlock.Run]. A span of adjacent THOUGHT and TOOL_CALL
+ * segments becomes one [SegmentBlock.Group] if it holds a call, or a THOUGHT run if it is reasoning
+ * alone. PLAN segments render on their own as [SegmentBlock.Single]. Order is preserved so a turn
+ * that interleaves reasoning, prose and tool calls still reads the way the agent produced it.
  */
 internal fun List<AssistantSegment>.displayBlocks(): List<SegmentBlock> {
-    if (isEmpty()) return emptyList()
+    val blocks = ArrayList<SegmentBlock>()
+    var index = 0
+    while (index < size) {
+        val end = spanEnd(index)
+        val span = subList(index, end)
+        blocks +=
+            if (span.any { it.kind == AssistantSegment.Kind.TOOL_CALL }) {
+                SegmentBlock.Group(key = span.first().id, items = span.foldRuns())
+            } else {
+                span.foldRuns().single()
+            }
+        index = end
+    }
+    return blocks
+}
+
+private val ACTIVITY_KINDS = setOf(AssistantSegment.Kind.THOUGHT, AssistantSegment.Kind.TOOL_CALL)
+
+private fun List<AssistantSegment>.spanEnd(start: Int): Int {
+    val kind = this[start].kind
+    if (kind == AssistantSegment.Kind.PLAN) return start + 1
+    var end = start + 1
+    while (end < size && continuesSpan(kind, this[end].kind)) {
+        end++
+    }
+    return end
+}
+
+private fun continuesSpan(
+    first: AssistantSegment.Kind,
+    next: AssistantSegment.Kind,
+): Boolean = next == first || first in ACTIVITY_KINDS && next in ACTIVITY_KINDS
+
+/** Adjacent MESSAGE or THOUGHT segments joined into runs; every other segment on its own. */
+private fun List<AssistantSegment>.foldRuns(): List<SegmentBlock> {
     val blocks = ArrayList<SegmentBlock>()
     var index = 0
     while (index < size) {
         val kind = this[index].kind
         if (kind != AssistantSegment.Kind.MESSAGE && kind != AssistantSegment.Kind.THOUGHT) {
-            blocks.add(SegmentBlock.Single(this[index]))
+            blocks += SegmentBlock.Single(this[index])
             index++
             continue
         }
@@ -75,15 +124,9 @@ internal fun List<AssistantSegment>.displayBlocks(): List<SegmentBlock> {
         while (end < size && this[end].kind == kind) {
             end++
         }
-        val run = this.subList(index, end)
-        blocks.add(
-            SegmentBlock.Run(
-                key = this[index].id,
-                kind = kind,
-                text = run.joinToString("") { it.text },
-                segments = run,
-            ),
-        )
+        val run = subList(index, end)
+        blocks +=
+            SegmentBlock.Run(key = run.first().id, kind = kind, text = run.joinToString("") { it.text }, segments = run)
         index = end
     }
     return blocks

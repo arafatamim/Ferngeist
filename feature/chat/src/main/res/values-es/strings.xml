@@ -176,4 +176,57 @@
     <string name="switcher_untitled">Sin título</string>
     <string name="switcher_current_desc">Sesión actual</string>
     <string name="chat_resumed_session">Reanudada</string>
+    <!-- Tool group summary parts, joined with " · " -->
+    <string name="chat_tool_summary_thought_twice">pensó dos veces</string>
+    <plurals name="chat_tool_summary_thought">
+        <item quantity="one">pensó %1$d vez</item>
+        <item quantity="many">pensó %1$d veces</item>
+        <item quantity="other">pensó %1$d veces</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute">
+        <item quantity="one">ejecutó %1$d comando</item>
+        <item quantity="many">ejecutó %1$d comandos</item>
+        <item quantity="other">ejecutó %1$d comandos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read">
+        <item quantity="one">leyó %1$d archivo</item>
+        <item quantity="many">leyó %1$d archivos</item>
+        <item quantity="other">leyó %1$d archivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit">
+        <item quantity="one">editó %1$d archivo</item>
+        <item quantity="many">editó %1$d archivos</item>
+        <item quantity="other">editó %1$d archivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete">
+        <item quantity="one">eliminó %1$d archivo</item>
+        <item quantity="many">eliminó %1$d archivos</item>
+        <item quantity="other">eliminó %1$d archivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move">
+        <item quantity="one">movió %1$d archivo</item>
+        <item quantity="many">movió %1$d archivos</item>
+        <item quantity="other">movió %1$d archivos</item>
+    </plurals>
+    <string name="chat_tool_summary_search_twice">buscó dos veces</string>
+    <plurals name="chat_tool_summary_search">
+        <item quantity="one">buscó %1$d vez</item>
+        <item quantity="many">buscó %1$d veces</item>
+        <item quantity="other">buscó %1$d veces</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch">
+        <item quantity="one">descargó %1$d URL</item>
+        <item quantity="many">descargó %1$d URL</item>
+        <item quantity="other">descargó %1$d URL</item>
+    </plurals>
+    <plurals name="chat_tool_summary_failed">
+        <item quantity="one">%1$d falló</item>
+        <item quantity="many">%1$d fallaron</item>
+        <item quantity="other">%1$d fallaron</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other">
+        <item quantity="one">usó %1$d herramienta</item>
+        <item quantity="many">usó %1$d herramientas</item>
+        <item quantity="other">usó %1$d herramientas</item>
+    </plurals>
 </resources>

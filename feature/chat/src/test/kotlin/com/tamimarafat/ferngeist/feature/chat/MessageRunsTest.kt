@@ -79,11 +79,11 @@ class MessageRunsTest {
 
         // Grouping must not reorder: collecting thoughts and prose in separate passes would hoist
         // the reasoning bubble above the prose that preceded it.
-        assertEquals(listOf("m0", "t0", "c0", "m1"), blocks.map { it.key })
+        assertEquals(listOf("m0", "t0", "m1"), blocks.map { it.key })
     }
 
     @Test
-    fun displayBlocksJoinRunsOfBothKindsAndLeaveToolCallsAlone() {
+    fun reasoningNextToToolCallsJoinsTheirGroup() {
         val segments =
             listOf(
                 segment("m0", AssistantSegment.Kind.MESSAGE, "one "),
@@ -93,11 +93,66 @@ class MessageRunsTest {
             )
         val blocks = segments.displayBlocks()
 
-        assertEquals(3, blocks.size)
+        assertEquals(2, blocks.size)
         assertEquals("one two", (blocks[0] as SegmentBlock.Run).text)
-        assertEquals(AssistantSegment.Kind.THOUGHT, (blocks[1] as SegmentBlock.Run).kind)
-        assertTrue(blocks[2] is SegmentBlock.Single)
+        val items = (blocks[1] as SegmentBlock.Group).items
+        assertEquals(AssistantSegment.Kind.THOUGHT, (items[0] as SegmentBlock.Run).kind)
+        assertTrue(items[1] is SegmentBlock.Single)
     }
+
+    @Test
+    fun reasoningAloneStaysAThoughtRun() {
+        val blocks = listOf(segment("t0", AssistantSegment.Kind.THOUGHT, "why")).displayBlocks()
+
+        assertEquals(AssistantSegment.Kind.THOUGHT, (blocks.single() as SegmentBlock.Run).kind)
+    }
+
+    @Test
+    fun thoughtChunksInsideAGroupStillJoinAndStillResolveAsThoughtRuns() {
+        val segments =
+            listOf(
+                segment("t0", AssistantSegment.Kind.THOUGHT, "let me "),
+                segment("t1", AssistantSegment.Kind.THOUGHT, "look"),
+            ) + calls("c0") + segment("t2", AssistantSegment.Kind.THOUGHT, "now edit") + calls("c1")
+        val group = segments.displayBlocks().single() as SegmentBlock.Group
+
+        assertEquals(listOf("t0", "c0", "t2", "c1"), group.items.map { it.key })
+        // The reasoning sheet resolves through thoughtRuns(); a thought in a group must stay reachable.
+        assertEquals(listOf("let me look", "now edit"), segments.thoughtRuns().map { it.text })
+    }
+
+    @Test
+    fun adjacentToolCallsFoldIntoOneGroupKeyedOnTheFirstCall() {
+        // The key must survive a new call, or the group's fold and reveal state reset mid-stream.
+        val first = calls("c0").displayBlocks().single() as SegmentBlock.Group
+        val third = calls("c0", "c1", "c2").displayBlocks().single() as SegmentBlock.Group
+
+        assertEquals(first.key, third.key)
+        assertEquals(listOf("c0", "c1", "c2"), third.items.map { it.key })
+    }
+
+    @Test
+    fun proseBetweenToolCallsSplitsThemIntoSeparateGroups() {
+        val segments =
+            calls("c0") +
+                segment("m0", AssistantSegment.Kind.MESSAGE, "now the next one") +
+                calls("c1", "c2")
+        val blocks = segments.displayBlocks()
+
+        assertEquals(listOf("c0", "m0", "c1"), blocks.map { it.key })
+        assertEquals(2, (blocks[2] as SegmentBlock.Group).items.size)
+    }
+
+    @Test
+    fun plansStayOnTheirOwnBetweenToolCalls() {
+        val segments = calls("c0") + segment("p0", AssistantSegment.Kind.PLAN, "") + calls("c1")
+        val blocks = segments.displayBlocks()
+
+        assertEquals(listOf("c0", "p0", "c1"), blocks.map { it.key })
+        assertTrue(blocks[1] is SegmentBlock.Single)
+    }
+
+    private fun calls(vararg ids: String) = ids.map { segment(it, AssistantSegment.Kind.TOOL_CALL, "") }
 
     private fun chunks(vararg texts: String) =
         texts.mapIndexed { index, text -> segment("s$index", AssistantSegment.Kind.MESSAGE, text) }

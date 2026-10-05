@@ -169,4 +169,47 @@
     <string name="switcher_untitled">শিরোনামহীন</string>
     <string name="switcher_current_desc">বর্তমান সেশন</string>
     <string name="chat_resumed_session">পুনরায় শুরু</string>
+    <!-- Tool group summary parts, joined with " · " -->
+    <string name="chat_tool_summary_thought_twice">দুবার ভেবেছে</string>
+    <plurals name="chat_tool_summary_thought">
+        <item quantity="one">%1$d বার ভেবেছে</item>
+        <item quantity="other">%1$d বার ভেবেছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute">
+        <item quantity="one">%1$dটি কমান্ড চালিয়েছে</item>
+        <item quantity="other">%1$dটি কমান্ড চালিয়েছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read">
+        <item quantity="one">%1$dটি ফাইল পড়েছে</item>
+        <item quantity="other">%1$dটি ফাইল পড়েছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit">
+        <item quantity="one">%1$dটি ফাইল সম্পাদনা করেছে</item>
+        <item quantity="other">%1$dটি ফাইল সম্পাদনা করেছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete">
+        <item quantity="one">%1$dটি ফাইল মুছেছে</item>
+        <item quantity="other">%1$dটি ফাইল মুছেছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move">
+        <item quantity="one">%1$dটি ফাইল সরিয়েছে</item>
+        <item quantity="other">%1$dটি ফাইল সরিয়েছে</item>
+    </plurals>
+    <string name="chat_tool_summary_search_twice">দুবার খুঁজেছে</string>
+    <plurals name="chat_tool_summary_search">
+        <item quantity="one">%1$d বার খুঁজেছে</item>
+        <item quantity="other">%1$d বার খুঁজেছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch">
+        <item quantity="one">%1$dটি URL আনা হয়েছে</item>
+        <item quantity="other">%1$dটি URL আনা হয়েছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_failed">
+        <item quantity="one">%1$dটি ব্যর্থ</item>
+        <item quantity="other">%1$dটি ব্যর্থ</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other">
+        <item quantity="one">%1$dটি টুল ব্যবহার করেছে</item>
+        <item quantity="other">%1$dটি টুল ব্যবহার করেছে</item>
+    </plurals>
 </resources>

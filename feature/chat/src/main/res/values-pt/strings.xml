@@ -176,4 +176,57 @@
     <string name="switcher_untitled">Sem título</string>
     <string name="switcher_current_desc">Sessão atual</string>
     <string name="chat_resumed_session">Retomada</string>
+    <!-- Tool group summary parts, joined with " · " -->
+    <string name="chat_tool_summary_thought_twice">pensou duas vezes</string>
+    <plurals name="chat_tool_summary_thought">
+        <item quantity="one">pensou %1$d vez</item>
+        <item quantity="many">pensou %1$d vezes</item>
+        <item quantity="other">pensou %1$d vezes</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute">
+        <item quantity="one">executou %1$d comando</item>
+        <item quantity="many">executou %1$d comandos</item>
+        <item quantity="other">executou %1$d comandos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read">
+        <item quantity="one">leu %1$d arquivo</item>
+        <item quantity="many">leu %1$d arquivos</item>
+        <item quantity="other">leu %1$d arquivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit">
+        <item quantity="one">editou %1$d arquivo</item>
+        <item quantity="many">editou %1$d arquivos</item>
+        <item quantity="other">editou %1$d arquivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete">
+        <item quantity="one">excluiu %1$d arquivo</item>
+        <item quantity="many">excluiu %1$d arquivos</item>
+        <item quantity="other">excluiu %1$d arquivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move">
+        <item quantity="one">moveu %1$d arquivo</item>
+        <item quantity="many">moveu %1$d arquivos</item>
+        <item quantity="other">moveu %1$d arquivos</item>
+    </plurals>
+    <string name="chat_tool_summary_search_twice">pesquisou duas vezes</string>
+    <plurals name="chat_tool_summary_search">
+        <item quantity="one">pesquisou %1$d vez</item>
+        <item quantity="many">pesquisou %1$d vezes</item>
+        <item quantity="other">pesquisou %1$d vezes</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch">
+        <item quantity="one">buscou %1$d URL</item>
+        <item quantity="many">buscou %1$d URLs</item>
+        <item quantity="other">buscou %1$d URLs</item>
+    </plurals>
+    <plurals name="chat_tool_summary_failed">
+        <item quantity="one">%1$d falhou</item>
+        <item quantity="many">%1$d falharam</item>
+        <item quantity="other">%1$d falharam</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other">
+        <item quantity="one">usou %1$d ferramenta</item>
+        <item quantity="many">usou %1$d ferramentas</item>
+        <item quantity="other">usou %1$d ferramentas</item>
+    </plurals>
 </resources>

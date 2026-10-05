@@ -25,9 +25,9 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -76,6 +76,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -107,7 +108,6 @@ import com.agentclientprotocol.model.PlanEntryPriority
 import com.agentclientprotocol.model.PlanEntryStatus
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
-import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
@@ -127,6 +127,7 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
@@ -199,7 +200,9 @@ fun MessageBubble(
                         Modifier
                             .fillMaxWidth()
                             .then(
-                                if (live) {
+                                // Paused while a tool group folds: chasing the fold's expressive spring
+                                // with this softer one made live folds feel unlike history's.
+                                if (live && reveals.foldsInFlight.intValue == 0) {
                                     Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
                                 } else {
                                     Modifier
@@ -425,7 +428,8 @@ private fun AssistantMessageContent(
         // and tool calls still reads the way the agent produced it. Grouping must not reorder:
         // collecting thoughts and prose in separate passes would hoist every reasoning bubble
         // above the prose that preceded it.
-        message.segments.displayBlocks().forEach { block ->
+        val blocks = message.segments.displayBlocks()
+        blocks.forEach { block ->
             if (!gateOpen) return@forEach
             key(block.key) {
                 when (block) {
@@ -438,7 +442,6 @@ private fun AssistantMessageContent(
                                 segment = block.segments.last(),
                                 message = message,
                                 onThoughtClick = onThoughtClick,
-                                onToolCallClick = onToolCallClick,
                             )
                         } else if (block.text.isNotBlank()) {
                             // Keyed by the run's first chunk: MarkdownStateStore caches the whole
@@ -455,12 +458,28 @@ private fun AssistantMessageContent(
                             gateOpen = settled
                         }
 
+                    is SegmentBlock.Group -> {
+                        ToolCallGroup(
+                            items = block.items,
+                            isStreaming = message.isStreaming,
+                            isTail = block === blocks.last(),
+                            liveSegmentId =
+                                message.segments
+                                    .lastOrNull()
+                                    ?.id
+                                    .takeIf { message.isStreaming },
+                            onToolCallClick = onToolCallClick,
+                            onThoughtClick = onThoughtClick,
+                            foldsInFlight = reveals.foldsInFlight,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     is SegmentBlock.Single ->
                         AssistantSegmentContent(
                             segment = block.segment,
                             message = message,
                             onThoughtClick = onThoughtClick,
-                            onToolCallClick = onToolCallClick,
                         )
                 }
             }
@@ -470,13 +489,75 @@ private fun AssistantMessageContent(
             RenderedMarkdown(text = message.content, document = markdownDocuments[message.id])
         }
 
-        if (showStreamingIndicator && message.segments.isEmpty() && message.content.isBlank()) {
+        TurnFooter(
+            message = message,
+            reveals = reveals,
+            showStreamingIndicator = showStreamingIndicator,
+            settled = gateOpen,
+            onToolCallClick = onToolCallClick,
+        )
+    }
+}
+
+/** What closes a turn: the waiting indicator while it is open, its edits once it has ended. */
+@Composable
+private fun ColumnScope.TurnFooter(
+    message: ChatMessage,
+    reveals: BubbleReveals,
+    showStreamingIndicator: Boolean,
+    settled: Boolean,
+    onToolCallClick: (String) -> Unit,
+) {
+    if (showStreamingIndicator) {
+        val empty = message.segments.isEmpty() && message.content.isBlank()
+        // Fade only: the live bubble's height spring already carries the size change.
+        AnimatedVisibility(
+            visible = empty || rememberTurnWaiting(message, reveals),
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
             StreamingIndicator(
                 streamKey = message.id,
                 modifier = Modifier.padding(vertical = 4.dp),
             )
         }
     }
+
+    // The turn's edits, once it has ended and everything above has finished revealing.
+    AnimatedVisibility(visible = !message.isStreaming && settled, enter = fadeIn(), exit = fadeOut()) {
+        TurnChanges(
+            segments = message.segments,
+            onToolCallClick = onToolCallClick,
+            foldsInFlight = reveals.foldsInFlight,
+        )
+    }
+}
+
+/**
+ * True while the turn is still open but nothing on screen shows it working: no text revealing, no
+ * tool running (its own spinner would), the last item not a thought (it carries its own
+ * indicator), and no update for [TURN_QUIET_MS]. Without it, a turn waiting on the model after a
+ * tool call reads as finished.
+ */
+@Composable
+private fun rememberTurnWaiting(
+    message: ChatMessage,
+    reveals: BubbleReveals,
+): Boolean {
+    val revealing by remember(message) { derivedStateOf { reveals.isRevealing } }
+    var quiet by remember { mutableStateOf(false) }
+    // Keyed on the message: every chunk and status change is a new instance, restarting the wait.
+    LaunchedEffect(message) {
+        quiet = false
+        delay(TURN_QUIET_MS)
+        quiet = true
+    }
+    val busy =
+        message.segments.lastOrNull()?.kind == AssistantSegment.Kind.THOUGHT ||
+            message.segments.any {
+                it.toolCall?.status == ToolCallStatus.PENDING || it.toolCall?.status == ToolCallStatus.IN_PROGRESS
+            }
+    return quiet && !revealing && !busy
 }
 
 /**
@@ -496,6 +577,9 @@ internal class BubbleReveals {
 
     val isRevealing: Boolean
         get() = runs.values.any { !it.isSettled }
+
+    /** Tool groups mid-fold. The bubble's height spring pauses so the fold's own spring is the only one. */
+    val foldsInFlight = mutableIntStateOf(0)
 }
 
 /**
@@ -510,10 +594,10 @@ private fun AssistantSegmentContent(
     segment: AssistantSegment,
     message: ChatMessage,
     onThoughtClick: (String) -> Unit,
-    onToolCallClick: (String) -> Unit,
 ) {
     when (segment.kind) {
-        AssistantSegment.Kind.MESSAGE -> Unit
+        // Both render through displayBlocks(): MESSAGE as runs, TOOL_CALL as groups.
+        AssistantSegment.Kind.MESSAGE, AssistantSegment.Kind.TOOL_CALL -> Unit
 
         AssistantSegment.Kind.THOUGHT -> {
             ThoughtBubble(
@@ -524,16 +608,6 @@ private fun AssistantSegmentContent(
                 onClick = { onThoughtClick(segment.id) },
             )
             Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        AssistantSegment.Kind.TOOL_CALL -> {
-            segment.toolCall?.let { toolCall ->
-                ToolCallCard(
-                    toolCall = toolCall,
-                    onClick = { onToolCallClick(segment.id) },
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
         }
 
         AssistantSegment.Kind.PLAN -> {
@@ -739,92 +813,14 @@ private fun PlanEntryItem(entry: PlanEntry) {
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ToolCallCard(
-    toolCall: ToolCallDisplay,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-            ),
-        shape = CardDefaults.shape,
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column {
-            ToolCallCardHeader(toolCall, onClick)
-            if (!toolCall.permissionOptions.isNullOrEmpty()) {
-                Text(
-                    text = stringResource(R.string.chat_awaiting_permission),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 56.dp, end = 12.dp, bottom = 12.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ToolCallCardHeader(
-    toolCall: ToolCallDisplay,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable { onClick() }
-                .semantics {
-                    contentDescription =
-                        toolCall.title + " " + (toolCall.status?.name?.lowercase() ?: "unknown")
-                }.padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ToolCallStatusIndicator(toolCall)
-        Spacer(modifier = Modifier.width(12.dp))
-        val defaultToolCallTitle = stringResource(R.string.chat_tool_call)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = toolCall.title.ifBlank { defaultToolCallTitle },
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-            )
-            toolCall.kind?.let { kind ->
-                Text(
-                    text = toolKindLabel(kind),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        DiffSummaryRow(toolCall.content)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = stringResource(R.string.chat_tool_call_details_desc),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
 private const val TOOL_STATUS_SETTLE_MS = 180
+private const val TURN_QUIET_MS = 600L
 private const val TOOL_STATUS_MIN_SCALE = 0.6f
 private const val PLAN_TICK_POP_MIN_SCALE = 0.4f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
+internal fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
     toolCall.status?.let { status ->
         val isTerminal = status == ToolCallStatus.COMPLETED || status == ToolCallStatus.FAILED
         val containerColor by animateColorAsState(
@@ -852,7 +848,7 @@ private fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
                     containerShape = MaterialTheme.shapes.medium,
                     containerColor = MaterialTheme.colorScheme.primary,
                     indicatorColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(24.dp),
                 )
 
             ToolCallStatus.COMPLETED, ToolCallStatus.FAILED -> {
@@ -860,7 +856,7 @@ private fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
                 Surface(
                     modifier =
                         Modifier
-                            .size(32.dp)
+                            .size(24.dp)
                             .graphicsLayer {
                                 scaleX = TOOL_STATUS_MIN_SCALE + (1f - TOOL_STATUS_MIN_SCALE) * settle
                                 scaleY = scaleX
@@ -871,7 +867,7 @@ private fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(16.dp),
                             imageVector = if (failed) Icons.Rounded.Error else toolKindIcon(toolCall.kind),
                             contentDescription =
                                 stringResource(
@@ -1179,91 +1175,5 @@ private fun PlanBubblePreview() {
                     ),
                 ),
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ToolCallCardPreview() {
-    val samples =
-        listOf(
-            ToolCallDisplay(
-                title = "list_files (READ · IN_PROGRESS)",
-                kind = ToolKind.READ,
-                status = ToolCallStatus.IN_PROGRESS,
-            ),
-            ToolCallDisplay(
-                title = "search_code (READ · COMPLETED)",
-                kind = ToolKind.READ,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(
-                title = "search (SEARCH · COMPLETED)",
-                kind = ToolKind.SEARCH,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(
-                title = "edit_file (EDIT · COMPLETED)",
-                kind = ToolKind.EDIT,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(
-                title = "delete_file (DELETE · FAILED)",
-                kind = ToolKind.DELETE,
-                status = ToolCallStatus.FAILED,
-            ),
-            ToolCallDisplay(
-                title = "move_file (MOVE · COMPLETED)",
-                kind = ToolKind.MOVE,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(
-                title = "run_tests (EXECUTE · COMPLETED)",
-                kind = ToolKind.EXECUTE,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(
-                title = "think (THINK · COMPLETED)",
-                kind = ToolKind.THINK,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(
-                title = "fetch_data (FETCH · FAILED)",
-                kind = ToolKind.FETCH,
-                status = ToolCallStatus.FAILED,
-            ),
-            ToolCallDisplay(
-                title = "switch (SWITCH_MODE · COMPLETED)",
-                kind = ToolKind.SWITCH_MODE,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(
-                title = "other_action (OTHER · COMPLETED)",
-                kind = ToolKind.OTHER,
-                status = ToolCallStatus.COMPLETED,
-            ),
-            ToolCallDisplay(title = "unknown (null · COMPLETED)", kind = null, status = ToolCallStatus.COMPLETED),
-            ToolCallDisplay(
-                title = "delete_file (DELETE · PENDING · permissions)",
-                kind = ToolKind.DELETE,
-                status = ToolCallStatus.PENDING,
-                permissionOptions =
-                    listOf(
-                        AcpPermissionOption(
-                            id = "1",
-                            label = "Allow",
-                            kind = "allow_once",
-                        ),
-                    ),
-            ),
-        )
-    MaterialTheme {
-        Surface(modifier = Modifier.padding(16.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                samples.forEach { toolCall ->
-                    ToolCallCard(toolCall = toolCall, onClick = {})
-                }
-            }
-        }
     }
 }

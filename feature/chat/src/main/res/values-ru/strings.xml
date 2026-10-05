@@ -180,4 +180,67 @@
     <string name="switcher_untitled">Без названия</string>
     <string name="switcher_current_desc">Текущий сеанс</string>
     <string name="chat_resumed_session">Возобновлена</string>
+    <!-- Tool group summary parts, joined with " · " -->
+    <string name="chat_tool_summary_thought_twice">думал дважды</string>
+    <plurals name="chat_tool_summary_thought">
+        <item quantity="one">думал %1$d раз</item>
+        <item quantity="few">думал %1$d раза</item>
+        <item quantity="many">думал %1$d раз</item>
+        <item quantity="other">думал %1$d раза</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute">
+        <item quantity="one">выполнил %1$d команду</item>
+        <item quantity="few">выполнил %1$d команды</item>
+        <item quantity="many">выполнил %1$d команд</item>
+        <item quantity="other">выполнил %1$d команды</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read">
+        <item quantity="one">прочитал %1$d файл</item>
+        <item quantity="few">прочитал %1$d файла</item>
+        <item quantity="many">прочитал %1$d файлов</item>
+        <item quantity="other">прочитал %1$d файла</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit">
+        <item quantity="one">изменил %1$d файл</item>
+        <item quantity="few">изменил %1$d файла</item>
+        <item quantity="many">изменил %1$d файлов</item>
+        <item quantity="other">изменил %1$d файла</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete">
+        <item quantity="one">удалил %1$d файл</item>
+        <item quantity="few">удалил %1$d файла</item>
+        <item quantity="many">удалил %1$d файлов</item>
+        <item quantity="other">удалил %1$d файла</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move">
+        <item quantity="one">переместил %1$d файл</item>
+        <item quantity="few">переместил %1$d файла</item>
+        <item quantity="many">переместил %1$d файлов</item>
+        <item quantity="other">переместил %1$d файла</item>
+    </plurals>
+    <string name="chat_tool_summary_search_twice">искал дважды</string>
+    <plurals name="chat_tool_summary_search">
+        <item quantity="one">искал %1$d раз</item>
+        <item quantity="few">искал %1$d раза</item>
+        <item quantity="many">искал %1$d раз</item>
+        <item quantity="other">искал %1$d раза</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch">
+        <item quantity="one">загрузил %1$d URL</item>
+        <item quantity="few">загрузил %1$d URL</item>
+        <item quantity="many">загрузил %1$d URL</item>
+        <item quantity="other">загрузил %1$d URL</item>
+    </plurals>
+    <plurals name="chat_tool_summary_failed">
+        <item quantity="one">%1$d с ошибкой</item>
+        <item quantity="few">%1$d с ошибкой</item>
+        <item quantity="many">%1$d с ошибкой</item>
+        <item quantity="other">%1$d с ошибкой</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other">
+        <item quantity="one">использовал %1$d инструмент</item>
+        <item quantity="few">использовал %1$d инструмента</item>
+        <item quantity="many">использовал %1$d инструментов</item>
+        <item quantity="other">использовал %1$d инструмента</item>
+    </plurals>
 </resources>

@@ -168,4 +168,37 @@
     <string name="switcher_untitled">未命名</string>
     <string name="switcher_current_desc">当前会话</string>
     <string name="chat_resumed_session">已恢复</string>
+    <!-- Tool group summary parts, joined with " · " -->
+    <string name="chat_tool_summary_thought_twice">思考了两次</string>
+    <plurals name="chat_tool_summary_thought">
+        <item quantity="other">思考了 %1$d 次</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute">
+        <item quantity="other">运行了 %1$d 条命令</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read">
+        <item quantity="other">读取了 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit">
+        <item quantity="other">编辑了 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete">
+        <item quantity="other">删除了 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move">
+        <item quantity="other">移动了 %1$d 个文件</item>
+    </plurals>
+    <string name="chat_tool_summary_search_twice">搜索了两次</string>
+    <plurals name="chat_tool_summary_search">
+        <item quantity="other">搜索了 %1$d 次</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch">
+        <item quantity="other">获取了 %1$d 个 URL</item>
+    </plurals>
+    <plurals name="chat_tool_summary_failed">
+        <item quantity="other">%1$d 个失败</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other">
+        <item quantity="other">使用了 %1$d 个工具</item>
+    </plurals>
 </resources>
