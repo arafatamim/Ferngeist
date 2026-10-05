@@ -407,6 +407,7 @@ object SessionMessageReducer {
                         kind = event.kind,
                         status = event.status,
                         rawInput = event.rawInput,
+                        locations = event.locations,
                     ),
             )
         val newSegments = message.segments.adding(newSegment)
@@ -437,6 +438,7 @@ object SessionMessageReducer {
                         kind = event.kind,
                         status = event.status,
                         rawInput = event.rawInput,
+                        locations = event.locations,
                     ),
                 )
             return updateToolCall(
@@ -466,6 +468,7 @@ object SessionMessageReducer {
                                 kind = event.kind ?: oldToolCall.kind,
                                 rawInput = event.rawInput ?: oldToolCall.rawInput,
                                 rawOutput = event.rawOutput ?: oldToolCall.rawOutput,
+                                locations = event.locations ?: oldToolCall.locations,
                             ),
                     )
             }

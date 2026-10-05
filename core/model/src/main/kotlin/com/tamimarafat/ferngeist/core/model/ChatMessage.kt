@@ -55,6 +55,8 @@ data class ToolCallDisplay(
     val rawOutput: JsonElement? = null,
     val permissionOptions: List<AcpPermissionOption>? = null,
     val permissionRequestId: String? = null,
+    /** Files the agent says the call touches (ACP `locations`), as paths. */
+    val locations: List<String>? = null,
 )
 
 data class AcpPermissionOption(

@@ -270,6 +270,7 @@ sealed interface AppSessionEvent {
         val kind: ToolKind?,
         val status: ToolCallStatus?,
         val rawInput: JsonElement? = null,
+        val locations: List<String>? = null,
     ) : AppSessionEvent
 
     data class ToolCallUpdated(
@@ -280,6 +281,7 @@ sealed interface AppSessionEvent {
         val content: List<ToolCallContent>? = null,
         val rawInput: JsonElement? = null,
         val rawOutput: JsonElement? = null,
+        val locations: List<String>? = null,
     ) : AppSessionEvent
 
     data class ToolPermissionRequested(

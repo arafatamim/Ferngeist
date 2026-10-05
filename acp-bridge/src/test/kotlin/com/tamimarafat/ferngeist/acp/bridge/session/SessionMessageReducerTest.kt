@@ -231,6 +231,41 @@ class SessionMessageReducerTest {
         )
     }
 
+    @Test
+    fun toolCallLocationsSurviveAnUpdateThatDoesNotRepeatThem() {
+        val started =
+            SessionMessageReducer.handleEvent(
+                emptyList(),
+                emptyMap(),
+                AppSessionEvent.ToolCallStarted(
+                    toolCallId = "tool_1",
+                    title = "Write",
+                    kind = ToolKind.EDIT,
+                    status = ToolCallStatus.IN_PROGRESS,
+                    locations = listOf("/repo/src/New.kt"),
+                ),
+            )
+        val updated =
+            SessionMessageReducer.handleEvent(
+                started.messages,
+                started.toolCallIndex,
+                AppSessionEvent.ToolCallUpdated(
+                    toolCallId = "tool_1",
+                    status = ToolCallStatus.COMPLETED,
+                    title = null,
+                    kind = null,
+                ),
+            )
+
+        val toolCall =
+            updated.messages
+                .single()
+                .segments
+                .single()
+                .toolCall
+        assertEquals(listOf("/repo/src/New.kt"), toolCall?.locations)
+    }
+
     /**
      * Cost guard, not a correctness test: merging each chunk into the trailing segment's text
      * copies the whole accumulated bubble, which is O(n^2) bytes over a replay. Appending a
