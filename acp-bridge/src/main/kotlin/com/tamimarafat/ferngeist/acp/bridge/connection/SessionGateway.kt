@@ -612,6 +612,18 @@ internal class SessionGateway(
         clearSessionState(sessionId, closeBridge = true)
     }
 
+    /**
+     * Ends a turn the gateway reports finished on an earlier connection. Its chunks
+     * reach the reattached bridge, but its terminal reply answered a request this
+     * connection never made, so nothing else would close it.
+     */
+    suspend fun endRemoteTurn(
+        sessionId: String,
+        stopReason: String,
+    ) {
+        sessionRegistry.getBridge(sessionId)?.emitEvent(AppSessionEvent.TurnComplete(stopReason))
+    }
+
     /** Clears all sessions (bridges, SDK sessions, pending permissions). */
     fun clearAllSessions() {
         clearAllSessionState(closeBridges = true)

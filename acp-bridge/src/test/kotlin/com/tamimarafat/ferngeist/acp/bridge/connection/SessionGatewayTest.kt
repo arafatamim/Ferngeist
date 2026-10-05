@@ -552,6 +552,22 @@ class SessionGatewayTest {
         }
 
     @Test
+    fun `a turn the gateway reports ended on an earlier connection stops streaming`() =
+        runTest {
+            val gateway = newGateway()
+            val bridge = installBridge(gateway, "s1")
+            // Chunks of a turn sent before the reconnect: the reply that would end it went to the old socket.
+            bridge.emitEvent(AppSessionEvent.AgentMessage("still going"))
+            assertTrue(bridge.snapshot.value.isStreaming)
+
+            gateway.endRemoteTurn("s1", "end_turn")
+
+            val snapshot = bridge.snapshot.value
+            assertFalse(snapshot.isStreaming)
+            assertTrue(snapshot.messages.none { it.isStreaming })
+        }
+
+    @Test
     fun `a transport reset keeps the bridge but hides it until it is attached again`() =
         runTest {
             val gateway = newGateway()

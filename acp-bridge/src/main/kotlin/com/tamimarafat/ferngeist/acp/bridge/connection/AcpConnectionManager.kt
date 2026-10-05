@@ -69,6 +69,7 @@ class AcpConnectionManager(
 
     init {
         orchestra.onReconnected = ::restoreSessions
+        orchestra.onRemoteTurnEnded = gateway::endRemoteTurn
     }
 
     /**

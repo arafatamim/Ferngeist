@@ -82,6 +82,7 @@ internal class AcpTransportClient(
     private val emitManagerEvent: suspend (AcpManagerEvent) -> Unit,
     // Runs after a background reconnect's handshake, before Connected is announced.
     private val onReconnected: suspend (AcpInitializeResult) -> Unit = {},
+    private val onRemoteTurnEnded: suspend (sessionId: String, stopReason: String) -> Unit = { _, _ -> },
 ) {
     private var reconnectJob: Job? = null
 
@@ -555,6 +556,7 @@ internal class AcpTransportClient(
                 )
             }
         }
+        protocol.onRemoteTurnEnded(onRemoteTurnEnded)
         protocol.start()
 
         sdkClient = Client(protocol)

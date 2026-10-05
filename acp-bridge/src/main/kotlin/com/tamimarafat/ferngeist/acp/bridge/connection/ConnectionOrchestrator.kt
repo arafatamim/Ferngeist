@@ -61,6 +61,9 @@ internal class ConnectionOrchestrator(
     /** Runs after a background reconnect's handshake, before Connected is announced. */
     var onReconnected: suspend (AcpInitializeResult) -> Unit = {}
 
+    /** Runs when the gateway reports a turn started over an earlier connection has ended. */
+    var onRemoteTurnEnded: suspend (sessionId: String, stopReason: String) -> Unit = { _, _ -> }
+
     /**
      * Lightweight wrapper around the SDK's raw transport (TCP or WebSocket).
      * Owns connection lifecycle, reconnection, and diagnostics reporting.
@@ -74,6 +77,7 @@ internal class ConnectionOrchestrator(
             updateConnectionState = { state -> _connectionState.value = state },
             emitManagerEvent = { event -> _events.emit(event) },
             onReconnected = { result -> onReconnected(result) },
+            onRemoteTurnEnded = { sessionId, stopReason -> onRemoteTurnEnded(sessionId, stopReason) },
         )
 
     val reconnectPending: StateFlow<Boolean> = transportClient.reconnectPending
