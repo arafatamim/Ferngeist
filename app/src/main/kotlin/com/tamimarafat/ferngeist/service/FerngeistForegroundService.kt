@@ -109,12 +109,13 @@ class FerngeistForegroundService : Service() {
     }
 
     /**
-     * Ensures startForeground() has been called exactly once, building the
-     * notification from the current aggregate state.
-     * Clears any lingering error notification from a previous run.
+     * Calls startForeground() for every start request, building the notification
+     * from the current aggregate state: each startForegroundService() must be
+     * answered, including the repeat requests the application sends while the
+     * service already runs. Clears any lingering error notification from a
+     * previous run.
      */
     private fun ensureForegroundStarted() {
-        if (isStarted) return
         isStarted = true
         val notification = buildNotification(chatConnectionHub.anyConnected.value)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

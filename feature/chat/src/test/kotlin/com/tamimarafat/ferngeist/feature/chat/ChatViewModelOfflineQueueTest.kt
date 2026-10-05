@@ -224,6 +224,29 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `a screen closed mid-turn does not keep a delivered prompt to send again`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            // The real sendMessage returns only when the agent's turn ends.
+            val facadeFactory = TestFacadeFactory { SuspendingSendFacade() }
+            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("once"))
+            advanceUntilIdle()
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+            // The echo lands while the turn is still running.
+            facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(echoMessage(content = "once")))
+            advanceUntilIdle()
+
+            viewModel.clearForTest()
+            advanceUntilIdle()
+
+            assertEquals(emptyList<String>(), store.restore("server_1", "session_1").map { it.text })
+        }
+
+    @Test
     fun `a prompt left by a torn-down new chat is not replayed into the next new chat`() =
         runTest {
             val store = InMemoryPendingPromptStore()

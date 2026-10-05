@@ -37,6 +37,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -182,6 +184,11 @@ class SessionGatewayTest {
      * `attachSession`'s real `session/load` path: an SDK session in the registry makes it
      * treat the session as already loaded and return early.
      */
+    private fun registeredBridge(
+        gateway: SessionGateway,
+        sessionId: String,
+    ): SessionBridge? = (gatewayField(gateway, "sessionRegistry") as AcpSessionRegistry).getBridge(sessionId)
+
     private fun installBridge(
         gateway: SessionGateway,
         sessionId: String,
@@ -423,7 +430,7 @@ class SessionGatewayTest {
             val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is CancellationException)
-            assertSame("cancellation must not tear the session down", bridge, gateway.getSession("s1"))
+            assertSame("cancellation must not tear the session down", bridge, registeredBridge(gateway, "s1"))
             assertEquals(SessionLoadState.HYDRATING, bridge.snapshot.value.loadState)
         }
 
@@ -437,7 +444,7 @@ class SessionGatewayTest {
             val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
-            assertNull("a real load failure must clear the session", gateway.getSession("s1"))
+            assertNull("a real load failure must clear the session", registeredBridge(gateway, "s1"))
         }
 
     @Test
@@ -455,7 +462,7 @@ class SessionGatewayTest {
             assertTrue(result.exceptionOrNull() is TimeoutCancellationException)
             assertNull(
                 "a timed-out load must not leave the session registered and HYDRATING",
-                gateway.getSession("s1"),
+                registeredBridge(gateway, "s1"),
             )
             assertEquals(SessionLoadState.FAILED, bridge.snapshot.value.loadState)
         }
@@ -501,7 +508,7 @@ class SessionGatewayTest {
                     "Disconnect it from the session list, then reopen.",
                 result.exceptionOrNull()?.message,
             )
-            assertNull(gateway.getSession("s1"))
+            assertNull(registeredBridge(gateway, "s1"))
         }
 
     /**
@@ -541,7 +548,47 @@ class SessionGatewayTest {
                 "the agent's own message must reach the caller: $message",
                 message?.contains("cwd does not exist") == true,
             )
-            assertNull(gateway.getSession("s1"))
+            assertNull(registeredBridge(gateway, "s1"))
+        }
+
+    @Test
+    fun `a transport reset keeps the bridge but hides it until it is attached again`() =
+        runTest {
+            val gateway = newGateway()
+            val bridge = installSession(gateway, "s1", FakeClientSession(listOf(emptyFlow())))
+
+            gateway.detachAllSessions()
+
+            assertNull("a detached session must not pass for a live one", gateway.getSession("s1"))
+            assertSame("the next attach reuses this bridge and its transcript", bridge, registeredBridge(gateway, "s1"))
+        }
+
+    @Test
+    fun `a turn interrupted by a transport reset ends and fails its live caller`() =
+        runTest {
+            val gateway = newGateway()
+            val collecting = CompletableDeferred<Unit>()
+            val bridge =
+                installSession(
+                    gateway,
+                    "s1",
+                    FakeClientSession(
+                        listOf(
+                            flow {
+                                collecting.complete(Unit)
+                                awaitCancellation()
+                            },
+                        ),
+                    ),
+                )
+
+            val send = async { runCatching { gateway.sendSessionMessage("s1", "hello") } }
+            collecting.await()
+            gateway.detachAllSessions()
+
+            // A CancellationException here would silently end the caller's coroutine.
+            assertTrue(send.await().exceptionOrNull() is AcpDisconnectedException)
+            assertEquals("the turn must end, or the bridge streams forever", listOf("end_turn"), turnReasons(bridge))
         }
 
     @Test

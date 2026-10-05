@@ -32,9 +32,12 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -171,7 +174,9 @@ internal class SessionGateway(
                         ?: bridgeFactory(sessionId).also {
                             sessionRegistry.storeBridge(sessionId, it)
                         }
-                bridge.beginHydration()
+                // Only a load replays history into the bridge. A resume replays nothing, so
+                // hydrating would wipe the transcript a reattached bridge still holds.
+                if (rpc == SessionAttachRpc.Load) bridge.beginHydration()
 
                 val parameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList())
                 val session =
@@ -192,7 +197,7 @@ internal class SessionGateway(
                     }
                 val registeredBridge = registerSession(session)
                 sessionCwds[sessionId] = cwd
-                registeredBridge.completeHydration()
+                if (rpc == SessionAttachRpc.Load) registeredBridge.completeHydration()
                 registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
                 registeredBridge
             }
@@ -347,7 +352,21 @@ internal class SessionGateway(
         // Awaiting merely joins the turn: if this caller is cancelled (the chat screen
         // closed) the cancellation propagates from here while the turn keeps running on
         // the bridge scope, emitting its own terminal event when the agent finishes.
-        bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks) }.await()
+        awaitTurn(bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks) })
+    }
+
+    /**
+     * Joins [turn]. A cancelled caller rethrows as-is. A live caller whose turn was
+     * cancelled under it (the transport dropped) gets a failure instead: a bare
+     * CancellationException would silently end the caller's own coroutine.
+     */
+    private suspend fun awaitTurn(turn: Deferred<Unit>) {
+        try {
+            turn.await()
+        } catch (error: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            throw AcpDisconnectedException().apply { initCause(error) }
+        }
     }
 
     /**
@@ -399,7 +418,12 @@ internal class SessionGateway(
                 }
             }
         } catch (error: CancellationException) {
-            // The bridge scope is being torn down; the session dies with it.
+            // Interrupted (transport reset) or torn down with the session. Either way the
+            // turn is over: without a terminal event the bridge would read as streaming
+            // forever, and the hub would never evict it or let it be closed.
+            withContext(NonCancellable) {
+                bridge.emitEvent(AppSessionEvent.TurnComplete(consumeTurnEndReason(sessionId)))
+            }
             throw error
         } catch (error: Exception) {
             // This turn runs on the bridge scope, so whoever started it may already
@@ -577,8 +601,11 @@ internal class SessionGateway(
         emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
     }
 
-    /** Returns an existing session as a [SessionPort], or null if not registered. */
-    fun getSession(sessionId: String): SessionPort? = sessionRegistry.getPort(sessionId)
+    /**
+     * Returns a session attached on the current connection, or null. A bridge kept
+     * across a transport reset is not one until it is attached again.
+     */
+    fun getSession(sessionId: String): SessionPort? = getLoadedSession(sessionId)
 
     /** Removes a session from the registry and closes its bridge + cancels its pending permissions. */
     fun removeSession(sessionId: String) {
@@ -588,6 +615,19 @@ internal class SessionGateway(
     /** Clears all sessions (bridges, SDK sessions, pending permissions). */
     fun clearAllSessions() {
         clearAllSessionState(closeBridges = true)
+    }
+
+    /**
+     * Drops every session from a connection that is going away but keeps their
+     * bridges, ending any turn in flight. The next [attachSession] of a session
+     * reuses its bridge, so the transcript and the bridge identity survive.
+     */
+    fun detachAllSessions() {
+        observerJobs.values.forEach { jobs -> jobs.forEach { it.cancel() } }
+        observerJobs.clear()
+        sessionCwds.clear()
+        sessionRegistry.detachAll()
+        permissionFlow.cancelAll()
     }
 
     // ---- RPC dispatch bridge ----

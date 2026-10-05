@@ -96,8 +96,16 @@ class AcpConnectionManager(
 
     val isConnected: Boolean get() = orchestra.isConnected
 
+    // A transport reset detaches sessions but keeps their bridges: the transcript a
+    // bridge holds is the only copy for an agent that reattaches with `session/resume`
+    // (no replay), and the hub's streaming read is bound to the bridge object.
     private fun resetConnectionState() {
         sessionsToRestore.putAll(gateway.registeredSessionCwds())
+        orchestra.resetAgentMetadata()
+        gateway.detachAllSessions()
+    }
+
+    private fun releaseConnectionState() {
         orchestra.resetAgentMetadata()
         gateway.clearAllSessions()
     }
@@ -166,7 +174,7 @@ class AcpConnectionManager(
     suspend fun authenticate(methodId: String): AcpAuthenticateResult = orchestra.authenticate(methodId)
 
     fun disconnect() {
-        orchestra.disconnect(resetState = ::resetConnectionState)
+        orchestra.disconnect(resetState = ::releaseConnectionState)
         sessionsToRestore.clear()
     }
 

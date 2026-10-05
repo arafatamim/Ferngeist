@@ -44,7 +44,6 @@ class FerngeistApplication : Application() {
     lateinit var appForegroundState: AppForegroundState
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var isServiceRunning = false
     private var serviceStopBackstop: Job? = null
 
     companion object {
@@ -73,23 +72,31 @@ class FerngeistApplication : Application() {
         // The stop backstop keys on anyActive, not anyConnected, and is cancelled when
         // the connection comes back. Keyed on a drop, it stopped the service 10s after
         // any blip even once reconnected — and a backgrounded app may not start it again.
+        //
+        // Starting is idempotent, so it is asked for on every change rather than tracked
+        // with a "running" flag: a start refused while backgrounded (Android 12+), or a
+        // service stopped from its notification, left that flag set and the service was
+        // never started again, so the process froze with its sockets open. Coming back to
+        // the foreground counts as a change, which is when a refused start can succeed.
         appScope.launch {
-            combine(chatConnectionHub.anyConnected, chatConnectionHub.anyActive, ::Pair)
-                .collect { (anyConnected, anyActive) ->
-                    if (anyConnected && !isServiceRunning) {
-                        isServiceRunning = true
-                        ForegroundServiceController.start(this@FerngeistApplication)
-                    }
-                    serviceStopBackstop?.cancel()
-                    if (!anyActive) {
-                        isServiceRunning = false
-                        serviceStopBackstop =
-                            appScope.launch {
-                                delay(SERVICE_STOP_BACKSTOP_MS)
-                                ForegroundServiceController.stop(this@FerngeistApplication)
-                            }
-                    }
+            combine(
+                chatConnectionHub.anyConnected,
+                chatConnectionHub.anyActive,
+                appForegroundState.isForeground,
+                ::Triple,
+            ).collect { (anyConnected, anyActive, _) ->
+                if (anyConnected) {
+                    ForegroundServiceController.start(this@FerngeistApplication)
                 }
+                serviceStopBackstop?.cancel()
+                if (!anyActive) {
+                    serviceStopBackstop =
+                        appScope.launch {
+                            delay(SERVICE_STOP_BACKSTOP_MS)
+                            ForegroundServiceController.stop(this@FerngeistApplication)
+                        }
+                }
+            }
         }
         // Main: the hub's chat table is confined to the main thread.
         appScope.launch(Dispatchers.Main) {

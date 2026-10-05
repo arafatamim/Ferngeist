@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -107,6 +108,11 @@ class SessionBridge(
      * no terminal event. A turn dies with its session, not with the screen.
      */
     internal fun startTurn(block: suspend () -> Unit): Deferred<Unit> = eventScope.async { block() }
+
+    /** Cancels the turn in flight, if any, keeping the bridge usable for the next attach. */
+    internal fun interruptTurn() {
+        eventScope.coroutineContext.cancelChildren()
+    }
 
     /** Marks the session as entering hydration (history replay) mode. */
     suspend fun beginHydration() {

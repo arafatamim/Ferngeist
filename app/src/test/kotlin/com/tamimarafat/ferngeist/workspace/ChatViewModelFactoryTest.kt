@@ -73,7 +73,8 @@ class ChatViewModelFactoryTest {
         assertEquals("/work/proj", viewModel.cwd)
         // Announcing screen presence is the view model's first act, so it proves both ids
         // arrived from the handle the factory built rather than the enclosing nav entry's.
-        verify { chatConnectionHub.chatScreenOpened("srv-1", "sess-1", "/work/proj") }
+        // Presence opens under the minted id, the same id the screen later closes under.
+        verify { chatConnectionHub.chatScreenOpened("srv-1", "real-42", "/work/proj") }
     }
 
     @Test

@@ -498,13 +498,12 @@ class AcpChatSessionFacade(
     }
 
     /**
-     * Tracks this chat's connection in the hub under [sessionId] with [isStreaming]
-     * read live; assigns the returned chat id to [_liveChatId].
+     * Tracks this chat's connection in the hub under [sessionId]; assigns the returned
+     * chat id to [_liveChatId]. Streaming is read through the manager, not a captured
+     * bridge: it must stay true for a chat whose screen closed mid-turn, and it must
+     * not be pinned to `false` by a re-registration while a turn runs.
      */
-    private suspend fun registerHubEntry(
-        sessionId: String,
-        isStreaming: () -> Boolean,
-    ) {
+    private suspend fun registerHubEntry(sessionId: String) {
         _liveChatId.value =
             hub.register(
                 serverId = serverId,
@@ -513,7 +512,13 @@ class AcpChatSessionFacade(
                 gatewaySourceId = connectionManager.currentConnectionConfig()?.gatewaySourceId.orEmpty(),
                 agentId = resolvedAgentId.orEmpty(),
                 isConnected = { connectionManager.isConnected },
-                isStreaming = isStreaming,
+                isStreaming = {
+                    connectionManager
+                        .getSession(activeSessionId)
+                        ?.snapshot
+                        ?.value
+                        ?.isStreaming == true
+                },
                 manager = connectionManager,
             )
     }
@@ -530,7 +535,7 @@ class AcpChatSessionFacade(
      */
     private suspend fun registerConnectingWithHub() {
         if (initialSessionId == NEW_SESSION_ARG) return
-        registerHubEntry(sessionId = activeSessionId, isStreaming = { false })
+        registerHubEntry(sessionId = activeSessionId)
     }
 
     /**
@@ -740,7 +745,7 @@ class AcpChatSessionFacade(
 
     /** Tracks this live session in the hub; synchronous so snapshots store under the entry immediately. */
     private suspend fun registerWithHub(bridge: SessionPort) {
-        registerHubEntry(sessionId = bridge.sessionId, isStreaming = { bridge.snapshot.value.isStreaming })
+        registerHubEntry(sessionId = bridge.sessionId)
     }
 
     /** Launches snapshot and model-selection collection coroutines. */

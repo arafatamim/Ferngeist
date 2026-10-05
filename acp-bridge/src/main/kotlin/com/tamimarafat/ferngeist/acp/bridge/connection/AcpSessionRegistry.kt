@@ -53,19 +53,29 @@ internal class AcpSessionRegistry(
         }
     }
 
-    @OptIn(UnstableApi::class)
+    /** Drops every SDK session and interrupts each bridge's turn, keeping the bridges. */
+    fun detachAll() {
+        sdkSessions.keys.toList().forEach { closeSdkSession(it) }
+        sessionBridges.values.forEach { it.interruptTurn() }
+    }
+
     fun clearSession(
         sessionId: String,
         closeBridge: Boolean,
     ) {
-        val sdkSession = sdkSessions.remove(sessionId)
-        if (sdkSession != null && shouldCloseSdkSession()) {
-            scope.launch { runCatching { sdkSession.close() } }
-        }
+        closeSdkSession(sessionId)
         if (closeBridge) {
             sessionBridges.remove(sessionId)?.close()
         } else {
             sessionBridges.remove(sessionId)
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun closeSdkSession(sessionId: String) {
+        val sdkSession = sdkSessions.remove(sessionId)
+        if (sdkSession != null && shouldCloseSdkSession()) {
+            scope.launch { runCatching { sdkSession.close() } }
         }
     }
 }

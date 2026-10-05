@@ -114,9 +114,13 @@ class ChatConnectionHub(
         val isStreaming: () -> Boolean,
         val manager: AcpConnectionManager?,
         var lastFocusedMs: Long,
-        val screenOpen: Boolean,
+        // Open screens, counted rather than flagged: a fast A→B→A switch builds the new
+        // A screen before the old one's teardown closes it, and a flag would end up closed.
+        val openScreens: Int,
         val cwd: String,
-    )
+    ) {
+        val screenOpen: Boolean get() = openScreens > 0
+    }
 
     private val entries = LinkedHashMap<String, Entry>()
     private val snapshots = LinkedHashMap<String, ChatSessionSnapshot>()
@@ -341,7 +345,7 @@ class ChatConnectionHub(
                 isStreaming = isStreaming,
                 manager = manager,
                 lastFocusedMs = clock(),
-                screenOpen = false,
+                openScreens = 0,
                 cwd = "",
             )
         republish()
@@ -389,7 +393,7 @@ class ChatConnectionHub(
         if (existing != null) {
             entries[chatId] =
                 existing.copy(
-                    screenOpen = true,
+                    openScreens = existing.openScreens + 1,
                     cwd = cwd,
                     lastFocusedMs = clock(),
                 )
@@ -406,7 +410,7 @@ class ChatConnectionHub(
                     isStreaming = { false },
                     manager = null,
                     lastFocusedMs = clock(),
-                    screenOpen = true,
+                    openScreens = 1,
                     cwd = cwd,
                 )
         }
@@ -426,10 +430,11 @@ class ChatConnectionHub(
     ) {
         val chatId = chatIdFor(serverId, sessionId)
         entries[chatId]?.let { existing ->
-            if (existing.manager == null) {
+            val openScreens = (existing.openScreens - 1).coerceAtLeast(0)
+            if (existing.manager == null && openScreens == 0) {
                 entries.remove(chatId)
             } else {
-                entries[chatId] = existing.copy(screenOpen = false)
+                entries[chatId] = existing.copy(openScreens = openScreens)
             }
             republish()
         }

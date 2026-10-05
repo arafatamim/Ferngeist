@@ -169,7 +169,7 @@ class ChatViewModel
                 sessionId = trackedSessionId,
                 cwd = cwd,
             )
-        private val markdownStateStore = MarkdownStateStore()
+        private val markdownStateStore = MarkdownStateStore.retainedFor(durableSessionId?.let { "$serverId/$it" })
         private val sessionCoordinator =
             ChatSessionCoordinator(
                 scope = viewModelScope,
@@ -392,8 +392,10 @@ class ChatViewModel
             // nav-arg sentinel here and is refused by the hub (it is a nav
             // placeholder, not a chat identity); its presence opens under the
             // real session id once the facade's liveChatId collector promotes it.
-            if (sessionId != NEW_SESSION_ARG) {
-                chatConnectionHub.chatScreenOpened(serverId, sessionId, cwd)
+            // trackedSessionId, not the nav arg: after process death a create-on-arrival
+            // chat restores its minted id here, and onCleared closes under that same id.
+            if (trackedSessionId != NEW_SESSION_ARG) {
+                chatConnectionHub.chatScreenOpened(serverId, trackedSessionId, cwd)
             }
             resolveSessionTitle()
             viewModelScope.launch {
@@ -652,6 +654,11 @@ class ChatViewModel
             // the message explaining why was dropped one emission ago.
             val loadErrorStands =
                 !failed && snapshot.loadState == ChatLoadState.HYDRATING && state.value.error != null
+            // The echo is the runtime's own record of the prompt, written just before the
+            // turn starts on the bridge's scope, which outlives this screen. From here the
+            // prompt is delivered, so its durable copy goes now rather than when the turn
+            // ends: a screen closed mid-turn would otherwise restore and re-send it.
+            if (echoKeys.isNotEmpty()) persistQueue()
             updateState {
                 copy(
                     messages = snapshot.messages,
@@ -682,17 +689,23 @@ class ChatViewModel
                         },
                 )
             }
-            // A title stored before this chat knew its first message can be the prompt
-            // itself, since that is what an agent synthesises for a session it has not
-            // named. Now that the transcript can tell, drop it and let a real name land.
+            dropTitleThatIsThePrompt()
+            applyServerTitle(snapshot.title)
+            fetchGeneratedTitleIfNeeded(snapshot)
+        }
+
+        /**
+         * A title stored before this chat knew its first message can be the prompt
+         * itself, since that is what an agent synthesises for a session it has not
+         * named. Now that the transcript can tell, drop it and let a real name land.
+         */
+        private fun dropTitleThatIsThePrompt() {
             val storedTitle = state.value.title
             val storedTitleIsThePrompt =
                 storedTitle != null && sessionTitleOrNull(storedTitle, firstMessage()) == null
             if (!titlePushedByAgent && storedTitleIsThePrompt) {
                 updateState { copy(title = null) }
             }
-            applyServerTitle(snapshot.title)
-            fetchGeneratedTitleIfNeeded(snapshot)
         }
 
         /**

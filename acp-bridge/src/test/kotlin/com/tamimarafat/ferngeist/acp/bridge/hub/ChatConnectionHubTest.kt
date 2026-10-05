@@ -357,6 +357,20 @@ class ChatConnectionHubTest {
         }
 
     @Test
+    fun `a screen torn down after its replacement opened leaves the chat on screen`() =
+        runTest {
+            val hub = newHub()
+            // A fast A to B to A switch: the new A screen opens before the old one is cleared.
+            hub.chatScreenOpened("srv", "s1", "/w")
+            hub.chatScreenOpened("srv", "s1", "/w")
+            hub.chatScreenClosed("srv", "s1")
+
+            assertEquals("s1", hub.onScreenChat.value?.sessionId)
+            hub.chatScreenClosed("srv", "s1")
+            assertNull(hub.onScreenChat.value)
+        }
+
+    @Test
     fun `chatScreenClosed on a chat that never attached a transport drops tracking`() =
         runTest {
             val hub = newHub()
