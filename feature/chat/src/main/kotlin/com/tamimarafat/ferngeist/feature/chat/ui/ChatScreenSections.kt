@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -734,16 +735,21 @@ private fun ChatMessageItem(
                 }.toPersistentMap()
             }
         }
-    MessageBubble(
-        message = message,
-        markdownDocuments = messageMarkdown,
-        showStreamingIndicator = message.isStreaming && message.id == renderedLastMessageId,
-        isLastMessage = message.id == renderedLastMessageId,
-        onThoughtClick = onThoughtClick,
-        onToolCallClick = onToolCallClick,
-        onStreamLayoutSettled = onStreamLayoutSettled,
-        onRetryMessage = onRetryMessage,
-    )
+    val isLast = message.id == renderedLastMessageId
+    CompositionLocalProvider(
+        LocalWorkingTreeChanges provides if (isLast) state.gitStatus?.changed.orEmpty() else emptyList(),
+    ) {
+        MessageBubble(
+            message = message,
+            markdownDocuments = messageMarkdown,
+            showStreamingIndicator = message.isStreaming && isLast,
+            isLastMessage = isLast,
+            onThoughtClick = onThoughtClick,
+            onToolCallClick = onToolCallClick,
+            onStreamLayoutSettled = onStreamLayoutSettled,
+            onRetryMessage = onRetryMessage,
+        )
+    }
 }
 
 private const val AGENT_TEXT_MAX_LINES = 3

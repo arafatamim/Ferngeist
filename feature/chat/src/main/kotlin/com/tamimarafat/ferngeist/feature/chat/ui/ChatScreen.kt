@@ -169,6 +169,8 @@ fun ChatScreen(
     LaunchedEffect(screenState.state.isStreaming) {
         if (wasStreaming && !screenState.state.isStreaming) {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            // The turn's files without reported diffs take git's counts, which must be current.
+            viewModel.dispatch(ChatIntent.RefreshGitStatus)
         }
         wasStreaming = screenState.state.isStreaming
     }

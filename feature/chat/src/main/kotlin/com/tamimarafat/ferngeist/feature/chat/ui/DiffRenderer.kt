@@ -530,33 +530,39 @@ internal fun DiffSummaryRow(
     if (!content.isNullOrEmpty()) {
         val diffs = content.filterIsInstance<ToolCallContent.Diff>()
         if (diffs.isNotEmpty()) {
-            val stats = remember(diffs) { diffs.computeDiffStats() }
-            val totalAdds = stats.additions
-            val totalDels = stats.deletions
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = modifier,
-            ) {
-                if (totalAdds > 0) {
-                    RollingCount(
-                        value = totalAdds,
-                        prefix = "+",
-                        color = LocalGitSemanticColors.current.added,
-                    )
-                }
-                DiffBlocks(
-                    additions = totalAdds,
-                    deletions = totalDels,
-                )
-                if (totalDels > 0) {
-                    RollingCount(
-                        value = totalDels,
-                        prefix = "-",
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
+            DiffStatsRow(remember(diffs) { diffs.computeDiffStats() }, modifier)
+        }
+    }
+}
+
+/** `+N ▪▪▪ −M` for counts from any source: a tool call's diffs, or git. */
+@Composable
+internal fun DiffStatsRow(
+    stats: DiffStats,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier,
+    ) {
+        if (stats.additions > 0) {
+            RollingCount(
+                value = stats.additions,
+                prefix = "+",
+                color = LocalGitSemanticColors.current.added,
+            )
+        }
+        DiffBlocks(
+            additions = stats.additions,
+            deletions = stats.deletions,
+        )
+        if (stats.deletions > 0) {
+            RollingCount(
+                value = stats.deletions,
+                prefix = "-",
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
