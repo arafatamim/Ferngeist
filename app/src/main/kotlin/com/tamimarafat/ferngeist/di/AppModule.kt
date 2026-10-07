@@ -26,8 +26,8 @@ import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetSessio
 import com.tamimarafat.ferngeist.data.database.repository.ServerRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.SessionRepositoryImpl
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.push.PushTokenRegistrar
-import com.tamimarafat.ferngeist.push.PushTokenStore
+import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
+import com.tamimarafat.ferngeist.push.PushRegistrar
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -189,18 +189,18 @@ object AppModule {
             gatewayRepository = gatewayRepository,
         )
 
-    /** Registers this device's FCM push token with every paired gateway. */
+    /** Keeps every paired gateway subscribed to this device's Web Push notifications. */
     @Provides
     @Singleton
-    fun providePushTokenRegistrar(
+    fun providePushRegistrar(
+        @ApplicationContext context: Context,
         gatewayRepository: GatewayRepository,
         gatewaySourceRepository: GatewaySourceRepository,
-        pushTokenStore: PushTokenStore,
-    ): PushTokenRegistrar =
-        PushTokenRegistrar(
+    ): PushRegistrar =
+        PushRegistrar(
             gatewayRepository = gatewayRepository,
             gatewaySourceRepository = gatewaySourceRepository,
-            pushTokenStore = pushTokenStore,
+            unifiedPush = AndroidUnifiedPushClient(context),
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
         )
 

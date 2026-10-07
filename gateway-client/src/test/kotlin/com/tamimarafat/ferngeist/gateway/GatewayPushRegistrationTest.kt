@@ -16,13 +16,19 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 /**
- * Integration tests for [GatewayRepositoryImpl.registerPushToken] exercising the real
+ * Integration tests for the Web Push calls of [GatewayRepositoryImpl] exercising the real
  * HTTP path: request building, JSON serialization of the body, and gateway proof-auth.
  * The transport is swapped for Ktor's [MockEngine] so the assertions run against the
  * exact bytes that would go on the wire.
  */
-class GatewayPushTokenRegistrationTest {
+class GatewayPushRegistrationTest {
     private val json = Json { ignoreUnknownKeys = true }
+
+    private val subscription =
+        GatewayPushSubscription(
+            endpoint = "https://fcm.googleapis.com/fcm/send/t",
+            keys = GatewayPushSubscription.Keys(p256dh = "pk", auth = "au"),
+        )
 
     private fun repoCapturing(
         status: HttpStatusCode = HttpStatusCode.OK,
@@ -38,90 +44,77 @@ class GatewayPushTokenRegistrationTest {
     }
 
     @Test
-    fun `registerPushToken posts token to the devices push-token endpoint`() =
+    fun `registerPushSubscription posts the subscription to the devices push-token endpoint`() =
         runTest {
             var captured: HttpRequestData? = null
             val repo = repoCapturing { captured = it }
 
-            repo.registerPushToken(
-                scheme = "https",
-                host = "gw.example.com",
-                gatewayCredential = "plain-token",
-                token = "fcm-abc",
-            )
+            repo.registerPushSubscription("https", "gw.example.com", "plain-token", subscription)
 
             val request = requireNotNull(captured)
             assertEquals(HttpMethod.Post, request.method)
-            assertEquals("https", request.url.protocol.name)
             assertEquals("gw.example.com", request.url.host)
             assertEquals("/v1/devices/push-token", request.url.encodedPath)
-
-            val body = (request.body as TextContent).text
             assertEquals(
-                json.encodeToString(
-                    GatewayPushTokenRequest.serializer(),
-                    GatewayPushTokenRequest("fcm-abc", "android"),
-                ),
-                body,
+                """{"subscription":{"endpoint":"https://fcm.googleapis.com/fcm/send/t","keys":{"p256dh":"pk","auth":"au"}},"platform":"webpush"}""",
+                (request.body as TextContent).text,
             )
-            assertEquals("""{"token":"fcm-abc","platform":"android"}""", body)
             assertEquals("Bearer plain-token", request.headers["Authorization"])
         }
 
     @Test
-    fun `registerPushToken forwards an explicit platform`() =
+    fun `getPushConfig reads the VAPID public key`() =
         runTest {
             var captured: HttpRequestData? = null
-            val repo = repoCapturing { captured = it }
+            val repo = repoCapturing(responseBody = """{"vapidPublicKey":"BPUB"}""") { captured = it }
 
-            repo.registerPushToken(
-                scheme = "http",
-                host = "10.0.0.2:8080",
-                gatewayCredential = "plain-token",
-                token = "fcm-abc",
-                platform = "android-tv",
-            )
+            val config = repo.getPushConfig("https", "gw.example.com", "plain-token")
 
-            val body = (requireNotNull(captured).body as TextContent).text
-            assertEquals("""{"token":"fcm-abc","platform":"android-tv"}""", body)
+            assertEquals("BPUB", config.vapidPublicKey)
+            val request = requireNotNull(captured)
+            assertEquals(HttpMethod.Get, request.method)
+            assertEquals("/v1/devices/push-config", request.url.encodedPath)
+            assertEquals("Bearer plain-token", request.headers["Authorization"])
         }
 
     @Test
-    fun `registerPushToken signs the request when the credential carries a proof key`() =
+    fun `push calls sign the request when the credential carries a proof key`() =
         runTest {
             val proof = GatewayProofAuth.generateProofKey()
             val credential = GatewayProofAuth.encodeStoredCredential("tok-1", proof.privateKey)
-            var captured: HttpRequestData? = null
-            val repo = repoCapturing { captured = it }
+            val captured = mutableListOf<HttpRequestData>()
+            val repo = repoCapturing(responseBody = """{"vapidPublicKey":"BPUB"}""") { captured += it }
 
-            repo.registerPushToken("http", "10.0.0.2:8080", credential, "fcm-xyz")
+            repo.getPushConfig("http", "10.0.0.2:8080", credential)
+            repo.registerPushSubscription("http", "10.0.0.2:8080", credential, subscription)
 
-            val request = requireNotNull(captured)
-            assertEquals("Bearer tok-1", request.headers["Authorization"])
-            assertTrue(request.headers["X-Ferngeist-Proof-Signature"].orEmpty().isNotBlank())
-            assertTrue(request.headers["X-Ferngeist-Proof-Timestamp"].orEmpty().isNotBlank())
-            assertTrue(request.headers["X-Ferngeist-Proof-Nonce"].orEmpty().isNotBlank())
+            captured.forEach { request ->
+                assertEquals("Bearer tok-1", request.headers["Authorization"])
+                assertTrue(request.headers["X-Ferngeist-Proof-Signature"].orEmpty().isNotBlank())
+                assertTrue(request.headers["X-Ferngeist-Proof-Timestamp"].orEmpty().isNotBlank())
+                assertTrue(request.headers["X-Ferngeist-Proof-Nonce"].orEmpty().isNotBlank())
+            }
+            assertEquals(2, captured.size)
         }
 
     @Test
-    fun `registerPushToken omits proof headers for a bare bearer credential`() =
+    fun `registerPushSubscription omits proof headers for a bare bearer credential`() =
         runTest {
             var captured: HttpRequestData? = null
             val repo = repoCapturing { captured = it }
 
-            repo.registerPushToken("https", "gw.example.com", "plain-token", "fcm-abc")
+            repo.registerPushSubscription("https", "gw.example.com", "plain-token", subscription)
 
-            val request = requireNotNull(captured)
-            assertNull(request.headers["X-Ferngeist-Proof-Signature"])
+            assertNull(requireNotNull(captured).headers["X-Ferngeist-Proof-Signature"])
         }
 
     @Test
-    fun `registerPushToken throws on a non-success response`() =
+    fun `registerPushSubscription throws on a non-success response`() =
         runTest {
             val repo = repoCapturing(status = HttpStatusCode.InternalServerError, responseBody = "boom")
 
             try {
-                repo.registerPushToken("https", "gw.example.com", "plain-token", "fcm-abc")
+                repo.registerPushSubscription("https", "gw.example.com", "plain-token", subscription)
                 fail("expected IllegalStateException")
             } catch (e: IllegalStateException) {
                 assertTrue(e.message.orEmpty().contains("push-token"))

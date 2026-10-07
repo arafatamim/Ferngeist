@@ -247,12 +247,26 @@ class GatewayRepositoryImpl
             )
         }
 
-        override suspend fun registerPushToken(
+        override suspend fun getPushConfig(
             scheme: String,
             host: String,
             gatewayCredential: String,
-            token: String,
-            platform: String,
+        ): GatewayPushConfig =
+            httpClient.getJson(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "devices",
+                "push-config",
+            )
+
+        override suspend fun registerPushSubscription(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            subscription: GatewayPushSubscription,
         ) {
             httpClient.postJsonUnit(
                 scheme = scheme,
@@ -261,7 +275,7 @@ class GatewayRepositoryImpl
                 "v1",
                 "devices",
                 "push-token",
-                body = json.encodeToString(GatewayPushTokenRequest(token = token, platform = platform)),
+                body = json.encodeToString(GatewayPushSubscriptionRequest(subscription)),
             )
         }
 

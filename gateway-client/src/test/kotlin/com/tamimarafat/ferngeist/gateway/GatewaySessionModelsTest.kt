@@ -187,12 +187,17 @@ class GatewaySessionModelsTest {
                     sessionId: String,
                 ) = TODO()
 
-                override suspend fun registerPushToken(
+                override suspend fun getPushConfig(
                     scheme: String,
                     host: String,
                     gatewayCredential: String,
-                    token: String,
-                    platform: String,
+                ): GatewayPushConfig = TODO()
+
+                override suspend fun registerPushSubscription(
+                    scheme: String,
+                    host: String,
+                    gatewayCredential: String,
+                    subscription: GatewayPushSubscription,
                 ) = TODO()
 
                 override suspend fun fetchWorkspaceFile(

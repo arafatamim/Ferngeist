@@ -8,18 +8,6 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// Firebase is optional. The google-services plugin only runs when a real
-// google-services.json is present, so the project still builds (and CI passes)
-// without one — FCM simply stays inert until the file is added. See docs/fcm-setup.md.
-if (file("google-services.json").exists()) {
-    apply(
-        plugin =
-            libs.plugins.google.services
-                .get()
-                .pluginId,
-    )
-}
-
 // Release version. Bump versionName and versionCode together when cutting a
 // release, and tag the release commit as "v$versionName" — the tag, these
 // literals, and the GitHub release asset names ("Ferngeist-$versionName.apk")
@@ -152,10 +140,11 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
     ksp(libs.hilt.compiler)
-    // Firebase Cloud Messaging (push notifications). Google-only: F-Droid's FOSS
-    // flavour omits this entirely, so no proprietary push code ships there.
-    "googleImplementation"(platform(libs.firebase.bom))
-    "googleImplementation"(libs.firebase.messaging)
+    // Push notifications over UnifiedPush (Web Push from each gateway). The google flavour
+    // also embeds the FCM distributor, so a phone without a UnifiedPush app (e.g. ntfy) still
+    // gets pushes through Play Services; the foss flavour needs such an app.
+    implementation(libs.unifiedpush.connector)
+    "googleImplementation"(libs.unifiedpush.embedded.fcm.distributor)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)

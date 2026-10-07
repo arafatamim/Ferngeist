@@ -92,12 +92,15 @@ Requires Android 10+ (`minSdk = 30`).
 
 The app has two product flavours under the `distribution` dimension:
 
-- `google` — the full build with Firebase Cloud Messaging push notifications and
-  ML Kit QR scanning. This is what ships to Google Play and GitHub releases.
-- `foss` — a Fully Open-Source Software build for F-Droid. It omits Firebase and
-  ML Kit entirely, so **push notifications don't work** and QR scanning is replaced
-  by the manual pairing-code field. The agent keeps running on your gateway; you
-  just don't get tapped when it finishes.
+- `google` — the full build with ML Kit QR scanning. This is what ships to Google
+  Play and GitHub releases. Push notifications arrive through a
+  [UnifiedPush](https://unifiedpush.org) distributor if you have one (e.g. ntfy),
+  otherwise through Google Play Services — no Firebase project involved.
+- `foss` — a Fully Open-Source Software build for F-Droid. It omits ML Kit, so QR
+  scanning is replaced by the manual pairing-code field, and it has no Play Services
+  fallback: **push notifications need a UnifiedPush distributor app** such as ntfy.
+  Without one the agent keeps running on your gateway; you just don't get tapped when
+  it finishes.
 
 ```powershell
 cmd /c gradlew.bat :app:assembleGoogleDebug

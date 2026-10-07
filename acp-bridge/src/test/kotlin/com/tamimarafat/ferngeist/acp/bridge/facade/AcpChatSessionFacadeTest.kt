@@ -196,12 +196,17 @@ class AcpChatSessionFacadeTest {
             sessionId: String,
         ) = Unit
 
-        override suspend fun registerPushToken(
+        override suspend fun getPushConfig(
             scheme: String,
             host: String,
             gatewayCredential: String,
-            token: String,
-            platform: String,
+        ): com.tamimarafat.ferngeist.gateway.GatewayPushConfig = TODO()
+
+        override suspend fun registerPushSubscription(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            subscription: com.tamimarafat.ferngeist.gateway.GatewayPushSubscription,
         ) = Unit
 
         override suspend fun fetchWorkspaceFile(

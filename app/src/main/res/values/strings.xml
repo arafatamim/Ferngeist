@@ -15,6 +15,9 @@
     <string name="notification_agent_fallback">agent</string>
     <string name="app_untitled_session">Untitled Session</string>
     <string name="push_channel_alerts_name">Alerts</string>
+    <!-- Push fallback text, for a push that carries no title or body. -->
+    <string name="push_default_title">Ferngeist</string>
+    <string name="push_default_body">You have a new notification</string>
     <string name="push_channel_alerts_description">Permission requests, errors, and crashes from your agent sessions that need your attention</string>
     <string name="push_channel_updates_name">Updates</string>
     <string name="push_channel_updates_description">Completed turns and routine updates from your agent sessions</string>

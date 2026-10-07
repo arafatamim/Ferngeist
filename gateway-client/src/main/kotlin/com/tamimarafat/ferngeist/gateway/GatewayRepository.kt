@@ -106,19 +106,25 @@ interface GatewaySessionRepository {
     )
 }
 
-/** Push token registration operations. */
+/** Web Push registration operations. */
 interface GatewayPushRepository {
-    /**
-     * Registers (or refreshes) this device's FCM push token with the gateway so it
-     * can deliver background notifications. The gateway identifies the device from
-     * the proof-authed [gatewayCredential]; the body carries only the token + platform.
-     */
-    suspend fun registerPushToken(
+    /** Fetches the gateway's VAPID public key, which a subscription must be created with. */
+    suspend fun getPushConfig(
         scheme: String,
         host: String,
         gatewayCredential: String,
-        token: String,
-        platform: String = "android",
+    ): GatewayPushConfig
+
+    /**
+     * Registers (or refreshes) this device's Web Push subscription with the gateway so it
+     * can deliver background notifications. The gateway identifies the device from the
+     * proof-authed [gatewayCredential]; the body carries only the subscription.
+     */
+    suspend fun registerPushSubscription(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        subscription: GatewayPushSubscription,
     )
 }
 

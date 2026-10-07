@@ -60,7 +60,6 @@ import androidx.navigation.navArgument
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.common.ui.isWindowCompact
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
 import com.tamimarafat.ferngeist.feature.serverlist.AddCustomAgentViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
@@ -76,6 +75,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayListScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.ServerListScreen
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
+import com.tamimarafat.ferngeist.push.PushRegistrar
 import com.tamimarafat.ferngeist.push.resolveChatDeepLink
 import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
 import com.tamimarafat.ferngeist.service.BatteryOptimizationHelper
@@ -96,6 +96,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import org.unifiedpush.android.connector.UnifiedPush
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -107,11 +108,6 @@ import kotlin.math.roundToInt
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    // Translates a push's gateway-owned server id to the local GatewaySource id when a
-    // system-displayed notification (app killed/background) is tapped; see FerngeistNavHost.
-    @Inject
-    lateinit var gatewaySourceRepository: GatewaySourceRepository
-
     @Inject
     lateinit var chatConnectionHub: ChatConnectionHub
 
@@ -119,6 +115,9 @@ class MainActivity : ComponentActivity() {
     // workspace cannot reach one through hiltViewModel().
     @Inject
     lateinit var chatViewModelFactory: ChatViewModelFactory
+
+    @Inject
+    lateinit var pushRegistrar: PushRegistrar
 
     // Latest launch/notification intent, exposed to the nav host so a notification
     // tap can deep-link to the active chat on both cold start and warm resume.
@@ -148,6 +147,12 @@ class MainActivity : ComponentActivity() {
         splashScreen.setKeepOnScreenCondition { coldStart && !homeScreenReady.value }
         super.onCreate(savedInstanceState)
         latestIntent.value = intent
+        // Pick the UnifiedPush distributor that delivers pushes: one the user installed
+        // (e.g. ntfy), else the embedded FCM one in the google build. Gateway subscriptions
+        // wait for it. Reuses the current choice without UI once one is made.
+        UnifiedPush.tryUseCurrentOrDefaultDistributor(this) { ok ->
+            if (ok) pushRegistrar.onDistributorReady()
+        }
         enableEdgeToEdge(
             statusBarStyle =
                 SystemBarStyle.auto(
@@ -169,9 +174,6 @@ class MainActivity : ComponentActivity() {
                     FerngeistNavHost(
                         latestIntent = latestIntent,
                         onIntentConsumed = { latestIntent.value = null },
-                        translateGatewayId = { gatewayId ->
-                            gatewaySourceRepository.getGatewayByGatewayId(gatewayId)?.id
-                        },
                         chatConnectionHub = chatConnectionHub,
                         chatViewModelFactory = chatViewModelFactory,
                         onHomeScreenReady = { homeScreenReady.value = it },
@@ -200,7 +202,6 @@ class MainActivity : ComponentActivity() {
 fun FerngeistNavHost(
     latestIntent: StateFlow<Intent?> = MutableStateFlow(null),
     onIntentConsumed: () -> Unit = {},
-    translateGatewayId: suspend (String) -> String? = { null },
     chatConnectionHub: ChatConnectionHub,
     chatViewModelFactory: ChatViewModelFactory,
     onHomeScreenReady: (Boolean) -> Unit = {},
@@ -225,7 +226,6 @@ fun FerngeistNavHost(
     DeepLinkEffect(
         navController,
         latestIntent,
-        translateGatewayId,
         onIntentConsumed,
         if (compact) null else workspace,
     )
@@ -358,16 +358,14 @@ private fun NavGraphBuilder.FerngeistDestinations(
 private fun DeepLinkEffect(
     navController: NavHostController,
     latestIntent: StateFlow<Intent?>,
-    translateGatewayId: suspend (String) -> String?,
     onIntentConsumed: () -> Unit,
     workspace: WorkspaceState?,
 ) {
-    // Handles both the connection/in-app notifications (our own extras) and a system-displayed
-    // FCM notification tapped while the app was killed/background (raw FCM data keys).
+    // Taps on our own notifications (connection and push) carry the target chat as extras.
     val pendingIntent by latestIntent.collectAsState()
     LaunchedEffect(pendingIntent) {
         val intent = pendingIntent ?: return@LaunchedEffect
-        val target = resolveChatDeepLink(intent, translateGatewayId)
+        val target = resolveChatDeepLink(intent)
         if (target != null) {
             if (workspace != null) {
                 // Nothing to do when the pinned chat is already the target: re-resuming it

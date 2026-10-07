@@ -182,14 +182,33 @@ data class GatewaySessionResumeResponse(
     @SerialName("attachToken") val attachToken: String,
 )
 
+/** What the client needs to subscribe for this gateway's pushes. */
 @Serializable
-data class GatewayPushTokenRequest(
-    val token: String,
-    // Always emit platform, even when it equals the default, so the gateway never
-    // has to infer it (connect request bodies force encodeDefaults = false locally).
+data class GatewayPushConfig(
+    // Base64url, uncompressed P-256 VAPID key the Web Push subscription must be created with.
+    @SerialName("vapidPublicKey") val vapidPublicKey: String,
+)
+
+/** A Web Push subscription, in the browser `PushSubscription.toJSON()` shape the gateway takes. */
+@Serializable
+data class GatewayPushSubscription(
+    val endpoint: String,
+    val keys: Keys,
+) {
+    @Serializable
+    data class Keys(
+        val p256dh: String,
+        val auth: String,
+    )
+}
+
+@Serializable
+data class GatewayPushSubscriptionRequest(
+    val subscription: GatewayPushSubscription,
+    // Always emit platform: it is the gateway's routing key for the delivery provider.
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
-    val platform: String = "android",
+    val platform: String = "webpush",
 )
 
 @Serializable

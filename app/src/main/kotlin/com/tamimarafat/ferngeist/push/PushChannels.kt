@@ -14,8 +14,7 @@ const val PUSH_CATEGORY_PROGRESS = "progress"
 
 /**
  * Heads-up channel for pushes that need attention (permission requests, errors, crashes).
- * Keeps the historical id so the manifest's `default_notification_channel_id` and any
- * already-created channel stay valid.
+ * Keeps the historical id so any already-created channel stays valid.
  */
 const val PUSH_CHANNEL_ALERTS_ID = "ferngeist_push"
 
@@ -28,8 +27,7 @@ const val PUSH_CHANNEL_UPDATES_ID = "ferngeist_push_updates"
 
 /**
  * Creates both push channels if they don't already exist. Safe to call repeatedly. Created
- * eagerly at app start (so system-tray FCM "notification" messages have a channel) and
- * defensively from [FerngeistMessagingService].
+ * eagerly at app start and defensively from [PushNotifier].
  */
 fun ensurePushChannels(context: Context) {
     val manager = context.getSystemService(NotificationManager::class.java)

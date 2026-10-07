@@ -6,8 +6,7 @@ import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.push.AppForegroundState
-import com.tamimarafat.ferngeist.push.FcmTokenBootstrap
-import com.tamimarafat.ferngeist.push.PushTokenRegistrar
+import com.tamimarafat.ferngeist.push.PushRegistrar
 import com.tamimarafat.ferngeist.push.ensurePushChannels
 import com.tamimarafat.ferngeist.service.ForegroundServiceController
 import dagger.hilt.android.HiltAndroidApp
@@ -38,7 +37,7 @@ class FerngeistApplication : Application() {
     lateinit var chatConnectionHub: ChatConnectionHub
 
     @Inject
-    lateinit var pushTokenRegistrar: PushTokenRegistrar
+    lateinit var pushRegistrar: PushRegistrar
 
     @Inject
     lateinit var appForegroundState: AppForegroundState
@@ -64,10 +63,10 @@ class FerngeistApplication : Application() {
         // session the user is already watching. Registered here on the main thread.
         appForegroundState.start()
 
-        // Push notifications: create the channel and start registering this device's
-        // FCM token with every paired gateway. No-op when Firebase isn't configured.
+        // Push notifications: create the channels and keep every paired gateway subscribed.
+        // Registration waits for a UnifiedPush distributor, which MainActivity picks.
         ensurePushChannels(this)
-        FcmTokenBootstrap.start(this, pushTokenRegistrar)
+        pushRegistrar.start()
 
         // The stop backstop keys on anyActive, not anyConnected, and is cancelled when
         // the connection comes back. Keyed on a drop, it stopped the service 10s after

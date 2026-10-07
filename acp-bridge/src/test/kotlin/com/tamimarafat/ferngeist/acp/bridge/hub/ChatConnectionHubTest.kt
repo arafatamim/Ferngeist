@@ -132,12 +132,17 @@ class ChatConnectionHubTest {
             closeFailure?.let { throw it }
         }
 
-        override suspend fun registerPushToken(
+        override suspend fun getPushConfig(
             scheme: String,
             host: String,
             gatewayCredential: String,
-            token: String,
-            platform: String,
+        ): com.tamimarafat.ferngeist.gateway.GatewayPushConfig = TODO()
+
+        override suspend fun registerPushSubscription(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            subscription: com.tamimarafat.ferngeist.gateway.GatewayPushSubscription,
         ) = TODO("unused in hub tests")
 
         override suspend fun fetchWorkspaceFile(
