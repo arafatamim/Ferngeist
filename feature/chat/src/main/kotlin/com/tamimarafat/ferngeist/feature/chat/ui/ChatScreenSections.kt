@@ -605,9 +605,16 @@ private fun ChatMessageList(
             // last index ahead of each measure, so that value names the bottom spacer for a frame
             // and pinned the current prompt on every chunk.
             val firstLaidOut = info.visibleItemsInfo.firstOrNull()?.index ?: 0
-            pinnedPromptRows(userRows, firstLaidOut) { row ->
-                info.visibleItemsInfo.firstOrNull { it.index == row }?.let { it.offset..it.offset + it.size }
-            }
+            pinnedPromptRows(
+                userRows,
+                firstLaidOut,
+                { row ->
+                    info.visibleItemsInfo.firstOrNull { it.index == row }?.let { it.offset..it.offset + it.size }
+                },
+                info.viewportEndOffset,
+                // The bottom spacer is the last row; its top marks the end of the final answer.
+                leadingRows + windowed.size,
+            )
         }
     }
     val messageRow: @Composable (ChatMessage) -> Unit = { message ->

@@ -38,16 +38,29 @@ import kotlinx.coroutines.launch
  * A prompt pins only once nothing of its bubble is left on screen, so the chip never covers the
  * real message. The displaced chip rides on the pinned prompt's row and so keeps moving up and off
  * the screen; once that row has left the laid-out items the displaced chip is long gone.
+ *
+ * No chip when the whole answer fits on screen: the prompt's bubble and the next turn (or the
+ * list end at [lastIndex]) are both laid out within a viewport ([viewportEnd]) of each other, so
+ * the chip would only duplicate what's already visible. Ends that are not laid out are not
+ * measurable, so those keep pinning.
  */
 internal fun pinnedPromptRows(
     userRows: List<Int>,
     firstVisibleIndex: Int,
     rowOf: (Int) -> IntRange?,
+    viewportEnd: Int,
+    lastIndex: Int,
 ): List<Int> {
     val pinned =
         userRows.lastOrNull { row ->
             row < firstVisibleIndex || rowOf(row)?.let { it.last <= 0 } == true
         } ?: return emptyList()
+    val anchor = userRows.firstOrNull { it > pinned } ?: lastIndex
+    val pinnedBottom = rowOf(pinned)?.last
+    val anchorTop = rowOf(anchor)?.first
+    if (pinnedBottom != null && anchorTop != null && anchorTop - pinnedBottom <= viewportEnd) {
+        return emptyList()
+    }
     val displaced = userRows.lastOrNull { it < pinned }?.takeIf { rowOf(pinned) != null }
     return listOfNotNull(displaced, pinned)
 }
