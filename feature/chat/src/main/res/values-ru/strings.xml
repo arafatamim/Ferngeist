@@ -243,4 +243,61 @@
         <item quantity="many">использовал %1$d инструментов</item>
         <item quantity="other">использовал %1$d инструмента</item>
     </plurals>
+    <!-- Present-continuous variants, shown while the group still has a running call -->
+    <string name="chat_tool_summary_thought_running_twice">думает дважды</string>
+    <plurals name="chat_tool_summary_thought_running">
+        <item quantity="one">думает %1$d раз</item>
+        <item quantity="few">думает %1$d раза</item>
+        <item quantity="many">думает %1$d раз</item>
+        <item quantity="other">думает %1$d раза</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute_running">
+        <item quantity="one">выполняет %1$d команду</item>
+        <item quantity="few">выполняет %1$d команды</item>
+        <item quantity="many">выполняет %1$d команд</item>
+        <item quantity="other">выполняет %1$d команды</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read_running">
+        <item quantity="one">читает %1$d файл</item>
+        <item quantity="few">читает %1$d файла</item>
+        <item quantity="many">читает %1$d файлов</item>
+        <item quantity="other">читает %1$d файла</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit_running">
+        <item quantity="one">изменяет %1$d файл</item>
+        <item quantity="few">изменяет %1$d файла</item>
+        <item quantity="many">изменяет %1$d файлов</item>
+        <item quantity="other">изменяет %1$d файла</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete_running">
+        <item quantity="one">удаляет %1$d файл</item>
+        <item quantity="few">удаляет %1$d файла</item>
+        <item quantity="many">удаляет %1$d файлов</item>
+        <item quantity="other">удаляет %1$d файла</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move_running">
+        <item quantity="one">перемещает %1$d файл</item>
+        <item quantity="few">перемещает %1$d файла</item>
+        <item quantity="many">перемещает %1$d файлов</item>
+        <item quantity="other">перемещает %1$d файла</item>
+    </plurals>
+    <string name="chat_tool_summary_search_running_twice">ищет дважды</string>
+    <plurals name="chat_tool_summary_search_running">
+        <item quantity="one">ищет %1$d раз</item>
+        <item quantity="few">ищет %1$d раза</item>
+        <item quantity="many">ищет %1$d раз</item>
+        <item quantity="other">ищет %1$d раза</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch_running">
+        <item quantity="one">загружает %1$d URL</item>
+        <item quantity="few">загружает %1$d URL</item>
+        <item quantity="many">загружает %1$d URL</item>
+        <item quantity="other">загружает %1$d URL</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other_running">
+        <item quantity="one">использует %1$d инструмент</item>
+        <item quantity="few">использует %1$d инструмента</item>
+        <item quantity="many">использует %1$d инструментов</item>
+        <item quantity="other">использует %1$d инструмента</item>
+    </plurals>
 </resources>

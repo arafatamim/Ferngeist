@@ -339,4 +339,43 @@
         <item quantity="one">used a tool</item>
         <item quantity="other">used %1$d tools</item>
     </plurals>
+    <!-- Present-continuous variants, shown while the group still has a running call -->
+    <string name="chat_tool_summary_thought_running_twice">thinking twice</string>
+    <plurals name="chat_tool_summary_thought_running">
+        <item quantity="one">thinking once</item>
+        <item quantity="other">thinking %1$d times</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute_running">
+        <item quantity="one">running a command</item>
+        <item quantity="other">running %1$d commands</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read_running">
+        <item quantity="one">reading a file</item>
+        <item quantity="other">reading %1$d files</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit_running">
+        <item quantity="one">editing a file</item>
+        <item quantity="other">editing %1$d files</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete_running">
+        <item quantity="one">deleting a file</item>
+        <item quantity="other">deleting %1$d files</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move_running">
+        <item quantity="one">moving a file</item>
+        <item quantity="other">moving %1$d files</item>
+    </plurals>
+    <string name="chat_tool_summary_search_running_twice">searching twice</string>
+    <plurals name="chat_tool_summary_search_running">
+        <item quantity="one">searching once</item>
+        <item quantity="other">searching %1$d times</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch_running">
+        <item quantity="one">fetching a URL</item>
+        <item quantity="other">fetching %1$d URLs</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other_running">
+        <item quantity="one">using a tool</item>
+        <item quantity="other">using %1$d tools</item>
+    </plurals>
 </resources>

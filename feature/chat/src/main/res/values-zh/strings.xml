@@ -201,4 +201,34 @@
     <plurals name="chat_tool_summary_other">
         <item quantity="other">使用了 %1$d 个工具</item>
     </plurals>
+    <!-- Present-continuous variants, shown while the group still has a running call -->
+    <string name="chat_tool_summary_thought_running_twice">正在思考两次</string>
+    <plurals name="chat_tool_summary_thought_running">
+        <item quantity="other">正在思考 %1$d 次</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute_running">
+        <item quantity="other">正在运行 %1$d 条命令</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read_running">
+        <item quantity="other">正在读取 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit_running">
+        <item quantity="other">正在编辑 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete_running">
+        <item quantity="other">正在删除 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move_running">
+        <item quantity="other">正在移动 %1$d 个文件</item>
+    </plurals>
+    <string name="chat_tool_summary_search_running_twice">正在搜索两次</string>
+    <plurals name="chat_tool_summary_search_running">
+        <item quantity="other">正在搜索 %1$d 次</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch_running">
+        <item quantity="other">正在获取 %1$d 个 URL</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other_running">
+        <item quantity="other">正在使用 %1$d 个工具</item>
+    </plurals>
 </resources>

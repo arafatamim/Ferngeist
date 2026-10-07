@@ -212,4 +212,43 @@
         <item quantity="one">%1$dটি টুল ব্যবহার করেছে</item>
         <item quantity="other">%1$dটি টুল ব্যবহার করেছে</item>
     </plurals>
+    <!-- Present-continuous variants, shown while the group still has a running call -->
+    <string name="chat_tool_summary_thought_running_twice">দুবার ভাবছে</string>
+    <plurals name="chat_tool_summary_thought_running">
+        <item quantity="one">%1$d বার ভাবছে</item>
+        <item quantity="other">%1$d বার ভাবছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute_running">
+        <item quantity="one">%1$dটি কমান্ড চালাচ্ছে</item>
+        <item quantity="other">%1$dটি কমান্ড চালাচ্ছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read_running">
+        <item quantity="one">%1$dটি ফাইল পড়ছে</item>
+        <item quantity="other">%1$dটি ফাইল পড়ছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit_running">
+        <item quantity="one">%1$dটি ফাইল সম্পাদনা করছে</item>
+        <item quantity="other">%1$dটি ফাইল সম্পাদনা করছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete_running">
+        <item quantity="one">%1$dটি ফাইল মুছছে</item>
+        <item quantity="other">%1$dটি ফাইল মুছছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move_running">
+        <item quantity="one">%1$dটি ফাইল সরাচ্ছে</item>
+        <item quantity="other">%1$dটি ফাইল সরাচ্ছে</item>
+    </plurals>
+    <string name="chat_tool_summary_search_running_twice">দুবার খুঁজছে</string>
+    <plurals name="chat_tool_summary_search_running">
+        <item quantity="one">%1$d বার খুঁজছে</item>
+        <item quantity="other">%1$d বার খুঁজছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch_running">
+        <item quantity="one">%1$dটি URL আনা হচ্ছে</item>
+        <item quantity="other">%1$dটি URL আনা হচ্ছে</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other_running">
+        <item quantity="one">%1$dটি টুল ব্যবহার করছে</item>
+        <item quantity="other">%1$dটি টুল ব্যবহার করছে</item>
+    </plurals>
 </resources>

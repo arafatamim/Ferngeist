@@ -229,4 +229,52 @@
         <item quantity="many">usou %1$d ferramentas</item>
         <item quantity="other">usou %1$d ferramentas</item>
     </plurals>
+    <!-- Present-continuous variants, shown while the group still has a running call -->
+    <string name="chat_tool_summary_thought_running_twice">pensando duas vezes</string>
+    <plurals name="chat_tool_summary_thought_running">
+        <item quantity="one">pensando %1$d vez</item>
+        <item quantity="many">pensando %1$d vezes</item>
+        <item quantity="other">pensando %1$d vezes</item>
+    </plurals>
+    <plurals name="chat_tool_summary_execute_running">
+        <item quantity="one">executando %1$d comando</item>
+        <item quantity="many">executando %1$d comandos</item>
+        <item quantity="other">executando %1$d comandos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_read_running">
+        <item quantity="one">lendo %1$d arquivo</item>
+        <item quantity="many">lendo %1$d arquivos</item>
+        <item quantity="other">lendo %1$d arquivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_edit_running">
+        <item quantity="one">editando %1$d arquivo</item>
+        <item quantity="many">editando %1$d arquivos</item>
+        <item quantity="other">editando %1$d arquivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_delete_running">
+        <item quantity="one">excluindo %1$d arquivo</item>
+        <item quantity="many">excluindo %1$d arquivos</item>
+        <item quantity="other">excluindo %1$d arquivos</item>
+    </plurals>
+    <plurals name="chat_tool_summary_move_running">
+        <item quantity="one">movendo %1$d arquivo</item>
+        <item quantity="many">movendo %1$d arquivos</item>
+        <item quantity="other">movendo %1$d arquivos</item>
+    </plurals>
+    <string name="chat_tool_summary_search_running_twice">pesquisando duas vezes</string>
+    <plurals name="chat_tool_summary_search_running">
+        <item quantity="one">pesquisando %1$d vez</item>
+        <item quantity="many">pesquisando %1$d vezes</item>
+        <item quantity="other">pesquisando %1$d vezes</item>
+    </plurals>
+    <plurals name="chat_tool_summary_fetch_running">
+        <item quantity="one">buscando %1$d URL</item>
+        <item quantity="many">buscando %1$d URLs</item>
+        <item quantity="other">buscando %1$d URLs</item>
+    </plurals>
+    <plurals name="chat_tool_summary_other_running">
+        <item quantity="one">usando %1$d ferramenta</item>
+        <item quantity="many">usando %1$d ferramentas</item>
+        <item quantity="other">usando %1$d ferramentas</item>
+    </plurals>
 </resources>

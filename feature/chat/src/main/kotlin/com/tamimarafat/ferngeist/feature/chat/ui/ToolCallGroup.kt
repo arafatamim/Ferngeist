@@ -103,18 +103,51 @@ internal enum class ToolVerb(
     @param:PluralsRes val phrase: Int,
     // "twice" has no plural category of its own, so verbs counted in times carry it separately.
     @param:StringRes val twice: Int? = null,
+    // Present-continuous variant while the group runs. Null keeps the past tense (FAILED already happened).
+    @param:PluralsRes val runningPhrase: Int? = null,
+    @param:StringRes val runningTwice: Int? = null,
 ) {
-    THOUGHT(R.plurals.chat_tool_summary_thought, R.string.chat_tool_summary_thought_twice),
-    EXECUTE(R.plurals.chat_tool_summary_execute),
-    READ(R.plurals.chat_tool_summary_read),
-    EDIT(R.plurals.chat_tool_summary_edit),
-    DELETE(R.plurals.chat_tool_summary_delete),
-    MOVE(R.plurals.chat_tool_summary_move),
-    SEARCH(R.plurals.chat_tool_summary_search, R.string.chat_tool_summary_search_twice),
-    FETCH(R.plurals.chat_tool_summary_fetch),
-    OTHER(R.plurals.chat_tool_summary_other),
+    THOUGHT(
+        R.plurals.chat_tool_summary_thought,
+        R.string.chat_tool_summary_thought_twice,
+        R.plurals.chat_tool_summary_thought_running,
+        R.string.chat_tool_summary_thought_running_twice,
+    ),
+    EXECUTE(R.plurals.chat_tool_summary_execute, runningPhrase = R.plurals.chat_tool_summary_execute_running),
+    READ(R.plurals.chat_tool_summary_read, runningPhrase = R.plurals.chat_tool_summary_read_running),
+    EDIT(R.plurals.chat_tool_summary_edit, runningPhrase = R.plurals.chat_tool_summary_edit_running),
+    DELETE(R.plurals.chat_tool_summary_delete, runningPhrase = R.plurals.chat_tool_summary_delete_running),
+    MOVE(R.plurals.chat_tool_summary_move, runningPhrase = R.plurals.chat_tool_summary_move_running),
+    SEARCH(
+        R.plurals.chat_tool_summary_search,
+        R.string.chat_tool_summary_search_twice,
+        R.plurals.chat_tool_summary_search_running,
+        R.string.chat_tool_summary_search_running_twice,
+    ),
+    FETCH(R.plurals.chat_tool_summary_fetch, runningPhrase = R.plurals.chat_tool_summary_fetch_running),
+    OTHER(R.plurals.chat_tool_summary_other, runningPhrase = R.plurals.chat_tool_summary_other_running),
     FAILED(R.plurals.chat_tool_summary_failed),
 }
+
+/** One resolved summary part: the phrase (or twice-string) for a verb and its count. */
+internal data class SummaryPart(
+    @PluralsRes val phrase: Int,
+    @StringRes val twice: Int?,
+    val count: Int,
+)
+
+/** Picks the past-tense or present-continuous phrase per verb. Pure, so JVM tests can cover it. */
+internal fun summaryParts(
+    verbs: List<ToolVerb>,
+    running: Boolean,
+): List<SummaryPart> =
+    toolVerbCounts(verbs).map { (verb, count) ->
+        if (running && verb.runningPhrase != null) {
+            SummaryPart(verb.runningPhrase, verb.runningTwice, count)
+        } else {
+            SummaryPart(verb.phrase, verb.twice, count)
+        }
+    }
 
 /** Items counted by verb, in the order each verb first appears, with FAILED always last. */
 internal fun toolVerbCounts(verbs: List<ToolVerb>): List<Pair<ToolVerb, Int>> =
@@ -215,7 +248,7 @@ internal fun ToolCallGroup(
 
     Column(modifier = modifier.fillMaxWidth()) {
         ToolGroupHeader(
-            summary = toolSummary(rows.map { it.call?.summaryVerb() ?: ToolVerb.THOUGHT }),
+            summary = toolSummary(rows.map { it.call?.summaryVerb() ?: ToolVerb.THOUGHT }, running),
             stats = rememberDiffStats(rows.flatMap { it.landedDiffs() }),
             open = open,
             active = isStreaming && running,
@@ -282,11 +315,14 @@ internal fun FoldBody(
 }
 
 @Composable
-private fun toolSummary(verbs: List<ToolVerb>): String =
-    toolVerbCounts(verbs)
-        .map { (verb, count) ->
-            verb.twice?.takeIf { count == 2 }?.let { stringResource(it) }
-                ?: pluralStringResource(verb.phrase, count, count)
+private fun toolSummary(
+    verbs: List<ToolVerb>,
+    running: Boolean,
+): String =
+    summaryParts(verbs, running)
+        .map { (phrase, twice, count) ->
+            twice?.takeIf { count == 2 }?.let { stringResource(it) }
+                ?: pluralStringResource(phrase, count, count)
         }.joinToString(" · ")
         .replaceFirstChar { it.titlecase() }
 
