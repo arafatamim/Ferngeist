@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
@@ -1446,6 +1448,9 @@ private fun ChatScreenDialogsHost(
     screenState: ChatScreenState,
     viewModel: ChatViewModel,
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val noBrowserMessage = stringResource(R.string.chat_elicitation_no_browser)
     ChatScreenDialogs(
         selectedConfigPickerOption = screenState.selectedConfigPickerOption,
         onConfigOptionSelected = { optionId, value ->
@@ -1470,6 +1475,26 @@ private fun ChatScreenDialogsHost(
         onPermissionDeny = { toolCallId ->
             viewModel.dispatch(ChatIntent.DenyPermission(toolCallId))
         },
+        activeElicitationRequest = screenState.state.pendingElicitations.firstOrNull(),
+        onElicitationSubmit = { key, values ->
+            viewModel.dispatch(ChatIntent.SubmitElicitation(key, values))
+        },
+        onElicitationDecline = { key ->
+            viewModel.dispatch(ChatIntent.DeclineElicitation(key))
+        },
+        onElicitationCancel = { key ->
+            viewModel.dispatch(ChatIntent.CancelElicitation(key))
+        },
+        onElicitationOpenUrl = { request ->
+            openElicitationUrl(
+                context = context,
+                request = request,
+                onConsented = { viewModel.dispatch(ChatIntent.SubmitElicitation(request.key, emptyMap())) },
+                onNoHandler = {
+                    coroutineScope.launch { screenState.snackbarHostState.showSnackbar(noBrowserMessage) }
+                },
+            )
+        },
         showConnectionStatusDialog = screenState.showConnectionStatusDialog.value,
         connectionState = screenState.state.connectionState,
         diagnostics = screenState.state.connectionDiagnostics,
@@ -1482,6 +1507,32 @@ private fun ChatScreenDialogsHost(
         onDismissCommands = { screenState.showCommandsDialog.value = false },
         onCommandClick = screenState.sendCommand,
     )
+}
+
+/**
+ * Opens a URL-mode elicitation in the system browser: the Open button is the
+ * explicit consent, so a successful launch also answers `accept` (empty content:
+ * the interaction itself happens out of band). When nothing handles the link,
+ * the sheet stays up and the failure surfaces as a snackbar instead.
+ *
+ * Only http(s) links open: the URL is agent-controlled, and other schemes
+ * (`intent:`, `tel:`, `file:`, ...) could dispatch arbitrary app components.
+ */
+private fun openElicitationUrl(
+    context: android.content.Context,
+    request: com.tamimarafat.ferngeist.core.model.ChatElicitationRequest.Url,
+    onConsented: () -> Unit,
+    onNoHandler: () -> Unit,
+) {
+    val uri = runCatching { request.url.toUri() }.getOrNull()
+    val scheme = uri?.scheme?.lowercase()
+    if (uri == null || (scheme != "http" && scheme != "https")) {
+        onNoHandler()
+        return
+    }
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+    val opened = runCatching { context.startActivity(intent) }.isSuccess
+    if (opened) onConsented() else onNoHandler()
 }
 
 private data class ComposerCallbacks(

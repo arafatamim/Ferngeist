@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import kotlinx.coroutines.flow.SharedFlow
@@ -50,4 +51,13 @@ interface SessionPort {
     )
 
     suspend fun denyPermission(toolCallId: String)
+
+    suspend fun submitElicitation(
+        key: String,
+        values: Map<String, ChatElicitationValue>,
+    )
+
+    suspend fun declineElicitation(key: String)
+
+    suspend fun cancelElicitation(key: String)
 }

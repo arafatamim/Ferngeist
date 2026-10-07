@@ -14,6 +14,8 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
+import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
@@ -670,6 +672,7 @@ class ChatViewModel
                     availableCommands = snapshot.availableCommands,
                     commandsAdvertised = snapshot.commandsAdvertised,
                     configOptions = snapshot.configOptions,
+                    pendingElicitations = snapshot.pendingElicitations,
                     isLoading =
                         !loadErrorStands &&
                             (
@@ -873,6 +876,9 @@ class ChatViewModel
                 is ChatIntent.LoadGitDiff,
                 is ChatIntent.MarkSwitcherHintSeen,
                 is ChatIntent.CloseSession,
+                is ChatIntent.SubmitElicitation,
+                is ChatIntent.DeclineElicitation,
+                is ChatIntent.CancelElicitation,
                 -> handleAuxIntent(intent)
             }
         }
@@ -883,6 +889,9 @@ class ChatViewModel
                 is ChatIntent.LoadGitDiff -> loadGitFileDiff(intent.path)
                 is ChatIntent.MarkSwitcherHintSeen -> switcherHintStore.markSeen()
                 is ChatIntent.CloseSession -> closeSwitcherSession(intent.serverId, intent.sessionId)
+                is ChatIntent.SubmitElicitation -> sessionCoordinator.submitElicitation(intent.key, intent.values)
+                is ChatIntent.DeclineElicitation -> sessionCoordinator.declineElicitation(intent.key)
+                is ChatIntent.CancelElicitation -> sessionCoordinator.cancelElicitation(intent.key)
                 else -> Unit
             }
         }
@@ -1226,6 +1235,7 @@ data class ChatState(
     val usage: UsageState? = null,
     val availableCommands: List<ChatCommand> = emptyList(),
     val commandsAdvertised: Boolean = false,
+    val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
     /**
@@ -1271,6 +1281,19 @@ sealed interface ChatIntent {
 
     data class DenyPermission(
         val toolCallId: String,
+    ) : ChatIntent
+
+    data class SubmitElicitation(
+        val key: String,
+        val values: Map<String, ChatElicitationValue>,
+    ) : ChatIntent
+
+    data class DeclineElicitation(
+        val key: String,
+    ) : ChatIntent
+
+    data class CancelElicitation(
+        val key: String,
     ) : ChatIntent
 
     data object RetryLoad : ChatIntent

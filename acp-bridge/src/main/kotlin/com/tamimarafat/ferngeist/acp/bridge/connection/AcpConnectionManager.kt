@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
  * - [ConnectionOrchestrator] (transport, auth, agent metadata, diagnostics)
  * - [SessionGateway] (session lifecycle, RPC dispatch, permission resolution)
  * - [PermissionFlow] (pending permission tracking)
+ * - [ElicitationFlow] (pending elicitation tracking)
  *
  * ## Session lifecycle
  * Sessions are created via [createSession] (fresh) or [attachSession] (restored).
@@ -45,10 +46,12 @@ class AcpConnectionManager(
 ) {
     private val orchestra = ConnectionOrchestrator(connectivityObserver, gatewayRepository, scope)
     private val permissionFlow = PermissionFlow()
+    private val elicitationFlow = ElicitationFlow()
     private val gateway =
         SessionGateway(
             orchestra = orchestra,
             permissionFlow = permissionFlow,
+            elicitationFlow = elicitationFlow,
             bridgeFactory = { sessionId -> SessionBridge(sessionId, this) },
             scope = scope,
         )
@@ -271,6 +274,28 @@ class AcpConnectionManager(
         toolCallId: String,
     ) {
         gateway.respondPermissionCancelled(sessionId, toolCallId)
+    }
+
+    suspend fun submitElicitation(
+        sessionId: String,
+        key: String,
+        values: Map<String, com.tamimarafat.ferngeist.core.model.ChatElicitationValue>,
+    ) {
+        gateway.submitElicitation(sessionId, key, values)
+    }
+
+    suspend fun declineElicitation(
+        sessionId: String,
+        key: String,
+    ) {
+        gateway.declineElicitation(sessionId, key)
+    }
+
+    suspend fun cancelElicitation(
+        sessionId: String,
+        key: String,
+    ) {
+        gateway.cancelElicitation(sessionId, key)
     }
 
     fun getSession(sessionId: String): SessionPort? = gateway.getSession(sessionId)

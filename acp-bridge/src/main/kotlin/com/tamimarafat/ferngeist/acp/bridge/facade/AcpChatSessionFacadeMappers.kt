@@ -72,6 +72,7 @@ internal fun mapSnapshot(snapshot: SessionSnapshot): ChatSessionSnapshot =
         commandsAdvertised = snapshot.commandsAdvertised,
         error = snapshot.error,
         title = snapshot.title,
+        pendingElicitations = snapshot.pendingElicitations,
         usage =
             snapshot.usage?.let {
                 UsageState(

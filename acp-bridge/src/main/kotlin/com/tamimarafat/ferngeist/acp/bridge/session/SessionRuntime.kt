@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -45,6 +46,7 @@ class SessionRuntime(
         val legacyModes: LegacyModeState? = null,
         val legacyModel: LegacyModelState? = null,
         val title: String? = null,
+        val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
     )
 
     private val mutex = Mutex()
@@ -255,8 +257,25 @@ class SessionRuntime(
             legacyModes = fields.legacyModes,
             legacyModel = fields.legacyModel,
             title = fields.title,
+            pendingElicitations = applyElicitationUpdate(current.pendingElicitations, event),
         )
     }
+
+    /**
+     * First-class pending list, unlike permissions which ride on tool-call segments:
+     * elicitations may arrive without any tool call, so there is no segment to attach to.
+     */
+    private fun applyElicitationUpdate(
+        current: List<ChatElicitationRequest>,
+        event: AppSessionEvent,
+    ): List<ChatElicitationRequest> =
+        when (event) {
+            is AppSessionEvent.ElicitationRequested ->
+                (current.filterNot { it.key == event.request.key } + event.request)
+            is AppSessionEvent.ElicitationResolved ->
+                current.filterNot { it.key == event.key }
+            else -> current
+        }
 
     /**
      * Applies side-field updates (usage, commands, config options, legacy mode/model)
@@ -405,6 +424,7 @@ class SessionRuntime(
                 configOptions = effectiveConfigOptions,
                 title = live.title,
                 error = error,
+                pendingElicitations = live.pendingElicitations,
             )
         debug {
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +
@@ -429,6 +449,9 @@ class SessionRuntime(
             is AppSessionEvent.ToolCallUpdated -> "toolCallId=${event.toolCallId} status=${event.status}"
             is AppSessionEvent.ToolPermissionRequested -> "toolCallId=${event.toolCallId} options=${event.options.size}"
             is AppSessionEvent.ToolPermissionResolved -> "toolCallId=${event.toolCallId}"
+            is AppSessionEvent.ElicitationRequested -> "elicitationKey=${event.request.key}"
+            is AppSessionEvent.ElicitationResolved -> "elicitationKey=${event.key}"
+            is AppSessionEvent.ElicitationCompleted -> "elicitationId=${event.elicitationId}"
             is AppSessionEvent.ModeChanged -> "modeId=${event.modeId}"
             is AppSessionEvent.ModesUpdated -> "modes=${event.modes.size} current=${event.currentModeId}"
             is AppSessionEvent.ConfigOptionsUpdated -> "configOptions=${event.options.size}"

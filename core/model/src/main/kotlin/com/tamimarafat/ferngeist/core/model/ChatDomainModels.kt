@@ -181,6 +181,7 @@ data class ChatSessionSnapshot(
     val error: String?,
     val usage: UsageState?,
     val title: String? = null,
+    val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
 )
 
 data class UsageState(
@@ -299,6 +300,18 @@ interface ChatSessionFacade {
 
     /** Denies a pending permission prompt. */
     suspend fun denyPermission(toolCallId: String)
+
+    /** Submits a pending elicitation form with the user's answers. */
+    suspend fun submitElicitation(
+        key: String,
+        values: Map<String, ChatElicitationValue>,
+    )
+
+    /** Declines a pending elicitation: the user explicitly refused the request. */
+    suspend fun declineElicitation(key: String)
+
+    /** Cancels a pending elicitation: dismissed without choosing. */
+    suspend fun cancelElicitation(key: String)
 
     /** Tears down the active bridge and clears observers. */
     fun clear()

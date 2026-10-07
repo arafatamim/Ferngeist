@@ -208,6 +208,14 @@
     <string name="chat_deny">Deny</string>
     <string name="chat_cancel">Cancel</string>
     <string name="chat_submit">Submit</string>
+    <string name="chat_elicitation_title">Input requested</string>
+    <string name="chat_elicitation_decline">Decline</string>
+    <string name="chat_elicitation_url_title">External link</string>
+    <string name="chat_elicitation_url_body">The agent wants to open this link outside the app. Check the address before continuing.</string>
+    <string name="chat_elicitation_open_link">Open link</string>
+    <string name="chat_elicitation_required">Required</string>
+    <string name="chat_elicitation_invalid">Check this field</string>
+    <string name="chat_elicitation_no_browser">No app can open this link</string>
     <string name="chat_no_tool_output">No tool output.</string>
     <string name="chat_git_status_title">Git status</string>
     <string name="chat_git_no_branch">(no branch)</string>
@@ -379,3 +387,4 @@
         <item quantity="other">using %1$d tools</item>
     </plurals>
 </resources>
+

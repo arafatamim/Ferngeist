@@ -164,6 +164,21 @@ open class FakeChatSessionFacade : ChatSessionFacade {
         // No-op: permissions not exercised in this fake.
     }
 
+    override suspend fun submitElicitation(
+        key: String,
+        values: Map<String, com.tamimarafat.ferngeist.core.model.ChatElicitationValue>,
+    ) {
+        // No-op: elicitations not exercised in this fake.
+    }
+
+    override suspend fun declineElicitation(key: String) {
+        // No-op: elicitations not exercised in this fake.
+    }
+
+    override suspend fun cancelElicitation(key: String) {
+        // No-op: elicitations not exercised in this fake.
+    }
+
     override fun clear() {
         // No-op: no bridge state to tear down in this fake.
     }

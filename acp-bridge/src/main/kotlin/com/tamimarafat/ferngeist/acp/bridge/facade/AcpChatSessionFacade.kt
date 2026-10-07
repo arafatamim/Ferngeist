@@ -449,6 +449,33 @@ class AcpChatSessionFacade(
             }
     }
 
+    /** Forwards an elicitation submit to the active bridge. */
+    override suspend fun submitElicitation(
+        key: String,
+        values: Map<String, com.tamimarafat.ferngeist.core.model.ChatElicitationValue>,
+    ) {
+        runCatching { sessionBridge?.submitElicitation(key, values) }
+            .onFailure {
+                _operationError.emit(ChatOperationError("Failed to submit elicitation", false))
+            }
+    }
+
+    /** Forwards an elicitation decline to the active bridge. */
+    override suspend fun declineElicitation(key: String) {
+        runCatching { sessionBridge?.declineElicitation(key) }
+            .onFailure {
+                _operationError.emit(ChatOperationError("Failed to decline elicitation", false))
+            }
+    }
+
+    /** Forwards an elicitation cancel to the active bridge. */
+    override suspend fun cancelElicitation(key: String) {
+        runCatching { sessionBridge?.cancelElicitation(key) }
+            .onFailure {
+                _operationError.emit(ChatOperationError("Failed to dismiss elicitation", false))
+            }
+    }
+
     /** Tears down bridge observers, cancels recovery, and invalidates the active bridge. */
     override fun clear() {
         cancelBridgeRecovery()

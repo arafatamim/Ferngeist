@@ -230,6 +230,21 @@ class SessionBridge(
         connectionManager?.respondPermissionCancelled(sessionId, toolCallId)
     }
 
+    override suspend fun submitElicitation(
+        key: String,
+        values: Map<String, com.tamimarafat.ferngeist.core.model.ChatElicitationValue>,
+    ) {
+        connectionManager?.submitElicitation(sessionId, key, values)
+    }
+
+    override suspend fun declineElicitation(key: String) {
+        connectionManager?.declineElicitation(sessionId, key)
+    }
+
+    override suspend fun cancelElicitation(key: String) {
+        connectionManager?.cancelElicitation(sessionId, key)
+    }
+
     /**
      * Cancels the internal [eventScope], killing in-flight prompt turns. Called by
      * [AcpSessionRegistry] when the session is removed. After close, nothing more is
@@ -293,6 +308,18 @@ sealed interface AppSessionEvent {
 
     data class ToolPermissionResolved(
         val toolCallId: String,
+    ) : AppSessionEvent
+
+    data class ElicitationRequested(
+        val request: com.tamimarafat.ferngeist.core.model.ChatElicitationRequest,
+    ) : AppSessionEvent
+
+    data class ElicitationResolved(
+        val key: String,
+    ) : AppSessionEvent
+
+    data class ElicitationCompleted(
+        val elicitationId: String,
     ) : AppSessionEvent
 
     data class ModeChanged(

@@ -66,6 +66,14 @@
     <string name="chat_deny">拒绝</string>
     <string name="chat_cancel">取消</string>
     <string name="chat_submit">提交</string>
+    <string name="chat_elicitation_title">需要输入</string>
+    <string name="chat_elicitation_decline">拒绝</string>
+    <string name="chat_elicitation_url_title">外部链接</string>
+    <string name="chat_elicitation_url_body">代理想在应用外部打开此链接。请先确认地址再继续。</string>
+    <string name="chat_elicitation_open_link">打开链接</string>
+    <string name="chat_elicitation_required">必填</string>
+    <string name="chat_elicitation_invalid">请检查此字段</string>
+    <string name="chat_elicitation_no_browser">没有可打开此链接的应用</string>
     <string name="chat_no_tool_output">无工具输出。</string>
     <string name="chat_picker_empty">暂无项目</string>
     <string name="chat_picker_no_results">没有匹配的项目。</string>
@@ -232,3 +240,4 @@
         <item quantity="other">正在使用 %1$d 个工具</item>
     </plurals>
 </resources>
+

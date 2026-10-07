@@ -91,6 +91,8 @@ import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
+import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.core.model.UsageState
@@ -292,6 +294,11 @@ internal fun ChatScreenDialogs(
     activePermissionRequest: PendingPermissionRequest?,
     onPermissionGrant: (String, String) -> Unit,
     onPermissionDeny: (String) -> Unit,
+    activeElicitationRequest: ChatElicitationRequest?,
+    onElicitationSubmit: (String, Map<String, ChatElicitationValue>) -> Unit,
+    onElicitationDecline: (String) -> Unit,
+    onElicitationCancel: (String) -> Unit,
+    onElicitationOpenUrl: (ChatElicitationRequest.Url) -> Unit,
     showConnectionStatusDialog: Boolean,
     connectionState: ChatConnectionState,
     diagnostics: ChatConnectionDiagnostics,
@@ -335,6 +342,16 @@ internal fun ChatScreenDialogs(
             request = request,
             onGrantPermission = onPermissionGrant,
             onDenyPermission = onPermissionDeny,
+        )
+    }
+
+    activeElicitationRequest?.let { request ->
+        ElicitationSheet(
+            request = request,
+            onSubmit = onElicitationSubmit,
+            onDecline = onElicitationDecline,
+            onCancel = onElicitationCancel,
+            onOpenUrl = onElicitationOpenUrl,
         )
     }
 

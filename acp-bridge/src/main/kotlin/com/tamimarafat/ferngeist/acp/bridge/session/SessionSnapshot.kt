@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 
 enum class SessionLoadState {
@@ -30,4 +31,5 @@ data class SessionSnapshot(
     val configOptions: List<SessionConfigOption> = emptyList(),
     val error: String? = null,
     val title: String? = null,
+    val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
 )

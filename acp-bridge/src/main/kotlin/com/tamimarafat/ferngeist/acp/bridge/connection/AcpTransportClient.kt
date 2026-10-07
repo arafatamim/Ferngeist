@@ -6,6 +6,9 @@ import com.agentclientprotocol.client.ClientInfo
 import com.agentclientprotocol.model.AuthMethod
 import com.agentclientprotocol.model.AuthMethodId
 import com.agentclientprotocol.model.ClientCapabilities
+import com.agentclientprotocol.model.ElicitationCapabilities
+import com.agentclientprotocol.model.ElicitationFormCapabilities
+import com.agentclientprotocol.model.ElicitationUrlCapabilities
 import com.agentclientprotocol.model.FileSystemCapability
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.protocol.Protocol
@@ -173,6 +176,15 @@ internal class AcpTransportClient(
                                             FileSystemCapability(
                                                 readTextFile = false,
                                                 writeTextFile = false,
+                                            ),
+                                        // Form mode renders a schema-driven sheet; URL mode shows
+                                        // the target host and opens it in the system browser
+                                        // on consent. Both must be explicit per spec: an
+                                        // omitted mode reads as unsupported to the agent.
+                                        elicitation =
+                                            ElicitationCapabilities(
+                                                form = ElicitationFormCapabilities(),
+                                                url = ElicitationUrlCapabilities(),
                                             ),
                                     ),
                                 implementation = Implementation(name = "Ferngeist", version = "1.0.0"),

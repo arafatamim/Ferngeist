@@ -178,6 +178,24 @@ internal class ChatSessionCoordinator(
         facade.denyPermission(toolCallId)
     }
 
+    /** Submits a pending elicitation form with the user's answers. */
+    suspend fun submitElicitation(
+        key: String,
+        values: Map<String, com.tamimarafat.ferngeist.core.model.ChatElicitationValue>,
+    ) {
+        facade.submitElicitation(key, values)
+    }
+
+    /** Declines a pending elicitation. */
+    suspend fun declineElicitation(key: String) {
+        facade.declineElicitation(key)
+    }
+
+    /** Cancels a pending elicitation. */
+    suspend fun cancelElicitation(key: String) {
+        facade.cancelElicitation(key)
+    }
+
     /** Clears any facade resources when the view model is torn down. */
     fun clear() {
         facade.clear()

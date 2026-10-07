@@ -7,7 +7,10 @@ import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.common.ClientSessionOperations
 import com.agentclientprotocol.common.Event
 import com.agentclientprotocol.common.SessionCreationParameters
+import com.agentclientprotocol.model.CompleteElicitationNotification
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.CreateElicitationRequest
+import com.agentclientprotocol.model.CreateElicitationResponse
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.PermissionOptionId
@@ -57,12 +60,14 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * @property orchestra provides the SDK client, diagnostics store, and auth helpers
  * @property permissionFlow tracks pending permission completable-futures
+ * @property elicitationFlow tracks pending elicitation completable-futures
  * @property bridgeFactory creates a [SessionBridge] wired to the thin shell
  */
 @Suppress("TooManyFunctions")
 internal class SessionGateway(
     private val orchestra: ConnectionOrchestrator,
     private val permissionFlow: PermissionFlow,
+    private val elicitationFlow: ElicitationFlow,
     private val bridgeFactory: (String) -> SessionBridge,
     private val scope: CoroutineScope,
 ) {
@@ -485,6 +490,9 @@ internal class SessionGateway(
         permissionFlow.cancelPendingForSession(sessionId).forEach { toolCallId ->
             emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
         }
+        elicitationFlow.cancelPendingForSession(sessionId).forEach { key ->
+            emitToBridge(sessionId, AppSessionEvent.ElicitationResolved(key))
+        }
     }
 
     /**
@@ -602,6 +610,44 @@ internal class SessionGateway(
     }
 
     /**
+     * Accepts a pending elicitation with the user's answers, resolving the
+     * agent's `elicitation/create` call. Emits an [ElicitationResolved] event so
+     * the UI dismisses the sheet.
+     */
+    @OptIn(UnstableApi::class)
+    suspend fun submitElicitation(
+        sessionId: String,
+        key: String,
+        values: Map<String, com.tamimarafat.ferngeist.core.model.ChatElicitationValue>,
+    ) {
+        val pending = elicitationFlow.takePending(key) ?: return
+        pending.deferred.complete(ElicitationMappers.toAcceptResponse(values))
+        emitToBridge(sessionId, AppSessionEvent.ElicitationResolved(key))
+    }
+
+    /** Declines a pending elicitation: the user explicitly refused the request. */
+    @OptIn(UnstableApi::class)
+    suspend fun declineElicitation(
+        sessionId: String,
+        key: String,
+    ) {
+        val pending = elicitationFlow.takePending(key) ?: return
+        pending.deferred.complete(ElicitationMappers.declineResponse())
+        emitToBridge(sessionId, AppSessionEvent.ElicitationResolved(key))
+    }
+
+    /** Cancels a pending elicitation: dismissed without choosing. */
+    @OptIn(UnstableApi::class)
+    suspend fun cancelElicitation(
+        sessionId: String,
+        key: String,
+    ) {
+        val pending = elicitationFlow.takePending(key) ?: return
+        pending.deferred.complete(ElicitationMappers.cancelResponse())
+        emitToBridge(sessionId, AppSessionEvent.ElicitationResolved(key))
+    }
+
+    /**
      * Returns a session attached on the current connection, or null. A bridge kept
      * across a transport reset is not one until it is attached again.
      */
@@ -640,6 +686,7 @@ internal class SessionGateway(
         sessionCwds.clear()
         sessionRegistry.detachAll()
         permissionFlow.cancelAll()
+        elicitationFlow.cancelAll()
     }
 
     // ---- RPC dispatch bridge ----
@@ -656,11 +703,16 @@ internal class SessionGateway(
         BridgeSessionOperations(sessionId)
 
     /**
-     * Handles two SDK callbacks per session:
+     * Handles three SDK callbacks per session:
      * - [requestPermissions]: creates a deferred outcome, maps SDK permission
      *   options to Ferngeist types, emits a [ToolPermissionRequested] event,
      *   and suspends until the user responds via [respondPermissionSelected]
      *   or [respondPermissionCancelled].
+     * - [createElicitation]: maps the SDK elicitation to a [ChatElicitationRequest],
+     *   emits an [ElicitationRequested] event, and suspends until the user
+     *   responds via [submitElicitation], [declineElicitation] or [cancelElicitation].
+     *   Request-scoped elicitations answer `cancel` at once — they have no
+     *   session UI to attach to.
      * - [notify]: maps each [SessionUpdate] to an [AppSessionEvent] and
      *   forwards it to the bridge.
      */
@@ -701,6 +753,48 @@ internal class SessionGateway(
 
             val outcome = deferred.await()
             return RequestPermissionResponse(outcome = outcome)
+        }
+
+        @OptIn(UnstableApi::class)
+        override suspend fun createElicitation(request: CreateElicitationRequest) = runElicitation(request)
+
+        /**
+         * Runs one `elicitation/create` round-trip: unsupported scopes answer `cancel`
+         * at once, renderable ones suspend on a deferred the UI resolves. Split from
+         * the override so its signature fits the line budget.
+         */
+        @OptIn(UnstableApi::class)
+        private suspend fun runElicitation(request: CreateElicitationRequest): CreateElicitationResponse {
+            val domain = ElicitationMappers.toDomain(sessionId, request)
+            if (domain == null) {
+                orchestra.diagnosticsStore.appendError(
+                    "elicitation/create",
+                    "Unsupported elicitation (request-scoped); answered cancel.",
+                )
+                return ElicitationMappers.cancelResponse()
+            }
+            val deferred = CompletableDeferred<CreateElicitationResponse>()
+            elicitationFlow.addPending(key = domain.key, sessionId = sessionId, deferred = deferred)
+            emitToBridge(sessionId, AppSessionEvent.ElicitationRequested(domain))
+            try {
+                return deferred.await()
+            } catch (error: CancellationException) {
+                // Transport reset or teardown cancelled the deferred without resolving it
+                // (detach/clear paths cancel rather than answer). Clear the sheet so it
+                // cannot linger past the connection that owned it, then rethrow so the
+                // agent sees the elicitation die with its turn.
+                elicitationFlow.takePending(domain.key)
+                emitToBridge(sessionId, AppSessionEvent.ElicitationResolved(domain.key))
+                throw error
+            }
+        }
+
+        @OptIn(UnstableApi::class)
+        override suspend fun completeElicitation(notification: CompleteElicitationNotification) {
+            emitToBridge(
+                sessionId,
+                AppSessionEvent.ElicitationCompleted(notification.elicitationId.value),
+            )
         }
 
         override suspend fun notify(
@@ -936,6 +1030,7 @@ internal class SessionGateway(
         sessionCwds.clear()
         sessionRegistry.clearAll(closeBridges = closeBridges)
         permissionFlow.cancelAll()
+        elicitationFlow.cancelAll()
     }
 
     /**
@@ -950,6 +1045,7 @@ internal class SessionGateway(
         sessionCwds.remove(sessionId)
         sessionRegistry.clearSession(sessionId, closeBridge = closeBridge)
         permissionFlow.cancelForSession(sessionId)
+        elicitationFlow.cancelForSession(sessionId)
     }
 
     /**

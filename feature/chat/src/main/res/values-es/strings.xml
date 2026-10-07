@@ -60,6 +60,14 @@
     <string name="chat_deny">Denegar</string>
     <string name="chat_cancel">Cancelar</string>
     <string name="chat_submit">Enviar</string>
+    <string name="chat_elicitation_title">Datos solicitados</string>
+    <string name="chat_elicitation_decline">Rechazar</string>
+    <string name="chat_elicitation_url_title">Enlace externo</string>
+    <string name="chat_elicitation_url_body">El agente quiere abrir este enlace fuera de la aplicación. Revisa la dirección antes de continuar.</string>
+    <string name="chat_elicitation_open_link">Abrir enlace</string>
+    <string name="chat_elicitation_required">Obligatorio</string>
+    <string name="chat_elicitation_invalid">Revisa este campo</string>
+    <string name="chat_elicitation_no_browser">Ninguna aplicación puede abrir este enlace</string>
     <string name="chat_no_tool_output">No hay salida de la herramienta.</string>
     <string name="chat_picker_empty">No hay elementos.</string>
     <string name="chat_picker_no_results">No hay elementos coincidentes.</string>
@@ -278,3 +286,4 @@
         <item quantity="other">usando %1$d herramientas</item>
     </plurals>
 </resources>
+

@@ -147,6 +147,7 @@ class SessionGatewayTest {
         return SessionGateway(
             orchestra = orchestra,
             permissionFlow = PermissionFlow(),
+            elicitationFlow = ElicitationFlow(),
             bridgeFactory = { sessionId -> SessionBridge(sessionId, null) },
             scope = scope,
         )
