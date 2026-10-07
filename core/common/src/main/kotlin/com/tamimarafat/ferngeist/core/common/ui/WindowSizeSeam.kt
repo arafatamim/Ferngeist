@@ -25,6 +25,21 @@ fun isWindowCompact(): Boolean {
 }
 
 /**
+ * True when the window is shorter than 480dp. Short windows (phone landscape,
+ * split-screen, small foldables) get the collapsed single-row app bar everywhere:
+ * the expanded flexible header costs too much vertical real estate to ever pay off.
+ * Mirrors [isWindowCompact], which gates on width for the same reason.
+ */
+@OptIn(ExperimentalMediaQueryApi::class)
+@Composable
+fun isWindowShort(): Boolean {
+    val shorterThanMedium by derivedMediaQuery {
+        windowHeight < 480.dp
+    }
+    return shorterThanMedium
+}
+
+/**
  * Keeps single-column form content readable on wide windows. Large screens should not
  * stretch text fields and full-width buttons across the whole window.
  *

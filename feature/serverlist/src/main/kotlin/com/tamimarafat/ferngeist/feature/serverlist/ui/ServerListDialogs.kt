@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
+import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
 import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
 import com.tamimarafat.ferngeist.feature.serverlist.PendingLaunchConsent
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -117,7 +118,8 @@ internal fun ServerListTopBar(
         TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         )
-    if (collapsed) {
+    // Short windows never earn the large header back: vertical space is the constraint.
+    if (collapsed || isWindowShort()) {
         TopAppBar(
             title = { Text(text = stringResource(R.string.serverlist_title)) },
             actions = {

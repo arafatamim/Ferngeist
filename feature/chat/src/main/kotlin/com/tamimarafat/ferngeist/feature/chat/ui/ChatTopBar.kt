@@ -39,6 +39,7 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TooltipState
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TwoRowsTopAppBar
@@ -56,6 +57,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
+import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
 import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -97,6 +99,59 @@ internal fun ChatTopBar(
     sharedBoundsEnabled: Boolean = true,
 ) {
     val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
+
+    // Short windows stay on the collapsed single-row bar: the two-row expanded
+    // header never pays for its height when vertical space is the constraint.
+    if (isWindowShort()) {
+        Box(
+            modifier = Modifier.chatTopBarGradient(1f),
+        ) {
+            TopAppBar(
+                navigationIcon = {
+                    if (showBackButton) {
+                        TopBarBackButton(onNavigateBack)
+                    }
+                },
+                title = {
+                    ChatTopBarTitle(
+                        expanded = false,
+                        collapsedFraction = 1f,
+                        sessionId = sessionId,
+                        sessionTitle = sessionTitle,
+                        cwd = cwd,
+                        model = activeModel,
+                        onTitleClick = onTitleClick,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        sharedBoundsEnabled = sharedBoundsEnabled,
+                    )
+                },
+                actions = {
+                    TopBarActions(
+                        gitAdditions = gitAdditions,
+                        gitDeletions = gitDeletions,
+                        gitBranch = gitBranch,
+                        gitChangedFiles = gitChangedFiles,
+                        onGitStatusClick = onGitStatusClick,
+                        onGitStatusLongPress = onGitStatusLongPress,
+                        connectionState = connectionState,
+                        totalTokens = totalTokens,
+                        contextWindowTokens = contextWindowTokens,
+                        costAmount = costAmount,
+                        costCurrency = costCurrency,
+                        onConnectionStatusClick = onConnectionStatusClick,
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent,
+                    ),
+            )
+        }
+        return
+    }
 
     Box(
         modifier = Modifier.chatTopBarGradient(collapsedFraction),

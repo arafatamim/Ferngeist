@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TwoRowsTopAppBar
@@ -92,6 +93,7 @@ import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -496,6 +498,44 @@ private fun SessionListTopBar(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
+    if (isWindowShort()) {
+        TopAppBar(
+            title = {
+                SessionListTopBarTitle(
+                    expanded = false,
+                    collapsedFraction = 1f,
+                    serverId = serverId,
+                    serverName = state.serverName,
+                    titleStyle = MaterialTheme.typography.titleLarge,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    sharedBoundsEnabled = sharedBoundsEnabled,
+                )
+            },
+            navigationIcon = {
+                if (showBackButton) {
+                    FilledTonalIconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription =
+                                stringResource(
+                                    R.string.sessionlist_back_desc,
+                                ),
+                        )
+                    }
+                }
+            },
+            actions = {
+                SessionListTopBarActions(
+                    state = state,
+                    onShowCwdDialog = onShowCwdDialog,
+                    onShowConnectionStatusDialog = onShowConnectionStatusDialog,
+                )
+            },
+            scrollBehavior = state.scrollBehavior,
+        )
+        return
+    }
     TwoRowsTopAppBar(
         title = { expanded ->
             SessionListTopBarTitle(
