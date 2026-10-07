@@ -55,9 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -598,25 +596,7 @@ private fun ChatMessageList(
                 .filter { windowed[it].role == ChatMessage.Role.USER && windowed[it].content.isNotBlank() }
                 .map { leadingRows + it }
         }
-    val pinnedRows by remember(userRows, listState) {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            // The first laid-out row, not firstVisibleItemIndex: the streaming follow requests the
-            // last index ahead of each measure, so that value names the bottom spacer for a frame
-            // and pinned the current prompt on every chunk.
-            val firstLaidOut = info.visibleItemsInfo.firstOrNull()?.index ?: 0
-            pinnedPromptRows(
-                userRows,
-                firstLaidOut,
-                { row ->
-                    info.visibleItemsInfo.firstOrNull { it.index == row }?.let { it.offset..it.offset + it.size }
-                },
-                info.viewportEndOffset,
-                // The bottom spacer is the last row; its top marks the end of the final answer.
-                leadingRows + windowed.size,
-            )
-        }
-    }
+    val fadePx = with(LocalDensity.current) { pinnedPromptFadeDistance.roundToPx() }
     val messageRow: @Composable (ChatMessage) -> Unit = { message ->
         ChatMessageItem(
             message = message,
@@ -687,21 +667,7 @@ private fun ChatMessageList(
         }
         // Keyed so the pinned chip, once displaced, carries on as the same node instead of being
         // rebuilt mid-push.
-        pinnedRows.forEach { row ->
-            key(row) {
-                PinnedPrompt(
-                    text = windowed[row - leadingRows].content,
-                    row = row,
-                    nextRow = userRows.firstOrNull { it > row },
-                    listState = listState,
-                    modifier =
-                        Modifier
-                            .widthIn(max = 720.dp)
-                            .align(Alignment.TopCenter)
-                            .padding(start = 16.dp, top = contentTop, end = 16.dp),
-                )
-            }
-        }
+        PinnedPromptOverlays(userRows, leadingRows, windowed, listState, contentTop, fadePx)
         AnimatedVisibility(
             visible = allMessages.isEmpty() && !state.resumedSession,
             enter = fadeIn(),
