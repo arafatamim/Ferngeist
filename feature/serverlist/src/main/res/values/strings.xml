@@ -157,9 +157,10 @@
     <string name="serverlist_custom_agent_hint_label">Note (optional)</string>
     <string name="serverlist_custom_agent_hint_placeholder">Shown on the agent card</string>
     <string name="serverlist_custom_agent_command_title">Command</string>
-    <string name="serverlist_custom_agent_command_subtitle">Runs on the gateway host.</string>
+    <string name="serverlist_custom_agent_command_subtitle">Find the agent\'s ACP command and install it on the gateway computer first. It runs there, not on your phone.</string>
     <string name="serverlist_custom_agent_command_label">Command</string>
     <string name="serverlist_custom_agent_command_placeholder">my-agent</string>
+    <string name="serverlist_custom_agent_command_support">Executable name on PATH, or absolute path e.g. /usr/local/bin/my-agent</string>
     <string name="serverlist_custom_agent_arguments_label">Arguments (optional)</string>
     <string name="serverlist_custom_agent_arguments_placeholder">--acp --verbose</string>
     <string name="serverlist_custom_agent_arguments_support">Separated by spaces. A single argument cannot contain a space.</string>

@@ -192,6 +192,7 @@ private fun AddCustomAgentContent(
                         onValueChange = onUpdateCommand,
                         label = { Text(stringResource(R.string.serverlist_custom_agent_command_label)) },
                         placeholder = { Text(stringResource(R.string.serverlist_custom_agent_command_placeholder)) },
+                        supportingText = { Text(stringResource(R.string.serverlist_custom_agent_command_support)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
