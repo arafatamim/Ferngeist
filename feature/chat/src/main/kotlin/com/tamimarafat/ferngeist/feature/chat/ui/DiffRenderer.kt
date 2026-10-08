@@ -7,10 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +52,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.initialPassLongPress
+import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import io.github.diff.DeltaType
 import io.github.diff.generatePatch
 import kotlinx.coroutines.Dispatchers
@@ -646,7 +647,7 @@ internal fun DiffBlocks(
  *
  * Renders nothing when [additions] and [deletions] are both zero (clean tree).
  */
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun GitStatusIndicatorButton(
     additions: Int,
@@ -699,10 +700,15 @@ internal fun GitStatusIndicatorButton(
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier =
                 modifier
-                    .combinedClickable(
-                        onClick = onClick,
-                        onLongClick = onLongPress,
-                    ).semantics {
+                    .handCursor()
+                    // The button consumes the press itself, so a tap detector above it never sees
+                    // an unconsumed down — which is why the combinedClickable long press here
+                    // never fired. This watches the press on the initial pass, where this node
+                    // runs before the button.
+                    .initialPassLongPress(onLongPress = onLongPress)
+                    // Right-click is the long press's mouse equivalent.
+                    .onSecondaryClick(onClick = onLongPress)
+                    .semantics {
                         contentDescription = "Git status"
                         stateDescription = label
                     },
