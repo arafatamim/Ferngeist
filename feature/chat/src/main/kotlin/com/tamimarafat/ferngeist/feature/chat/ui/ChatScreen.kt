@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import android.content.res.Resources
 import android.net.Uri
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,6 +34,9 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingToolbarDefaults
@@ -90,8 +92,6 @@ import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollSnapshot
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
-import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
-import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SlideDirection
@@ -102,6 +102,8 @@ import com.tamimarafat.ferngeist.feature.chat.switcherNeighbors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -191,96 +193,6 @@ fun ChatScreen(
         sharedBoundsEnabled = sharedBoundsEnabled,
     )
 }
-
-@Composable
-private fun rememberAttachmentPicker(
-    state: ChatState,
-    selectedImages: MutableState<List<ChatImageData>>,
-    selectedFiles: MutableState<List<ChatFileData>>,
-    imageFocusTrigger: MutableState<Int>,
-    snackbarHostState: SnackbarHostState,
-    coroutineScope: CoroutineScope,
-): ManagedActivityResultLauncher<Array<String>, List<Uri>> {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val resources = LocalResources.current
-    return rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris: List<android.net.Uri> ->
-        coroutineScope.launch {
-            val newImages = mutableListOf<ChatImageData>()
-            val fileResults = mutableListOf<FileAttachmentHelper.Result>()
-            var imagesDropped = 0
-            var unsupportedCount = 0
-            for (uri in uris) {
-                val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true
-                when {
-                    isImage && state.canSendImages -> {
-                        val image = ImageAttachmentHelper.uriToChatImageData(context.contentResolver, uri)
-                        if (image != null) newImages += image else imagesDropped++
-                    }
-                    state.supportsEmbeddedContext ->
-                        fileResults += FileAttachmentHelper.uriToChatFileData(context.contentResolver, uri)
-                    else -> unsupportedCount++
-                }
-            }
-            val newFiles = fileResults.filterIsInstance<FileAttachmentHelper.Result.Success>().map { it.file }
-            val tooLargeCount = fileResults.count { it is FileAttachmentHelper.Result.TooLarge }
-
-            val combinedImages = (selectedImages.value + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
-            val imagesCapped = (selectedImages.value.size + newImages.size) - combinedImages.size
-            val combinedFiles = (selectedFiles.value + newFiles).take(FileAttachmentHelper.MAX_FILES)
-            val filesCapped = (selectedFiles.value.size + newFiles.size) - combinedFiles.size
-            selectedImages.value = combinedImages
-            selectedFiles.value = combinedFiles
-            imageFocusTrigger.value++
-
-            val message =
-                attachmentPickFeedbackMessage(
-                    resources = resources,
-                    unsupportedCount = unsupportedCount,
-                    tooLargeCount = tooLargeCount,
-                    imagesDropped = imagesDropped,
-                    imagesCapped = imagesCapped,
-                    filesCapped = filesCapped,
-                )
-            message?.let { snackbarHostState.showSnackbar(it) }
-        }
-    }
-}
-
-private fun attachmentPickFeedbackMessage(
-    resources: Resources,
-    unsupportedCount: Int,
-    tooLargeCount: Int,
-    imagesDropped: Int,
-    imagesCapped: Int,
-    filesCapped: Int,
-): String? =
-    when {
-        unsupportedCount > 0 ->
-            resources.getQuantityString(
-                R.plurals.chat_attachments_unsupported,
-                unsupportedCount,
-                unsupportedCount,
-            )
-        tooLargeCount > 0 ->
-            resources.getQuantityString(R.plurals.chat_files_too_large, tooLargeCount, tooLargeCount)
-        imagesDropped > 0 ->
-            resources.getQuantityString(R.plurals.chat_images_dropped, imagesDropped, imagesDropped)
-        imagesCapped > 0 ->
-            resources.getQuantityString(
-                R.plurals.chat_images_capped,
-                ImageAttachmentHelper.MAX_IMAGES,
-                ImageAttachmentHelper.MAX_IMAGES,
-            )
-        filesCapped > 0 ->
-            resources.getQuantityString(
-                R.plurals.chat_files_capped,
-                FileAttachmentHelper.MAX_FILES,
-                FileAttachmentHelper.MAX_FILES,
-            )
-        else -> null
-    }
 
 private data class ComposerInsets(
     val imeBottomPx: Int,
@@ -389,7 +301,7 @@ private const val SWITCHER_FLING_VELOCITY_PX_PER_SEC = 1000f
 private fun rememberSendHandlers(
     viewModel: ChatViewModel,
     state: ChatState,
-    messageText: MutableState<String>,
+    messageText: TextFieldState,
     selectedImages: MutableState<List<ChatImageData>>,
     selectedFiles: MutableState<List<ChatFileData>>,
     composerExpanded: MutableState<Boolean>,
@@ -399,17 +311,17 @@ private fun rememberSendHandlers(
     // --- Send message (composer) ---
     val sendMessage: () -> Unit = {
         val hasContent =
-            messageText.value.isNotBlank() || selectedImages.value.isNotEmpty() || selectedFiles.value.isNotEmpty()
+            messageText.text.isNotBlank() || selectedImages.value.isNotEmpty() || selectedFiles.value.isNotEmpty()
         if (hasContent) {
             viewModel.dispatch(
                 ChatIntent.SendMessage(
-                    text = messageText.value,
+                    text = messageText.text.toString(),
                     images = selectedImages.value,
                     files = selectedFiles.value,
                 ),
             )
             scrollHandle.onSendMessage()
-            messageText.value = ""
+            messageText.clearText()
             selectedImages.value = emptyList()
             selectedFiles.value = emptyList()
             composerExpanded.value = false
@@ -438,7 +350,7 @@ private data class ChatScreenMutations(
     val showGitStatusSheet: MutableState<Boolean>,
     val showSwitcherSheet: MutableState<Boolean>,
     val composerContentHeightPx: MutableState<Int>,
-    val messageText: MutableState<String>,
+    val messageText: TextFieldState,
     val selectedImages: MutableState<List<ChatImageData>>,
     val selectedFiles: MutableState<List<ChatFileData>>,
     val composerExpanded: MutableState<Boolean>,
@@ -457,7 +369,7 @@ private fun rememberChatScreenMutations(): ChatScreenMutations =
         showGitStatusSheet = remember { mutableStateOf(false) },
         showSwitcherSheet = remember { mutableStateOf(false) },
         composerContentHeightPx = remember { mutableIntStateOf(0) },
-        messageText = remember { mutableStateOf("") },
+        messageText = rememberTextFieldState(),
         selectedImages = remember { mutableStateOf<List<ChatImageData>>(emptyList()) },
         selectedFiles = remember { mutableStateOf<List<ChatFileData>>(emptyList()) },
         composerExpanded = remember { mutableStateOf(false) },
@@ -476,13 +388,14 @@ private class ChatScreenState(
     val showGitStatusSheet: MutableState<Boolean>,
     val showSwitcherSheet: MutableState<Boolean>,
     val composerContentHeightPx: MutableState<Int>,
-    val messageText: MutableState<String>,
+    val messageText: TextFieldState,
     val selectedImages: MutableState<List<ChatImageData>>,
     val selectedFiles: MutableState<List<ChatFileData>>,
     val composerExpanded: MutableState<Boolean>,
     val focusRequester: FocusRequester,
     val imageFocusTrigger: MutableState<Int>,
     val attachmentPickerLauncher: ManagedActivityResultLauncher<Array<String>, List<Uri>>,
+    val attachUris: (List<Uri>) -> Unit,
     val scrollHandle: ChatScrollHandle,
     val showJumpToBottom: State<Boolean>,
     val activeModel: String?,
@@ -800,16 +713,45 @@ private fun rememberChatScreenState(
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
 
-    // -- Unified attachment picker: any file; images are downscaled + previewed --
+    // -- Attachments: the document picker and the composer's content receiver (paste/drop) feed the
+    // same ingest, so both apply identical capability checks, size limits and count caps. --
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    // The ingest reads the selected lists, suspends on IO and writes them back, so two arrivals
+    // close together (a drop racing the picker, a second paste) would otherwise both start from the
+    // same snapshot and the later write would drop the earlier one's attachments.
+    val ingestLock = remember { Mutex() }
+    val attachUris: (List<Uri>) -> Unit = { uris ->
+        if (uris.isNotEmpty()) {
+            // Content can arrive while the composer is collapsed (a drop on the chat pane), and
+            // the attachment it just took is only visible in the expanded composer. Pasting
+            // cannot reach here collapsed, and the picker opens from the expanded composer, so
+            // this only ever acts on the drop.
+            mutations.composerExpanded.value = true
+            coroutineScope.launch {
+                ingestLock.withLock {
+                    val (images, files, feedback) =
+                        processPickedUris(
+                            uris = uris,
+                            context = context,
+                            canSendImages = state.canSendImages,
+                            supportsEmbeddedContext = state.supportsEmbeddedContext,
+                            existingImages = mutations.selectedImages.value,
+                            existingFiles = mutations.selectedFiles.value,
+                            resources = resources,
+                        )
+                    mutations.selectedImages.value = images
+                    mutations.selectedFiles.value = files
+                    mutations.imageFocusTrigger.value++
+                    feedback?.let { snackbarHostState.showSnackbar(it) }
+                }
+            }
+        }
+    }
     val attachmentPickerLauncher =
-        rememberAttachmentPicker(
-            state = state,
-            selectedImages = mutations.selectedImages,
-            selectedFiles = mutations.selectedFiles,
-            imageFocusTrigger = mutations.imageFocusTrigger,
-            snackbarHostState = snackbarHostState,
-            coroutineScope = coroutineScope,
-        )
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenMultipleDocuments(),
+        ) { uris: List<Uri> -> attachUris(uris) }
     val composerInsets =
         rememberComposerInsets(
             state = state,
@@ -844,6 +786,7 @@ private fun rememberChatScreenState(
         snackbarHostState = snackbarHostState,
         mutations = mutations,
         attachmentPickerLauncher = attachmentPickerLauncher,
+        attachUris = attachUris,
         derived = derived,
         insets = composerInsets,
         sendMessage = sendHandlers.first,
@@ -856,6 +799,7 @@ private fun buildChatScreenState(
     snackbarHostState: SnackbarHostState,
     mutations: ChatScreenMutations,
     attachmentPickerLauncher: ManagedActivityResultLauncher<Array<String>, List<Uri>>,
+    attachUris: (List<Uri>) -> Unit,
     derived: ChatDerivedValues,
     insets: ComposerInsets,
     sendMessage: () -> Unit,
@@ -879,6 +823,7 @@ private fun buildChatScreenState(
         focusRequester = mutations.focusRequester,
         imageFocusTrigger = mutations.imageFocusTrigger,
         attachmentPickerLauncher = attachmentPickerLauncher,
+        attachUris = attachUris,
         scrollHandle = derived.scrollHandle,
         showJumpToBottom = derived.showJumpToBottom,
         activeModel = derived.activeModel,
@@ -929,6 +874,10 @@ private fun ChatScreenScaffold(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    // Hover of a drag over this pane, reported by the content receiver below and read by the
+    // composer's button: while it is true the button shows what the drop would do.
+    var dropTargetActive by remember { mutableStateOf(false) }
+    val nothingToAttachMessage = stringResource(R.string.chat_attach_nothing_found)
 
     // Suppressed while the workspace shows the session list beside this chat. The list's
     // session card registers both of these keys for the same session, so two nodes claiming
@@ -957,7 +906,21 @@ private fun ChatScreenScaffold(
             transitionModifier
                 .fillMaxSize()
                 .then(modifier)
-                .background(MaterialTheme.colorScheme.surface),
+                .background(MaterialTheme.colorScheme.surface)
+                // The pane, not the composer: a drag anywhere over the conversation is a drop
+                // onto the composer's attachments, and the field below still finds this
+                // receiver on its ancestors for paste.
+                .composerContentReceiver(
+                    canSendImages = screenState.state.canSendImages,
+                    canSendFiles = screenState.state.supportsEmbeddedContext,
+                    onUris = screenState.attachUris,
+                    onDragHoverChange = { dropTargetActive = it },
+                    onNothingToAttach = {
+                        coroutineScope.launch {
+                            screenState.snackbarHostState.showSnackbar(nothingToAttachMessage)
+                        }
+                    },
+                ),
     ) {
         val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
         // Chrome-style switch: the whole chat rides the bubble drag 1:1 in the
@@ -1003,6 +966,7 @@ private fun ChatScreenScaffold(
                     chatOffset = chatOffset,
                     onSwitchSession = onSwitchSession,
                     appBarScrollConnection = scrollBehavior.nestedScrollConnection,
+                    dropTargetActive = dropTargetActive,
                 )
             }
         }
@@ -1020,6 +984,7 @@ private fun BoxScope.ChatScreenOverlays(
     chatOffset: Animatable<Float, AnimationVector1D>,
     onSwitchSession: OnSwitchSession,
     appBarScrollConnection: NestedScrollConnection,
+    dropTargetActive: Boolean,
 ) {
     val switcherState by viewModel.switcherUiState.collectAsStateWithLifecycle()
     ChatScreenContentOverlays(
@@ -1042,6 +1007,7 @@ private fun BoxScope.ChatScreenOverlays(
             chatOffset = chatOffset,
             onSwitchSession = onSwitchSession,
             onSwitcherClick = { screenState.showSwitcherSheet.value = true },
+            dropTargetActive = dropTargetActive,
         )
     }
 }
@@ -1147,6 +1113,7 @@ private fun BoxScope.ChatComposerHost(
     chatOffset: Animatable<Float, AnimationVector1D>,
     onSwitchSession: OnSwitchSession,
     onSwitcherClick: () -> Unit,
+    dropTargetActive: Boolean,
 ) {
     val switcherHintSeen by viewModel.switcherHintSeen.collectAsStateWithLifecycle()
     val callbacks =
@@ -1223,8 +1190,7 @@ private fun BoxScope.ChatComposerHost(
             toolbarConfigOptions = screenState.toolbarConfigOptions,
             composerExpanded = screenState.composerExpanded.value,
             onComposerExpandedChange = { screenState.composerExpanded.value = it },
-            messageText = screenState.messageText.value,
-            onMessageTextChange = { screenState.messageText.value = it },
+            messageText = screenState.messageText,
             inputAlpha = screenState.inputAlpha.value,
             buttonsAlpha = screenState.buttonsAlpha.value,
             showModeButton = screenState.showModeButton,
@@ -1250,6 +1216,7 @@ private fun BoxScope.ChatComposerHost(
             selectedFiles = screenState.selectedFiles.value,
             onFilesChanged = { screenState.selectedFiles.value = it },
             onAttach = { screenState.attachmentPickerLauncher.launch(arrayOf("*/*")) },
+            dropTargetActive = dropTargetActive,
         )
         if (!screenState.composerExpanded.value) {
             SessionSwitcherBubble(

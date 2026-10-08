@@ -124,6 +124,7 @@
     <string name="chat_error_send_failed">发送失败</string>
     <string name="chat_scroll_to_bottom">滚动到底部</string>
     <string name="chat_attach_desc">附加文件</string>
+    <string name="chat_attach_nothing_found">没有可附加的图片或文件</string>
     <string name="chat_remove_file_desc">移除文件</string>
     <string name="chat_remove_image_desc">移除图片</string>
     <string name="chat_git_binary">二进制</string>

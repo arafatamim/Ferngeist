@@ -118,6 +118,7 @@
     <string name="chat_error_send_failed">El envío falló</string>
     <string name="chat_scroll_to_bottom">Desplazarse al final</string>
     <string name="chat_attach_desc">Adjuntar archivo</string>
+    <string name="chat_attach_nothing_found">No hay ninguna imagen o archivo que adjuntar</string>
     <string name="chat_remove_file_desc">Quitar archivo</string>
     <string name="chat_remove_image_desc">Quitar imagen</string>
     <string name="chat_git_binary">binario</string>

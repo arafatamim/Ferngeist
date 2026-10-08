@@ -41,8 +41,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.TextFieldDecorator
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
@@ -53,6 +56,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material3.ButtonDefaults
@@ -101,6 +105,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
+import com.tamimarafat.ferngeist.core.common.ui.onSubmitShortcut
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
@@ -129,8 +136,7 @@ private val EXPANDED_COMPOSER_MIN_HEIGHT = 142.dp
  * @param toolbarConfigOptions Configuration options to be displayed in the options menu.
  * @param composerExpanded Whether the composer is currently expanded for text entry.
  * @param onComposerExpandedChange Callback when the expansion state changes.
- * @param messageText Current text in the composer.
- * @param onMessageTextChange Callback for text changes.
+ * @param messageText Text field state backing the composer input.
  * @param inputAlpha Alpha value for the text input area (usually for fading during transitions).
  * @param buttonsAlpha Alpha value for the buttons in collapsed state.
  * @param showModeButton Whether to show the mode selection button.
@@ -147,6 +153,8 @@ private val EXPANDED_COMPOSER_MIN_HEIGHT = 142.dp
  * @param onSetBooleanConfigOption Callback to update a boolean config option.
  * @param onShowCommands Callback to show available commands.
  * @param onShowConfigOptionPicker Callback to show a dedicated picker for a config option.
+ * @param dropTargetActive Whether a drag is currently hovering the chat, i.e. the drop the
+ *   composer is about to receive.
  */
 @Composable
 internal fun ChatComposerBar(
@@ -155,8 +163,7 @@ internal fun ChatComposerBar(
     toolbarConfigOptions: List<ChatConfigOption>,
     composerExpanded: Boolean,
     onComposerExpandedChange: (Boolean) -> Unit,
-    messageText: String,
-    onMessageTextChange: (String) -> Unit,
+    messageText: TextFieldState,
     inputAlpha: Float,
     buttonsAlpha: Float,
     showModeButton: Boolean,
@@ -182,6 +189,7 @@ internal fun ChatComposerBar(
     selectedFiles: List<ChatFileData>,
     onFilesChanged: (List<ChatFileData>) -> Unit,
     onAttach: () -> Unit,
+    dropTargetActive: Boolean,
 ) {
     var showModeMenu by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
@@ -196,7 +204,6 @@ internal fun ChatComposerBar(
         if (composerExpanded) {
             ExpandedComposerContent(
                 messageText,
-                onMessageTextChange,
                 inputAlpha,
                 focusRequester,
                 showStopAction,
@@ -220,6 +227,7 @@ internal fun ChatComposerBar(
                 selectedFiles,
                 onFilesChanged,
                 onAttach,
+                dropTargetActive,
             )
         } else {
             CollapsedComposerActions(
@@ -246,6 +254,7 @@ internal fun ChatComposerBar(
                 onShowConfigOptionPicker,
                 showJumpToBottom,
                 onJumpToBottom,
+                dropTargetActive,
             )
         }
     }
@@ -416,8 +425,7 @@ private fun ComposerSurfaceContainer(
  */
 @Composable
 internal fun ExpandedComposerContent(
-    messageText: String,
-    onMessageTextChange: (String) -> Unit,
+    messageText: TextFieldState,
     inputAlpha: Float,
     focusRequester: FocusRequester,
     showStopAction: Boolean,
@@ -432,13 +440,21 @@ internal fun ExpandedComposerContent(
     selectedFiles: List<ChatFileData>,
     onFilesChanged: (List<ChatFileData>) -> Unit,
     onAttach: () -> Unit,
+    dropTargetActive: Boolean,
 ) {
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .padding(top = 12.dp, bottom = 12.dp)
-                .alpha(inputAlpha),
+                .alpha(inputAlpha)
+                .onEscapeKey(onEscape = onClose)
+                // Restates the send button's contract for the keyboard: the button is disabled
+                // while streaming and while the field is blank, so the shortcut is too.
+                .onSubmitShortcut(
+                    enabled = !showStopAction && messageText.text.isNotBlank(),
+                    onSubmit = onSend,
+                ),
     ) {
         // -- Selected image thumbnails --
         if (selectedImages.isNotEmpty()) {
@@ -455,7 +471,6 @@ internal fun ExpandedComposerContent(
         }
         ExpandedComposerTextField(
             messageText = messageText,
-            onMessageTextChange = onMessageTextChange,
             focusRequester = focusRequester,
             onSend = onSend,
         )
@@ -466,8 +481,9 @@ internal fun ExpandedComposerContent(
             onAttach = onAttach,
             showStopAction = showStopAction,
             canCancelStreaming = canCancelStreaming,
-            messageText = messageText,
+            messageText = messageText.text,
             onPrimaryAction = onPrimaryAction,
+            dropTargetActive = dropTargetActive,
         )
     }
 }
@@ -475,11 +491,14 @@ internal fun ExpandedComposerContent(
 /**
  * The text input area inside [ExpandedComposerContent], including
  * selection-colors and the placeholder hint.
+ *
+ * Uses the [TextFieldState] text field: it is the only overload that can act as a content receiver,
+ * which is what lets paste and drag-and-drop deliver attachments (see
+ * [composerContentReceiver]).
  */
 @Composable
 private fun ExpandedComposerTextField(
-    messageText: String,
-    onMessageTextChange: (String) -> Unit,
+    messageText: TextFieldState,
     focusRequester: FocusRequester,
     onSend: () -> Unit,
 ) {
@@ -488,25 +507,9 @@ private fun ExpandedComposerTextField(
             handleColor = MaterialTheme.colorScheme.onPrimary,
             backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
         )
-    CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
-        BasicTextField(
-            value = messageText,
-            onValueChange = onMessageTextChange,
-            singleLine = false,
-            minLines = 3,
-            maxLines = 8,
-            textStyle =
-                MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onPrimary,
-                ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { onSend() }),
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-            decorationBox = { innerTextField ->
+    val decorator =
+        remember(messageText) {
+            TextFieldDecorator { innerTextField ->
                 Box(
                     modifier =
                         Modifier
@@ -514,7 +517,7 @@ private fun ExpandedComposerTextField(
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     contentAlignment = Alignment.TopStart,
                 ) {
-                    if (messageText.isEmpty()) {
+                    if (messageText.text.isEmpty()) {
                         Text(
                             text = stringResource(R.string.chat_composer_hint),
                             style = MaterialTheme.typography.bodyLarge,
@@ -523,7 +526,27 @@ private fun ExpandedComposerTextField(
                     }
                     innerTextField()
                 }
-            },
+            }
+        }
+    CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
+        BasicTextField(
+            state = messageText,
+            textStyle =
+                MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onPrimary,
+                ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            // The field's IME action is Send, so every action reported here is a send; the default
+            // action (dismissing the keyboard) is deliberately skipped, as the button does not
+            // dismiss it either.
+            onKeyboardAction = KeyboardActionHandler { onSend() },
+            lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 3, maxHeightInLines = 8),
+            decorator = decorator,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
         )
     }
 }
@@ -540,8 +563,9 @@ private fun ExpandedComposerBottomBar(
     onAttach: () -> Unit,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
-    messageText: String,
+    messageText: CharSequence,
     onPrimaryAction: () -> Unit,
+    dropTargetActive: Boolean,
 ) {
     Row(
         modifier =
@@ -551,7 +575,7 @@ private fun ExpandedComposerBottomBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
-        IconButton(onClick = onClose) {
+        IconButton(onClick = onClose, modifier = Modifier.handCursor()) {
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = stringResource(R.string.chat_composer_close_desc),
@@ -562,9 +586,14 @@ private fun ExpandedComposerBottomBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (canSendImages || canSendFiles) {
-                IconButton(onClick = onAttach) {
+                IconButton(onClick = onAttach, modifier = Modifier.handCursor()) {
                     Icon(
-                        imageVector = Icons.Default.AttachFile,
+                        imageVector =
+                            if (dropTargetActive) {
+                                Icons.Default.MoveToInbox
+                            } else {
+                                Icons.Default.AttachFile
+                            },
                         contentDescription = stringResource(R.string.chat_attach_desc),
                         tint = MaterialTheme.colorScheme.onPrimary,
                     )
@@ -611,6 +640,7 @@ internal fun CollapsedComposerActions(
     onShowConfigOptionPicker: (String) -> Unit,
     showJumpToBottom: Boolean,
     onJumpToBottom: () -> Unit,
+    dropTargetActive: Boolean,
 ) {
     if (showModeButton && modeOption != null) {
         ModeMenuButton(
@@ -632,6 +662,7 @@ internal fun CollapsedComposerActions(
         buttonsAlpha = buttonsAlpha,
         onCancelStreaming = onCancelStreaming,
         onExpandComposer = onExpandComposer,
+        dropTargetActive = dropTargetActive,
     )
 
     AnimatedVisibility(
@@ -677,6 +708,7 @@ private fun CollapsedPrimaryButton(
     buttonsAlpha: Float,
     onCancelStreaming: () -> Unit,
     onExpandComposer: () -> Unit,
+    dropTargetActive: Boolean,
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
@@ -712,7 +744,7 @@ private fun CollapsedPrimaryButton(
                     onExpandComposer()
                 }
             },
-            chatIcon = Icons.Default.Edit,
+            chatIcon = if (dropTargetActive) Icons.Default.MoveToInbox else Icons.Default.Edit,
         )
     }
 }
@@ -732,7 +764,7 @@ private fun JumpToBottomButton(onJumpToBottom: () -> Unit) {
         },
         state = rememberTooltipState(),
     ) {
-        IconButton(onClick = onJumpToBottom) {
+        IconButton(onClick = onJumpToBottom, modifier = Modifier.handCursor()) {
             Icon(
                 imageVector = Icons.Rounded.KeyboardDoubleArrowDown,
                 contentDescription = stringResource(R.string.chat_scroll_to_bottom),
@@ -764,7 +796,7 @@ internal fun ModeMenuButton(
         ) {
             TextButton(
                 onClick = { onExpandedChange(true) },
-                modifier = Modifier.widthIn(max = maxWidth),
+                modifier = Modifier.widthIn(max = maxWidth).handCursor(),
                 colors =
                     ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -870,7 +902,7 @@ internal fun ToolbarOptionsButton(
         state = rememberTooltipState(),
     ) {
         Box {
-            IconButton(onClick = { onExpandedChange(true) }) {
+            IconButton(onClick = { onExpandedChange(true) }, modifier = Modifier.handCursor()) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = stringResource(R.string.chat_options),
@@ -1021,7 +1053,7 @@ internal fun PrimaryComposerActionButton(
                 contentColor = MaterialTheme.colorScheme.primary,
             ),
         shapes = IconButtonDefaults.shapes(),
-        modifier = modifier,
+        modifier = modifier.handCursor(enabled = enabled),
     ) {
         Icon(
             imageVector = if (showStopAction && canCancelStreaming) Icons.Default.Stop else chatIcon,
@@ -1128,7 +1160,7 @@ private fun FileChipItem(
                 )
             }
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp)) {
+            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp).handCursor()) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.chat_remove_file_desc),
@@ -1223,7 +1255,7 @@ private fun BoxScope.ThumbnailRemoveButton(
     ) {
         IconButton(
             onClick = onRemove,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().handCursor(),
         ) {
             Icon(
                 imageVector = Icons.Default.Close,

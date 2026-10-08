@@ -118,6 +118,7 @@
     <string name="chat_error_send_failed">পাঠানো ব্যর্থ হয়েছে</string>
     <string name="chat_scroll_to_bottom">নীচে স্ক্রোল করুন</string>
     <string name="chat_attach_desc">ফাইল সংযুক্ত করুন</string>
+    <string name="chat_attach_nothing_found">সংযুক্ত করার জন্য কোনো ছবি বা ফাইল নেই</string>
     <string name="chat_remove_file_desc">ফাইল সরান</string>
     <string name="chat_remove_image_desc">ছবি সরান</string>
     <string name="chat_git_binary">বাইনারি</string>

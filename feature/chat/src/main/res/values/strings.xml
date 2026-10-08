@@ -17,6 +17,7 @@
     <string name="chat_send_desc">Send</string>
     <string name="chat_stop_desc">Stop</string>
     <string name="chat_attach_desc">Attach file</string>
+    <string name="chat_attach_nothing_found">No image or file to attach</string>
     <string name="chat_remove_image_desc">Remove image</string>
     <plurals name="chat_images_dropped_capped">
         <item quantity="one">Dropped %1$d undecodable image; limit is %2$d per message</item>

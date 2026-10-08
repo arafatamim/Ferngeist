@@ -122,6 +122,7 @@
     <string name="chat_error_send_failed">Ошибка отправки</string>
     <string name="chat_scroll_to_bottom">Прокрутить вниз</string>
     <string name="chat_attach_desc">Прикрепить файл</string>
+    <string name="chat_attach_nothing_found">Нет изображения или файла для прикрепления</string>
     <string name="chat_remove_file_desc">Удалить файл</string>
     <string name="chat_remove_image_desc">Удалить изображение</string>
     <string name="chat_git_binary">бинарный</string>
