@@ -36,9 +36,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
+import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.allChoices
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -127,6 +133,7 @@ internal fun PickerSheet(
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val scope = rememberCoroutineScope()
+    val escapeFocus = rememberEscapeFocusAnchor()
     val pickerState = rememberPickerSheetState(items, recentItems)
     val showSearch = pickerState.showSearch
     val filteredOptions = pickerState.filteredOptions
@@ -142,7 +149,12 @@ internal fun PickerSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                    // Key events reach the active focus target and its ancestors only, so the
+                    // sheet takes focus itself rather than relying on its search field or rows.
+                    .focusRequester(escapeFocus)
+                    .focusTarget()
+                    .onEscapeKey { scope.dismissSheet(sheetState, onDismiss) },
         ) {
             Text(
                 text = title,
@@ -282,6 +294,7 @@ internal fun PickerItemRow(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .handCursor()
                 .clickable {
                     onItemClick(item.value)
                     scope.launch {

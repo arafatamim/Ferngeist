@@ -45,6 +45,7 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.gateway.GatewayChangedFile
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
@@ -289,7 +290,7 @@ private fun GitDiffDetailHeader(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        IconButton(onClick = onBack) {
+        IconButton(onClick = onBack, modifier = Modifier.handCursor()) {
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                 contentDescription = stringResource(R.string.chat_back_desc),
@@ -473,6 +474,7 @@ private fun ChangedFileRow(
                             Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                         } else {
                             Modifier
+                                .handCursor()
                                 .clickable(
                                     role = Role.Button,
                                     onClick = onClick,

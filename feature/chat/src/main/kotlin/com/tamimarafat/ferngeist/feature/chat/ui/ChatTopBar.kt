@@ -57,7 +57,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
+import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -243,7 +245,7 @@ private fun TopBarBackButton(onNavigateBack: () -> Unit) {
     FilledTonalIconButton(
         onClick = onNavigateBack,
         shape = RoundedCornerShape(percent = 50),
-        modifier = Modifier.size(40.dp),
+        modifier = Modifier.size(40.dp).handCursor(),
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -461,7 +463,9 @@ private fun ExpandedTitleText(
                             onTitleClick()
                         },
                         onLongClick = showTitleTooltip,
-                    ).semantics {
+                    ).handCursor()
+                    .onSecondaryClick(onClick = showTitleTooltip)
+                    .semantics {
                         contentDescription = sessionTitle
                     },
         )
@@ -493,7 +497,9 @@ private fun CollapsedTitleSurface(
                         onTitleClick()
                     },
                     onLongClick = showTitleTooltip,
-                ).semantics {
+                ).handCursor()
+                .onSecondaryClick(onClick = showTitleTooltip)
+                .semantics {
                     contentDescription = sessionTitle
                 },
     ) {

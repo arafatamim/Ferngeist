@@ -57,12 +57,15 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
@@ -82,6 +85,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
+import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
@@ -427,11 +434,19 @@ internal fun SessionSwitcherSheet(
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    val scope = rememberCoroutineScope()
+    val escapeFocus = rememberEscapeFocusAnchor()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = modifier,
+        modifier =
+            modifier
+                // Key events reach the active focus target and its ancestors only, and the empty
+                // list is text with nothing focusable in it.
+                .focusRequester(escapeFocus)
+                .focusTarget()
+                .onEscapeKey { scope.dismissSheet(sheetState, onDismiss) },
     ) {
         Text(
             text = stringResource(R.string.switcher_title),
@@ -576,6 +591,7 @@ private fun SwitcherRow(
                 Modifier
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.medium)
+                    .handCursor()
                     .clickable(onClick = onSwitch)
                     .onGloballyPositioned { rowWidth.intValue = it.size.width }
                     .graphicsLayer {

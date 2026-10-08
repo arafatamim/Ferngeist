@@ -66,6 +66,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -87,6 +89,9 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
+import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
+import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
+import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -818,6 +823,8 @@ private fun ToolCallDetailsSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    val scope = rememberCoroutineScope()
+    val escapeFocus = rememberEscapeFocusAnchor()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -828,7 +835,12 @@ private fun ToolCallDetailsSheet(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 12.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    // Key events reach the active focus target and its ancestors only, and this
+                    // sheet's content is text with nothing focusable in it.
+                    .focusRequester(escapeFocus)
+                    .focusTarget()
+                    .onEscapeKey { scope.dismissSheet(sheetState, onDismiss) },
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             ToolCallDetailsHeader(toolCall = toolCall)
@@ -923,6 +935,8 @@ private fun ThoughtDetailsSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    val scope = rememberCoroutineScope()
+    val escapeFocus = rememberEscapeFocusAnchor()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -932,7 +946,12 @@ private fun ThoughtDetailsSheet(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 12.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    // Key events reach the active focus target and its ancestors only, and this
+                    // sheet's content is text with nothing focusable in it.
+                    .focusRequester(escapeFocus)
+                    .focusTarget()
+                    .onEscapeKey { scope.dismissSheet(sheetState, onDismiss) },
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -970,6 +989,8 @@ internal fun GitStatusSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    val scope = rememberCoroutineScope()
+    val escapeFocus = rememberEscapeFocusAnchor()
     // Selected file path; null shows the summary/list, non-null shows its diff detail.
     // Saved across process death so the detail survives rotation while the request runs.
     var selectedFilePath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -997,7 +1018,14 @@ internal fun GitStatusSheet(
     ) {
         AnimatedContent(
             targetState = selectedFilePath,
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    // Key events reach the active focus target and its ancestors only, so the
+                    // sheet takes focus itself rather than relying on focusable content.
+                    .focusRequester(escapeFocus)
+                    .focusTarget()
+                    .onEscapeKey { scope.dismissSheet(sheetState, onDismiss) },
             label = "GitStatusSheetContent",
         ) { path ->
             if (path == null) {

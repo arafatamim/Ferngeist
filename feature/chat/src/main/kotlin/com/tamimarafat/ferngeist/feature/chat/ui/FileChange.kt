@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -177,6 +178,7 @@ internal fun TurnChanges(
                             Modifier
                                 .fillMaxWidth()
                                 .height(RAIL_ROW_HEIGHT)
+                                .handCursor()
                                 .clickable { onToolCallClick(file.segmentId) }
                                 .padding(start = RAIL_TEXT_START),
                         verticalAlignment = Alignment.CenterVertically,

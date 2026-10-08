@@ -31,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -39,6 +41,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
+import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -136,11 +141,18 @@ private fun FullscreenImageContent(
     bitmap: ImageBitmap?,
     onDismiss: () -> Unit,
 ) {
+    val escapeFocus = rememberEscapeFocusAnchor()
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.94f))
+                .handCursor()
+                // Key events reach the active focus target and its ancestors only, and this
+                // surface's content is an image, so the viewer takes focus itself.
+                .focusRequester(escapeFocus)
+                .focusTarget()
+                .onEscapeKey(onEscape = onDismiss)
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
@@ -168,7 +180,8 @@ private fun FullscreenImageContent(
                 Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    .handCursor(),
         ) {
             Icon(
                 imageVector = Icons.Rounded.Close,

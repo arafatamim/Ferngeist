@@ -33,11 +33,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
+import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.ChatElicitationField
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
@@ -75,6 +80,7 @@ internal fun ElicitationSheet(
 @Composable
 private fun ElicitationSheetShell(
     title: String,
+    onEscape: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val sheetState =
@@ -82,13 +88,21 @@ private fun ElicitationSheetShell(
             initialValue = SheetValue.Hidden,
             confirmValueChange = { value -> value != SheetValue.Hidden },
         )
+    val escapeFocus = rememberEscapeFocusAnchor()
     ModalBottomSheet(onDismissRequest = {}, sheetState = sheetState) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                    // Key events reach the active focus target and its ancestors only, and this
+                    // sheet's content is fields and buttons, so the shell takes focus itself.
+                    .focusRequester(escapeFocus)
+                    .focusTarget()
+                    // Escape is the sheet's cancel path: the agent is waiting on an answer, so
+                    // there is no bare dismissal to fall back to.
+                    .onEscapeKey(onEscape = onEscape),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(text = title, style = MaterialTheme.typography.titleLarge)
@@ -127,7 +141,7 @@ private fun FormElicitationSheet(
     // field validates, so an incomplete answer can never leave the sheet.
     val canSubmit = request.fields.all { isElicitationValueValid(it, values[it.key]) }
     val sheetTitle = request.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_elicitation_title)
-    ElicitationSheetShell(title = sheetTitle) {
+    ElicitationSheetShell(title = sheetTitle, onEscape = { onCancel(request.key) }) {
         request.description?.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
@@ -150,13 +164,17 @@ private fun FormElicitationSheet(
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = { onDecline(request.key) }) {
+            TextButton(onClick = { onDecline(request.key) }, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.chat_elicitation_decline))
             }
-            TextButton(onClick = { onCancel(request.key) }) {
+            TextButton(onClick = { onCancel(request.key) }, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.chat_cancel))
             }
-            Button(onClick = { onSubmit(request.key, values.toMap()) }, enabled = canSubmit) {
+            Button(
+                onClick = { onSubmit(request.key, values.toMap()) },
+                enabled = canSubmit,
+                modifier = Modifier.handCursor(enabled = canSubmit),
+            ) {
                 Text(stringResource(R.string.chat_submit))
             }
         }
@@ -278,6 +296,7 @@ private fun SingleSelectElicitationInput(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .handCursor()
                         .selectable(
                             selected = option.value == selected,
                             onClick = { onChange(ChatElicitationValue.TextValue(option.value)) },
@@ -313,6 +332,7 @@ private fun BooleanElicitationInput(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .handCursor()
                 .toggleable(
                     value = checked,
                     onValueChange = { onChange(ChatElicitationValue.BooleanValue(it)) },
@@ -388,6 +408,7 @@ private fun MultiSelectElicitationInput(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .handCursor()
                         .toggleable(
                             value = option.value in selected,
                             onValueChange = { checked ->
@@ -429,7 +450,10 @@ private fun UrlElicitationSheet(
             val uri = runCatching { request.url.toUri() }.getOrNull()
             uri?.host
         }
-    ElicitationSheetShell(title = stringResource(R.string.chat_elicitation_url_title)) {
+    ElicitationSheetShell(
+        title = stringResource(R.string.chat_elicitation_url_title),
+        onEscape = { onCancel(request.key) },
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             host?.takeIf { it.isNotBlank() }?.let {
                 Text(text = it, style = MaterialTheme.typography.titleMedium)
@@ -450,13 +474,13 @@ private fun UrlElicitationSheet(
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = { onDecline(request.key) }) {
+            TextButton(onClick = { onDecline(request.key) }, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.chat_elicitation_decline))
             }
-            TextButton(onClick = { onCancel(request.key) }) {
+            TextButton(onClick = { onCancel(request.key) }, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.chat_cancel))
             }
-            Button(onClick = { onOpenUrl(request) }) {
+            Button(onClick = { onOpenUrl(request) }, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.chat_elicitation_open_link))
             }
         }

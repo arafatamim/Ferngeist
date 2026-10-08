@@ -30,11 +30,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
+import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -90,6 +95,7 @@ internal fun PermissionRequestSheet(
             initialValue = SheetValue.Hidden,
             confirmValueChange = { value -> value != SheetValue.Hidden },
         )
+    val escapeFocus = rememberEscapeFocusAnchor()
     ModalBottomSheet(
         onDismissRequest = {},
         sheetState = sheetState,
@@ -99,7 +105,14 @@ internal fun PermissionRequestSheet(
                 Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                    // Key events reach the active focus target and its ancestors only, so the
+                    // sheet takes focus itself rather than relying on its rows and buttons.
+                    .focusRequester(escapeFocus)
+                    .focusTarget()
+                    // Escape is this sheet's cancel path: the agent is waiting on an answer, so
+                    // there is no bare dismissal to fall back to.
+                    .onEscapeKey { onDenyPermission(request.toolCallId) },
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
@@ -172,7 +185,7 @@ private fun PermissionRequestOptions(
             } else {
                 OutlinedButton(
                     onClick = { onGrantPermission(request.toolCallId, option.id) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().handCursor(),
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -208,6 +221,7 @@ private fun PermissionChoiceRow(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .handCursor()
                 .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton)
                 .padding(vertical = 8.dp),
         verticalAlignment = Alignment.Top,
@@ -244,12 +258,13 @@ private fun PermissionRequestActions(
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onCancel) {
+            TextButton(onClick = onCancel, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.chat_cancel))
             }
             Button(
                 onClick = { selectedOptionId?.let(onSubmit) },
                 enabled = selectedOptionId != null,
+                modifier = Modifier.handCursor(enabled = selectedOptionId != null),
             ) {
                 Text(stringResource(R.string.chat_submit))
             }
@@ -259,7 +274,7 @@ private fun PermissionRequestActions(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.CenterEnd,
         ) {
-            TextButton(onClick = onCancel) {
+            TextButton(onClick = onCancel, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.chat_deny))
             }
         }

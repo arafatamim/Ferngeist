@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -343,7 +344,7 @@ internal fun ToolGroupHeader(
     )
     val brush = rememberShimmerTextBrush(isActive = active, baseColor = baseColor, labelPrefix = "toolGroup")
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().handCursor().clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // The summary wraps freely; the diff total and chevron hold the end.
@@ -428,6 +429,7 @@ private fun RailRowFrame(
             Modifier
                 .fillMaxWidth()
                 .height(ROW_HEIGHT)
+                .handCursor()
                 .clickable(onClick = onClick)
                 .semantics { contentDescription = description }
                 .padding(start = ICON_LEFT)
