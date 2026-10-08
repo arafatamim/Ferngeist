@@ -90,7 +90,7 @@ object AppModule {
     fun provideServerRepository(
         database: FerngeistDatabase,
         credentialEncryptor: CredentialEncryptor,
-    ): ServerRepository = ServerRepositoryImpl(database.serverDao(), credentialEncryptor)
+    ): ServerRepository = ServerRepositoryImpl(database.serverDao(), credentialEncryptor, database.sessionDao())
 
     /** Binds the gateway source repository backed by Room. */
     @Provides
@@ -98,13 +98,19 @@ object AppModule {
     fun provideGatewaySourceRepository(
         database: FerngeistDatabase,
         credentialEncryptor: CredentialEncryptor,
-    ): GatewaySourceRepository = GatewaySourceRepositoryImpl(database.gatewaySourceDao(), credentialEncryptor)
+    ): GatewaySourceRepository =
+        GatewaySourceRepositoryImpl(
+            database.gatewaySourceDao(),
+            credentialEncryptor,
+            database.sessionDao(),
+            database.gatewayAgentBindingDao(),
+        )
 
     /** Binds gateway agent bindings stored in the database. */
     @Provides
     @Singleton
     fun provideGatewayAgentBindingRepository(database: FerngeistDatabase): GatewayAgentBindingRepository =
-        GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao())
+        GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao(), database.sessionDao())
 
     /** Combines server + gateway repositories into a launchable target registry. */
     @Provides

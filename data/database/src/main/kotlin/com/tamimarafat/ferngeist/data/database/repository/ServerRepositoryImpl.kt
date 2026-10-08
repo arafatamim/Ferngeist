@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.dao.ServerDao
+import com.tamimarafat.ferngeist.data.database.dao.SessionDao
 import com.tamimarafat.ferngeist.data.database.entity.ServerEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,7 @@ import kotlinx.coroutines.withContext
 class ServerRepositoryImpl(
     private val serverDao: ServerDao,
     private val credentialEncryptor: CredentialEncryptor,
+    private val sessionDao: SessionDao,
 ) : ServerRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -44,6 +46,9 @@ class ServerRepositoryImpl(
         withContext(Dispatchers.IO) {
             serverDao.deleteServerById(id)
             credentialEncryptor.delete(CredentialEncryptor.serverTokenKey(id))
+            // Sessions are keyed by target id. Leaving them behind strands history that
+            // can never be opened again — every entry point resolves the target first.
+            sessionDao.deleteSessionsByServerId(id)
         }
     }
 
