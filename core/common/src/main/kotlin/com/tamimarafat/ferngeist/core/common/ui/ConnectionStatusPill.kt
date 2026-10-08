@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import java.text.NumberFormat
 
@@ -100,6 +101,7 @@ fun ConnectionStatusPill(
             modifier =
                 modifier
                     .size(44.dp)
+                    .handCursor()
                     .semantics {
                         contentDescription = connectionStatusDesc
                         stateDescription = connectionLabel
