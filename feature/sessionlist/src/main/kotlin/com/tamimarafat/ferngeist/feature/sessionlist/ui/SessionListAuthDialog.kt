@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 
@@ -103,6 +104,7 @@ internal fun SessionAuthMethodRow(
             RadioButton(
                 selected = selected,
                 onClick = { onSelectedAuthMethodChange(method.id) },
+                modifier = Modifier.handCursor(),
             )
             Column(
                 modifier =
@@ -147,6 +149,7 @@ internal fun SessionAuthConfirmButton(
 ) {
     TextButton(
         // Enabled: method selected; for gateway env auth all required vars must be filled.
+        modifier = Modifier.handCursor(),
         enabled =
             when {
                 selectedMethod == null -> false
@@ -192,7 +195,7 @@ internal fun AuthenticationMethodDetails(
     onEnvValueChange: (String, String) -> Unit,
 ) {
     method.link?.let { link ->
-        TextButton(onClick = { onOpenLink(link) }) {
+        TextButton(onClick = { onOpenLink(link) }, modifier = Modifier.handCursor()) {
             Text(link)
         }
     }

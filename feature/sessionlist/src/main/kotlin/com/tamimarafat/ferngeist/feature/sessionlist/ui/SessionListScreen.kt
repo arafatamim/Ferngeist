@@ -93,7 +93,9 @@ import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
+import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -514,7 +516,7 @@ private fun SessionListTopBar(
             },
             navigationIcon = {
                 if (showBackButton) {
-                    FilledTonalIconButton(onClick = onNavigateBack) {
+                    FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription =
@@ -558,7 +560,7 @@ private fun SessionListTopBar(
         },
         navigationIcon = {
             if (showBackButton) {
-                FilledTonalIconButton(onClick = onNavigateBack) {
+                FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription =
@@ -636,6 +638,7 @@ private fun SessionListTopBarActions(
     ) {
         FilledTonalIconButton(
             onClick = onShowCwdDialog,
+            modifier = Modifier.handCursor(),
         ) {
             Icon(
                 imageVector = Icons.Filled.FolderOpen,
@@ -657,6 +660,7 @@ private fun SessionListTopBarActions(
 private fun SessionListFab(onClick: () -> Unit) {
     FloatingActionButton(
         onClick = onClick,
+        modifier = Modifier.handCursor(),
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
@@ -1059,7 +1063,7 @@ private fun PendingAuthenticationDialog(
             )
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.sessionlist_auth_cancel))
             }
         },
@@ -1137,6 +1141,13 @@ private fun SessionCard(
     val haptics = LocalHapticFeedback.current
     var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
     val hasMenuActions = onDisconnect != null || onDelete != null
+    // Right-click is the mouse equivalent of a long press: same menu, same gate.
+    val openActionsMenu = {
+        if (hasMenuActions) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            showActionsMenu = true
+        }
+    }
     // Live sessions tint the card container exactly like active server cards;
     // the card itself is the status indicator, no trailing dot.
     val containerColor by animateColorAsState(
@@ -1175,14 +1186,11 @@ private fun SessionCard(
                     boundsModifier
                         .fillMaxWidth()
                         .clip(CardDefaults.shape)
+                        .handCursor()
+                        .onSecondaryClick(onClick = openActionsMenu)
                         .combinedClickable(
                             onClick = onClick,
-                            onLongClick = {
-                                if (hasMenuActions) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    showActionsMenu = true
-                                }
-                            },
+                            onLongClick = openActionsMenu,
                         ),
                 colors =
                     CardDefaults.cardColors(

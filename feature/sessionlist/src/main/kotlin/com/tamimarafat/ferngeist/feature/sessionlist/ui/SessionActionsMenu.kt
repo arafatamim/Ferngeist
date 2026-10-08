@@ -8,7 +8,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 
 /**
@@ -39,6 +41,7 @@ internal fun SessionActionsMenu(
             onDisconnect?.let { disconnect ->
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.sessionlist_action_disconnect)) },
+                    modifier = Modifier.handCursor(),
                     onClick = {
                         onDismiss()
                         disconnect()
@@ -53,6 +56,7 @@ internal fun SessionActionsMenu(
                             color = MaterialTheme.colorScheme.error,
                         )
                     },
+                    modifier = Modifier.handCursor(),
                     onClick = {
                         onDismiss()
                         delete()

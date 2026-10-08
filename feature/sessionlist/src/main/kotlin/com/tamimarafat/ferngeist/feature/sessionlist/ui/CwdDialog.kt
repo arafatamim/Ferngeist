@@ -38,6 +38,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.CwdSuggestion
@@ -118,14 +120,14 @@ fun CwdDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (onClear != null) {
-                    TextButton(onClick = { animateAnd(onClear) }) {
+                    TextButton(onClick = { animateAnd(onClear) }, modifier = Modifier.handCursor()) {
                         Text(stringResource(R.string.sessionlist_cwd_clear))
                     }
                 }
-                TextButton(onClick = { animateAnd(onDismiss) }) {
+                TextButton(onClick = { animateAnd(onDismiss) }, modifier = Modifier.handCursor()) {
                     Text(stringResource(R.string.sessionlist_cwd_cancel))
                 }
-                Button(onClick = { animateAnd(onSave) }) {
+                Button(onClick = { animateAnd(onSave) }, modifier = Modifier.handCursor()) {
                     Text(stringResource(R.string.sessionlist_cwd_save))
                 }
             }
@@ -169,6 +171,8 @@ private fun CwdSuggestionRow(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .handCursor()
+                .onSecondaryClick(enabled = isRecent) { onRemoveRecentCwd(suggestion.cwd) }
                 .combinedClickable(
                     onClick = { onCwdSelected(suggestion.cwd) },
                     onLongClick =
