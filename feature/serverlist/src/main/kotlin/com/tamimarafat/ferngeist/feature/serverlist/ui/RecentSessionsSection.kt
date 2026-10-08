@@ -92,6 +92,7 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
@@ -787,6 +788,7 @@ internal fun ContinueSessionCard(
                 // as ServerCard: Card(onClick=) gives no control over the indication,
                 // and its built-in ripple never showed on this card.
                 .clip(shape)
+                .handCursor()
                 .clickable(
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
@@ -1093,7 +1095,7 @@ internal fun RecentSessionCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().handCursor(),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),

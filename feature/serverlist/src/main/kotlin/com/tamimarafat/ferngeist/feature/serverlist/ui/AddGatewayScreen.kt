@@ -66,6 +66,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayUiState
 import com.tamimarafat.ferngeist.feature.serverlist.AddGatewayViewModel
@@ -399,7 +400,7 @@ private fun AddGatewayTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            FilledTonalIconButton(onClick = onBack) {
+            FilledTonalIconButton(onClick = onBack, modifier = Modifier.handCursor()) {
                 Icon(
                     Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = stringResource(R.string.serverlist_back_desc),
@@ -590,7 +591,7 @@ private fun AddGatewayBottomBar(
         Button(
             onClick = onNext,
             enabled = !isSaving,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).handCursor(enabled = !isSaving),
         ) {
             Text(
                 when (stepIndex) {
@@ -638,9 +639,11 @@ private fun PairingCodeDialog(
             )
         },
         confirmButton = {
+            val canConfirm = code.isNotBlank() && !isLoading
             Button(
                 onClick = onConfirm,
-                enabled = code.isNotBlank() && !isLoading,
+                enabled = canConfirm,
+                modifier = Modifier.handCursor(enabled = canConfirm),
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -650,7 +653,11 @@ private fun PairingCodeDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isLoading) {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading,
+                modifier = Modifier.handCursor(enabled = !isLoading),
+            ) {
                 Text(stringResource(R.string.serverlist_add_gateway_cancel))
             }
         },
@@ -722,7 +729,7 @@ private fun EditGatewayScreen(
             androidx.compose.material3.TopAppBar(
                 title = { Text(stringResource(R.string.serverlist_add_gateway_edit_title)) },
                 navigationIcon = {
-                    FilledTonalIconButton(onClick = onNavigateBack) {
+                    FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.serverlist_back_desc),
@@ -805,7 +812,11 @@ private fun EditGatewayDetailsSection(
             },
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Button(onClick = onCheckStatus, enabled = !uiState.isCheckingStatus) {
+        Button(
+            onClick = onCheckStatus,
+            enabled = !uiState.isCheckingStatus,
+            modifier = Modifier.handCursor(enabled = !uiState.isCheckingStatus),
+        ) {
             if (uiState.isCheckingStatus) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
@@ -817,7 +828,11 @@ private fun EditGatewayDetailsSection(
             GatewayStatusCard(status = status)
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onSave, enabled = !uiState.isSaving) {
+        Button(
+            onClick = onSave,
+            enabled = !uiState.isSaving,
+            modifier = Modifier.handCursor(enabled = !uiState.isSaving),
+        ) {
             if (uiState.isSaving) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
@@ -882,7 +897,7 @@ private fun ImportPairingStep(
 
                 OutlinedButton(
                     onClick = onScanQr,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().handCursor(),
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -944,7 +959,11 @@ private fun GatewayReviewActions(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Button(onClick = onCheckStatus, enabled = !isCheckingStatus) {
+        Button(
+            onClick = onCheckStatus,
+            enabled = !isCheckingStatus,
+            modifier = Modifier.handCursor(enabled = !isCheckingStatus),
+        ) {
             if (isCheckingStatus) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
@@ -1205,6 +1224,7 @@ private fun GatewayProtocolOption(
         modifier =
             modifier
                 .height(52.dp)
+                .handCursor()
                 .semantics {
                     contentDescription = label
                 },

@@ -43,6 +43,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayListViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -67,7 +69,7 @@ fun GatewayListScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.serverlist_gateway_list_title)) },
                 navigationIcon = {
-                    FilledTonalIconButton(onClick = onNavigateBack) {
+                    FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.serverlist_back_desc),
@@ -77,7 +79,7 @@ fun GatewayListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onPairAnother) {
+            FloatingActionButton(onClick = onPairAnother, modifier = Modifier.handCursor()) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.serverlist_add_gateway_btn))
             }
         },
@@ -122,6 +124,8 @@ private fun GatewayCard(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
+                    .handCursor()
+                    .onSecondaryClick { showActionsMenu = true }
                     .combinedClickable(
                         onClick = onOpenGatewayAgents,
                         onLongClick = { showActionsMenu = true },
@@ -183,6 +187,7 @@ private fun GatewayActionsMenu(
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.serverlist_gateway_list_edit)) },
+                modifier = Modifier.handCursor(),
                 onClick = {
                     onDismiss()
                     onEdit()
@@ -190,6 +195,7 @@ private fun GatewayActionsMenu(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.serverlist_gateway_list_delete)) },
+                modifier = Modifier.handCursor(),
                 onClick = {
                     onDismiss()
                     onDelete()

@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
 import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
 import com.tamimarafat.ferngeist.feature.serverlist.PendingLaunchConsent
@@ -84,6 +85,7 @@ internal fun LaunchRiskConsentDialog(
                     Checkbox(
                         checked = acknowledgedRisk,
                         onCheckedChange = { acknowledgedRisk = it },
+                        modifier = Modifier.handCursor(),
                     )
                     Text(
                         text = stringResource(R.string.serverlist_launch_risk_accept),
@@ -96,12 +98,13 @@ internal fun LaunchRiskConsentDialog(
             TextButton(
                 enabled = acknowledgedRisk,
                 onClick = onConfirm,
+                modifier = Modifier.handCursor(),
             ) {
                 Text(stringResource(R.string.serverlist_continue))
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.serverlist_cancel))
             }
         },
@@ -123,7 +126,7 @@ internal fun ServerListTopBar(
         TopAppBar(
             title = { Text(text = stringResource(R.string.serverlist_title)) },
             actions = {
-                IconButton(onClick = onAboutClick) {
+                IconButton(onClick = onAboutClick, modifier = Modifier.handCursor()) {
                     Icon(
                         imageVector = Icons.Rounded.Info,
                         contentDescription = stringResource(R.string.about),
@@ -136,7 +139,7 @@ internal fun ServerListTopBar(
         LargeTopAppBar(
             title = { Text(text = stringResource(R.string.serverlist_title)) },
             actions = {
-                IconButton(onClick = onAboutClick) {
+                IconButton(onClick = onAboutClick, modifier = Modifier.handCursor()) {
                     Icon(
                         imageVector = Icons.Rounded.Info,
                         contentDescription = stringResource(R.string.about),
@@ -170,12 +173,14 @@ internal fun AboutDialog(onDismiss: () -> Unit) {
                     TextButton(
                         onClick = { uriHandler.openUri(privacyPolicyUrl) },
                         contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.handCursor(),
                     ) {
                         Text(stringResource(R.string.privacy_policy))
                     }
                     TextButton(
                         onClick = { uriHandler.openUri(githubRepoUrl) },
                         contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.handCursor(),
                     ) {
                         Text(stringResource(R.string.report_issue))
                     }
@@ -183,7 +188,7 @@ internal fun AboutDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.serverlist_ok))
             }
         },
@@ -236,7 +241,7 @@ internal fun PendingAuthenticationDialog(
             )
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.serverlist_auth_cancel))
             }
         },
@@ -294,13 +299,15 @@ private fun AuthDialogConfirmButton(
     onSubmit: (String, Map<String, String>) -> Unit,
     onReconnect: () -> Unit,
 ) {
+    val canConfirm =
+        computeConfirmEnabled(
+            selectedMethod = selectedMethod,
+            isGatewayEnvAuth = isGatewayEnvAuth,
+            requiredEnvVarsFilled = requiredEnvVarsFilled,
+        )
     TextButton(
-        enabled =
-            computeConfirmEnabled(
-                selectedMethod = selectedMethod,
-                isGatewayEnvAuth = isGatewayEnvAuth,
-                requiredEnvVarsFilled = requiredEnvVarsFilled,
-            ),
+        modifier = Modifier.handCursor(enabled = canConfirm),
+        enabled = canConfirm,
         onClick = {
             when {
                 selectedMethod == null -> Unit
@@ -344,6 +351,7 @@ private fun AuthMethodOption(
             RadioButton(
                 selected = selectedMethod?.id == method.id,
                 onClick = { onSelectedAuthMethodChange(method.id) },
+                modifier = Modifier.handCursor(),
             )
             Column(
                 modifier =
@@ -394,7 +402,7 @@ private fun AuthenticationMethodDetails(
     onEnvValueChange: (String, String) -> Unit,
 ) {
     method.link?.let { link ->
-        TextButton(onClick = { onOpenLink(link) }) {
+        TextButton(onClick = { onOpenLink(link) }, modifier = Modifier.handCursor()) {
             Text(link)
         }
     }

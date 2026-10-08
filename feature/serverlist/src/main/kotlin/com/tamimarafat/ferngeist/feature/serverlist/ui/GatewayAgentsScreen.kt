@@ -68,6 +68,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsUiState
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -120,7 +122,7 @@ fun GatewayAgentsScreen(
             TopAppBar(
                 title = { Text(uiState.gateway?.name ?: stringResource(R.string.serverlist_gateway_agents_title)) },
                 navigationIcon = {
-                    FilledTonalIconButton(onClick = onNavigateBack) {
+                    FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.serverlist_back_desc),
@@ -134,6 +136,7 @@ fun GatewayAgentsScreen(
             if (uiState.loadError == null && (!uiState.isLoading || uiState.agents.isNotEmpty())) {
                 ExtendedFloatingActionButton(
                     onClick = onNavigateToAddCustomAgent,
+                    modifier = Modifier.handCursor(),
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.serverlist_custom_agent_title)) },
                 )
@@ -283,6 +286,8 @@ private fun AgentCard(
                             // tapping still only adds them when they can be added.
                             isCustom ->
                                 Modifier
+                                    .handCursor()
+                                    .onSecondaryClick { showActionsMenu = true }
                                     .combinedClickable(
                                         onClick = { if (canAdd) onClick() },
                                         onLongClick = { showActionsMenu = true },
@@ -291,6 +296,7 @@ private fun AgentCard(
                                     }
                             canAdd ->
                                 Modifier
+                                    .handCursor()
                                     .clickable(onClick = onClick)
                                     .semantics {
                                         contentDescription = agent.displayName
@@ -348,6 +354,7 @@ private fun CustomAgentActionsMenu(
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.serverlist_custom_agent_delete)) },
+                modifier = Modifier.handCursor(),
                 onClick = {
                     onDismiss()
                     onDelete()
@@ -491,6 +498,7 @@ private fun AddAgentConfirmationDialog(
                     Checkbox(
                         checked = acknowledgedRisk,
                         onCheckedChange = { acknowledgedRisk = it },
+                        modifier = Modifier.handCursor(),
                     )
                     Text(
                         stringResource(R.string.serverlist_gateway_agents_acknowledge_risk),
@@ -503,12 +511,13 @@ private fun AddAgentConfirmationDialog(
             TextButton(
                 enabled = acknowledgedRisk,
                 onClick = onConfirm,
+                modifier = Modifier.handCursor(enabled = acknowledgedRisk),
             ) {
                 Text(stringResource(R.string.serverlist_gateway_agents_add_btn))
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.serverlist_gateway_agents_cancel))
             }
         },

@@ -46,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.serverlist.AddCustomAgentEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddCustomAgentViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -92,7 +93,7 @@ fun AddCustomAgentScreen(
                     )
                 },
                 navigationIcon = {
-                    FilledTonalIconButton(onClick = onNavigateBack) {
+                    FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.serverlist_back_desc),
@@ -230,7 +231,7 @@ private fun AddCustomAgentButton(
 ) {
     Button(
         onClick = onSubmit,
-        modifier = Modifier.widthIn(min = 240.dp).height(56.dp),
+        modifier = Modifier.widthIn(min = 240.dp).height(56.dp).handCursor(enabled = !isSubmitting),
         enabled = !isSubmitting,
         shape = RoundedCornerShape(16.dp),
         colors =

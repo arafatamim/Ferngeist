@@ -9,8 +9,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.serverlist.CustomAgentDelete
 import com.tamimarafat.ferngeist.feature.serverlist.R
 
@@ -62,12 +64,14 @@ private fun CustomAgentDeleteDialog(
         title = { Text(title) },
         text = { Text(body) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(onClick = onConfirm, modifier = Modifier.handCursor()) {
                 Text(confirmLabel, color = MaterialTheme.colorScheme.error)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.serverlist_cancel)) }
+            TextButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
+                Text(stringResource(R.string.serverlist_cancel))
+            }
         },
         shape = RoundedCornerShape(28.dp),
     )

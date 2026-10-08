@@ -62,6 +62,8 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
@@ -158,6 +160,8 @@ private fun ServerCardSurface(
             Modifier
                 .fillMaxWidth()
                 .clip(cardShape)
+                .handCursor()
+                .onSecondaryClick(enabled = !connectionState.isConnecting) { onLongClick() }
                 .combinedClickable(
                     interactionSource = cardInteractionSource,
                     indication = LocalIndication.current,
@@ -302,12 +306,13 @@ private fun ServerCardDeleteDialog(
                     onDismiss()
                     onConfirm()
                 },
+                modifier = Modifier.handCursor(),
             ) {
                 Text(stringResource(R.string.serverlist_card_delete), color = MaterialTheme.colorScheme.error)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
                 Text(stringResource(R.string.serverlist_cancel))
             }
         },
@@ -344,6 +349,7 @@ private fun ServerCardActionsMenu(
                         ),
                     )
                 },
+                modifier = Modifier.handCursor(),
                 onClick = {
                     onDismiss()
                     onEdit()
@@ -351,6 +357,7 @@ private fun ServerCardActionsMenu(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.serverlist_card_delete)) },
+                modifier = Modifier.handCursor(),
                 onClick = {
                     onDismiss()
                     onDelete()

@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.formContentMaxWidth
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerEvent
 import com.tamimarafat.ferngeist.feature.serverlist.AddServerViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -188,7 +189,7 @@ private fun AddServerTopAppBar(
             )
         },
         navigationIcon = {
-            FilledTonalIconButton(onClick = onNavigateBack) {
+            FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.serverlist_back_desc),
@@ -368,7 +369,7 @@ private fun ServerAuthSection(
                         fontWeight = FontWeight.Medium,
                     )
                     if (isEditMode) {
-                        OutlinedButton(onClick = clearPreferredAuthMethod) {
+                        OutlinedButton(onClick = clearPreferredAuthMethod, modifier = Modifier.handCursor()) {
                             Text(stringResource(R.string.serverlist_add_server_clear_auth))
                         }
                     }
@@ -389,7 +390,7 @@ private fun SaveServerButton(
 ) {
     Button(
         onClick = onSave,
-        modifier = Modifier.widthIn(min = 240.dp).height(56.dp),
+        modifier = Modifier.widthIn(min = 240.dp).height(56.dp).handCursor(enabled = !isLoading),
         enabled = !isLoading,
         shape = RoundedCornerShape(16.dp),
         colors =
@@ -511,7 +512,7 @@ private fun ProtocolOption(
         color = containerColor,
         contentColor = contentColor,
         border = BorderStroke(1.dp, borderColor),
-        modifier = modifier.height(52.dp),
+        modifier = modifier.height(52.dp).handCursor(),
     ) {
         Row(
             modifier =

@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
@@ -527,6 +528,7 @@ private fun AddFabMenu(
     ) {
         FloatingActionButtonMenuItem(
             onClick = onNavigateToGateways,
+            modifier = Modifier.handCursor(),
             icon = {
                 Icon(
                     Icons.Default.Devices,
@@ -545,6 +547,7 @@ private fun AddFabMenu(
         )
         FloatingActionButtonMenuItem(
             onClick = onNavigateToAddServer,
+            modifier = Modifier.handCursor(),
             icon = {
                 Icon(
                     Icons.Default.Add,
@@ -565,6 +568,7 @@ private fun AddFabToggle(
     ToggleFloatingActionButton(
         checked = expanded,
         onCheckedChange = onExpandedChange,
+        modifier = Modifier.handCursor(),
     ) {
         val fabRotation by animateFloatAsState(
             targetValue = if (expanded) 45f else 0f,
@@ -650,6 +654,7 @@ private fun EmptyServerList(
             Button(
                 onClick = onAddServer,
                 shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.handCursor(),
             ) {
                 Icon(
                     Icons.Default.Add,
