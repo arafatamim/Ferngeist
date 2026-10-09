@@ -41,6 +41,20 @@
     <string name="sessionlist_cwd_cancel">Отмена</string>
     <string name="sessionlist_cwd_save">Сохранить</string>
 
+    <!-- Worktrees -->
+    <string name="sessionlist_worktree_switch">Новый worktree</string>
+    <string name="sessionlist_worktree_body">Эта директория — репозиторий. Чат работает в собственном git worktree со своей веткой, поэтому параллельные агенты не правят одну и ту же копию.</string>
+    <string name="sessionlist_worktree_branch">Ветка</string>
+    <string name="sessionlist_worktree_optional">Необязательно</string>
+    <string name="sessionlist_worktree_base">Основа</string>
+    <string name="sessionlist_worktree_base_hint">HEAD репозитория</string>
+    <string name="sessionlist_worktree_create">Создать worktree</string>
+    <string name="sessionlist_worktree_dirty">есть изменения</string>
+    <string name="sessionlist_action_remove_worktree">Удалить worktree</string>
+    <string name="sessionlist_worktree_discard_title">Отменить незафиксированные изменения?</string>
+    <string name="sessionlist_worktree_discard_body">В worktree \"%1$s\" есть незафиксированные изменения. Удаление сотрёт их. Все коммиты останутся в его ветке.</string>
+    <string name="sessionlist_worktree_discard_confirm">Отменить и удалить</string>
+
     <!-- Error messages -->
     <string name="sessionlist_error_load">Ошибка загрузки сессий</string>
     <string name="sessionlist_error_create">Не удалось создать сессию</string>

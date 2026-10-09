@@ -39,6 +39,20 @@
     <string name="sessionlist_cwd_cancel">Cancelar</string>
     <string name="sessionlist_cwd_save">Salvar</string>
 
+    <!-- Worktrees -->
+    <string name="sessionlist_worktree_switch">Novo worktree</string>
+    <string name="sessionlist_worktree_body">Este diretório é o repositório. O chat roda em um git worktree próprio, com seu próprio branch, para que agentes em paralelo não editem o mesmo checkout.</string>
+    <string name="sessionlist_worktree_branch">Branch</string>
+    <string name="sessionlist_worktree_optional">Opcional</string>
+    <string name="sessionlist_worktree_base">Base</string>
+    <string name="sessionlist_worktree_base_hint">HEAD do repositório</string>
+    <string name="sessionlist_worktree_create">Criar worktree</string>
+    <string name="sessionlist_worktree_dirty">não commitado</string>
+    <string name="sessionlist_action_remove_worktree">Remover worktree</string>
+    <string name="sessionlist_worktree_discard_title">Descartar alterações não commitadas?</string>
+    <string name="sessionlist_worktree_discard_body">O worktree \"%1$s\" tem alterações não commitadas. Removê-lo as apaga. Os commits dele são mantidos no branch.</string>
+    <string name="sessionlist_worktree_discard_confirm">Descartar e remover</string>
+
     <string name="sessionlist_error_load">Falha ao carregar as sessões</string>
     <string name="sessionlist_error_create">Falha ao criar uma nova sessão</string>
     <string name="sessionlist_error_reconnect">Falha ao reconectar a %1$s</string>

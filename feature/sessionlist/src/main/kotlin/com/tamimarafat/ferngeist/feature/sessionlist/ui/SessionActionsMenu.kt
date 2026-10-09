@@ -17,9 +17,9 @@ import com.tamimarafat.ferngeist.feature.sessionlist.R
  * Long-press menu on a session card, anchored to the card's parent Box and
  * mirroring ServerCardActionsMenu. Each item is nullable and only rendered
  * when it has something to do: Disconnect when a transport is live or a
- * gateway process is still leased, Delete when the agent advertised
- * `session/delete`. Nothing is ever greyed out — an item with no effect is
- * not shown.
+ * gateway process is still leased, Remove worktree when the chat runs in a
+ * managed one, Delete when the agent advertised `session/delete`. Nothing is
+ * ever greyed out — an item with no effect is not shown.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -27,9 +27,10 @@ internal fun SessionActionsMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onDisconnect: (() -> Unit)?,
+    onRemoveWorktree: (() -> Unit)?,
     onDelete: (() -> Unit)?,
 ) {
-    val itemCount = listOfNotNull(onDisconnect, onDelete).size
+    val itemCount = listOfNotNull(onDisconnect, onRemoveWorktree, onDelete).size
     if (!expanded || itemCount == 0) return
     DropdownMenuPopup(
         expanded = expanded,
@@ -45,6 +46,16 @@ internal fun SessionActionsMenu(
                     onClick = {
                         onDismiss()
                         disconnect()
+                    },
+                )
+            }
+            onRemoveWorktree?.let { removeWorktree ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.sessionlist_action_remove_worktree)) },
+                    modifier = Modifier.handCursor(),
+                    onClick = {
+                        onDismiss()
+                        removeWorktree()
                     },
                 )
             }

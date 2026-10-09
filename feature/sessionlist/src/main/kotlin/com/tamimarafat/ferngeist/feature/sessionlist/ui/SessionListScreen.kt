@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -105,6 +106,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
+import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -173,16 +175,56 @@ fun SessionListScreen(
         onNavigateToChat = onNavigateToChat,
     )
 
+    val worktreeForm =
+        // Null hides the whole worktree UI: an older gateway (404) has no worktree API, and a
+        // gateway reporting none is still "supported" because the empty list is a real answer.
+        if (state.worktrees == null) {
+            null
+        } else {
+            CwdWorktreeState(
+                enabled = state.createWorktreeEnabled.value,
+                branch = state.worktreeBranch.value,
+                base = state.worktreeBase.value,
+                error = state.worktreeError,
+                creating = state.creatingWorktree,
+                onEnabledChange = { state.createWorktreeEnabled.value = it },
+                onBranchChange = {
+                    state.worktreeBranch.value = it
+                    viewModel.clearWorktreeError()
+                },
+                onBaseChange = {
+                    state.worktreeBase.value = it
+                    viewModel.clearWorktreeError()
+                },
+            )
+        }
+
     SessionListOverlays(
         showCwdDialog = state.showCwdDialog.value,
         recentCwds = state.recentCwds,
         sessions = state.sessions,
         cwdDialogValue = state.cwdDialogValue.value,
         currentCwd = currentCwd,
-        onCwdDialogValueChange = { state.cwdDialogValue.value = it },
-        onDismissCwdDialog = { state.showCwdDialog.value = false },
+        onCwdDialogValueChange = {
+            state.cwdDialogValue.value = it
+            viewModel.clearWorktreeError()
+        },
+        onDismissCwdDialog = {
+            state.showCwdDialog.value = false
+            viewModel.clearWorktreeError()
+        },
         updateCurrentCwd = { viewModel.updateCurrentCwd(it) },
         removeRecentCwd = viewModel::removeRecentCwd,
+        worktree = worktreeForm,
+        onCreateWorktreeSession = { repo, base, branch ->
+            viewModel.createSessionInNewWorktree(repo, base, branch)
+        },
+        pendingWorktreeRemoval = state.pendingWorktreeRemoval.value,
+        onDismissWorktreeRemoval = { state.pendingWorktreeRemoval.value = null },
+        onConfirmWorktreeRemoval = { pending ->
+            state.pendingWorktreeRemoval.value = null
+            viewModel.removeWorktree(pending.sessionId, pending.worktreeId, force = true)
+        },
         showConnectionStatusDialog = state.showConnectionStatusDialog.value,
         connectionState = state.connectionState,
         connectionDiagnostics = state.connectionDiagnostics,
@@ -209,10 +251,13 @@ fun SessionListScreen(
         sharedBoundsEnabled = sharedBoundsEnabled,
         onNavigateBack = onNavigateBack,
         onNavigateToChat = onNavigateToChat,
+        onRemoveWorktree = { sessionId, worktreeId -> viewModel.removeWorktree(sessionId, worktreeId) },
         onCloseSession = viewModel::closeSession,
         onDeleteSession = viewModel::deleteSession,
         createSession = {
-            if (currentCwd.isNullOrBlank()) {
+            // The worktree switch lives in the cwd dialog, so while it is on a new chat has
+            // to go through it — otherwise the switch would silently not apply.
+            if (currentCwd.isNullOrBlank() || state.createWorktreeEnabled.value) {
                 state.cwdDialogValue.value = currentCwd.orEmpty()
                 viewModel.setPendingCreateAfterCwd()
                 state.showCwdDialog.value = true
@@ -252,6 +297,15 @@ private class SessionListState(
     val cwdAlpha: Float,
     val scrollBehavior: TopAppBarScrollBehavior,
     val hasConsumedLaunchCreate: MutableState<Boolean>,
+    /** Managed worktrees, or null when this gateway has none to show (older gateway). */
+    val worktrees: List<GatewayWorktree>?,
+    val createWorktreeEnabled: MutableState<Boolean>,
+    val worktreeBranch: MutableState<String>,
+    val worktreeBase: MutableState<String>,
+    val creatingWorktree: Boolean,
+    val worktreeError: String?,
+    /** Set when the gateway refused a removal over uncommitted changes. */
+    val pendingWorktreeRemoval: MutableState<SessionListEvent.ConfirmRemoveWorktree?>,
 )
 
 @OptIn(
@@ -319,6 +373,15 @@ private fun rememberSessionListState(
         cwdAlpha = cwdAlpha,
         scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
         hasConsumedLaunchCreate = rememberSaveable { mutableStateOf(false) },
+        worktrees = viewModel.worktrees.collectAsState().value,
+        // The worktree form lives with the dialog, not the view model: a half-typed branch
+        // is view state that dies with the sheet, like the cwd field above.
+        createWorktreeEnabled = remember { mutableStateOf(false) },
+        worktreeBranch = remember { mutableStateOf("") },
+        worktreeBase = remember { mutableStateOf("") },
+        creatingWorktree = viewModel.creatingWorktree.collectAsState().value,
+        worktreeError = viewModel.worktreeError.collectAsState().value,
+        pendingWorktreeRemoval = remember { mutableStateOf(null) },
     )
 }
 
@@ -353,6 +416,8 @@ private fun SessionListEventEffects(
         viewModel.events.collect { event ->
             when (event) {
                 is SessionListEvent.NavigateToChat -> {
+                    // A worktree create leaves the cwd sheet open until its chat is ready.
+                    state.showCwdDialog.value = false
                     onNavigateToChat(
                         event.sessionId,
                         event.cwd,
@@ -362,6 +427,8 @@ private fun SessionListEventEffects(
                 }
 
                 is SessionListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
+
+                is SessionListEvent.ConfirmRemoveWorktree -> state.pendingWorktreeRemoval.value = event
             }
         }
     }
@@ -369,7 +436,7 @@ private fun SessionListEventEffects(
     LaunchedEffect(openCreateSessionDialogOnLaunch) {
         if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate.value) {
             hasConsumedLaunchCreate.value = true
-            if (state.currentCwd.isNullOrBlank()) {
+            if (state.currentCwd.isNullOrBlank() || state.createWorktreeEnabled.value) {
                 state.cwdDialogValue.value = state.currentCwd.orEmpty()
                 viewModel.setPendingCreateAfterCwd()
                 state.showCwdDialog.value = true
@@ -396,6 +463,7 @@ private fun SessionListScaffold(
     onShowConnectionStatusDialog: () -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    onRemoveWorktree: (String, String) -> Unit,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     createSession: () -> Unit,
@@ -445,6 +513,7 @@ private fun SessionListScaffold(
                 padding = padding,
                 state = state,
                 onNavigateToChat = onNavigateToChat,
+                onRemoveWorktree = onRemoveWorktree,
                 onCloseSession = onCloseSession,
                 onDeleteSession = onDeleteSession,
                 createSession = createSession,
@@ -696,6 +765,7 @@ private fun SessionListContent(
     padding: PaddingValues,
     state: SessionListState,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    onRemoveWorktree: (String, String) -> Unit,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     createSession: () -> Unit,
@@ -734,6 +804,8 @@ private fun SessionListContent(
                 onDeleteSession = onDeleteSession,
                 canDeleteSession = state.supportsSessionDelete,
                 onNavigateToChat = onNavigateToChat,
+                onRemoveWorktree = onRemoveWorktree,
+                worktrees = state.worktrees,
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -837,11 +909,16 @@ private fun SessionListLazyColumn(
     onDeleteSession: (String) -> Unit,
     canDeleteSession: Boolean,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    onRemoveWorktree: (String, String) -> Unit,
+    worktrees: List<GatewayWorktree>?,
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
 ) {
+    // A chat opened in a worktree has the worktree directory as its cwd, so the path is the
+    // join key. Built once per list instead of per row.
+    val worktreesByPath = remember(worktrees) { worktrees?.associateBy { it.path }.orEmpty() }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding =
@@ -867,6 +944,11 @@ private fun SessionListLazyColumn(
                     SessionCard(
                         session = session,
                         isLive = session.id in liveSessionIds,
+                        worktree = session.cwd?.let(worktreesByPath::get),
+                        onRemoveWorktree =
+                            session.cwd?.let(worktreesByPath::get)?.let { worktree ->
+                                { onRemoveWorktree(session.id, worktree.id) }
+                            },
                         onDisconnect =
                             if (session.id in liveSessionIds || session.gatewaySessionId != null) {
                                 { onCloseSession(session.id) }
@@ -926,6 +1008,11 @@ private fun SessionListOverlays(
     onDismissCwdDialog: () -> Unit,
     updateCurrentCwd: (String) -> Unit,
     removeRecentCwd: (String) -> Unit,
+    worktree: CwdWorktreeState?,
+    onCreateWorktreeSession: (repo: String, base: String?, branch: String?) -> Unit,
+    pendingWorktreeRemoval: SessionListEvent.ConfirmRemoveWorktree?,
+    onDismissWorktreeRemoval: () -> Unit,
+    onConfirmWorktreeRemoval: (SessionListEvent.ConfirmRemoveWorktree) -> Unit,
     showConnectionStatusDialog: Boolean,
     connectionState: ChatConnectionState,
     connectionDiagnostics: ChatConnectionDiagnostics,
@@ -948,6 +1035,16 @@ private fun SessionListOverlays(
             onDismiss = onDismissCwdDialog,
             updateCurrentCwd = updateCurrentCwd,
             removeRecentCwd = removeRecentCwd,
+            worktree = worktree,
+            onCreateWorktreeSession = onCreateWorktreeSession,
+        )
+    }
+
+    pendingWorktreeRemoval?.let { pending ->
+        DiscardWorktreeDialog(
+            pending = pending,
+            onDismiss = onDismissWorktreeRemoval,
+            onConfirm = onConfirmWorktreeRemoval,
         )
     }
 
@@ -982,6 +1079,8 @@ private fun SessionCwdDialog(
     onDismiss: () -> Unit,
     updateCurrentCwd: (String) -> Unit,
     removeRecentCwd: (String) -> Unit,
+    worktree: CwdWorktreeState?,
+    onCreateWorktreeSession: (repo: String, base: String?, branch: String?) -> Unit,
 ) {
     CwdDialog(
         recentCwds = recentCwds,
@@ -989,8 +1088,18 @@ private fun SessionCwdDialog(
         cwdDialogValue = cwdDialogValue,
         onCwdDialogValueChange = onCwdDialogValueChange,
         onSave = {
-            onDismiss()
-            updateCurrentCwd(cwdDialogValue)
+            if (worktree?.enabled == true) {
+                // The field is the repo now, and the worktree path — not the repo — is what
+                // the new chat opens with.
+                onCreateWorktreeSession(
+                    cwdDialogValue,
+                    worktree.base.ifBlank { null },
+                    worktree.branch.ifBlank { null },
+                )
+            } else {
+                onDismiss()
+                updateCurrentCwd(cwdDialogValue)
+            }
         },
         onClear =
             if (currentCwd != null) {
@@ -1003,6 +1112,7 @@ private fun SessionCwdDialog(
             },
         onDismiss = onDismiss,
         onRemoveRecentCwd = removeRecentCwd,
+        worktree = worktree,
     )
 }
 
@@ -1043,7 +1153,7 @@ private fun PendingAuthenticationDialog(
             ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
             ?: false
 
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
@@ -1093,6 +1203,7 @@ private fun PendingAuthenticationDialog(
 @Composable
 private fun RowScope.SessionCardText(
     session: SessionSummary,
+    worktree: GatewayWorktree?,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
@@ -1131,6 +1242,7 @@ private fun RowScope.SessionCardText(
                     overflow = TextOverflow.MiddleEllipsis,
                 )
             }
+            worktree?.let { WorktreeBadge(it) }
         }
     }
 }
@@ -1144,6 +1256,8 @@ private fun RowScope.SessionCardText(
 private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
+    worktree: GatewayWorktree?,
+    onRemoveWorktree: (() -> Unit)?,
     onDisconnect: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onClick: () -> Unit,
@@ -1153,7 +1267,7 @@ private fun SessionCard(
 ) {
     val haptics = LocalHapticFeedback.current
     var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
-    val hasMenuActions = onDisconnect != null || onDelete != null
+    val hasMenuActions = onDisconnect != null || onDelete != null || onRemoveWorktree != null
     // Right-click is the mouse equivalent of a long press: same menu, same gate.
     val openActionsMenu = {
         if (hasMenuActions) {
@@ -1219,6 +1333,7 @@ private fun SessionCard(
                 ) {
                     SessionCardText(
                         session = session,
+                        worktree = worktree,
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
                         sharedBoundsEnabled = sharedBoundsEnabled,
@@ -1231,6 +1346,7 @@ private fun SessionCard(
             expanded = showActionsMenu,
             onDismiss = { showActionsMenu = false },
             onDisconnect = onDisconnect,
+            onRemoveWorktree = onRemoveWorktree,
             onDelete = onDelete,
         )
     }

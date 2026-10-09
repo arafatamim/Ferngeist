@@ -28,8 +28,11 @@ import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.filterSessionsByCwd
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.isSameCwd
+import com.tamimarafat.ferngeist.feature.sessionlist.worktree.SessionWorktrees
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import com.tamimarafat.ferngeist.gateway.resolveGatewayWebSocketUrl
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -212,6 +215,32 @@ class SessionListViewModel
 
         private var pendingCreateAfterCwd = false
 
+        /**
+         * Gateway worktrees for this list: creating one for a new chat, listing the gateway's
+         * managed ones, and removing them. A separate type so this view model stays a
+         * coordinator rather than growing its own gateway client.
+         */
+        private val sessionWorktrees =
+            SessionWorktrees(
+                serverId = serverId,
+                gatewayRepository = gatewayRepository,
+                gatewaySourceRepository = gatewaySourceRepository,
+                launchableTargetRepository = launchableTargetRepository,
+                sessionSettingsRepository = sessionSettingsRepository,
+                recentCwdStore = recentCwdStore,
+                emitEvent = { _events.emit(it) },
+                openChat = { createSession(it) },
+            )
+
+        /** Managed worktrees, or null when this gateway has none to show (older gateway). */
+        val worktrees: StateFlow<List<GatewayWorktree>?> = sessionWorktrees.managed
+
+        /** True while a worktree create is in flight; the dialog's confirm button stays busy. */
+        val creatingWorktree: StateFlow<Boolean> = sessionWorktrees.creating
+
+        /** Inline error for the worktree form (bad repo/branch, existing branch), else null. */
+        val worktreeError: StateFlow<String?> = sessionWorktrees.error
+
         private val _pendingAuthentication = MutableStateFlow<SessionListPendingAuthentication?>(null)
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
         private var refreshJob: kotlinx.coroutines.Job? = null
@@ -365,6 +394,7 @@ class SessionListViewModel
             }
             viewModelScope.launch {
                 reconcileGatewayLeases(result)
+                sessionWorktrees.refresh(gatewayEndpoint())
                 if (generation == refreshGeneration) syncHubObservables()
             }
         }
@@ -528,6 +558,67 @@ class SessionListViewModel
         fun removeRecentCwd(cwd: String) {
             viewModelScope.launch {
                 recentCwdStore.removeCwd(serverId, cwd)
+            }
+        }
+
+        /** Clears the inline worktree error as soon as the form changes. */
+        fun clearWorktreeError() {
+            sessionWorktrees.clearError()
+        }
+
+        /** Creates a gateway worktree for [repo] and opens a chat in it. */
+        fun createSessionInNewWorktree(
+            repo: String,
+            base: String?,
+            branch: String?,
+        ) {
+            // The dialog may have been opened to create a chat; this call now owns that.
+            pendingCreateAfterCwd = false
+            viewModelScope.launch { sessionWorktrees.create(repo, base, branch) }
+        }
+
+        /**
+         * Removes the worktree a session's chat runs in.
+         *
+         * The agent process holds the directory as its cwd, which on Windows blocks the
+         * delete, so the session is closed first. A 409 means git refused over uncommitted
+         * changes; the caller confirms and retries with [force].
+         *
+         * Every chat that ran in the worktree is deleted with it: its cwd no longer exists, so
+         * the agent can only fail to load it.
+         */
+        fun removeWorktree(
+            sessionId: String,
+            worktreeId: String,
+            force: Boolean = false,
+        ) {
+            viewModelScope.launch(Dispatchers.IO) {
+                if (chatConnectionHub.isStreaming(serverId, sessionId)) {
+                    _events.emit(
+                        SessionListEvent.ShowError(
+                            "This session is still responding. Cancel or close it from inside the chat first.",
+                        ),
+                    )
+                    return@launch
+                }
+                val endpoint = gatewayEndpoint()
+                if (endpoint == null) {
+                    _events.emit(
+                        SessionListEvent.ShowError("Removing a worktree is only available for gateway sessions."),
+                    )
+                    return@launch
+                }
+                runCatching { chatConnectionHub.closeSession(serverId, sessionId, endpoint) }
+                val path = worktrees.value?.firstOrNull { it.id == worktreeId }?.path
+                if (!sessionWorktrees.remove(endpoint, sessionId, worktreeId, force)) return@launch
+                val orphaned =
+                    sessions.value.filter { session ->
+                        val cwd = session.cwd
+                        session.id == sessionId || (path != null && cwd != null && isSameCwd(cwd, path))
+                    }
+                for (session in orphaned) {
+                    runCatching { chatConnectionHub.deleteSession(serverId, session.id, endpoint) }
+                }
             }
         }
 
@@ -904,6 +995,16 @@ sealed interface SessionListEvent {
 
     data class ShowError(
         val message: String,
+    ) : SessionListEvent
+
+    /**
+     * The gateway refused to remove a worktree because it has uncommitted changes.
+     * The caller must confirm discarding them, then retry with `force = true`.
+     */
+    data class ConfirmRemoveWorktree(
+        val sessionId: String,
+        val worktreeId: String,
+        val branch: String,
     ) : SessionListEvent
 }
 

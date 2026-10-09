@@ -39,6 +39,20 @@
     <string name="sessionlist_cwd_cancel">Cancelar</string>
     <string name="sessionlist_cwd_save">Guardar</string>
 
+    <!-- Worktrees -->
+    <string name="sessionlist_worktree_switch">Nuevo worktree</string>
+    <string name="sessionlist_worktree_body">Este directorio es el repositorio. El chat se ejecuta en su propio git worktree con su propia rama, para que los agentes en paralelo no editen la misma copia.</string>
+    <string name="sessionlist_worktree_branch">Rama</string>
+    <string name="sessionlist_worktree_optional">Opcional</string>
+    <string name="sessionlist_worktree_base">Base</string>
+    <string name="sessionlist_worktree_base_hint">HEAD del repositorio</string>
+    <string name="sessionlist_worktree_create">Crear worktree</string>
+    <string name="sessionlist_worktree_dirty">sin confirmar</string>
+    <string name="sessionlist_action_remove_worktree">Eliminar worktree</string>
+    <string name="sessionlist_worktree_discard_title">¿Descartar los cambios sin confirmar?</string>
+    <string name="sessionlist_worktree_discard_body">El worktree \"%1$s\" tiene cambios sin confirmar. Eliminarlo los borra. Sus commits se conservan en su rama.</string>
+    <string name="sessionlist_worktree_discard_confirm">Descartar y eliminar</string>
+
     <string name="sessionlist_error_load">No se pudieron cargar las sesiones</string>
     <string name="sessionlist_error_create">No se pudo crear una nueva sesión</string>
     <string name="sessionlist_error_reconnect">No se pudo volver a conectar a %1$s</string>

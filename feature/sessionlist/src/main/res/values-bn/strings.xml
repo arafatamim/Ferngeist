@@ -38,6 +38,20 @@
     <string name="sessionlist_cwd_cancel">বাতিল করুন</string>
     <string name="sessionlist_cwd_save">সংরক্ষণ করুন</string>
 
+    <!-- Worktrees -->
+    <string name="sessionlist_worktree_switch">নতুন worktree</string>
+    <string name="sessionlist_worktree_body">এই ডিরেক্টরিটিই রিপো। চ্যাটটি নিজস্ব ব্রাঞ্চসহ নিজের git worktree-তে চলে, তাই সমান্তরাল এজেন্টরা একই চেকআউট এডিট করে না।</string>
+    <string name="sessionlist_worktree_branch">ব্রাঞ্চ</string>
+    <string name="sessionlist_worktree_optional">ঐচ্ছিক</string>
+    <string name="sessionlist_worktree_base">বেস</string>
+    <string name="sessionlist_worktree_base_hint">রিপোর HEAD</string>
+    <string name="sessionlist_worktree_create">worktree তৈরি করুন</string>
+    <string name="sessionlist_worktree_dirty">কমিট করা হয়নি</string>
+    <string name="sessionlist_action_remove_worktree">worktree সরান</string>
+    <string name="sessionlist_worktree_discard_title">কমিট না করা পরিবর্তন বাতিল করবেন?</string>
+    <string name="sessionlist_worktree_discard_body">worktree \"%1$s\"-এ কমিট না করা পরিবর্তন আছে। এটি সরালে সেগুলো মুছে যাবে। এর সব কমিট ব্রাঞ্চে থেকে যাবে।</string>
+    <string name="sessionlist_worktree_discard_confirm">বাতিল করে সরান</string>
+
     <string name="sessionlist_error_load">সেশন লোড করা যায়নি</string>
     <string name="sessionlist_error_create">নতুন সেশন তৈরি করা যায়নি</string>
     <string name="sessionlist_error_reconnect">%1$s-এর সাথে পুনরায় সংযোগ করা যায়নি</string>

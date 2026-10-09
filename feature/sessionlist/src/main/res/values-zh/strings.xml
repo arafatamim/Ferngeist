@@ -38,6 +38,20 @@
     <string name="sessionlist_cwd_cancel">取消</string>
     <string name="sessionlist_cwd_save">保存</string>
 
+    <!-- Worktrees -->
+    <string name="sessionlist_worktree_switch">新建 worktree</string>
+    <string name="sessionlist_worktree_body">此目录即仓库。聊天会在拥有独立分支的 git worktree 中运行，因此并行的代理不会编辑同一个检出。</string>
+    <string name="sessionlist_worktree_branch">分支</string>
+    <string name="sessionlist_worktree_optional">可选</string>
+    <string name="sessionlist_worktree_base">基准</string>
+    <string name="sessionlist_worktree_base_hint">仓库 HEAD</string>
+    <string name="sessionlist_worktree_create">创建 worktree</string>
+    <string name="sessionlist_worktree_dirty">未提交</string>
+    <string name="sessionlist_action_remove_worktree">移除 worktree</string>
+    <string name="sessionlist_worktree_discard_title">丢弃未提交的更改？</string>
+    <string name="sessionlist_worktree_discard_body">Worktree \"%1$s\" 有未提交的更改。移除它会删除这些更改。它的提交会保留在其分支上。</string>
+    <string name="sessionlist_worktree_discard_confirm">丢弃并移除</string>
+
     <!-- Error messages -->
     <string name="sessionlist_error_load">加载会话失败</string>
     <string name="sessionlist_error_create">创建新会话失败</string>

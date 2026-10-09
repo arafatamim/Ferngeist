@@ -18,13 +18,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
@@ -49,6 +53,29 @@ import kotlinx.coroutines.launch
 
 private const val CWD_SUGGESTION_MAX_HEIGHT_DP = 200
 
+/** The one base worth offering as a chip; leave the field empty for the repo's `HEAD`. */
+private const val DEFAULT_WORKTREE_BASE = "origin/main"
+
+/**
+ * Worktree-creation fields for [CwdDialog], or null when this gateway has no worktree API
+ * (an older gateway, or a non-gateway agent), which hides the switch entirely.
+ *
+ * The switch repurposes the directory field: it stops being a filter and becomes the repo
+ * a new branch is cut from, so a successful create opens a chat instead of saving the filter.
+ */
+data class CwdWorktreeState(
+    val enabled: Boolean,
+    val branch: String,
+    val base: String,
+    /** Inline error under the branch field; the gateway's own message or a known status. */
+    val error: String?,
+    /** True while the gateway runs `git worktree add`; the confirm button stays busy. */
+    val creating: Boolean,
+    val onEnabledChange: (Boolean) -> Unit,
+    val onBranchChange: (String) -> Unit,
+    val onBaseChange: (String) -> Unit,
+)
+
 /**
  * Bottom sheet for setting the working-directory filter on sessions.
  * Suggestions (recent CWDs + CWDs from existing sessions) are filtered live as
@@ -66,9 +93,12 @@ fun CwdDialog(
     onClear: (() -> Unit)?,
     onDismiss: () -> Unit,
     onRemoveRecentCwd: (String) -> Unit,
+    worktree: CwdWorktreeState? = null,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val scope = rememberCoroutineScope()
+    val worktreeEnabled = worktree?.enabled == true
+    val creatingWorktree = worktree?.let { it.enabled && it.creating } == true
     val suggestions =
         remember(recentCwds, sessions, cwdDialogValue) {
             buildCwdSuggestions(cwdDialogValue, recentCwds, sessions)
@@ -97,7 +127,12 @@ fun CwdDialog(
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
-                text = stringResource(R.string.sessionlist_cwd_body),
+                text =
+                    if (worktreeEnabled) {
+                        stringResource(R.string.sessionlist_worktree_body)
+                    } else {
+                        stringResource(R.string.sessionlist_cwd_body)
+                    },
                 style = MaterialTheme.typography.bodyMedium,
             )
             OutlinedTextField(
@@ -107,6 +142,47 @@ fun CwdDialog(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(R.string.sessionlist_cwd_placeholder)) },
             )
+            worktree?.let { form ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Switch(
+                        checked = form.enabled,
+                        onCheckedChange = form.onEnabledChange,
+                    )
+                    Text(
+                        text = stringResource(R.string.sessionlist_worktree_switch),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                if (form.enabled) {
+                    OutlinedTextField(
+                        value = form.branch,
+                        onValueChange = form.onBranchChange,
+                        singleLine = true,
+                        isError = form.error != null,
+                        label = { Text(stringResource(R.string.sessionlist_worktree_branch)) },
+                        placeholder = { Text(stringResource(R.string.sessionlist_worktree_optional)) },
+                        supportingText = form.error?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = form.base,
+                        onValueChange = form.onBaseChange,
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.sessionlist_worktree_base)) },
+                        placeholder = { Text(stringResource(R.string.sessionlist_worktree_base_hint)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AssistChip(
+                        onClick = { form.onBaseChange(DEFAULT_WORKTREE_BASE) },
+                        modifier = Modifier.handCursor(),
+                        label = { Text(DEFAULT_WORKTREE_BASE) },
+                    )
+                }
+            }
             if (suggestions.isNotEmpty()) {
                 CwdSuggestionList(
                     suggestions = suggestions,
@@ -119,7 +195,7 @@ fun CwdDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (onClear != null) {
+                if (onClear != null && !worktreeEnabled) {
                     TextButton(onClick = { animateAnd(onClear) }, modifier = Modifier.handCursor()) {
                         Text(stringResource(R.string.sessionlist_cwd_clear))
                     }
@@ -127,8 +203,28 @@ fun CwdDialog(
                 TextButton(onClick = { animateAnd(onDismiss) }, modifier = Modifier.handCursor()) {
                     Text(stringResource(R.string.sessionlist_cwd_cancel))
                 }
-                Button(onClick = { animateAnd(onSave) }, modifier = Modifier.handCursor()) {
-                    Text(stringResource(R.string.sessionlist_cwd_save))
+                Button(
+                    // A worktree create keeps the sheet open: it shows the busy state and any
+                    // inline error, and closes once the chat opens.
+                    onClick = { if (worktreeEnabled) onSave() else animateAnd(onSave) },
+                    enabled = !creatingWorktree,
+                    modifier = Modifier.handCursor(),
+                ) {
+                    if (creatingWorktree) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = LocalContentColor.current,
+                        )
+                    } else {
+                        Text(
+                            if (worktreeEnabled) {
+                                stringResource(R.string.sessionlist_worktree_create)
+                            } else {
+                                stringResource(R.string.sessionlist_cwd_save)
+                            },
+                        )
+                    }
                 }
             }
         }
