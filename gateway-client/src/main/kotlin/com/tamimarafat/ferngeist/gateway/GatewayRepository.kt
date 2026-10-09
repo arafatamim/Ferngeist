@@ -134,6 +134,10 @@ interface GatewayWorkspaceRepository {
      * Reads a file inside a runtime's project directory. [path] is relative to the
      * agent's cwd (captured from the ACP session/new params.cwd) and must not escape it.
      * The response is the ACP SDK's resource-contents shape (text or binary).
+     *
+     * [acpSessionId] scopes this and the git calls below to that ACP session's cwd; null
+     * falls back to the runtime's most recently opened session. A session the gateway has
+     * not seen yet answers 404.
      */
     suspend fun fetchWorkspaceFile(
         scheme: String,
@@ -141,6 +145,7 @@ interface GatewayWorkspaceRepository {
         gatewayCredential: String,
         runtimeId: String,
         path: String,
+        acpSessionId: String? = null,
     ): GatewayFileRead
 
     /** Returns the git branch, ahead/behind, and changed files for a runtime's project directory. */
@@ -149,6 +154,7 @@ interface GatewayWorkspaceRepository {
         host: String,
         gatewayCredential: String,
         runtimeId: String,
+        acpSessionId: String? = null,
     ): GatewayGitStatus
 
     /**
@@ -163,6 +169,7 @@ interface GatewayWorkspaceRepository {
         gatewayCredential: String,
         runtimeId: String,
         path: String? = null,
+        acpSessionId: String? = null,
     ): List<ToolCallContent.Diff>
 }
 

@@ -135,6 +135,7 @@ class FakeGatewayRepository : GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
         path: String,
+        acpSessionId: String?,
     ): GatewayFileRead = TODO()
 
     override suspend fun fetchGitStatus(
@@ -142,6 +143,7 @@ class FakeGatewayRepository : GatewayRepository {
         host: String,
         gatewayCredential: String,
         runtimeId: String,
+        acpSessionId: String?,
     ): GatewayGitStatus = TODO()
 
     override suspend fun fetchGitDiff(
@@ -150,6 +152,7 @@ class FakeGatewayRepository : GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
         path: String?,
+        acpSessionId: String?,
     ): List<ToolCallContent.Diff> {
         gitDiffRequests.add(path to GatewayWorkspaceConnection(runtimeId, scheme, host, gatewayCredential))
         path?.let { fetchGitDiffGates[it] }?.await()

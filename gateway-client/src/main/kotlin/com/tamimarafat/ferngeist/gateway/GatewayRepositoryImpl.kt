@@ -324,13 +324,14 @@ class GatewayRepositoryImpl
             gatewayCredential: String,
             runtimeId: String,
             path: String,
+            acpSessionId: String?,
         ): GatewayFileRead {
             val endpoint =
                 buildGatewayEndpoint(
                     scheme,
                     host,
                     segments = arrayOf("v1", "runtimes", runtimeId, "files"),
-                    query = mapOf("path" to path),
+                    query = mapOf("path" to path) + acpSessionQuery(acpSessionId),
                 )
             val authHeaders =
                 GatewayProofAuth.buildAuthHeaders(
@@ -374,6 +375,7 @@ class GatewayRepositoryImpl
             host: String,
             gatewayCredential: String,
             runtimeId: String,
+            acpSessionId: String?,
         ): GatewayGitStatus =
             httpClient.getJson(
                 json = json,
@@ -381,6 +383,7 @@ class GatewayRepositoryImpl
                 host = host,
                 bearerToken = gatewayCredential,
                 segments = arrayOf("v1", "runtimes", runtimeId, "git", "status"),
+                query = acpSessionQuery(acpSessionId),
             )
 
         override suspend fun fetchGitDiff(
@@ -389,10 +392,12 @@ class GatewayRepositoryImpl
             gatewayCredential: String,
             runtimeId: String,
             path: String?,
+            acpSessionId: String?,
         ): List<ToolCallContent.Diff> {
             val segments = arrayOf("v1", "runtimes", runtimeId, "git", "diff")
-            val query = path?.takeIf { it.isNotBlank() }?.let { mapOf("path" to it) } ?: emptyMap()
-            return if (query.isEmpty()) {
+            val pathQuery = path?.takeIf { it.isNotBlank() }?.let { mapOf("path" to it) } ?: emptyMap()
+            val query = pathQuery + acpSessionQuery(acpSessionId)
+            return if (pathQuery.isEmpty()) {
                 // Whole-tree: gateway returns a JSON array of ToolCallContentDiff objects.
                 httpClient.getJson(
                     json = json,
@@ -400,6 +405,7 @@ class GatewayRepositoryImpl
                     host = host,
                     bearerToken = gatewayCredential,
                     segments = segments,
+                    query = query,
                 )
             } else {
                 // Single file: gateway returns one ToolCallContentDiff object.
@@ -741,6 +747,9 @@ class GatewayCredentialExpiredException(
             "Re-pair this gateway to continue. ($endpoint)",
         cause,
     )
+
+private fun acpSessionQuery(acpSessionId: String?): Map<String, String> =
+    acpSessionId?.takeIf { it.isNotBlank() }?.let { mapOf("acpSessionId" to it) } ?: emptyMap()
 
 /** Thrown for any non-success gateway API response; carries the HTTP status code. */
 class GatewayRequestException(

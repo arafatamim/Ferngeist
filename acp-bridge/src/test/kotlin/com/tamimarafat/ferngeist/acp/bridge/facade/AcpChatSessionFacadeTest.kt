@@ -215,6 +215,7 @@ class AcpChatSessionFacadeTest {
             gatewayCredential: String,
             runtimeId: String,
             path: String,
+            acpSessionId: String?,
         ) = TODO("unused in facade tests")
 
         override suspend fun fetchGitStatus(
@@ -222,6 +223,7 @@ class AcpChatSessionFacadeTest {
             host: String,
             gatewayCredential: String,
             runtimeId: String,
+            acpSessionId: String?,
         ) = TODO("unused in facade tests")
 
         override suspend fun fetchGitDiff(
@@ -230,6 +232,7 @@ class AcpChatSessionFacadeTest {
             gatewayCredential: String,
             runtimeId: String,
             path: String?,
+            acpSessionId: String?,
         ) = TODO("unused in facade tests")
 
         override suspend fun createCustomAgent(

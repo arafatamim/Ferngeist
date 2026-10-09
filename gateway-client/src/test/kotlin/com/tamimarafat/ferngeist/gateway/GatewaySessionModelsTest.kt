@@ -206,6 +206,7 @@ class GatewaySessionModelsTest {
                     gatewayCredential: String,
                     runtimeId: String,
                     path: String,
+                    acpSessionId: String?,
                 ): GatewayFileRead = TODO()
 
                 override suspend fun fetchGitStatus(
@@ -213,6 +214,7 @@ class GatewaySessionModelsTest {
                     host: String,
                     gatewayCredential: String,
                     runtimeId: String,
+                    acpSessionId: String?,
                 ): GatewayGitStatus = TODO()
 
                 override suspend fun fetchGitDiff(
@@ -221,6 +223,7 @@ class GatewaySessionModelsTest {
                     gatewayCredential: String,
                     runtimeId: String,
                     path: String?,
+                    acpSessionId: String?,
                 ): List<com.agentclientprotocol.model.ToolCallContent.Diff> = TODO()
 
                 override suspend fun createCustomAgent(

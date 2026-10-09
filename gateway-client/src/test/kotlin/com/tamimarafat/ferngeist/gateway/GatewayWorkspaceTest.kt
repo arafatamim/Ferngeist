@@ -91,6 +91,21 @@ class GatewayWorkspaceTest {
         }
 
     @Test
+    fun `workspace calls scope to the ACP session when given one`() =
+        runTest {
+            val queries = mutableListOf<String?>()
+            val repo = repoCapturing(responseBody = """[]""") { queries += it.url.encodedQuery }
+
+            runCatching { repo.fetchGitStatus("http", "10.0.0.2:5788", "plain-token", "rt-1", acpSessionId = "s-1") }
+            repo.fetchGitDiff("http", "10.0.0.2:5788", "plain-token", "rt-1", acpSessionId = "s-1")
+            runCatching {
+                repo.fetchWorkspaceFile("http", "10.0.0.2:5788", "plain-token", "rt-1", "a.txt", acpSessionId = "s-1")
+            }
+
+            assertEquals(listOf("acpSessionId=s-1", "acpSessionId=s-1", "path=a.txt&acpSessionId=s-1"), queries)
+        }
+
+    @Test
     fun `fetchGitDiff sends the path as a query param and decodes the diff`() =
         runTest {
             var captured: HttpRequestData? = null

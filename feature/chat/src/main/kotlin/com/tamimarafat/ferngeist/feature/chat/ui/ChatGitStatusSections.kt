@@ -319,23 +319,15 @@ private fun GitDiffDetailHeader(
 private fun GitStatusBadge(status: String) {
     // Status badge (same porcelain semantics as the list rows)
     val gitColors = LocalGitSemanticColors.current
-    val statusColor =
+    val colors = MaterialTheme.colorScheme
+    val (statusColor, statusBg) =
         when (status) {
-            "M" -> MaterialTheme.colorScheme.secondary
-            "A" -> gitColors.added
-            "R" -> MaterialTheme.colorScheme.tertiary
-            "?" -> MaterialTheme.colorScheme.onSurfaceVariant
-            "D" -> gitColors.deleted
-            else -> MaterialTheme.colorScheme.onSurfaceVariant
-        }
-    val statusBg =
-        when (status) {
-            "D" -> gitColors.deleted.copy(alpha = 0.15f)
-            "M" -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-            "A" -> gitColors.added.copy(alpha = 0.15f)
-            "R" -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
-            "?" -> MaterialTheme.colorScheme.surfaceVariant
-            else -> MaterialTheme.colorScheme.surfaceVariant
+            "M" -> colors.secondary to colors.secondaryContainer.copy(alpha = 0.4f)
+            "A" -> gitColors.added to gitColors.added.copy(alpha = 0.15f)
+            "R" -> colors.tertiary to colors.tertiaryContainer.copy(alpha = 0.4f)
+            "D" -> gitColors.deleted to gitColors.deleted.copy(alpha = 0.15f)
+            "U" -> colors.error to colors.errorContainer
+            else -> colors.onSurfaceVariant to colors.surfaceVariant
         }
     Surface(
         shape = RoundedCornerShape(6.dp),

@@ -495,6 +495,8 @@ class ChatViewModel
          * indicator.
          */
         private fun refreshGitStatus(connection: GatewayWorkspaceConnection) {
+            // Nothing to scope to until create-on-arrival mints a session; sessionReady retries.
+            val acpSessionId = acpSessionId() ?: return
             viewModelScope.launch {
                 runCatching {
                     val status =
@@ -503,6 +505,7 @@ class ChatViewModel
                             host = connection.host,
                             gatewayCredential = connection.gatewayCredential,
                             runtimeId = connection.runtimeId,
+                            acpSessionId = acpSessionId,
                         )
                     GitDiffStats(
                         additions = status.changed.sumOf { it.added },
@@ -513,6 +516,9 @@ class ChatViewModel
                 }
             }
         }
+
+        /** The ACP session this chat shows, scoping workspace calls to its cwd; null before it is minted. */
+        private fun acpSessionId(): String? = trackedSessionId.takeIf { it != NEW_SESSION_ARG }
 
         /**
          * Fetches the unified diff for a single file in the gateway-backed working
@@ -549,6 +555,7 @@ class ChatViewModel
                                     gatewayCredential = connection.gatewayCredential,
                                     runtimeId = connection.runtimeId,
                                     path = path,
+                                    acpSessionId = acpSessionId(),
                                 )
                             }
                         gitFileDiffMutex.withLock {

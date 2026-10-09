@@ -151,6 +151,7 @@ class ChatConnectionHubTest {
             gatewayCredential: String,
             runtimeId: String,
             path: String,
+            acpSessionId: String?,
         ) = TODO("unused in hub tests")
 
         override suspend fun fetchGitStatus(
@@ -158,6 +159,7 @@ class ChatConnectionHubTest {
             host: String,
             gatewayCredential: String,
             runtimeId: String,
+            acpSessionId: String?,
         ) = TODO("unused in hub tests")
 
         override suspend fun fetchGitDiff(
@@ -166,6 +168,7 @@ class ChatConnectionHubTest {
             gatewayCredential: String,
             runtimeId: String,
             path: String?,
+            acpSessionId: String?,
         ) = TODO("unused in hub tests")
 
         override suspend fun createCustomAgent(
