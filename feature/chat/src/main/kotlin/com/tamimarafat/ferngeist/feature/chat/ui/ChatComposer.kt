@@ -89,13 +89,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -137,8 +137,8 @@ private val EXPANDED_COMPOSER_MIN_HEIGHT = 142.dp
  * @param composerExpanded Whether the composer is currently expanded for text entry.
  * @param onComposerExpandedChange Callback when the expansion state changes.
  * @param messageText Text field state backing the composer input.
- * @param inputAlpha Alpha value for the text input area (usually for fading during transitions).
- * @param buttonsAlpha Alpha value for the buttons in collapsed state.
+ * @param inputAlpha Alpha (read at draw time) for the text input area (usually for fading during transitions).
+ * @param buttonsAlpha Alpha (read at draw time) for the buttons in collapsed state.
  * @param showModeButton Whether to show the mode selection button.
  * @param modeOption The specific select option for modes.
  * @param currentModeLabel The human-readable label for the current mode.
@@ -164,8 +164,8 @@ internal fun ChatComposerBar(
     composerExpanded: Boolean,
     onComposerExpandedChange: (Boolean) -> Unit,
     messageText: TextFieldState,
-    inputAlpha: Float,
-    buttonsAlpha: Float,
+    inputAlpha: () -> Float,
+    buttonsAlpha: () -> Float,
     showModeButton: Boolean,
     modeOption: ChatConfigOption.Select?,
     currentModeLabel: String,
@@ -332,8 +332,14 @@ private fun ComposerSurfaceContainer(
                 expandedContentHeightPx.toDp().coerceAtLeast(EXPANDED_COMPOSER_MIN_HEIGHT)
             }
         val widthKnown = composerExpanded || collapsedContentWidthPx > 0
+        val restingHeight = if (composerExpanded) expandedHeight else COLLAPSED_COMPOSER_HEIGHT
+        // Reports the resting height, not the animated one: the parent turns this into list
+        // padding at screen level, so a per-frame value recomposed the whole chat screen and
+        // re-laid out the list on every frame of the expand/collapse.
+        val restingHeightPx = with(density) { restingHeight.roundToPx() }
+        LaunchedEffect(restingHeightPx) { onHeightChanged(restingHeightPx) }
         val animatedHeight by animateDpAsState(
-            targetValue = if (composerExpanded) expandedHeight else COLLAPSED_COMPOSER_HEIGHT,
+            targetValue = restingHeight,
             // Themed rather than hand-tuned, so the composer moves in step with the rest of
             // the app: a bounds change is spatial motion, so it takes the spatial spec, and
             // the scheme is already installed app-wide in the theme.
@@ -350,9 +356,6 @@ private fun ComposerSurfaceContainer(
             shadowElevation = 6.dp,
             modifier =
                 Modifier
-                    // Reports the animated height, so the list padding this feeds reflows in
-                    // step with the panel instead of snapping to the target.
-                    .onSizeChanged { onHeightChanged(it.height) }
                     .height(animatedHeight)
                     .then(
                         if (widthKnown) {
@@ -426,7 +429,7 @@ private fun ComposerSurfaceContainer(
 @Composable
 internal fun ExpandedComposerContent(
     messageText: TextFieldState,
-    inputAlpha: Float,
+    inputAlpha: () -> Float,
     focusRequester: FocusRequester,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
@@ -447,7 +450,7 @@ internal fun ExpandedComposerContent(
             Modifier
                 .fillMaxWidth()
                 .padding(top = 12.dp, bottom = 12.dp)
-                .alpha(inputAlpha)
+                .graphicsLayer { alpha = inputAlpha() }
                 .onEscapeKey(onEscape = onClose)
                 // Restates the send button's contract for the keyboard: the button is disabled
                 // while streaming and while the field is blank, so the shortcut is too.
@@ -619,7 +622,7 @@ private fun ExpandedComposerBottomBar(
 internal fun CollapsedComposerActions(
     state: ChatState,
     toolbarConfigOptions: List<ChatConfigOption>,
-    buttonsAlpha: Float,
+    buttonsAlpha: () -> Float,
     showModeButton: Boolean,
     modeOption: ChatConfigOption.Select?,
     currentModeLabel: String,
@@ -644,7 +647,7 @@ internal fun CollapsedComposerActions(
 ) {
     if (showModeButton && modeOption != null) {
         ModeMenuButton(
-            modifier = Modifier.alpha(buttonsAlpha),
+            modifier = Modifier.graphicsLayer { alpha = buttonsAlpha() },
             currentModeLabel = currentModeLabel,
             modeOption = modeOption,
             maxWidth = collapsedMaxToolbarWidth * 0.45f,
@@ -705,7 +708,7 @@ internal fun CollapsedComposerActions(
 private fun CollapsedPrimaryButton(
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
-    buttonsAlpha: Float,
+    buttonsAlpha: () -> Float,
     onCancelStreaming: () -> Unit,
     onExpandComposer: () -> Unit,
     dropTargetActive: Boolean,
@@ -731,7 +734,7 @@ private fun CollapsedPrimaryButton(
             enabled = !showStopAction || canCancelStreaming,
             modifier =
                 Modifier
-                    .alpha(buttonsAlpha)
+                    .graphicsLayer { alpha = buttonsAlpha() }
                     .size(
                         IconButtonDefaults.smallContainerSize(
                             IconButtonDefaults.IconButtonWidthOption.Wide,
