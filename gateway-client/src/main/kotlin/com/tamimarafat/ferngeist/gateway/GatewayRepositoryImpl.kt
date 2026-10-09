@@ -481,7 +481,9 @@ class GatewayRepositoryImpl
                         "refresh",
                     )
                 } catch (error: GatewayRequestException) {
-                    if (error.statusCode == 401) {
+                    // A stale proof (phone clock skew, replayed nonce) is also a 401 but says
+                    // nothing about the credential; deleting the pairing over it would force a re-pair.
+                    if (error.statusCode == 401 && !error.isTransientProofRejection()) {
                         // The gateway refused to refresh the credential: it has
                         // expired and is past the grace window (or legacy bearer
                         // credentials are disabled). The stored credential is
@@ -747,6 +749,9 @@ class GatewayCredentialExpiredException(
             "Re-pair this gateway to continue. ($endpoint)",
         cause,
     )
+
+private fun GatewayRequestException.isTransientProofRejection(): Boolean =
+    responseBody.orEmpty().let { "proof expired" in it || "proof replayed" in it }
 
 private fun acpSessionQuery(acpSessionId: String?): Map<String, String> =
     acpSessionId?.takeIf { it.isNotBlank() }?.let { mapOf("acpSessionId" to it) } ?: emptyMap()

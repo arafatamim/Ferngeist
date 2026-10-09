@@ -48,6 +48,20 @@ class GatewayCredentialRefreshTest {
         }
 
     @Test
+    fun `refreshCredential keeps the credential on a stale-proof 401`() =
+        runTest {
+            val repo =
+                repoResponding(HttpStatusCode.Unauthorized, """{"error":"gateway credential proof expired"}""")
+            try {
+                repo.refreshCredential(scheme = "https", host = "host-a", gatewayCredential = "cred")
+                fail("expected GatewayRequestException")
+                // A GatewayCredentialExpiredException escapes this catch and fails the test.
+            } catch (error: GatewayRequestException) {
+                assertEquals(401, error.statusCode)
+            }
+        }
+
+    @Test
     fun `refreshCredential passes through non-401 errors`() =
         runTest {
             val repo = repoResponding(HttpStatusCode.InternalServerError, """{"error":"boom"}""")
