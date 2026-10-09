@@ -1,4 +1,30 @@
 
+## [1.1.0] - 2026-10-09
+
+### Features
+
+- *(ui)* Collapse app bars on short windows ([bab709a](https://github.com/arafatamim/Ferngeist/commit/bab709a2aae55b248262b89da500bef4fa7778c1))
+- *(chat)* Show tool group summary in present continuous while running ([cc7d289](https://github.com/arafatamim/Ferngeist/commit/cc7d28926e60e8955e2a607fe52f2ed14d824a94))
+- *(chat)* Pin prompt chip only for answers longer than a viewport ([7a65d6d](https://github.com/arafatamim/Ferngeist/commit/7a65d6dbe3435e65df68b709ec3586721a524350))
+- *(chat)* Fade pinned prompt chip out as its bubble re-enters ([cc468e2](https://github.com/arafatamim/Ferngeist/commit/cc468e27b4dfac71370162ce59cd401b2f37dfa7))
+- *(chat)* Add ACP elicitation form and URL sheets ([f34e75f](https://github.com/arafatamim/Ferngeist/commit/f34e75fc3c4fcae7d2ec37141d885d78ad4e4a18))
+- *(push)* Receive notifications over UnifiedPush instead of FCM ([0378936](https://github.com/arafatamim/Ferngeist/commit/0378936cbeb16da842425e5a72bef006b0e0e58e))
+- *(core)* Add pointer and key affordance modifiers ([9ae0f6e](https://github.com/arafatamim/Ferngeist/commit/9ae0f6ea397d1a524e2d5b496f7ed9032cbdb837))
+- *(chat)* Attach pasted and dropped content in the composer ([13657d4](https://github.com/arafatamim/Ferngeist/commit/13657d489e743a10ddaca6e2d206266fcf2da242))
+- *(chat)* Add pointer and keyboard affordances to the chat surfaces ([839f576](https://github.com/arafatamim/Ferngeist/commit/839f5760712bc81bd9e17fc229e36c79ff3d34e0))
+- *(serverlist)* Add pointer and keyboard affordances ([b687a0f](https://github.com/arafatamim/Ferngeist/commit/b687a0f9aff5c3c6e01dec77003a328ea2cd5b73))
+- *(sessionlist)* Add pointer and keyboard affordances ([70796f0](https://github.com/arafatamim/Ferngeist/commit/70796f08624d70765be4c481af097157de044023))
+
+### Fixes
+
+- *(serverlist)* Clarify custom agent command runs on the gateway host ([94a7037](https://github.com/arafatamim/Ferngeist/commit/94a70377c4f8508f8a417ae369475d1f5d8508a8))
+- *(data)* Cascade target deletion to that target's sessions ([690a6ad](https://github.com/arafatamim/Ferngeist/commit/690a6ad564930e1466b51eaa9dbd6e777e0a13ca))
+- *(chat)* Restore the git status indicator's long press ([178fbf6](https://github.com/arafatamim/Ferngeist/commit/178fbf69feae0a3186b095f414cfb7947486f370))
+
+### Maintenance
+
+- *(release)* Bump versionCode to 1602 for internal testing ([f941cc8](https://github.com/arafatamim/Ferngeist/commit/f941cc891d55a8471ec6ea3f8a1f4a441bee7b97))
+
 ## [1.0.0] - 2026-10-05
 
 ### Documentation

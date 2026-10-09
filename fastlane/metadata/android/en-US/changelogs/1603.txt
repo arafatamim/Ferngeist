@@ -1,0 +1,8 @@
+Now built for keyboards and pointers.
+
+• Sessions, chats and dialogs respond to focus, hover and context menus
+• Paste or drop files straight into the composer, not just the attach button
+• ACP elicitation forms and URL sheets
+• Notifications arrive end-to-end encrypted over UnifiedPush — no Firebase project, and the FOSS build gets pushes too
+• App bars collapse out of the way on short windows
+• Fixed: deleting a gateway no longer leaves orphaned sessions behind
