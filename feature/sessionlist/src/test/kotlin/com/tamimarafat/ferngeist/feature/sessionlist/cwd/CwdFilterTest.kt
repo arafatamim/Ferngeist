@@ -46,6 +46,44 @@ class CwdFilterTest {
         assertEquals(emptyList<String>(), filterSessionsByCwd(listOf(session("d", null)), "/work/api").map { it.id })
     }
 
+    @Test
+    fun filter_keepsWorktreeChatsUnderTheirRepo() {
+        val tree =
+            listOf(
+                session("repo", "/work/api"),
+                session("wt", "/work/api/.worktrees/feat-x"),
+                session("other", "/work/app/.worktrees/feat-x"),
+            )
+
+        assertEquals(
+            listOf("repo", "wt"),
+            filterSessionsByCwd(tree, "/work/api").map { it.id },
+        )
+    }
+
+    @Test
+    fun filter_matchesAWorktreeRepoDespiteCase() {
+        val tree = listOf(session("wt", "/Work/Api/.worktrees/feat-x"))
+
+        assertEquals(listOf("wt"), filterSessionsByCwd(tree, "/work/api").map { it.id })
+    }
+
+    @Test
+    fun worktreeRepoOf_readsOnlyTheFolderSegment() {
+        assertEquals("/work/api", worktreeRepoOf("/work/api/.worktrees/feat-x"))
+        // A repo that merely has "worktrees" in its name is not a managed worktree.
+        assertEquals(null, worktreeRepoOf("/work/apix.worktrees/feat-x"))
+        assertEquals(null, worktreeRepoOf("/work/api"))
+        assertEquals(null, worktreeRepoOf(".worktrees/feat-x"))
+        assertEquals("C:\\work\\api", worktreeRepoOf("C:\\work\\api\\.worktrees\\feat-x"))
+    }
+
+    @Test
+    fun isSameCwd_ignoresSeparatorsCaseAndTrailingSlash() {
+        assertEquals(true, isSameCwd("C:\\work\\api\\.worktrees\\feat-x", "c:/work/api/.worktrees/feat-x/"))
+        assertEquals(false, isSameCwd("/work/api/.worktrees/feat-x", "/work/api"))
+    }
+
     private fun session(
         id: String,
         cwd: String?,
