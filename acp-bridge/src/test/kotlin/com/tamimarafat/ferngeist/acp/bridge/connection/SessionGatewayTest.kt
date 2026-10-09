@@ -26,8 +26,8 @@ import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
-import com.agentclientprotocol.rpc.JsonRpcMessage
 import com.agentclientprotocol.rpc.JsonRpcRequest
+import com.agentclientprotocol.rpc.TransportFrame
 import com.agentclientprotocol.transport.Transport
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
@@ -251,12 +251,13 @@ class SessionGatewayTest {
 
         override fun start() = Unit
 
-        override fun send(message: JsonRpcMessage) {
-            sentMethods += (message as? JsonRpcRequest)?.method?.name ?: message.toString()
+        override fun send(frame: TransportFrame) {
+            val message = (frame as? TransportFrame.Single)?.message
+            sentMethods += (message as? JsonRpcRequest)?.method?.name ?: frame.toString()
             throw error
         }
 
-        override fun onMessage(handler: (JsonRpcMessage) -> Unit) = Unit
+        override fun onFrame(handler: (TransportFrame) -> Unit) = Unit
 
         override fun onError(handler: (Throwable) -> Unit) = Unit
 

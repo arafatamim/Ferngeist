@@ -86,7 +86,7 @@ Log reading on Windows: PowerShell-written Gradle logs carry a BOM. Decode tryin
 
 ## Runtime & Tooling
 
-- Gradle 9.5.0, AGP 9.3.1, Kotlin 2.4.10, KSP 2.3.11, Hilt 2.60.1, Compose BOM 2026.08.00, Room 2.8.4, Ktor 3.5.2, ACP SDK 0.30.1.
+- Gradle 9.8.1, AGP 9.4.1, Kotlin 2.4.21, KSP 2.3.12, Hilt 2.60.1, Compose BOM 2026.09.00, Room 2.8.5, Ktor 3.6.0, ACP SDK 0.33.0.
 - `ksp.useKSP2=true`, `android.nonTransitiveRClass=true`, `org.gradle.configuration-cache=true`. `org.gradle.parallel` is off.
 - Versions are centralised in `gradle/libs.versions.toml` — change them there, never inline.
 - Android SDK path comes from `local.properties` (`sdk.dir`), which stays uncommitted.

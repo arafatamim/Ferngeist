@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CheckableDropdownMenuItem
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
@@ -854,7 +855,7 @@ private fun ModeMenuContent(
         } else {
             availableModes.forEachIndexed { index, mode ->
                 val item: @Composable () -> Unit = {
-                    DropdownMenuItem(
+                    CheckableDropdownMenuItem(
                         text = { Text(mode.label.uppercase()) },
                         shapes = MenuDefaults.itemShape(index, modeCount),
                         checked = mode.value == modeOption.currentValue,

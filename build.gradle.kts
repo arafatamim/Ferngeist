@@ -72,18 +72,18 @@ fun Project.configureKtlintAndDetekt() {
 
 }
 
-// Hilt 2.59.2's annotation processor bundles org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.20,
-// which only supports reading Kotlin metadata up to v2.3.0. Dependencies compiled with
-// Kotlin 2.4.0 (e.g. kotlinx-collections-immutable 0.5.0) ship class files with v2.4.0
-// metadata, causing hiltJavaCompileDebug to fail with:
-//   "Provided Metadata instance has version 2.4.0, while maximum supported version is 2.3.0"
-// Force the latest stable kotlin-metadata-jvm (2.4.0) onto every project's annotation
-// processor classpath so the shaded copy inside dagger-spi can read newer metadata.
+// Hilt's annotation processor bundles org.jetbrains.kotlin:kotlin-metadata-jvm, which only
+// supports reading Kotlin metadata up to some version. Dependencies compiled with a newer
+// Kotlin (e.g. kotlinx-collections-immutable) ship class files with newer metadata, causing
+// hiltJavaCompileDebug to fail with:
+//   "Provided Metadata instance has version X, while maximum supported version is Y"
+// Force the latest kotlin-metadata-jvm onto every project's annotation processor
+// classpath so the shaded copy inside dagger-spi can read newer metadata.
 allprojects {
     configurations.matching { it.name.contains("kapt", ignoreCase = true) || it.name.contains("Ksp", ignoreCase = true) || it.name.contains("AnnotationProcessor", ignoreCase = true) }
         .configureEach {
             resolutionStrategy {
-                force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.0")
+                force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.21")
             }
         }
 }
