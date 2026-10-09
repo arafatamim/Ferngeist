@@ -34,13 +34,6 @@ internal class ChatSessionCoordinator(
         /** Emitted when the session has finished loading and is ready for use. */
         suspend fun onSessionReady()
 
-        /** Persists newly created session metadata. */
-        suspend fun onSessionStored(
-            sessionId: String,
-            cwd: String,
-            updatedAt: Long,
-        )
-
         /** Surfaces a fatal load error to the UI. */
         suspend fun onLoadFailed(message: String)
 

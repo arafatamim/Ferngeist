@@ -243,6 +243,14 @@ class ChatConnectionHubTest {
             rows[key(serverId, sessionId)]?.let { rows[key(serverId, sessionId)] = it.copy(title = title) }
         }
 
+        override suspend fun touchSession(
+            serverId: String,
+            sessionId: String,
+            updatedAt: Long,
+        ) {
+            rows[key(serverId, sessionId)]?.let { rows[key(serverId, sessionId)] = it.copy(updatedAt = updatedAt) }
+        }
+
         override suspend fun setGatewaySessionId(
             serverId: String,
             sessionId: String,

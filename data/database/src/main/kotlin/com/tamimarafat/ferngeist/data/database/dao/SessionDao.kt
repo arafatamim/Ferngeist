@@ -49,6 +49,13 @@ interface SessionDao {
         title: String,
     )
 
+    @Query("UPDATE sessions SET updatedAt = :updatedAt WHERE sessionId = :sessionId AND serverId = :serverId")
+    suspend fun touchSession(
+        sessionId: String,
+        serverId: String,
+        updatedAt: Long,
+    )
+
     @Query(
         "UPDATE sessions SET gatewaySessionId = :gatewaySessionId WHERE sessionId = :sessionId AND serverId = :serverId",
     )

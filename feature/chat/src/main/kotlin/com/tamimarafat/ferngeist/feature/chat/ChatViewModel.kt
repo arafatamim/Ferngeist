@@ -208,22 +208,6 @@ class ChatViewModel
                             }
                         }
 
-                        override suspend fun onSessionStored(
-                            sessionId: String,
-                            cwd: String,
-                            updatedAt: Long,
-                        ) {
-                            sessionRepository.upsertSession(
-                                serverId = serverId,
-                                summary =
-                                    SessionSummary(
-                                        id = sessionId,
-                                        cwd = cwd,
-                                        updatedAt = updatedAt,
-                                    ),
-                            )
-                        }
-
                         override suspend fun onLoadFailed(message: String) {
                             updateState {
                                 copy(
@@ -422,6 +406,12 @@ class ChatViewModel
                             // path and mint a second session for one user intent.
                             savedStateHandle[KEY_MINTED_SESSION_ID] = trackedSessionId
                             chatConnectionHub.chatScreenOpened(serverId, trackedSessionId, cwd)
+                            // The session list renders the store, and nothing else writes a
+                            // row for a session minted here until the next listing; the
+                            // gateway id below is an UPDATE that also needs the row to exist.
+                            val minted =
+                                SessionSummary(id = trackedSessionId, cwd = cwd, updatedAt = System.currentTimeMillis())
+                            withContext(Dispatchers.IO) { sessionRepository.upsertSession(serverId, minted) }
                         }
                         // chatId is "$serverId/$sessionId" and carries the REAL
                         // session id even for create-on-arrival chats, where the
@@ -656,6 +646,7 @@ class ChatViewModel
                 )
             val (reconciledPending, echoKeys) = reconcileSendingPendingBubbles(snapshot.messages)
             val failed = snapshot.loadState == ChatLoadState.FAILED
+            val wasStreaming = state.value.isStreaming
             // A HYDRATING snapshot is an in-flight marker: it asserts that a load is
             // running, not that a reported failure is over. Letting it rewrite the error
             // to null and `isLoading` back to true replaces a visible load error with a
@@ -699,9 +690,19 @@ class ChatViewModel
                         },
                 )
             }
+            if (wasStreaming && !snapshot.isStreaming) touchSessionAfterTurn()
             dropTitleThatIsThePrompt()
             applyServerTitle(snapshot.title)
             fetchGeneratedTitleIfNeeded(snapshot)
+        }
+
+        /**
+         * A finished turn is the session's latest activity, so the list re-sorts it to the top
+         * without waiting for its next listing.
+         */
+        private suspend fun touchSessionAfterTurn() {
+            val id = durableSessionId ?: return
+            withContext(Dispatchers.IO) { sessionRepository.touchSession(serverId, id, System.currentTimeMillis()) }
         }
 
         /**

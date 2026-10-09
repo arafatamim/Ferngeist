@@ -87,6 +87,13 @@ interface SessionRepository {
         title: String,
     )
 
+    /** Bumps a session's last-activity time without replacing the entire row. */
+    suspend fun touchSession(
+        serverId: String,
+        sessionId: String,
+        updatedAt: Long,
+    )
+
     /** Records (or clears) the live gateway session a chat was last attached to. */
     suspend fun setGatewaySessionId(
         serverId: String,

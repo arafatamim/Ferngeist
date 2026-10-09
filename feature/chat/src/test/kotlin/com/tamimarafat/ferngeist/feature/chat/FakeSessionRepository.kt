@@ -31,6 +31,16 @@ class FakeSessionRepository : SessionRepository {
         updateTitleCalls.add(Triple(serverId, sessionId, title))
     }
 
+    var touchCalls: MutableList<Pair<String, String>> = mutableListOf()
+
+    override suspend fun touchSession(
+        serverId: String,
+        sessionId: String,
+        updatedAt: Long,
+    ) {
+        touchCalls.add(serverId to sessionId)
+    }
+
     override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
         sessionsFlows.getOrPut(serverId) { MutableStateFlow(emptyList()) }
 
