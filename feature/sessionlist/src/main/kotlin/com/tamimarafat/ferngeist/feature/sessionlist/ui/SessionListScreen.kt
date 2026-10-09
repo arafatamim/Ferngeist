@@ -85,7 +85,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
@@ -104,6 +105,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -121,6 +123,8 @@ import kotlin.math.max
  *
  * Three content states: loading spinner → empty state → grouped session cards.
  */
+private const val SESSION_LIST_POLL_MS = 30_000L
+
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
@@ -144,8 +148,17 @@ fun SessionListScreen(
     val state = rememberSessionListState(viewModel, navArgName, loadedName)
     val currentCwd = state.currentCwd
 
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        viewModel.refreshSessionsIfCold()
+    // The gateway has no change feed, so sessions created or advanced elsewhere (another
+    // device, the CLI) only arrive by re-listing: on every resume, then on a slow poll while
+    // the list is on screen. The cache still paints first, and a background listing is silent.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle, viewModel) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                viewModel.refreshSessions()
+                delay(SESSION_LIST_POLL_MS)
+            }
+        }
     }
 
     SessionListEventEffects(

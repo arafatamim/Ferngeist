@@ -251,16 +251,6 @@ class SessionListViewModel
         }
 
         /**
-         * Resume-path refresh. Skips the network listing when cached rows exist
-         * and the last listing succeeded — the hub still repaints instantly
-         * from Room, so a resume with warm cache needs no refetch.
-         */
-        fun refreshSessionsIfCold() {
-            if (sessions.value.isNotEmpty() && !lastListingFailed) return
-            refreshSessions()
-        }
-
-        /**
          * Resolves the gateway REST endpoint for [serverId], or null for
          * non-gateway targets (manual agents have no gateway leg).
          */
@@ -308,11 +298,13 @@ class SessionListViewModel
             refreshJob =
                 viewModelScope.launch {
                     try {
-                        val settings = sessionSettingsRepository.getSettingsBlocking(serverId)
-                        val cwd = settings?.cwd?.trim()?.ifBlank { null }
                         if (isUserInitiated) _refreshing.value = true
                         _isLoading.value = true
-                        val result = chatConnectionHub.listSessions(serverId, cwd)
+                        // Always the whole list: the cache keeps only what a listing returns,
+                        // and an agent filtering by cwd matches it exactly, so a filtered
+                        // listing would drop the repo's worktree chats (and every other
+                        // directory). The cwd filter is applied locally by sessionRows.
+                        val result = chatConnectionHub.listSessions(serverId, cwd = null)
                         when (result) {
                             is ListSessionsResult.Listed -> {
                                 lastListingFailed = false
@@ -331,12 +323,13 @@ class SessionListViewModel
                             }
 
                             is ListSessionsResult.Failed -> {
+                                val alreadyFailing = lastListingFailed
                                 lastListingFailed = true
-                                // Silent on an auto resume refresh with cached rows; a
-                                // warm socket mid-reconnect would otherwise toast on
-                                // every return from chat. Still loud for a pull-to-refresh
-                                // or when the user is looking at nothing.
-                                if (isUserInitiated || sessions.value.isEmpty()) {
+                                // Silent on an auto refresh with cached rows; a warm socket
+                                // mid-reconnect would otherwise toast on every return from
+                                // chat. Still loud for a pull-to-refresh, or once when the
+                                // user is looking at nothing (not on every poll after it).
+                                if (isUserInitiated || (sessions.value.isEmpty() && !alreadyFailing)) {
                                     _events.emit(
                                         SessionListEvent.ShowError(result.message),
                                     )
