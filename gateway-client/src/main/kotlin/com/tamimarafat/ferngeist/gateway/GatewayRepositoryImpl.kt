@@ -34,7 +34,8 @@ class GatewayRepositoryImpl
         GatewaySessionRepository,
         GatewayPushRepository,
         GatewayWorkspaceRepository,
-        GatewayCustomAgentRepository {
+        GatewayCustomAgentRepository,
+        GatewayWorktreeRepository {
         override suspend fun fetchStatus(
             scheme: String,
             host: String,
@@ -175,6 +176,58 @@ class GatewayRepositoryImpl
                 "agents",
                 agentId,
                 "stop",
+            )
+        }
+
+        override suspend fun createWorktree(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            repo: String,
+            base: String?,
+            branch: String?,
+        ): GatewayWorktree =
+            httpClient.postJson(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "worktrees",
+                body = buildCreateWorktreeRequestBody(repo, base, branch),
+            )
+
+        override suspend fun listWorktrees(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+        ): List<GatewayWorktree> =
+            httpClient.getJson(
+                json = json,
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "worktrees",
+            )
+
+        override suspend fun deleteWorktree(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            worktreeId: String,
+            force: Boolean,
+        ) {
+            // The response's `branchDeleted` is deliberately dropped: the branch surviving
+            // removal is the normal case, and the next list call shows what is left.
+            httpClient.deleteJsonUnit(
+                scheme = scheme,
+                host = host,
+                bearerToken = gatewayCredential,
+                "v1",
+                "worktrees",
+                worktreeId,
+                query = if (force) mapOf("force" to "true") else emptyMap(),
             )
         }
 
@@ -623,8 +676,9 @@ private suspend fun HttpClient.deleteJsonUnit(
     host: String,
     bearerToken: String? = null,
     vararg segments: String,
+    query: Map<String, String> = emptyMap(),
 ) {
-    val endpoint = buildGatewayEndpoint(scheme, host, *segments)
+    val endpoint = buildGatewayEndpoint(scheme, host, segments = segments, query = query)
     val authHeaders =
         bearerToken?.takeIf { it.isNotBlank() }?.let {
             GatewayProofAuth.buildAuthHeaders(
@@ -715,6 +769,24 @@ internal fun buildCustomAgentRequestBody(
             command = command,
             args = args,
             hint = hint,
+        ),
+    )
+
+/**
+ * Serializes the worktree create body. A blank [base] or [branch] is sent as absent so
+ * the gateway applies its own default (`HEAD` / `ferngeist/<id>`) rather than rejecting
+ * an empty commit-ish or branch name.
+ */
+internal fun buildCreateWorktreeRequestBody(
+    repo: String,
+    base: String?,
+    branch: String?,
+): String =
+    requestBodyJson.encodeToString(
+        GatewayCreateWorktreeRequest(
+            repo = repo,
+            base = base?.trim()?.ifBlank { null },
+            branch = branch?.trim()?.ifBlank { null },
         ),
     )
 

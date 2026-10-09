@@ -39,6 +39,29 @@ class ChatConnectionHubTest {
         var closeFailure: Exception? = null
         var listFailure: Exception? = null
 
+        override suspend fun createWorktree(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            repo: String,
+            base: String?,
+            branch: String?,
+        ) = TODO("unused in hub tests")
+
+        override suspend fun listWorktrees(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+        ) = TODO("unused in hub tests")
+
+        override suspend fun deleteWorktree(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            worktreeId: String,
+            force: Boolean,
+        ) = TODO("unused in hub tests")
+
         override suspend fun fetchStatus(
             scheme: String,
             host: String,

@@ -286,6 +286,33 @@ data class GatewayGitStatus(
     val changed: List<GatewayChangedFile> = emptyList(),
 )
 
+/** Body of `POST /v1/worktrees`. Null [base]/[branch] let the gateway apply its own defaults. */
+@Serializable
+data class GatewayCreateWorktreeRequest(
+    val repo: String,
+    val base: String? = null,
+    val branch: String? = null,
+)
+
+/**
+ * A gateway-managed git worktree. [path] is what a chat opened in it uses as its cwd,
+ * and its `.worktrees` folder keeps the main checkout clean.
+ *
+ * [ahead] and [dirty] are only on the list response, and are null when git failed for
+ * that entry.
+ */
+@Serializable
+data class GatewayWorktree(
+    val id: String,
+    val repo: String,
+    val path: String,
+    val branch: String,
+    @SerialName("baseCommit") val baseCommit: String,
+    val createdAt: String,
+    val ahead: Int? = null,
+    val dirty: Boolean? = null,
+)
+
 /**
  * The gateway-to-client protocol version this client is built against. The gateway
  * reports its own protocol version in [GatewayStatus.protocolVersion]; a mismatch

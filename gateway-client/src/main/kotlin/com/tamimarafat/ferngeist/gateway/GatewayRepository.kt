@@ -201,6 +201,47 @@ interface GatewayCustomAgentRepository {
     )
 }
 
+/** Gateway-managed git worktree operations. */
+interface GatewayWorktreeRepository {
+    /**
+     * Creates a worktree for the git repo containing [repo] on a new branch, returning the
+     * directory to open the chat in. [base] and [branch] are the gateway's defaults when null.
+     */
+    suspend fun createWorktree(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        repo: String,
+        base: String? = null,
+        branch: String? = null,
+    ): GatewayWorktree
+
+    /**
+     * Lists this gateway's managed worktrees, with `ahead`/`dirty` when git could compute them.
+     *
+     * Throws [GatewayRequestException] with a 404 status on gateways that predate the worktree
+     * API; callers use that to hide the worktree UI.
+     */
+    suspend fun listWorktrees(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ): List<GatewayWorktree>
+
+    /**
+     * Removes a managed worktree. [force] discards uncommitted changes instead of failing with 409.
+     * The branch outlives the worktree unless git considers it merged, so callers must not assume
+     * it is gone.
+     */
+    suspend fun deleteWorktree(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        worktreeId: String,
+        force: Boolean = false,
+    )
+}
+
 /**
  * Composite gateway API — extends all sub-interfaces so callers depend on a single
  * type while each concern stays under the function-count threshold.
@@ -212,4 +253,5 @@ interface GatewayRepository :
     GatewaySessionRepository,
     GatewayPushRepository,
     GatewayWorkspaceRepository,
-    GatewayCustomAgentRepository
+    GatewayCustomAgentRepository,
+    GatewayWorktreeRepository

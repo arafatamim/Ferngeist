@@ -109,6 +109,29 @@ class AcpChatSessionFacadeTest {
     }
 
     private class FakeGatewayRepo : GatewayRepository {
+        override suspend fun createWorktree(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            repo: String,
+            base: String?,
+            branch: String?,
+        ) = TODO("unused in facade tests")
+
+        override suspend fun listWorktrees(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+        ) = TODO("unused in facade tests")
+
+        override suspend fun deleteWorktree(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            worktreeId: String,
+            force: Boolean,
+        ) = TODO("unused in facade tests")
+
         override suspend fun fetchStatus(
             scheme: String,
             host: String,

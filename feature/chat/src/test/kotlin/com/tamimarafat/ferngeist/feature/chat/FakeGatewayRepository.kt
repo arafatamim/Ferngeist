@@ -27,6 +27,29 @@ class FakeGatewayRepository : GatewayRepository {
     /** Gateway sessions a close asked to delete, as (host, sessionId). */
     val closedSessions: MutableList<Pair<String, String>> = mutableListOf()
 
+    override suspend fun createWorktree(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        repo: String,
+        base: String?,
+        branch: String?,
+    ) = TODO()
+
+    override suspend fun listWorktrees(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+    ) = TODO()
+
+    override suspend fun deleteWorktree(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        worktreeId: String,
+        force: Boolean,
+    ) = TODO()
+
     override suspend fun fetchStatus(
         scheme: String,
         host: String,
