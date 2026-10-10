@@ -3,10 +3,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?color=4DB6AC&style=flat-square)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/github/v/release/arafatamim/ferngeist?color=4DB6AC&style=flat-square)](https://github.com/arafatamim/ferngeist/releases/latest)
 
-> **Starting September 2026, a silent update pushed by Google will block every Android app whose developer hasn't registered, signed Google's contract, paid up, and handed over government ID.**
->
-> If you care about the open Android ecosystem, visit [Keep Android Open](https://keepandroidopen.org) to learn more.
-
 Ferngeist is an Android client for [ACP](https://agentclientprotocol.com/)-compatible coding agents, paired with an optional [Ferngeist ACP Gateway](https://github.com/arafatamim/ferngeist-acp-gateway) that auto-detects local agents and exposes a single authenticated endpoint to the app.
 
 ## Download
@@ -29,45 +25,69 @@ Alternatively, download the APK from [GitHub Releases](https://github.com/arafat
 <img height="500" alt="7-inch two-pane" src="fastlane/metadata/android/en-US/images/sevenInchScreenshots/1.png" />
 
 ## Usage
-Two ways to add ACP agents:
-### 1. Ferngeist Gateway (optional, for local agents) — available for Windows and Linux:
+There are two ways to connect Ferngeist to an ACP agent. The gateway is the easiest if your agents run on your PC.
 
-1. Download the [latest gateway release](https://github.com/arafatamim/ferngeist-acp-gateway/releases/latest) for your platform.
-2. Extract and run:
-   ```powershell
-   .\ferngeist-gateway.exe daemon install  # Windows: run as Administrator
-   .\ferngeist-gateway.exe pair            # displays a pairing code
-   ```
-3. Open Ferngeist on your Android device, tap **Add server**, and enter the tunnel URL with the pairing code.
+### Option 1: Ferngeist Gateway (recommended for agents on your PC)
 
-#### Exposing via tunnel
+The gateway is a small background service for Windows, macOS and Linux. It finds the ACP agents installed on your computer and gives the app one secure address to connect to.
 
-The daemon listens on `127.0.0.1:5788`. To reach it from a mobile device on a different network:
+**1. Install the gateway.** Run the installer for your system:
 
-**ngrok:**
 ```powershell
+# Windows (PowerShell)
+irm https://arafatamim.github.io/ferngeist-acp-gateway/install.ps1 | iex
+```
+
+```bash
+# macOS / Linux
+curl -fsSL https://arafatamim.github.io/ferngeist-acp-gateway/install.sh | sh
+```
+
+Prefer a manual install? Grab a package from the [releases page](https://github.com/arafatamim/ferngeist-acp-gateway/releases/latest).
+
+**2. Make it reachable from your phone.** The gateway only listens on your PC (`127.0.0.1:5788`), so your phone needs a public address. The simplest option is built in (Windows: run as Administrator):
+
+```bash
+ferngeist-gateway daemon install --remote
+```
+
+This sets up a Tailscale Funnel and gives you a stable HTTPS URL. Prefer your own tunnel? Pass its URL with `--public-url`:
+
+<details>
+<summary><b>ngrok</b></summary>
+
+```bash
 ngrok http 5788
-# Note the HTTPS URL (e.g. https://xxxx.ngrok.io)
-.\ferngeist-gateway.exe daemon install --public-url https://xxxx.ngrok.io
+# Copy the HTTPS URL it prints, e.g. https://xxxx.ngrok.io
+ferngeist-gateway daemon install --public-url https://xxxx.ngrok.io
 ```
+</details>
 
-**Cloudflare Tunnel:**
-```powershell
+<details>
+<summary><b>Cloudflare Tunnel</b></summary>
+
+```bash
 cloudflared tunnel --url http://localhost:5788
-# Note the URL (e.g. https://xxxx.trycloudflare.com)
-.\ferngeist-gateway.exe daemon install --public-url https://xxxx.trycloudflare.com
+# Copy the URL it prints, e.g. https://xxxx.trycloudflare.com
+ferngeist-gateway daemon install --public-url https://xxxx.trycloudflare.com
+```
+</details>
+
+A custom domain works the same way: `--public-url https://your.domain.example`.
+
+**3. Pair your phone.** Generate a pairing code:
+
+```bash
+ferngeist-gateway pair
 ```
 
-Then pair and add the tunnel URL as the server host in Ferngeist:
+Then in Ferngeist tap **Add server**, enter your tunnel URL, and enter the pairing code. Your agents will show up in the app.
 
-```powershell
-.\ferngeist-gateway.exe pair
-```
+More options are in the [Ferngeist Gateway docs](https://github.com/arafatamim/ferngeist-acp-gateway).
 
-For detailed configuration, see the [Ferngeist Gateway docs](https://github.com/arafatamim/ferngeist-acp-gateway).
+### Option 2: Add an ACP server manually
 
-### 2. Add an ACP server manually
-Most ACP agents only support `stdio` transport — wrap with a WebSocket bridge first. Check the agent's docs for the correct flags to start in ACP mode.
+Use this if you already run an ACP agent over WebSocket. Most agents only speak `stdio`, so wrap them with a WebSocket bridge first. Check the agent's docs for the flags that start it in ACP mode.
 
 Example:
 ```powershell
@@ -82,11 +102,11 @@ Any agent implementing [ACP](https://agentclientprotocol.com/), including Codex 
 
 ## Tech Stack
 
-- Kotlin 2.3 / Jetpack Compose + Material 3
+- Kotlin 2.4 / Jetpack Compose + Material 3
 - Hilt / Room / Kotlin Coroutines and Flow / KSP
 - ACP Kotlin SDK
 
-Requires Android 10+ (`minSdk = 30`).
+Requires Android 11+ (`minSdk = 30`).
 
 ## Build
 
