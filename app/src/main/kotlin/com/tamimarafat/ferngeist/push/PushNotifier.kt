@@ -48,12 +48,15 @@ class PushNotifier
             val category = data[PushPayloadKeys.CATEGORY]
 
             // Skip pushes the user is already watching live in the foreground. Suppression
-            // matches on the presence entry's gatewaySourceId (the stable gateway id), not
-            // the local server id, so it survives the local-id churn (and duplicate records)
-            // a re-pair can introduce.
+            // matches on the gateway-owned id, not a local id, so it survives the local-id churn
+            // (and duplicate records) a re-pair can introduce. The presence carries the local
+            // GatewaySource id, so it is translated first: compared raw, it never matched the push.
+            val onScreen = chatConnectionHub.onScreenChat.value
+            val onScreenGatewayId =
+                onScreen?.gatewaySourceId?.let { gatewaySourceRepository.getGateway(it)?.gatewayId }
             if (PushNotificationPolicy.shouldSuppress(
                     isAppForeground = appForegroundState.isForeground.value,
-                    foregroundChat = chatConnectionHub.onScreenChat.value,
+                    foregroundChat = onScreen?.copy(gatewaySourceId = onScreenGatewayId),
                     targetGatewayId = data[PushPayloadKeys.SERVER_ID],
                     targetSessionId = sessionId,
                 )

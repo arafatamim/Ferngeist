@@ -22,8 +22,8 @@ object PushNotificationPolicy {
      * Server matching is done on the **gateway-owned** id, not the local server id.
      * Local ids churn (and can even duplicate) when a gateway is re-paired, so the
      * foreground chat and the push can carry different local ids for the same physical
-     * gateway — comparing those produces false negatives. The gateway identity comes
-     * straight from the presence entry's [ChatPresence.gatewaySourceId].
+     * gateway — comparing those produces false negatives. The caller passes the
+     * gateway-owned id in [ChatPresence.gatewaySourceId], translated from the local one.
      *
      * @param foregroundChat the [ChatPresence] of the chat the user is currently viewing,
      *   or null when no chat screen is open.
