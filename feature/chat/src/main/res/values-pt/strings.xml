@@ -239,12 +239,7 @@
         <item quantity="other">usou %1$d ferramentas</item>
     </plurals>
     <!-- Present-continuous variants, shown while the group still has a running call -->
-    <string name="chat_tool_summary_thought_running_twice">pensando duas vezes</string>
-    <plurals name="chat_tool_summary_thought_running">
-        <item quantity="one">pensando %1$d vez</item>
-        <item quantity="many">pensando %1$d vezes</item>
-        <item quantity="other">pensando %1$d vezes</item>
-    </plurals>
+    <string name="chat_tool_summary_thinking">pensando</string>
     <plurals name="chat_tool_summary_execute_running">
         <item quantity="one">executando %1$d comando</item>
         <item quantity="many">executando %1$d comandos</item>

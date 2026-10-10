@@ -349,11 +349,7 @@
         <item quantity="other">used %1$d tools</item>
     </plurals>
     <!-- Present-continuous variants, shown while the group still has a running call -->
-    <string name="chat_tool_summary_thought_running_twice">thinking twice</string>
-    <plurals name="chat_tool_summary_thought_running">
-        <item quantity="one">thinking once</item>
-        <item quantity="other">thinking %1$d times</item>
-    </plurals>
+    <string name="chat_tool_summary_thinking">thinking</string>
     <plurals name="chat_tool_summary_execute_running">
         <item quantity="one">running a command</item>
         <item quantity="other">running %1$d commands</item>

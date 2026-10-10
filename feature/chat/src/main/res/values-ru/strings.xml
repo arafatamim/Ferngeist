@@ -253,13 +253,7 @@
         <item quantity="other">использовал %1$d инструмента</item>
     </plurals>
     <!-- Present-continuous variants, shown while the group still has a running call -->
-    <string name="chat_tool_summary_thought_running_twice">думает дважды</string>
-    <plurals name="chat_tool_summary_thought_running">
-        <item quantity="one">думает %1$d раз</item>
-        <item quantity="few">думает %1$d раза</item>
-        <item quantity="many">думает %1$d раз</item>
-        <item quantity="other">думает %1$d раза</item>
-    </plurals>
+    <string name="chat_tool_summary_thinking">думает</string>
     <plurals name="chat_tool_summary_execute_running">
         <item quantity="one">выполняет %1$d команду</item>
         <item quantity="few">выполняет %1$d команды</item>

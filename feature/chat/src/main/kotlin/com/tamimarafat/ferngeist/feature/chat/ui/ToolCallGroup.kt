@@ -2,7 +2,9 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.EaseOutExpo
@@ -15,6 +17,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +65,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
@@ -107,12 +113,13 @@ internal enum class ToolVerb(
     // Present-continuous variant while the group runs. Null keeps the past tense (FAILED already happened).
     @param:PluralsRes val runningPhrase: Int? = null,
     @param:StringRes val runningTwice: Int? = null,
+    // Uncounted present-continuous label, for a verb that only ever has one item running at a time.
+    @param:StringRes val runningLabel: Int? = null,
 ) {
     THOUGHT(
         R.plurals.chat_tool_summary_thought,
         R.string.chat_tool_summary_thought_twice,
-        R.plurals.chat_tool_summary_thought_running,
-        R.string.chat_tool_summary_thought_running_twice,
+        runningLabel = R.string.chat_tool_summary_thinking,
     ),
     EXECUTE(R.plurals.chat_tool_summary_execute, runningPhrase = R.plurals.chat_tool_summary_execute_running),
     READ(R.plurals.chat_tool_summary_read, runningPhrase = R.plurals.chat_tool_summary_read_running),
@@ -135,6 +142,7 @@ internal data class SummaryPart(
     @PluralsRes val phrase: Int,
     @StringRes val twice: Int?,
     val count: Int,
+    @StringRes val label: Int? = null,
 )
 
 /** Picks the past-tense or present-continuous phrase per verb. Pure, so JVM tests can cover it. */
@@ -143,7 +151,9 @@ internal fun summaryParts(
     running: Boolean,
 ): List<SummaryPart> =
     toolVerbCounts(verbs).map { (verb, count) ->
-        if (running && verb.runningPhrase != null) {
+        if (running && verb.runningLabel != null) {
+            SummaryPart(verb.phrase, null, count, verb.runningLabel)
+        } else if (running && verb.runningPhrase != null) {
             SummaryPart(verb.runningPhrase, verb.runningTwice, count)
         } else {
             SummaryPart(verb.phrase, verb.twice, count)
@@ -247,9 +257,13 @@ internal fun ToolCallGroup(
     // Held here, outside the fold, so collapsing does not reset a row's reveal.
     val reveals = remember { HashMap<String, RowReveal>() }
 
+    // While anything runs, the summary names only what is running: the present tense would
+    // misdescribe the calls already finished. The full tally comes back once nothing runs.
+    val summaryRows = if (running) rows.filter { it.running } else rows
+
     Column(modifier = modifier.fillMaxWidth()) {
         ToolGroupHeader(
-            summary = toolSummary(rows.map { it.call?.summaryVerb() ?: ToolVerb.THOUGHT }, running),
+            summary = toolSummary(summaryRows.map { it.call?.summaryVerb() ?: ToolVerb.THOUGHT }, running),
             stats = rememberDiffStats(rows.flatMap { it.landedDiffs() }),
             open = open,
             active = isStreaming && running,
@@ -321,9 +335,10 @@ private fun toolSummary(
     running: Boolean,
 ): String =
     summaryParts(verbs, running)
-        .map { (phrase, twice, count) ->
-            twice?.takeIf { count == 2 }?.let { stringResource(it) }
-                ?: pluralStringResource(phrase, count, count)
+        .map { part ->
+            part.label?.let { stringResource(it) }
+                ?: part.twice?.takeIf { part.count == 2 }?.let { stringResource(it) }
+                ?: pluralStringResource(part.phrase, part.count, part.count)
         }.joinToString(" · ")
         .replaceFirstChar { it.titlecase() }
 
@@ -347,12 +362,26 @@ internal fun ToolGroupHeader(
         modifier = Modifier.fillMaxWidth().handCursor().clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The summary wraps freely; the diff total and chevron hold the end.
-        Text(
-            text = summary,
-            style = MaterialTheme.typography.bodySmall.copy(brush = brush),
-            modifier = Modifier.weight(1f).padding(vertical = 4.dp),
-        )
+        // The summary wraps freely; the diff total and chevron hold the end. A new summary rises
+        // in as the old one rises out, so a change of state reads as the next step.
+        val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+        val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
+        AnimatedContent(
+            targetState = summary,
+            transitionSpec = {
+                (slideInVertically(spatial) { it / 2 } + fadeIn(effects)) togetherWith
+                    (slideOutVertically(spatial) { -it / 2 } + fadeOut(effects)) using
+                    SizeTransform(clip = false)
+            },
+            label = "toolGroupSummary",
+            modifier = Modifier.weight(1f),
+        ) { text ->
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall.copy(brush = brush),
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        }
         stats?.let { DiffStatsRow(it, modifier = Modifier.padding(start = 8.dp)) }
         Spacer(modifier = Modifier.width(4.dp))
         Icon(

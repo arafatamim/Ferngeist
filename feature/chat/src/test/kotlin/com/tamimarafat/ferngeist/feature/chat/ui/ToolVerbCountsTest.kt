@@ -66,17 +66,11 @@ class ToolVerbCountsTest {
     }
 
     @Test
-    fun runningTwiceStringIsContinuous() {
-        val parts = summaryParts(listOf(ToolVerb.THOUGHT, ToolVerb.THOUGHT), running = true)
+    fun runningThoughtIsUncounted() {
+        val parts = summaryParts(listOf(ToolVerb.THOUGHT), running = true)
 
         assertEquals(
-            listOf(
-                SummaryPart(
-                    R.plurals.chat_tool_summary_thought_running,
-                    R.string.chat_tool_summary_thought_running_twice,
-                    2,
-                ),
-            ),
+            listOf(SummaryPart(R.plurals.chat_tool_summary_thought, null, 1, R.string.chat_tool_summary_thinking)),
             parts,
         )
     }
