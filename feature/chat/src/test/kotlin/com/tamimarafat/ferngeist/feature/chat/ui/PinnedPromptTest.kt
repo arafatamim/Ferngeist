@@ -8,173 +8,64 @@ class PinnedPromptTest {
 
     private fun rows(vararg spans: Pair<Int, IntRange>): (Int) -> IntRange? = spans.toMap()::get
 
+    private val long: (Int) -> Boolean = { false }
+
     @Test
     fun nothingPinsWhileEveryPromptIsOnScreen() {
-        assertEquals(
-            emptyList<Int>(),
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 1,
-                rows(1 to 0..80),
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 0,
-            ),
-        )
+        assertEquals(emptyList<Int>(), pinnedPromptRows(prompts, 1, rows(1 to 0..80), fadePx = 0, fits = long))
     }
 
     @Test
     fun aPromptStillPartlyOnScreenDoesNotPin() {
-        val partly = rows(4 to -60..20)
-        assertEquals(
-            listOf(1),
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 4,
-                partly,
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 0,
-            ).takeLast(1),
-        )
+        assertEquals(listOf(1), pinnedPromptRows(prompts, 4, rows(4 to -60..20), fadePx = 0, fits = long))
     }
 
     @Test
     fun aPromptPinsOnceItsBubbleIsEntirelyUnderTheBar() {
-        val gone = rows(4 to -80..0)
-        assertEquals(
-            4,
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 4,
-                gone,
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 0,
-            ).last(),
-        )
+        assertEquals(listOf(1, 4), pinnedPromptRows(prompts, 4, rows(4 to -80..0), fadePx = 0, fits = long))
     }
 
     @Test
     fun theDisplacedPromptRidesAlongWhileThePinnedRowIsLaidOut() {
-        assertEquals(
-            listOf(4, 7),
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 7,
-                rows(7 to -90..-10),
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 0,
-            ),
-        )
-        assertEquals(
-            listOf(7),
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 9,
-                rows(),
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 0,
-            ),
-        )
+        assertEquals(listOf(4, 7), pinnedPromptRows(prompts, 7, rows(7 to -90..-10), fadePx = 0, fits = long))
+        assertEquals(listOf(7), pinnedPromptRows(prompts, 9, rows(), fadePx = 0, fits = long))
     }
 
     @Test
-    fun shortAnswerDoesNotPin() {
-        val short = rows(4 to -80..0, 7 to 300..380)
-        assertEquals(
-            emptyList<Int>(),
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 4,
-                short,
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 0,
-            ),
-        )
-    }
-
-    @Test
-    fun longAnswerPins() {
-        val long = rows(4 to -80..0, 7 to 1200..1280)
-        assertEquals(
-            listOf(1, 4),
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 4,
-                long,
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 0,
-            ),
-        )
-    }
-
-    @Test
-    fun tailFittingOnScreenDoesNotPin() {
-        val tail = rows(4 to -80..0, 6 to 500..900)
-        assertEquals(
-            emptyList<Int>(),
-            pinnedPromptRows(
-                listOf(1, 4),
-                firstVisibleIndex = 4,
-                tail,
-                viewportEnd = 1000,
-                lastIndex = 6,
-                fadePx = 0,
-            ),
-        )
-    }
-
-    @Test
-    fun tailPastTheScreenPins() {
-        val tail = rows(4 to -80..0, 6 to 1200..1600)
-        assertEquals(
-            listOf(1, 4),
-            pinnedPromptRows(
-                listOf(1, 4),
-                firstVisibleIndex = 4,
-                tail,
-                viewportEnd = 1000,
-                lastIndex = 6,
-                fadePx = 0,
-            ),
-        )
+    fun aFittingAnswerDropsOnlyItsOwnChip() {
+        // A short answer taking over must not cut off the chip it is pushing out.
+        assertEquals(listOf(1), pinnedPromptRows(prompts, 4, rows(4 to -80..0), fadePx = 0) { it == 4 })
     }
 
     @Test
     fun promptReenteringWithinFadeWindowStaysPinned() {
-        val reentering = rows(4 to -80..120)
-        assertEquals(
-            listOf(1, 4),
-            pinnedPromptRows(
-                prompts,
-                firstVisibleIndex = 4,
-                reentering,
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 200,
-            ),
-        )
+        assertEquals(listOf(1, 4), pinnedPromptRows(prompts, 4, rows(4 to -80..120), fadePx = 200, fits = long))
     }
 
     @Test
     fun promptPastFadeWindowUnpins() {
-        val past = rows(4 to 50..300)
-        assertEquals(
-            emptyList<Int>(),
-            pinnedPromptRows(
-                listOf(4),
-                firstVisibleIndex = 4,
-                past,
-                viewportEnd = 1000,
-                lastIndex = 10,
-                fadePx = 200,
-            ),
-        )
+        assertEquals(emptyList<Int>(), pinnedPromptRows(listOf(4), 4, rows(4 to 50..300), fadePx = 200, fits = long))
+    }
+
+    private fun extents(vararg sizes: Pair<Int, Int>): (Int) -> Int? = sizes.toMap()::get
+
+    @Test
+    fun answerUpToTheNextPromptFits() {
+        assertEquals(true, answerFits(4, prompts, 10, extents(5 to 400, 6 to 600), viewportEnd = 1000))
+        assertEquals(false, answerFits(4, prompts, 10, extents(5 to 400, 6 to 601), viewportEnd = 1000))
+    }
+
+    @Test
+    fun lastAnswerRunsToTheListEnd() {
+        assertEquals(true, answerFits(7, prompts, 9, extents(8 to 900), viewportEnd = 1000))
+        assertEquals(false, answerFits(7, prompts, 10, extents(8 to 900, 9 to 200), viewportEnd = 1000))
+    }
+
+    @Test
+    fun anUnseenRowCountsAsNotFitting() {
+        assertEquals(false, answerFits(4, prompts, 10, extents(5 to 100), viewportEnd = 1000))
+        // Known rows already past a viewport decide it without the unseen one.
+        assertEquals(false, answerFits(4, prompts, 10, extents(5 to 1200), viewportEnd = 1000))
     }
 
     @Test

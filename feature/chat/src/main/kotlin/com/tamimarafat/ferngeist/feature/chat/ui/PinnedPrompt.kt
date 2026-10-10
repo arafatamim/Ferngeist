@@ -1,8 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +40,8 @@ import kotlinx.coroutines.launch
  */
 internal val pinnedPromptFadeDistance: Dp = 64.dp
 
+private const val PINNED_PROMPT_ENTRANCE_MS = 150
+
 /**
  * The prompts to draw as chips: the pinned one â€” the last prompt whose row has gone entirely under
  * the app bar â€” preceded by the one it displaced, while that one is still being pushed off.
@@ -51,10 +52,9 @@ internal val pinnedPromptFadeDistance: Dp = 64.dp
  * real message. The displaced chip rides on the pinned prompt's row and so keeps moving up and off
  * the screen; once that row has left the laid-out items the displaced chip is long gone.
  *
- * No chip when the whole answer fits on screen: the prompt's bubble and the next turn (or the
- * list end at [lastIndex]) are both laid out within a viewport ([viewportEnd]) of each other, so
- * the chip would only duplicate what's already visible. Ends that are not laid out are not
- * measurable, so those keep pinning.
+ * No chip for a prompt whose answer [fits] on screen, since it would only duplicate what's
+ * already visible. Decided per chip: a short answer taking over must not cut off the chip it is
+ * pushing out.
  *
  * The pin survives a [fadePx] re-entry window: the chip stays while its row's bottom is at most
  * that far back on screen, fading out across it, so scrolling up hands off to the real bubble
@@ -64,22 +64,38 @@ internal fun pinnedPromptRows(
     userRows: List<Int>,
     firstVisibleIndex: Int,
     rowOf: (Int) -> IntRange?,
-    viewportEnd: Int,
-    lastIndex: Int,
     fadePx: Int,
+    fits: (Int) -> Boolean,
 ): List<Int> {
     val pinned =
         userRows.lastOrNull { row ->
             row < firstVisibleIndex || rowOf(row)?.let { it.last <= fadePx } == true
         } ?: return emptyList()
-    val anchor = userRows.firstOrNull { it > pinned } ?: lastIndex
-    val pinnedBottom = rowOf(pinned)?.last
-    val anchorTop = rowOf(anchor)?.first
-    if (pinnedBottom != null && anchorTop != null && anchorTop - pinnedBottom <= viewportEnd) {
-        return emptyList()
-    }
     val displaced = userRows.lastOrNull { it < pinned }?.takeIf { rowOf(pinned) != null }
-    return listOfNotNull(displaced, pinned)
+    return listOfNotNull(displaced, pinned).filterNot(fits)
+}
+
+/**
+ * Whether [prompt]'s answer — its rows up to the next prompt, or the list end at [lastIndex] —
+ * is at most a viewport ([viewportEnd]) tall. [extentOf] is a row's height plus the gap after it,
+ * remembered from whenever the row was last laid out: measuring only what is laid out right now
+ * flipped the answer to "unknown" the moment its first row scrolled away, popping the chip in
+ * mid-scroll. A row never seen counts as not fitting, so the chip errs towards showing.
+ */
+internal fun answerFits(
+    prompt: Int,
+    userRows: List<Int>,
+    lastIndex: Int,
+    extentOf: (Int) -> Int?,
+    viewportEnd: Int,
+): Boolean {
+    val anchor = userRows.firstOrNull { it > prompt } ?: lastIndex
+    var height = 0
+    for (row in prompt + 1 until anchor) {
+        height += extentOf(row) ?: return false
+        if (height > viewportEnd) return false
+    }
+    return true
 }
 
 /**
@@ -124,10 +140,11 @@ internal fun PinnedPrompt(
 ) {
     val scope = rememberCoroutineScope()
     var chipHeightPx by remember { mutableIntStateOf(0) }
-    // Slides down from under the bar when it first pins. Keyed by row upstream, so a chip that is
-    // being pushed off keeps its node and does not replay this.
+    // A short fade for the cases the scroll-driven fade below cannot cover: a fling that crosses
+    // the whole window in a frame, or a chip that appears with its row not laid out. Opacity only:
+    // sliding down against the bubble scrolling up read as the chip bouncing.
     val entrance = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { entrance.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow)) }
+    LaunchedEffect(Unit) { entrance.animateTo(1f, tween(PINNED_PROMPT_ENTRANCE_MS)) }
     Box(
         modifier =
             modifier
@@ -142,7 +159,6 @@ internal fun PinnedPrompt(
                         listState.layoutInfo.visibleItemsInfo
                             .firstOrNull { it.index == row }
                             ?.let { it.offset + it.size }
-                    translationY = -(1f - entrance.value) * chipHeightPx
                     alpha = entrance.value * pinnedPromptFadeAlpha(bottom, fadePx)
                 },
         contentAlignment = Alignment.CenterEnd,
@@ -185,9 +201,17 @@ internal fun BoxScope.PinnedPromptOverlays(
     contentTop: Dp,
     fadePx: Int,
 ) {
-    val pinnedRows by remember(userRows, listState) {
+    // Row extents by message id, kept after the row scrolls away; see [answerFits].
+    val extents = remember { HashMap<String, Int>() }
+    val pinnedRows by remember(userRows, leadingRows, windowed, listState) {
         derivedStateOf {
             val info = listState.layoutInfo
+            val idOf = { row: Int -> windowed.getOrNull(row - leadingRows)?.id }
+            info.visibleItemsInfo.forEach { item ->
+                idOf(item.index)?.let { extents[it] = item.size + info.mainAxisItemSpacing }
+            }
+            // The bottom spacer is the last row; its top marks the end of the final answer.
+            val lastIndex = leadingRows + windowed.size
             // The first laid-out row, not firstVisibleItemIndex: the streaming follow requests the
             // last index ahead of each measure, so that value names the bottom spacer for a frame
             // and pinned the current prompt on every chunk.
@@ -198,11 +222,10 @@ internal fun BoxScope.PinnedPromptOverlays(
                 { row ->
                     info.visibleItemsInfo.firstOrNull { it.index == row }?.let { it.offset..it.offset + it.size }
                 },
-                info.viewportEndOffset,
-                // The bottom spacer is the last row; its top marks the end of the final answer.
-                leadingRows + windowed.size,
                 fadePx,
-            )
+            ) { prompt ->
+                answerFits(prompt, userRows, lastIndex, { row -> idOf(row)?.let(extents::get) }, info.viewportEndOffset)
+            }
         }
     }
     // Keyed so the pinned chip, once displaced, carries on as the same node instead of being
