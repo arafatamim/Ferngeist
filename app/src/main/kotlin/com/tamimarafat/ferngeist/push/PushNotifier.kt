@@ -9,8 +9,9 @@ import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.push.PushPayloadKeys
+import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.resolveLocalId
+import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.service.FerngeistForegroundService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicInteger
@@ -23,9 +24,8 @@ import javax.inject.Singleton
  * ([FerngeistForegroundService.EXTRA_SERVER_ID] etc.) so taps land in the right place via
  * [MainActivity].
  *
- * The push's `serverId` is the **gateway-owned** id; it's translated to the local
- * [com.tamimarafat.ferngeist.core.model.GatewaySource.id] (via [GatewaySourceRepository])
- * before deep-linking, because navigation routes on the local id. A redundant push — one
+ * The push's `serverId` is the **gateway-owned** id; it's resolved to the agent binding on
+ * that gateway holding the session, because navigation routes on the agent's id. A redundant push — one
  * for the session the user is already watching in the foreground — is suppressed via
  * [PushNotificationPolicy].
  *
@@ -38,6 +38,8 @@ class PushNotifier
     constructor(
         @ApplicationContext private val context: Context,
         private val gatewaySourceRepository: GatewaySourceRepository,
+        private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
+        private val sessionRepository: SessionRepository,
         private val chatConnectionHub: ChatConnectionHub,
         private val appForegroundState: AppForegroundState,
     ) {
@@ -46,6 +48,14 @@ class PushNotifier
             val body = data[PushPayloadKeys.BODY] ?: context.getString(R.string.push_default_body)
             val sessionId = data[PushPayloadKeys.SESSION_ID]
             val category = data[PushPayloadKeys.CATEGORY]
+
+            // The turn is over, so its "working" notification is stale — even when this push
+            // itself is suppressed below.
+            if (sessionId != null && category in TURN_END_CATEGORIES) {
+                context
+                    .getSystemService(NotificationManager::class.java)
+                    .cancel(notificationIdFor(PUSH_CATEGORY_PROGRESS, sessionId) { 0 })
+            }
 
             // Skip pushes the user is already watching live in the foreground. Suppression
             // matches on the gateway-owned id, not a local id, so it survives the local-id churn
@@ -64,10 +74,8 @@ class PushNotifier
                 return
             }
 
-            // The push carries the gateway-owned id; translate to the local server id that
-            // navigation (and the hub's presence entries) use. Null when unknown → no deep-link.
-            val localServerId =
-                data[PushPayloadKeys.SERVER_ID]?.let { gatewaySourceRepository.resolveLocalId(it) }
+            // Null when unknown → no deep-link.
+            val target = chatTarget(data, sessionId)
 
             ensurePushChannels(context)
 
@@ -87,26 +95,55 @@ class PushNotifier
                     .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                     .setSmallIcon(R.drawable.ic_notification)
                     .setAutoCancel(true)
-                    .setContentIntent(buildContentIntent(data, localServerId, sessionId))
+                    // "Working" is a live status replaced every few seconds, not an event.
+                    .setSilent(category == PUSH_CATEGORY_PROGRESS)
+                    .setContentIntent(buildContentIntent(target))
                     .build()
 
             context.getSystemService(NotificationManager::class.java).notify(notifyId, built)
         }
 
-        /** Builds the tap target, deep-linking to a chat when the (translated) ids resolve. */
-        private fun buildContentIntent(
+        /**
+         * The chat a tap opens. Its server id is the agent binding on the push's gateway that
+         * holds [sessionId]: the push names only the gateway, and the gateway's own id opens no
+         * chat. The push's cwd is empty when the gateway never saw the session opened, and the
+         * agent rejects a load without one, so the session's stored cwd fills in.
+         */
+        private suspend fun chatTarget(
             data: Map<String, String>,
-            localServerId: String?,
             sessionId: String?,
-        ): PendingIntent {
+        ): ChatDeepLinkTarget? {
+            val gatewayId = data[PushPayloadKeys.SERVER_ID]
+            if (gatewayId == null || sessionId == null) return null
+            val gateway = gatewaySourceRepository.getGatewayByGatewayId(gatewayId) ?: return null
+            val bindings = gatewayAgentBindingRepository.getBindingsForGateway(gateway.id)
+            // getSession matches on the session id alone, so only the row's own serverId
+            // tells which agent holds it.
+            val stored =
+                bindings.firstNotNullOfOrNull { binding ->
+                    sessionRepository.getSession(binding.id, sessionId)?.takeIf { it.serverId == binding.id }
+                }
+            val serverId = stored?.serverId ?: bindings.singleOrNull()?.id ?: return null
+            return ChatDeepLinkTarget(
+                serverId = serverId,
+                sessionId = sessionId,
+                cwd = data[PushPayloadKeys.CWD]?.takeIf { it.isNotBlank() } ?: stored?.cwd.orEmpty(),
+                title = stored?.title.orEmpty(),
+                gatewayId = gatewayId,
+            )
+        }
+
+        /** Builds the tap target, deep-linking to [target]'s chat when it resolved. */
+        private fun buildContentIntent(target: ChatDeepLinkTarget?): PendingIntent {
             val intent =
                 Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    if (localServerId != null && sessionId != null) {
-                        putExtra(FerngeistForegroundService.EXTRA_SERVER_ID, localServerId)
-                        putExtra(FerngeistForegroundService.EXTRA_SESSION_ID, sessionId)
-                        putExtra(FerngeistForegroundService.EXTRA_CWD, data[PushPayloadKeys.CWD] ?: "")
-                        putExtra(FerngeistForegroundService.EXTRA_GATEWAY_ID, data[PushPayloadKeys.SERVER_ID])
+                    if (target != null) {
+                        putExtra(FerngeistForegroundService.EXTRA_SERVER_ID, target.serverId)
+                        putExtra(FerngeistForegroundService.EXTRA_SESSION_ID, target.sessionId)
+                        putExtra(FerngeistForegroundService.EXTRA_CWD, target.cwd)
+                        putExtra(FerngeistForegroundService.EXTRA_TITLE, target.title)
+                        putExtra(FerngeistForegroundService.EXTRA_GATEWAY_ID, target.gatewayId)
                     }
                 }
             return PendingIntent.getActivity(
@@ -125,3 +162,6 @@ class PushNotifier
             val requestCode = AtomicInteger(2000)
         }
     }
+
+private val TURN_END_CATEGORIES =
+    setOf(PUSH_CATEGORY_TURN_COMPLETE, PUSH_CATEGORY_AGENT_ERROR, PUSH_CATEGORY_AGENT_CRASH)
