@@ -16,12 +16,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -37,7 +38,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -238,6 +241,7 @@ private fun UserMessageBubble(
     contentColor: Color,
     onRetryMessage: ((String) -> Unit)?,
     onImageClick: (ChatImageData) -> Unit,
+    maxLines: Int = Int.MAX_VALUE,
 ) {
     val onRetry =
         if (onRetryMessage != null && message.status == MessageDeliveryStatus.FAILED) {
@@ -259,10 +263,51 @@ private fun UserMessageBubble(
             textColor = contentColor,
             onRetry = onRetry,
             onImageClick = { onImageClick(it) },
+            maxLines = maxLines,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
         )
     }
 }
+
+/**
+ * Prompts the agent has not taken yet, pinned above the composer in send order. Each leaves
+ * when its echo lands in the transcript.
+ */
+@Composable
+internal fun PendingPromptQueue(
+    messages: List<ChatMessage>,
+    onRetryMessage: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier =
+            modifier
+                .widthIn(max = 720.dp)
+                .fillMaxWidth()
+                .animateContentSize()
+                .heightIn(max = PENDING_QUEUE_MAX_HEIGHT)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.End,
+    ) {
+        messages.forEach { message ->
+            key(message.clientId ?: message.id) {
+                Box(modifier = Modifier.padding(bottom = 8.dp)) {
+                    UserMessageBubble(
+                        message = message,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onRetryMessage = onRetryMessage,
+                        onImageClick = {},
+                        maxLines = PENDING_PROMPT_MAX_LINES,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val PENDING_QUEUE_MAX_HEIGHT = 200.dp
+private const val PENDING_PROMPT_MAX_LINES = 3
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -272,43 +317,39 @@ private fun UserMessageContent(
     modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null,
     onImageClick: ((ChatImageData) -> Unit)? = null,
+    maxLines: Int = Int.MAX_VALUE,
 ) {
-    Column(modifier = modifier) {
-        // Text content
-        if (message.content.isNotBlank()) {
-            Text(
-                text = message.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = textColor,
-            )
-        }
-
-        // Images
-        if (message.images.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            ImageAttachments(message.images, onImageClick = onImageClick)
-        }
-
-        // Files
-        if (message.files.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            FileAttachments(message.files)
-        }
-
-        // Status badge for non-SENT delivery states. Shrinks out rather than vanishing: on delivery
-        // the bubble losing the badge's height in one frame dropped the transcript by as much.
-        AnimatedVisibility(
-            visible = message.role == ChatMessage.Role.USER && message.status != MessageDeliveryStatus.SENT,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
-        ) {
-            Column {
-                Spacer(modifier = Modifier.height(6.dp))
-                DeliveryStatusBadge(
-                    status = message.status,
-                    onRetry = onRetry,
+    Row(modifier = modifier, verticalAlignment = Alignment.Bottom) {
+        Column(modifier = Modifier.weight(1f, fill = false)) {
+            if (message.content.isNotBlank()) {
+                Text(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = textColor,
+                    maxLines = maxLines,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (message.images.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                ImageAttachments(message.images, onImageClick = onImageClick)
+            }
+            if (message.files.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                FileAttachments(message.files)
+            }
+        }
+        // Trailing status for non-SENT delivery states.
+        AnimatedVisibility(
+            visible = message.role == ChatMessage.Role.USER && message.status != MessageDeliveryStatus.SENT,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally(),
+        ) {
+            DeliveryStatusBadge(
+                status = message.status,
+                onRetry = onRetry,
+                modifier = Modifier.padding(start = 8.dp),
+            )
         }
     }
 }

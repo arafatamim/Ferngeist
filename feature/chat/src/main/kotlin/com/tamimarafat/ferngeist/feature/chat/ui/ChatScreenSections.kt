@@ -601,10 +601,7 @@ private fun ChatMessageList(
     onStreamLayoutSettled: () -> Unit = {},
     onRetryMessage: ((String) -> Unit)? = null,
 ) {
-    val allMessages =
-        remember(state.messages, state.pendingMessages) {
-            state.messages + state.pendingMessages
-        }
+    val allMessages = state.messages
     val itemKey: (ChatMessage) -> String = { state.listKeys[it.id] ?: it.id }
     val contentTop = listTopPadding + 8.dp
     val window = rememberMessageWindow(state, allMessages, listState, itemKey)
@@ -691,7 +688,7 @@ private fun ChatMessageList(
         // rebuilt mid-push.
         PinnedPromptOverlays(userRows, leadingRows, windowed, listState, contentTop, fadePx)
         AnimatedVisibility(
-            visible = allMessages.isEmpty() && !state.resumedSession,
+            visible = allMessages.isEmpty() && state.pendingMessages.isEmpty() && !state.resumedSession,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize(),

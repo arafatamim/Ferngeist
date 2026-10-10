@@ -22,6 +22,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -535,9 +537,7 @@ private fun rememberChatMessages(
 ): ChatMessagesState {
     // --- Messages & selections ---
     val renderedMessages =
-        remember(state.messages, state.pendingMessages) {
-            state.messages + state.pendingMessages
-        }
+        state.messages
     val selectedThought =
         remember(renderedMessages, selectedThoughtSegmentId.value) {
             renderedMessages.thoughtForSegment(selectedThoughtSegmentId.value)
@@ -1161,6 +1161,62 @@ private fun BoxScope.ChatComposerHost(
         } else {
             Modifier
         }
+    // The transcript's bottom padding has to clear both the bar and the pinned queue above it.
+    var barHeightPx by remember { mutableIntStateOf(0) }
+    var queueHeightPx by remember { mutableIntStateOf(0) }
+    LaunchedEffect(barHeightPx, queueHeightPx) {
+        screenState.composerContentHeightPx.value = barHeightPx + queueHeightPx
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier =
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .offset(y = -FloatingToolbarDefaults.ScreenOffset)
+                .zIndex(1f),
+    ) {
+        PendingPromptQueue(
+            messages = screenState.state.pendingMessages,
+            onRetryMessage = { viewModel.dispatch(ChatIntent.RetryMessage(it)) },
+            modifier = Modifier.onSizeChanged { queueHeightPx = it.height },
+        )
+        ChatComposerRow(
+            screenState = screenState,
+            focusManager = focusManager,
+            viewModel = viewModel,
+            switcherState = switcherState,
+            switcherHintSeen = switcherHintSeen,
+            switcherEntranceReady = switcherEntranceReady,
+            callbacks = callbacks,
+            switcherDrag = switcherDrag,
+            onSwitcherClick = onSwitcherClick,
+            dropTargetActive = dropTargetActive,
+            onBarHeightChanged = { barHeightPx = it },
+            modifier = composerDragModifier,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ChatComposerRow(
+    screenState: ChatScreenState,
+    focusManager: FocusManager,
+    viewModel: ChatViewModel,
+    switcherState: SwitcherUiState,
+    switcherHintSeen: Boolean,
+    switcherEntranceReady: Boolean,
+    callbacks: ComposerCallbacks,
+    switcherDrag: SwitcherDragHandlers,
+    onSwitcherClick: () -> Unit,
+    dropTargetActive: Boolean,
+    onBarHeightChanged: (Int) -> Unit,
+    // Applied to the composer bar, not the row: it carries the switcher drag.
+    modifier: Modifier = Modifier,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement =
@@ -1170,13 +1226,8 @@ private fun BoxScope.ChatComposerHost(
             ),
         modifier =
             Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(horizontal = 1.dp)
-                .offset(y = -FloatingToolbarDefaults.ScreenOffset)
-                .zIndex(1f),
+                .padding(horizontal = 1.dp),
     ) {
         ChatComposerBar(
             // `weight(fill = false)`: a Row measures its non-weighted children first, so the
@@ -1185,7 +1236,7 @@ private fun BoxScope.ChatComposerHost(
             // and allowed to reach 92% of that width — clamps to the whole row on a narrow
             // window, leaving the switcher a zero-width sliver. `fill = false` keeps the pill
             // hugging its actions instead of stretching to the share.
-            modifier = composerDragModifier.weight(1f, fill = false),
+            modifier = modifier.weight(1f, fill = false),
             state = screenState.state,
             toolbarConfigOptions = screenState.toolbarConfigOptions,
             composerExpanded = screenState.composerExpanded.value,
@@ -1200,7 +1251,7 @@ private fun BoxScope.ChatComposerHost(
             canCancelStreaming = screenState.canCancelStreaming,
             focusRequester = screenState.focusRequester,
             onFocusCleared = { focusManager.clearFocus() },
-            onHeightChanged = { screenState.composerContentHeightPx.value = it },
+            onHeightChanged = onBarHeightChanged,
             onSend = screenState.sendMessage,
             onCancelStreaming = callbacks.onCancelStreaming,
             onSetStringConfigOption = callbacks.onSetStringConfigOption,

@@ -57,6 +57,41 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `a prompt queued during a running turn waits for the turn to end`() =
+        runTest {
+            val sent = mutableListOf<String>()
+            val facadeFactory =
+                TestFacadeFactory {
+                    object : TestFacade(sendResult = true) {
+                        override suspend fun sendMessage(
+                            text: String,
+                            images: List<ChatImageData>,
+                            files: List<ChatFileData>,
+                        ): Boolean {
+                            sent += text
+                            return true
+                        }
+                    }
+                }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+            val facade = facadeFactory.lastFacade.value!!
+            facade.emitSnapshot(readySnapshot(isStreaming = true))
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("next"))
+            facade.emitSessionReady()
+            advanceUntilIdle()
+            assertEquals(emptyList<String>(), sent)
+            val queued = viewModel.state.value.pendingMessages
+            assertEquals(MessageDeliveryStatus.QUEUED, queued.single().status)
+
+            facade.emitSnapshot(readySnapshot(isStreaming = false))
+            advanceUntilIdle()
+            assertEquals(listOf("next"), sent)
+        }
+
+    @Test
     fun `QUEUED transitions to SENDING then removed when reducer echo arrives`() =
         runTest {
             val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }

@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -1099,7 +1100,11 @@ class ChatViewModel
         }
 
         /**
-         * Drains [offlineQueue] in FIFO order under [flushMutex].
+         * Drains [offlineQueue] in FIFO order under [flushMutex], one prompt per turn.
+         *
+         * Each send first waits for the agent to be idle. The mutex alone only covered
+         * turns this view model started: a screen re-entered mid-turn (or a restored queue)
+         * sent its prompt straight into the running turn.
          *
          * Each prompt transitions QUEUED -> SENDING *without* being removed from
          * [ChatState.pendingMessages].  The pending bubble stays visible until:
@@ -1110,6 +1115,7 @@ class ChatViewModel
         private suspend fun flushOfflineQueue() {
             flushMutex.withLock {
                 while (!offlineQueue.isEmpty) {
+                    state.first { !it.isStreaming }
                     val prompt = offlineQueue.dequeue() ?: break
                     // Transition QUEUED -> SENDING, keep the bubble visible.
                     inFlightClientId = prompt.clientId
