@@ -4,8 +4,10 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
@@ -16,6 +18,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -107,6 +112,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
@@ -855,11 +861,25 @@ internal fun ModeMenuButton(
                         containerColor = Color.Transparent,
                     ),
             ) {
-                Text(
-                    text = currentModeLabel,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // The bar, and the panel hugging it, take their width from this label, so sizing
+                // the swap here is what makes the whole pill resize smoothly on a mode change.
+                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntSize>()
+                val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+                AnimatedContent(
+                    targetState = currentModeLabel,
+                    transitionSpec = {
+                        (fadeIn(effects) + slideInVertically { it / 2 })
+                            .togetherWith(fadeOut(effects) + slideOutVertically { -it / 2 })
+                            .using(SizeTransform { _, _ -> spatial })
+                    },
+                    label = "ModeLabel",
+                ) { label ->
+                    Text(
+                        text = label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
         DropdownMenuPopup(
