@@ -1,0 +1,9 @@
+Worktrees, mid-turn steering, and keyboard and pointer support.
+
+• Open chats in gateway worktrees
+• Queued prompts steer into the running turn; swipe one up to send it now
+• Focus, hover and context menus throughout
+• Paste or drop files into the composer
+• ACP elicitation forms and URL sheets
+• Encrypted pushes over UnifiedPush, FOSS build included
+• Fixed: tool calls no longer spin forever after a cut-short turn

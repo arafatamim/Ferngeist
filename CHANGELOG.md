@@ -1,5 +1,8 @@
+## [1.1.0] - 2026-10-11
 
-## [1.1.0] - 2026-10-09
+### Documentation
+
+- Rewrite AGENTS.md for the nine-module layout ([ad94e42](https://github.com/arafatamim/Ferngeist/commit/ad94e4273403e578fa66d8c7dcbdbdb1f6b6e722))
 
 ### Features
 
@@ -14,16 +17,36 @@
 - *(chat)* Add pointer and keyboard affordances to the chat surfaces ([839f576](https://github.com/arafatamim/Ferngeist/commit/839f5760712bc81bd9e17fc229e36c79ff3d34e0))
 - *(serverlist)* Add pointer and keyboard affordances ([b687a0f](https://github.com/arafatamim/Ferngeist/commit/b687a0f9aff5c3c6e01dec77003a328ea2cd5b73))
 - *(sessionlist)* Add pointer and keyboard affordances ([70796f0](https://github.com/arafatamim/Ferngeist/commit/70796f08624d70765be4c481af097157de044023))
+- *(chat)* Scope workspace calls to the chat's ACP session ([01a776b](https://github.com/arafatamim/Ferngeist/commit/01a776b1ca9737f4e683342a5de45de36b4a4217))
+- *(sessionlist)* Keep a repo's worktree chats under it in the cwd filter ([d95f245](https://github.com/arafatamim/Ferngeist/commit/d95f245d0b73804cbffb80f537338eaa648eb0b8))
+- *(sessionlist)* Poll while visible and filter by cwd locally ([a5df892](https://github.com/arafatamim/Ferngeist/commit/a5df89244e3310747007384f877c5acb1dcc5c5d))
+- *(gateway-client)* Add the gateway worktree API ([ca9bd82](https://github.com/arafatamim/Ferngeist/commit/ca9bd821e7eb80e55a132a5827e2b06581a2f84e))
+- *(sessionlist)* Open and manage chats in gateway worktrees ([3c13beb](https://github.com/arafatamim/Ferngeist/commit/3c13beb84e5553c32ed067a6f0e9908927c2bdfd))
+- *(sessionlist)* Open new chats in an existing worktree ([a7117b9](https://github.com/arafatamim/Ferngeist/commit/a7117b9f22eff90987dfbf65b4c37ffc50a81365))
+- *(chat)* Steer queued prompts into running turns ([dd4d58d](https://github.com/arafatamim/Ferngeist/commit/dd4d58d818c93e1335574ca7bdbc53736c4e328d))
+- *(chat)* Animate the mode label and resize the toolbar on mode change ([dcbcc23](https://github.com/arafatamim/Ferngeist/commit/dcbcc233150c70179c6b08563457f16611438d8d))
 
 ### Fixes
 
 - *(serverlist)* Clarify custom agent command runs on the gateway host ([94a7037](https://github.com/arafatamim/Ferngeist/commit/94a70377c4f8508f8a417ae369475d1f5d8508a8))
 - *(data)* Cascade target deletion to that target's sessions ([690a6ad](https://github.com/arafatamim/Ferngeist/commit/690a6ad564930e1466b51eaa9dbd6e777e0a13ca))
 - *(chat)* Restore the git status indicator's long press ([178fbf6](https://github.com/arafatamim/Ferngeist/commit/178fbf69feae0a3186b095f414cfb7947486f370))
+- *(gateway)* Keep the pairing when a refresh is rejected for a stale proof ([e7db2a3](https://github.com/arafatamim/Ferngeist/commit/e7db2a35e55215cf65e3ca1314bad3f63cc3fd98))
+- *(chat)* Stop composer expand/collapse recomposing the whole screen ([4690c67](https://github.com/arafatamim/Ferngeist/commit/4690c67ac80b5105582c59aa336ce2c12fd440a1))
+- *(chat)* Write a session's row on mint and touch it when a turn ends ([7783265](https://github.com/arafatamim/Ferngeist/commit/7783265fb6aab5797b6795f2f20aa96b68a9edb6))
+- *(chat)* Steady the pinned prompt chip's fade and visibility ([a9b0a13](https://github.com/arafatamim/Ferngeist/commit/a9b0a1353f524c76915a8d8cbde395a3809c67d8))
+- *(chat)* Name only running calls in the tool group summary and animate its changes ([5b03528](https://github.com/arafatamim/Ferngeist/commit/5b035281be095e2e8c9cc1d3204f7ce53250cad1))
+- *(push)* Compare gateway-owned ids when suppressing the on-screen chat's pushes ([095f47f](https://github.com/arafatamim/Ferngeist/commit/095f47f9a272e61e3f00147b11a07db27002c4a8))
+- *(service)* Name the connected agents in the persistent notification ([129a033](https://github.com/arafatamim/Ferngeist/commit/129a033eb7cce3ea51ce90cc6e0b189b53037ead))
+- *(push)* Open the tapped session's agent and quiet stale working notifications ([f570234](https://github.com/arafatamim/Ferngeist/commit/f570234e6752cda4e4b1e64daf4d359fed436e0b))
+- *(chat)* Hold queued prompts until the turn ends and pin them above the composer ([d81b4ef](https://github.com/arafatamim/Ferngeist/commit/d81b4ef2747a286c1ba6dfa5cb483fe568786fdb))
+- *(session)* Fail tool calls left unfinished when a turn ends ([3fd6570](https://github.com/arafatamim/Ferngeist/commit/3fd6570f2e8061e544948ebe9ef6c534de47e0a7))
 
 ### Maintenance
 
 - *(release)* Bump versionCode to 1602 for internal testing ([f941cc8](https://github.com/arafatamim/Ferngeist/commit/f941cc891d55a8471ec6ea3f8a1f4a441bee7b97))
+- *(deps)* Upgrade Gradle, AGP, Kotlin and libraries to their latest releases ([df20f32](https://github.com/arafatamim/Ferngeist/commit/df20f322df30518bb4f7894e173978e85c8d1f30))
+- *(app)* Bump versionCode to 1604 ([9b81672](https://github.com/arafatamim/Ferngeist/commit/9b8167220ae73512b4ca60206da72d9395126b72))
 
 ## [1.0.0] - 2026-10-05
 
