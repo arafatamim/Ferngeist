@@ -219,7 +219,10 @@ class SessionRuntime(
             debug { "onPromptSendFailed: finishing local streaming placeholder" }
             live =
                 live.copy(
-                    messages = SessionMessageReducer.finishStreaming(live.messages),
+                    messages =
+                        failUnfinishedToolCalls(
+                            SessionMessageReducer.finishStreaming(live.messages),
+                        ),
                     isStreaming = false,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
@@ -231,7 +234,10 @@ class SessionRuntime(
             debug { "onLocalCancel: finishing local streaming placeholder" }
             live =
                 live.copy(
-                    messages = SessionMessageReducer.finishStreaming(live.messages),
+                    messages =
+                        failUnfinishedToolCalls(
+                            SessionMessageReducer.finishStreaming(live.messages),
+                        ),
                     isStreaming = false,
                     stoppedAt = live.messages.lastOrNull()?.id,
                 )

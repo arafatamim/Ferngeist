@@ -90,7 +90,7 @@ object SessionMessageReducer {
                 )
             is AppSessionEvent.TurnComplete ->
                 ReducerResult(
-                    messages = finishStreaming(messages),
+                    messages = failUnfinishedToolCalls(finishStreaming(messages)),
                     toolCallIndex = toolCallIndex,
                 )
             else ->
@@ -648,6 +648,7 @@ object SessionMessageReducer {
      * shape exists to avoid. [SessionRuntime.reduce] routes SessionLoadComplete through this method
      * too, which is what gives a hydrated transcript its content and its single-segment replies.
      */
+
     fun finishStreaming(messages: List<ChatMessage>): List<ChatMessage> {
         if (messages.none { it.needsTurnCloseRewrite() }) return messages
         return messages.map { message ->
@@ -766,3 +767,36 @@ object SessionMessageReducer {
             previousMessage?.role == ChatMessage.Role.USER &&
             previousMessage.content == text
 }
+
+/**
+ * Marks the last turn's PENDING / IN_PROGRESS tool calls FAILED. Once a turn has ended no
+ * update can finish them, and a turn cut short (stopped, stream dropped, agent crashed) never
+ * sends one, so left alone they would spin forever. A late update that does arrive still
+ * carries its own status and overrides this.
+ */
+internal fun failUnfinishedToolCalls(messages: List<ChatMessage>): List<ChatMessage> {
+    val turnStart = messages.indexOfLast { it.role == ChatMessage.Role.USER } + 1
+    if ((turnStart until messages.size).none { messages[it].segments.any(AssistantSegment::isUnfinishedCall) }) {
+        return messages
+    }
+    return messages.mapIndexed { index, message ->
+        if (index < turnStart || message.segments.none(AssistantSegment::isUnfinishedCall)) {
+            message
+        } else {
+            message.copy(
+                segments =
+                    message.segments
+                        .map { segment ->
+                            if (segment.isUnfinishedCall()) {
+                                segment.copy(toolCall = segment.toolCall?.copy(status = ToolCallStatus.FAILED))
+                            } else {
+                                segment
+                            }
+                        }.toPersistentList(),
+            )
+        }
+    }
+}
+
+private fun AssistantSegment.isUnfinishedCall(): Boolean =
+    toolCall?.status == ToolCallStatus.PENDING || toolCall?.status == ToolCallStatus.IN_PROGRESS

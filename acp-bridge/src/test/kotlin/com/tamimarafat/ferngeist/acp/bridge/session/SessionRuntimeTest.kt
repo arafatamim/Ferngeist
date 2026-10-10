@@ -15,6 +15,27 @@ import org.junit.Test
 
 class SessionRuntimeTest {
     @Test
+    fun a_turn_cut_short_fails_its_unfinished_tool_calls() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+            runtime.beginHydration()
+            runtime.completeHydration()
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
+            val calls = listOf("done" to ToolCallStatus.COMPLETED, "running" to ToolCallStatus.IN_PROGRESS)
+            for ((id, status) in calls) {
+                runtime.onEvent(AppSessionEvent.ToolCallStarted(id, id, ToolKind.EXECUTE, status))
+            }
+            // What the gateway emits when the prompt stream dies without a response.
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
+
+            val settled =
+                runtime.snapshot.value.messages
+                    .flatMap { it.segments }
+                    .mapNotNull { it.toolCall }
+            assertEquals(listOf(ToolCallStatus.COMPLETED, ToolCallStatus.FAILED), settled.map { it.status })
+        }
+
+    @Test
     fun output_after_a_stop_opens_its_own_reply() =
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test")
