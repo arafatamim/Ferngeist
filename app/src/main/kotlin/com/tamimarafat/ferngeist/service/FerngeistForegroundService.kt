@@ -13,12 +13,15 @@ import androidx.core.app.NotificationCompat
 import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -64,6 +67,12 @@ class FerngeistForegroundService : Service() {
 
     @Inject
     lateinit var chatConnectionHub: ChatConnectionHub
+
+    @Inject
+    lateinit var launchableTargetRepository: LaunchableTargetRepository
+
+    // Comma-separated names of the connected agents; empty until resolved.
+    private var connectedAgentNames = ""
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var observationJob: Job? = null
@@ -167,6 +176,21 @@ class FerngeistForegroundService : Service() {
                         }
                 }
                 launch {
+                    chatConnectionHub.warmServers
+                        .combine(launchableTargetRepository.getTargets()) { ids, targets ->
+                            targets
+                                .filter { it.id in ids }
+                                .map { it.name }
+                                .distinct()
+                                .joinToString(", ")
+                        }.distinctUntilChanged()
+                        .collect { names ->
+                            connectedAgentNames = names
+                            if (!isStarted) return@collect
+                            updateNotification(chatConnectionHub.anyConnected.value)
+                        }
+                }
+                launch {
                     // Keep the notification's deep-link target in sync with the chat
                     // the user is currently viewing (falling back to the most recently
                     // focused pooled chat after back-out).
@@ -221,7 +245,10 @@ class FerngeistForegroundService : Service() {
         val (title, text) =
             if (anyConnected) {
                 getString(R.string.notification_connected_title) to
-                    getString(R.string.notification_connected_text, getString(R.string.notification_agent_fallback))
+                    getString(
+                        R.string.notification_connected_text,
+                        connectedAgentNames.ifEmpty { getString(R.string.notification_agent_fallback) },
+                    )
             } else {
                 getString(R.string.notification_disconnected_title) to
                     getString(R.string.notification_disconnected_text)
