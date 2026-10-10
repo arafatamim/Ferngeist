@@ -47,6 +47,12 @@ class SessionRuntime(
         val legacyModel: LegacyModelState? = null,
         val title: String? = null,
         val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+        /**
+         * Id of the last message when the user stopped the turn, until the next prompt. What
+         * the agent still sends goes below it, already closed: some agents (claude-agent-acp)
+         * send no turn end after it, which would leave the chat looking busy for good.
+         */
+        val stoppedAt: String? = null,
     )
 
     private val mutex = Mutex()
@@ -174,6 +180,35 @@ class SessionRuntime(
                 live.copy(
                     messages = withAssistantPlaceholder,
                     isStreaming = true,
+                    stoppedAt = null,
+                )
+            publishLive(loadState = SessionLoadState.READY, error = null)
+        }
+    }
+
+    override suspend fun onPromptSteered(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        injected: Boolean,
+    ) {
+        mutex.withLock {
+            if (_snapshot.value.loadState != SessionLoadState.READY) return@withLock
+            // Neither adapter echoes a steered prompt, so this bubble is its only record.
+            // A codex startedNewTurn is a turn this client never sees end: no placeholder
+            // for it, or it would spin forever.
+            val withUser =
+                SessionMessageReducer.appendLocalUserMessage(
+                    live.messages,
+                    text,
+                    images,
+                    files,
+                    steered = true,
+                )
+            live =
+                live.copy(
+                    messages = if (injected) SessionMessageReducer.startStreaming(withUser) else withUser,
+                    stoppedAt = null,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -198,6 +233,7 @@ class SessionRuntime(
                 live.copy(
                     messages = SessionMessageReducer.finishStreaming(live.messages),
                     isStreaming = false,
+                    stoppedAt = live.messages.lastOrNull()?.id,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -218,7 +254,17 @@ class SessionRuntime(
         current: RuntimeData,
         event: AppSessionEvent,
     ): RuntimeData {
-        var messages = current.messages
+        // Text arriving after a stop would otherwise land in the stopped reply, and its
+        // turn-close fold would glue it onto that reply's last sentence.
+        val stoppedReply = current.messages.lastOrNull()?.takeIf { it.id == current.stoppedAt }
+        val opensReply =
+            stoppedReply?.segments?.isNotEmpty() == true &&
+                (
+                    event is AppSessionEvent.AgentMessage ||
+                        event is AppSessionEvent.AgentThought ||
+                        event is AppSessionEvent.PlanUpdated
+                )
+        var messages = if (opensReply) SessionMessageReducer.startStreaming(current.messages) else current.messages
         var toolCallIndex = current.toolCallIndex
         var isStreaming = current.isStreaming
 
@@ -229,11 +275,13 @@ class SessionRuntime(
                 is AppSessionEvent.SessionLoadComplete -> null
                 else -> SessionMessageReducer.handleEvent(messages, toolCallIndex, event)
             }
-        if (fromReducer == null) {
-            messages = SessionMessageReducer.finishStreaming(messages)
-        } else {
+        if (fromReducer != null) {
             messages = fromReducer.messages
             toolCallIndex = fromReducer.toolCallIndex
+        }
+        if (fromReducer == null || current.stoppedAt != null) {
+            // ponytail: re-folds the trailing reply per late event; fine for a stop's short tail.
+            messages = SessionMessageReducer.finishStreaming(messages)
         }
 
         val fields = applySideFieldUpdates(current, event)

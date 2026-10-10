@@ -2,10 +2,13 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
+import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
@@ -89,6 +92,118 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             facade.emitSnapshot(readySnapshot(isStreaming = false))
             advanceUntilIdle()
             assertEquals(listOf("next"), sent)
+        }
+
+    @Test
+    fun `a prompt queued mid-turn is steered into it without waiting for the turn`() =
+        runTest {
+            val facade = SteeringFacade(SteerOutcome.Injected)
+            val viewModel = steeringViewModel(facade)
+
+            assertEquals(listOf("nudge"), facade.steered)
+            facade.emitSnapshot(readySnapshot(messages = listOf(echoMessage(content = "nudge")), isStreaming = true))
+            advanceUntilIdle()
+            facade.emitSnapshot(readySnapshot(isStreaming = false))
+            advanceUntilIdle()
+
+            assertEquals(emptyList<String>(), facade.sent)
+            assertTrue(
+                viewModel.state.value.pendingMessages
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a prompt queued during this screen's own turn is steered into it`() =
+        runTest {
+            // A real send holds until its turn ends; the next prompt must not wait behind it.
+            val facade = SteeringFacade(SteerOutcome.Injected, holdSends = true)
+            val viewModel = createViewModel(facadeFactory = TestFacadeFactory { facade })
+            advanceUntilIdle()
+            facade.connect()
+            viewModel.dispatch(ChatIntent.SendMessage("go"))
+            advanceUntilIdle()
+            facade.emitSessionReady()
+            advanceUntilIdle()
+            facade.emitSnapshot(readySnapshot(isStreaming = true))
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("nudge"))
+            advanceUntilIdle()
+
+            assertEquals(listOf("go"), facade.sent)
+            assertEquals(listOf("nudge"), facade.steered)
+            viewModel.clearForTest()
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `a steer the agent does not take waits for the turn like any queued prompt`() =
+        runTest {
+            val facade = SteeringFacade(SteerOutcome.NotConsumed)
+            val viewModel = steeringViewModel(facade)
+
+            assertEquals(listOf("nudge"), facade.steered)
+            assertEquals(
+                MessageDeliveryStatus.QUEUED,
+                viewModel.state.value.pendingMessages
+                    .single()
+                    .status,
+            )
+            assertEquals(emptyList<String>(), facade.sent)
+
+            facade.emitSnapshot(readySnapshot(isStreaming = false))
+            advanceUntilIdle()
+            assertEquals(listOf("nudge"), facade.sent)
+        }
+
+    @Test
+    fun `a force-sent prompt stops the turn and goes out with those queued ahead of it`() =
+        runTest {
+            val facade = CancellingFacade()
+            val viewModel = createViewModel(facadeFactory = TestFacadeFactory { facade })
+            advanceUntilIdle()
+            facade.emitSnapshot(readySnapshot(isStreaming = true))
+            advanceUntilIdle()
+            listOf("first", "second", "third").forEach { viewModel.dispatch(ChatIntent.SendMessage(it)) }
+            facade.emitSessionReady()
+            advanceUntilIdle()
+
+            val pending = viewModel.state.value.pendingMessages
+            viewModel.dispatch(ChatIntent.ForceSendMessage(pending[1].clientId!!))
+            advanceUntilIdle()
+
+            assertEquals(1, facade.cancels)
+            facade.emitSnapshot(readySnapshot(isStreaming = false))
+            advanceUntilIdle()
+            // The folded prompt opens the next turn; the one behind it follows as usual.
+            assertEquals(listOf("first\n\nsecond", "third"), facade.sent)
+        }
+
+    @Test
+    fun `a removed prompt is never sent and leaves no durable copy`() =
+        runTest {
+            val facade = SteeringFacade(SteerOutcome.NotConsumed)
+            val store = InMemoryPendingPromptStore()
+            val viewModel = steeringViewModel(facade, store)
+
+            viewModel.dispatch(
+                ChatIntent.RemoveQueuedMessage(
+                    viewModel.state.value.pendingMessages
+                        .single()
+                        .clientId!!,
+                ),
+            )
+            advanceUntilIdle()
+            facade.emitSnapshot(readySnapshot(isStreaming = false))
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.state.value.pendingMessages
+                    .isEmpty(),
+            )
+            assertEquals(emptyList<String>(), facade.sent)
+            assertTrue(store.restore("server_1", "session_1").isEmpty())
         }
 
     @Test
@@ -406,7 +521,75 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         assertEquals(1, state.pendingMessages.size)
     }
 
+    /** A view model mid-turn on a steering-capable agent, with "nudge" queued. */
+    private suspend fun TestScope.steeringViewModel(
+        facade: SteeringFacade,
+        store: InMemoryPendingPromptStore = InMemoryPendingPromptStore(),
+    ): ChatViewModel {
+        val viewModel = createViewModel(facadeFactory = TestFacadeFactory { facade }, pendingPromptStore = store)
+        advanceUntilIdle()
+        facade.emitSnapshot(readySnapshot(isStreaming = true))
+        advanceUntilIdle()
+        viewModel.dispatch(ChatIntent.SendMessage("nudge"))
+        facade.emitSessionReady()
+        advanceUntilIdle()
+        return viewModel
+    }
+
     // endregion
+}
+
+private class CancellingFacade : TestFacade() {
+    val sent = mutableListOf<String>()
+    var cancels = 0
+
+    override suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean {
+        sent += text
+        return true
+    }
+
+    override suspend fun cancelStreaming() {
+        cancels++
+    }
+}
+
+private class SteeringFacade(
+    private val outcome: SteerOutcome,
+    private val holdSends: Boolean = false,
+) : TestFacade() {
+    val sent = mutableListOf<String>()
+    val steered = mutableListOf<String>()
+
+    init {
+        agentCapabilitiesFlow.value = ChatAgentCapabilities(supportsSteering = true)
+    }
+
+    fun connect() {
+        connectionStateFlow.value = ChatConnectionState.Connected
+    }
+
+    override suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): Boolean {
+        sent += text
+        if (holdSends) awaitCancellation()
+        return true
+    }
+
+    override suspend fun steerMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): SteerOutcome {
+        steered += text
+        return outcome
+    }
 }
 
 /**

@@ -116,15 +116,27 @@ object SessionMessageReducer {
         return messages + streamingMessage
     }
 
+    /**
+     * [steered] is a prompt pushed into the running turn: the reply so far closes, keeping
+     * its running tool calls as they are, so the rest of the turn streams below the prompt.
+     */
     fun appendLocalUserMessage(
         messages: List<ChatMessage>,
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        steered: Boolean = false,
     ): List<ChatMessage> {
         // Optimistic insertion: the UI gets an immediate user bubble before the server round-trip
         if (text.isBlank() && images.isEmpty() && files.isEmpty()) return messages
-        return messages +
+        val last = messages.lastOrNull()
+        val closed =
+            if (steered && last?.role == ChatMessage.Role.ASSISTANT && last.isStreaming) {
+                messages.dropLast(1) + last.copy(isStreaming = false)
+            } else {
+                messages
+            }
+        return closed +
             ChatMessage(
                 role = ChatMessage.Role.USER,
                 content = text,

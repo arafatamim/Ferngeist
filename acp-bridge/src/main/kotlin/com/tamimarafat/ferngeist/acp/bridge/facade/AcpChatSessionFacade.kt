@@ -30,6 +30,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -344,6 +345,14 @@ class AcpChatSessionFacade(
         }
         return true
     }
+
+    // Silent on failure by design: a prompt that is not taken goes out as a normal send,
+    // which reports its own errors.
+    override suspend fun steerMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): SteerOutcome = sessionBridge?.steer(text, images, files) ?: SteerOutcome.NotConsumed
 
     /** Emits an operation error and returns true when the agent lacks image/file support. */
     private suspend fun isSendCapabilityRejected(

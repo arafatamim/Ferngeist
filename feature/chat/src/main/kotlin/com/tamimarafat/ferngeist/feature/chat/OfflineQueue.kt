@@ -43,6 +43,31 @@ class OfflineQueue {
         prompts.addLast(prompt)
     }
 
+    /** Puts a prompt back at the front, ahead of everything queued after it. */
+    fun enqueueFirst(prompt: PendingPrompt) {
+        prompts.addFirst(prompt)
+    }
+
+    /**
+     * Folds [clientId]'s prompt and every prompt ahead of it into one, under [clientId], and puts
+     * it at the front. Returns it with the client ids it swallowed, or null if [clientId] is not
+     * queued.
+     */
+    fun foldThrough(clientId: String): Pair<PendingPrompt, Set<String>>? {
+        val index = prompts.indexOfFirst { it.clientId == clientId }
+        if (index < 0) return null
+        val batch = List(index + 1) { prompts.removeFirst() }
+        val folded =
+            PendingPrompt(
+                clientId = clientId,
+                text = batch.map { it.text }.filter { it.isNotBlank() }.joinToString("\n\n"),
+                images = batch.flatMap { it.images },
+                files = batch.flatMap { it.files },
+            )
+        prompts.addFirst(folded)
+        return folded to (batch.mapTo(HashSet()) { it.clientId } - clientId)
+    }
+
     /** Removes and returns the oldest prompt, or null if empty. */
     fun dequeue(): PendingPrompt? = prompts.removeFirstOrNull()
 

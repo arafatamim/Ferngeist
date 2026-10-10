@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
@@ -139,6 +140,12 @@ internal class ChatSessionCoordinator(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
     ): Boolean = facade.sendMessage(text, images, files)
+
+    suspend fun steerMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): SteerOutcome = facade.steerMessage(text, images, files)
 
     /** Ensures the transport is (re)connecting so queued prompts can drain. */
     suspend fun reconnect() {

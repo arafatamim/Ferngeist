@@ -157,7 +157,21 @@ data class ChatAgentCapabilities(
      * decision that assumes `session/load` until the agent says otherwise.
      */
     val supportsHistoryReplay: Boolean = true,
+    /** True when a prompt can be steered into a running turn instead of waiting for it. */
+    val supportsSteering: Boolean = false,
 )
+
+/** What the agent did with a steered prompt. */
+enum class SteerOutcome {
+    /** Folded into the running turn. */
+    Injected,
+
+    /** No turn was running, so the agent started one of its own with the prompt. */
+    StartedNewTurn,
+
+    /** Not taken (idle, rejected, unsupported or failed); the prompt must be sent normally. */
+    NotConsumed,
+}
 
 /**
  * The connection details a chat needs to reach its agent's workspace through the
@@ -285,6 +299,13 @@ interface ChatSessionFacade {
 
     /** Requests a streaming cancel from the transport. */
     suspend fun cancelStreaming()
+
+    /** Steers a prompt into the running turn; see [ChatAgentCapabilities.supportsSteering]. */
+    suspend fun steerMessage(
+        text: String,
+        images: List<ChatImageData> = emptyList(),
+        files: List<ChatFileData> = emptyList(),
+    ): SteerOutcome = SteerOutcome.NotConsumed
 
     /** Updates a session configuration option (mode, model, native config, etc.). */
     suspend fun setConfigOption(

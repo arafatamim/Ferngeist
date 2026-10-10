@@ -1181,6 +1181,8 @@ private fun BoxScope.ChatComposerHost(
         PendingPromptQueue(
             messages = screenState.state.pendingMessages,
             onRetryMessage = { viewModel.dispatch(ChatIntent.RetryMessage(it)) },
+            onForceSendMessage = { viewModel.dispatch(ChatIntent.ForceSendMessage(it)) },
+            onRemoveMessage = { viewModel.dispatch(ChatIntent.RemoveQueuedMessage(it)) },
             modifier = Modifier.onSizeChanged { queueHeightPx = it.height },
         )
         ChatComposerRow(

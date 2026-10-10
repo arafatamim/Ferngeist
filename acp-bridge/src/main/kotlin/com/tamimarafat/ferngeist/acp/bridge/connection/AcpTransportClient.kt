@@ -201,7 +201,7 @@ internal class AcpTransportClient(
             val result =
                 AcpInitializeResult.Ready(
                     agentInfo = mapped,
-                    agentCapabilities = info.capabilities,
+                    agentCapabilities = info.capabilities.withSteeringMeta(info._meta),
                     authMethods = authMethods,
                 )
 

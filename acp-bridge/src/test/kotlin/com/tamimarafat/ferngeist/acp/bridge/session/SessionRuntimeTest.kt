@@ -15,6 +15,27 @@ import org.junit.Test
 
 class SessionRuntimeTest {
     @Test
+    fun output_after_a_stop_opens_its_own_reply() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+            runtime.beginHydration()
+            runtime.completeHydration()
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
+            runtime.onEvent(AppSessionEvent.AgentMessage("stopped here."))
+            runtime.onLocalCancel()
+
+            runtime.onEvent(AppSessionEvent.AgentMessage("Late"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(" tail"))
+
+            val replies =
+                runtime.snapshot.value.messages
+                    .filter { it.role == ChatMessage.Role.ASSISTANT }
+            assertEquals(listOf("stopped here.", "Late tail"), replies.map { it.content })
+            // No turn end follows (claude-agent-acp), so nothing may be left looking busy.
+            assertFalse(runtime.snapshot.value.isStreaming)
+        }
+
+    @Test
     fun hydrating_buffers_events_until_complete() =
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test")

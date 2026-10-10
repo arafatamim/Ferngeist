@@ -28,6 +28,17 @@ interface SessionStateEngine {
 
     suspend fun onPromptSendFailed()
 
+    /**
+     * Records a prompt the agent took via steering. [injected] means it joined the running
+     * turn, whose reply continues below it.
+     */
+    suspend fun onPromptSteered(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        injected: Boolean,
+    )
+
     suspend fun onLocalCancel()
 
     /** Begins buffering events during session/load hydration. */

@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
@@ -235,6 +236,13 @@ class AcpConnectionManager(
     suspend fun cancelSession(sessionId: String) {
         gateway.cancelSession(sessionId)
     }
+
+    suspend fun steerSession(
+        sessionId: String,
+        content: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): SteerOutcome = gateway.steerSession(sessionId, content, images, files)
 
     /** Sends `session/delete`; false when there is no client or the agent rejected it. */
     suspend fun deleteSession(sessionId: String): Boolean = orchestra.deleteSession(sessionId)

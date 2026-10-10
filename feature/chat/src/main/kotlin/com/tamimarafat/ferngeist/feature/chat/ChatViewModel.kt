@@ -29,6 +29,7 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -271,6 +273,7 @@ class ChatViewModel
                                 copy(
                                     canSendImages = capabilities.canSendImages,
                                     supportsEmbeddedContext = capabilities.supportsEmbeddedContext,
+                                    supportsSteering = capabilities.supportsSteering,
                                     resumedSession =
                                         openedExistingSession && !capabilities.supportsHistoryReplay,
                                 )
@@ -882,6 +885,8 @@ class ChatViewModel
                 is ChatIntent.RetryMessage -> retryMessage(intent.clientId)
                 is ChatIntent.RefreshGitStatus ->
                     state.value.gatewayWorkspaceConnection?.let { refreshGitStatus(it) }
+                is ChatIntent.RemoveQueuedMessage,
+                is ChatIntent.ForceSendMessage,
                 is ChatIntent.LoadGitDiff,
                 is ChatIntent.MarkSwitcherHintSeen,
                 is ChatIntent.CloseSession,
@@ -895,6 +900,8 @@ class ChatViewModel
         /** One-shot intents outside the send/streaming core: diff fetch, hint flag, session close. */
         private suspend fun handleAuxIntent(intent: ChatIntent) {
             when (intent) {
+                is ChatIntent.RemoveQueuedMessage -> removeQueuedMessage(intent.clientId)
+                is ChatIntent.ForceSendMessage -> forceSend(intent.clientId)
                 is ChatIntent.LoadGitDiff -> loadGitFileDiff(intent.path)
                 is ChatIntent.MarkSwitcherHintSeen -> switcherHintStore.markSeen()
                 is ChatIntent.CloseSession -> closeSwitcherSession(intent.serverId, intent.sessionId)
@@ -1104,7 +1111,8 @@ class ChatViewModel
          *
          * Each send first waits for the agent to be idle. The mutex alone only covered
          * turns this view model started: a screen re-entered mid-turn (or a restored queue)
-         * sent its prompt straight into the running turn.
+         * sent its prompt straight into the running turn. An agent that takes prompts
+         * mid-turn is the exception: it gets each one at once (see [steerIntoTurn]).
          *
          * Each prompt transitions QUEUED -> SENDING *without* being removed from
          * [ChatState.pendingMessages].  The pending bubble stays visible until:
@@ -1115,54 +1123,92 @@ class ChatViewModel
         private suspend fun flushOfflineQueue() {
             flushMutex.withLock {
                 while (!offlineQueue.isEmpty) {
-                    state.first { !it.isStreaming }
+                    val midTurn = state.first { !it.isStreaming || it.supportsSteering }.isStreaming
                     val prompt = offlineQueue.dequeue() ?: break
-                    // Transition QUEUED -> SENDING, keep the bubble visible.
-                    inFlightClientId = prompt.clientId
-                    updateState {
-                        val updated =
-                            pendingMessages.map { msg ->
-                                if (msg.clientId == prompt.clientId &&
-                                    msg.status == MessageDeliveryStatus.QUEUED
-                                ) {
-                                    msg.copy(status = MessageDeliveryStatus.SENDING)
-                                } else {
-                                    msg
-                                }
-                            }
-                        copy(pendingMessages = updated)
-                    }
-                    val dispatched = sessionCoordinator.sendMessage(prompt.text, prompt.images, prompt.files)
-                    inFlightClientId = null
-                    if (!dispatched) {
-                        // No bridge / not ready / unsupported -> mark FAILED immediately.
-                        updateState {
-                            val updated =
-                                pendingMessages.map { msg ->
-                                    if (msg.clientId == prompt.clientId &&
-                                        msg.status == MessageDeliveryStatus.SENDING
-                                    ) {
-                                        msg.copy(status = MessageDeliveryStatus.FAILED)
-                                    } else {
-                                        msg
-                                    }
-                                }
-                            copy(pendingMessages = updated)
-                        }
-                        emitEffect(ChatEffect.ShowError("Failed to send message"))
-                    }
-                    // Only now is the durable copy dropped, and deliberately not from a
-                    // finally: until the send resolves the stored snapshot still contains
-                    // this prompt, so a screen teardown mid-send (which cancels
-                    // sendMessage and skips this line) restores it as QUEUED rather than
-                    // losing it. The cost is that a process death between a successful
-                    // send and this write can re-send one prompt after restart
-                    // (at-least-once); the record carries its clientId, so an echo-based
-                    // dedupe could tighten that later if it ever matters.
-                    persistQueue()
+                    if (midTurn) steerIntoTurn(prompt) else startTurn(prompt)
                 }
             }
         }
+
+        /**
+         * Sends [prompt]. The send lasts the whole turn, so for a steering agent the flush is held
+         * only until the turn is under way: its next prompt must go into that turn, not behind it.
+         */
+        private suspend fun startTurn(prompt: PendingPrompt) {
+            if (!state.value.supportsSteering) return sendWhenIdle(prompt)
+            state.awaitTurnStartedOr(viewModelScope.launch { sendWhenIdle(prompt) })
+        }
+
+        private suspend fun sendWhenIdle(prompt: PendingPrompt) {
+            // Transition QUEUED -> SENDING, keep the bubble visible.
+            inFlightClientId = prompt.clientId
+            setPendingStatus(prompt.clientId, MessageDeliveryStatus.QUEUED, MessageDeliveryStatus.SENDING)
+            val dispatched = sessionCoordinator.sendMessage(prompt.text, prompt.images, prompt.files)
+            inFlightClientId = null
+            if (!dispatched) {
+                // No bridge / not ready / unsupported -> mark FAILED immediately.
+                setPendingStatus(prompt.clientId, MessageDeliveryStatus.SENDING, MessageDeliveryStatus.FAILED)
+                emitEffect(ChatEffect.ShowError("Failed to send message"))
+            }
+            // Only now is the durable copy dropped, and deliberately not from a
+            // finally: until the send resolves the stored snapshot still contains
+            // this prompt, so a screen teardown mid-send (which cancels
+            // sendMessage and skips this line) restores it as QUEUED rather than
+            // losing it. The cost is that a process death between a successful
+            // send and this write can re-send one prompt after restart
+            // (at-least-once); the record carries its clientId, so an echo-based
+            // dedupe could tighten that later if it ever matters.
+            persistQueue()
+        }
+
+        /**
+         * Hands a prompt to the running turn; the agent feeds it to the model at its next
+         * step. SENDING lets the runtime's local copy reconcile the bubble away as a normal
+         * send's echo does. A prompt the agent does not take goes back to the front and
+         * waits for the turn to end, so a refusal cannot spin the flush loop.
+         */
+        private suspend fun steerIntoTurn(prompt: PendingPrompt) {
+            setPendingStatus(prompt.clientId, MessageDeliveryStatus.QUEUED, MessageDeliveryStatus.SENDING)
+            val outcome = sessionCoordinator.steerMessage(prompt.text, prompt.images, prompt.files)
+            if (outcome == SteerOutcome.NotConsumed) {
+                offlineQueue.enqueueFirst(prompt)
+                setPendingStatus(prompt.clientId, MessageDeliveryStatus.SENDING, MessageDeliveryStatus.QUEUED)
+                persistQueue()
+                state.first { !it.isStreaming }
+            } else {
+                persistQueue()
+            }
+        }
+
+        /**
+         * Stops the running turn and makes [clientId]'s prompt the next one, folded together with
+         * every prompt queued ahead of it so they all go at once. Prompts behind it keep waiting.
+         * It keeps [clientId]'s bubble, whose content becomes the folded prompt the echo will carry.
+         */
+        private suspend fun forceSend(clientId: String) {
+            val (merged, folded) = offlineQueue.foldThrough(clientId) ?: return
+            updateState { copy(pendingMessages = pendingMessages.foldedInto(merged, folded)) }
+            persistQueue()
+            if (state.value.isStreaming) sessionCoordinator.cancelStreaming()
+            // Normally a flush is already waiting on the turn; this covers one that is not.
+            flushOfflineQueue()
+        }
+
+        /** Drops a prompt the user no longer wants sent. One already in flight cannot be recalled. */
+        private suspend fun removeQueuedMessage(clientId: String) {
+            val pending = state.value.pendingMessages.firstOrNull { it.clientId == clientId } ?: return
+            if (pending.status == MessageDeliveryStatus.SENDING) return
+            offlineQueue.removeByClientId(clientId)
+            updateState { copy(pendingMessages = pendingMessages.filterNot { it.clientId == clientId }) }
+            persistQueue()
+        }
+
+        /** Moves [clientId]'s pending bubble from [from] to [to]; any other status stays. */
+        private fun setPendingStatus(
+            clientId: String,
+            from: MessageDeliveryStatus,
+            to: MessageDeliveryStatus,
+        ) = updateState { copy(pendingMessages = pendingMessages.withStatus(clientId, from, to)) }
 
         /** Retries a single FAILED message by re-enqueueing it and flushing.
          *  Other QUEUED prompts are preserved in FIFO order. */
@@ -1184,19 +1230,7 @@ class ChatViewModel
             // Reset the bubble's status from FAILED to QUEUED so flushOfflineQueue
             // can transition it QUEUED -> SENDING and the echo-reconcile in
             // applySnapshot can remove it on delivery confirmation.
-            updateState {
-                val updated =
-                    pendingMessages.map { msg ->
-                        if (msg.clientId == clientId &&
-                            msg.status == MessageDeliveryStatus.FAILED
-                        ) {
-                            msg.copy(status = MessageDeliveryStatus.QUEUED)
-                        } else {
-                            msg
-                        }
-                    }
-                copy(pendingMessages = updated)
-            }
+            setPendingStatus(clientId, MessageDeliveryStatus.FAILED, MessageDeliveryStatus.QUEUED)
             flushOfflineQueue()
         }
 
@@ -1222,6 +1256,36 @@ class ChatViewModel
         private fun trace(message: String) {
             if (!BuildConfig.DEBUG) return
             runCatching { Log.d(TRACE_TAG, message) }
+        }
+    }
+
+/** Suspends until a turn is streaming or [send] has finished, whichever comes first. */
+private suspend fun StateFlow<ChatState>.awaitTurnStartedOr(send: Job) {
+    val sendDone =
+        flow {
+            emit(false)
+            send.join()
+            emit(true)
+        }
+    combine(this, sendDone) { current, done -> current.isStreaming || done }.first { it }
+}
+
+private fun List<ChatMessage>.withStatus(
+    clientId: String,
+    from: MessageDeliveryStatus,
+    to: MessageDeliveryStatus,
+): List<ChatMessage> = map { if (it.clientId == clientId && it.status == from) it.copy(status = to) else it }
+
+/** Gives [merged]'s bubble the folded content and drops the bubbles of the prompts it [folded] in. */
+private fun List<ChatMessage>.foldedInto(
+    merged: PendingPrompt,
+    folded: Set<String>,
+): List<ChatMessage> =
+    mapNotNull {
+        when (it.clientId) {
+            merged.clientId -> it.copy(content = merged.text, images = merged.images, files = merged.files)
+            in folded -> null
+            else -> it
         }
     }
 
@@ -1252,6 +1316,7 @@ data class ChatState(
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
     val canSendImages: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
+    val supportsSteering: Boolean = false,
     /**
      * True when this screen attached to an existing session whose agent cannot
      * replay history, so earlier turns exist only on the agent's side and the
@@ -1314,6 +1379,16 @@ sealed interface ChatIntent {
 
     /** Retry sending a previously failed (or queued) message identified by its [clientId]. */
     data class RetryMessage(
+        val clientId: String,
+    ) : ChatIntent
+
+    /** Stop the turn and send this QUEUED prompt, with those queued ahead of it, right away. */
+    data class ForceSendMessage(
+        val clientId: String,
+    ) : ChatIntent
+
+    /** Drop a QUEUED or FAILED prompt without sending it. */
+    data class RemoveQueuedMessage(
         val clientId: String,
     ) : ChatIntent
 

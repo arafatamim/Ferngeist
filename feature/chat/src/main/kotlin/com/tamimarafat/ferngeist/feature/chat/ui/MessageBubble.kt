@@ -71,7 +71,9 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -271,12 +273,15 @@ private fun UserMessageBubble(
 
 /**
  * Prompts the agent has not taken yet, pinned above the composer in send order. Each leaves
- * when its echo lands in the transcript.
+ * when its echo lands in the transcript. Swiping one sideways drops it; swiping one up
+ * force-sends it. Neither works mid-send.
  */
 @Composable
 internal fun PendingPromptQueue(
     messages: List<ChatMessage>,
     onRetryMessage: (String) -> Unit,
+    onForceSendMessage: (String) -> Unit,
+    onRemoveMessage: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -292,14 +297,25 @@ internal fun PendingPromptQueue(
     ) {
         messages.forEach { message ->
             key(message.clientId ?: message.id) {
-                Box(modifier = Modifier.padding(bottom = 8.dp)) {
-                    UserMessageBubble(
-                        message = message,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        onRetryMessage = onRetryMessage,
-                        onImageClick = {},
-                        maxLines = PENDING_PROMPT_MAX_LINES,
-                    )
+                SwipeToDismissBox(
+                    state = rememberSwipeToDismissBoxState(),
+                    backgroundContent = {},
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    gesturesEnabled = message.status != MessageDeliveryStatus.SENDING,
+                    onDismiss = { onRemoveMessage(message.clientId ?: message.id) },
+                ) {
+                    SwipeUpToSend(
+                        enabled = message.status == MessageDeliveryStatus.QUEUED,
+                        onSend = { onForceSendMessage(message.clientId ?: message.id) },
+                    ) {
+                        UserMessageBubble(
+                            message = message,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            onRetryMessage = onRetryMessage,
+                            onImageClick = {},
+                            maxLines = PENDING_PROMPT_MAX_LINES,
+                        )
+                    }
                 }
             }
         }

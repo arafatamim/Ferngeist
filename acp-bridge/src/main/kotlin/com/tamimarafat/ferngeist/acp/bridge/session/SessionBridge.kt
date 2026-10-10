@@ -7,6 +7,7 @@ import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionManager
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -178,6 +179,18 @@ class SessionBridge(
     /**
      * Requests a streaming cancel on the transport and updates local state.
      */
+    override suspend fun steer(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): SteerOutcome {
+        val outcome = connectionManager?.steerSession(sessionId, text, images, files) ?: SteerOutcome.NotConsumed
+        if (outcome != SteerOutcome.NotConsumed) {
+            runtime.onPromptSteered(text, images, files, injected = outcome == SteerOutcome.Injected)
+        }
+        return outcome
+    }
+
     override suspend fun cancel() {
         connectionManager?.cancelSession(sessionId)
         runtime.onLocalCancel()

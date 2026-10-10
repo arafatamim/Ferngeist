@@ -23,6 +23,7 @@ import com.agentclientprotocol.model.SessionModeId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
+import com.agentclientprotocol.rpc.MethodName
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
@@ -32,6 +33,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -326,25 +328,7 @@ internal class SessionGateway(
 
         // User message already added optimistically by onLocalPromptStarted; omitted here to
         // avoid duplication.
-
-        val blocks = mutableListOf<ContentBlock>()
-        if (content.isNotEmpty()) {
-            blocks += ContentBlock.Text(content)
-        }
-        for (image in images) {
-            blocks += ContentBlock.Image(data = image.base64, mimeType = image.mimeType)
-        }
-        for (file in files) {
-            blocks +=
-                ContentBlock.Resource(
-                    resource =
-                        EmbeddedResourceResource.BlobResourceContents(
-                            blob = file.base64,
-                            uri = "file:///${file.name}",
-                            mimeType = file.mimeType,
-                        ),
-                )
-        }
+        val blocks = promptBlocks(content, images, files)
 
         // session.prompt returns a cold flow; .collect is terminal and suspends
         // until the entire prompt turn completes (all updates + final response).
@@ -359,6 +343,53 @@ internal class SessionGateway(
         // the bridge scope, emitting its own terminal event when the agent finishes.
         awaitTurn(bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks) })
     }
+
+    /**
+     * Steers a prompt into [sessionId]'s running turn (see SessionSteering.kt). Any failure,
+     * including an agent without the method, reads as [SteerOutcome.NotConsumed] so the
+     * caller falls back to an ordinary prompt.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    suspend fun steerSession(
+        sessionId: String,
+        content: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): SteerOutcome {
+        val client = orchestra.sdkClient ?: return SteerOutcome.NotConsumed
+        orchestra.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, STEERING_METHOD)
+        return try {
+            val params = steeringParams(sessionId, promptBlocks(content, images, files))
+            parseSteerOutcome(client.protocol.sendRequestRaw(MethodName(STEERING_METHOD), params))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            orchestra.diagnosticsStore.appendError(STEERING_METHOD, e.message ?: e.toString())
+            SteerOutcome.NotConsumed
+        }
+    }
+
+    private fun promptBlocks(
+        content: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+    ): List<ContentBlock> =
+        buildList {
+            if (content.isNotEmpty()) add(ContentBlock.Text(content))
+            images.forEach { add(ContentBlock.Image(data = it.base64, mimeType = it.mimeType)) }
+            files.forEach { file ->
+                add(
+                    ContentBlock.Resource(
+                        resource =
+                            EmbeddedResourceResource.BlobResourceContents(
+                                blob = file.base64,
+                                uri = "file:///${file.name}",
+                                mimeType = file.mimeType,
+                            ),
+                    ),
+                )
+            }
+        }
 
     /**
      * Joins [turn]. A cancelled caller rethrows as-is. A live caller whose turn was

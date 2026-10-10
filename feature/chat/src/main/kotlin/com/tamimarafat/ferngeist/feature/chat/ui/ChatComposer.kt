@@ -5,6 +5,7 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
@@ -50,6 +51,7 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.ScheduleSend
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
@@ -196,6 +198,10 @@ internal fun ChatComposerBar(
     var showOptionsMenu by remember { mutableStateOf(false) }
     val modeMenuInteractionSource = remember { MutableInteractionSource() }
     val optionsMenuInteractionSource = remember { MutableInteractionSource() }
+    // An agent that takes prompts mid-turn keeps writing primary: a new prompt queues and can
+    // be steered in, so stop steps aside into the toolbar.
+    val stopAside = showStopAction && state.supportsSteering
+    val primaryStop = showStopAction && !stopAside
 
     ComposerSurfaceContainer(
         modifier = modifier,
@@ -207,16 +213,17 @@ internal fun ChatComposerBar(
                 messageText,
                 inputAlpha,
                 focusRequester,
-                showStopAction,
+                primaryStop,
                 canCancelStreaming,
+                stopAside,
                 {
                     onComposerExpandedChange(false)
                     onFocusCleared()
                 },
                 {
-                    if (showStopAction && canCancelStreaming) {
+                    if (primaryStop && canCancelStreaming) {
                         onCancelStreaming()
-                    } else if (!showStopAction) {
+                    } else if (!primaryStop) {
                         onSend()
                     }
                 },
@@ -238,8 +245,9 @@ internal fun ChatComposerBar(
                 showModeButton,
                 modeOption,
                 currentModeLabel,
-                showStopAction,
+                primaryStop,
                 canCancelStreaming,
+                stopAside,
                 collapsedMaxToolbarWidth,
                 showModeMenu,
                 { showModeMenu = it },
@@ -434,6 +442,7 @@ internal fun ExpandedComposerContent(
     focusRequester: FocusRequester,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
+    queueing: Boolean,
     onClose: () -> Unit,
     onPrimaryAction: () -> Unit,
     onSend: () -> Unit,
@@ -485,6 +494,7 @@ internal fun ExpandedComposerContent(
             onAttach = onAttach,
             showStopAction = showStopAction,
             canCancelStreaming = canCancelStreaming,
+            queueing = queueing,
             messageText = messageText.text,
             onPrimaryAction = onPrimaryAction,
             dropTargetActive = dropTargetActive,
@@ -567,6 +577,7 @@ private fun ExpandedComposerBottomBar(
     onAttach: () -> Unit,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
+    queueing: Boolean,
     messageText: CharSequence,
     onPrimaryAction: () -> Unit,
     dropTargetActive: Boolean,
@@ -610,6 +621,7 @@ private fun ExpandedComposerBottomBar(
                 // Only enable send if there's text, or if we are stopping a stream
                 enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
                 onClick = onPrimaryAction,
+                chatIcon = if (queueing) Icons.AutoMirrored.Filled.ScheduleSend else Icons.Default.ArrowUpward,
             )
         }
     }
@@ -629,6 +641,7 @@ internal fun CollapsedComposerActions(
     currentModeLabel: String,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
+    stopAside: Boolean,
     collapsedMaxToolbarWidth: Dp,
     showModeMenu: Boolean,
     onShowModeMenuChange: (Boolean) -> Unit,
@@ -669,17 +682,14 @@ internal fun CollapsedComposerActions(
         dropTargetActive = dropTargetActive,
     )
 
-    AnimatedVisibility(
-        visible = showJumpToBottom,
-        enter =
-            fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
-                scaleIn(initialScale = 0.6f, animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
-                expandHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMedium)),
-        exit =
-            fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
-                scaleOut(targetScale = 0.6f, animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
-                shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMedium)),
-    ) {
+    AnimatedVisibility(visible = stopAside, enter = toolbarActionEnter, exit = toolbarActionExit) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.width(6.dp))
+            AsideStopButton(canCancelStreaming = canCancelStreaming, onCancelStreaming = onCancelStreaming)
+        }
+    }
+
+    AnimatedVisibility(visible = showJumpToBottom, enter = toolbarActionEnter, exit = toolbarActionExit) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -750,6 +760,44 @@ private fun CollapsedPrimaryButton(
             },
             chatIcon = if (dropTargetActive) Icons.Default.MoveToInbox else Icons.Default.Edit,
         )
+    }
+}
+
+/** A toolbar action popping in or out, with the bar resizing around it. */
+private val toolbarActionEnter =
+    fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+        scaleIn(initialScale = 0.6f, animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
+        expandHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMedium))
+private val toolbarActionExit =
+    fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
+        scaleOut(targetScale = 0.6f, animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
+        shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMedium))
+
+/** Stop as a plain toolbar action, for agents whose primary action stays on writing mid-turn. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AsideStopButton(
+    canCancelStreaming: Boolean,
+    onCancelStreaming: () -> Unit,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+            PlainTooltip {
+                Text(
+                    stringResource(if (canCancelStreaming) R.string.chat_stop else R.string.chat_cancel_unavailable),
+                )
+            }
+        },
+        state = rememberTooltipState(),
+    ) {
+        IconButton(
+            onClick = onCancelStreaming,
+            enabled = canCancelStreaming,
+            modifier = Modifier.handCursor(enabled = canCancelStreaming),
+        ) {
+            Icon(imageVector = Icons.Default.Stop, contentDescription = stringResource(R.string.chat_stop_desc))
+        }
     }
 }
 
@@ -1059,17 +1107,14 @@ internal fun PrimaryComposerActionButton(
         shapes = IconButtonDefaults.shapes(),
         modifier = modifier.handCursor(enabled = enabled),
     ) {
-        Icon(
-            imageVector = if (showStopAction && canCancelStreaming) Icons.Default.Stop else chatIcon,
-            contentDescription =
-                if (showStopAction &&
-                    canCancelStreaming
-                ) {
-                    stringResource(R.string.chat_stop_desc)
-                } else {
-                    stringResource(R.string.chat_send_desc)
-                },
-        )
+        val stopping = showStopAction && canCancelStreaming
+        Crossfade(targetState = if (stopping) Icons.Default.Stop else chatIcon, label = "PrimaryComposerIcon") {
+            Icon(
+                imageVector = it,
+                contentDescription =
+                    stringResource(if (stopping) R.string.chat_stop_desc else R.string.chat_send_desc),
+            )
+        }
     }
 }
 

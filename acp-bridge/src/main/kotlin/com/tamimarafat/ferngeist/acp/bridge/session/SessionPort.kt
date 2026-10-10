@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.session
 import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -38,6 +39,13 @@ interface SessionPort {
 
     /** Cancels the current agent turn (streaming). */
     suspend fun cancel()
+
+    /** Steers a prompt into the running turn; the transcript only changes when it is taken. */
+    suspend fun steer(
+        text: String,
+        images: List<ChatImageData> = emptyList(),
+        files: List<ChatFileData> = emptyList(),
+    ): SteerOutcome
 
     /** Updates a configuration option value on the session. */
     suspend fun setConfigOption(
