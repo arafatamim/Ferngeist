@@ -577,6 +577,12 @@ class SessionListViewModel
             viewModelScope.launch { sessionWorktrees.create(repo, base, branch) }
         }
 
+        /** Opens a new chat in an existing gateway worktree. */
+        fun createSessionInWorktree(worktree: GatewayWorktree) {
+            pendingCreateAfterCwd = false
+            viewModelScope.launch { sessionWorktrees.open(worktree) }
+        }
+
         /**
          * Removes the worktree a session's chat runs in.
          *

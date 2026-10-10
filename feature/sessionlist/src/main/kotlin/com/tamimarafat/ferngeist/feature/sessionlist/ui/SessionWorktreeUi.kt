@@ -26,13 +26,6 @@ import com.tamimarafat.ferngeist.gateway.GatewayWorktree
  */
 @Composable
 internal fun WorktreeBadge(worktree: GatewayWorktree) {
-    val details =
-        buildList {
-            worktree.ahead?.takeIf { it > 0 }?.let {
-                add(stringResource(R.string.sessionlist_worktree_ahead, it))
-            }
-            if (worktree.dirty == true) add(stringResource(R.string.sessionlist_worktree_dirty))
-        }
     AssistChip(
         onClick = {},
         enabled = false,
@@ -43,13 +36,26 @@ internal fun WorktreeBadge(worktree: GatewayWorktree) {
         shape = RoundedCornerShape(8.dp),
         label = {
             Text(
-                text = (listOf(worktree.branch) + details).joinToString(" · "),
+                text = worktreeLabel(worktree),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
             )
         },
     )
+}
+
+/** The branch plus whatever git could tell us about it, e.g. `feat-x · ↑2 · uncommitted`. */
+@Composable
+internal fun worktreeLabel(worktree: GatewayWorktree): String {
+    val details =
+        buildList {
+            worktree.ahead?.takeIf { it > 0 }?.let {
+                add(stringResource(R.string.sessionlist_worktree_ahead, it))
+            }
+            if (worktree.dirty == true) add(stringResource(R.string.sessionlist_worktree_dirty))
+        }
+    return (listOf(worktree.branch) + details).joinToString(" · ")
 }
 
 /**

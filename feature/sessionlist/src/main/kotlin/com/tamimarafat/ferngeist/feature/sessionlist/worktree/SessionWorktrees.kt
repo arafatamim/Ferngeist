@@ -171,6 +171,13 @@ internal class SessionWorktrees(
         }
     }
 
+    /** Opens a new chat in an existing [worktree], recording its repo the way [create] does. */
+    suspend fun open(worktree: GatewayWorktree) {
+        sessionSettingsRepository.updateCwd(serverId, worktree.repo)
+        recentCwdStore.addCwd(serverId, worktree.repo)
+        openChat(worktree.path)
+    }
+
     /**
      * Deletes a worktree, mapping each failure onto its own surface.
      *

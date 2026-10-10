@@ -5,6 +5,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,6 +51,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.CwdSuggestion
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.CwdSuggestionSource
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.buildCwdSuggestions
+import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import kotlinx.coroutines.launch
 
 private const val CWD_SUGGESTION_MAX_HEIGHT_DP = 200
@@ -74,7 +77,14 @@ data class CwdWorktreeState(
     val onEnabledChange: (Boolean) -> Unit,
     val onBranchChange: (String) -> Unit,
     val onBaseChange: (String) -> Unit,
-)
+    /** The gateway's worktrees of the repo in the directory field; tapping one opens a chat there. */
+    val existing: List<GatewayWorktree> = emptyList(),
+    val onOpenExisting: (GatewayWorktree) -> Unit = {},
+) {
+    /** An existing worktree already on the typed branch: confirming opens it instead of failing. */
+    val match: GatewayWorktree?
+        get() = branch.trim().takeIf { it.isNotEmpty() }?.let { typed -> existing.firstOrNull { it.branch == typed } }
+}
 
 /**
  * Bottom sheet for setting the working-directory filter on sessions.
@@ -142,47 +152,7 @@ fun CwdDialog(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(R.string.sessionlist_cwd_placeholder)) },
             )
-            worktree?.let { form ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Switch(
-                        checked = form.enabled,
-                        onCheckedChange = form.onEnabledChange,
-                    )
-                    Text(
-                        text = stringResource(R.string.sessionlist_worktree_switch),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
-                if (form.enabled) {
-                    OutlinedTextField(
-                        value = form.branch,
-                        onValueChange = form.onBranchChange,
-                        singleLine = true,
-                        isError = form.error != null,
-                        label = { Text(stringResource(R.string.sessionlist_worktree_branch)) },
-                        placeholder = { Text(stringResource(R.string.sessionlist_worktree_optional)) },
-                        supportingText = form.error?.let { { Text(it) } },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = form.base,
-                        onValueChange = form.onBaseChange,
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.sessionlist_worktree_base)) },
-                        placeholder = { Text(stringResource(R.string.sessionlist_worktree_base_hint)) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    AssistChip(
-                        onClick = { form.onBaseChange(DEFAULT_WORKTREE_BASE) },
-                        modifier = Modifier.handCursor(),
-                        label = { Text(DEFAULT_WORKTREE_BASE) },
-                    )
-                }
-            }
+            worktree?.let { form -> WorktreeFields(form, onOpenExisting = { animateAnd { form.onOpenExisting(it) } }) }
             if (suggestions.isNotEmpty()) {
                 CwdSuggestionList(
                     suggestions = suggestions,
@@ -218,7 +188,9 @@ fun CwdDialog(
                         )
                     } else {
                         Text(
-                            if (worktreeEnabled) {
+                            if (worktreeEnabled && worktree.match != null) {
+                                stringResource(R.string.sessionlist_worktree_open)
+                            } else if (worktreeEnabled) {
                                 stringResource(R.string.sessionlist_worktree_create)
                             } else {
                                 stringResource(R.string.sessionlist_cwd_save)
@@ -226,6 +198,81 @@ fun CwdDialog(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** The worktree switch and, while it is on, the existing worktrees and the new-branch fields. */
+@Composable
+private fun WorktreeFields(
+    form: CwdWorktreeState,
+    onOpenExisting: (GatewayWorktree) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Switch(
+            checked = form.enabled,
+            onCheckedChange = form.onEnabledChange,
+        )
+        Text(
+            text = stringResource(R.string.sessionlist_worktree_switch),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+    }
+    if (form.enabled) {
+        if (form.existing.isNotEmpty()) {
+            ExistingWorktrees(form.existing, onOpen = onOpenExisting)
+        }
+        OutlinedTextField(
+            value = form.branch,
+            onValueChange = form.onBranchChange,
+            singleLine = true,
+            isError = form.error != null,
+            label = { Text(stringResource(R.string.sessionlist_worktree_branch)) },
+            placeholder = { Text(stringResource(R.string.sessionlist_worktree_optional)) },
+            supportingText = form.error?.let { { Text(it) } },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = form.base,
+            onValueChange = form.onBaseChange,
+            singleLine = true,
+            label = { Text(stringResource(R.string.sessionlist_worktree_base)) },
+            placeholder = { Text(stringResource(R.string.sessionlist_worktree_base_hint)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        AssistChip(
+            onClick = { form.onBaseChange(DEFAULT_WORKTREE_BASE) },
+            modifier = Modifier.handCursor(),
+            label = { Text(DEFAULT_WORKTREE_BASE) },
+        )
+    }
+}
+
+/** The repo's existing worktrees as chips, labelled like the badge on their chats. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ExistingWorktrees(
+    worktrees: List<GatewayWorktree>,
+    onOpen: (GatewayWorktree) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = stringResource(R.string.sessionlist_worktree_existing),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            worktrees.forEach { worktree ->
+                AssistChip(
+                    onClick = { onOpen(worktree) },
+                    modifier = Modifier.handCursor(),
+                    label = { Text(worktreeLabel(worktree), maxLines = 1, overflow = TextOverflow.MiddleEllipsis) },
+                )
             }
         }
     }

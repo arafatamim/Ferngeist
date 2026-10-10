@@ -42,13 +42,15 @@
     <string name="sessionlist_cwd_save">Сохранить</string>
 
     <!-- Worktrees -->
-    <string name="sessionlist_worktree_switch">Новый worktree</string>
+    <string name="sessionlist_worktree_switch">Worktree</string>
     <string name="sessionlist_worktree_body">Эта директория — репозиторий. Чат работает в собственном git worktree со своей веткой, поэтому параллельные агенты не правят одну и ту же копию.</string>
     <string name="sessionlist_worktree_branch">Ветка</string>
     <string name="sessionlist_worktree_optional">Необязательно</string>
     <string name="sessionlist_worktree_base">Основа</string>
     <string name="sessionlist_worktree_base_hint">HEAD репозитория</string>
     <string name="sessionlist_worktree_create">Создать worktree</string>
+    <string name="sessionlist_worktree_open">Открыть worktree</string>
+    <string name="sessionlist_worktree_existing">Продолжить в</string>
     <string name="sessionlist_worktree_dirty">есть изменения</string>
     <string name="sessionlist_action_remove_worktree">Удалить worktree</string>
     <string name="sessionlist_worktree_discard_title">Отменить незафиксированные изменения?</string>

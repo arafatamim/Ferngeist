@@ -40,13 +40,15 @@
     <string name="sessionlist_cwd_save">Save</string>
 
     <!-- Worktrees -->
-    <string name="sessionlist_worktree_switch">New worktree</string>
+    <string name="sessionlist_worktree_switch">Worktree</string>
     <string name="sessionlist_worktree_body">This directory is the repo. The chat runs in its own git worktree with its own branch, so parallel agents stop editing the same checkout.</string>
     <string name="sessionlist_worktree_branch">Branch</string>
     <string name="sessionlist_worktree_optional">Optional</string>
     <string name="sessionlist_worktree_base">Base</string>
     <string name="sessionlist_worktree_base_hint">Repo HEAD</string>
     <string name="sessionlist_worktree_create">Create worktree</string>
+    <string name="sessionlist_worktree_open">Open worktree</string>
+    <string name="sessionlist_worktree_existing">Continue in</string>
     <string name="sessionlist_worktree_ahead" translatable="false">↑%1$d</string>
     <string name="sessionlist_worktree_dirty">uncommitted</string>
     <string name="sessionlist_action_remove_worktree">Remove worktree</string>

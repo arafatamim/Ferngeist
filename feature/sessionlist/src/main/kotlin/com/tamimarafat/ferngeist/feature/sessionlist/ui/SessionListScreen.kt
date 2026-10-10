@@ -106,6 +106,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.isSameCwd
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -196,6 +197,12 @@ fun SessionListScreen(
                     state.worktreeBase.value = it
                     viewModel.clearWorktreeError()
                 },
+                existing =
+                    state.cwdDialogValue.value
+                        .takeIf { it.isNotBlank() }
+                        ?.let { repo -> state.worktrees.filter { isSameCwd(it.repo, repo) } }
+                        .orEmpty(),
+                onOpenExisting = viewModel::createSessionInWorktree,
             )
         }
 
@@ -1088,7 +1095,10 @@ private fun SessionCwdDialog(
         cwdDialogValue = cwdDialogValue,
         onCwdDialogValueChange = onCwdDialogValueChange,
         onSave = {
-            if (worktree?.enabled == true) {
+            val match = worktree?.match
+            if (worktree?.enabled == true && match != null) {
+                worktree.onOpenExisting(match)
+            } else if (worktree?.enabled == true) {
                 // The field is the repo now, and the worktree path — not the repo — is what
                 // the new chat opens with.
                 onCreateWorktreeSession(
