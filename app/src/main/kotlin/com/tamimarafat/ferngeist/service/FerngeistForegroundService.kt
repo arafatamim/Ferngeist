@@ -40,10 +40,9 @@ import javax.inject.Inject
  *
  * Notification text is minimal: the aggregate has no single agent name or
  * failure detail, so the notification renders the generic connected/connecting/
- * disconnected titles without inventing new copy. The action stops the service
- * rather than disconnecting a transport: with presence aggregated across chats
- * there is no single manager to target, so a "Disconnect" label would promise
- * something the button cannot do.
+ * disconnected titles without inventing new copy. The Stop action hangs up every
+ * transport, not just the service: stopping only the service left the sockets open,
+ * and the application restarted it on the next connection change.
  */
 @AndroidEntryPoint
 class FerngeistForegroundService : Service() {
@@ -52,6 +51,9 @@ class FerngeistForegroundService : Service() {
         const val NOTIFICATION_ID = 1
         const val ACTION_START = "com.tamimarafat.ferngeist.ACTION_START_FOREGROUND"
         const val ACTION_STOP = "com.tamimarafat.ferngeist.ACTION_STOP_FOREGROUND"
+
+        // Separate from ACTION_STOP so the application's stop backstop never hangs anything up.
+        const val ACTION_DISCONNECT_ALL = "com.tamimarafat.ferngeist.ACTION_DISCONNECT_ALL"
         const val ERROR_NOTIFICATION_ID = 2
 
         // Extras carried by the notification's content intent so MainActivity can
@@ -105,16 +107,20 @@ class FerngeistForegroundService : Service() {
     }
 
     /**
-     * Handles ACTION_STOP immediately.
+     * Handles ACTION_STOP and ACTION_DISCONNECT_ALL immediately.
      * Returns true if the intent was a terminal action (and should return
      * START_NOT_STICKY), false otherwise.
      */
     private fun handleTerminalAction(intent: Intent?): Boolean {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
-            return true
+        when (intent?.action) {
+            ACTION_STOP -> stopSelf()
+            ACTION_DISCONNECT_ALL -> {
+                chatConnectionHub.disconnectAll()
+                stopSelf()
+            }
+            else -> return false
         }
-        return false
+        return true
     }
 
     /**
@@ -261,7 +267,7 @@ class FerngeistForegroundService : Service() {
                 this,
                 0,
                 Intent(this, FerngeistForegroundService::class.java).apply {
-                    action = ACTION_STOP
+                    action = ACTION_DISCONNECT_ALL
                 },
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )

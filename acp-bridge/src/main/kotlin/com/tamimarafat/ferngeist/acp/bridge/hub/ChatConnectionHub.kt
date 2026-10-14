@@ -235,6 +235,14 @@ class ChatConnectionHub(
     }
 
     /**
+     * Hangs up every transport and cancels its reconnect, so [anyActive] goes idle and
+     * nothing restarts the foreground service. Entries stay, so an open chat can reconnect.
+     */
+    fun disconnectAll() {
+        allManagers().forEach { it.disconnect() }
+    }
+
+    /**
      * Creates an app-scoped chat manager, tracked as pending until [register]
      * promotes it into a hot entry. A spawn that fails before attach stays
      * tracked (visible in the aggregates) until [abandon] releases it.
