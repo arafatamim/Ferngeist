@@ -655,11 +655,13 @@ private fun NavGraphBuilder.AddServerDestination(navController: NavHostControlle
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.AddGatewayDestination(navController: NavHostController) {
     composable("add_gateway") {
-        val viewModel: AddGatewayViewModel = hiltViewModel()
-        AddGatewayScreen(
-            onNavigateBack = { navController.popBackStack() },
-            viewModel = viewModel,
-        )
+        LocalNetworkPermissionGate {
+            val viewModel: AddGatewayViewModel = hiltViewModel()
+            AddGatewayScreen(
+                onNavigateBack = { navController.popBackStack() },
+                viewModel = viewModel,
+            )
+        }
     }
 }
 
@@ -846,6 +848,44 @@ private fun NavGraphBuilder.ChatDestination(
             sharedTransitionScope = sharedTransitionLayout,
             animatedContentScope = this,
         )
+    }
+}
+
+/**
+ * Android 17 requires an explicit runtime permission before accessing LAN gateways.
+ * Keep the pairing screen behind this gate until permission is granted.
+ */
+@Composable
+private fun LocalNetworkPermissionGate(content: @Composable () -> Unit) {
+    if (Build.VERSION.SDK_INT < 37) {
+        content()
+        return
+    }
+
+    val context = LocalContext.current
+    val permission = Manifest.permission.ACCESS_LOCAL_NETWORK
+    var granted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted = it }
+
+    LaunchedEffect(Unit) {
+        if (!granted) launcher.launch(permission)
+    }
+
+    if (granted) {
+        content()
+    } else {
+        Column {
+            Text("Local network access is required to connect to a Gateway.")
+            Button(onClick = { launcher.launch(permission) }) {
+                Text("Allow local network access")
+            }
+        }
     }
 }
 
