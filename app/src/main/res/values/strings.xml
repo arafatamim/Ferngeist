@@ -23,7 +23,7 @@
     <string name="push_channel_updates_description">Completed turns and routine updates from your agent sessions</string>
     <string name="workspace_no_selection">Select an agent or session</string>
     <string name="local_network_title">Allow nearby devices access</string>
-    <string name="local_network_body">Ferngeist needs local network access to reach gateways and agent servers on your network.</string>
+    <string name="local_network_body">Ferngeist needs nearby devices access to reach gateways and agent servers on your local network. Remote gateways work without it.</string>
     <string name="local_network_allow">Allow</string>
     <string name="local_network_open_settings">Open Settings</string>
     <string name="local_network_not_now">Not now</string>

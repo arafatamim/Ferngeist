@@ -40,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -648,7 +649,7 @@ private fun NavGraphBuilder.AddServerDestination(navController: NavHostControlle
                 },
             ),
     ) {
-        LocalNetworkPermissionGate(onNavigateBack = { navController.popBackStack() }) {
+        LocalNetworkPermissionGate {
             val viewModel: AddServerViewModel = hiltViewModel()
             AddServerScreen(
                 onNavigateBack = { navController.popBackStack() },
@@ -661,7 +662,7 @@ private fun NavGraphBuilder.AddServerDestination(navController: NavHostControlle
 @OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.AddGatewayDestination(navController: NavHostController) {
     composable("add_gateway") {
-        LocalNetworkPermissionGate(onNavigateBack = { navController.popBackStack() }) {
+        LocalNetworkPermissionGate {
             val viewModel: AddGatewayViewModel = hiltViewModel()
             AddGatewayScreen(
                 onNavigateBack = { navController.popBackStack() },
@@ -859,13 +860,10 @@ private fun NavGraphBuilder.ChatDestination(
 
 /**
  * Apps targeting Android 17 get no LAN traffic without `ACCESS_LOCAL_NETWORK`, and the failure
- * surfaces only as a connect timeout. Covers the add screens with a dialog until it is granted.
+ * surfaces only as a connect timeout. Asks for it over the add screens, which stay usable either way.
  */
 @Composable
-private fun LocalNetworkPermissionGate(
-    onNavigateBack: () -> Unit,
-    content: @Composable () -> Unit,
-) {
+private fun LocalNetworkPermissionGate(content: @Composable () -> Unit) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.CINNAMON_BUN) {
         content()
         return
@@ -877,22 +875,20 @@ private fun LocalNetworkPermissionGate(
 
     fun isGranted() = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     var granted by remember { mutableStateOf(isGranted()) }
-    // Our dialog waits for the system one's answer so the two never stack.
-    var answered by remember { mutableStateOf(false) }
+    // Declining only hides the dialog: public HTTPS gateways need no LAN access and must stay pairable.
+    var dismissed by rememberSaveable { mutableStateOf(false) }
     // After a second denial the system refuses without showing a dialog; only Settings can grant it.
-    var deniedForGood by remember { mutableStateOf(false) }
+    var deniedForGood by rememberSaveable { mutableStateOf(false) }
+    // The system prompt only follows a tap on Allow: an unprompted re-ask after the launch request
+    // would spend the user's last denial before they know why it is asked.
     val launcher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
         ) { result ->
             granted = result
-            answered = true
             deniedForGood = !result && activity?.shouldShowRequestPermissionRationale(permission) == false
         }
 
-    LaunchedEffect(Unit) {
-        if (!granted) launcher.launch(permission)
-    }
     // Picks up a grant made in Settings when the user comes back.
     LifecycleResumeEffect(Unit) {
         granted = isGranted()
@@ -900,9 +896,9 @@ private fun LocalNetworkPermissionGate(
     }
 
     content()
-    if (granted || !answered) return
+    if (granted || dismissed) return
     AlertDialog(
-        onDismissRequest = onNavigateBack,
+        onDismissRequest = { dismissed = true },
         title = { Text(stringResource(R.string.local_network_title)) },
         text = { Text(stringResource(R.string.local_network_body)) },
         confirmButton = {
@@ -928,7 +924,7 @@ private fun LocalNetworkPermissionGate(
             }
         },
         dismissButton = {
-            TextButton(onClick = onNavigateBack) {
+            TextButton(onClick = { dismissed = true }) {
                 Text(stringResource(R.string.local_network_not_now))
             }
         },
@@ -939,10 +935,12 @@ private fun LocalNetworkPermissionGate(
  * Requests the home screen's missing runtime permissions on first composition, in one prompt:
  * an activity runs one permission request at a time and rejects a second concurrent one.
  * Local network access (Android 17+) covers gateways and servers paired before it was needed.
+ * Asks once per launch: saveable state survives rotation and returning to the home screen.
  */
 @Composable
 private fun StartupPermissionsEffect() {
     val context = LocalContext.current
+    var asked by rememberSaveable { mutableStateOf(false) }
     val missing =
         remember {
             buildList {
@@ -960,7 +958,10 @@ private fun StartupPermissionsEffect() {
             contract = ActivityResultContracts.RequestMultiplePermissions(),
         ) { }
     LaunchedEffect(Unit) {
-        launcher.launch(missing.toTypedArray())
+        if (!asked) {
+            asked = true
+            launcher.launch(missing.toTypedArray())
+        }
     }
 }
 
