@@ -84,6 +84,11 @@ class CwdFilterTest {
         assertEquals(false, isSameCwd("/work/api/.worktrees/feat-x", "/work/api"))
     }
 
+    @Test
+    fun cwdKey_matchesTheGatewayPathDespiteSpelling() {
+        assertEquals(cwdKey("C:/work/api/.worktrees/feat-x"), cwdKey("c:\\Work\\api\\.worktrees\\feat-x\\"))
+    }
+
     private fun session(
         id: String,
         cwd: String?,

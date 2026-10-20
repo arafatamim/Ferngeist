@@ -48,6 +48,7 @@ import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.cwdKey
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -200,8 +201,9 @@ private fun SessionListLazyColumn(
     sharedBoundsEnabled: Boolean,
 ) {
     // A chat opened in a worktree has the worktree directory as its cwd, so the path is the
-    // join key. Built once per list instead of per row.
-    val worktreesByPath = remember(worktrees) { worktrees?.associateBy { it.path }.orEmpty() }
+    // join key — compared the way the cwd filter does, since the agent and the gateway may
+    // spell it with different separators or case. Built once per list instead of per row.
+    val worktreesByPath = remember(worktrees) { worktrees?.associateBy { cwdKey(it.path) }.orEmpty() }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding =
@@ -227,9 +229,9 @@ private fun SessionListLazyColumn(
                     SessionCard(
                         session = session,
                         isLive = session.id in liveSessionIds,
-                        worktree = session.cwd?.let(worktreesByPath::get),
+                        worktree = session.cwd?.let { worktreesByPath[cwdKey(it)] },
                         onRemoveWorktree =
-                            session.cwd?.let(worktreesByPath::get)?.let { worktree ->
+                            session.cwd?.let { worktreesByPath[cwdKey(it)] }?.let { worktree ->
                                 { onRemoveWorktree(session.id, worktree.id) }
                             },
                         onDisconnect =

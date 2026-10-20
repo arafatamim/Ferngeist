@@ -51,6 +51,9 @@ internal fun worktreeRepoOf(cwd: String): String? {
 internal fun isSameCwd(
     a: String,
     b: String,
-): Boolean = normalizeCwd(a.replace('\\', '/')).equals(normalizeCwd(b.replace('\\', '/')), ignoreCase = true)
+): Boolean = cwdKey(a) == cwdKey(b)
+
+/** [cwd] reduced to what [isSameCwd] compares, for keying lookups by directory. */
+internal fun cwdKey(cwd: String): String = normalizeCwd(cwd.replace('\\', '/')).lowercase()
 
 private fun normalizeCwd(cwd: String): String = cwd.trim().trimEnd('\\', '/')
