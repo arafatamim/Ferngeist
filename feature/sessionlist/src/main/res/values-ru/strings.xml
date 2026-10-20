@@ -56,6 +56,14 @@
     <string name="sessionlist_worktree_discard_title">Отменить незафиксированные изменения?</string>
     <string name="sessionlist_worktree_discard_body">В worktree \"%1$s\" есть незафиксированные изменения. Удаление сотрёт их. Все коммиты останутся в его ветке.</string>
     <string name="sessionlist_worktree_discard_confirm">Отменить и удалить</string>
+    <string name="sessionlist_worktree_remove_title">Удалить worktree?</string>
+    <string name="sessionlist_worktree_remove_body">Worktree \"%1$s\" будет удалён с диска. Все коммиты останутся в его ветке.</string>
+    <plurals name="sessionlist_worktree_remove_chats">
+        <item quantity="one">Его %d чат тоже будет удалён.</item>
+        <item quantity="few">Его %d чата тоже будут удалены.</item>
+        <item quantity="many">Его %d чатов тоже будут удалены.</item>
+        <item quantity="other">Его %d чата тоже будут удалены.</item>
+    </plurals>
 
     <!-- Error messages -->
     <string name="sessionlist_error_load">Ошибка загрузки сессий</string>

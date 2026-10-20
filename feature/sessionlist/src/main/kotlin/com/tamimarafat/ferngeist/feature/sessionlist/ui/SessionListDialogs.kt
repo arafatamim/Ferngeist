@@ -61,7 +61,7 @@ internal fun SessionListOverlays(
     }
 
     pendingWorktreeRemoval?.let { pending ->
-        DiscardWorktreeDialog(
+        RemoveWorktreeDialog(
             pending = pending,
             onDismiss = onDismissWorktreeRemoval,
             onConfirm = onConfirmWorktreeRemoval,

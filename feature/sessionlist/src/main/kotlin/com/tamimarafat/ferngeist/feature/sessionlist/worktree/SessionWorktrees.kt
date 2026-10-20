@@ -189,18 +189,16 @@ internal class SessionWorktrees(
     }
 
     /**
-     * Deletes a worktree, mapping each failure onto its own surface.
+     * Deletes the worktree the user confirmed in [request], discarding uncommitted changes when
+     * [SessionListEvent.ConfirmRemoveWorktree.discardChanges] is set.
      *
-     * A 409 without [force] means git refused over uncommitted changes, which only the user
-     * can answer, so it becomes a confirm event rather than an error.
+     * A 409 without it means git refused over uncommitted changes the listing did not show yet,
+     * which only the user can answer, so it comes back as the same confirm, now to discard.
      *
      * @return true when the worktree is gone, including when the gateway had already lost it.
      */
-    suspend fun remove(
-        sessionId: String,
-        worktreeId: String,
-        force: Boolean,
-    ): Boolean {
+    suspend fun remove(request: SessionListEvent.ConfirmRemoveWorktree): Boolean {
+        val force = request.discardChanges
         val gateway = gatewaySource() ?: return false
         var removed = true
         try {
@@ -208,7 +206,7 @@ internal class SessionWorktrees(
                 scheme = gateway.scheme,
                 host = gateway.host,
                 gatewayCredential = gateway.gatewayCredential,
-                worktreeId = worktreeId,
+                worktreeId = request.worktreeId,
                 force = force,
             )
         } catch (error: GatewayRequestException) {
@@ -218,17 +216,7 @@ internal class SessionWorktrees(
                     if (force) {
                         emitRemovalFailure(error.responseBody)
                     } else {
-                        emitEvent(
-                            SessionListEvent.ConfirmRemoveWorktree(
-                                sessionId = sessionId,
-                                worktreeId = worktreeId,
-                                branch =
-                                    _managed.value
-                                        ?.firstOrNull { it.id == worktreeId }
-                                        ?.branch
-                                        .orEmpty(),
-                            ),
-                        )
+                        emitEvent(request.copy(discardChanges = true))
                     }
 
                 // Already gone: the list was stale, so re-read it below.

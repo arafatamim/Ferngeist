@@ -53,6 +53,11 @@
     <string name="sessionlist_worktree_discard_title">丢弃未提交的更改？</string>
     <string name="sessionlist_worktree_discard_body">Worktree \"%1$s\" 有未提交的更改。移除它会删除这些更改。它的提交会保留在其分支上。</string>
     <string name="sessionlist_worktree_discard_confirm">丢弃并移除</string>
+    <string name="sessionlist_worktree_remove_title">移除 worktree？</string>
+    <string name="sessionlist_worktree_remove_body">Worktree \"%1$s\" 将从磁盘删除。它的提交会保留在其分支上。</string>
+    <plurals name="sessionlist_worktree_remove_chats">
+        <item quantity="other">它的 %d 个聊天也会被删除。</item>
+    </plurals>
 
     <!-- Error messages -->
     <string name="sessionlist_error_load">加载会话失败</string>

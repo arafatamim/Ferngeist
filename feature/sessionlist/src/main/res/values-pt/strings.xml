@@ -54,6 +54,13 @@
     <string name="sessionlist_worktree_discard_title">Descartar alterações não commitadas?</string>
     <string name="sessionlist_worktree_discard_body">O worktree \"%1$s\" tem alterações não commitadas. Removê-lo as apaga. Os commits dele são mantidos no branch.</string>
     <string name="sessionlist_worktree_discard_confirm">Descartar e remover</string>
+    <string name="sessionlist_worktree_remove_title">Remover o worktree?</string>
+    <string name="sessionlist_worktree_remove_body">O worktree \"%1$s\" é apagado do disco. Os commits dele são mantidos no branch.</string>
+    <plurals name="sessionlist_worktree_remove_chats">
+        <item quantity="one">O %d chat dele também é excluído.</item>
+        <item quantity="other">Os %d chats dele também são excluídos.</item>
+        <item quantity="many">Os %d chats dele também são excluídos.</item>
+    </plurals>
 
     <string name="sessionlist_error_load">Falha ao carregar as sessões</string>
     <string name="sessionlist_error_create">Falha ao criar uma nova sessão</string>

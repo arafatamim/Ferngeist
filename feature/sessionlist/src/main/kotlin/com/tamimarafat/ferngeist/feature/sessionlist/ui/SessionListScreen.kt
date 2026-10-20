@@ -154,7 +154,7 @@ fun SessionListScreen(
         onDismissWorktreeRemoval = { state.pendingWorktreeRemoval.value = null },
         onConfirmWorktreeRemoval = { pending ->
             state.pendingWorktreeRemoval.value = null
-            viewModel.removeWorktree(pending.sessionId, pending.worktreeId, force = true)
+            viewModel.removeWorktree(pending)
         },
         showConnectionStatusDialog = state.showConnectionStatusDialog.value,
         connectionState = state.connectionState,
@@ -182,7 +182,7 @@ fun SessionListScreen(
         sharedBoundsEnabled = sharedBoundsEnabled,
         onNavigateBack = onNavigateBack,
         onNavigateToChat = onNavigateToChat,
-        onRemoveWorktree = { sessionId, worktreeId -> viewModel.removeWorktree(sessionId, worktreeId) },
+        onRemoveWorktree = viewModel::requestRemoveWorktree,
         onCloseSession = viewModel::closeSession,
         onDeleteSession = viewModel::deleteSession,
         createSession = {

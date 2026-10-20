@@ -53,6 +53,12 @@
     <string name="sessionlist_worktree_discard_title">কমিট না করা পরিবর্তন বাতিল করবেন?</string>
     <string name="sessionlist_worktree_discard_body">worktree \"%1$s\"-এ কমিট না করা পরিবর্তন আছে। এটি সরালে সেগুলো মুছে যাবে। এর সব কমিট ব্রাঞ্চে থেকে যাবে।</string>
     <string name="sessionlist_worktree_discard_confirm">বাতিল করে সরান</string>
+    <string name="sessionlist_worktree_remove_title">worktree সরাবেন?</string>
+    <string name="sessionlist_worktree_remove_body">worktree \"%1$s\" ডিস্ক থেকে মুছে যাবে। এর সব কমিট ব্রাঞ্চে থেকে যাবে।</string>
+    <plurals name="sessionlist_worktree_remove_chats">
+        <item quantity="one">এর %d টি চ্যাটও মুছে যাবে।</item>
+        <item quantity="other">এর %d টি চ্যাটও মুছে যাবে।</item>
+    </plurals>
 
     <string name="sessionlist_error_load">সেশন লোড করা যায়নি</string>
     <string name="sessionlist_error_create">নতুন সেশন তৈরি করা যায়নি</string>

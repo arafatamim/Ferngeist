@@ -54,6 +54,13 @@
     <string name="sessionlist_worktree_discard_title">¿Descartar los cambios sin confirmar?</string>
     <string name="sessionlist_worktree_discard_body">El worktree \"%1$s\" tiene cambios sin confirmar. Eliminarlo los borra. Sus commits se conservan en su rama.</string>
     <string name="sessionlist_worktree_discard_confirm">Descartar y eliminar</string>
+    <string name="sessionlist_worktree_remove_title">¿Eliminar el worktree?</string>
+    <string name="sessionlist_worktree_remove_body">El worktree \"%1$s\" se borra del disco. Sus commits se conservan en su rama.</string>
+    <plurals name="sessionlist_worktree_remove_chats">
+        <item quantity="one">También se elimina su %d chat.</item>
+        <item quantity="other">También se eliminan sus %d chats.</item>
+        <item quantity="many">También se eliminan sus %d chats.</item>
+    </plurals>
 
     <string name="sessionlist_error_load">No se pudieron cargar las sesiones</string>
     <string name="sessionlist_error_create">No se pudo crear una nueva sesión</string>

@@ -56,4 +56,18 @@ internal fun isSameCwd(
 /** [cwd] reduced to what [isSameCwd] compares, for keying lookups by directory. */
 internal fun cwdKey(cwd: String): String = normalizeCwd(cwd.replace('\\', '/')).lowercase()
 
+/**
+ * Ids of the chats that run in the worktree at [path]: [sessionId] plus every chat whose cwd is
+ * that directory. A null [path] (the worktree is no longer listed) narrows it to [sessionId].
+ */
+internal fun chatsInWorktree(
+    sessions: List<SessionSummary>,
+    sessionId: String,
+    path: String?,
+): List<String> =
+    sessions
+        .filter { session ->
+            session.id == sessionId || (path != null && session.cwd?.let { isSameCwd(it, path) } == true)
+        }.map { it.id }
+
 private fun normalizeCwd(cwd: String): String = cwd.trim().trimEnd('\\', '/')

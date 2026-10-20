@@ -20,8 +20,8 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSe
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.chatsInWorktree
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.filterSessionsByCwd
-import com.tamimarafat.ferngeist.feature.sessionlist.cwd.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.worktree.SessionWorktrees
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -548,25 +548,45 @@ class SessionListViewModel
         }
 
         /**
-         * Removes the worktree a session's chat runs in.
-         *
-         * The agent process holds the directory as its cwd, which on Windows blocks the
-         * delete, so the session is closed first. A 409 means git refused over uncommitted
-         * changes; the caller confirms and retries with [force].
-         *
-         * Every chat that ran in the worktree is deleted with it: its cwd no longer exists, so
-         * the agent can only fail to load it.
+         * Asks the user to confirm removing the worktree a session's chat runs in, naming the
+         * chats that go with it. Removal deletes every one of them, so it never runs unconfirmed.
+         * A worktree the listing already shows as dirty goes straight to the discard confirm.
          */
-        fun removeWorktree(
+        fun requestRemoveWorktree(
             sessionId: String,
             worktreeId: String,
-            force: Boolean = false,
         ) {
+            val worktree = worktrees.value?.firstOrNull { it.id == worktreeId } ?: return
+            viewModelScope.launch {
+                _events.emit(
+                    SessionListEvent.ConfirmRemoveWorktree(
+                        sessionId = sessionId,
+                        worktreeId = worktreeId,
+                        branch = worktree.branch,
+                        chatCount = chatsInWorktree(sessions.value, sessionId, worktree.path).size,
+                        discardChanges = worktree.dirty == true,
+                    ),
+                )
+            }
+        }
+
+        /**
+         * Removes the worktree the user confirmed in [request].
+         *
+         * Every chat that ran in the worktree is deleted with it: its cwd no longer exists, so
+         * the agent can only fail to load it. Each one's agent process holds the directory as
+         * its cwd, which on Windows blocks the delete, so all of them are closed first — and a
+         * chat still responding would lose its directory mid-turn, so that refuses the removal.
+         * A 409 comes back as a discard confirm; the caller retries with it.
+         */
+        fun removeWorktree(request: SessionListEvent.ConfirmRemoveWorktree) {
             viewModelScope.launch(Dispatchers.IO) {
-                if (sessionCatalog.isStreaming(serverId, sessionId)) {
+                val path = worktrees.value?.firstOrNull { it.id == request.worktreeId }?.path
+                val chats = chatsInWorktree(sessions.value, request.sessionId, path)
+                if (chats.any { sessionCatalog.isStreaming(serverId, it) }) {
                     _events.emit(
                         SessionListEvent.ShowError(
-                            "This session is still responding. Cancel or close it from inside the chat first.",
+                            "A chat in this worktree is still responding. Cancel it from inside the chat first.",
                         ),
                     )
                     return@launch
@@ -577,16 +597,12 @@ class SessionListViewModel
                     )
                     return@launch
                 }
-                runCatching { sessionCatalog.closeSession(serverId, sessionId) }
-                val path = worktrees.value?.firstOrNull { it.id == worktreeId }?.path
-                if (!sessionWorktrees.remove(sessionId, worktreeId, force)) return@launch
-                val orphaned =
-                    sessions.value.filter { session ->
-                        val cwd = session.cwd
-                        session.id == sessionId || (path != null && cwd != null && isSameCwd(cwd, path))
-                    }
-                for (session in orphaned) {
-                    runCatching { sessionCatalog.deleteSession(serverId, session.id) }
+                for (chat in chats) {
+                    runCatching { sessionCatalog.closeSession(serverId, chat) }
+                }
+                if (!sessionWorktrees.remove(request)) return@launch
+                for (chat in chats) {
+                    runCatching { sessionCatalog.deleteSession(serverId, chat) }
                 }
             }
         }
@@ -945,13 +961,16 @@ sealed interface SessionListEvent {
     ) : SessionListEvent
 
     /**
-     * The gateway refused to remove a worktree because it has uncommitted changes.
-     * The caller must confirm discarding them, then retry with `force = true`.
+     * Removing a worktree needs the user's confirm: it deletes the worktree's [chatCount] chats,
+     * and with [discardChanges] its uncommitted changes too. Confirming hands this back to
+     * [SessionListViewModel.removeWorktree].
      */
     data class ConfirmRemoveWorktree(
         val sessionId: String,
         val worktreeId: String,
         val branch: String,
+        val chatCount: Int,
+        val discardChanges: Boolean,
     ) : SessionListEvent
 }
 

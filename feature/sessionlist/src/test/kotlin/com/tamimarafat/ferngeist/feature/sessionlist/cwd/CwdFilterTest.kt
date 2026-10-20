@@ -89,6 +89,21 @@ class CwdFilterTest {
         assertEquals(cwdKey("C:/work/api/.worktrees/feat-x"), cwdKey("c:\\Work\\api\\.worktrees\\feat-x\\"))
     }
 
+    @Test
+    fun chatsInWorktree_takesEveryChatInThatDirectory() {
+        val tree =
+            listOf(
+                session("a", "/work/api/.worktrees/feat-x"),
+                session("b", "/Work/api/.worktrees/feat-x/"),
+                session("repo", "/work/api"),
+                session("other", "/work/api/.worktrees/feat-y"),
+            )
+
+        assertEquals(listOf("a", "b"), chatsInWorktree(tree, "a", "/work/api/.worktrees/feat-x"))
+        // The worktree dropped off the listing: only the chat the user acted on is known to be in it.
+        assertEquals(listOf("a"), chatsInWorktree(tree, "a", null))
+    }
+
     private fun session(
         id: String,
         cwd: String?,
