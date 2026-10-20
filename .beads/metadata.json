@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Ferngeist",
+  "project_id": "c93cb0ef-8c7c-4ea4-9a01-5dca82302a5d"
+}
