@@ -84,6 +84,7 @@ fun SessionListScreen(
             while (true) {
                 // The server list's launch just listed; the first pass after it must not launch again.
                 viewModel.refreshSessions(reuseRecent = true)
+                viewModel.refreshWorktrees()
                 delay(SESSION_LIST_POLL_MS)
             }
         }

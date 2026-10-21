@@ -244,6 +244,7 @@ class SessionListViewModel
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
         private var refreshJob: kotlinx.coroutines.Job? = null
         private var refreshGeneration = 0
+        private var worktreeRefreshJob: kotlinx.coroutines.Job? = null
 
         /** True when the last listing attempt never reached the agent. */
         private var lastListingFailed = false
@@ -383,6 +384,16 @@ class SessionListViewModel
                 sessionWorktrees.refresh()
                 if (generation == refreshGeneration) syncCatalogObservables()
             }
+        }
+
+        /**
+         * Re-reads the gateway's worktrees (ahead/dirty) on its own, without waiting for the
+         * session listing and lease reconcile that normally precede it. One REST call, dropped
+         * while the previous one is still in flight.
+         */
+        fun refreshWorktrees() {
+            if (worktreeRefreshJob?.isActive == true) return
+            worktreeRefreshJob = viewModelScope.launch { sessionWorktrees.refresh() }
         }
 
         /** Pulls the catalog's last-known capability/diagnostic snapshots into local state. */
