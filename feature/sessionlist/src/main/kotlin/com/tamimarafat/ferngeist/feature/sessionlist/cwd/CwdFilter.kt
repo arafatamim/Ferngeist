@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.isSameCwd
+import com.tamimarafat.ferngeist.core.model.normalizeCwd
 
 /**
  * Gateway-managed worktrees live at `<repo>/.worktrees/<branch>`, so this is the join point.
@@ -47,15 +49,6 @@ internal fun worktreeRepoOf(cwd: String): String? {
     return if (marker > 0) cwd.take(marker) else null
 }
 
-/** True when [a] and [b] name the same directory, whatever their separators or case. */
-internal fun isSameCwd(
-    a: String,
-    b: String,
-): Boolean = cwdKey(a) == cwdKey(b)
-
-/** [cwd] reduced to what [isSameCwd] compares, for keying lookups by directory. */
-internal fun cwdKey(cwd: String): String = normalizeCwd(cwd.replace('\\', '/')).lowercase()
-
 /**
  * Ids of the chats that run in the worktree at [path]: [sessionId] plus every chat whose cwd is
  * that directory. A null [path] (the worktree is no longer listed) narrows it to [sessionId].
@@ -69,5 +62,3 @@ internal fun chatsInWorktree(
         .filter { session ->
             session.id == sessionId || (path != null && session.cwd?.let { isSameCwd(it, path) } == true)
         }.map { it.id }
-
-private fun normalizeCwd(cwd: String): String = cwd.trim().trimEnd('\\', '/')

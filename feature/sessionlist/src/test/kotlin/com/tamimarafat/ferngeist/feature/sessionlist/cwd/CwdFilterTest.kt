@@ -79,17 +79,6 @@ class CwdFilterTest {
     }
 
     @Test
-    fun isSameCwd_ignoresSeparatorsCaseAndTrailingSlash() {
-        assertEquals(true, isSameCwd("C:\\work\\api\\.worktrees\\feat-x", "c:/work/api/.worktrees/feat-x/"))
-        assertEquals(false, isSameCwd("/work/api/.worktrees/feat-x", "/work/api"))
-    }
-
-    @Test
-    fun cwdKey_matchesTheGatewayPathDespiteSpelling() {
-        assertEquals(cwdKey("C:/work/api/.worktrees/feat-x"), cwdKey("c:\\Work\\api\\.worktrees\\feat-x\\"))
-    }
-
-    @Test
     fun chatsInWorktree_takesEveryChatInThatDirectory() {
         val tree =
             listOf(

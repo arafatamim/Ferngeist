@@ -34,9 +34,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
-import com.tamimarafat.ferngeist.feature.sessionlist.cwd.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.worktree.newWorktreeBranchName
 import kotlinx.coroutines.delay
 

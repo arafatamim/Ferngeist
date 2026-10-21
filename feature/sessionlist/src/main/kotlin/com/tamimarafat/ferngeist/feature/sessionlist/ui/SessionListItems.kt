@@ -49,9 +49,9 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
-import com.tamimarafat.ferngeist.feature.sessionlist.cwd.cwdKey
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import java.text.SimpleDateFormat
 import java.time.Instant
