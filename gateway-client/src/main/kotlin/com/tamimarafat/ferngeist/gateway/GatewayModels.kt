@@ -315,6 +315,25 @@ data class GatewayCreateWorktreeRequest(
     val branch: String? = null,
 )
 
+/** Body of `POST /v1/worktrees/adopt`; [repo] is inferred from the worktree's git metadata when null. */
+@Serializable
+data class GatewayAdoptWorktreeRequest(
+    val path: String,
+    val repo: String? = null,
+)
+
+/**
+ * A git worktree of a repository that the gateway does not manage (made on a PC or by another
+ * tool), from `GET /v1/worktrees/unmanaged`. [branch] is empty when HEAD is [detached].
+ */
+@Serializable
+data class GatewayUnmanagedWorktree(
+    val path: String,
+    val branch: String = "",
+    val head: String = "",
+    val detached: Boolean = false,
+)
+
 /**
  * A gateway-managed git worktree. [path] is what a chat opened in it uses as its cwd,
  * and its `.worktrees` folder keeps the main checkout clean.
