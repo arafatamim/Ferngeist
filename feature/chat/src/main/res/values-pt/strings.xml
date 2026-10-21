@@ -133,6 +133,8 @@
     <string name="chat_remove_image_desc">Remover imagem</string>
     <string name="chat_git_binary">binário</string>
     <string name="chat_git_clean">A árvore de trabalho está limpa</string>
+    <string name="chat_git_worktree">Worktree</string>
+    <string name="chat_git_worktree_dirty">não commitado</string>
     <string name="chat_git_no_branch">(sem branch)</string>
     <string name="chat_git_status_title">Git</string>
     <string name="chat_git_status_desc">Detalhes do status do Git</string>

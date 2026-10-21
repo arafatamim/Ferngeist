@@ -38,6 +38,7 @@ internal class ChatGitDiffLoader(
     // plus at most one rerun.
     private val statusRefresh = Coalesced(scope) { fetchStatus() }
     private val refsLoad = Coalesced(scope) { fetchRefs() }
+    private val worktreeLoad = Coalesced(scope) { fetchWorktree() }
 
     /**
      * The latest turn's inline fallback fetches, one per git-relative path and independent of the
@@ -83,6 +84,18 @@ internal class ChatGitDiffLoader(
         // Nothing to scope to until create-on-arrival mints a session; sessionReady retries.
         if (acpSessionId() == null) return
         statusRefresh.run()
+    }
+
+    /** Reads which gateway worktree this chat is in, for the git indicator's tooltip. */
+    fun loadWorktree() {
+        if (acpSessionId() == null) return
+        worktreeLoad.run()
+    }
+
+    // A failed read keeps the last answer: a transient fault must not make the worktree vanish.
+    private suspend fun fetchWorktree() {
+        runCatching { facade.fetchWorktree() }
+            .onSuccess { worktree -> update { copy(worktree = worktree) } }
     }
 
     private suspend fun fetchStatus() {

@@ -16,6 +16,7 @@ import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import kotlinx.coroutines.CompletableDeferred
@@ -249,6 +250,14 @@ open class FakeChatSessionFacade : ChatSessionFacade {
         if (compare == null) return gitStatus
         gitCompareStatusRequests += compare
         return gitCompareStatus(compare)
+    }
+
+    /** Answers [fetchWorktree]; throw from it to fail the read. */
+    var worktree: suspend () -> ChatWorktree? = { null }
+
+    override suspend fun fetchWorktree(): ChatWorktree? {
+        if (gatewayWorkspaceConnectionFlow.value == null) return null
+        return worktree()
     }
 
     /** Answers a compare [fetchGitStatus] by its qualified ref; throw from it to fail the fetch. */

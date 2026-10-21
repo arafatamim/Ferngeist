@@ -139,6 +139,8 @@
     <string name="chat_remove_image_desc">移除图片</string>
     <string name="chat_git_binary">二进制</string>
     <string name="chat_git_clean">工作区是干净的</string>
+    <string name="chat_git_worktree">Worktree</string>
+    <string name="chat_git_worktree_dirty">未提交</string>
     <string name="chat_git_no_branch">(无分支)</string>
     <string name="chat_git_status_title">Git</string>
     <string name="chat_git_status_desc">Git 状态详情</string>

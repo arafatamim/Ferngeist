@@ -235,6 +235,9 @@
         <item quantity="other">%1$d files changed</item>
     </plurals>
     <string name="chat_git_clean">Working tree is clean</string>
+    <string name="chat_git_worktree">Worktree</string>
+    <string name="chat_git_worktree_ahead" translatable="false">↑%1$d</string>
+    <string name="chat_git_worktree_dirty">uncommitted</string>
     <string name="chat_git_binary">binary</string>
     <string name="chat_git_status_desc">Git status details</string>
     <string name="chat_git_directory">Directory</string>

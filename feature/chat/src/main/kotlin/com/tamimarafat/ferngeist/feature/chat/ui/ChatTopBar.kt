@@ -62,6 +62,7 @@ import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.feature.chat.R
 import kotlinx.coroutines.launch
 
@@ -89,6 +90,7 @@ internal fun ChatTopBar(
     gitDeletions: Int,
     gitBranch: String?,
     gitChangedFiles: Int,
+    worktree: ChatWorktree?,
     scrollBehavior: TopAppBarScrollBehavior,
     onNavigateBack: () -> Unit,
     onConnectionStatusClick: () -> Unit,
@@ -134,6 +136,7 @@ internal fun ChatTopBar(
                         gitDeletions = gitDeletions,
                         gitBranch = gitBranch,
                         gitChangedFiles = gitChangedFiles,
+                        worktree = worktree,
                         onGitStatusClick = onGitStatusClick,
                         onGitStatusLongPress = onGitStatusLongPress,
                         connectionState = connectionState,
@@ -188,6 +191,7 @@ internal fun ChatTopBar(
                     gitDeletions = gitDeletions,
                     gitBranch = gitBranch,
                     gitChangedFiles = gitChangedFiles,
+                    worktree = worktree,
                     onGitStatusClick = onGitStatusClick,
                     onGitStatusLongPress = onGitStatusLongPress,
                     connectionState = connectionState,
@@ -277,6 +281,7 @@ private fun TopBarActions(
     gitDeletions: Int,
     gitBranch: String?,
     gitChangedFiles: Int,
+    worktree: ChatWorktree?,
     onGitStatusClick: () -> Unit,
     onGitStatusLongPress: () -> Unit,
     connectionState: ChatConnectionState,
@@ -300,6 +305,7 @@ private fun TopBarActions(
                 deletions = gitDeletions,
                 branch = gitBranch,
                 changedFiles = gitChangedFiles,
+                worktree = worktree,
                 onClick = onGitStatusClick,
                 onLongPress = onGitStatusLongPress,
             )

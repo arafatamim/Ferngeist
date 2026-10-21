@@ -32,6 +32,7 @@ import com.tamimarafat.ferngeist.core.model.ChatGitRefs
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GitHistoryHeadGoneException
 import com.tamimarafat.ferngeist.core.model.GitHistoryUnsupportedException
 import com.tamimarafat.ferngeist.core.model.GitRefsUnsupportedException
@@ -43,6 +44,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitRef
 import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import com.tamimarafat.ferngeist.gateway.gatewayErrorMessage
 import kotlinx.coroutines.TimeoutCancellationException
 import java.net.SocketTimeoutException
@@ -289,6 +291,12 @@ internal fun GatewayGitCommit.toChatGitCommit(): ChatGitCommit =
         isPushed = pushed,
         commitTimeMillis = (commitTime.takeIf { it > 0 } ?: authorTime) * MILLIS_PER_SECOND,
     )
+
+internal fun GatewayWorktree.toChatWorktree(): ChatWorktree =
+    ChatWorktree(branch = branch, ahead = ahead, dirty = dirty)
+
+/** A gateway without the worktree API answers `/v1/worktrees` with a 404, which means "none" here. */
+internal fun GatewayRequestException.isMissingWorktreeApi(): Boolean = statusCode == HTTP_NOT_FOUND
 
 internal fun GatewayGitRefs.toChatGitRefs(): ChatGitRefs =
     ChatGitRefs(default = default, refs = refs.map { it.toChatGitRef() })

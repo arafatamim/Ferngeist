@@ -49,6 +49,7 @@ internal fun ChatScreenTopBar(
             screenState.state.gitStatus
                 ?.changed
                 ?.size ?: 0,
+        worktree = screenState.state.worktree,
         scrollBehavior = scrollBehavior,
         onNavigateBack = onNavigateBack,
         onConnectionStatusClick = { screenState.showConnectionStatusDialog.value = true },

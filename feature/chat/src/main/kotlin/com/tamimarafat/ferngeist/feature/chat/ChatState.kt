@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.UsageState
 
@@ -54,6 +55,8 @@ data class ChatState(
     /** The workspace's files by file name, for chips on names no tool call touched; null until listed. */
     val workspaceFiles: Map<String, List<String>>? = null,
     val gitStatus: ChatGitStatus? = null,
+    /** The gateway worktree this chat runs in; null when it is not one or the gateway has not said yet. */
+    val worktree: ChatWorktree? = null,
     val gitDiffStats: GitDiffStats? = null,
     val gitFileDiff: List<ToolCallContent.Diff>? = null,
     val gitFileDiffPath: String? = null,

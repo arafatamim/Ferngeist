@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -59,6 +60,8 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.initialPassLongPress
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
+import com.tamimarafat.ferngeist.core.model.ChatWorktree
+import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxHighlighting
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
 import io.github.diff.DeltaType
@@ -694,6 +697,7 @@ internal fun GitStatusIndicatorButton(
     deletions: Int,
     branch: String?,
     changedFiles: Int,
+    worktree: ChatWorktree?,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
@@ -714,6 +718,7 @@ internal fun GitStatusIndicatorButton(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text("$changedFiles file(s) changed")
+                    worktree?.let { Text(worktreeSummary(it)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = "+$additions",
@@ -757,6 +762,15 @@ internal fun GitStatusIndicatorButton(
         }
     }
 }
+
+/** `Worktree · ↑2 · uncommitted`: what the gateway knows about the worktree beyond its branch. */
+@Composable
+private fun worktreeSummary(worktree: ChatWorktree): String =
+    listOfNotNull(
+        stringResource(R.string.chat_git_worktree),
+        worktree.ahead?.takeIf { it > 0 }?.let { stringResource(R.string.chat_git_worktree_ahead, it) },
+        if (worktree.dirty == true) stringResource(R.string.chat_git_worktree_dirty) else null,
+    ).joinToString(" · ")
 
 @Composable
 private fun GitStatusButtonContent(

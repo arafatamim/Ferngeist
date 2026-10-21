@@ -28,10 +28,12 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -300,6 +302,19 @@ class AcpChatSessionFacade(
                 acpSessionId = acpSessionId,
                 compare = compare,
             ).toChatGitStatus()
+    }
+
+    override suspend fun fetchWorktree(): ChatWorktree? {
+        val connection = _gatewayWorkspaceConnection.value ?: return null
+        if (cwd.isBlank()) return null
+        return try {
+            gatewayRepository
+                .listWorktrees(connection.scheme, connection.host, connection.gatewayCredential)
+                .firstOrNull { isSameCwd(it.path, cwd) }
+                ?.toChatWorktree()
+        } catch (error: GatewayRequestException) {
+            if (error.isMissingWorktreeApi()) null else throw error
+        }
     }
 
     /**

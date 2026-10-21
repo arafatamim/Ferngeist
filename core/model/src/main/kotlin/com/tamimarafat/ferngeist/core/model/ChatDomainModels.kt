@@ -222,6 +222,16 @@ data class ChatGitStatus(
     val compare: String? = null,
 )
 
+/**
+ * The gateway's record of the worktree a chat runs in. [ahead] and [dirty] are null when git could
+ * not say.
+ */
+data class ChatWorktree(
+    val branch: String,
+    val ahead: Int? = null,
+    val dirty: Boolean? = null,
+)
+
 /** A branch, remote branch, tag, or detached HEAD pointing at a commit. */
 data class ChatGitRef(
     val name: String,
@@ -469,6 +479,12 @@ interface ChatSessionFacade {
      * session it saw last).
      */
     suspend fun fetchGitStatus(compare: String? = null): ChatGitStatus? = null
+
+    /**
+     * The gateway worktree this chat's directory is, or null when it is not one: a manual agent, a
+     * chat outside any worktree, or a gateway that predates worktrees. Other failures propagate.
+     */
+    suspend fun fetchWorktree(): ChatWorktree? = null
 
     /**
      * Diff of one file in the chat's gateway working tree, or in [commit] against its first

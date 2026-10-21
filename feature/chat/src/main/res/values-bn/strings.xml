@@ -133,6 +133,8 @@
     <string name="chat_remove_image_desc">ছবি সরান</string>
     <string name="chat_git_binary">বাইনারি</string>
     <string name="chat_git_clean">কাজের ট্রি পরিষ্কার</string>
+    <string name="chat_git_worktree">Worktree</string>
+    <string name="chat_git_worktree_dirty">কমিট করা হয়নি</string>
     <string name="chat_git_no_branch">(শাখা নেই)</string>
     <string name="chat_git_status_title">Git</string>
     <string name="chat_git_status_desc">গিট স্ট্যাটাসের বিবরণ</string>
