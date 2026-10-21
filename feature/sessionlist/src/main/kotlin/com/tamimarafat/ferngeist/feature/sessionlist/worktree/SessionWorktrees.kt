@@ -1,10 +1,13 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.worktree
 
+import android.content.Context
+import androidx.annotation.StringRes
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
+import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -25,9 +28,6 @@ private const val HTTP_BAD_REQUEST = 400
 private const val HTTP_CONFLICT = 409
 private const val HTTP_NOT_FOUND = 404
 
-private const val WORKTREE_CREATE_FAILED = "Failed to create the worktree."
-private const val WORKTREE_REMOVE_FAILED = "Failed to remove the worktree."
-
 /**
  * Gateway worktrees for one session list: creating one for a new chat, listing the gateway's
  * managed ones, and removing them.
@@ -40,6 +40,7 @@ private const val WORKTREE_REMOVE_FAILED = "Failed to remove the worktree."
  * @param openChat opens the chat that will run in the created worktree.
  */
 internal class SessionWorktrees(
+    private val context: Context,
     private val serverId: String,
     private val gatewayRepository: GatewayRepository,
     private val gatewaySourceRepository: GatewaySourceRepository,
@@ -49,6 +50,10 @@ internal class SessionWorktrees(
     private val emitEvent: suspend (SessionListEvent) -> Unit,
     private val openChat: (String) -> Unit,
 ) {
+    private fun text(
+        @StringRes id: Int,
+    ) = context.getString(id)
+
     private val _managed = MutableStateFlow<List<GatewayWorktree>?>(null)
 
     /**
@@ -138,7 +143,7 @@ internal class SessionWorktrees(
             val target = withContext(Dispatchers.IO) { launchableTargetRepository.getTarget(serverId) }
             val gatewayTarget = target as? LaunchableTarget.GatewayAgent
             if (gatewayTarget == null) {
-                _error.value = "Worktrees are only available for gateway agents."
+                _error.value = text(R.string.sessionlist_worktree_error_gateway_only)
                 return
             }
             val gateway =
@@ -163,19 +168,26 @@ internal class SessionWorktrees(
             refreshWith(gateway)
             openChat(worktree.path)
         } catch (_: GatewayCredentialExpiredException) {
-            _error.value = "This gateway's credential expired. Pair it again to create worktrees."
+            _error.value = text(R.string.sessionlist_worktree_error_credential)
         } catch (error: GatewayRequestException) {
             val gatewayMessage = gatewayErrorMessage(error.responseBody)
             when (error.statusCode) {
-                HTTP_BAD_REQUEST -> _error.value = gatewayMessage ?: "The branch name is not valid."
-                HTTP_CONFLICT -> _error.value = "Branch already exists"
+                HTTP_BAD_REQUEST ->
+                    _error.value =
+                        gatewayMessage ?: text(R.string.sessionlist_worktree_error_branch_invalid)
+                HTTP_CONFLICT -> _error.value = text(R.string.sessionlist_worktree_error_branch_exists)
                 // 422: not a repo, unknown base, or `git worktree add` failed.
-                else -> emitEvent(SessionListEvent.ShowError(gatewayMessage ?: WORKTREE_CREATE_FAILED))
+                else ->
+                    emitEvent(
+                        SessionListEvent.ShowError(
+                            gatewayMessage ?: text(R.string.sessionlist_worktree_error_create),
+                        ),
+                    )
             }
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
-            emitEvent(SessionListEvent.ShowError(WORKTREE_CREATE_FAILED))
+            emitEvent(SessionListEvent.ShowError(text(R.string.sessionlist_worktree_error_create)))
         } finally {
             _creating.value = false
         }
@@ -227,13 +239,17 @@ internal class SessionWorktrees(
             throw error
         } catch (_: Exception) {
             removed = false
-            emitEvent(SessionListEvent.ShowError(WORKTREE_REMOVE_FAILED))
+            emitEvent(SessionListEvent.ShowError(text(R.string.sessionlist_worktree_error_remove)))
         }
         refresh()
         return removed
     }
 
     private suspend fun emitRemovalFailure(responseBody: String?) {
-        emitEvent(SessionListEvent.ShowError(gatewayErrorMessage(responseBody) ?: WORKTREE_REMOVE_FAILED))
+        emitEvent(
+            SessionListEvent.ShowError(
+                gatewayErrorMessage(responseBody) ?: text(R.string.sessionlist_worktree_error_remove),
+            ),
+        )
     }
 }

@@ -62,6 +62,15 @@
         <item quantity="other">Its %d chats are deleted too.</item>
     </plurals>
 
+    <string name="sessionlist_worktree_error_create">Failed to create the worktree.</string>
+    <string name="sessionlist_worktree_error_remove">Failed to remove the worktree.</string>
+    <string name="sessionlist_worktree_error_gateway_only">Worktrees are only available for gateway agents.</string>
+    <string name="sessionlist_worktree_error_credential">This gateway\'s credential expired. Pair it again to create worktrees.</string>
+    <string name="sessionlist_worktree_error_branch_invalid">The branch name is not valid.</string>
+    <string name="sessionlist_worktree_error_branch_exists">Branch already exists</string>
+    <string name="sessionlist_worktree_error_chat_busy">A chat in this worktree is still responding. Cancel it from inside the chat first.</string>
+    <string name="sessionlist_worktree_error_remove_gateway_only">Removing a worktree is only available for gateway sessions.</string>
+
     <!-- Error messages -->
     <string name="sessionlist_error_load">Failed to load sessions</string>
     <string name="sessionlist_error_create">Failed to create a new session</string>

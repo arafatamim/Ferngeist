@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.sessionlist
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,6 +29,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,6 +87,7 @@ sealed interface PendingAuthAction {
 class SessionListViewModel
     @Inject
     constructor(
+        @ApplicationContext private val context: Context,
         savedStateHandle: SavedStateHandle,
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val launchableTargetRepository: LaunchableTargetRepository,
@@ -212,6 +215,7 @@ class SessionListViewModel
          */
         private val sessionWorktrees =
             SessionWorktrees(
+                context = context,
                 serverId = serverId,
                 gatewayRepository = gatewayRepository,
                 gatewaySourceRepository = gatewaySourceRepository,
@@ -586,14 +590,16 @@ class SessionListViewModel
                 if (chats.any { sessionCatalog.isStreaming(serverId, it) }) {
                     _events.emit(
                         SessionListEvent.ShowError(
-                            "A chat in this worktree is still responding. Cancel it from inside the chat first.",
+                            context.getString(R.string.sessionlist_worktree_error_chat_busy),
                         ),
                     )
                     return@launch
                 }
                 if (launchableTargetRepository.getTarget(serverId) !is LaunchableTarget.GatewayAgent) {
                     _events.emit(
-                        SessionListEvent.ShowError("Removing a worktree is only available for gateway sessions."),
+                        SessionListEvent.ShowError(
+                            context.getString(R.string.sessionlist_worktree_error_remove_gateway_only),
+                        ),
                     )
                     return@launch
                 }

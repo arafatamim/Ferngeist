@@ -59,6 +59,15 @@
         <item quantity="other">它的 %d 个聊天也会被删除。</item>
     </plurals>
 
+    <string name="sessionlist_worktree_error_create">创建 worktree 失败。</string>
+    <string name="sessionlist_worktree_error_remove">删除 worktree 失败。</string>
+    <string name="sessionlist_worktree_error_gateway_only">worktree 仅适用于网关代理。</string>
+    <string name="sessionlist_worktree_error_credential">此网关的凭据已过期。请重新配对后再创建 worktree。</string>
+    <string name="sessionlist_worktree_error_branch_invalid">分支名称无效。</string>
+    <string name="sessionlist_worktree_error_branch_exists">分支已存在</string>
+    <string name="sessionlist_worktree_error_chat_busy">此 worktree 中的聊天仍在响应。请先在聊天内取消。</string>
+    <string name="sessionlist_worktree_error_remove_gateway_only">仅网关会话支持删除 worktree。</string>
+
     <!-- Error messages -->
     <string name="sessionlist_error_load">加载会话失败</string>
     <string name="sessionlist_error_create">创建新会话失败</string>

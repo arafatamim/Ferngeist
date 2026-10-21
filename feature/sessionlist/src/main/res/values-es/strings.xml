@@ -62,6 +62,15 @@
         <item quantity="many">También se eliminan sus %d chats.</item>
     </plurals>
 
+    <string name="sessionlist_worktree_error_create">No se pudo crear el worktree.</string>
+    <string name="sessionlist_worktree_error_remove">No se pudo eliminar el worktree.</string>
+    <string name="sessionlist_worktree_error_gateway_only">Los worktrees solo están disponibles para agentes de puerta de enlace.</string>
+    <string name="sessionlist_worktree_error_credential">La credencial de esta puerta de enlace caducó. Vuelve a emparejarla para crear worktrees.</string>
+    <string name="sessionlist_worktree_error_branch_invalid">El nombre de la rama no es válido.</string>
+    <string name="sessionlist_worktree_error_branch_exists">La rama ya existe</string>
+    <string name="sessionlist_worktree_error_chat_busy">Un chat de este worktree sigue respondiendo. Cancélalo primero desde dentro del chat.</string>
+    <string name="sessionlist_worktree_error_remove_gateway_only">Eliminar un worktree solo está disponible para sesiones de puerta de enlace.</string>
+
     <string name="sessionlist_error_load">No se pudieron cargar las sesiones</string>
     <string name="sessionlist_error_create">No se pudo crear una nueva sesión</string>
     <string name="sessionlist_error_reconnect">No se pudo volver a conectar a %1$s</string>

@@ -62,6 +62,15 @@
         <item quantity="many">Os %d chats dele também são excluídos.</item>
     </plurals>
 
+    <string name="sessionlist_worktree_error_create">Falha ao criar o worktree.</string>
+    <string name="sessionlist_worktree_error_remove">Falha ao remover o worktree.</string>
+    <string name="sessionlist_worktree_error_gateway_only">Worktrees só estão disponíveis para agentes via gateway.</string>
+    <string name="sessionlist_worktree_error_credential">A credencial deste gateway expirou. Faça o pareamento novamente para criar worktrees.</string>
+    <string name="sessionlist_worktree_error_branch_invalid">O nome do branch não é válido.</string>
+    <string name="sessionlist_worktree_error_branch_exists">O branch já existe</string>
+    <string name="sessionlist_worktree_error_chat_busy">Um chat neste worktree ainda está respondendo. Cancele-o primeiro de dentro do chat.</string>
+    <string name="sessionlist_worktree_error_remove_gateway_only">Remover um worktree só está disponível para sessões via gateway.</string>
+
     <string name="sessionlist_error_load">Falha ao carregar as sessões</string>
     <string name="sessionlist_error_create">Falha ao criar uma nova sessão</string>
     <string name="sessionlist_error_reconnect">Falha ao reconectar a %1$s</string>

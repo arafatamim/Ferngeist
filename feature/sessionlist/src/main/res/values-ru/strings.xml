@@ -65,6 +65,15 @@
         <item quantity="other">Его %d чата тоже будут удалены.</item>
     </plurals>
 
+    <string name="sessionlist_worktree_error_create">Не удалось создать worktree.</string>
+    <string name="sessionlist_worktree_error_remove">Не удалось удалить worktree.</string>
+    <string name="sessionlist_worktree_error_gateway_only">Worktree доступны только для агентов через шлюз.</string>
+    <string name="sessionlist_worktree_error_credential">Учётные данные этого шлюза истекли. Сопрягите его заново, чтобы создавать worktree.</string>
+    <string name="sessionlist_worktree_error_branch_invalid">Недопустимое имя ветки.</string>
+    <string name="sessionlist_worktree_error_branch_exists">Ветка уже существует</string>
+    <string name="sessionlist_worktree_error_chat_busy">Чат в этом worktree всё ещё отвечает. Сначала отмените ответ внутри чата.</string>
+    <string name="sessionlist_worktree_error_remove_gateway_only">Удаление worktree доступно только для сессий через шлюз.</string>
+
     <!-- Error messages -->
     <string name="sessionlist_error_load">Ошибка загрузки сессий</string>
     <string name="sessionlist_error_create">Не удалось создать сессию</string>

@@ -60,6 +60,15 @@
         <item quantity="other">এর %d টি চ্যাটও মুছে যাবে।</item>
     </plurals>
 
+    <string name="sessionlist_worktree_error_create">worktree তৈরি করতে ব্যর্থ হয়েছে।</string>
+    <string name="sessionlist_worktree_error_remove">worktree সরাতে ব্যর্থ হয়েছে।</string>
+    <string name="sessionlist_worktree_error_gateway_only">worktree শুধুমাত্র গেটওয়ে এজেন্টের জন্য উপলব্ধ।</string>
+    <string name="sessionlist_worktree_error_credential">এই গেটওয়ের ক্রেডেনশিয়াল মেয়াদোত্তীর্ণ হয়েছে। worktree তৈরি করতে আবার পেয়ার করুন।</string>
+    <string name="sessionlist_worktree_error_branch_invalid">ব্রাঞ্চের নাম বৈধ নয়।</string>
+    <string name="sessionlist_worktree_error_branch_exists">ব্রাঞ্চ আগে থেকেই আছে</string>
+    <string name="sessionlist_worktree_error_chat_busy">এই worktree-র একটি চ্যাট এখনও উত্তর দিচ্ছে। আগে চ্যাটের ভেতর থেকে সেটি বাতিল করুন।</string>
+    <string name="sessionlist_worktree_error_remove_gateway_only">worktree সরানো শুধুমাত্র গেটওয়ে সেশনের জন্য উপলব্ধ।</string>
+
     <string name="sessionlist_error_load">সেশন লোড করা যায়নি</string>
     <string name="sessionlist_error_create">নতুন সেশন তৈরি করা যায়নি</string>
     <string name="sessionlist_error_reconnect">%1$s-এর সাথে পুনরায় সংযোগ করা যায়নি</string>
