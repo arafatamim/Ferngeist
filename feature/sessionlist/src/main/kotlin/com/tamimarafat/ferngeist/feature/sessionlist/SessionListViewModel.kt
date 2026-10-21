@@ -235,6 +235,11 @@ class SessionListViewModel
         /** Inline error for the worktree form (bad repo/branch, existing branch), else null. */
         val worktreeError: StateFlow<String?> = sessionWorktrees.error
 
+        private val _removingWorktreeIds = MutableStateFlow<Set<String>>(emptySet())
+
+        /** Ids of worktrees whose removal is in flight; their chat cards show as busy. */
+        val removingWorktreeIds: StateFlow<Set<String>> = _removingWorktreeIds.asStateFlow()
+
         private val _pendingAuthentication = MutableStateFlow<SessionListPendingAuthentication?>(null)
         val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
         private var refreshJob: kotlinx.coroutines.Job? = null
@@ -585,30 +590,35 @@ class SessionListViewModel
          */
         fun removeWorktree(request: SessionListEvent.ConfirmRemoveWorktree) {
             viewModelScope.launch(Dispatchers.IO) {
-                val path = worktrees.value?.firstOrNull { it.id == request.worktreeId }?.path
-                val chats = chatsInWorktree(sessions.value, request.sessionId, path)
-                if (chats.any { sessionCatalog.isStreaming(serverId, it) }) {
-                    _events.emit(
-                        SessionListEvent.ShowError(
-                            context.getString(R.string.sessionlist_worktree_error_chat_busy),
-                        ),
-                    )
-                    return@launch
-                }
-                if (launchableTargetRepository.getTarget(serverId) !is LaunchableTarget.GatewayAgent) {
-                    _events.emit(
-                        SessionListEvent.ShowError(
-                            context.getString(R.string.sessionlist_worktree_error_remove_gateway_only),
-                        ),
-                    )
-                    return@launch
-                }
-                for (chat in chats) {
-                    runCatching { sessionCatalog.closeSession(serverId, chat) }
-                }
-                if (!sessionWorktrees.remove(request)) return@launch
-                for (chat in chats) {
-                    runCatching { sessionCatalog.deleteSession(serverId, chat) }
+                _removingWorktreeIds.update { it + request.worktreeId }
+                try {
+                    val path = worktrees.value?.firstOrNull { it.id == request.worktreeId }?.path
+                    val chats = chatsInWorktree(sessions.value, request.sessionId, path)
+                    if (chats.any { sessionCatalog.isStreaming(serverId, it) }) {
+                        _events.emit(
+                            SessionListEvent.ShowError(
+                                context.getString(R.string.sessionlist_worktree_error_chat_busy),
+                            ),
+                        )
+                        return@launch
+                    }
+                    if (launchableTargetRepository.getTarget(serverId) !is LaunchableTarget.GatewayAgent) {
+                        _events.emit(
+                            SessionListEvent.ShowError(
+                                context.getString(R.string.sessionlist_worktree_error_remove_gateway_only),
+                            ),
+                        )
+                        return@launch
+                    }
+                    for (chat in chats) {
+                        runCatching { sessionCatalog.closeSession(serverId, chat) }
+                    }
+                    if (!sessionWorktrees.remove(request)) return@launch
+                    for (chat in chats) {
+                        runCatching { sessionCatalog.deleteSession(serverId, chat) }
+                    }
+                } finally {
+                    _removingWorktreeIds.update { it - request.worktreeId }
                 }
             }
         }

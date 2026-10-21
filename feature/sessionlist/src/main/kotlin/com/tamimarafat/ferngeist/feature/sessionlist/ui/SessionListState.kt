@@ -56,6 +56,7 @@ internal class SessionListState(
     val hasConsumedLaunchCreate: MutableState<Boolean>,
     /** Managed worktrees, or null when this gateway has none to show (older gateway). */
     val worktrees: List<GatewayWorktree>?,
+    val removingWorktreeIds: Set<String>,
     val createWorktreeEnabled: MutableState<Boolean>,
     val worktreeBranch: MutableState<String>,
     val worktreeBase: MutableState<String>,
@@ -131,6 +132,7 @@ internal fun rememberSessionListState(
         scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
         hasConsumedLaunchCreate = rememberSaveable { mutableStateOf(false) },
         worktrees = viewModel.worktrees.collectAsState().value,
+        removingWorktreeIds = viewModel.removingWorktreeIds.collectAsState().value,
         // The worktree form lives with the dialog, not the view model: a half-typed branch
         // is view state that dies with the sheet, like the cwd field above.
         createWorktreeEnabled = remember { mutableStateOf(false) },

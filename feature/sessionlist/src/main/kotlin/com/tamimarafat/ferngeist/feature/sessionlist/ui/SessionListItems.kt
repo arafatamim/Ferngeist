@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -56,6 +59,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Date
 import kotlin.math.max
+
+private const val REMOVING_CARD_ALPHA = 0.5f
 
 @OptIn(
     ExperimentalMaterial3ExpressiveApi::class,
@@ -107,6 +112,7 @@ internal fun SessionListContent(
                 onNavigateToChat = onNavigateToChat,
                 onRemoveWorktree = onRemoveWorktree,
                 worktrees = state.worktrees,
+                removingWorktreeIds = state.removingWorktreeIds,
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -195,6 +201,7 @@ private fun SessionListLazyColumn(
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     onRemoveWorktree: (String, String) -> Unit,
     worktrees: List<GatewayWorktree>?,
+    removingWorktreeIds: Set<String>,
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -226,14 +233,13 @@ private fun SessionListLazyColumn(
             }
             items(groupSessions, key = { it.id }) { session ->
                 Box(Modifier.animateItem()) {
+                    val worktree = session.cwd?.let { worktreesByPath[cwdKey(it)] }
                     SessionCard(
                         session = session,
                         isLive = session.id in liveSessionIds,
-                        worktree = session.cwd?.let { worktreesByPath[cwdKey(it)] },
-                        onRemoveWorktree =
-                            session.cwd?.let { worktreesByPath[cwdKey(it)] }?.let { worktree ->
-                                { onRemoveWorktree(session.id, worktree.id) }
-                            },
+                        worktree = worktree,
+                        removing = worktree?.id in removingWorktreeIds,
+                        onRemoveWorktree = worktree?.let { { onRemoveWorktree(session.id, it.id) } },
                         onDisconnect =
                             if (session.id in liveSessionIds || session.gatewaySessionId != null) {
                                 { onCloseSession(session.id) }
@@ -346,6 +352,7 @@ private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
     worktree: GatewayWorktree?,
+    removing: Boolean,
     onRemoveWorktree: (() -> Unit)?,
     onDisconnect: (() -> Unit)?,
     onDelete: (() -> Unit)?,
@@ -356,7 +363,7 @@ private fun SessionCard(
 ) {
     val haptics = LocalHapticFeedback.current
     var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
-    val hasMenuActions = onDisconnect != null || onDelete != null || onRemoveWorktree != null
+    val hasMenuActions = !removing && (onDisconnect != null || onDelete != null || onRemoveWorktree != null)
     // Right-click is the mouse equivalent of a long press: same menu, same gate.
     val openActionsMenu = {
         if (hasMenuActions) {
@@ -402,9 +409,11 @@ private fun SessionCard(
                     boundsModifier
                         .fillMaxWidth()
                         .clip(CardDefaults.shape)
+                        .alpha(if (removing) REMOVING_CARD_ALPHA else 1f)
                         .handCursor()
                         .onSecondaryClick(onClick = openActionsMenu)
                         .combinedClickable(
+                            enabled = !removing,
                             onClick = onClick,
                             onLongClick = openActionsMenu,
                         ),
@@ -427,6 +436,9 @@ private fun SessionCard(
                         animatedContentScope = animatedContentScope,
                         sharedBoundsEnabled = sharedBoundsEnabled,
                     )
+                    if (removing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    }
                 }
             }
         }
