@@ -190,10 +190,16 @@ internal fun SessionListEventEffects(
         }
     }
 
+    // The switch only means something while the sheet is open; left on, it would silently
+    // reroute every later New chat tap through the sheet.
+    LaunchedEffect(state.showCwdDialog.value) {
+        if (!state.showCwdDialog.value) state.createWorktreeEnabled.value = false
+    }
+
     LaunchedEffect(openCreateSessionDialogOnLaunch) {
         if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate.value) {
             hasConsumedLaunchCreate.value = true
-            if (state.currentCwd.isNullOrBlank() || state.createWorktreeEnabled.value) {
+            if (state.currentCwd.isNullOrBlank()) {
                 state.cwdDialogValue.value = state.currentCwd.orEmpty()
                 viewModel.setPendingCreateAfterCwd()
                 state.showCwdDialog.value = true

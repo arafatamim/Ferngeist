@@ -191,9 +191,7 @@ fun SessionListScreen(
         onCloseSession = viewModel::closeSession,
         onDeleteSession = viewModel::deleteSession,
         createSession = {
-            // The worktree switch lives in the cwd dialog, so while it is on a new chat has
-            // to go through it — otherwise the switch would silently not apply.
-            if (currentCwd.isNullOrBlank() || state.createWorktreeEnabled.value) {
+            if (currentCwd.isNullOrBlank()) {
                 state.cwdDialogValue.value = currentCwd.orEmpty()
                 viewModel.setPendingCreateAfterCwd()
                 state.showCwdDialog.value = true
