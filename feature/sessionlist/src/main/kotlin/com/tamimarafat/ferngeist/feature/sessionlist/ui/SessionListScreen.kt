@@ -37,6 +37,7 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.isSameCwd
+import com.tamimarafat.ferngeist.feature.sessionlist.worktree.newWorktreeBranchName
 import kotlinx.coroutines.delay
 
 /**
@@ -112,7 +113,11 @@ fun SessionListScreen(
                 base = state.worktreeBase.value,
                 error = state.worktreeError,
                 creating = state.creatingWorktree,
-                onEnabledChange = { state.createWorktreeEnabled.value = it },
+                onEnabledChange = { enabled ->
+                    state.createWorktreeEnabled.value = enabled
+                    // Fresh each time: a name kept from an earlier create would hit "already exists".
+                    if (enabled) state.worktreeBranch.value = newWorktreeBranchName()
+                },
                 onBranchChange = {
                     state.worktreeBranch.value = it
                     viewModel.clearWorktreeError()
