@@ -14,7 +14,8 @@ data class CwdSuggestion(
  *
  * Candidates are the union of recent CWDs (MRU order preserved) and CWDs
  * observed on existing sessions (ordered by most recent [SessionSummary.updatedAt],
- * ties broken alphabetically). Recents win on duplicates. An empty or blank
+ * ties broken alphabetically). Recents win on duplicates. A chat in a gateway worktree
+ * contributes its repo, not the throwaway `.worktrees/` path. An empty or blank
  * query returns every candidate; otherwise a case-insensitive substring match
  * anywhere in the path is applied.
  */
@@ -32,7 +33,8 @@ fun buildCwdSuggestions(
 
     val lastUsedByCwd = mutableMapOf<String, Long>()
     for (session in sessions) {
-        val cwd = session.cwd?.trim().orEmpty()
+        val sessionCwd = session.cwd?.trim().orEmpty()
+        val cwd = worktreeRepoOf(sessionCwd) ?: sessionCwd
         if (cwd.isEmpty()) continue
         val updatedAt = session.updatedAt ?: Long.MIN_VALUE
         val current = lastUsedByCwd[cwd]
