@@ -135,6 +135,19 @@ class GatewayWorktreeTest {
         }
 
     @Test
+    fun `listWorktrees narrows to a repo only when one is given`() =
+        runTest {
+            val captured = mutableListOf<HttpRequestData>()
+            val repo = repoCapturing(responseBody = "[]") { captured += it }
+
+            repo.listWorktrees("http", "10.0.0.2:5788", "plain-token", repo = "/r")
+            repo.listWorktrees("http", "10.0.0.2:5788", "plain-token")
+
+            assertEquals("/r", captured[0].url.parameters["repo"])
+            assertEquals(null, captured[1].url.parameters["repo"])
+        }
+
+    @Test
     fun `listUnmanagedWorktrees sends the repo and decodes a detached entry`() =
         runTest {
             var captured: HttpRequestData? = null

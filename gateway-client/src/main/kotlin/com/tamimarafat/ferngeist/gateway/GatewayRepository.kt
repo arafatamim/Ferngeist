@@ -273,16 +273,32 @@ interface GatewayWorktreeRepository {
     ): GatewayWorktree
 
     /**
-     * Lists this gateway's managed worktrees, with `ahead`/`dirty` when git could compute them.
+     * Lists every git worktree of the repos the gateway knows, whoever made it, with
+     * `ahead`/`dirty` when git could compute them; [repo] narrows it to one repo, known or not,
+     * which the gateway then remembers.
      *
      * Throws [GatewayRequestException] with a 404 status on gateways that predate the worktree
-     * API; callers use that to hide the worktree UI.
+     * API (callers use that to hide the worktree UI), 400 for a relative [repo] and 422 when
+     * [repo] is not a git repository.
      */
     suspend fun listWorktrees(
         scheme: String,
         host: String,
         gatewayCredential: String,
+        repo: String? = null,
     ): List<GatewayWorktree>
+
+    /**
+     * The absolute [paths] that no longer exist on the gateway's disk (`POST /v1/paths/missing`);
+     * a path the gateway cannot check counts as present. Throws [GatewayRequestException] with 404
+     * on a gateway that predates the route and 400 when a path is not absolute.
+     */
+    suspend fun findMissingPaths(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        paths: List<String>,
+    ): List<String>
 
     /**
      * Lists git worktrees of [repo] that the gateway does not manage. Throws

@@ -315,6 +315,18 @@ data class GatewayCreateWorktreeRequest(
     val branch: String? = null,
 )
 
+/** Body of `POST /v1/paths/missing`. */
+@Serializable
+data class GatewayPathsRequest(
+    val paths: List<String>,
+)
+
+/** `POST /v1/paths/missing`: the requested paths that are gone from disk. */
+@Serializable
+data class GatewayMissingPaths(
+    val missing: List<String> = emptyList(),
+)
+
 /** Body of `POST /v1/worktrees/adopt`; [repo] is inferred from the worktree's git metadata when null. */
 @Serializable
 data class GatewayAdoptWorktreeRequest(

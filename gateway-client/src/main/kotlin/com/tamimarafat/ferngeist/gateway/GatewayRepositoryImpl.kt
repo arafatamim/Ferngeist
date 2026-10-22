@@ -187,6 +187,7 @@ class GatewayRepositoryImpl
             scheme: String,
             host: String,
             gatewayCredential: String,
+            repo: String?,
         ): List<GatewayWorktree> =
             http.getJson(
                 scheme = scheme,
@@ -194,7 +195,25 @@ class GatewayRepositoryImpl
                 credential = gatewayCredential,
                 "v1",
                 "worktrees",
+                query = repo?.let { mapOf("repo" to it) }.orEmpty(),
             )
+
+        override suspend fun findMissingPaths(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            paths: List<String>,
+        ): List<String> =
+            http
+                .postJson<GatewayMissingPaths>(
+                    scheme = scheme,
+                    host = host,
+                    credential = gatewayCredential,
+                    "v1",
+                    "paths",
+                    "missing",
+                    body = requestBodyJson.encodeToString(GatewayPathsRequest(paths)),
+                ).missing
 
         override suspend fun listUnmanagedWorktrees(
             scheme: String,

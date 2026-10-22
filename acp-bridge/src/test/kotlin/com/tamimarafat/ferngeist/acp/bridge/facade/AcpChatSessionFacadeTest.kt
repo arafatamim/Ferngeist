@@ -161,7 +161,15 @@ class AcpChatSessionFacadeTest {
             scheme: String,
             host: String,
             gatewayCredential: String,
+            repo: String?,
         ) = TODO("unused in facade tests")
+
+        override suspend fun findMissingPaths(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            paths: List<String>,
+        ): List<String> = TODO("unused in facade tests")
 
         override suspend fun listUnmanagedWorktrees(
             scheme: String,

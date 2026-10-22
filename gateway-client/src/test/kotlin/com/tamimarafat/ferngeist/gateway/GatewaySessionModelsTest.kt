@@ -50,7 +50,15 @@ class GatewaySessionModelsTest {
                     scheme: String,
                     host: String,
                     gatewayCredential: String,
+                    repo: String?,
                 ) = TODO()
+
+                override suspend fun findMissingPaths(
+                    scheme: String,
+                    host: String,
+                    gatewayCredential: String,
+                    paths: List<String>,
+                ): List<String> = TODO()
 
                 override suspend fun listUnmanagedWorktrees(
                     scheme: String,
