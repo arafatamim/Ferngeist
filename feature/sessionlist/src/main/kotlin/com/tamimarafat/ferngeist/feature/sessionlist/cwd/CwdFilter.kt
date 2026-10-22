@@ -1,7 +1,6 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.normalizeCwd
 
 /**
@@ -51,7 +50,7 @@ internal fun worktreeRepoOf(cwd: String): String? {
 
 /**
  * Ids of the chats that run in the worktree at [path]: [sessionId] plus every chat whose cwd is
- * that directory. A null [path] (the worktree is no longer listed) narrows it to [sessionId].
+ * that directory or below it. A null [path] (the worktree is no longer listed) narrows it to [sessionId].
  */
 internal fun chatsInWorktree(
     sessions: List<SessionSummary>,
@@ -60,5 +59,5 @@ internal fun chatsInWorktree(
 ): List<String> =
     sessions
         .filter { session ->
-            session.id == sessionId || (path != null && session.cwd?.let { isSameCwd(it, path) } == true)
+            session.id == sessionId || (path != null && session.cwd?.let { isInside(it, path) } == true)
         }.map { it.id }
