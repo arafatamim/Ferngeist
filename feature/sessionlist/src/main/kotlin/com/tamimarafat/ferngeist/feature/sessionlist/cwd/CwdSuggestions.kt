@@ -14,8 +14,8 @@ data class CwdSuggestion(
  *
  * Candidates are the union of recent CWDs (MRU order preserved) and CWDs
  * observed on existing sessions (ordered by most recent [SessionSummary.updatedAt],
- * ties broken alphabetically). Recents win on duplicates. A chat in a gateway worktree
- * contributes its repo, not the throwaway `.worktrees/` path. An empty or blank
+ * ties broken alphabetically). Recents win on duplicates. A worktree, recent or a chat's,
+ * contributes its repo ([rootOf]), not its own throwaway path. An empty or blank
  * query returns every candidate; otherwise a case-insensitive substring match
  * anywhere in the path is applied.
  */
@@ -23,19 +23,23 @@ fun buildCwdSuggestions(
     query: String,
     recentCwds: List<String>,
     sessions: List<SessionSummary>,
+    rootOf: (String) -> String = { worktreeRepoOf(it) ?: it },
 ): List<CwdSuggestion> {
     val candidates = LinkedHashMap<String, CwdSuggestion>()
     recentCwds.forEach { cwd ->
         if (cwd.isNotBlank()) {
-            candidates.putIfAbsent(cwd, CwdSuggestion(cwd, CwdSuggestionSource.RECENT))
+            val root = rootOf(cwd)
+            // A folded worktree is not the stored entry, so it must not offer to remove one.
+            val source = if (root == cwd) CwdSuggestionSource.RECENT else CwdSuggestionSource.SESSION
+            candidates.putIfAbsent(root, CwdSuggestion(root, source))
         }
     }
 
     val lastUsedByCwd = mutableMapOf<String, Long>()
     for (session in sessions) {
         val sessionCwd = session.cwd?.trim().orEmpty()
-        val cwd = worktreeRepoOf(sessionCwd) ?: sessionCwd
-        if (cwd.isEmpty()) continue
+        if (sessionCwd.isEmpty()) continue
+        val cwd = rootOf(sessionCwd)
         val updatedAt = session.updatedAt ?: Long.MIN_VALUE
         val current = lastUsedByCwd[cwd]
         if (current == null || updatedAt > current) {

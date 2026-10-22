@@ -10,12 +10,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
+import androidx.compose.material3.FloatingToolbarDefaults.floatingToolbarVerticalNestedScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -23,21 +20,20 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.lerp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
-import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.isSameCwd
-import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
-import com.tamimarafat.ferngeist.feature.sessionlist.worktree.newWorktreeBranchName
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.projectRoot
 import kotlinx.coroutines.delay
 
 /**
@@ -102,60 +98,41 @@ fun SessionListScreen(
         onNavigateToChat = onNavigateToChat,
     )
 
-    val worktreeForm =
-        // Null hides the whole worktree UI: an older gateway (404) has no worktree API, and a
-        // gateway reporting none is still "supported" because the empty list is a real answer.
-        if (state.worktrees == null) {
-            null
-        } else {
-            CwdWorktreeState(
-                enabled = state.createWorktreeEnabled.value,
-                branch = state.worktreeBranch.value,
-                base = state.worktreeBase.value,
-                error = state.worktreeError,
-                creating = state.creatingWorktree,
-                onEnabledChange = { enabled ->
-                    state.createWorktreeEnabled.value = enabled
-                    // Fresh each time: a name kept from an earlier create would hit "already exists".
-                    if (enabled) state.worktreeBranch.value = newWorktreeBranchName()
-                },
-                onBranchChange = {
-                    state.worktreeBranch.value = it
-                    viewModel.clearWorktreeError()
-                },
-                onBaseChange = {
-                    state.worktreeBase.value = it
-                    viewModel.clearWorktreeError()
-                },
-                existing =
-                    state.cwdDialogValue.value
-                        .takeIf { it.isNotBlank() }
-                        ?.let { repo -> state.worktrees.filter { isSameCwd(it.repo, repo) } }
-                        .orEmpty(),
-                onOpenExisting = viewModel::createSessionInWorktree,
-            )
-        }
-
     SessionListOverlays(
         showCwdDialog = state.showCwdDialog.value,
         recentCwds = state.recentCwds,
         sessions = state.sessions,
+        cwdRootOf =
+            remember(currentCwd, state.scopeOptions, state.worktrees) {
+                { cwd: String ->
+                    projectRoot(cwd, state.worktrees.orEmpty())
+                }
+            },
         cwdDialogValue = state.cwdDialogValue.value,
         currentCwd = currentCwd,
-        onCwdDialogValueChange = {
-            state.cwdDialogValue.value = it
-            viewModel.clearWorktreeError()
-        },
-        onDismissCwdDialog = {
-            state.showCwdDialog.value = false
-            viewModel.clearWorktreeError()
-        },
+        onCwdDialogValueChange = { state.cwdDialogValue.value = it },
+        onDismissCwdDialog = { state.showCwdDialog.value = false },
         updateCurrentCwd = { viewModel.updateCurrentCwd(it) },
         removeRecentCwd = viewModel::removeRecentCwd,
-        worktree = worktreeForm,
-        onCreateWorktreeSession = { repo, base, branch ->
-            viewModel.createSessionInNewWorktree(repo, base, branch)
+        showWorktreeSheet = state.showWorktreeSheet.value,
+        scopeOptions = state.scopeOptions,
+        initialBase =
+            (state.scope as? WorktreeScope.Worktree)
+                ?.let { picked ->
+                    state.scopeOptions
+                        .firstOrNull { isSameCwd(it.path, picked.path) }
+                        ?.worktree
+                        ?.branch
+                }.orEmpty(),
+        loadRefs = viewModel::repoRefs,
+        worktreeError = state.worktreeError,
+        creatingWorktree = state.creatingWorktree,
+        onWorktreeFormChanged = viewModel::clearWorktreeError,
+        onDismissWorktreeSheet = {
+            state.showWorktreeSheet.value = false
+            viewModel.clearWorktreeError()
         },
+        onCreateWorktreeSession = viewModel::createSessionInNewWorktree,
         pendingWorktreeRemoval = state.pendingWorktreeRemoval.value,
         onDismissWorktreeRemoval = { state.pendingWorktreeRemoval.value = null },
         onConfirmWorktreeRemoval = { pending ->
@@ -183,6 +160,7 @@ fun SessionListScreen(
             state.cwdDialogValue.value = currentCwd.orEmpty()
             state.showCwdDialog.value = true
         },
+        onSelectRepo = viewModel::updateCurrentCwd,
         onShowConnectionStatusDialog = { state.showConnectionStatusDialog.value = true },
         showBackButton = showBackButton,
         sharedBoundsEnabled = sharedBoundsEnabled,
@@ -197,9 +175,14 @@ fun SessionListScreen(
                 viewModel.setPendingCreateAfterCwd()
                 state.showCwdDialog.value = true
             } else {
-                viewModel.createSessionWithCurrentCwd()
+                viewModel.createSessionInScope()
             }
         },
+        createWorktreeSession = {
+            viewModel.clearWorktreeError()
+            state.showWorktreeSheet.value = true
+        },
+        onSelectScope = viewModel::selectScope,
         onRefresh = { viewModel.refreshSessions(isUserInitiated = true) },
         onChatOpened = viewModel::onChatOpened,
         sharedTransitionScope = sharedTransitionScope,
@@ -220,13 +203,16 @@ private fun SessionListScaffold(
     showBackButton: Boolean,
     sharedBoundsEnabled: Boolean,
     onShowCwdDialog: () -> Unit,
+    onSelectRepo: (String) -> Unit,
     onShowConnectionStatusDialog: () -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
-    onRemoveWorktree: (String, String) -> Unit,
+    onRemoveWorktree: (sessionId: String?, worktreeId: String) -> Unit,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     createSession: () -> Unit,
+    createWorktreeSession: () -> Unit,
+    onSelectScope: (WorktreeScope) -> Unit,
     onRefresh: () -> Unit,
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
@@ -265,7 +251,11 @@ private fun SessionListScaffold(
         modifier =
             transitionModifier
                 .sessionListContainer(state, onRefresh)
-                .background(MaterialTheme.colorScheme.surface),
+                .floatingToolbarVerticalNestedScroll(
+                    expanded = state.toolbarExpanded.value,
+                    onExpand = { state.toolbarExpanded.value = true },
+                    onCollapse = { state.toolbarExpanded.value = false },
+                ).background(MaterialTheme.colorScheme.surface),
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -273,9 +263,7 @@ private fun SessionListScaffold(
                 SessionListTopBar(
                     state = state,
                     serverId = serverId,
-                    currentCwd = currentCwd,
                     titleStyle = titleStyle,
-                    onShowCwdDialog = onShowCwdDialog,
                     onShowConnectionStatusDialog = onShowConnectionStatusDialog,
                     showBackButton = showBackButton,
                     sharedBoundsEnabled = sharedBoundsEnabled,
@@ -285,7 +273,20 @@ private fun SessionListScaffold(
                 )
             },
             floatingActionButton = {
-                SessionListFab(onClick = createSession)
+                WorktreeToolbar(
+                    expanded = state.toolbarExpanded.value,
+                    repo = currentCwd,
+                    projects = state.projects,
+                    worktreesEnabled = state.scopeEnabled,
+                    scope = state.scope,
+                    options = state.scopeOptions,
+                    onSelectRepo = onSelectRepo,
+                    onOtherDirectory = onShowCwdDialog,
+                    onSelectScope = onSelectScope,
+                    onNewChat = createSession,
+                    onNewWorktree = createWorktreeSession,
+                    onRemoveWorktree = { onRemoveWorktree(null, it) },
+                )
             },
             snackbarHost = { SnackbarHost(state.snackbarHostState) },
         ) { padding ->
@@ -339,25 +340,6 @@ private fun BoxScope.SessionListRefreshIndicator(state: SessionListState) {
                 Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding(),
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SessionListFab(onClick: () -> Unit) {
-    FloatingActionButton(
-        onClick = onClick,
-        modifier = Modifier.handCursor(),
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription =
-                stringResource(
-                    R.string.sessionlist_new_session_desc,
-                ),
         )
     }
 }

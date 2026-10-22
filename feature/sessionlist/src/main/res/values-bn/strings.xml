@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">ফিরে যান</string>
-    <string name="sessionlist_cwd_tooltip">কাজের ডিরেক্টরি পরিবর্তন করুন</string>
     <string name="sessionlist_cwd_desc">কাজের ডিরেক্টরি পরিবর্তন করুন</string>
     <string name="sessionlist_new_session_desc">নতুন সেশন</string>
     <string name="sessionlist_today">আজ</string>
@@ -39,15 +38,23 @@
     <string name="sessionlist_cwd_save">সংরক্ষণ করুন</string>
 
     <!-- Worktrees -->
-    <string name="sessionlist_worktree_switch">Worktree</string>
-    <string name="sessionlist_worktree_body">এই ডিরেক্টরিটিই রিপো। চ্যাটটি নিজস্ব ব্রাঞ্চসহ নিজের git worktree-তে চলে, তাই সমান্তরাল এজেন্টরা একই চেকআউট এডিট করে না।</string>
+    <string name="sessionlist_new_worktree_chat">worktree-তে নতুন চ্যাট</string>
+    <string name="sessionlist_worktree_sheet_body">চ্যাটটি নিজস্ব git worktree ও ব্রাঞ্চে চলে, তাই সমান্তরাল এজেন্টরা একই চেকআউট এডিট করে না।</string>
+    <string name="sessionlist_worktree_branch_shuffle_desc">নতুন ব্রাঞ্চের নাম তৈরি করুন</string>
+    <string name="sessionlist_worktree_branch_from">যেখান থেকে ব্রাঞ্চ হবে</string>
+    <string name="sessionlist_worktree_base_custom">কাস্টম…</string>
+    <string name="sessionlist_scope_all_directories">সব ডিরেক্টরি</string>
+    <string name="sessionlist_scope_other_directory">অন্য ডিরেক্টরি…</string>
+    <string name="sessionlist_scope_all">সব চ্যাট</string>
+    <string name="sessionlist_scope_main">মূল চেকআউট</string>
+    <string name="sessionlist_scope_new_worktree">নতুন worktree…</string>
+    <string name="sessionlist_new_chat_in">%1$s-এ নতুন চ্যাট</string>
+    <string name="sessionlist_scope_empty">%1$s-এ এখনও কোনো চ্যাট নেই</string>
     <string name="sessionlist_worktree_branch">ব্রাঞ্চ</string>
     <string name="sessionlist_worktree_optional">ঐচ্ছিক</string>
     <string name="sessionlist_worktree_base">বেস</string>
     <string name="sessionlist_worktree_base_hint">রিপোর HEAD</string>
     <string name="sessionlist_worktree_create">worktree তৈরি করুন</string>
-    <string name="sessionlist_worktree_open">worktree খুলুন</string>
-    <string name="sessionlist_worktree_existing">এখানে চালিয়ে যান</string>
     <string name="sessionlist_worktree_dirty">কমিট করা হয়নি</string>
     <string name="sessionlist_action_remove_worktree">worktree সরান</string>
     <string name="sessionlist_worktree_discard_title">কমিট না করা পরিবর্তন বাতিল করবেন?</string>
@@ -80,4 +87,6 @@
     <string name="sessionlist_error_restart">%1$s পুনরায় চালু করা যায়নি।</string>
     <string name="sessionlist_error_reconnect_gateway">%1$s-এর সাথে পুনরায় সংযোগ করা যায়নি</string>
     <string name="sessionlist_error_init_gateway">%1$s আরম্ভ করা যায়নি</string>
+    <string name="sessionlist_missing_folders">মুছে ফেলা ফোল্ডার (%d)</string>
+    <string name="sessionlist_missing_folder_message">এই চ্যাটের ফোল্ডারটি আর নেই, তাই এটি খোলা যাবে না।</string>
 </resources>

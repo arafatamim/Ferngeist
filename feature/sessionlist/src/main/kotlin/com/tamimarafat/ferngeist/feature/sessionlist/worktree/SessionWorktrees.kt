@@ -4,13 +4,16 @@ import android.content.Context
 import androidx.annotation.StringRes
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.isInside
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
+import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
@@ -37,7 +40,7 @@ private const val HTTP_NOT_FOUND = 404
  * forwarding what the endpoints said.
  *
  * @param emitEvent hands a message to the session list's snackbar.
- * @param openChat opens the chat that will run in the created worktree.
+ * @param openChat opens a chat in the worktree at `path`, which belongs to `repo`.
  */
 internal class SessionWorktrees(
     private val context: Context,
@@ -48,7 +51,7 @@ internal class SessionWorktrees(
     private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
     private val recentCwdStore: RecentCwdStore,
     private val emitEvent: suspend (SessionListEvent) -> Unit,
-    private val openChat: (String) -> Unit,
+    private val openChat: (repo: String, path: String) -> Unit,
 ) {
     private fun text(
         @StringRes id: Int,
@@ -57,8 +60,8 @@ internal class SessionWorktrees(
     private val _managed = MutableStateFlow<List<GatewayWorktree>?>(null)
 
     /**
-     * This gateway's managed worktrees, or null when there is nothing to show for it — an
-     * older gateway whose `/v1/worktrees` answers 404, or a non-gateway target. Null hides
+     * This gateway's worktrees, whoever made them, or null when there is nothing to show for it:
+     * an older gateway whose `/v1/worktrees` answers 404, or a non-gateway target. Null hides
      * the worktree UI instead of offering actions that can only fail.
      */
     val managed: StateFlow<List<GatewayWorktree>?> = _managed.asStateFlow()
@@ -77,27 +80,60 @@ internal class SessionWorktrees(
         _error.value = null
     }
 
+    /** `cwdKey`s of [refresh]'s other folders already asked about, so each costs one call. */
+    private val probed = mutableSetOf<String>()
+
     /**
-     * Refreshes the gateway's worktree list.
+     * Refreshes the gateway's worktree list, making sure it covers [repo] (the cwd filter) and
+     * [others] (the folders chats ran in), so a worktree made elsewhere folds into its repo.
      *
      * A 404 is the signal that the gateway predates the worktree API, so the UI goes back to
      * hidden. Any other failure keeps the last successful list: a transient network fault
      * must not make the branch chips of running chats vanish.
      */
-    suspend fun refresh() {
+    suspend fun refresh(
+        repo: String?,
+        others: Collection<String> = emptyList(),
+    ) {
         val gateway =
             gatewaySource() ?: run {
                 _managed.value = null
                 return
             }
-        refreshWith(gateway)
+        refreshWith(gateway, repo, others)
     }
 
-    private suspend fun refreshWith(gateway: GatewaySource) {
+    private suspend fun refreshWith(
+        gateway: GatewaySource,
+        repo: String?,
+        others: Collection<String> = emptyList(),
+    ) {
         try {
             _managed.value =
                 withContext(Dispatchers.IO) {
-                    gatewayRepository.listWorktrees(gateway.scheme, gateway.host, gateway.gatewayCredential)
+                    var all = gatewayRepository.listWorktrees(gateway.scheme, gateway.host, gateway.gatewayCredential)
+                    // The gateway only lists repos it has seen a chat, a worktree or a ?repo= in. Asking
+                    // for an uncovered folder makes its repo known, so later listings carry it; one that
+                    // is no repo (400/422) adds none. The filter is asked each time, in case the gateway
+                    // restarted and forgot it; the other folders only once.
+                    // shortcut: a gateway restart forgets those others until this screen is rebuilt.
+                    val target = repo?.trim()?.takeIf { isAbsolutePath(it) }
+                    val dirs = (listOfNotNull(target) + others.filter(::isAbsolutePath)).distinctBy(::cwdKey)
+                    for (dir in dirs) {
+                        val covered = all.any { isInside(dir, it.repo) || isInside(dir, it.path) }
+                        if (covered || (dir != target && !probed.add(cwdKey(dir)))) continue
+                        val extra =
+                            attempt(emptyList()) {
+                                gatewayRepository.listWorktrees(
+                                    gateway.scheme,
+                                    gateway.host,
+                                    gateway.gatewayCredential,
+                                    dir,
+                                )
+                            }
+                        all = all + extra.filter { found -> all.none { it.id == found.id } }
+                    }
+                    all
                 }
         } catch (error: CancellationException) {
             throw error
@@ -165,8 +201,8 @@ internal class SessionWorktrees(
                         branch = branch,
                     )
                 }
-            refreshWith(gateway)
-            openChat(worktree.path)
+            refreshWith(gateway, normalizedRepo)
+            openChat(worktree.repo, worktree.path)
         } catch (_: GatewayCredentialExpiredException) {
             _error.value = text(R.string.sessionlist_worktree_error_credential)
         } catch (error: GatewayRequestException) {
@@ -193,11 +229,56 @@ internal class SessionWorktrees(
         }
     }
 
+    private val _missingCwds = MutableStateFlow<Set<String>>(emptySet())
+
+    /** [cwdKey]s of chat directories the gateway reports gone from disk, usually deleted worktrees. */
+    val missingCwds: StateFlow<Set<String>> = _missingCwds.asStateFlow()
+
+    /**
+     * Asks the gateway which of [cwds] no longer exist. Derived afresh on every call and never
+     * stored, so a restored folder brings its chats back; any failure, including a gateway that
+     * predates the route, reads as every folder still there.
+     */
+    suspend fun refreshMissing(cwds: Collection<String>) {
+        val gateway = gatewaySource()
+        // The gateway rejects the whole request over one relative path.
+        val paths = cwds.filter(::isAbsolutePath).distinctBy(::cwdKey)
+        _missingCwds.value =
+            if (gateway == null || paths.isEmpty()) {
+                emptySet()
+            } else {
+                attempt(emptyList()) {
+                    gatewayRepository.findMissingPaths(gateway.scheme, gateway.host, gateway.gatewayCredential, paths)
+                }.mapTo(HashSet(), ::cwdKey)
+            }
+    }
+
+    /** [repo]'s refs and default branch, or none when the gateway cannot read them or is too old to ask. */
+    suspend fun repoRefs(repo: String): GatewayGitRefs {
+        val gateway = gatewaySource()
+        if (repo.isBlank() || gateway == null) return GatewayGitRefs()
+        return attempt(GatewayGitRefs()) {
+            gatewayRepository.fetchRepoRefs(gateway.scheme, gateway.host, gateway.gatewayCredential, repo.trim())
+        }
+    }
+
+    private suspend fun <T> attempt(
+        fallback: T,
+        block: suspend () -> T,
+    ): T =
+        try {
+            withContext(Dispatchers.IO) { block() }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            fallback
+        }
+
     /** Opens a new chat in an existing [worktree], recording its repo the way [create] does. */
     suspend fun open(worktree: GatewayWorktree) {
         sessionSettingsRepository.updateCwd(serverId, worktree.repo)
         recentCwdStore.addCwd(serverId, worktree.repo)
-        openChat(worktree.path)
+        openChat(worktree.repo, worktree.path)
     }
 
     /**
@@ -241,7 +322,7 @@ internal class SessionWorktrees(
             removed = false
             emitEvent(SessionListEvent.ShowError(text(R.string.sessionlist_worktree_error_remove)))
         }
-        refresh()
+        refresh(repo = null)
         return removed
     }
 
@@ -253,3 +334,7 @@ internal class SessionWorktrees(
         )
     }
 }
+
+private val WINDOWS_ABSOLUTE = Regex("""^[A-Za-z]:[\\/]""")
+
+internal fun isAbsolutePath(path: String): Boolean = path.startsWith('/') || WINDOWS_ABSOLUTE.containsMatchIn(path)

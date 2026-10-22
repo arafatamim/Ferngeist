@@ -301,30 +301,6 @@ interface GatewayWorktreeRepository {
     ): List<String>
 
     /**
-     * Lists git worktrees of [repo] that the gateway does not manage. Throws
-     * [GatewayRequestException] with 404 on a gateway that predates the route and 422 when
-     * [repo] is not a git repository.
-     */
-    suspend fun listUnmanagedWorktrees(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        repo: String,
-    ): List<GatewayUnmanagedWorktree>
-
-    /**
-     * Brings the existing worktree at [path] under gateway management, so it lists with
-     * `ahead`/`dirty` and base-aware diffs. 409 when it is already managed.
-     */
-    suspend fun adoptWorktree(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        path: String,
-        repo: String? = null,
-    ): GatewayWorktree
-
-    /**
      * A repository's refs and default branch before any chat exists in it (`/v1/worktrees/refs`).
      * Throws [GatewayRequestException] with 404 on a gateway that predates the route.
      */

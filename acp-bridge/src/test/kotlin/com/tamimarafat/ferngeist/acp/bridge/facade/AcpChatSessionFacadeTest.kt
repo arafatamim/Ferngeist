@@ -171,21 +171,6 @@ class AcpChatSessionFacadeTest {
             paths: List<String>,
         ): List<String> = TODO("unused in facade tests")
 
-        override suspend fun listUnmanagedWorktrees(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            repo: String,
-        ) = TODO("unused in facade tests")
-
-        override suspend fun adoptWorktree(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            path: String,
-            repo: String?,
-        ) = TODO("unused in facade tests")
-
         override suspend fun fetchRepoRefs(
             scheme: String,
             host: String,

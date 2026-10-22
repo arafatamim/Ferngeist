@@ -29,16 +29,20 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.displayName
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
 /**
- * Marks a chat as running in a gateway worktree, labelled with its branch plus whatever
- * git could tell us about it. The whole thing is a label, not a control: removing the
- * worktree lives in the card's long-press menu.
+ * Marks a chat as running in a worktree, labelled with its [branch] plus whatever git could
+ * tell us about it when the gateway manages it ([worktree]). The whole thing is a label, not
+ * a control: removing the worktree lives in the card's long-press menu.
  */
 @Composable
-internal fun WorktreeBadge(worktree: GatewayWorktree) {
-    val ahead = worktree.ahead?.takeIf { it > 0 }
+internal fun WorktreeBadge(
+    branch: String,
+    worktree: GatewayWorktree?,
+) {
+    val ahead = worktree?.ahead?.takeIf { it > 0 }
     val dirtyLabel = stringResource(R.string.sessionlist_worktree_dirty)
     Surface(
         modifier = Modifier.padding(top = 4.dp),
@@ -53,7 +57,7 @@ internal fun WorktreeBadge(worktree: GatewayWorktree) {
         ) {
             Icon(Icons.Outlined.AccountTree, contentDescription = null, modifier = Modifier.size(14.dp))
             Text(
-                text = worktree.branch,
+                text = branch,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
@@ -65,7 +69,7 @@ internal fun WorktreeBadge(worktree: GatewayWorktree) {
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            if (worktree.dirty == true) {
+            if (worktree?.dirty == true) {
                 Box(
                     Modifier
                         .size(6.dp)
@@ -87,7 +91,7 @@ internal fun worktreeLabel(worktree: GatewayWorktree): String {
             }
             if (worktree.dirty == true) add(stringResource(R.string.sessionlist_worktree_dirty))
         }
-    return (listOf(worktree.branch) + details).joinToString(" · ")
+    return (listOf(worktree.displayName) + details).joinToString(" · ")
 }
 
 /**

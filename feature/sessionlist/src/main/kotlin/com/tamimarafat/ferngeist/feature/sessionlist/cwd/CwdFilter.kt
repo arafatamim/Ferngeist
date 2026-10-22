@@ -8,7 +8,7 @@ import com.tamimarafat.ferngeist.core.model.normalizeCwd
  * Gateway-managed worktrees live at `<repo>/.worktrees/<branch>`, so this is the join point.
  * Matched on `/`-normalized paths, since a Windows gateway reports `\`-separated ones.
  */
-private const val WORKTREES_SEGMENT = "/.worktrees/"
+internal const val WORKTREES_SEGMENT = "/.worktrees/"
 
 /**
  * Narrows [sessions] to the ones inside [cwdFilter], preserving order.
@@ -55,7 +55,7 @@ internal fun worktreeRepoOf(cwd: String): String? {
  */
 internal fun chatsInWorktree(
     sessions: List<SessionSummary>,
-    sessionId: String,
+    sessionId: String?,
     path: String?,
 ): List<String> =
     sessions

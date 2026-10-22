@@ -1,12 +1,19 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,22 +27,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLocale
@@ -52,7 +64,10 @@ import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.displayName
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -61,6 +76,7 @@ import java.util.Date
 import kotlin.math.max
 
 private const val REMOVING_CARD_ALPHA = 0.5f
+private const val MISSING_HEADER_KEY = "missing-folders"
 
 @OptIn(
     ExperimentalMaterial3ExpressiveApi::class,
@@ -80,29 +96,102 @@ internal fun SessionListContent(
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
 ) {
-    when {
+    val content =
+        when {
+            !state.cacheRead -> ListContent.Unread
+            state.sessions.isEmpty() -> ListContent.Empty
+            else -> ListContent.Sessions
+        }
+    val enter = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val grow = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    val exit = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    AnimatedContent(
+        targetState = content,
+        transitionSpec = {
+            // The first read lands with no motion: the rows were on disk all along.
+            if (initialState == ListContent.Unread) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                (fadeIn(enter) + scaleIn(grow, initialScale = 0.92f)) togetherWith fadeOut(exit)
+            }
+        },
+        label = "SessionListContent",
+    ) { shown ->
+        SessionListContentFor(
+            shown,
+            padding,
+            state,
+            onNavigateToChat,
+            onRemoveWorktree,
+            onCloseSession,
+            onDeleteSession,
+            createSession,
+            onChatOpened,
+            sharedTransitionScope,
+            animatedContentScope,
+            sharedBoundsEnabled,
+        )
+    }
+}
+
+private enum class ListContent { Unread, Empty, Sessions }
+
+@OptIn(
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
+@Composable
+private fun SessionListContentFor(
+    content: ListContent,
+    padding: PaddingValues,
+    state: SessionListState,
+    onNavigateToChat: (String, String, Long?, String?) -> Unit,
+    onRemoveWorktree: (String, String) -> Unit,
+    onCloseSession: (String) -> Unit,
+    onDeleteSession: (String) -> Unit,
+    createSession: () -> Unit,
+    onChatOpened: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+    sharedBoundsEnabled: Boolean,
+) {
+    when (content) {
         // Unknown is a third state, not a flavour of empty. While the cache has
         // not answered there is nothing truthful to draw — a spinner claims a
         // wait the user never feels (the rows are already on disk), and the
         // empty state claims "no sessions" when the list is merely unread. So
         // paint neither: the rows or the empty state arrive on the next frame,
         // and with no spinner there is no flash on the way there.
-        !state.cacheRead -> {
+        ListContent.Unread -> {
             Box(modifier = Modifier.fillMaxSize().padding(padding))
         }
 
-        state.sessions.isEmpty() -> {
+        ListContent.Empty -> {
             SessionListEmptyContent(
                 padding = padding,
                 supportsSessionList = state.supportsSessionList,
+                scopeName =
+                    if (state.scopeEnabled &&
+                        state.scope != WorktreeScope.All
+                    ) {
+                        scopeLabel(state.scope, state.scopeOptions)
+                    } else {
+                        null
+                    },
                 onCreateSession = createSession,
             )
         }
 
-        else -> {
-            val groupedSessions = groupSessionsByDate(state.sessions)
+        ListContent.Sessions -> {
+            // Chats whose folder is gone cannot load; they wait at the bottom instead of mixing in.
+            val (missing, present) =
+                state.sessions.partition { session -> session.cwd?.let(::cwdKey) in state.missingCwds }
+            val snackbarScope = rememberCoroutineScope()
+            val goneMessage = stringResource(R.string.sessionlist_missing_folder_message)
             SessionListLazyColumn(
-                groupedSessions = groupedSessions,
+                groupedSessions = groupSessionsByDate(present),
+                missingSessions = missing,
+                onOpenMissing = { snackbarScope.launch { state.snackbarHostState.showSnackbar(goneMessage) } },
                 sessionCount = state.sessions.size,
                 padding = padding,
                 liveSessionIds = state.liveSessionIds,
@@ -112,6 +201,8 @@ internal fun SessionListContent(
                 onNavigateToChat = onNavigateToChat,
                 onRemoveWorktree = onRemoveWorktree,
                 worktrees = state.worktrees,
+                // A directory is picked, so every card shares its path; the badge says which worktree.
+                showCwd = state.currentCwd.isNullOrBlank(),
                 removingWorktreeIds = state.removingWorktreeIds,
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
@@ -192,6 +283,8 @@ private fun groupSessionsByDate(sessions: List<SessionSummary>): Map<String, Lis
 @Composable
 private fun SessionListLazyColumn(
     groupedSessions: Map<String, List<SessionSummary>>,
+    missingSessions: List<SessionSummary>,
+    onOpenMissing: () -> Unit,
     sessionCount: Int,
     padding: PaddingValues,
     liveSessionIds: Set<String>,
@@ -201,6 +294,7 @@ private fun SessionListLazyColumn(
     onNavigateToChat: (String, String, Long?, String?) -> Unit,
     onRemoveWorktree: (String, String) -> Unit,
     worktrees: List<GatewayWorktree>?,
+    showCwd: Boolean,
     removingWorktreeIds: Set<String>,
     onChatOpened: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
@@ -211,6 +305,49 @@ private fun SessionListLazyColumn(
     // join key — compared the way the cwd filter does, since the agent and the gateway may
     // spell it with different separators or case. Built once per list instead of per row.
     val worktreesByPath = remember(worktrees) { worktrees?.associateBy { cwdKey(it.path) }.orEmpty() }
+    val sessionCard: @Composable (SessionSummary, Boolean) -> Unit = { session, gone ->
+        val key = session.cwd?.let(::cwdKey)
+        // A gone folder is no worktree any more, whatever the listings still say.
+        val worktree = worktreesByPath[key]?.takeUnless { gone }
+        SessionCard(
+            session = session,
+            isLive = session.id in liveSessionIds,
+            worktree = worktree,
+            worktreeBranch = worktree?.displayName,
+            worktreeRepo = worktree?.repo,
+            // The full path is the only clue to what was deleted.
+            showCwd = showCwd || gone,
+            gone = gone,
+            removing = worktree?.id in removingWorktreeIds,
+            onRemoveWorktree = worktree?.let { { onRemoveWorktree(session.id, it.id) } },
+            onDisconnect =
+                if (session.id in liveSessionIds || session.gatewaySessionId != null) {
+                    { onCloseSession(session.id) }
+                } else {
+                    null
+                },
+            onDelete =
+                if (canDeleteSession) {
+                    { onDeleteSession(session.id) }
+                } else {
+                    null
+                },
+            onClick = {
+                if (gone) return@SessionCard onOpenMissing()
+                onChatOpened()
+                onNavigateToChat(
+                    session.id,
+                    session.cwd ?: "",
+                    session.updatedAt,
+                    session.title,
+                )
+            },
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+            sharedBoundsEnabled = sharedBoundsEnabled,
+        )
+    }
+    var missingExpanded by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding =
@@ -232,39 +369,21 @@ private fun SessionListLazyColumn(
                 )
             }
             items(groupSessions, key = { it.id }) { session ->
-                Box(Modifier.animateItem()) {
-                    val worktree = session.cwd?.let { worktreesByPath[cwdKey(it)] }
-                    SessionCard(
-                        session = session,
-                        isLive = session.id in liveSessionIds,
-                        worktree = worktree,
-                        removing = worktree?.id in removingWorktreeIds,
-                        onRemoveWorktree = worktree?.let { { onRemoveWorktree(session.id, it.id) } },
-                        onDisconnect =
-                            if (session.id in liveSessionIds || session.gatewaySessionId != null) {
-                                { onCloseSession(session.id) }
-                            } else {
-                                null
-                            },
-                        onDelete =
-                            if (canDeleteSession) {
-                                { onDeleteSession(session.id) }
-                            } else {
-                                null
-                            },
-                        onClick = {
-                            onChatOpened()
-                            onNavigateToChat(
-                                session.id,
-                                session.cwd ?: "",
-                                session.updatedAt,
-                                session.title,
-                            )
-                        },
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                        sharedBoundsEnabled = sharedBoundsEnabled,
-                    )
+                Box(Modifier.animateItem()) { sessionCard(session, false) }
+            }
+        }
+        if (missingSessions.isNotEmpty()) {
+            item(key = MISSING_HEADER_KEY) {
+                MissingSectionHeader(
+                    count = missingSessions.size,
+                    expanded = missingExpanded,
+                    onToggle = { missingExpanded = !missingExpanded },
+                    modifier = Modifier.animateItem(),
+                )
+            }
+            if (missingExpanded) {
+                items(missingSessions, key = { it.id }) { session ->
+                    Box(Modifier.animateItem()) { sessionCard(session, true) }
                 }
             }
         }
@@ -299,6 +418,9 @@ private fun SessionListLazyColumn(
 private fun RowScope.SessionCardText(
     session: SessionSummary,
     worktree: GatewayWorktree?,
+    worktreeBranch: String?,
+    worktreeRepo: String?,
+    showCwd: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
@@ -328,16 +450,24 @@ private fun RowScope.SessionCardText(
                         Modifier
                     },
             )
-            session.cwd?.let { cwd ->
+            // With a directory picked the badge alone says where; otherwise a worktree chat names its
+            // project rather than the worktree's own path.
+            val place =
+                when {
+                    !showCwd -> null
+                    worktreeBranch != null -> worktreeRepo?.let(::directoryName)
+                    else -> session.cwd
+                }
+            place?.let {
                 Text(
-                    text = cwd,
+                    text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.MiddleEllipsis,
                 )
             }
-            worktree?.let { WorktreeBadge(it) }
+            worktreeBranch?.let { WorktreeBadge(it, worktree) }
         }
     }
 }
@@ -352,6 +482,10 @@ private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
     worktree: GatewayWorktree?,
+    worktreeBranch: String?,
+    worktreeRepo: String?,
+    showCwd: Boolean,
+    gone: Boolean,
     removing: Boolean,
     onRemoveWorktree: (() -> Unit)?,
     onDisconnect: (() -> Unit)?,
@@ -409,7 +543,7 @@ private fun SessionCard(
                     boundsModifier
                         .fillMaxWidth()
                         .clip(CardDefaults.shape)
-                        .alpha(if (removing) REMOVING_CARD_ALPHA else 1f)
+                        .alpha(if (removing || gone) REMOVING_CARD_ALPHA else 1f)
                         .handCursor()
                         .onSecondaryClick(onClick = openActionsMenu)
                         .combinedClickable(
@@ -432,6 +566,9 @@ private fun SessionCard(
                     SessionCardText(
                         session = session,
                         worktree = worktree,
+                        worktreeBranch = worktreeBranch,
+                        worktreeRepo = worktreeRepo,
+                        showCwd = showCwd,
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
                         sharedBoundsEnabled = sharedBoundsEnabled,
@@ -449,6 +586,46 @@ private fun SessionCard(
             onDisconnect = onDisconnect,
             onRemoveWorktree = onRemoveWorktree,
             onDelete = onDelete,
+        )
+    }
+}
+
+/** Toggle for the chats whose folder is gone, collapsed by default so they stay out of the way. */
+@Composable
+private fun MissingSectionHeader(
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+        label = "missingSectionChevron",
+    )
+    Row(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp)
+                .clip(MaterialTheme.shapes.small)
+                .handCursor()
+                .clickable(onClickLabel = null, onClick = onToggle)
+                .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.sessionlist_missing_folders, count),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = Icons.Rounded.ExpandMore,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.rotate(rotation),
         )
     }
 }

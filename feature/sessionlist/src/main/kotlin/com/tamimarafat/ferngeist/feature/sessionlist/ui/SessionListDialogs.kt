@@ -16,19 +16,29 @@ import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.ScopeOption
+import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 
 @Composable
 internal fun SessionListOverlays(
     showCwdDialog: Boolean,
     recentCwds: List<String>,
     sessions: List<SessionSummary>,
+    cwdRootOf: (String) -> String,
     cwdDialogValue: String,
     currentCwd: String?,
     onCwdDialogValueChange: (String) -> Unit,
     onDismissCwdDialog: () -> Unit,
     updateCurrentCwd: (String) -> Unit,
     removeRecentCwd: (String) -> Unit,
-    worktree: CwdWorktreeState?,
+    showWorktreeSheet: Boolean,
+    scopeOptions: List<ScopeOption>,
+    initialBase: String,
+    loadRefs: suspend (String) -> GatewayGitRefs,
+    worktreeError: String?,
+    creatingWorktree: Boolean,
+    onWorktreeFormChanged: () -> Unit,
+    onDismissWorktreeSheet: () -> Unit,
     onCreateWorktreeSession: (repo: String, base: String?, branch: String?) -> Unit,
     pendingWorktreeRemoval: SessionListEvent.ConfirmRemoveWorktree?,
     onDismissWorktreeRemoval: () -> Unit,
@@ -49,14 +59,27 @@ internal fun SessionListOverlays(
         SessionCwdDialog(
             recentCwds = recentCwds,
             sessions = sessions,
+            rootOf = cwdRootOf,
             cwdDialogValue = cwdDialogValue,
             currentCwd = currentCwd,
             onCwdDialogValueChange = onCwdDialogValueChange,
             onDismiss = onDismissCwdDialog,
             updateCurrentCwd = updateCurrentCwd,
             removeRecentCwd = removeRecentCwd,
-            worktree = worktree,
-            onCreateWorktreeSession = onCreateWorktreeSession,
+        )
+    }
+
+    if (showWorktreeSheet) {
+        NewWorktreeSheet(
+            repo = currentCwd.orEmpty(),
+            branches = scopeOptions.map { it.worktree.branch },
+            initialBase = initialBase,
+            error = worktreeError,
+            creating = creatingWorktree,
+            onFormChanged = onWorktreeFormChanged,
+            onCreate = onCreateWorktreeSession,
+            loadRefs = loadRefs,
+            onDismiss = onDismissWorktreeSheet,
         )
     }
 
@@ -93,14 +116,13 @@ internal fun SessionListOverlays(
 private fun SessionCwdDialog(
     recentCwds: List<String>,
     sessions: List<SessionSummary>,
+    rootOf: (String) -> String,
     cwdDialogValue: String,
     currentCwd: String?,
     onCwdDialogValueChange: (String) -> Unit,
     onDismiss: () -> Unit,
     updateCurrentCwd: (String) -> Unit,
     removeRecentCwd: (String) -> Unit,
-    worktree: CwdWorktreeState?,
-    onCreateWorktreeSession: (repo: String, base: String?, branch: String?) -> Unit,
 ) {
     CwdDialog(
         recentCwds = recentCwds,
@@ -108,21 +130,8 @@ private fun SessionCwdDialog(
         cwdDialogValue = cwdDialogValue,
         onCwdDialogValueChange = onCwdDialogValueChange,
         onSave = {
-            val match = worktree?.match
-            if (worktree?.enabled == true && match != null) {
-                worktree.onOpenExisting(match)
-            } else if (worktree?.enabled == true) {
-                // The field is the repo now, and the worktree path — not the repo — is what
-                // the new chat opens with.
-                onCreateWorktreeSession(
-                    cwdDialogValue,
-                    worktree.base.ifBlank { null },
-                    worktree.branch.ifBlank { null },
-                )
-            } else {
-                onDismiss()
-                updateCurrentCwd(cwdDialogValue)
-            }
+            onDismiss()
+            updateCurrentCwd(cwdDialogValue)
         },
         onClear =
             if (currentCwd != null) {
@@ -135,7 +144,7 @@ private fun SessionCwdDialog(
             },
         onDismiss = onDismiss,
         onRemoveRecentCwd = removeRecentCwd,
-        worktree = worktree,
+        rootOf = rootOf,
     )
 }
 

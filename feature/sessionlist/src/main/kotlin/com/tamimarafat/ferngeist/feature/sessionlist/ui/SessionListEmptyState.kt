@@ -23,6 +23,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.R
 internal fun SessionListEmptyContent(
     padding: PaddingValues,
     supportsSessionList: Boolean,
+    scopeName: String?,
     onCreateSession: () -> Unit,
 ) {
     EmptySessionList(
@@ -31,6 +32,7 @@ internal fun SessionListEmptyContent(
                 .fillMaxSize()
                 .padding(padding),
         supportsSessionList = supportsSessionList,
+        scopeName = scopeName,
         onCreateSession = onCreateSession,
     )
 }
@@ -44,6 +46,7 @@ internal fun SessionListEmptyContent(
 private fun EmptySessionList(
     modifier: Modifier = Modifier,
     supportsSessionList: Boolean,
+    scopeName: String? = null,
     onCreateSession: () -> Unit,
 ) {
     Box(
@@ -51,7 +54,12 @@ private fun EmptySessionList(
         contentAlignment = Alignment.Center,
     ) {
         ErrorStateCard(
-            headline = stringResource(R.string.sessionlist_empty_title),
+            headline =
+                if (scopeName != null) {
+                    stringResource(R.string.sessionlist_scope_empty, scopeName)
+                } else {
+                    stringResource(R.string.sessionlist_empty_title)
+                },
             body =
                 if (supportsSessionList) {
                     stringResource(

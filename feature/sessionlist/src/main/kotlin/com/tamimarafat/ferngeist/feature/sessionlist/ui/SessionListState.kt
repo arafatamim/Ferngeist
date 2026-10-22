@@ -1,7 +1,6 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.SnackbarHostState
@@ -27,6 +26,9 @@ import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.ScopeOption
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.worktreeScopeOptions
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
 internal class SessionListState(
@@ -40,6 +42,8 @@ internal class SessionListState(
     val pendingAuthentication: SessionListPendingAuthentication?,
     val snackbarHostState: SnackbarHostState,
     val recentCwds: List<String>,
+    /** Every project the directory menu offers. */
+    val projects: List<String>,
     val showCwdDialog: MutableState<Boolean>,
     val cwdDialogValue: MutableState<String>,
     val showConnectionStatusDialog: MutableState<Boolean>,
@@ -51,15 +55,21 @@ internal class SessionListState(
     /** True when the agent advertised `sessionCapabilities.delete` — gates the menu's Delete item. */
     val supportsSessionDelete: Boolean,
     val serverName: String,
-    val cwdAlpha: Float,
     val scrollBehavior: TopAppBarScrollBehavior,
     val hasConsumedLaunchCreate: MutableState<Boolean>,
     /** Managed worktrees, or null when this gateway has none to show (older gateway). */
     val worktrees: List<GatewayWorktree>?,
     val removingWorktreeIds: Set<String>,
-    val createWorktreeEnabled: MutableState<Boolean>,
-    val worktreeBranch: MutableState<String>,
-    val worktreeBase: MutableState<String>,
+    /** `cwdKey`s of chat folders gone from disk; their chats sit in a collapsed section. */
+    val missingCwds: Set<String>,
+    val showWorktreeSheet: MutableState<Boolean>,
+    /** Which part of the filtered repo the list shows; New chat starts there. */
+    val scope: WorktreeScope,
+    /** The filtered repo's worktrees the scope menu offers, managed and not. */
+    val scopeOptions: List<ScopeOption>,
+    /** True when the filter names a repo on a gateway with worktrees: New chat becomes a toolbar. */
+    val scopeEnabled: Boolean,
+    val toolbarExpanded: MutableState<Boolean>,
     val creatingWorktree: Boolean,
     val worktreeError: String?,
     /** Set when the gateway refused a removal over uncommitted changes. */
@@ -91,10 +101,15 @@ internal fun rememberSessionListState(
         )
     val supportsSessionList = agentCapabilities?.sessionCapabilities?.list != null
     val supportsSessionDelete = agentCapabilities?.sessionCapabilities?.delete != null
-    val cwdAlpha by animateFloatAsState(
-        targetValue = if (!currentCwd.isNullOrBlank()) 1f else 0f,
-        label = "cwdAlpha",
-    )
+    val worktrees = viewModel.worktrees.collectAsState().value
+    val scope = viewModel.scope.collectAsState().value
+    val scopeOptions =
+        remember(currentCwd, worktrees, sessionRows.inRepo) {
+            currentCwd
+                ?.takeIf { it.isNotBlank() }
+                ?.let { worktreeScopeOptions(it, worktrees.orEmpty(), sessionRows.inRepo) }
+                .orEmpty()
+        }
     return SessionListState(
         sessions = sessionRows.rows,
         liveSessionIds = viewModel.liveSessionIds.collectAsState().value,
@@ -105,6 +120,7 @@ internal fun rememberSessionListState(
         pendingAuthentication = pendingAuthentication,
         snackbarHostState = remember { SnackbarHostState() },
         recentCwds = viewModel.recentCwds.collectAsState().value,
+        projects = viewModel.projects.collectAsState().value,
         showCwdDialog = remember { mutableStateOf(false) },
         cwdDialogValue = remember(currentCwd) { mutableStateOf(currentCwd.orEmpty()) },
         showConnectionStatusDialog = remember { mutableStateOf(false) },
@@ -128,16 +144,16 @@ internal fun rememberSessionListState(
         supportsSessionList = supportsSessionList,
         supportsSessionDelete = supportsSessionDelete,
         serverName = serverName,
-        cwdAlpha = cwdAlpha,
         scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
         hasConsumedLaunchCreate = rememberSaveable { mutableStateOf(false) },
-        worktrees = viewModel.worktrees.collectAsState().value,
+        worktrees = worktrees,
         removingWorktreeIds = viewModel.removingWorktreeIds.collectAsState().value,
-        // The worktree form lives with the dialog, not the view model: a half-typed branch
-        // is view state that dies with the sheet, like the cwd field above.
-        createWorktreeEnabled = remember { mutableStateOf(false) },
-        worktreeBranch = remember { mutableStateOf("") },
-        worktreeBase = remember { mutableStateOf("") },
+        missingCwds = viewModel.missingCwds.collectAsState().value,
+        showWorktreeSheet = rememberSaveable { mutableStateOf(false) },
+        scope = scope,
+        scopeOptions = scopeOptions,
+        scopeEnabled = worktrees != null && !currentCwd.isNullOrBlank(),
+        toolbarExpanded = rememberSaveable { mutableStateOf(true) },
         creatingWorktree = viewModel.creatingWorktree.collectAsState().value,
         worktreeError = viewModel.worktreeError.collectAsState().value,
         pendingWorktreeRemoval = remember { mutableStateOf(null) },
@@ -175,8 +191,9 @@ internal fun SessionListEventEffects(
         viewModel.events.collect { event ->
             when (event) {
                 is SessionListEvent.NavigateToChat -> {
-                    // A worktree create leaves the cwd sheet open until its chat is ready.
+                    // A worktree create leaves its sheet open until its chat is ready.
                     state.showCwdDialog.value = false
+                    state.showWorktreeSheet.value = false
                     onNavigateToChat(
                         event.sessionId,
                         event.cwd,
@@ -190,12 +207,6 @@ internal fun SessionListEventEffects(
                 is SessionListEvent.ConfirmRemoveWorktree -> state.pendingWorktreeRemoval.value = event
             }
         }
-    }
-
-    // The switch only means something while the sheet is open; left on, it would silently
-    // reroute every later New chat tap through the sheet.
-    LaunchedEffect(state.showCwdDialog.value) {
-        if (!state.showCwdDialog.value) state.createWorktreeEnabled.value = false
     }
 
     LaunchedEffect(openCreateSessionDialogOnLaunch) {

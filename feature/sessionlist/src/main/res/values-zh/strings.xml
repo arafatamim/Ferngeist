@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">返回</string>
-    <string name="sessionlist_cwd_tooltip">更改工作目录</string>
     <string name="sessionlist_cwd_desc">更改工作目录</string>
     <string name="sessionlist_new_session_desc">新会话</string>
     <string name="sessionlist_today">今天</string>
@@ -39,15 +38,23 @@
     <string name="sessionlist_cwd_save">保存</string>
 
     <!-- Worktrees -->
-    <string name="sessionlist_worktree_switch">Worktree</string>
-    <string name="sessionlist_worktree_body">此目录即仓库。聊天会在拥有独立分支的 git worktree 中运行，因此并行的代理不会编辑同一个检出。</string>
+    <string name="sessionlist_new_worktree_chat">在 worktree 中新建聊天</string>
+    <string name="sessionlist_worktree_sheet_body">聊天会在独立的 git worktree 和分支中运行，因此并行的代理不会编辑同一个检出。</string>
+    <string name="sessionlist_worktree_branch_shuffle_desc">生成新的分支名</string>
+    <string name="sessionlist_worktree_branch_from">分支基于</string>
+    <string name="sessionlist_worktree_base_custom">自定义…</string>
+    <string name="sessionlist_scope_all_directories">所有目录</string>
+    <string name="sessionlist_scope_other_directory">其他目录…</string>
+    <string name="sessionlist_scope_all">所有聊天</string>
+    <string name="sessionlist_scope_main">主检出</string>
+    <string name="sessionlist_scope_new_worktree">新建 worktree…</string>
+    <string name="sessionlist_new_chat_in">在 %1$s 中新建聊天</string>
+    <string name="sessionlist_scope_empty">%1$s 中还没有聊天</string>
     <string name="sessionlist_worktree_branch">分支</string>
     <string name="sessionlist_worktree_optional">可选</string>
     <string name="sessionlist_worktree_base">基准</string>
     <string name="sessionlist_worktree_base_hint">仓库 HEAD</string>
     <string name="sessionlist_worktree_create">创建 worktree</string>
-    <string name="sessionlist_worktree_open">打开 worktree</string>
-    <string name="sessionlist_worktree_existing">继续于</string>
     <string name="sessionlist_worktree_dirty">未提交</string>
     <string name="sessionlist_action_remove_worktree">移除 worktree</string>
     <string name="sessionlist_worktree_discard_title">丢弃未提交的更改？</string>
@@ -80,4 +87,6 @@
     <string name="sessionlist_error_restart">重启 %1$s 失败。</string>
     <string name="sessionlist_error_reconnect_gateway">重新连接 %1$s 失败</string>
     <string name="sessionlist_error_init_gateway">初始化 %1$s 失败</string>
+    <string name="sessionlist_missing_folders">已删除的文件夹（%d）</string>
+    <string name="sessionlist_missing_folder_message">此聊天的文件夹已不存在，因此无法打开。</string>
 </resources>

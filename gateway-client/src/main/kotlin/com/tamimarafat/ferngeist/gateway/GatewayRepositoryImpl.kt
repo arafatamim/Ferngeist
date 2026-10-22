@@ -215,42 +215,6 @@ class GatewayRepositoryImpl
                     body = requestBodyJson.encodeToString(GatewayPathsRequest(paths)),
                 ).missing
 
-        override suspend fun listUnmanagedWorktrees(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            repo: String,
-        ): List<GatewayUnmanagedWorktree> =
-            http.getJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                "v1",
-                "worktrees",
-                "unmanaged",
-                query = mapOf("repo" to repo),
-            )
-
-        override suspend fun adoptWorktree(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            path: String,
-            repo: String?,
-        ): GatewayWorktree =
-            http.postJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                "v1",
-                "worktrees",
-                "adopt",
-                body =
-                    requestBodyJson.encodeToString(
-                        GatewayAdoptWorktreeRequest(path = path, repo = repo?.trim()?.ifBlank { null }),
-                    ),
-            )
-
         override suspend fun fetchRepoRefs(
             scheme: String,
             host: String,

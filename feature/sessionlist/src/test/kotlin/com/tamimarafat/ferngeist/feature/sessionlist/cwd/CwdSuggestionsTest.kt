@@ -29,6 +29,26 @@ class CwdSuggestionsTest {
         assertEquals(listOf("/work/api", "/work/app"), suggestions.map { it.cwd })
     }
 
+    @Test
+    fun worktreeOutsideTheRepo_foldsIntoItsRepoAndIsNotRemovable() {
+        val rootOf = { cwd: String -> if (cwd.startsWith("/orca/api/")) "/work/api" else cwd }
+        val suggestions =
+            buildCwdSuggestions(
+                "",
+                recentCwds = listOf("/orca/api/feat-y", "/work/app"),
+                sessions = listOf(session("/orca/api/feat-z", updatedAt = 1)),
+                rootOf = rootOf,
+            )
+
+        assertEquals(
+            listOf(
+                CwdSuggestion("/work/api", CwdSuggestionSource.SESSION),
+                CwdSuggestion("/work/app", CwdSuggestionSource.RECENT),
+            ),
+            suggestions,
+        )
+    }
+
     private fun session(
         cwd: String,
         updatedAt: Long,

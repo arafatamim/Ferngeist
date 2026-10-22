@@ -60,21 +60,6 @@ class GatewaySessionModelsTest {
                     paths: List<String>,
                 ): List<String> = TODO()
 
-                override suspend fun listUnmanagedWorktrees(
-                    scheme: String,
-                    host: String,
-                    gatewayCredential: String,
-                    repo: String,
-                ) = TODO()
-
-                override suspend fun adoptWorktree(
-                    scheme: String,
-                    host: String,
-                    gatewayCredential: String,
-                    path: String,
-                    repo: String?,
-                ) = TODO()
-
                 override suspend fun fetchRepoRefs(
                     scheme: String,
                     host: String,

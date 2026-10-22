@@ -148,60 +148,6 @@ class GatewayWorktreeTest {
         }
 
     @Test
-    fun `listUnmanagedWorktrees sends the repo and decodes a detached entry`() =
-        runTest {
-            var captured: HttpRequestData? = null
-            val repo =
-                repoCapturing(
-                    responseBody =
-                        """
-                        [
-                            {"path": "/r/.worktrees/a", "branch": "feat-x", "head": "abc123", "detached": false},
-                            {"path": "/r/.worktrees/b", "head": "def456", "detached": true}
-                        ]
-                        """.trimIndent(),
-                ) { captured = it }
-
-            val found = repo.listUnmanagedWorktrees("http", "10.0.0.2:5788", "plain-token", "/r")
-
-            val request = requireNotNull(captured)
-            assertEquals(HttpMethod.Get, request.method)
-            assertEquals("/v1/worktrees/unmanaged", request.url.encodedPath)
-            assertEquals("/r", request.url.parameters["repo"])
-            assertEquals("feat-x", found[0].branch)
-            assertEquals("", found[1].branch)
-            assertEquals(true, found[1].detached)
-        }
-
-    @Test
-    fun `adoptWorktree posts the path and omits a blank repo`() =
-        runTest {
-            var captured: HttpRequestData? = null
-            val repo =
-                repoCapturing(
-                    responseBody =
-                        """
-                        {
-                            "id": "1a2b3c4d",
-                            "repo": "/r",
-                            "path": "/r/.worktrees/a",
-                            "branch": "feat-x",
-                            "baseCommit": "abc123",
-                            "createdAt": "2026-10-09T10:00:00Z"
-                        }
-                        """.trimIndent(),
-                ) { captured = it }
-
-            val adopted = repo.adoptWorktree("http", "10.0.0.2:5788", "plain-token", "/r/.worktrees/a", repo = " ")
-
-            val request = requireNotNull(captured)
-            assertEquals(HttpMethod.Post, request.method)
-            assertEquals("/v1/worktrees/adopt", request.url.encodedPath)
-            assertEquals("""{"path":"/r/.worktrees/a"}""", (request.body as TextContent).text)
-            assertEquals("1a2b3c4d", adopted.id)
-        }
-
-    @Test
     fun `fetchRepoRefs sends the repo and decodes the default branch`() =
         runTest {
             var captured: HttpRequestData? = null

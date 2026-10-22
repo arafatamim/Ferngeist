@@ -15,16 +15,26 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.ScopeSelection
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.chatsInWorktree
-import com.tamimarafat.ferngeist.feature.sessionlist.cwd.filterSessionsByCwd
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.displayName
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.effectiveScope
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.filterSessionsByScope
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.knownProjects
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.scopeCwd
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.sessionsInRepo
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.worktreeOf
 import com.tamimarafat.ferngeist.feature.sessionlist.worktree.SessionWorktrees
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
+import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
@@ -37,7 +47,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -133,38 +145,12 @@ class SessionListViewModel
                 .getSessions(serverId)
                 .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-        /**
-         * The rows the list shows, plus whether the cache has actually answered
-         * yet.
-         *
-         * Rows and [SessionRows.loaded] travel together deliberately. The
-         * `sessions` StateFlow above cannot supply `loaded`: it is seeded
-         * empty, so every new collector sees that seed at once and an
-         * empty-state flash beats the data to the screen. Deriving both from
-         * the repository's cold flow makes the first emission a real Room read,
-         * and carrying them in one value keeps them from disagreeing mid-paint.
-         */
-        val sessionRows: StateFlow<SessionRows> =
-            combine(
-                sessionRepository.getSessions(serverId).map { cached -> cached to true },
-                sessionSettings,
-            ) { (cached, loaded), settings ->
-                // Filtering locally keeps the list truthful while the agent is
-                // unreachable — the hub's listing can only filter by re-asking
-                // the gateway, and its result replaces this same cache.
-                SessionRows(rows = filterSessionsByCwd(cached, settings.cwd), loaded = loaded)
-            }.stateIn(
-                viewModelScope,
-                // Eagerly, not WhileSubscribed: this view model is scoped to one
-                // nav entry, so every open builds a fresh stateIn whose seed is
-                // an empty list. Starting only on first subscription puts the
-                // whole Room round trip after the first frame, which shows up as
-                // a blank screen mid-transition. Subscribing at construction
-                // gives the query the navigation animation to land in, and Room's
-                // Flow is an invalidation observer, so idling here costs nothing.
-                SharingStarted.Eagerly,
-                SessionRows(rows = emptyList(), loaded = false),
-            )
+        private val scopeSelection = MutableStateFlow<ScopeSelection?>(null)
+
+        /** The part of the filtered repo the list shows; [WorktreeScope.All] once the repo filter moves. */
+        val scope: StateFlow<WorktreeScope> =
+            combine(scopeSelection, sessionSettings) { selection, settings -> effectiveScope(selection, settings.cwd) }
+                .stateIn(viewModelScope, SharingStarted.Eagerly, WorktreeScope.All)
 
         /** Sessions currently holding a live gateway connection (for the row dot). */
         val liveSessionIds: StateFlow<Set<String>> =
@@ -223,7 +209,10 @@ class SessionListViewModel
                 sessionSettingsRepository = sessionSettingsRepository,
                 recentCwdStore = recentCwdStore,
                 emitEvent = { _events.emit(it) },
-                openChat = { createSession(it) },
+                openChat = { repo, path ->
+                    selectScope(WorktreeScope.Worktree(path), repo)
+                    createSession(path)
+                },
             )
 
         /** Managed worktrees, or null when this gateway has none to show (older gateway). */
@@ -234,6 +223,54 @@ class SessionListViewModel
 
         /** Inline error for the worktree form (bad repo/branch, existing branch), else null. */
         val worktreeError: StateFlow<String?> = sessionWorktrees.error
+
+        /** `cwdKey`s of chat directories that are gone from disk; their chats can no longer load. */
+        val missingCwds: StateFlow<Set<String>> = sessionWorktrees.missingCwds
+
+        /** Every project this agent's chats ran in, for the directory menu; worktrees fold into their repo. */
+        val projects: StateFlow<List<String>> =
+            combine(sessions, recentCwds, sessionWorktrees.managed) { cached, recent, managed ->
+                knownProjects(cached, recent, managed.orEmpty())
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+        /**
+         * The rows the list shows, plus whether the cache has actually answered
+         * yet.
+         *
+         * Rows and [SessionRows.loaded] travel together deliberately. The
+         * `sessions` StateFlow above cannot supply `loaded`: it is seeded
+         * empty, so every new collector sees that seed at once and an
+         * empty-state flash beats the data to the screen. Deriving both from
+         * the repository's cold flow makes the first emission a real Room read,
+         * and carrying them in one value keeps them from disagreeing mid-paint.
+         */
+        val sessionRows: StateFlow<SessionRows> =
+            combine(
+                sessionRepository.getSessions(serverId).map { cached -> cached to true },
+                sessionSettings,
+                scopeSelection,
+                sessionWorktrees.managed,
+            ) { (cached, loaded), settings, selection, managed ->
+                // Filtering locally keeps the list truthful while the agent is
+                // unreachable — the hub's listing can only filter by re-asking
+                // the gateway, and its result replaces this same cache.
+                val worktreePaths =
+                    managed.orEmpty().filter { isSameCwd(it.repo, settings.cwd.orEmpty()) }.map { it.path }
+                val inRepo = sessionsInRepo(cached, settings.cwd, worktreePaths)
+                val scope = effectiveScope(selection, settings.cwd)
+                SessionRows(rows = filterSessionsByScope(inRepo, settings.cwd, scope), inRepo = inRepo, loaded = loaded)
+            }.stateIn(
+                viewModelScope,
+                // Eagerly, not WhileSubscribed: this view model is scoped to one
+                // nav entry, so every open builds a fresh stateIn whose seed is
+                // an empty list. Starting only on first subscription puts the
+                // whole Room round trip after the first frame, which shows up as
+                // a blank screen mid-transition. Subscribing at construction
+                // gives the query the navigation animation to land in, and Room's
+                // Flow is an invalidation observer, so idling here costs nothing.
+                SharingStarted.Eagerly,
+                SessionRows(rows = emptyList(), inRepo = emptyList(), loaded = false),
+            )
 
         private val _removingWorktreeIds = MutableStateFlow<Set<String>>(emptySet())
 
@@ -252,6 +289,12 @@ class SessionListViewModel
         init {
             // The server list's launch has usually just listed over its own connection.
             refreshSessions(reuseRecent = true)
+            viewModelScope.launch {
+                // The gateway may not know the newly filtered repo yet; asking names it.
+                sessionSettings.map { it.cwd }.distinctUntilChanged().collectLatest { cwd ->
+                    sessionWorktrees.refresh(cwd, chatDirs())
+                }
+            }
             viewModelScope.launch {
                 // A listing that failed while the network was down is stale the
                 // moment the network returns: nothing else re-runs it, so the
@@ -381,7 +424,8 @@ class SessionListViewModel
             }
             viewModelScope.launch {
                 reconcileGatewayLeases(result)
-                sessionWorktrees.refresh()
+                sessionWorktrees.refresh(sessionSettings.value.cwd, chatDirs())
+                refreshMissingCwds()
                 if (generation == refreshGeneration) syncCatalogObservables()
             }
         }
@@ -393,7 +437,18 @@ class SessionListViewModel
          */
         fun refreshWorktrees() {
             if (worktreeRefreshJob?.isActive == true) return
-            worktreeRefreshJob = viewModelScope.launch { sessionWorktrees.refresh() }
+            worktreeRefreshJob =
+                viewModelScope.launch {
+                    sessionWorktrees.refresh(sessionSettings.value.cwd, chatDirs())
+                    refreshMissingCwds()
+                }
+        }
+
+        /** Every folder a chat ran in or was recently picked, so the directory menu folds each worktree. */
+        private fun chatDirs(): List<String> = sessions.value.mapNotNull { it.cwd } + recentCwds.value
+
+        private suspend fun refreshMissingCwds() {
+            sessionWorktrees.refreshMissing(sessions.value.mapNotNull { it.cwd })
         }
 
         /** Pulls the catalog's last-known capability/diagnostic snapshots into local state. */
@@ -519,7 +574,13 @@ class SessionListViewModel
          * already narrows to [cwd] locally, so a listing the agent could not
          * answer must say so instead of passing for an empty directory.
          */
-        fun updateCurrentCwd(cwd: String) {
+        fun updateCurrentCwd(picked: String) {
+            // A worktree is not a project of its own: pick its repo, scoped to that worktree, so a
+            // new worktree made from it lands beside it rather than inside it.
+            val worktree =
+                worktreeOf(picked.trim(), sessionWorktrees.managed.value.orEmpty())
+            val cwd = worktree?.repo ?: picked
+            worktree?.let { selectScope(WorktreeScope.Worktree(it.path), it.repo) }
             viewModelScope.launch {
                 sessionSettingsRepository.updateCwd(serverId, cwd)
                 val normalized = cwd.trim().ifBlank { "" }
@@ -529,7 +590,8 @@ class SessionListViewModel
                 refreshSessions(isUserInitiated = true)
                 if (pendingCreateAfterCwd) {
                     pendingCreateAfterCwd = false
-                    createSessionWithCurrentCwd()
+                    // In scope, so a picked worktree gets the chat rather than its repo.
+                    createSessionInScope()
                 }
             }
         }
@@ -561,6 +623,26 @@ class SessionListViewModel
             viewModelScope.launch { sessionWorktrees.create(repo, base, branch) }
         }
 
+        /** [repo]'s refs for the new-worktree form; empty when unknown. */
+        suspend fun repoRefs(repo: String): GatewayGitRefs = sessionWorktrees.repoRefs(repo)
+
+        /** Picks which part of the filtered repo the list shows and where New chat starts. */
+        fun selectScope(
+            scope: WorktreeScope,
+            repo: String? = sessionSettings.value.cwd,
+        ) {
+            scopeSelection.value = repo?.takeIf { it.isNotBlank() }?.let { ScopeSelection(it, scope) }
+        }
+
+        /** New chat for the picked scope: the repo itself, or the worktree. */
+        fun createSessionInScope() {
+            val repo =
+                sessionSettings.value.cwd
+                    ?.trim()
+                    ?.ifBlank { null } ?: return
+            createSession(scopeCwd(repo, scope.value))
+        }
+
         /** Opens a new chat in an existing gateway worktree. */
         fun createSessionInWorktree(worktree: GatewayWorktree) {
             pendingCreateAfterCwd = false
@@ -568,12 +650,12 @@ class SessionListViewModel
         }
 
         /**
-         * Asks the user to confirm removing the worktree a session's chat runs in, naming the
-         * chats that go with it. Removal deletes every one of them, so it never runs unconfirmed.
+         * Asks the user to confirm removing a worktree — the one [sessionId]'s chat runs in, or
+         * one picked from the scope menu with no chat — naming the chats that go with it. Removal deletes every one of them, so it never runs unconfirmed.
          * A worktree the listing already shows as dirty goes straight to the discard confirm.
          */
         fun requestRemoveWorktree(
-            sessionId: String,
+            sessionId: String?,
             worktreeId: String,
         ) {
             val worktree = worktrees.value?.firstOrNull { it.id == worktreeId } ?: return
@@ -582,7 +664,7 @@ class SessionListViewModel
                     SessionListEvent.ConfirmRemoveWorktree(
                         sessionId = sessionId,
                         worktreeId = worktreeId,
-                        branch = worktree.branch,
+                        branch = worktree.displayName,
                         chatCount = chatsInWorktree(sessions.value, sessionId, worktree.path).size,
                         discardChanges = worktree.dirty == true,
                     ),
@@ -625,6 +707,9 @@ class SessionListViewModel
                         runCatching { sessionCatalog.closeSession(serverId, chat) }
                     }
                     if (!sessionWorktrees.remove(request)) return@launch
+                    // The picked worktree is gone; leave the scope on something that exists.
+                    val picked = (scope.value as? WorktreeScope.Worktree)?.path
+                    if (picked != null && path != null && isSameCwd(picked, path)) selectScope(WorktreeScope.All)
                     for (chat in chats) {
                         runCatching { sessionCatalog.deleteSession(serverId, chat) }
                     }
@@ -993,7 +1078,7 @@ sealed interface SessionListEvent {
      * [SessionListViewModel.removeWorktree].
      */
     data class ConfirmRemoveWorktree(
-        val sessionId: String,
+        val sessionId: String?,
         val worktreeId: String,
         val branch: String,
         val chatCount: Int,
@@ -1010,5 +1095,7 @@ sealed interface SessionListEvent {
  */
 data class SessionRows(
     val rows: List<SessionSummary>,
+    /** The rows before the worktree scope narrows them; the scope menu counts chats from these. */
+    val inRepo: List<SessionSummary>,
     val loaded: Boolean,
 )
