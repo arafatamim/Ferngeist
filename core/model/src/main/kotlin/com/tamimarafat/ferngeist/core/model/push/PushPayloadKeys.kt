@@ -8,6 +8,9 @@ object PushPayloadKeys {
     const val SERVER_ID = "serverId"
     const val SESSION_ID = "sessionId"
     const val CWD = "cwd"
+
+    /** Branch of the managed worktree the chat runs in; absent outside one. */
+    const val BRANCH = "branch"
     const val TITLE = "title"
     const val BODY = "body"
     const val CATEGORY = "category"

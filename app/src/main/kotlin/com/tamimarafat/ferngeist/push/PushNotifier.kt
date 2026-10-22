@@ -92,6 +92,8 @@ class PushNotifier
                     .Builder(context, pushChannelIdFor(category))
                     .setContentTitle(title)
                     .setContentText(body)
+                    // Shown in the header beside the app name, so two worktrees' chats tell apart.
+                    .setSubText(data[PushPayloadKeys.BRANCH]?.takeIf { it.isNotBlank() })
                     .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                     .setSmallIcon(R.drawable.ic_notification)
                     .setAutoCancel(true)
