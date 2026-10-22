@@ -281,7 +281,7 @@ private fun SessionListScaffold(
                     scope = state.scope,
                     options = state.scopeOptions,
                     onSelectRepo = onSelectRepo,
-                    onOtherDirectory = onShowCwdDialog,
+                    onOtherProject = onShowCwdDialog,
                     onSelectScope = onSelectScope,
                     onNewChat = createSession,
                     onNewWorktree = createWorktreeSession,

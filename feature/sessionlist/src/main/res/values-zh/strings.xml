@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">返回</string>
-    <string name="sessionlist_cwd_desc">更改工作目录</string>
+    <string name="sessionlist_cwd_desc">更改项目</string>
     <string name="sessionlist_new_session_desc">新会话</string>
     <string name="sessionlist_today">今天</string>
     <string name="sessionlist_yesterday">昨天</string>
@@ -30,8 +30,8 @@
     <string name="sessionlist_action_delete">删除</string>
 
     <!-- CWD Dialog -->
-    <string name="sessionlist_cwd_title">工作目录</string>
-    <string name="sessionlist_cwd_body">设置此代理的当前工作目录。留空则显示所有会话。</string>
+    <string name="sessionlist_cwd_title">项目</string>
+    <string name="sessionlist_cwd_body">设置此代理的会话所在的项目。留空则显示所有会话。</string>
     <string name="sessionlist_cwd_placeholder">留空以取消过滤</string>
     <string name="sessionlist_cwd_clear">清除</string>
     <string name="sessionlist_cwd_cancel">取消</string>
@@ -43,8 +43,9 @@
     <string name="sessionlist_worktree_branch_shuffle_desc">生成新的分支名</string>
     <string name="sessionlist_worktree_branch_from">分支基于</string>
     <string name="sessionlist_worktree_base_custom">自定义…</string>
-    <string name="sessionlist_scope_all_directories">所有目录</string>
-    <string name="sessionlist_scope_other_directory">其他目录…</string>
+    <string name="sessionlist_scope_projects">项目</string>
+    <string name="sessionlist_scope_all_projects">所有项目</string>
+    <string name="sessionlist_scope_other_project">其他项目…</string>
     <string name="sessionlist_scope_all">所有聊天</string>
     <string name="sessionlist_scope_main">主检出</string>
     <string name="sessionlist_scope_new_worktree">新建 worktree…</string>

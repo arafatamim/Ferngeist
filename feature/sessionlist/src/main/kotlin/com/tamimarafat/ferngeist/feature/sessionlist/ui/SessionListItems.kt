@@ -455,7 +455,7 @@ private fun RowScope.SessionCardText(
             val place =
                 when {
                     !showCwd -> null
-                    worktreeBranch != null -> worktreeRepo?.let(::directoryName)
+                    worktreeBranch != null -> worktreeRepo?.let(::projectName)
                     else -> session.cwd
                 }
             place?.let {

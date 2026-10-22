@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">Voltar</string>
-    <string name="sessionlist_cwd_desc">Alterar diretório de trabalho</string>
+    <string name="sessionlist_cwd_desc">Alterar projeto</string>
     <string name="sessionlist_new_session_desc">Nova sessão</string>
     <string name="sessionlist_today">Hoje</string>
     <string name="sessionlist_yesterday">Ontem</string>
@@ -31,8 +31,8 @@
     <string name="sessionlist_action_disconnect">Desconectar</string>
     <string name="sessionlist_action_delete">Excluir</string>
 
-    <string name="sessionlist_cwd_title">Diretório de trabalho</string>
-    <string name="sessionlist_cwd_body">Defina o diretório de trabalho atual para este agente. Deixe vazio para mostrar todas as sessões.</string>
+    <string name="sessionlist_cwd_title">Projeto</string>
+    <string name="sessionlist_cwd_body">Defina o projeto em que as sessões deste agente são executadas. Deixe vazio para mostrar todas as sessões.</string>
     <string name="sessionlist_cwd_placeholder">Deixe vazio para não filtrar</string>
     <string name="sessionlist_cwd_clear">Limpar</string>
     <string name="sessionlist_cwd_cancel">Cancelar</string>
@@ -44,8 +44,9 @@
     <string name="sessionlist_worktree_branch_shuffle_desc">Gerar um novo nome de branch</string>
     <string name="sessionlist_worktree_branch_from">Criar branch a partir de</string>
     <string name="sessionlist_worktree_base_custom">Outro…</string>
-    <string name="sessionlist_scope_all_directories">Todos os diretórios</string>
-    <string name="sessionlist_scope_other_directory">Outro diretório…</string>
+    <string name="sessionlist_scope_projects">Projetos</string>
+    <string name="sessionlist_scope_all_projects">Todos os projetos</string>
+    <string name="sessionlist_scope_other_project">Outro projeto…</string>
     <string name="sessionlist_scope_all">Todos os chats</string>
     <string name="sessionlist_scope_main">Checkout principal</string>
     <string name="sessionlist_scope_new_worktree">Novo worktree…</string>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">Back</string>
-    <string name="sessionlist_cwd_desc">Change working directory</string>
+    <string name="sessionlist_cwd_desc">Change project</string>
     <string name="sessionlist_new_session_desc">New session</string>
     <string name="sessionlist_today">Today</string>
     <string name="sessionlist_yesterday">Yesterday</string>
@@ -31,8 +31,8 @@
     <string name="sessionlist_action_delete">Delete</string>
 
     <!-- CWD Dialog -->
-    <string name="sessionlist_cwd_title">Working Directory</string>
-    <string name="sessionlist_cwd_body">Set the current working directory for this agent. Leave empty to show all sessions.</string>
+    <string name="sessionlist_cwd_title">Project</string>
+    <string name="sessionlist_cwd_body">Set the project this agent\'s sessions run in. Leave empty to show all sessions.</string>
     <string name="sessionlist_cwd_placeholder">Leave empty for no filter</string>
     <string name="sessionlist_cwd_clear">Clear</string>
     <string name="sessionlist_cwd_cancel">Cancel</string>
@@ -44,8 +44,9 @@
     <string name="sessionlist_worktree_branch_shuffle_desc">Generate a new branch name</string>
     <string name="sessionlist_worktree_branch_from">Branch from</string>
     <string name="sessionlist_worktree_base_custom">Custom…</string>
-    <string name="sessionlist_scope_all_directories">All directories</string>
-    <string name="sessionlist_scope_other_directory">Other directory…</string>
+    <string name="sessionlist_scope_projects">Projects</string>
+    <string name="sessionlist_scope_all_projects">All projects</string>
+    <string name="sessionlist_scope_other_project">Other project…</string>
     <string name="sessionlist_scope_all">All chats</string>
     <string name="sessionlist_scope_main">Main checkout</string>
     <string name="sessionlist_scope_new_worktree">New worktree…</string>

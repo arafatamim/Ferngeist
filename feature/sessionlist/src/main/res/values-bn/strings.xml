@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">ফিরে যান</string>
-    <string name="sessionlist_cwd_desc">কাজের ডিরেক্টরি পরিবর্তন করুন</string>
+    <string name="sessionlist_cwd_desc">প্রকল্প পরিবর্তন করুন</string>
     <string name="sessionlist_new_session_desc">নতুন সেশন</string>
     <string name="sessionlist_today">আজ</string>
     <string name="sessionlist_yesterday">গতকাল</string>
@@ -30,8 +30,8 @@
     <string name="sessionlist_action_disconnect">সংযোগ বিচ্ছিন্ন করুন</string>
     <string name="sessionlist_action_delete">মুছে ফেলুন</string>
 
-    <string name="sessionlist_cwd_title">কাজের ডিরেক্টরি</string>
-    <string name="sessionlist_cwd_body">এই এজেন্টের জন্য বর্তমান কাজের ডিরেক্টরি সেট করুন। সব সেশন দেখাতে খালি রাখুন।</string>
+    <string name="sessionlist_cwd_title">প্রকল্প</string>
+    <string name="sessionlist_cwd_body">এই এজেন্টের সেশন যে প্রকল্পে চলে তা সেট করুন। সব সেশন দেখাতে খালি রাখুন।</string>
     <string name="sessionlist_cwd_placeholder">ফিল্টার না করতে খালি রাখুন</string>
     <string name="sessionlist_cwd_clear">পরিষ্কার করুন</string>
     <string name="sessionlist_cwd_cancel">বাতিল করুন</string>
@@ -43,8 +43,9 @@
     <string name="sessionlist_worktree_branch_shuffle_desc">নতুন ব্রাঞ্চের নাম তৈরি করুন</string>
     <string name="sessionlist_worktree_branch_from">যেখান থেকে ব্রাঞ্চ হবে</string>
     <string name="sessionlist_worktree_base_custom">কাস্টম…</string>
-    <string name="sessionlist_scope_all_directories">সব ডিরেক্টরি</string>
-    <string name="sessionlist_scope_other_directory">অন্য ডিরেক্টরি…</string>
+    <string name="sessionlist_scope_projects">প্রকল্প</string>
+    <string name="sessionlist_scope_all_projects">সব প্রকল্প</string>
+    <string name="sessionlist_scope_other_project">অন্য প্রকল্প…</string>
     <string name="sessionlist_scope_all">সব চ্যাট</string>
     <string name="sessionlist_scope_main">মূল চেকআউট</string>
     <string name="sessionlist_scope_new_worktree">নতুন worktree…</string>

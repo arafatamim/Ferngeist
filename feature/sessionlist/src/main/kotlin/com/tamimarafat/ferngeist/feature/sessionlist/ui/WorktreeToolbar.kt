@@ -13,7 +13,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -33,9 +32,6 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Forum
-import androidx.compose.material3.DropdownMenuGroup
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingToolbarDefaults
@@ -45,12 +41,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SegmentedListItem
-import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -107,17 +101,17 @@ private val SELECTOR_MAX_WIDTH = 104.dp
 /** A label's cap when it has the toolbar to itself. */
 private val SELECTOR_WIDE_MAX_WIDTH = 200.dp
 
-private const val MAX_RECENT_DIRECTORIES = 5
+private const val MAX_RECENT_PROJECTS = 5
 
-/** A directory's last path segment, which is what the selector, menu and cards call it. */
-internal fun directoryName(path: String): String = pathSegments(path).lastOrNull() ?: path.trim()
+/** A project's last path segment, which is what the selector, sheet and cards call it. */
+internal fun projectName(path: String): String = pathSegments(path).lastOrNull() ?: path.trim()
 
 /**
- * Where New chat starts: a directory and, inside a repo on a gateway, a worktree of it.
+ * Where New chat starts: a project and, inside a repo on a gateway, a worktree of it.
  *
  * The FAB is the hero, so the toolbar is vibrant like it; the selectors beside it name the place
- * the FAB applies to. The worktree selector only exists once the directory names a repo on a
- * gateway with worktrees, and picking another directory re-lists it. Scrolling down collapses the
+ * the FAB applies to. The worktree selector only exists once the project names a repo on a
+ * gateway with worktrees, and picking another project re-lists it. Scrolling down collapses the
  * toolbar to just the FAB, which stays reachable, and scrolling up brings the selectors back.
  *
  * @param worktreesEnabled true when the filter names a repo on a gateway with worktrees.
@@ -132,13 +126,13 @@ internal fun WorktreeToolbar(
     scope: WorktreeScope,
     options: List<ScopeOption>,
     onSelectRepo: (String) -> Unit,
-    onOtherDirectory: () -> Unit,
+    onOtherProject: () -> Unit,
     onSelectScope: (WorktreeScope) -> Unit,
     onNewChat: () -> Unit,
     onNewWorktree: () -> Unit,
     onRemoveWorktree: (worktreeId: String) -> Unit,
 ) {
-    var directoryMenu by remember { mutableStateOf(false) }
+    var projectSheet by remember { mutableStateOf(false) }
     var scopeMenu by remember { mutableStateOf(false) }
     val scopeName = scopeLabel(scope, options)
     val narrowed = worktreesEnabled && scope != WorktreeScope.All
@@ -172,31 +166,30 @@ internal fun WorktreeToolbar(
                 modifier = Modifier.animateContentSize(MotionScheme.standard().defaultSpatialSpec()),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box {
-                    SelectorButton(
-                        icon = Icons.Outlined.FolderOpen,
-                        label =
-                            repo?.takeIf { it.isNotBlank() }?.let(::directoryName)
-                                ?: stringResource(R.string.sessionlist_scope_all_directories),
-                        // Two names do not fit beside the FAB; once a worktree is picked it is the one that matters.
-                        showLabel = !narrowed,
-                        // Alone in the toolbar, it can take the room the worktree selector would use.
-                        maxWidth = if (worktreesEnabled) SELECTOR_MAX_WIDTH else SELECTOR_WIDE_MAX_WIDTH,
-                        focusable = expanded,
-                        onClick = { directoryMenu = true },
-                    )
-                    DirectoryMenu(
-                        expanded = directoryMenu,
+                SelectorButton(
+                    icon = Icons.Outlined.FolderOpen,
+                    label =
+                        repo?.takeIf { it.isNotBlank() }?.let(::projectName)
+                            ?: stringResource(R.string.sessionlist_scope_all_projects),
+                    // Two names do not fit beside the FAB; once a worktree is picked it is the one that matters.
+                    showLabel = !narrowed,
+                    // Alone in the toolbar, it can take the room the worktree selector would use.
+                    maxWidth = if (worktreesEnabled) SELECTOR_MAX_WIDTH else SELECTOR_WIDE_MAX_WIDTH,
+                    focusable = expanded,
+                    onClick = { projectSheet = true },
+                )
+                if (projectSheet) {
+                    ProjectSheet(
                         repo = repo,
                         projects = projects,
-                        onDismiss = { directoryMenu = false },
-                        onSelectRepo = {
-                            directoryMenu = false
+                        onDismiss = { projectSheet = false },
+                        onSelectProject = {
+                            projectSheet = false
                             onSelectRepo(it)
                         },
-                        onOtherDirectory = {
-                            directoryMenu = false
-                            onOtherDirectory()
+                        onOtherProject = {
+                            projectSheet = false
+                            onOtherProject()
                         },
                     )
                 }
@@ -295,60 +288,78 @@ private fun SelectorLabel(
     }
 }
 
-/** Every directory, the five most recent projects, and a way to type another. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+/**
+ * Every project, the five most recent first, then a way to type another.
+ * A sheet to match the worktree selector beside it, and so long paths get the full width.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun DirectoryMenu(
-    expanded: Boolean,
+private fun ProjectSheet(
     repo: String?,
     projects: List<String>,
     onDismiss: () -> Unit,
-    onSelectRepo: (String) -> Unit,
-    onOtherDirectory: () -> Unit,
+    onSelectProject: (String) -> Unit,
+    onOtherProject: () -> Unit,
 ) {
-    // The picked directory stays listed even when it has fallen out of the recent ones.
-    val directories =
-        (projects.take(MAX_RECENT_DIRECTORIES) + listOfNotNull(repo?.takeIf { it.isNotBlank() }))
+    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    val coroutineScope = rememberCoroutineScope()
+    // Slide the sheet away first; the action then runs on a settled screen.
+    val thenClose: (() -> Unit) -> Unit = { action ->
+        coroutineScope.launch { sheetState.hide() }.invokeOnCompletion { action() }
+    }
+    // The picked project stays listed even when it has fallen out of the recent ones.
+    val listed =
+        (projects.take(MAX_RECENT_PROJECTS) + listOfNotNull(repo?.takeIf { it.isNotBlank() }))
             .distinctBy(::cwdKey)
     // Names alone, unless two projects share one; then the path tells them apart.
     val sharedNames =
-        directories
-            .groupingBy(::directoryName)
+        listed
+            .groupingBy(::projectName)
             .eachCount()
             .filterValues { it > 1 }
             .keys
-    DropdownMenuPopup(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, 1)) {
-            val itemCount = directories.size + 2
-            ScopeItem(
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier =
+                Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+        ) {
+            Text(
+                text = stringResource(R.string.sessionlist_scope_projects),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp),
+            )
+            val count = listed.size + 1
+            ScopeRow(
                 selected = repo.isNullOrBlank(),
-                label = stringResource(R.string.sessionlist_scope_all_directories),
+                label = stringResource(R.string.sessionlist_scope_all_projects),
                 supporting = null,
                 icon = Icons.Outlined.Forum,
-                shapeIndex = 0 to itemCount,
-                onClick = { onSelectRepo("") },
+                shapes = ListItemDefaults.segmentedShapes(0, count),
+                onClick = { thenClose { onSelectProject("") } },
             )
-            directories.forEachIndexed { index, path ->
-                ScopeItem(
+            listed.forEachIndexed { index, path ->
+                ScopeRow(
                     selected = repo != null && isSameCwd(repo, path),
-                    label = directoryName(path),
-                    supporting = path.takeIf { directoryName(it) in sharedNames },
+                    label = projectName(path),
+                    supporting = path.takeIf { projectName(it) in sharedNames },
                     icon = Icons.Outlined.FolderOpen,
-                    shapeIndex = (index + 1) to itemCount,
-                    onClick = { onSelectRepo(path) },
+                    shapes = ListItemDefaults.segmentedShapes(index + 1, count),
+                    onClick = { thenClose { onSelectProject(path) } },
                 )
             }
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.sessionlist_scope_other_directory)) },
-                onClick = onOtherDirectory,
-                leadingIcon = {
-                    Icon(
-                        Icons.Outlined.Edit,
-                        contentDescription = null,
-                        modifier = Modifier.size(MenuDefaults.LeadingIconSize),
-                    )
-                },
-            )
+            Spacer(Modifier.height(12.dp))
+            SegmentedListItem(
+                onClick = { thenClose(onOtherProject) },
+                shapes = ListItemDefaults.segmentedShapes(0, 1),
+                modifier = Modifier.handCursor(),
+                leadingContent = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+            ) {
+                Text(stringResource(R.string.sessionlist_scope_other_project))
+            }
         }
     }
 }
@@ -385,7 +396,7 @@ private fun WorktreeSheet(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
         ) {
             Text(
-                text = directoryName(repo),
+                text = projectName(repo),
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
@@ -464,31 +475,6 @@ private fun ScopeRow(
     ) {
         Text(label, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
     }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ScopeItem(
-    selected: Boolean,
-    label: String,
-    supporting: String?,
-    icon: ImageVector,
-    shapeIndex: Pair<Int, Int>,
-    onClick: () -> Unit,
-) {
-    SelectableDropdownMenuItem(
-        selected = selected,
-        onClick = onClick,
-        text = { Text(label, maxLines = 1, overflow = TextOverflow.MiddleEllipsis) },
-        supportingText = supporting?.let { { Text(it) } },
-        shapes = MenuDefaults.itemShape(shapeIndex.first, shapeIndex.second),
-        leadingIcon = {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(MenuDefaults.LeadingIconSize))
-        },
-        selectedLeadingIcon = {
-            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(MenuDefaults.LeadingIconSize))
-        },
-    )
 }
 
 /** `↑2 · uncommitted · 3 sessions · 2 days ago`. */

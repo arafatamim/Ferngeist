@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">Назад</string>
-    <string name="sessionlist_cwd_desc">Изменить рабочую директорию</string>
+    <string name="sessionlist_cwd_desc">Изменить проект</string>
     <string name="sessionlist_new_session_desc">Новая сессия</string>
     <string name="sessionlist_today">Сегодня</string>
     <string name="sessionlist_yesterday">Вчера</string>
@@ -33,8 +33,8 @@
     <string name="sessionlist_action_delete">Удалить</string>
 
     <!-- CWD Dialog -->
-    <string name="sessionlist_cwd_title">Рабочая директория</string>
-    <string name="sessionlist_cwd_body">Укажите рабочую директорию для этого агента. Оставьте пустым, чтобы показать все сессии.</string>
+    <string name="sessionlist_cwd_title">Проект</string>
+    <string name="sessionlist_cwd_body">Укажите проект, в котором выполняются сессии этого агента. Оставьте пустым, чтобы показать все сессии.</string>
     <string name="sessionlist_cwd_placeholder">Оставьте пустым для отображения всех</string>
     <string name="sessionlist_cwd_clear">Очистить</string>
     <string name="sessionlist_cwd_cancel">Отмена</string>
@@ -46,8 +46,9 @@
     <string name="sessionlist_worktree_branch_shuffle_desc">Сгенерировать новое имя ветки</string>
     <string name="sessionlist_worktree_branch_from">Создать ветку от</string>
     <string name="sessionlist_worktree_base_custom">Другое…</string>
-    <string name="sessionlist_scope_all_directories">Все директории</string>
-    <string name="sessionlist_scope_other_directory">Другая директория…</string>
+    <string name="sessionlist_scope_projects">Проекты</string>
+    <string name="sessionlist_scope_all_projects">Все проекты</string>
+    <string name="sessionlist_scope_other_project">Другой проект…</string>
     <string name="sessionlist_scope_all">Все чаты</string>
     <string name="sessionlist_scope_main">Основная копия</string>
     <string name="sessionlist_scope_new_worktree">Новый worktree…</string>

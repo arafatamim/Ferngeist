@@ -42,7 +42,7 @@ internal class SessionListState(
     val pendingAuthentication: SessionListPendingAuthentication?,
     val snackbarHostState: SnackbarHostState,
     val recentCwds: List<String>,
-    /** Every project the directory menu offers. */
+    /** Every project the project sheet offers. */
     val projects: List<String>,
     val showCwdDialog: MutableState<Boolean>,
     val cwdDialogValue: MutableState<String>,
