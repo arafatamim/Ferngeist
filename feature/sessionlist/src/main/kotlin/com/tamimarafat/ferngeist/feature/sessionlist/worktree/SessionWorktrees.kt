@@ -274,13 +274,6 @@ internal class SessionWorktrees(
             fallback
         }
 
-    /** Opens a new chat in an existing [worktree], recording its repo the way [create] does. */
-    suspend fun open(worktree: GatewayWorktree) {
-        sessionSettingsRepository.updateCwd(serverId, worktree.repo)
-        recentCwdStore.addCwd(serverId, worktree.repo)
-        openChat(worktree.repo, worktree.path)
-    }
-
     /**
      * Deletes the worktree the user confirmed in [request], discarding uncommitted changes when
      * [SessionListEvent.ConfirmRemoveWorktree.discardChanges] is set.

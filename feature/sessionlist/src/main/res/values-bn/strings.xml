@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">ফিরে যান</string>
-    <string name="sessionlist_cwd_desc">প্রকল্প পরিবর্তন করুন</string>
     <string name="sessionlist_new_session_desc">নতুন সেশন</string>
     <string name="sessionlist_today">আজ</string>
     <string name="sessionlist_yesterday">গতকাল</string>

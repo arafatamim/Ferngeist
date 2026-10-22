@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
-import com.tamimarafat.ferngeist.feature.sessionlist.cwd.displayName
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
 /**
@@ -79,19 +78,6 @@ internal fun WorktreeBadge(
             }
         }
     }
-}
-
-/** The branch plus whatever git could tell us about it, e.g. `feat-x · ↑2 · uncommitted`. */
-@Composable
-internal fun worktreeLabel(worktree: GatewayWorktree): String {
-    val details =
-        buildList {
-            worktree.ahead?.takeIf { it > 0 }?.let {
-                add(stringResource(R.string.sessionlist_worktree_ahead, it))
-            }
-            if (worktree.dirty == true) add(stringResource(R.string.sessionlist_worktree_dirty))
-        }
-    return (listOf(worktree.displayName) + details).joinToString(" · ")
 }
 
 /**

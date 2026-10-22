@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">返回</string>
-    <string name="sessionlist_cwd_desc">更改项目</string>
     <string name="sessionlist_new_session_desc">新会话</string>
     <string name="sessionlist_today">今天</string>
     <string name="sessionlist_yesterday">昨天</string>

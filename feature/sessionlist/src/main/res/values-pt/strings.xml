@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">Voltar</string>
-    <string name="sessionlist_cwd_desc">Alterar projeto</string>
     <string name="sessionlist_new_session_desc">Nova sessão</string>
     <string name="sessionlist_today">Hoje</string>
     <string name="sessionlist_yesterday">Ontem</string>

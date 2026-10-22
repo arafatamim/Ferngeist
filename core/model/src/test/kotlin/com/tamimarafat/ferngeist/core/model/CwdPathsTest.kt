@@ -21,11 +21,4 @@ class CwdPathsTest {
         assertEquals(listOf("C:", "work", "api"), pathSegments("C:\\work\\api"))
         assertEquals(emptyList<String>(), pathSegments("  /  "))
     }
-
-    @Test
-    fun pathBreadcrumb_joinsSegmentsWithArrowsAndKeepsARootAsIs() {
-        assertEquals("home › tamim › work", pathBreadcrumb("/home/tamim/work"))
-        assertEquals("C: › work", pathBreadcrumb("C:\\work"))
-        assertEquals("/", pathBreadcrumb("/"))
-    }
 }

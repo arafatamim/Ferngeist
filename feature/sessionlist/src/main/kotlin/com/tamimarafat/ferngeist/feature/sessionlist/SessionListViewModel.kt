@@ -558,17 +558,6 @@ class SessionListViewModel
         }
 
         /**
-         * Creates a new session using the current working directory filter.
-         */
-        fun createSessionWithCurrentCwd() {
-            val normalizedCwd =
-                sessionSettings.value.cwd
-                    ?.trim()
-                    ?.ifBlank { null } ?: return
-            createSession(normalizedCwd)
-        }
-
-        /**
          * Persists [cwd] to settings, records it in the recent list, then
          * refreshes sessions. The refresh counts as user-initiated: the list
          * already narrows to [cwd] locally, so a listing the agent could not
@@ -641,12 +630,6 @@ class SessionListViewModel
                     ?.trim()
                     ?.ifBlank { null } ?: return
             createSession(scopeCwd(repo, scope.value))
-        }
-
-        /** Opens a new chat in an existing gateway worktree. */
-        fun createSessionInWorktree(worktree: GatewayWorktree) {
-            pendingCreateAfterCwd = false
-            viewModelScope.launch { sessionWorktrees.open(worktree) }
         }
 
         /**

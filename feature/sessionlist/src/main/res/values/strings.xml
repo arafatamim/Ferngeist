@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sessionlist_back_desc">Back</string>
-    <string name="sessionlist_cwd_desc">Change project</string>
     <string name="sessionlist_new_session_desc">New session</string>
     <string name="sessionlist_today">Today</string>
     <string name="sessionlist_yesterday">Yesterday</string>

@@ -217,7 +217,7 @@ internal fun SessionListEventEffects(
                 viewModel.setPendingCreateAfterCwd()
                 state.showCwdDialog.value = true
             } else {
-                viewModel.createSessionWithCurrentCwd()
+                viewModel.createSessionInScope()
             }
         }
     }
