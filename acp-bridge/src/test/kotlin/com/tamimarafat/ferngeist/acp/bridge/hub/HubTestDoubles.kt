@@ -22,6 +22,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -76,6 +77,14 @@ internal suspend fun ChatConnectionHub.registerChat(
 
 internal class FakeGatewayRepo : GatewayRepository {
     val closed = mutableListOf<String>()
+
+    /** Completes on the first [closeSession], so a test can await a fire-and-forget DELETE. */
+    private val firstClose = CompletableDeferred<Unit>()
+
+    suspend fun awaitFirstClose() {
+        firstClose.await()
+    }
+
     var sessions: List<GatewaySessionSummary> = emptyList()
     var closeFailure: Exception? = null
     var listFailure: Exception? = null
@@ -217,6 +226,7 @@ internal class FakeGatewayRepo : GatewayRepository {
         sessionId: String,
     ) {
         closed += sessionId
+        firstClose.complete(Unit)
         closeFailure?.let { throw it }
     }
 

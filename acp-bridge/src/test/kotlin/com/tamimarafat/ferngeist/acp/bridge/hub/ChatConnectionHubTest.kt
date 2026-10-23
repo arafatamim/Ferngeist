@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -313,6 +314,9 @@ class ChatConnectionHubTest {
 
             hub.hangUpBrowserTransport(transport)
             hub.hangUpBrowserTransport(transport)
+            // The DELETE runs fire-and-forget on Dispatchers.IO; wait for it instead of
+            // racing the assertion against the IO thread.
+            runBlocking { withTimeout(5_000) { repo.awaitFirstClose() } }
 
             assertEquals(listOf("s1"), repo.closed)
         }
