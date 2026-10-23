@@ -55,7 +55,6 @@
     <string name="sessionlist_worktree_base">基准</string>
     <string name="sessionlist_worktree_base_hint">仓库 HEAD</string>
     <string name="sessionlist_worktree_create">创建 worktree</string>
-    <string name="sessionlist_worktree_dirty">未提交</string>
     <string name="sessionlist_action_remove_worktree">移除 worktree</string>
     <string name="sessionlist_worktree_discard_title">丢弃未提交的更改？</string>
     <string name="sessionlist_worktree_discard_body">Worktree \"%1$s\" 有未提交的更改。移除它会删除这些更改。它的提交会保留在其分支上。</string>

@@ -37,6 +37,7 @@
 
     <string name="common_context_used">%1$s usados de %2$s de contexto</string>
     <string name="common_cost_amount">%1$s gastos</string>
+    <string name="common_worktree_dirty">não commitado</string>
 
     <string name="common_rpc_direction_req">REQ</string>
     <string name="common_rpc_direction_res">RES</string>

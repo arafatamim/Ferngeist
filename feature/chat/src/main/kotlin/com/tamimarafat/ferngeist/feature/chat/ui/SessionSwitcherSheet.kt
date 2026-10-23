@@ -62,7 +62,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
@@ -89,6 +88,7 @@ import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
+import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
@@ -98,9 +98,6 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import kotlin.math.abs
-
-/** Muted alpha for the current-session row: reads as inactive, not broken. */
-private const val CURRENT_ROW_CONTENT_ALPHA = 0.6f
 
 /**
  * Optical inset so the bubble reads the same height as the pill: an equal
@@ -478,6 +475,7 @@ internal fun SessionSwitcherSheet(
                                 lookaheadScope = this@LookaheadScope,
                                 onSwitch = onSwitch,
                                 onClose = onClose,
+                                onCurrentClick = { scope.dismissSheet(sheetState, onDismiss) },
                             )
                         }
                     }
@@ -493,6 +491,7 @@ private fun SwitcherServerGroup(
     lookaheadScope: LookaheadScope,
     onSwitch: (SwitcherSession) -> Unit,
     onClose: (SwitcherSession) -> Unit,
+    onCurrentClick: () -> Unit,
 ) {
     Column(
         modifier =
@@ -516,6 +515,7 @@ private fun SwitcherServerGroup(
                     lookaheadScope = lookaheadScope,
                     onSwitch = { onSwitch(session) },
                     onClose = { onClose(session) },
+                    onCurrentClick = onCurrentClick,
                 )
             }
         }
@@ -528,13 +528,19 @@ private fun SwitcherRow(
     lookaheadScope: LookaheadScope,
     onSwitch: () -> Unit,
     onClose: () -> Unit,
+    onCurrentClick: () -> Unit,
 ) {
     val rowPadding = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
     if (session.isCurrent) {
-        // The session you are reading closes from inside the chat, not here.
+        // Tapping the session you are already reading only dismisses the sheet; closing
+        // it happens from inside the chat.
         SwitcherRowContent(
             session = session,
-            modifier = rowPadding.alpha(CURRENT_ROW_CONTENT_ALPHA),
+            modifier =
+                rowPadding
+                    .clip(MaterialTheme.shapes.medium)
+                    .handCursor()
+                    .clickable(onClick = onCurrentClick),
         )
         return
     }
@@ -616,15 +622,22 @@ private fun SwitcherRowContent(
     modifier: Modifier,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color =
+            if (session.isCurrent) {
+                // Same treatment as a connected server's card: tinted, not dimmed.
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            },
         shape = MaterialTheme.shapes.medium,
         modifier = modifier,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 // A live session shimmers its own title rather than showing a
                 // "Generating" chip beside it: the row has exactly one text slot,
                 // and a second label reads as a status field bolted on. The
@@ -641,38 +654,41 @@ private fun SwitcherRowContent(
                     style = MaterialTheme.typography.titleMedium.copy(brush = titleBrush),
                     maxLines = 1,
                     overflow = TextOverflow.MiddleEllipsis,
-                    modifier = Modifier.weight(1f),
                 )
-                if (session.isCurrent) {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = stringResource(R.string.switcher_current_desc),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                val place = session.project
+                val time = session.updatedAt?.let { formatSwitcherTime(it, LocalContext.current) }
+                if (place != null || time != null) {
+                    Text(
+                        text = listOfNotNull(place, time).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.MiddleEllipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                // The branch gets its own line, as on the session list: sharing one with the
+                // project let a long branch squeeze the project down to a few characters.
+                session.worktree?.let {
+                    WorktreeBadge(
+                        branch = it.branch,
+                        modifier = Modifier.padding(top = 4.dp),
+                        ahead = it.ahead,
+                        dirty = it.dirty,
                     )
                 }
             }
-            val subtitle = switcherSubtitle(session, LocalContext.current)
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
+            // Centred against the whole card, not just the title line, so a worktree
+            // row's extra branch line cannot pull it off-centre.
+            if (session.isCurrent) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = stringResource(R.string.switcher_current_desc),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
     }
-}
-
-private fun switcherSubtitle(
-    session: SwitcherSession,
-    context: Context,
-): String {
-    val parts = mutableListOf<String>()
-    session.cwd?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
-    session.updatedAt?.let { parts.add(formatSwitcherTime(it, context)) }
-    return parts.joinToString(" · ")
 }
 
 /**

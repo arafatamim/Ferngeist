@@ -8,11 +8,13 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitLog
 import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
 /**
  * No-op [GatewayRepository] for chat tests that build the real hub: only [closeSession] is
- * implemented (it records the sessions it was asked to delete). Every other method returns
- * [TODO] as it is not exercised — the chat's own git reads go through
+ * implemented (it records the sessions it was asked to delete), and [listWorktrees] answers an
+ * empty gateway listing the switcher can fold paths against. Every other method returns [TODO]
+ * as it is not exercised — the chat's own git reads go through
  * [com.tamimarafat.ferngeist.core.model.ChatSessionFacade] now.
  */
 class FakeGatewayRepository : GatewayRepository {
@@ -33,7 +35,7 @@ class FakeGatewayRepository : GatewayRepository {
         host: String,
         gatewayCredential: String,
         repo: String?,
-    ) = TODO()
+    ): List<GatewayWorktree> = emptyList()
 
     override suspend fun findMissingPaths(
         scheme: String,

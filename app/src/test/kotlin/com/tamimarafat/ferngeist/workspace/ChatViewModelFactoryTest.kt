@@ -13,6 +13,7 @@ import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
 import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
 import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -42,6 +43,7 @@ class ChatViewModelFactoryTest {
         HubChatPresence(
             hub = hub,
             launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true),
+            gatewayRepository = mockk<GatewayRepository>(relaxed = true),
         )
     private val sessionFacadeFactory = mockk<ChatSessionFacadeFactory>(relaxed = true)
 

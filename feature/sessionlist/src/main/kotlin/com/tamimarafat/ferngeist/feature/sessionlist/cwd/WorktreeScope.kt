@@ -1,8 +1,11 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.WORKTREES_SEGMENT
 import com.tamimarafat.ferngeist.core.model.cwdKey
+import com.tamimarafat.ferngeist.core.model.isInside
 import com.tamimarafat.ferngeist.core.model.isSameCwd
+import com.tamimarafat.ferngeist.core.model.worktreeRepoOf
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
 /** Which part of the chosen repo the session list shows, and where New chat starts. */
@@ -117,16 +120,6 @@ internal fun scopeCwd(
     repo: String,
     scope: WorktreeScope,
 ): String = if (scope is WorktreeScope.Worktree) scope.path else repo
-
-/** True when [cwd] is [dir] or a subdirectory of it; `/r/a` is not inside `/r/ab`. */
-internal fun isInside(
-    cwd: String,
-    dir: String,
-): Boolean {
-    val c = cwdKey(cwd)
-    val d = cwdKey(dir)
-    return c == d || c.startsWith("$d/")
-}
 
 /** One worktree the scope menu offers, with how many chats run in it. */
 internal data class ScopeOption(

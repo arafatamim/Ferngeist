@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.acp.bridge.facade.HubChatPresence
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,9 +25,11 @@ object ChatPresenceModule {
     fun provideChatSessionPresence(
         hub: ChatConnectionHub,
         launchableTargetRepository: LaunchableTargetRepository,
+        gatewayRepository: GatewayRepository,
     ): ChatSessionPresence =
         HubChatPresence(
             hub = hub,
             launchableTargetRepository = launchableTargetRepository,
+            gatewayRepository = gatewayRepository,
         )
 }

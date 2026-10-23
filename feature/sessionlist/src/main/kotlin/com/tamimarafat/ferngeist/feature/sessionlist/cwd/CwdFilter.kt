@@ -1,13 +1,9 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.isInside
 import com.tamimarafat.ferngeist.core.model.normalizeCwd
-
-/**
- * Gateway-managed worktrees live at `<repo>/.worktrees/<branch>`, so this is the join point.
- * Matched on `/`-normalized paths, since a Windows gateway reports `\`-separated ones.
- */
-internal const val WORKTREES_SEGMENT = "/.worktrees/"
+import com.tamimarafat.ferngeist.core.model.worktreeRepoOf
 
 /**
  * Narrows [sessions] to the ones inside [cwdFilter], preserving order.
@@ -36,16 +32,6 @@ fun filterSessionsByCwd(
         sessionCwd.equals(filter, ignoreCase = true) ||
             worktreeRepoOf(sessionCwd)?.equals(filter, ignoreCase = true) == true
     }
-}
-
-/**
- * The repo a gateway worktree path belongs to, i.e. `/repo/.worktrees/feat-x` -> `/repo`.
- * Null when [cwd] is not inside a `.worktrees` folder; a relative path can never be, so a
- * match at index 0 is rejected rather than yielding an empty repo.
- */
-internal fun worktreeRepoOf(cwd: String): String? {
-    val marker = cwd.replace('\\', '/').indexOf(WORKTREES_SEGMENT, ignoreCase = true)
-    return if (marker > 0) cwd.take(marker) else null
 }
 
 /**

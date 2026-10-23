@@ -56,7 +56,6 @@
     <string name="sessionlist_worktree_base">Base</string>
     <string name="sessionlist_worktree_base_hint">HEAD del repositorio</string>
     <string name="sessionlist_worktree_create">Crear worktree</string>
-    <string name="sessionlist_worktree_dirty">sin confirmar</string>
     <string name="sessionlist_action_remove_worktree">Eliminar worktree</string>
     <string name="sessionlist_worktree_discard_title">¿Descartar los cambios sin confirmar?</string>
     <string name="sessionlist_worktree_discard_body">El worktree \"%1$s\" tiene cambios sin confirmar. Eliminarlo los borra. Sus commits se conservan en su rama.</string>

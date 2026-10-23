@@ -37,6 +37,7 @@
 
     <string name="common_context_used">%2$s কনটেক্সটের মধ্যে %1$s ব্যবহার হয়েছে</string>
     <string name="common_cost_amount">%1$s ব্যয় হয়েছে</string>
+    <string name="common_worktree_dirty">কমিট করা হয়নি</string>
 
     <string name="common_rpc_direction_req">REQ</string>
     <string name="common_rpc_direction_res">RES</string>

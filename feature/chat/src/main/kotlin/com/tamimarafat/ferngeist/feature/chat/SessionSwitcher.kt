@@ -1,6 +1,10 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.WorktreeRef
+import com.tamimarafat.ferngeist.core.model.projectName
+import com.tamimarafat.ferngeist.core.model.projectRootOf
+import com.tamimarafat.ferngeist.core.model.worktreeOf
 import kotlin.math.abs
 
 /** A server with at least one live session, as shown in the switcher. */
@@ -17,8 +21,12 @@ data class SwitcherSession(
     val cwd: String?,
     val updatedAt: Long?,
     val isGenerating: Boolean,
-    /** True for the session the sheet was opened from: shown muted, never clickable. */
+    /** True for the session the sheet was opened from: tinted, never clickable. */
     val isCurrent: Boolean,
+    /** The project the chat runs in: a worktree's repo, else its folder's leaf. Null without a cwd. */
+    val project: String? = null,
+    /** The gateway worktree the chat runs in, when the gateway or the path convention names one. */
+    val worktree: WorktreeRef? = null,
 )
 
 /** Live sessions of one server, newest first. */
@@ -136,6 +144,7 @@ fun deriveSwitcherGroups(
     isGenerating: (serverId: String, sessionId: String) -> Boolean,
     currentServerId: String,
     currentSessionId: String,
+    worktreesByServer: Map<String, List<WorktreeRef>> = emptyMap(),
 ): List<SwitcherGroup> {
     val unsorted =
         servers.mapNotNull { server ->
@@ -145,8 +154,10 @@ fun deriveSwitcherGroups(
             val liveRows = candidates.filter { it.id in live }
             val current = currentServerId to currentSessionId
             val orderedRows = liveRows.sortedByUpdatedAtDesc()
+            val worktrees = worktreesByServer[server.id].orEmpty()
             val mapped =
                 orderedRows.map { summary ->
+                    val cwd = summary.cwd?.takeIf { it.isNotBlank() }
                     SwitcherSession(
                         serverId = server.id,
                         sessionId = summary.id,
@@ -155,6 +166,8 @@ fun deriveSwitcherGroups(
                         updatedAt = summary.updatedAt,
                         isGenerating = isGenerating(server.id, summary.id),
                         isCurrent = server.id to summary.id == current,
+                        project = cwd?.let { projectName(projectRootOf(it, worktrees)) },
+                        worktree = cwd?.let { worktreeOf(it, worktrees) },
                     )
                 }
             val rows = mapped.sortedByCurrentFirst()

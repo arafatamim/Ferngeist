@@ -58,7 +58,6 @@
     <string name="sessionlist_worktree_base">Основа</string>
     <string name="sessionlist_worktree_base_hint">HEAD репозитория</string>
     <string name="sessionlist_worktree_create">Создать worktree</string>
-    <string name="sessionlist_worktree_dirty">есть изменения</string>
     <string name="sessionlist_action_remove_worktree">Удалить worktree</string>
     <string name="sessionlist_worktree_discard_title">Отменить незафиксированные изменения?</string>
     <string name="sessionlist_worktree_discard_body">В worktree \"%1$s\" есть незафиксированные изменения. Удаление сотрёт их. Все коммиты останутся в его ветке.</string>

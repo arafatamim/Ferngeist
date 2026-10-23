@@ -42,6 +42,10 @@
     <string name="common_context_used">%1$s used of %2$s context</string>
     <string name="common_cost_amount">%1$s spent</string>
 
+    <!-- Worktree badge -->
+    <string name="common_worktree_ahead" translatable="false">↑%1$d</string>
+    <string name="common_worktree_dirty">uncommitted</string>
+
     <!-- RPC direction labels -->
     <string name="common_rpc_direction_req">REQ</string>
     <string name="common_rpc_direction_res">RES</string>

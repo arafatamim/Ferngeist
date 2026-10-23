@@ -56,8 +56,6 @@
     <string name="sessionlist_worktree_base">Base</string>
     <string name="sessionlist_worktree_base_hint">Repo HEAD</string>
     <string name="sessionlist_worktree_create">Create worktree</string>
-    <string name="sessionlist_worktree_ahead" translatable="false">↑%1$d</string>
-    <string name="sessionlist_worktree_dirty">uncommitted</string>
     <string name="sessionlist_action_remove_worktree">Remove worktree</string>
     <string name="sessionlist_worktree_discard_title">Discard uncommitted changes?</string>
     <string name="sessionlist_worktree_discard_body">Worktree \"%1$s\" has uncommitted changes. Removing it deletes them. Any commits it has are kept on its branch.</string>

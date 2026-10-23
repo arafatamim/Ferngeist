@@ -56,7 +56,6 @@
     <string name="sessionlist_worktree_base">Base</string>
     <string name="sessionlist_worktree_base_hint">HEAD do repositório</string>
     <string name="sessionlist_worktree_create">Criar worktree</string>
-    <string name="sessionlist_worktree_dirty">não commitado</string>
     <string name="sessionlist_action_remove_worktree">Remover worktree</string>
     <string name="sessionlist_worktree_discard_title">Descartar alterações não commitadas?</string>
     <string name="sessionlist_worktree_discard_body">O worktree \"%1$s\" tem alterações não commitadas. Removê-lo as apaga. Os commits dele são mantidos no branch.</string>

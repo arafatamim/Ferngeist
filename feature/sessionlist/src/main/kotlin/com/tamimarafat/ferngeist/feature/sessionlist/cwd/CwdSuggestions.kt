@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.worktreeRepoOf
 
 enum class CwdSuggestionSource { RECENT, SESSION }
 

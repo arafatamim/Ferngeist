@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
+import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import kotlinx.coroutines.CoroutineScope
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 
@@ -55,15 +57,18 @@ internal class ChatSwitcherController(
 
     private fun combineSwitcherRows(serverIds: List<String>): Flow<SwitcherUiState> =
         combine(
-            serverIds.map { sid ->
-                combine(
-                    sessionRepository.getSessions(sid),
-                    presence.connectedSessionIds(sid),
-                ) { sessions, liveIds ->
-                    Triple(sid, sessions, liveIds)
-                }
-            },
-        ) { triples ->
+            combine(
+                serverIds.map { sid ->
+                    combine(
+                        sessionRepository.getSessions(sid),
+                        presence.connectedSessionIds(sid),
+                    ) { sessions, liveIds ->
+                        Triple(sid, sessions, liveIds)
+                    }
+                },
+            ) { triples -> triples },
+            worktreesFlow(serverIds),
+        ) { triples, worktreesByServer ->
             val sessionsByServer = triples.associate { it.first to it.second }
             val liveByServer = triples.associate { it.first to it.third }
             val servers =
@@ -81,12 +86,30 @@ internal class ChatSwitcherController(
                     isGenerating = { sid, sess -> presence.isStreaming(sid, sess) },
                     currentServerId = serverId,
                     currentSessionId = currentSessionId(),
+                    worktreesByServer = worktreesByServer,
                 )
             SwitcherUiState(
                 groups = groups,
                 liveTotalCount = groups.sumOf { it.sessions.size },
                 hasOthers = groups.any { group -> group.sessions.any { !it.isCurrent } },
             )
+        }
+
+    /** The last listing a gateway answered with, so a failed refresh does not rename projects. */
+    private var lastWorktrees: Map<String, List<WorktreeRef>> = emptyMap()
+
+    /**
+     * The gateway's worktrees per live server. The last successful listing paints first so the
+     * sheet opens with the right project names, then the refresh replaces it: a worktree folder
+     * is named for its branch, and only the gateway's listing says which repo it belongs to.
+     */
+    private fun worktreesFlow(serverIds: List<String>): Flow<Map<String, List<WorktreeRef>>> =
+        flow {
+            emit(lastWorktrees)
+            val fetched = serverIds.associateWith { presence.worktrees(it) }
+            val merged = serverIds.associateWith { sid -> fetched[sid] ?: lastWorktrees[sid].orEmpty() }
+            lastWorktrees = merged
+            emit(merged)
         }
 
     /**

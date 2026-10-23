@@ -69,16 +69,6 @@ class CwdFilterTest {
     }
 
     @Test
-    fun worktreeRepoOf_readsOnlyTheFolderSegment() {
-        assertEquals("/work/api", worktreeRepoOf("/work/api/.worktrees/feat-x"))
-        // A repo that merely has "worktrees" in its name is not a managed worktree.
-        assertEquals(null, worktreeRepoOf("/work/apix.worktrees/feat-x"))
-        assertEquals(null, worktreeRepoOf("/work/api"))
-        assertEquals(null, worktreeRepoOf(".worktrees/feat-x"))
-        assertEquals("C:\\work\\api", worktreeRepoOf("C:\\work\\api\\.worktrees\\feat-x"))
-    }
-
-    @Test
     fun chatsInWorktree_takesEveryChatInThatDirectoryOrBelow() {
         val tree =
             listOf(

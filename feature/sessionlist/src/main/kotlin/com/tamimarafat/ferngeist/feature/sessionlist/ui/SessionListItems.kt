@@ -60,8 +60,10 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
+import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.cwdKey
+import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
@@ -467,7 +469,14 @@ private fun RowScope.SessionCardText(
                     overflow = TextOverflow.MiddleEllipsis,
                 )
             }
-            worktreeBranch?.let { WorktreeBadge(it, worktree) }
+            worktreeBranch?.let {
+                WorktreeBadge(
+                    branch = it,
+                    modifier = Modifier.padding(top = 4.dp),
+                    ahead = worktree?.ahead,
+                    dirty = worktree?.dirty,
+                )
+            }
         }
     }
 }

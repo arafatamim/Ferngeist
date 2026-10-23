@@ -65,7 +65,8 @@ open class ChatViewModelTestBase {
         launchableTargetRepository: LaunchableTargetRepository = FakeLaunchableTargetRepository(),
         facadeFactory: ChatSessionFacadeFactory = FakeChatSessionFacadeFactory(),
         chatConnectionHub: ChatConnectionHub = newTestHub(),
-        presence: ChatSessionPresence = HubChatPresence(chatConnectionHub, launchableTargetRepository),
+        presence: ChatSessionPresence =
+            HubChatPresence(chatConnectionHub, launchableTargetRepository, FakeGatewayRepository()),
         pendingPromptStore: PendingPromptStore = InMemoryPendingPromptStore(),
         switcherHintStore: SwitcherHintStore = InMemorySwitcherHintStore(),
     ): ChatViewModel =

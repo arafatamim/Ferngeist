@@ -74,6 +74,7 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.pathSegments
+import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.ScopeOption
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
@@ -82,6 +83,7 @@ import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import com.tamimarafat.ferngeist.core.common.R as CommonR
 
 /** The label for [scope]: what the selector, the app bar subtitle and the empty state call it. */
 @Composable
@@ -103,9 +105,6 @@ private val SELECTOR_MAX_WIDTH = 104.dp
 private val SELECTOR_WIDE_MAX_WIDTH = 200.dp
 
 private const val MAX_RECENT_PROJECTS = 5
-
-/** A project's last path segment, which is what the selector, sheet and cards call it. */
-internal fun projectName(path: String): String = pathSegments(path).lastOrNull() ?: path.trim()
 
 /**
  * Where New chat starts: a project and, inside a repo on a gateway, a worktree of it.
@@ -495,8 +494,8 @@ private fun scopeSupportingText(option: ScopeOption): String? {
     val locale = LocalConfiguration.current.locales[0]
     val createdMillis = runCatching { Instant.parse(worktree.createdAt).toEpochMilli() }.getOrNull()?.takeIf { it > 0 }
     return buildList {
-        worktree.ahead?.takeIf { it > 0 }?.let { add(stringResource(R.string.sessionlist_worktree_ahead, it)) }
-        if (worktree.dirty == true) add(stringResource(R.string.sessionlist_worktree_dirty))
+        worktree.ahead?.takeIf { it > 0 }?.let { add(stringResource(CommonR.string.common_worktree_ahead, it)) }
+        if (worktree.dirty == true) add(stringResource(CommonR.string.common_worktree_dirty))
         if (option.chats > 0) add(pluralStringResource(R.plurals.sessionlist_session_count, option.chats, option.chats))
         createdMillis?.let { add(narrowAge(Duration.ofMillis(System.currentTimeMillis() - it), locale)) }
     }.takeIf { it.isNotEmpty() }?.joinToString(" · ")

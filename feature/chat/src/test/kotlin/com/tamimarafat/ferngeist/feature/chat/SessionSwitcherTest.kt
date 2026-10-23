@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -13,7 +14,8 @@ class SessionSwitcherTest {
     private fun summary(
         id: String,
         updatedAt: Long?,
-    ) = SessionSummary(id = id, title = "T-$id", cwd = "/w", updatedAt = updatedAt)
+        cwd: String = "/w",
+    ) = SessionSummary(id = id, title = "T-$id", cwd = cwd, updatedAt = updatedAt)
 
     @Test
     fun `includes current session flagged and keeps rows newest first`() {
@@ -30,6 +32,35 @@ class SessionSwitcherTest {
         assertEquals(listOf("s1", "s2"), groups[0].sessions.map { it.sessionId })
         assertTrue(groups[0].sessions[0].isCurrent)
         assertFalse(groups[0].sessions[1].isCurrent)
+    }
+
+    @Test
+    fun `a worktree row names its repo from the gateway listing, not the worktree folder`() {
+        val worktreePath = "/orca/workspaces/Ferngeist/feat-x"
+        val groups =
+            deriveSwitcherGroups(
+                servers = listOf(serverA),
+                sessionsByServer = mapOf("srvA" to listOf(summary("wt", 10L, worktreePath))),
+                liveIdsByServer = mapOf("srvA" to setOf("wt")),
+                isGenerating = { _, _ -> false },
+                currentServerId = "srvA",
+                currentSessionId = "other",
+                worktreesByServer =
+                    mapOf(
+                        "srvA" to
+                            listOf(
+                                WorktreeRef(
+                                    repo = "/orca/workspaces/Ferngeist",
+                                    path = worktreePath,
+                                    branch = "feat-x",
+                                ),
+                            ),
+                    ),
+            )
+
+        val row = groups.single().sessions.single()
+        assertEquals("Ferngeist", row.project)
+        assertEquals("feat-x", row.worktree?.branch)
     }
 
     @Test

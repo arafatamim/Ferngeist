@@ -233,6 +233,20 @@ data class ChatWorktree(
     val dirty: Boolean? = null,
 )
 
+/**
+ * One gateway worktree as a listing names it: the repo it belongs to, its checkout, and what git
+ * knows about it. The repo is authoritative — a worktree folder is named for its branch, not its
+ * project.
+ */
+data class WorktreeRef(
+    val repo: String,
+    val path: String,
+    val branch: String,
+    val ahead: Int? = null,
+    val behind: Int? = null,
+    val dirty: Boolean? = null,
+)
+
 /** A branch, remote branch, tag, or detached HEAD pointing at a commit. */
 data class ChatGitRef(
     val name: String,
@@ -553,6 +567,13 @@ interface ChatSessionPresence {
 
     /** Connected session ids tracked on [serverId], re-emitting as connections come and go. */
     fun connectedSessionIds(serverId: String): Flow<Set<String>>
+
+    /**
+     * The gateway's worktrees for [serverId], or null when it cannot be asked: not gateway-backed,
+     * or the listing failed. Empty means the gateway answered with none. Their repos fold a chat's
+     * worktree directory into its project.
+     */
+    suspend fun worktrees(serverId: String): List<WorktreeRef>?
 
     /** True when the tracked entry for [serverId]/[sessionId] is streaming. */
     fun isStreaming(
