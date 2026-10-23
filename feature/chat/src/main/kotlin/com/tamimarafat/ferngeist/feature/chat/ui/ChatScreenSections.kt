@@ -690,7 +690,7 @@ private fun ChatMessageList(
         // rebuilt mid-push.
         PinnedPromptOverlays(userRows, leadingRows, windowed, scroll, contentTop, fadePx)
         AnimatedVisibility(
-            visible = allMessages.isEmpty() && state.pendingMessages.isEmpty() && !state.resumedSession,
+            visible = state.isNewChat && allMessages.isEmpty() && state.pendingMessages.isEmpty(),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize(),

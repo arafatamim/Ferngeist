@@ -49,6 +49,11 @@ data class ChatState(
      * transcript starts empty. Drives the top-of-transcript resumed-session notice.
      */
     val resumedSession: Boolean = false,
+    /**
+     * True for a create-on-arrival chat. Only these show the empty-session hero: an existing
+     * session can paint empty for a frame on attach, and the hero would flash over its transcript.
+     */
+    val isNewChat: Boolean = false,
     val gatewayWorkspaceConnection: GatewayWorkspaceConnection? = null,
     /** The file a transcript chip or a diff's open-full-file button opened; null while the sheet is closed. */
     val openFile: FileView? = null,

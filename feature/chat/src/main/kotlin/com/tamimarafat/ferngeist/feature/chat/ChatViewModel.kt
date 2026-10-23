@@ -316,7 +316,7 @@ class ChatViewModel
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
         init {
-            updateState { copy(serverId = serverId) }
+            updateState { copy(serverId = serverId, isNewChat = !openedExistingSession) }
             // Announce this chat's screen presence to the hub so the connection
             // notification deep-links back here instead of dropping the user on
             // the home screen. A create-on-arrival chat still holds the __new__
