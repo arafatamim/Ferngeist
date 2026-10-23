@@ -101,7 +101,7 @@ class GatewayWorktreeTest {
         }
 
     @Test
-    fun `listWorktrees gets the worktrees endpoint and decodes ahead and dirty`() =
+    fun `listWorktrees gets the worktrees endpoint and decodes ahead, behind and dirty`() =
         runTest {
             var captured: HttpRequestData? = null
             val repo =
@@ -117,6 +117,7 @@ class GatewayWorktreeTest {
                                 "baseCommit": "abc123",
                                 "createdAt": "2026-10-09T10:00:00Z",
                                 "ahead": 3,
+                                "behind": 2,
                                 "dirty": true
                             }
                         ]
@@ -131,6 +132,7 @@ class GatewayWorktreeTest {
             assertEquals(1, worktrees.size)
             assertEquals("feat/x", worktrees[0].branch)
             assertEquals(3, worktrees[0].ahead)
+            assertEquals(2, worktrees[0].behind)
             assertEquals(true, worktrees[0].dirty)
         }
 

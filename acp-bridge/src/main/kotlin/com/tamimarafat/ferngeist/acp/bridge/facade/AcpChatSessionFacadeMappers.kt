@@ -293,7 +293,7 @@ internal fun GatewayGitCommit.toChatGitCommit(): ChatGitCommit =
     )
 
 internal fun GatewayWorktree.toChatWorktree(): ChatWorktree =
-    ChatWorktree(branch = branch, ahead = ahead, dirty = dirty)
+    ChatWorktree(branch = branch, ahead = ahead, behind = behind, dirty = dirty)
 
 /** A gateway without the worktree API answers `/v1/worktrees` with a 404, which means "none" here. */
 internal fun GatewayRequestException.isMissingWorktreeApi(): Boolean = statusCode == HTTP_NOT_FOUND

@@ -331,7 +331,7 @@ data class GatewayMissingPaths(
  * A git worktree, made by the gateway or by anything else. [path] is what a chat opened in it
  * uses as its cwd. [branch] is empty on a detached `HEAD`.
  *
- * [ahead] and [dirty] are only on the list response, and are null when git failed for
+ * [ahead], [behind] and [dirty] are only on the list response, and are null when git failed for
  * that entry.
  */
 @Serializable
@@ -343,6 +343,7 @@ data class GatewayWorktree(
     @SerialName("baseCommit") val baseCommit: String,
     val createdAt: String,
     val ahead: Int? = null,
+    val behind: Int? = null,
     val dirty: Boolean? = null,
 )
 
