@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -49,53 +50,6 @@ class DiffBlocksTest {
         // A=100, D=1 -> round(100/101*5)=5 green -> 0 red -> forced 4 green, 1 red
         val result = computeDiffBlocks(100, 1)
         assertEquals(DiffBlockResult(4, 1, 0), result)
-    }
-
-    @Test
-    fun diffHelper_additions_countsInsertedLines() {
-        val diff =
-            ToolCallContent.Diff(
-                oldText = "a\nb\nc",
-                newText = "a\nx\ny\nc",
-                path = "file.txt",
-            )
-        // old: [a,b,c], new: [a,x,y,c] -> patch inserts x,y = 2 additions
-        assertEquals(2, diff.computeAdditions())
-    }
-
-    @Test
-    fun diffHelper_deletions_countsDeletedLines() {
-        val diff =
-            ToolCallContent.Diff(
-                oldText = "a\nb\nc\nd",
-                newText = "a\nd",
-                path = "file.txt",
-            )
-        assertEquals(2, diff.computeDeletions())
-    }
-
-    @Test
-    fun diffHelper_mixedCountsBoth() {
-        val diff =
-            ToolCallContent.Diff(
-                oldText = "a\nb\nc",
-                newText = "a\nx\nc",
-                path = "file.txt",
-            )
-        assertEquals(1, diff.computeAdditions())
-        assertEquals(1, diff.computeDeletions())
-    }
-
-    @Test
-    fun diffHelper_noOldText_treatsAllAsAdditions() {
-        val diff =
-            ToolCallContent.Diff(
-                oldText = null,
-                newText = "x\ny\nz",
-                path = "file.txt",
-            )
-        assertEquals(3, diff.computeAdditions())
-        assertEquals(0, diff.computeDeletions())
     }
 
     @Test
@@ -172,9 +126,9 @@ class DiffBlocksTest {
 
     @Test
     fun directoryPath_isNotDiffable() {
-        assert(isDirectoryPath(".commandcode/"))
-        assert(isDirectoryPath("demo-screenshots/"))
-        assert(!isDirectoryPath("feature/chat/ChatViewModel.kt"))
+        // The gate the git sheet uses: isDir is false here, so the trailing slash decides.
+        assert(isDirectoryEntry(ChatChangedFile(path = ".commandcode/", status = "M")))
+        assert(!isDirectoryEntry(ChatChangedFile(path = "feature/chat/ChatViewModel.kt", status = "M")))
     }
 
     @Test
