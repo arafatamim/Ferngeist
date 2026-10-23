@@ -16,6 +16,7 @@ Kotlin + Jetpack Compose Android client for the Agent Client Protocol (ACP).
 
 ### Our way of thinking
 
+- **The index comes first.** `codebase-memory` is the first tool, not an optional one: `search_graph` the concept before any grep/glob/read sweep — see [Codebase intelligence](#codebase-intelligence). A grep-first sweep is how you miss the helper that already exists.
 - **Do the task in the prompt.** It is the whole scope. No tangents, no unsolicited refactors, no "while I'm here" cleanups, no exploring code the task doesn't touch. Investigate only what the task needs to be done correctly.
 - Think in atomic steps, then execute them.
 - Read the existing code for full context before editing.
@@ -23,6 +24,23 @@ Kotlin + Jetpack Compose Android client for the Agent Client Protocol (ACP).
 - Simplicity first: the minimum code that solves the task, no speculative features.
 - Surgical changes: touch only what the task requires, match the surrounding style, remove only the orphans your change created.
 - Turn the task into verifiable criteria, then execute.
+
+### The smallest complete change
+
+Laziness applies to the solution, never to the change. Take the first rung that holds:
+
+1. Does it need to exist? Cut the feature, option or flexibility nobody asked for, and name the cut in one line.
+2. Already in this codebase — a helper, component, service, pattern? Use it the way the surrounding code does.
+3. Standard library or platform feature? Use it, unless the project has its own; a house component beats a native widget.
+4. An installed dependency? Use it; never add one for a few lines.
+5. One line a reader gets at a glance.
+6. Otherwise, the minimum that works.
+
+Keep values in the form the platform gives you: no wrapper, conversion, option, config, or "for later" code. Deletion beats addition. A shortcut with a known limit is worth one line: `shortcut: <the limit>, <when to upgrade>`.
+
+A bug fix lands once in the shared code: find every caller before editing, never patch each call site. Never cut validation at trust boundaries, error handling that prevents data loss, security, accessibility, calibration real hardware needs, or anything the user asked for.
+
+Adapted from [ponytail](https://github.com/DietrichGebert/ponytail).
 
 ### Our core values
 
@@ -66,18 +84,18 @@ Kotlin + Jetpack Compose Android client for the Agent Client Protocol (ACP).
 
 > Non-negotiable. Only the Code Commander phrase bypasses them, for one turn.
 
+### Codebase intelligence
+
+- **`codebase-memory` is the first tool, not an optional one.** When the MCP server is connected, reach for it before any grep/read sweep: `search_graph` for symbols, `trace_path` for callers/callees and blast radius, `get_code_snippet` to read a declaration, `get_file_outline` for a file's structure, `query_graph` for multi-hop or aggregation, `get_architecture` for a module overview.
+- **Keep the index current.** After adding, renaming or deleting files, re-index (`index_repository`) before trusting a lookup; use `check_index_coverage` / `index_status` to confirm the paths or modules you care about are actually indexed. An index that lags your edits is worse than no index.
+- Fall back to `read`/`grep`/`glob` for literals, for files the index does not cover, and whenever a cited path does not exist. An index hit is a lead, not proof — check the cited path before acting on it.
+
 ### Verification gate
 
 - Gate before reporting: `./gradlew detekt ktlintCheck` plus the touched module's `testDebugUnitTest`.
 - **Fix findings; never silence them.** Applies to detekt, ktlint, and Android lint alike: no `@Suppress`, `tools:ignore`, or `//noinspection`; no `detekt-baseline.xml`; no raising a threshold, setting `active: false`, or adding an exclusion glob; no deleting the offending call to dodge the rule. If a finding is genuinely wrong, say why in your report and let the maintainer decide. Silencing a finding to get a green build is a failed task, not a passing one.
 - Device verification is off-limits unless specifically asked — no emulator, APK installs, UI driving, screenshots, or pixel scans.
 - `detekt` runs in `--analysis-mode full`; findings in `src/test` can be artefacts of the main-only classpath, so don't treat a thin report as a clean bill of health.
-
-### Codebase intelligence
-
-- **`codebase-memory` is the first tool, not an optional one.** When the MCP server is connected, reach for it before any grep/read sweep: `search_graph` for symbols, `trace_path` for callers/callees and blast radius, `get_code_snippet` to read a declaration, `get_file_outline` for a file's structure, `query_graph` for multi-hop or aggregation, `get_architecture` for a module overview.
-- **Keep the index current.** After adding, renaming or deleting files, re-index (`index_repository`) before trusting a lookup; use `check_index_coverage` / `index_status` to confirm the paths or modules you care about are actually indexed. An index that lags your edits is worse than no index.
-- Fall back to `read`/`grep`/`glob` for literals, for files the index does not cover, and whenever a cited path does not exist. An index hit is a lead, not proof — check the cited path before acting on it.
 
 ### Shell & tooling
 
@@ -225,6 +243,7 @@ After non-trivial work, exercise the changed path and report the observed result
 - **No walls of text.** A few lines. Bullets over paragraphs. If the explanation is longer than the change, cut it.
 - **Say what is unverified.** Never imply a fix is confirmed when the evidence is a unit test or a plan. If a claim rests on inference, mark it.
 - **Don't blur scope.** If work on one thing is done, don't let the report imply other things shipped too.
+- **Close with the cost.** End with one or two lines: what you skipped, what stayed unverified, and the risk that leaves.
 
 
 ## Commit & PR Guidelines
