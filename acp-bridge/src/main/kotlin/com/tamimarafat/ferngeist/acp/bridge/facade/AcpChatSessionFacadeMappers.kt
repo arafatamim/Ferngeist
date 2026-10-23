@@ -251,7 +251,7 @@ internal fun GatewayGitStatus.toChatGitStatus(): ChatGitStatus =
         branch = branch,
         ahead = ahead,
         behind = behind,
-        changed = changed.map { it.toChatChangedFile() },
+        changed = changed.orEmpty().map { it.toChatChangedFile() },
         compare = compare,
     )
 

@@ -64,30 +64,33 @@ class GatewayWorkspaceTest {
             assertEquals("/v1/runtimes/rt-1/git/status", request.url.encodedPath)
             assertEquals("Bearer plain-token", request.headers["Authorization"])
 
+            val changed = requireNotNull(status.changed)
             assertEquals("main", status.branch)
             assertEquals(2, status.ahead)
             assertEquals(0, status.behind)
-            assertEquals(2, status.changed.size)
-            assertEquals("src/main.kt", status.changed[0].path)
-            assertEquals("M", status.changed[0].status)
-            assertEquals(12, status.changed[0].added)
-            assertEquals(3, status.changed[0].removed)
-            assertEquals("wip.txt", status.changed[1].path)
-            assertEquals("?", status.changed[1].status)
-            assertEquals(1, status.changed[1].added)
-            assertFalse(status.changed[1].binary)
+            assertEquals(2, changed.size)
+            assertEquals("src/main.kt", changed[0].path)
+            assertEquals("M", changed[0].status)
+            assertEquals(12, changed[0].added)
+            assertEquals(3, changed[0].removed)
+            assertEquals("wip.txt", changed[1].path)
+            assertEquals("?", changed[1].status)
+            assertEquals(1, changed[1].added)
+            assertFalse(changed[1].binary)
         }
 
     @Test
     fun `fetchGitStatus decodes an empty clean-tree response`() =
         runTest {
+            // A clean tree arrives as `"changed":null`: the gateway marshals its nil Go slice,
+            // not `[]`, so this exact payload is what the chat has to survive.
             val repo =
-                repoCapturing(responseBody = """{"branch":"main","ahead":0,"behind":0,"changed":[]}""")
+                repoCapturing(responseBody = """{"branch":"main","ahead":0,"behind":0,"changed":null}""")
 
             val status = repo.fetchGitStatus("http", "10.0.0.2:5788", "plain-token", "rt-1")
 
             assertEquals("main", status.branch)
-            assertTrue(status.changed.isEmpty())
+            assertNull(status.changed)
         }
 
     @Test

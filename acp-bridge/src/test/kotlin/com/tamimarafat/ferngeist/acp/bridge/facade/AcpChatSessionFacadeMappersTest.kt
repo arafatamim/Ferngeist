@@ -10,11 +10,15 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitLog
 import com.tamimarafat.ferngeist.gateway.GatewayGitRef
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+/** The gateway's wire format, configured as the app configures it. */
+private val gatewayJson = Json { ignoreUnknownKeys = true }
 
 /** The gateway working tree's shape, mapped into the chat domain the feature layer holds. */
 class AcpChatSessionFacadeMappersTest {
@@ -57,6 +61,19 @@ class AcpChatSessionFacadeMappersTest {
         assertEquals("", mapped.branch)
         assertEquals(0, mapped.ahead)
         assertEquals(0, mapped.behind)
+        assertTrue(mapped.changed.isEmpty())
+    }
+
+    @Test
+    fun `a clean tree's null changed list decodes and maps to empty`() {
+        val status =
+            gatewayJson.decodeFromString<GatewayGitStatus>(
+                """{"branch":"main","ahead":0,"behind":0,"changed":null}""",
+            )
+
+        val mapped = status.toChatGitStatus()
+
+        assertEquals("main", mapped.branch)
         assertTrue(mapped.changed.isEmpty())
     }
 

@@ -230,7 +230,12 @@ data class GatewayGitStatus(
     val branch: String = "",
     val ahead: Int = 0,
     val behind: Int = 0,
-    val changed: List<GatewayChangedFile> = emptyList(),
+    /**
+     * The changed files. Nullable because the gateway marshals a clean tree's nil
+     * Go slice as `null`, which a non-nullable list refuses to decode — and a failed
+     * decode reads as "no git status at all" in the chat. The mapper empties it.
+     */
+    val changed: List<GatewayChangedFile>? = null,
     /** The `compare=` the gateway honoured, verbatim; absent when none was requested or the gateway ignored it. */
     val compare: String? = null,
 )
