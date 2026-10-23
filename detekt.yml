@@ -24,19 +24,33 @@ style:
   UnusedParameter:
     # Kotlin convention: `_`-prefixed params are intentionally unused.
     allowedNames: 'ignored|expected|_.*'
+
 complexity:
   LongMethod:
     # Compose UI functions are long by structure (parameter lists + UI trees),
     # same rationale as FunctionNaming above; LongMethod still guards
     # ViewModels, reducers, and other logic-bearing functions.
     ignoreAnnotated: ['Composable']
+  # Thresholds are the house limit, not a survey of current code. Anything already
+  # over it is listed in the per-module detekt-baseline.xml files; raising a number
+  # here instead of splitting the type is how a 1300-line file becomes acceptable.
   TooManyFunctions:
-    allowedFunctionsPerClass: 25
-    allowedFunctionsPerInterface: 25
-    allowedFunctionsPerObject: 25
-    allowedFunctionsPerFile: 25
+    allowedFunctionsPerClass: 15
+    allowedFunctionsPerInterface: 15
+    allowedFunctionsPerObject: 15
+    allowedFunctionsPerFile: 15
   LargeClass:
-    # ViewModel coordinators legitimately exceed 600 lines after cohesive
-    # helper groups are extracted; the class delegates state-mutation to
-    # extracted support files rather than growing unbounded.
-    allowedLines: 800
+    allowedLines: 600
+  NestedBlockDepth:
+    allowedDepth: 3
+  CognitiveComplexMethod:
+    active: true
+    allowedComplexity: 15
+  ComplexInterface:
+    active: true
+    allowedDefinitions: 12
+    includePrivateDeclarations: false
+  StringLiteralDuplication:
+    active: true
+    allowedDuplications: 3
+    allowedWithLengthLessThan: 5

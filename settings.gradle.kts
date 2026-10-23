@@ -31,5 +31,6 @@ include(":feature:serverlist")
 include(":feature:sessionlist")
 include(":feature:chat")
 include(":e2e")
+include(":konsist")
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")

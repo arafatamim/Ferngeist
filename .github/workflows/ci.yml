@@ -39,3 +39,6 @@ jobs:
 
       - name: Run detekt + ktlint + lint (foss + google)
         run: ./gradlew detekt ktlintCheck :app:lintFossDebug :app:lintGoogleDebug
+
+      - name: Run Konsist architecture tests
+        run: ./gradlew :konsist:test
