@@ -292,7 +292,7 @@ private fun GitCompareChip(
 }
 
 @Composable
-private fun GitAheadBehindIndicator(
+internal fun GitAheadBehindIndicator(
     icon: ImageVector,
     count: Int,
     tint: Color,

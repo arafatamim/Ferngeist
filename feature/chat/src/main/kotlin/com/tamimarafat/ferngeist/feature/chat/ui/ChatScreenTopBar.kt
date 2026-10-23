@@ -49,6 +49,11 @@ internal fun ChatScreenTopBar(
             screenState.state.gitStatus
                 ?.changed
                 ?.size ?: 0,
+        gitRepo = screenState.state.gitStatus != null,
+        // A managed worktree's counts are against its base ref, which is the only comparison that
+        // means anything there; the status counts are against the upstream and stay zero without one.
+        gitAhead = screenState.state.worktree?.ahead ?: screenState.state.gitStatus?.ahead ?: 0,
+        gitBehind = screenState.state.worktree?.behind ?: screenState.state.gitStatus?.behind ?: 0,
         worktree = screenState.state.worktree,
         scrollBehavior = scrollBehavior,
         onNavigateBack = onNavigateBack,

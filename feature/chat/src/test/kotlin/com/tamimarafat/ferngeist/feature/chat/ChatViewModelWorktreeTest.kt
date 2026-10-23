@@ -4,10 +4,14 @@ import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Which gateway worktree a chat runs in, as read by [ChatIntent.RefreshGitStatus]. */
@@ -47,6 +51,31 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             assertEquals(featX, viewModel.state.value.worktree)
+        }
+
+    @Test
+    fun `a refresh publishes the status and its worktree in one update`() =
+        runTest {
+            val facadeFactory = FakeChatSessionFacadeFactory()
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            val facade = facadeFactory.lastFacade.value!!
+            val states = mutableListOf<ChatState>()
+            val collector =
+                launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.toList(states) }
+
+            facade.emitGatewayWorkspaceConnection(
+                GatewayWorkspaceConnection("rt-1", "http", "10.0.0.2:5788", "token"),
+            )
+            facade.gitStatus = ChatGitStatus(branch = "feat-x")
+            facade.worktree = { featX }
+            viewModel.dispatch(ChatIntent.RefreshGitStatus)
+            advanceUntilIdle()
+            collector.cancel()
+
+            assertEquals(featX, viewModel.state.value.worktree)
+            // The pill draws "clean" from the status and ahead/behind from the worktree: a status
+            // published ahead of its worktree showed a check, then replaced it with the arrows.
+            assertTrue(states.none { it.gitStatus != null && it.worktree == null })
         }
 
     @Test

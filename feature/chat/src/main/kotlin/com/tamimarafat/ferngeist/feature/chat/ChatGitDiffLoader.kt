@@ -2,12 +2,16 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
+import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
+import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GitRefsUnsupportedException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -34,11 +38,10 @@ internal class ChatGitDiffLoader(
     private var job: Job? = null
 
     // Chat open asks for these from several places in a burst (workspace appearing, session ready,
-    // the load finishing); each ask is a git process on the gateway, so a burst becomes one fetch
-    // plus at most one rerun.
+    // the load finishing); a status refresh costs a pair of gateway reads, so a burst becomes one
+    // pair plus at most one rerun.
     private val statusRefresh = Coalesced(scope) { fetchStatus() }
     private val refsLoad = Coalesced(scope) { fetchRefs() }
-    private val worktreeLoad = Coalesced(scope) { fetchWorktree() }
 
     /**
      * The latest turn's inline fallback fetches, one per git-relative path and independent of the
@@ -77,6 +80,10 @@ internal class ChatGitDiffLoader(
      * `added`/`removed` counts (from `git diff --numstat`, with untracked files counted
      * from disk), so the totals are git's own authoritative numbers.
      *
+     * The worktree is read in the same pass and applied in the same state write: the indicator
+     * draws "clean" from the status and ahead/behind from the worktree, so applying them
+     * separately let a clean status land first and flash a check before the worktree replaced it.
+     *
      * Errors keep the previous value so a transient poll failure does not clear the
      * indicator.
      */
@@ -86,36 +93,37 @@ internal class ChatGitDiffLoader(
         statusRefresh.run()
     }
 
-    /** Reads which gateway worktree this chat is in, for the git indicator's tooltip. */
-    fun loadWorktree() {
-        if (acpSessionId() == null) return
-        worktreeLoad.run()
-    }
-
-    // A failed read keeps the last answer: a transient fault must not make the worktree vanish.
-    private suspend fun fetchWorktree() {
-        runCatching { facade.fetchWorktree() }
-            .onSuccess { worktree -> update { copy(worktree = worktree) } }
-    }
-
     private suspend fun fetchStatus() {
-        runCatching { facade.fetchGitStatus() }
-            .onSuccess { status ->
-                if (status == null) return@onSuccess
-                val stats =
-                    GitDiffStats(
-                        additions = status.changed.sumOf { it.added },
-                        deletions = status.changed.sumOf { it.removed },
-                    )
-                update { copy(gitStatus = status, gitDiffStats = stats) }
-                // Git's counts can stay put while the text changes, so every refresh re-reads
-                // the turn's diffs already shown.
-                turnLoaded.toMap().forEach { (path, request) ->
-                    turnLoaded.remove(path)
-                    loadTurnFile(path, request.first, request.second)
-                }
-            }
+        val (status, worktree) = fetchSnapshot()
+        if (status == null) return
+        val stats =
+            GitDiffStats(
+                additions = status.changed.sumOf { it.added },
+                deletions = status.changed.sumOf { it.removed },
+            )
+        update {
+            copy(
+                gitStatus = status,
+                gitDiffStats = stats,
+                // A failed read keeps the last answer: a transient fault must not make it vanish.
+                worktree = worktree.getOrElse { this.worktree },
+            )
+        }
+        // Git's counts can stay put while the text changes, so every refresh re-reads
+        // the turn's diffs already shown.
+        turnLoaded.toMap().forEach { (path, request) ->
+            turnLoaded.remove(path)
+            loadTurnFile(path, request.first, request.second)
+        }
     }
+
+    /** The status and the worktree requested together, so a burst still costs one pair of reads. */
+    private suspend fun fetchSnapshot(): Pair<ChatGitStatus?, Result<ChatWorktree?>> =
+        coroutineScope {
+            val status = async { runCatching { facade.fetchGitStatus() } }
+            val worktree = async { runCatching { facade.fetchWorktree() } }
+            status.await().getOrNull() to worktree.await()
+        }
 
     /**
      * Fetches the working tree against the compare ref into the compare slots only, so the

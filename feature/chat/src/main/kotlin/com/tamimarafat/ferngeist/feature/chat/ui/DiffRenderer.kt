@@ -26,16 +26,22 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Commit
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TooltipScope
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -452,63 +459,6 @@ internal fun computeDiffBlocks(
     return DiffBlockResult(green, red, DIFF_BLOCK_COUNT - green - red)
 }
 
-/**
- * Counts the total number of lines added in this diff.
- *
- * When [oldText] is empty, every line in [newText] is treated as an
- * addition. Otherwise computes the full patch and sums insert and
- * change delta target sizes.
- *
- * @return The total number of added lines.
- */
-internal fun ToolCallContent.Diff.computeAdditions(): Int {
-    val oldLines = oldText?.lines() ?: emptyList()
-    val newLines = newText.lines()
-    // Entirely new file — every new line is an addition.
-    if (oldLines.isEmpty()) return newLines.size
-    val patch =
-        generatePatch {
-            original = oldLines
-            revised = newLines
-        }
-    return patch.getDeltas().sumOf { delta ->
-        when (delta.type) {
-            DeltaType.INSERT,
-            DeltaType.CHANGE,
-            -> delta.target.lines.size
-            else -> 0
-        }
-    }
-}
-
-/**
- * Counts the total number of lines deleted in this diff.
- *
- * When [oldText] is empty, returns 0 (no deletions possible). Otherwise
- * computes the full patch and sums delete and change delta source sizes.
- *
- * @return The total number of deleted lines.
- */
-internal fun ToolCallContent.Diff.computeDeletions(): Int {
-    val oldLines = oldText?.lines() ?: emptyList()
-    val newLines = newText.lines()
-    // New file has nothing to delete.
-    if (oldLines.isEmpty()) return 0
-    val patch =
-        generatePatch {
-            original = oldLines
-            revised = newLines
-        }
-    return patch.getDeltas().sumOf { delta ->
-        when (delta.type) {
-            DeltaType.DELETE,
-            DeltaType.CHANGE,
-            -> delta.source.lines.size
-            else -> 0
-        }
-    }
-}
-
 internal data class DiffStats(
     val additions: Int,
     val deletions: Int,
@@ -697,40 +647,32 @@ internal fun GitStatusIndicatorButton(
     deletions: Int,
     branch: String?,
     changedFiles: Int,
+    ahead: Int,
+    behind: Int,
     worktree: ChatWorktree?,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (additions == 0 && deletions == 0 && changedFiles == 0) return
-    val label = "$additions added, $deletions deleted"
+    // A clean repo keeps its pill: it is the only way into the commit history.
+    val clean = changedFiles == 0
+    val label =
+        if (clean) {
+            "$ahead ahead, $behind behind"
+        } else {
+            "$additions added, $deletions deleted"
+        }
     val branchLabel = branch?.ifBlank { "no branch" } ?: "no branch"
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
-            RichTooltip(
-                title = {
-                    Text(branchLabel)
-                },
-                modifier = Modifier.widthIn(max = 240.dp),
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text("$changedFiles file(s) changed")
-                    worktree?.let { Text(worktreeSummary(it)) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "+$additions",
-                            color = LocalGitSemanticColors.current.added,
-                        )
-                        Text(
-                            text = "-$deletions",
-                            color = LocalGitSemanticColors.current.deleted,
-                        )
-                    }
-                }
-            }
+            GitStatusTooltip(
+                branchLabel = branchLabel,
+                changedFiles = changedFiles,
+                additions = additions,
+                deletions = deletions,
+                worktree = worktree,
+            )
         },
         state = rememberTooltipState(),
     ) {
@@ -758,7 +700,49 @@ internal fun GitStatusIndicatorButton(
                         stateDescription = label
                     },
         ) {
-            GitStatusButtonContent(additions, deletions)
+            GitStatusButtonContent(additions, deletions, ahead, behind, clean)
+        }
+    }
+}
+
+/** The pill's long-press detail: what changed, the worktree, and counts only when there are lines. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TooltipScope.GitStatusTooltip(
+    branchLabel: String,
+    changedFiles: Int,
+    additions: Int,
+    deletions: Int,
+    worktree: ChatWorktree?,
+) {
+    RichTooltip(
+        title = {
+            Text(branchLabel)
+        },
+        modifier = Modifier.widthIn(max = 240.dp),
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (changedFiles > 0) {
+                Text(pluralStringResource(R.plurals.chat_git_files_changed, changedFiles, changedFiles))
+            } else {
+                Text(stringResource(R.string.chat_git_clean))
+            }
+            worktree?.let { Text(worktreeSummary(it)) }
+            // A clean tree has nothing to add up: the label above is the whole answer.
+            if (additions > 0 || deletions > 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "+$additions",
+                        color = LocalGitSemanticColors.current.added,
+                    )
+                    Text(
+                        text = "-$deletions",
+                        color = LocalGitSemanticColors.current.deleted,
+                    )
+                }
+            }
         }
     }
 }
@@ -776,11 +760,39 @@ private fun worktreeSummary(worktree: ChatWorktree): String =
 private fun GitStatusButtonContent(
     additions: Int,
     deletions: Int,
+    ahead: Int,
+    behind: Int,
+    clean: Boolean,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (clean) {
+            if (ahead > 0) {
+                GitAheadBehindIndicator(
+                    icon = Icons.Filled.ArrowUpward,
+                    count = ahead,
+                    tint = LocalGitSemanticColors.current.added,
+                )
+            }
+            if (behind > 0) {
+                GitAheadBehindIndicator(
+                    icon = Icons.Filled.ArrowDownward,
+                    count = behind,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (ahead == 0 && behind == 0) {
+                Icon(
+                    imageVector = Icons.Filled.Commit,
+                    contentDescription = stringResource(R.string.chat_git_clean),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            return@Row
+        }
         if (additions > 0) {
             RollingCount(
                 value = additions,

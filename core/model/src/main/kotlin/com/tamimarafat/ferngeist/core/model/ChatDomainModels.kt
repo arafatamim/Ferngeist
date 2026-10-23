@@ -223,12 +223,13 @@ data class ChatGitStatus(
 )
 
 /**
- * The gateway's record of the worktree a chat runs in. [ahead] and [dirty] are null when git could
- * not say.
+ * The gateway's record of the worktree a chat runs in. [ahead], [behind] and [dirty] are null when
+ * git could not say.
  */
 data class ChatWorktree(
     val branch: String,
     val ahead: Int? = null,
+    val behind: Int? = null,
     val dirty: Boolean? = null,
 )
 

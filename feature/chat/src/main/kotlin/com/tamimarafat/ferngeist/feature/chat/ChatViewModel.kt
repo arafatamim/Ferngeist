@@ -407,7 +407,6 @@ class ChatViewModel
                     state.value.gatewayWorkspaceConnection?.let { gitDiffLoader.refresh() }
                     // Known before the sheet opens, so its first frame already compares against the default.
                     gitDiffLoader.loadRefs()
-                    gitDiffLoader.loadWorktree()
                 }
             }
             viewModelScope.launch {
@@ -792,10 +791,7 @@ class ChatViewModel
         }
 
         private fun refreshGit() {
-            state.value.gatewayWorkspaceConnection?.let {
-                gitDiffLoader.refresh()
-                gitDiffLoader.loadWorktree()
-            }
+            state.value.gatewayWorkspaceConnection?.let { gitDiffLoader.refresh() }
             // An agent turn changes the working tree, so a compare list read earlier is stale too.
             if (state.value.compareRef != null) gitDiffLoader.refreshCompare()
             // A turn may have committed, so history once opened follows along.
