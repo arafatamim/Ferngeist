@@ -66,13 +66,8 @@ internal class AcpDiagnosticsStore {
      */
     fun setReconnectAttempt(attempts: Int) {
         if (attempts <= 0) return
-        update { current ->
-            if (current.reconnectAttempts == attempts) {
-                current
-            } else {
-                current.copy(reconnectAttempts = attempts)
-            }
-        }
+        if (_diagnostics.value.reconnectAttempts == attempts) return
+        update { current -> current.copy(reconnectAttempts = attempts) }
     }
 
     fun setWebSocketState(state: WebSocketState) {
