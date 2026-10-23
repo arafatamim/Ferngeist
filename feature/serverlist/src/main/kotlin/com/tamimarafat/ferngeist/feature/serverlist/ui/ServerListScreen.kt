@@ -581,7 +581,8 @@ private fun AddFabToggle(
                 if (expanded) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
-                    MaterialTheme.colorScheme.primary
+                    // The unchecked container is primaryContainer, whose guaranteed pair is onPrimaryContainer.
+                    MaterialTheme.colorScheme.onPrimaryContainer
                 },
             // Color is a non-spatial effect: spring without bounce.
             animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),

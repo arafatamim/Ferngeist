@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingToolbarDefaults
@@ -250,6 +251,11 @@ private fun SelectorButton(
             onClick = onClick,
             // Keyboard focus must not land on a selector the collapsed toolbar has hidden.
             modifier = Modifier.handCursor().focusProperties { canFocus = focusable },
+            // The vibrant toolbar's container is primaryContainer; primary is not a guaranteed pair.
+            colors =
+                ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
             contentPadding = PaddingValues(start = 8.dp, end = 4.dp),
         ) {
             Icon(
