@@ -229,8 +229,13 @@ class SessionListViewModel
 
         /** Every project this agent's chats ran in, for the directory menu; worktrees fold into their repo. */
         val projects: StateFlow<List<String>> =
-            combine(sessions, recentCwds, sessionWorktrees.managed) { cached, recent, managed ->
-                knownProjects(cached, recent, managed.orEmpty())
+            combine(
+                sessions,
+                recentCwds,
+                sessionWorktrees.managed,
+                sessionWorktrees.missingCwds,
+            ) { cached, recent, managed, missing ->
+                knownProjects(cached, recent, managed.orEmpty(), missing)
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         /**
@@ -447,8 +452,9 @@ class SessionListViewModel
         /** Every folder a chat ran in or was recently picked, so the directory menu folds each worktree. */
         private fun chatDirs(): List<String> = sessions.value.mapNotNull { it.cwd } + recentCwds.value
 
+        /** Asks the gateway which of [chatDirs] are gone, so the projects menu offers only folders that exist. */
         private suspend fun refreshMissingCwds() {
-            sessionWorktrees.refreshMissing(sessions.value.mapNotNull { it.cwd })
+            sessionWorktrees.refreshMissing(chatDirs())
         }
 
         /** Pulls the catalog's last-known capability/diagnostic snapshots into local state. */

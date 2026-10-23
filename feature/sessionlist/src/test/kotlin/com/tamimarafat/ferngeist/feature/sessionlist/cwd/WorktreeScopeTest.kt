@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -109,6 +110,26 @@ class WorktreeScopeTest {
                 sessions,
                 recentCwds = listOf("/work/lib", "/work/API/"),
                 managed = listOf(managed("w", "/work/api", "/orca/api/feat-y", "feat-y")),
+            ),
+        )
+    }
+
+    @Test
+    fun knownProjects_dropFoldersTheGatewayReportsGone() {
+        val sessions =
+            listOf(
+                session("app", "/work/app").copy(updatedAt = 3),
+                session("gone", "/work/gone").copy(updatedAt = 2),
+                session("folded", "/work/api/.worktrees/feat-y").copy(updatedAt = 1),
+            )
+
+        assertEquals(
+            listOf("/work/app", "/work/api", "/work/lib"),
+            knownProjects(
+                sessions,
+                recentCwds = listOf("/work/deleted", "/work/lib"),
+                managed = emptyList(),
+                missing = setOf(cwdKey("/work/gone"), cwdKey("/work/deleted")),
             ),
         )
     }

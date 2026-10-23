@@ -81,15 +81,23 @@ internal fun projectRoot(
     managed: List<GatewayWorktree>,
 ): String = worktreeOf(cwd, managed)?.repo ?: cwd
 
-/** Every project [sessions] and [recentCwds] ran in, most recently used chats first. */
+/**
+ * Every project [sessions] and [recentCwds] ran in, most recently used chats first.
+ *
+ * A project whose folder [missing] lists is left out: recents outlive the folders they name,
+ * and a chat's old checkout can be gone while its session is still cached. A worktree that is
+ * gone still folds into its repo, so the repo stays as long as it exists.
+ */
 internal fun knownProjects(
     sessions: List<SessionSummary>,
     recentCwds: List<String>,
     managed: List<GatewayWorktree>,
+    missing: Set<String> = emptySet(),
 ): List<String> =
     (sessions.sortedByDescending { it.updatedAt ?: 0L }.mapNotNull { it.cwd } + recentCwds)
         .filter { it.isNotBlank() }
         .map { projectRoot(it, managed) }
+        .filter { root -> missing.none { isInside(root, it) } }
         .distinctBy(::cwdKey)
 
 /** Narrows the repo's [sessions] to [scope]. */
