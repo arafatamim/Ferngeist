@@ -9,17 +9,19 @@ class GitHistoryFormatTest {
     private val now = 1_792_000_000_000L
 
     @Test
-    fun commitAge_bucketsByElapsedTime() {
-        assertEquals(CommitAge.Now, commitAge(now, now - 59_000))
-        assertEquals(CommitAge.Minutes(12), commitAge(now, now - 12 * DateUtils.MINUTE_IN_MILLIS))
-        assertEquals(CommitAge.Hours(3), commitAge(now, now - 3 * DateUtils.HOUR_IN_MILLIS - 1))
-        assertEquals(CommitAge.ThisWeek, commitAge(now, now - 6 * DateUtils.DAY_IN_MILLIS))
-        assertEquals(CommitAge.Older, commitAge(now, now - DateUtils.WEEK_IN_MILLIS))
+    fun relativeAge_bucketsByElapsedTime() {
+        assertEquals(RelativeAge.Now, relativeAge(now, now - 59_000))
+        assertEquals(RelativeAge.Minutes(12), relativeAge(now, now - 12 * DateUtils.MINUTE_IN_MILLIS))
+        assertEquals(RelativeAge.Minutes(59), relativeAge(now, now - DateUtils.HOUR_IN_MILLIS + 1))
+        assertEquals(RelativeAge.Hours(3), relativeAge(now, now - 3 * DateUtils.HOUR_IN_MILLIS - 1))
+        assertEquals(RelativeAge.Days(1), relativeAge(now, now - DateUtils.DAY_IN_MILLIS))
+        assertEquals(RelativeAge.Days(6), relativeAge(now, now - 6 * DateUtils.DAY_IN_MILLIS))
+        assertEquals(RelativeAge.Older, relativeAge(now, now - DateUtils.WEEK_IN_MILLIS))
     }
 
     @Test
-    fun commitAge_futureTimestampReadsAsNow() {
-        assertEquals(CommitAge.Now, commitAge(now, now + DateUtils.HOUR_IN_MILLIS))
+    fun relativeAge_futureTimestampReadsAsNow() {
+        assertEquals(RelativeAge.Now, relativeAge(now, now + DateUtils.HOUR_IN_MILLIS))
     }
 
     @Test

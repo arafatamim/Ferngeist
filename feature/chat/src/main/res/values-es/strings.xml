@@ -147,6 +147,7 @@
     <string name="chat_git_date_now">ahora</string>
     <string name="chat_git_date_minutes">%1$dm</string>
     <string name="chat_git_date_hours">%1$dh</string>
+    <string name="chat_git_date_days">%1$dd</string>
     <string name="chat_git_ref_branch">rama %1$s</string>
     <string name="chat_git_ref_remote">rama remota %1$s</string>
     <string name="chat_git_ref_tag">etiqueta %1$s</string>

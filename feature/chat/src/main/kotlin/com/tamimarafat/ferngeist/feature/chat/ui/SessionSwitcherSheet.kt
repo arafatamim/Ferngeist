@@ -676,20 +676,34 @@ private fun switcherSubtitle(
 }
 
 /**
- * Locale-aware "Sep 20 · 5:00 PM" style stamp: field order follows the system
- * locale via a best-pattern skeleton, and the clock follows the user's 24-hour
- * setting — unlike a hardcoded `SimpleDateFormat` pattern, which bakes in
- * US order and a 24-hour clock on every device.
+ * Short relative stamp ("2m", "3h", "2d") — the row only needs to say how stale
+ * a session is, and a full date/time costs a line of width for precision nobody
+ * reads. Past a week the bucket stops being useful, so fall back to a date.
  */
 private fun formatSwitcherTime(
+    epochMs: Long,
+    context: Context,
+    nowMs: Long = System.currentTimeMillis(),
+): String =
+    when (val age = relativeAge(nowMs, epochMs)) {
+        RelativeAge.Now -> context.getString(R.string.chat_git_date_now)
+        is RelativeAge.Minutes -> context.getString(R.string.chat_git_date_minutes, age.count)
+        is RelativeAge.Hours -> context.getString(R.string.chat_git_date_hours, age.count)
+        is RelativeAge.Days -> context.getString(R.string.chat_git_date_days, age.count)
+        RelativeAge.Older -> formatSwitcherDate(epochMs, context)
+    }
+
+/**
+ * Locale-aware "Sep 20" style date: field order follows the system locale via a
+ * best-pattern skeleton, unlike a hardcoded `SimpleDateFormat` pattern, which
+ * bakes in US order on every device.
+ */
+private fun formatSwitcherDate(
     epochMs: Long,
     context: Context,
 ): String {
     val locales = context.resources.configuration.getLocales()
     val locale = locales.get(0)
     val datePattern = DateFormat.getBestDateTimePattern(locale, "MMMd")
-    val datePart = SimpleDateFormat(datePattern, locale).format(Date(epochMs))
-    val timeFormat = DateFormat.getTimeFormat(context)
-    val timePart = timeFormat.format(Date(epochMs))
-    return "$datePart · $timePart"
+    return SimpleDateFormat(datePattern, locale).format(Date(epochMs))
 }

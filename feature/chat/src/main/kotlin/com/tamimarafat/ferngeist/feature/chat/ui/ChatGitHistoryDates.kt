@@ -32,56 +32,24 @@ internal fun dayLabel(
 internal fun localDay(millis: Long): LocalDate =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
 
-/** How a commit's age is shown in the narrow date column. */
-internal sealed interface CommitAge {
-    data object Now : CommitAge
-
-    data class Minutes(
-        val count: Int,
-    ) : CommitAge
-
-    data class Hours(
-        val count: Int,
-    ) : CommitAge
-
-    /** Within the last week: show the weekday. */
-    data object ThisWeek : CommitAge
-
-    data object Older : CommitAge
-}
-
-internal fun commitAge(
-    nowMillis: Long,
-    thenMillis: Long,
-): CommitAge {
-    // Future timestamps (clock skew between gateway and phone) read as "now".
-    val elapsed = (nowMillis - thenMillis).coerceAtLeast(0)
-    return when {
-        elapsed < DateUtils.MINUTE_IN_MILLIS -> CommitAge.Now
-        elapsed < DateUtils.HOUR_IN_MILLIS -> CommitAge.Minutes((elapsed / DateUtils.MINUTE_IN_MILLIS).toInt())
-        elapsed < DateUtils.DAY_IN_MILLIS -> CommitAge.Hours((elapsed / DateUtils.HOUR_IN_MILLIS).toInt())
-        elapsed < DateUtils.WEEK_IN_MILLIS -> CommitAge.ThisWeek
-        else -> CommitAge.Older
-    }
-}
-
 @Composable
 internal fun compactCommitDate(
     nowMillis: Long,
     thenMillis: Long,
 ): String {
     val context = LocalContext.current
-    return when (val age = commitAge(nowMillis, thenMillis)) {
-        CommitAge.Now -> stringResource(R.string.chat_git_date_now)
-        is CommitAge.Minutes -> stringResource(R.string.chat_git_date_minutes, age.count)
-        is CommitAge.Hours -> stringResource(R.string.chat_git_date_hours, age.count)
-        CommitAge.ThisWeek ->
+    return when (val age = relativeAge(nowMillis, thenMillis)) {
+        RelativeAge.Now -> stringResource(R.string.chat_git_date_now)
+        is RelativeAge.Minutes -> stringResource(R.string.chat_git_date_minutes, age.count)
+        is RelativeAge.Hours -> stringResource(R.string.chat_git_date_hours, age.count)
+        // The date column is narrow, so a weekday out-reads "3d" here.
+        is RelativeAge.Days ->
             DateUtils.formatDateTime(
                 context,
                 thenMillis,
                 DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_WEEKDAY,
             )
         // Without a year flag DateUtils adds the year only when it is not the current one.
-        CommitAge.Older -> DateUtils.formatDateTime(context, thenMillis, DateUtils.FORMAT_ABBREV_MONTH)
+        RelativeAge.Older -> DateUtils.formatDateTime(context, thenMillis, DateUtils.FORMAT_ABBREV_MONTH)
     }
 }

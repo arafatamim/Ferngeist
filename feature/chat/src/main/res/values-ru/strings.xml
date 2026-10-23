@@ -151,6 +151,7 @@
     <string name="chat_git_date_now">сейчас</string>
     <string name="chat_git_date_minutes">%1$d мин</string>
     <string name="chat_git_date_hours">%1$d ч</string>
+    <string name="chat_git_date_days">%1$d дн</string>
     <string name="chat_git_ref_branch">ветка %1$s</string>
     <string name="chat_git_ref_remote">удалённая ветка %1$s</string>
     <string name="chat_git_ref_tag">тег %1$s</string>
