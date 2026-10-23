@@ -201,6 +201,7 @@ internal fun WorktreeToolbar(
                         focusable = expanded,
                         onClick = { scopeMenu = true },
                         showArrow = false,
+                        labelOverflow = TextOverflow.StartEllipsis,
                     )
                     if (scopeMenu) {
                         WorktreeSheet(
@@ -238,12 +239,12 @@ private fun SelectorButton(
     showLabel: Boolean = true,
     showArrow: Boolean = true,
     maxWidth: Dp = SELECTOR_MAX_WIDTH,
+    labelOverflow: TextOverflow = TextOverflow.MiddleEllipsis,
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltip { Text(label) } },
         state = rememberTooltipState(),
-        enableUserInput = !showLabel,
     ) {
         TextButton(
             onClick = onClick,
@@ -256,7 +257,7 @@ private fun SelectorButton(
                 contentDescription = label.takeUnless { showLabel },
                 modifier = Modifier.size(18.dp),
             )
-            if (showLabel) SelectorLabel(label, maxWidth)
+            if (showLabel) SelectorLabel(label, maxWidth, labelOverflow)
             if (showArrow) Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
         }
     }
@@ -266,6 +267,7 @@ private fun SelectorButton(
 private fun SelectorLabel(
     label: String,
     maxWidth: Dp,
+    overflow: TextOverflow,
 ) {
     val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     AnimatedContent(
@@ -282,7 +284,7 @@ private fun SelectorLabel(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
+            overflow = overflow,
             modifier = Modifier.widthIn(max = maxWidth).padding(start = 6.dp),
         )
     }
@@ -427,6 +429,7 @@ private fun WorktreeSheet(
                     icon = Icons.Outlined.AccountTree,
                     shapes = ListItemDefaults.segmentedShapes(index + 2, count),
                     onClick = { thenClose { onSelectScope(WorktreeScope.Worktree(option.path)) } },
+                    labelOverflow = TextOverflow.StartEllipsis,
                     trailing = {
                         IconButton(
                             onClick = { thenClose { onRemoveWorktree(option.worktree.id) } },
@@ -463,6 +466,7 @@ private fun ScopeRow(
     shapes: ListItemShapes,
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
+    labelOverflow: TextOverflow = TextOverflow.MiddleEllipsis,
 ) {
     SegmentedListItem(
         selected = selected,
@@ -473,7 +477,7 @@ private fun ScopeRow(
         supportingContent = supporting?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
         trailingContent = trailing,
     ) {
-        Text(label, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+        Text(label, maxLines = 1, overflow = labelOverflow)
     }
 }
 
