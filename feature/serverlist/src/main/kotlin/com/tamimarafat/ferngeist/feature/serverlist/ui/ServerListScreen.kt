@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -69,6 +70,7 @@ private data class ServerListScreenState(
     val uiState: ServerListUiState,
     val isLoading: Boolean,
     val recentSessions: List<RecentSession>,
+    val projects: List<ProjectSummary>,
     val snackbarHostState: SnackbarHostState,
     val pendingAuthentication: PendingAuthentication?,
     val pendingLaunchConsent: PendingLaunchConsent?,
@@ -84,6 +86,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
     val liveServerIds by viewModel.liveServerIds.collectAsStateWithLifecycle()
+    val projects by viewModel.projects.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     return ServerListScreenState(
         servers = servers,
@@ -91,6 +94,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
         uiState = uiState,
         isLoading = isLoading,
         recentSessions = recentSessions,
+        projects = projects,
         snackbarHostState = snackbarHostState,
         pendingAuthentication = uiState.pendingAuthentication,
         pendingLaunchConsent = uiState.pendingLaunchConsent,
@@ -129,6 +133,9 @@ fun ServerListScreen(
     // Hold the launch splash until the agent list has data and has drawn it. Waiting
     // a frame after the load flag clears means the frame the splash hands over to is
     // already the populated list, not a blank scaffold that fills in a beat later.
+    // Entering home, including back from a chat, is a projects fetch trigger.
+    LaunchedEffect(Unit) { viewModel.refreshProjects() }
+
     LaunchedEffect(isLoading) {
         if (!isLoading) {
             withFrameNanos { }
@@ -161,6 +168,7 @@ fun ServerListScreen(
         isLoading = isLoading,
         servers = servers,
         recentSessions = recentSessions,
+        projects = screenState.projects,
         uiState = uiState,
         liveServerIds = screenState.liveServerIds,
         onResumeSession = onResumeSession,
@@ -190,6 +198,7 @@ private fun ServerListScaffold(
     isLoading: Boolean,
     servers: List<LaunchableTarget>,
     recentSessions: List<RecentSession>,
+    projects: List<ProjectSummary>,
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
@@ -238,6 +247,7 @@ private fun ServerListScaffold(
             servers = servers,
             heroSession = heroSession,
             olderSessions = olderSessions,
+            projects = projects,
             uiState = uiState,
             liveServerIds = liveServerIds,
             onResumeSession = onResumeSession,
@@ -387,6 +397,7 @@ private fun ServerListContent(
     servers: List<LaunchableTarget>,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
+    projects: List<ProjectSummary>,
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
@@ -423,6 +434,7 @@ private fun ServerListContent(
                     heroSession = heroSession,
                     olderSessions = olderSessions,
                     servers = servers,
+                    projects = projects,
                     uiState = uiState,
                     liveServerIds = liveServerIds,
                     onResumeSession = onResumeSession,

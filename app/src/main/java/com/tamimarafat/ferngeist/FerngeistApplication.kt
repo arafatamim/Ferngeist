@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.PushRegistrar
@@ -18,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -42,6 +44,9 @@ class FerngeistApplication : Application() {
 
     @Inject
     lateinit var appForegroundState: AppForegroundState
+
+    @Inject
+    lateinit var projectCatalog: ProjectCatalog
 
     private val appScope = newAppScope()
     private var serviceStopBackstop: Job? = null
@@ -103,6 +108,16 @@ class FerngeistApplication : Application() {
             appForegroundState.isForeground.collect { foreground ->
                 if (foreground) chatConnectionHub.probeConnections()
             }
+        }
+        refreshProjectsWhenVisible()
+    }
+
+    // Chats started on the PC reach the home on these edges: foreground, or network regained while in it.
+    private fun refreshProjectsWhenVisible() {
+        appScope.launch {
+            combine(appForegroundState.isForeground, chatConnectionHub.networkAvailable, Boolean::and)
+                .distinctUntilChanged()
+                .collect { visibleAndOnline -> if (visibleAndOnline) projectCatalog.refresh() }
         }
     }
 

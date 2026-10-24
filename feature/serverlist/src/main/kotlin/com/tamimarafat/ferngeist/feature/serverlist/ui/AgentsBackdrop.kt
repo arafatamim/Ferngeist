@@ -54,11 +54,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
+import com.tamimarafat.ferngeist.feature.serverlist.ui.projects.ProjectsSection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -74,6 +76,7 @@ internal fun AgentsBackdrop(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    projects: List<ProjectSummary> = emptyList(),
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -165,6 +168,7 @@ internal fun AgentsBackdrop(
         servers = servers,
         uiState = uiState,
         liveServerIds = liveServerIds,
+        projects = projects,
         onResumeSession = onResumeSession,
         onConnect = onConnect,
         onEdit = onEdit,
@@ -195,6 +199,7 @@ private fun BackdropLayers(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    projects: List<ProjectSummary> = emptyList(),
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -245,6 +250,7 @@ private fun BackdropLayers(
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            projects = projects,
             onConnect = onConnect,
             onEdit = onEdit,
             onDelete = onDelete,
@@ -270,6 +276,7 @@ private fun FrontSheetLayer(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    projects: List<ProjectSummary> = emptyList(),
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
@@ -308,6 +315,7 @@ private fun FrontSheetLayer(
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            projects = projects,
             onConnect = onConnect,
             onEdit = onEdit,
             onDelete = onDelete,
@@ -547,6 +555,7 @@ private fun AgentsBackdropSheet(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    projects: List<ProjectSummary> = emptyList(),
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
@@ -568,6 +577,7 @@ private fun AgentsBackdropSheet(
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            projects = projects,
             onConnect = onConnect,
             onEdit = onEdit,
             onDelete = onDelete,
@@ -629,6 +639,7 @@ private fun FrontLayerContent(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    projects: List<ProjectSummary> = emptyList(),
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
@@ -649,11 +660,17 @@ private fun FrontLayerContent(
                 .padding(top = 22.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // With projects, they lead the scroll and the pinned header names them; agents follow.
         Box(
             modifier = Modifier.fillMaxWidth().then(headerDragModifier),
         ) {
             SectionHeader(
-                title = stringResource(R.string.serverlist_section_agents),
+                title =
+                    if (projects.isEmpty()) {
+                        stringResource(R.string.serverlist_section_agents)
+                    } else {
+                        stringResource(R.string.serverlist_section_projects)
+                    },
                 modifier = Modifier.padding(horizontal = 20.dp),
             )
         }
@@ -662,6 +679,17 @@ private fun FrontLayerContent(
                 modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (projects.isNotEmpty()) {
+                    ProjectsSection(
+                        projects = projects,
+                        liveServerIds = liveServerIds,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    SectionHeader(
+                        title = stringResource(R.string.serverlist_section_agents),
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                    )
+                }
                 servers.forEach { server ->
                     ServerCard(
                         server = server,

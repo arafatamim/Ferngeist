@@ -186,4 +186,13 @@
 
     <!-- A session the agent has not named yet. Never travels as a session title. -->
     <string name="serverlist_untitled_session">Sessão sem título</string>
+    <string name="serverlist_section_projects">Projetos</string>
+    <plurals name="serverlist_project_chats">
+        <item quantity="one">%d conversa</item>
+        <item quantity="other">%d conversas</item>
+    </plurals>
+    <plurals name="serverlist_project_worktrees">
+        <item quantity="one">%d worktree</item>
+        <item quantity="other">%d worktrees</item>
+    </plurals>
 </resources>
