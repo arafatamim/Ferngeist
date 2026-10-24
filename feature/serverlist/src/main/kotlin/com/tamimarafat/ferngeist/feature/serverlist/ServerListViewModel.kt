@@ -3,6 +3,8 @@ package com.tamimarafat.ferngeist.feature.serverlist
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentAuthMethod
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentAuthOutcome
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchOutcome
@@ -90,6 +92,7 @@ class ServerListViewModel
         private val repos: ServerRepositories,
         private val stores: ServerLocalStores,
         private val agentLauncher: AgentLauncher,
+        private val projectCatalog: ProjectCatalog,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
         /** This screen's verification transport; [AgentLauncher] owns everything behind it. */
@@ -105,6 +108,10 @@ class ServerListViewModel
                 .getGateways()
                 .map { gateways -> gateways.isNotEmpty() }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        val projects: StateFlow<List<ProjectSummary>> =
+            projectCatalog.state
+                .map { it.projects }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), projectCatalog.state.value.projects)
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -170,8 +177,14 @@ class ServerListViewModel
             viewModelScope.launch {
                 repos.launchableTargetRepository.getTargets().first()
                 repos.sessionRepository.getRecentSessions(RECENT_SESSIONS_LIMIT).first()
+                projectCatalog.state.first { it.isReady }
                 _isLoading.value = false
             }
+        }
+
+        /** The home appearing is a fetch trigger; the catalog throttles repeats. */
+        fun refreshProjects() {
+            projectCatalog.refresh()
         }
 
         /**

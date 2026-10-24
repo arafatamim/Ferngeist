@@ -2,19 +2,24 @@ package com.tamimarafat.ferngeist.gateway
 
 import android.util.Log
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeoutConfig
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.accept
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.serialization.json.Json
 import java.net.URLEncoder
 
@@ -38,6 +43,64 @@ internal class GatewayHttpPipeline(
     private val clock: GatewayClock,
 ) {
     private val httpClient: HttpClient = httpClient
+
+    /** Keep the response open while consuming NDJSON; ordinary get saves the whole body first. */
+    internal suspend fun getStream(
+        scheme: String,
+        host: String,
+        credential: String,
+        agentIds: List<String>,
+        consume: suspend (ByteReadChannel) -> Unit,
+    ) {
+        val endpoint =
+            buildGatewayEndpoint(
+                scheme,
+                host,
+                "v1",
+                "projects",
+                query =
+                    mapOf(
+                        "agents" to agentIds.joinToString(","),
+                    ),
+            )
+        val request = GatewayProofRequest(method = "GET", endpoint = endpoint)
+        repeat(2) { attempt ->
+            val authHeaders = proofHeaders(host, credential, request)
+            val failure =
+                httpClient
+                    .prepareGet {
+                        url(endpoint)
+                        accept(ContentType.parse("application/x-ndjson"))
+                        timeout { requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS }
+                        authHeaders?.let { applyGatewayAuthHeaders(it) }
+                    }.execute { response ->
+                        if (response.status.isSuccess()) {
+                            consume(response.bodyAsChannel())
+                            null
+                        } else {
+                            streamFailure(host, endpoint, response)
+                        }
+                    }
+            if (failure == null) return
+            val rejection = parseGatewayErrorBody(failure.responseBody.orEmpty().trim())
+            if (attempt > 0 ||
+                failure.statusCode != HTTP_UNAUTHORIZED ||
+                !rejection.isTransientProofRejection(failure.responseBody.orEmpty())
+            ) {
+                throw failure
+            }
+        }
+    }
+
+    private suspend fun streamFailure(
+        host: String,
+        endpoint: String,
+        response: HttpResponse,
+    ): GatewayRequestException {
+        val body = response.bodyAsText()
+        parseGatewayErrorBody(body.trim())?.let { recordServerClock(host, response, it) }
+        return gatewayRequestException(response.status.value, response.status.description, endpoint, body)
+    }
 
     internal suspend inline fun <reified T> getJson(
         scheme: String,

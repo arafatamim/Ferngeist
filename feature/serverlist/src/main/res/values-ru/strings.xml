@@ -204,4 +204,17 @@
 
     <!-- A session the agent has not named yet. Never travels as a session title. -->
     <string name="serverlist_untitled_session">Сессия без названия</string>
+    <string name="serverlist_section_projects">Проекты</string>
+    <plurals name="serverlist_project_chats">
+        <item quantity="one">%d чат</item>
+        <item quantity="few">%d чата</item>
+        <item quantity="many">%d чатов</item>
+        <item quantity="other">%d чата</item>
+    </plurals>
+    <plurals name="serverlist_project_worktrees">
+        <item quantity="one">%d рабочее дерево</item>
+        <item quantity="few">%d рабочих дерева</item>
+        <item quantity="many">%d рабочих деревьев</item>
+        <item quantity="other">%d рабочего дерева</item>
+    </plurals>
 </resources>

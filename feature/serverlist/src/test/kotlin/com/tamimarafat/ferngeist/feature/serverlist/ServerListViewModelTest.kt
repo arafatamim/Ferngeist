@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.serverlist
 
 import app.cash.turbine.test
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalogState
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchEvent
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchOutcome
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchSession
@@ -44,6 +46,8 @@ class ServerListViewModelTest {
     private val launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true)
     private val sessionRepository = mockk<SessionRepository>(relaxed = true)
     private val agentLauncher = mockk<AgentLauncher>()
+    private val projectCatalog =
+        mockk<ProjectCatalog> { every { state } returns MutableStateFlow(ProjectCatalogState(isReady = true)) }
     private val launchSession = mockk<AgentLaunchSession>(relaxed = true)
     private val authEnvValueStore = mockk<AuthEnvValueStore>(relaxed = true)
     private val agentLaunchConsentStore = mockk<AgentLaunchConsentStore>(relaxed = true)
@@ -240,6 +244,7 @@ class ServerListViewModelTest {
             ),
             ServerLocalStores(authEnvValueStore, agentLaunchConsentStore, recentCwdStore, recentSelectionStore),
             agentLauncher,
+            projectCatalog,
             testDispatcher,
         )
 }

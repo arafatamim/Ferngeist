@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.push
 
 import android.util.Log
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.gateway.GatewayPushSubscription
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineDispatcher
@@ -28,6 +29,9 @@ class FerngeistPushService : PushService() {
 
     @Inject
     lateinit var pushNotifier: PushNotifier
+
+    @Inject
+    lateinit var projectCatalog: ProjectCatalog
 
     override fun onNewEndpoint(
         endpoint: PushEndpoint,
@@ -60,7 +64,9 @@ class FerngeistPushService : PushService() {
             }
         // Events arrive on the main thread; the lookups behind a notification are database reads.
         scope.launch {
-            if (pushRegistrar.acceptsMessageFor(instance)) pushNotifier.show(payload)
+            if (!pushRegistrar.acceptsMessageFor(instance)) return@launch
+            projectCatalog.refresh(instance)
+            pushNotifier.show(payload)
         }
     }
 
