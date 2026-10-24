@@ -129,6 +129,13 @@ More options are in the [gateway docs](https://github.com/arafatamim/ferngeist-a
 
 ### Build
 
+Install [JDK 21](https://adoptium.net/temurin/releases/?version=21) for Gradle
+and tests, matching CI and the diff library's Java 21 bytecode. The daemon JVM
+criteria require a locally installed JDK 21; automatic download is not configured.
+Set `JAVA_HOME` to that JDK as well so the Gradle launcher
+uses the same runtime. On Linux, `./scripts/gradle-safe` caps the whole build
+at 4 GiB and runs one worker at a time.
+
 The app has two product flavours under the `distribution` dimension:
 
 - `google`: the full build with ML Kit QR scanning. It ships to Google

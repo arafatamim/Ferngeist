@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+# Serialize capped builds across worktrees; two independent 4 GiB scopes still add up.
+build_lock="${XDG_RUNTIME_DIR:-/tmp}/ferngeist-gradle-${UID}.lock"
+
+# JVM heaps do not bound native memory or child processes. Keep the whole build
+# in one cgroup so memory pressure terminates the build instead of the desktop.
+exec flock --nonblock --conflict-exit-code 75 --close "$build_lock" \
+    systemd-run --user --scope --quiet \
+    --property=MemoryHigh=3G \
+    --property=MemoryMax=4G \
+    --property=MemorySwapMax=512M \
+    -- ./gradlew --no-daemon --max-workers=1 "$@"

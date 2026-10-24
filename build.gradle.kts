@@ -15,6 +15,12 @@ plugins {
 }
 
 subprojects {
+    tasks.withType<Test>().configureEach {
+        // Test forks share the machine with the compiler and the desktop session.
+        maxHeapSize = "512m"
+        maxParallelForks = 1
+        jvmArgs("-XX:MaxMetaspaceSize=256m", "-XX:ReservedCodeCacheSize=64m", "-XX:+UseSerialGC")
+    }
     plugins.withId("com.android.library") {
         configureKtlintAndDetekt()
     }
