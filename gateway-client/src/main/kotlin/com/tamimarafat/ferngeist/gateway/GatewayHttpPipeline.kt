@@ -74,11 +74,9 @@ internal class GatewayHttpPipeline(
     ) {
         val endpoint = buildGatewayEndpoint(scheme, host, segments = segments, query = query)
         sendSigned(
-            method = "DELETE",
-            endpoint = endpoint,
+            request = GatewayProofRequest(method = "DELETE", endpoint = endpoint),
             host = host,
             credential = credential,
-            body = null,
         ) { authHeaders ->
             httpClient.delete {
                 url(endpoint)
@@ -97,11 +95,9 @@ internal class GatewayHttpPipeline(
     ): HttpResponse {
         val endpoint = buildGatewayEndpoint(scheme, host, segments = segments, query = query)
         return sendSigned(
-            method = "GET",
-            endpoint = endpoint,
+            request = GatewayProofRequest(method = "GET", endpoint = endpoint),
             host = host,
             credential = credential,
-            body = null,
         ) { authHeaders ->
             httpClient.get {
                 url(endpoint)
@@ -120,11 +116,9 @@ internal class GatewayHttpPipeline(
     ): HttpResponse {
         val endpoint = buildGatewayEndpoint(scheme, host, segments = segments)
         return sendSigned(
-            method = "POST",
-            endpoint = endpoint,
+            request = GatewayProofRequest(method = "POST", endpoint = endpoint, body = body),
             host = host,
             credential = credential,
-            body = body,
         ) { authHeaders ->
             httpClient.post {
                 url(endpoint)
@@ -165,17 +159,15 @@ internal class GatewayHttpPipeline(
      * calls (`credential = null`) never retry.
      */
     private suspend fun sendSigned(
-        method: String,
-        endpoint: String,
+        request: GatewayProofRequest,
         host: String,
         credential: String?,
-        body: String?,
         send: suspend (GatewayAuthHeaders?) -> HttpResponse,
     ): HttpResponse {
         val proofCredential = credential?.takeIf { it.isNotBlank() }
         val startNanos = System.nanoTime()
-        var response = send(proofHeaders(host, proofCredential, method, endpoint, body))
-        logTiming(method, endpoint, response, startNanos)
+        var response = send(proofHeaders(host, proofCredential, request))
+        logTiming(request.method, request.endpoint, response, startNanos)
         if (response.status.isSuccess()) {
             return response
         }
@@ -188,8 +180,8 @@ internal class GatewayHttpPipeline(
             rejection.isTransientProofRejection(failure)
         ) {
             val retryNanos = System.nanoTime()
-            response = send(proofHeaders(host, proofCredential, method, endpoint, body))
-            logTiming(method, endpoint, response, retryNanos)
+            response = send(proofHeaders(host, proofCredential, request))
+            logTiming(request.method, request.endpoint, response, retryNanos)
             if (response.status.isSuccess()) {
                 return response
             }
@@ -197,7 +189,7 @@ internal class GatewayHttpPipeline(
         throw gatewayRequestException(
             statusCode = response.status.value,
             statusDescription = response.status.description,
-            endpoint = endpoint,
+            endpoint = request.endpoint,
             responseBody = response.bodyAsText(),
         )
     }
@@ -210,16 +202,12 @@ internal class GatewayHttpPipeline(
     private fun proofHeaders(
         host: String,
         credential: String?,
-        method: String,
-        endpoint: String,
-        body: String?,
+        request: GatewayProofRequest,
     ): GatewayAuthHeaders? =
         credential?.let {
             GatewayProofAuth.buildAuthHeaders(
                 gatewayCredential = it,
-                method = method,
-                endpoint = endpoint,
-                body = body,
+                request = request,
                 timestampSeconds = clock.nowSeconds(host),
             )
         }

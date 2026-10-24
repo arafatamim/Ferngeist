@@ -33,6 +33,7 @@ import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.path
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.projectRoot
 import kotlinx.coroutines.delay
 
@@ -69,7 +70,7 @@ fun SessionListScreen(
     animatedContentScope: AnimatedContentScope,
 ) {
     val state = rememberSessionListState(viewModel, navArgName, loadedName)
-    val currentCwd = state.currentCwd
+    val currentCwd = state.project.currentCwd
 
     // The gateway has no change feed, so sessions created or advanced elsewhere (another
     // device, the CLI) only arrive by re-listing: on every resume, then on a slow poll while
@@ -89,64 +90,64 @@ fun SessionListScreen(
     SessionListEventEffects(
         viewModel = viewModel,
         state = state,
-        pendingAuthentication = state.pendingAuthentication,
-        snackbarHostState = state.snackbarHostState,
-        envValues = state.envValues,
-        selectedAuthMethodId = state.selectedAuthMethodId,
-        hasConsumedLaunchCreate = state.hasConsumedLaunchCreate,
+        pendingAuthentication = state.connection.pendingAuthentication,
+        snackbarHostState = state.screen.snackbarHostState,
+        envValues = state.connection.envValues,
+        selectedAuthMethodId = state.connection.selectedAuthMethodId,
+        hasConsumedLaunchCreate = state.screen.hasConsumedLaunchCreate,
         openCreateSessionDialogOnLaunch = openCreateSessionDialogOnLaunch,
         onNavigateToChat = onNavigateToChat,
     )
 
     SessionListOverlays(
-        showCwdDialog = state.showCwdDialog.value,
-        recentCwds = state.recentCwds,
-        sessions = state.sessions,
+        showCwdDialog = state.project.showCwdDialog.value,
+        recentCwds = state.project.recentCwds,
+        sessions = state.rows.sessions,
         cwdRootOf =
-            remember(currentCwd, state.scopeOptions, state.worktrees) {
+            remember(currentCwd, state.repoScope.scopeOptions, state.worktree.worktrees) {
                 { cwd: String ->
-                    projectRoot(cwd, state.worktrees.orEmpty())
+                    projectRoot(cwd, state.worktree.worktrees.orEmpty())
                 }
             },
-        cwdDialogValue = state.cwdDialogValue.value,
+        cwdDialogValue = state.project.cwdDialogValue.value,
         currentCwd = currentCwd,
-        onCwdDialogValueChange = { state.cwdDialogValue.value = it },
-        onDismissCwdDialog = { state.showCwdDialog.value = false },
+        onCwdDialogValueChange = { state.project.cwdDialogValue.value = it },
+        onDismissCwdDialog = { state.project.showCwdDialog.value = false },
         updateCurrentCwd = { viewModel.updateCurrentCwd(it) },
         removeRecentCwd = viewModel::removeRecentCwd,
-        showWorktreeSheet = state.showWorktreeSheet.value,
-        scopeOptions = state.scopeOptions,
+        showWorktreeSheet = state.worktree.showWorktreeSheet.value,
+        scopeOptions = state.repoScope.scopeOptions,
         initialBase =
-            (state.scope as? WorktreeScope.Worktree)
+            (state.repoScope.scope as? WorktreeScope.Worktree)
                 ?.let { picked ->
-                    state.scopeOptions
+                    state.repoScope.scopeOptions
                         .firstOrNull { isSameCwd(it.path, picked.path) }
                         ?.worktree
                         ?.branch
                 }.orEmpty(),
         loadRefs = viewModel::repoRefs,
-        worktreeError = state.worktreeError,
-        creatingWorktree = state.creatingWorktree,
+        worktreeError = state.worktree.worktreeError,
+        creatingWorktree = state.worktree.creatingWorktree,
         onWorktreeFormChanged = viewModel::clearWorktreeError,
         onDismissWorktreeSheet = {
-            state.showWorktreeSheet.value = false
+            state.worktree.showWorktreeSheet.value = false
             viewModel.clearWorktreeError()
         },
         onCreateWorktreeSession = viewModel::createSessionInNewWorktree,
-        pendingWorktreeRemoval = state.pendingWorktreeRemoval.value,
-        onDismissWorktreeRemoval = { state.pendingWorktreeRemoval.value = null },
+        pendingWorktreeRemoval = state.worktree.pendingWorktreeRemoval.value,
+        onDismissWorktreeRemoval = { state.worktree.pendingWorktreeRemoval.value = null },
         onConfirmWorktreeRemoval = { pending ->
-            state.pendingWorktreeRemoval.value = null
+            state.worktree.pendingWorktreeRemoval.value = null
             viewModel.removeWorktree(pending)
         },
-        showConnectionStatusDialog = state.showConnectionStatusDialog.value,
-        connectionState = state.connectionState,
-        connectionDiagnostics = state.connectionDiagnostics,
-        onDismissConnectionStatusDialog = { state.showConnectionStatusDialog.value = false },
-        pendingAuthentication = state.pendingAuthentication,
-        selectedAuthMethodId = state.selectedAuthMethodId.value,
-        onSelectedAuthMethodChange = { state.selectedAuthMethodId.value = it },
-        envValues = state.envValues,
+        showConnectionStatusDialog = state.connection.showConnectionStatusDialog.value,
+        connectionState = state.connection.connectionState,
+        connectionDiagnostics = state.connection.connectionDiagnostics,
+        onDismissConnectionStatusDialog = { state.connection.showConnectionStatusDialog.value = false },
+        pendingAuthentication = state.connection.pendingAuthentication,
+        selectedAuthMethodId = state.connection.selectedAuthMethodId.value,
+        onSelectedAuthMethodChange = { state.connection.selectedAuthMethodId.value = it },
+        envValues = state.connection.envValues,
         onSubmit = { methodId, values -> viewModel.authenticate(methodId, values) },
         onReconnect = viewModel::reconnectPendingAuthentication,
         onDismissAuthentication = viewModel::dismissAuthenticationPrompt,
@@ -157,11 +158,11 @@ fun SessionListScreen(
         serverId = serverId,
         currentCwd = currentCwd,
         onShowCwdDialog = {
-            state.cwdDialogValue.value = currentCwd.orEmpty()
-            state.showCwdDialog.value = true
+            state.project.cwdDialogValue.value = currentCwd.orEmpty()
+            state.project.showCwdDialog.value = true
         },
         onSelectRepo = viewModel::updateCurrentCwd,
-        onShowConnectionStatusDialog = { state.showConnectionStatusDialog.value = true },
+        onShowConnectionStatusDialog = { state.connection.showConnectionStatusDialog.value = true },
         showBackButton = showBackButton,
         sharedBoundsEnabled = sharedBoundsEnabled,
         onNavigateBack = onNavigateBack,
@@ -171,16 +172,16 @@ fun SessionListScreen(
         onDeleteSession = viewModel::deleteSession,
         createSession = {
             if (currentCwd.isNullOrBlank()) {
-                state.cwdDialogValue.value = currentCwd.orEmpty()
+                state.project.cwdDialogValue.value = currentCwd.orEmpty()
                 viewModel.setPendingCreateAfterCwd()
-                state.showCwdDialog.value = true
+                state.project.showCwdDialog.value = true
             } else {
                 viewModel.createSessionInScope()
             }
         },
         createWorktreeSession = {
             viewModel.clearWorktreeError()
-            state.showWorktreeSheet.value = true
+            state.worktree.showWorktreeSheet.value = true
         },
         onSelectScope = viewModel::selectScope,
         onRefresh = { viewModel.refreshSessions(isUserInitiated = true) },
@@ -219,7 +220,7 @@ private fun SessionListScaffold(
     animatedContentScope: AnimatedContentScope,
 ) {
     val collapse =
-        state.scrollBehavior.state.collapsedFraction
+        state.screen.scrollBehavior.state.collapsedFraction
             .coerceIn(0f, 1f)
     // Interpolate title size between expanded (headlineMedium) and collapsed (titleLarge)
     // as the user scrolls — gives a smooth visual transition in the top bar.
@@ -252,9 +253,9 @@ private fun SessionListScaffold(
             transitionModifier
                 .sessionListContainer(state, onRefresh)
                 .floatingToolbarVerticalNestedScroll(
-                    expanded = state.toolbarExpanded.value,
-                    onExpand = { state.toolbarExpanded.value = true },
-                    onCollapse = { state.toolbarExpanded.value = false },
+                    expanded = state.repoScope.toolbarExpanded.value,
+                    onExpand = { state.repoScope.toolbarExpanded.value = true },
+                    onCollapse = { state.repoScope.toolbarExpanded.value = false },
                 ).background(MaterialTheme.colorScheme.surface),
     ) {
         Scaffold(
@@ -274,12 +275,12 @@ private fun SessionListScaffold(
             },
             floatingActionButton = {
                 WorktreeToolbar(
-                    expanded = state.toolbarExpanded.value,
+                    expanded = state.repoScope.toolbarExpanded.value,
                     repo = currentCwd,
-                    projects = state.projects,
-                    worktreesEnabled = state.scopeEnabled,
-                    scope = state.scope,
-                    options = state.scopeOptions,
+                    projects = state.project.projects,
+                    worktreesEnabled = state.repoScope.scopeEnabled,
+                    scope = state.repoScope.scope,
+                    options = state.repoScope.scopeOptions,
                     onSelectRepo = onSelectRepo,
                     onOtherProject = onShowCwdDialog,
                     onSelectScope = onSelectScope,
@@ -288,7 +289,7 @@ private fun SessionListScaffold(
                     onRemoveWorktree = { onRemoveWorktree(null, it) },
                 )
             },
-            snackbarHost = { SnackbarHost(state.snackbarHostState) },
+            snackbarHost = { SnackbarHost(state.screen.snackbarHostState) },
         ) { padding ->
             SessionListContent(
                 padding = padding,
@@ -314,28 +315,28 @@ private fun Modifier.sessionListContainer(
     state: SessionListState,
     onRefresh: () -> Unit,
 ): Modifier =
-    if (state.supportsSessionList) {
+    if (state.rows.supportsSessionList) {
         this
             .fillMaxSize()
-            .nestedScroll(state.scrollBehavior.nestedScrollConnection)
+            .nestedScroll(state.screen.scrollBehavior.nestedScrollConnection)
             .pullToRefresh(
-                state = state.pullToRefreshState,
-                isRefreshing = state.isRefreshing,
+                state = state.screen.pullToRefreshState,
+                isRefreshing = state.screen.isRefreshing,
                 onRefresh = onRefresh,
             )
     } else {
         this
             .fillMaxSize()
-            .nestedScroll(state.scrollBehavior.nestedScrollConnection)
+            .nestedScroll(state.screen.scrollBehavior.nestedScrollConnection)
     }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun BoxScope.SessionListRefreshIndicator(state: SessionListState) {
-    if (state.supportsSessionList) {
+    if (state.rows.supportsSessionList) {
         PullToRefreshDefaults.LoadingIndicator(
-            state = state.pullToRefreshState,
-            isRefreshing = state.isRefreshing,
+            state = state.screen.pullToRefreshState,
+            isRefreshing = state.screen.isRefreshing,
             modifier =
                 Modifier
                     .align(Alignment.TopCenter)

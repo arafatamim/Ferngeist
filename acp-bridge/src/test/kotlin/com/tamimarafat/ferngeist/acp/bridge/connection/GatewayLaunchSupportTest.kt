@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.gateway.GatewayProtocol
+import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -21,7 +22,7 @@ class GatewayLaunchSupportTest {
     fun `a v1 gateway fails the server connect without calling connect`() =
         runTest {
             val repo = FakeGatewayRepo().apply { protocolVersion = "v1" }
-            val result = buildGatewayLaunchContext(repo, FakeGatewaySources(), target())
+            val result = buildGatewayLaunchContext(GatewayRuntimeLauncher(repo, FakeGatewaySources()), target())
 
             assertTrue("a v1 gateway must fail the server connect", result.isFailure)
             val message = result.exceptionOrNull()?.message.orEmpty()
@@ -36,7 +37,7 @@ class GatewayLaunchSupportTest {
     fun `a v2 gateway still launches the server connect`() =
         runTest {
             val repo = FakeGatewayRepo().apply { protocolVersion = GatewayProtocol.CURRENT }
-            val result = buildGatewayLaunchContext(repo, FakeGatewaySources(), target())
+            val result = buildGatewayLaunchContext(GatewayRuntimeLauncher(repo, FakeGatewaySources()), target())
 
             assertTrue("a v2 gateway must launch: ${result.exceptionOrNull()?.message}", result.isSuccess)
             assertEquals(1, repo.connectCalls)

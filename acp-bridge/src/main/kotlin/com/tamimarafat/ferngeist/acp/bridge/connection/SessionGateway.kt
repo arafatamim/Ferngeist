@@ -26,12 +26,14 @@ import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.agentclientprotocol.rpc.MethodName
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
+import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
+import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
+import com.tamimarafat.ferngeist.acp.bridge.session.failHydration
+import com.tamimarafat.ferngeist.acp.bridge.session.markReady
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
@@ -44,9 +46,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
@@ -115,7 +114,7 @@ internal class SessionGateway(
             connection.sdkClient
                 ?: throw AcpDisconnectedException()
         return runCatching {
-            connection.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/new")
+            connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, "session/new")
             val session =
                 client.newSession(
                     sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
@@ -155,7 +154,7 @@ internal class SessionGateway(
         val client =
             connection.sdkClient
                 ?: throw AcpDisconnectedException()
-        connection.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, rpc.rpc)
+        connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, rpc.rpc)
         val timing = AttachTiming().also { attachTimings[sessionId] = it }
         var succeeded = false
         try {
@@ -184,19 +183,19 @@ internal class SessionGateway(
                         }
                 // Only a load replays history into the bridge. A resume replays nothing, so
                 // hydrating would wipe the transcript a reattached bridge still holds.
-                if (rpc == SessionAttachRpc.Load) bridge.beginHydration()
+                if (rpc == SessionAttachRpc.LOAD) bridge.beginHydration()
 
                 val parameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList())
                 val session =
                     when (rpc) {
-                        SessionAttachRpc.Load ->
+                        SessionAttachRpc.LOAD ->
                             client.loadSession(
                                 sessionId = SessionId(sessionId),
                                 sessionParameters = parameters,
                                 operationsFactory = operationsFactory,
                             )
 
-                        SessionAttachRpc.Resume ->
+                        SessionAttachRpc.RESUME ->
                             client.resumeSession(
                                 sessionId = SessionId(sessionId),
                                 sessionParameters = parameters,
@@ -205,7 +204,7 @@ internal class SessionGateway(
                     }
                 val registeredBridge = registerSession(session)
                 sessionCwds[sessionId] = cwd
-                if (rpc == SessionAttachRpc.Load) registeredBridge.completeHydration()
+                if (rpc == SessionAttachRpc.LOAD) registeredBridge.completeHydration()
                 registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
                 registeredBridge
             }
@@ -278,15 +277,11 @@ internal class SessionGateway(
         files: List<ChatFileData> = emptyList(),
     ) {
         val bridge =
-            sessionRegistry.getBridge(sessionId) ?: throw IllegalStateException(
-                "Session bridge missing for sessionId=$sessionId",
-            )
+            sessionRegistry.getBridge(sessionId) ?: error("Session bridge missing for sessionId=$sessionId")
         val session =
-            sessionRegistry.getSdkSession(sessionId) ?: throw IllegalStateException(
-                "SDK session missing for sessionId=$sessionId",
-            )
+            sessionRegistry.getSdkSession(sessionId) ?: error("SDK session missing for sessionId=$sessionId")
 
-        connection.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/prompt")
+        connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, "session/prompt")
 
         // User message already added optimistically by onLocalPromptStarted; omitted here to
         // avoid duplication.
@@ -308,7 +303,7 @@ internal class SessionGateway(
 
     /**
      * Steers a prompt into [sessionId]'s running turn (see SessionSteering.kt). Any failure,
-     * including an agent without the method, reads as [SteerOutcome.NotConsumed] so the
+     * including an agent without the method, reads as [SteerOutcome.NOT_CONSUMED] so the
      * caller falls back to an ordinary prompt.
      */
     @Suppress("TooGenericExceptionCaught")
@@ -318,8 +313,8 @@ internal class SessionGateway(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
     ): SteerOutcome {
-        val client = connection.sdkClient ?: return SteerOutcome.NotConsumed
-        connection.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, STEERING_METHOD)
+        val client = connection.sdkClient ?: return SteerOutcome.NOT_CONSUMED
+        connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, STEERING_METHOD)
         return try {
             val params = steeringParams(sessionId, promptBlocks(content, images, files))
             parseSteerOutcome(client.protocol.sendRequestRaw(MethodName(STEERING_METHOD), params))
@@ -327,7 +322,7 @@ internal class SessionGateway(
             throw e
         } catch (e: Exception) {
             connection.diagnosticsStore.appendError(STEERING_METHOD, e.message ?: e.toString())
-            SteerOutcome.NotConsumed
+            SteerOutcome.NOT_CONSUMED
         }
     }
 
@@ -391,27 +386,7 @@ internal class SessionGateway(
         // finished must not mislabel this one.
         cancelsRequested.remove(sessionId)
         try {
-            session.prompt(blocks).collect { event ->
-                when (event) {
-                    is Event.SessionUpdateEvent -> {
-                        val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(event.update)
-                        if (appEvent != null) {
-                            bridge.emitEvent(appEvent)
-                        }
-                    }
-
-                    is Event.PromptResponseEvent -> {
-                        bridge.emitEvent(
-                            AppSessionEvent.TurnComplete(
-                                AcpSessionUpdateMapper.mapStopReason(
-                                    event.response.stopReason,
-                                ),
-                                gatewayTurnDurationMs(event.response._meta),
-                            ),
-                        )
-                    }
-                }
-            }
+            session.prompt(blocks).collect { event -> forwardPromptEvent(bridge, event) }
         } catch (error: CancellationException) {
             // Interrupted (transport reset) or torn down with the session. Either way the
             // turn is over: without a terminal event the bridge would read as streaming
@@ -429,6 +404,31 @@ internal class SessionGateway(
             connection.diagnosticsStore.appendError("session/prompt", formatAcpErrorMessage(error, "Prompt failed"))
             bridge.emitEvent(AppSessionEvent.TurnComplete(consumeTurnEndReason(sessionId)))
             throw error
+        }
+    }
+
+    private suspend fun forwardPromptEvent(
+        bridge: SessionBridge,
+        event: Event,
+    ) {
+        when (event) {
+            is Event.SessionUpdateEvent -> {
+                val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(event.update)
+                if (appEvent != null) {
+                    bridge.emitEvent(appEvent)
+                }
+            }
+
+            is Event.PromptResponseEvent -> {
+                bridge.emitEvent(
+                    AppSessionEvent.TurnComplete(
+                        AcpSessionUpdateMapper.mapStopReason(
+                            event.response.stopReason,
+                        ),
+                        gatewayTurnDurationMs(event.response._meta),
+                    ),
+                )
+            }
         }
     }
 
@@ -462,7 +462,7 @@ internal class SessionGateway(
         cancelsRequested += sessionId
         val outcome =
             runCatching {
-                connection.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/cancel")
+                connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, "session/cancel")
                 session.cancel()
             }
         outcome.onFailure { error ->
@@ -495,7 +495,7 @@ internal class SessionGateway(
     ) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
-            connection.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_mode")
+            connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, "session/set_mode")
             session.setMode(SessionModeId(modeId))
         }.onFailure {
             connection.diagnosticsStore.appendError(
@@ -513,7 +513,7 @@ internal class SessionGateway(
     ) {
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
-            connection.diagnosticsStore.appendRpcEntry(RpcDirection.OutboundRequest, "session/set_model")
+            connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, "session/set_model")
             session.setModel(com.agentclientprotocol.model.ModelId(modelId))
         }.onFailure {
             connection.diagnosticsStore.appendError(
@@ -541,7 +541,7 @@ internal class SessionGateway(
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         runCatching {
             connection.diagnosticsStore.appendRpcEntry(
-                RpcDirection.OutboundRequest,
+                RpcDirection.OUTBOUND_REQUEST,
                 "session/set_config_option",
             )
             val response = session.setConfigOption(SessionConfigId(optionId), value.toSdkValue())
@@ -680,7 +680,7 @@ internal class SessionGateway(
             bridge.beginHydration()
         }
         connection.diagnosticsStore.appendRpcEntry(
-            RpcDirection.InboundNotification,
+            RpcDirection.INBOUND_NOTIFICATION,
             "_ferngeist/resumed",
             summary = "sessionId=$sessionId replayedFrames=$replayedFrames",
         )
@@ -849,7 +849,7 @@ internal class SessionGateway(
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
 
-        pushInitialSessionState(session)
+        session.pushInitialState { event -> emitToBridge(session.sessionId.value, event) }
 
         bridge.markReady()
         startReactiveObservers(session)
@@ -857,140 +857,13 @@ internal class SessionGateway(
     }
 
     /**
-     * Mirrors the SDK session's initial capability state (modes, models, config
-     * options) into app events, pushed to the bridge replay buffer before
-     * markReady(). After registration, [startReactiveObservers] forwards changes.
-     */
-    private suspend fun pushInitialSessionState(session: ClientSession) {
-        // One-shot initial reads of availableModes/availableModels (plain List, not
-        // StateFlow, so the SDK doesn't expose change notifications for them) and
-        // of currentMode/currentModel/configOptions. The initial values land in the
-        // bridge replay buffer before markReady(). After that, we reactively collect
-        // currentMode/currentModel/configOptions with drop(1) to skip the initial
-        // emission (already mirrored above) and forward subsequent changes to the
-        // bridge so the UI updates when the agent mutates them mid-session.
-        if (session.modesSupported) {
-            val modes =
-                session.availableModes.map {
-                    SessionMode(
-                        id = it.id.value,
-                        name = it.name,
-                        description = it.description,
-                    )
-                }
-            emitToBridge(
-                session.sessionId.value,
-                AppSessionEvent.ModesUpdated(
-                    modes = modes,
-                    currentModeId = session.currentMode.value.value,
-                ),
-            )
-        }
-
-        @OptIn(UnstableApi::class)
-        if (session.modelsSupported) {
-            val current = session.currentModel.value.value
-            val modelChoices =
-                session.availableModels.map { model ->
-                    SessionConfigChoice(
-                        id = model.modelId.value,
-                        label = model.name,
-                        value = model.modelId.value,
-                        description = model.description,
-                    )
-                }
-            emitToBridge(
-                session.sessionId.value,
-                AppSessionEvent.LegacyModelOptionsUpdated(
-                    choices = modelChoices,
-                    currentModelId = current,
-                ),
-            )
-            // The SDK exposes currentModel on the session object but not a
-            // corresponding SessionUpdate.CurrentModelUpdate event for
-            // notify() consumers, so we mirror the initial selection into app state.
-            emitToBridge(
-                session.sessionId.value,
-                AppSessionEvent.ModelSelectionConfirmed(current),
-            )
-        }
-
-        @OptIn(UnstableApi::class)
-        if (session.configOptionsSupported) {
-            emitToBridge(
-                session.sessionId.value,
-                AppSessionEvent.ConfigOptionsUpdated(
-                    options =
-                        session.configOptions.value.map(
-                            AcpSessionUpdateMapper::mapSdkConfigOption,
-                        ),
-                ),
-            )
-        }
-    }
-
-    /**
      * Subscribes to the [ClientSession] StateFlows that can change after the
-     * session is registered: [currentMode], [currentModel], [configOptions].
-     * Each subscriber runs in [scope] and is cancelled in [clearSessionState].
-     *
-     * `drop(1)` skips the current value, which was already emitted into the
-     * bridge replay buffer by [registerSession]'s one-shot reads.
+     * session is registered, forwarding them through [observeStateChanges]. Each
+     * subscriber is cancelled in [clearSessionState].
      */
-    @OptIn(UnstableApi::class)
     private fun startReactiveObservers(session: ClientSession) {
         val sessionId = session.sessionId.value
-        val jobs = mutableListOf<Job>()
-
-        if (session.modesSupported) {
-            val availableModesSnapshot = session.availableModes
-            jobs +=
-                session.currentMode
-                    .drop(1)
-                    .onEach { newModeId ->
-                        emitToBridge(
-                            sessionId,
-                            AppSessionEvent.ModesUpdated(
-                                modes =
-                                    availableModesSnapshot.map { mode ->
-                                        SessionMode(
-                                            id = mode.id.value,
-                                            name = mode.name,
-                                            description = mode.description,
-                                        )
-                                    },
-                                currentModeId = newModeId.value,
-                            ),
-                        )
-                    }.launchIn(scope)
-        }
-
-        if (session.modelsSupported) {
-            jobs +=
-                session.currentModel
-                    .drop(1)
-                    .onEach { newModelId ->
-                        emitToBridge(
-                            sessionId,
-                            AppSessionEvent.ModelSelectionConfirmed(newModelId.value),
-                        )
-                    }.launchIn(scope)
-        }
-
-        if (session.configOptionsSupported) {
-            jobs +=
-                session.configOptions
-                    .drop(1)
-                    .onEach { newOptions ->
-                        emitToBridge(
-                            sessionId,
-                            AppSessionEvent.ConfigOptionsUpdated(
-                                options = newOptions.map(AcpSessionUpdateMapper::mapSdkConfigOption),
-                            ),
-                        )
-                    }.launchIn(scope)
-        }
-
+        val jobs = session.observeStateChanges(scope) { event -> emitToBridge(sessionId, event) }
         if (jobs.isNotEmpty()) {
             observerJobs[sessionId] = jobs
         }
@@ -1036,7 +909,7 @@ internal class SessionGateway(
         val summary = timing.summary(endNanos = System.nanoTime(), succeeded = succeeded)
         runCatching { android.util.Log.i("FerngeistLoad", "${rpc.rpc} sid=$sessionId $summary") }
         connection.diagnosticsStore.appendRpcEntry(
-            if (succeeded) RpcDirection.InboundResult else RpcDirection.InboundError,
+            if (succeeded) RpcDirection.INBOUND_RESULT else RpcDirection.INBOUND_ERROR,
             rpc.rpc,
             summary = summary,
         )

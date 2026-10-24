@@ -166,13 +166,13 @@ data class ChatAgentCapabilities(
 /** What the agent did with a steered prompt. */
 enum class SteerOutcome {
     /** Folded into the running turn. */
-    Injected,
+    INJECTED,
 
     /** No turn was running, so the agent started one of its own with the prompt. */
-    StartedNewTurn,
+    STARTED_NEW_TURN,
 
     /** Not taken (idle, rejected, unsupported or failed); the prompt must be sent normally. */
-    NotConsumed,
+    NOT_CONSUMED,
 }
 
 /**
@@ -255,20 +255,20 @@ data class ChatGitRef(
     val isHead: Boolean = false,
 ) {
     enum class Kind { HEAD, BRANCH, REMOTE, TAG }
-
-    /**
-     * The fully-qualified ref sent as `compare=`: a tag and a branch can share a short name, and
-     * git resolves the short one tag-first. Null for a detached HEAD, which is not a target.
-     */
-    val qualified: String?
-        get() =
-            when (kind) {
-                Kind.BRANCH -> "refs/heads/$name"
-                Kind.REMOTE -> "refs/remotes/$name"
-                Kind.TAG -> "refs/tags/$name"
-                Kind.HEAD -> null
-            }
 }
+
+/**
+ * The fully-qualified ref sent as `compare=`: a tag and a branch can share a short name, and
+ * git resolves the short one tag-first. Null for a detached HEAD, which is not a target.
+ */
+val ChatGitRef.qualified: String?
+    get() =
+        when (kind) {
+            ChatGitRef.Kind.BRANCH -> "refs/heads/$name"
+            ChatGitRef.Kind.REMOTE -> "refs/remotes/$name"
+            ChatGitRef.Kind.TAG -> "refs/tags/$name"
+            ChatGitRef.Kind.HEAD -> null
+        }
 
 /** The compare picker's data; [default] is the repo's main branch name, or "" when unknown. */
 data class ChatGitRefs(
@@ -359,7 +359,15 @@ data class ChatOperationError(
  * Implementations bridge transport-specific logic (ACP, etc.) behind this interface
  * so the feature layer never imports protocol-specific types.
  */
-interface ChatSessionFacade {
+interface ChatSessionFacade :
+    ChatSessionState,
+    ChatSessionEvents,
+    ChatSessionLifecycle,
+    ChatSessionInteraction,
+    ChatWorkspaceReader
+
+/** Observable session snapshots, independent of one-shot events. */
+interface ChatSessionState {
     /** Current transport-level connection state. */
     val connectionState: StateFlow<ChatConnectionState>
 
@@ -379,6 +387,16 @@ interface ChatSessionFacade {
     /** Hub chat id (`"$serverId/$sessionId"`) once a live session is attached; null before. */
     val liveChatId: StateFlow<String?>
 
+    /**
+     * Last rendered snapshot, retained after [clear] so a reopening screen can
+     * paint instantly without waiting for reconnect + session/load replay.
+     * Null when nothing has rendered yet. Never blocks on transport.
+     */
+    val cachedSnapshot: StateFlow<ChatSessionSnapshot?>
+}
+
+/** One-shot events observed by the chat screen. */
+interface ChatSessionEvents {
     // One-shot event streams (not state snapshots):
     val loadFailed: SharedFlow<String>
     val operationError: SharedFlow<ChatOperationError>
@@ -386,14 +404,10 @@ interface ChatSessionFacade {
     val cancelUnsupported: SharedFlow<Unit>
     val sessionReady: SharedFlow<Unit>
     val modelUpdated: SharedFlow<Unit>
+}
 
-    /**
-     * Last rendered snapshot, retained after [clear] so a reopening screen can
-     * paint instantly without waiting for reconnect + session/load replay.
-     * Null when nothing has rendered yet. Never blocks on transport.
-     */
-    val cachedSnapshot: StateFlow<ChatSessionSnapshot?>
-
+/** Loading and connection ownership for one chat session. */
+interface ChatSessionLifecycle {
     /**
      * Attempts to reattach a warm in-memory session without wiping UI state.
      *
@@ -428,6 +442,22 @@ interface ChatSessionFacade {
         loadSession()
     }
 
+    /** Tears down the active bridge and clears observers. */
+    fun clear()
+
+    /** Informs the facade of connection state transitions so it can schedule bridge recovery. */
+    fun onConnectionStateChanged(connectionState: ChatConnectionState)
+
+    /**
+     * Ensures the transport is (re)connecting. Called when a prompt is queued while
+     * offline so the queued message has a path forward instead of waiting for an
+     * externally-driven reconnect. Idempotent and safe to call repeatedly.
+     */
+    suspend fun reconnect()
+}
+
+/** User actions sent to an attached session. */
+interface ChatSessionInteraction {
     /** Sends a user message with optional inline images. Returns true if the message
      * was dispatched to a live session; false when no bridge is available or the
      * payload is unsupported by the current transport. */
@@ -445,7 +475,7 @@ interface ChatSessionFacade {
         text: String,
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
-    ): SteerOutcome = SteerOutcome.NotConsumed
+    ): SteerOutcome = SteerOutcome.NOT_CONSUMED
 
     /** Updates a session configuration option (mode, model, native config, etc.). */
     suspend fun setConfigOption(
@@ -473,20 +503,10 @@ interface ChatSessionFacade {
 
     /** Cancels a pending elicitation: dismissed without choosing. */
     suspend fun cancelElicitation(key: String)
+}
 
-    /** Tears down the active bridge and clears observers. */
-    fun clear()
-
-    /** Informs the facade of connection state transitions so it can schedule bridge recovery. */
-    fun onConnectionStateChanged(connectionState: ChatConnectionState)
-
-    /**
-     * Ensures the transport is (re)connecting. Called when a prompt is queued while
-     * offline so the queued message has a path forward instead of waiting for an
-     * externally-driven reconnect. Idempotent and safe to call repeatedly.
-     */
-    suspend fun reconnect()
-
+/** Read-only access to a session's gateway workspace. */
+interface ChatWorkspaceReader {
     /**
      * Git status of this chat's gateway working tree, or null when it has none: a manual
      * agent, a gateway chat whose runtime is not up yet, or a create-on-arrival chat that

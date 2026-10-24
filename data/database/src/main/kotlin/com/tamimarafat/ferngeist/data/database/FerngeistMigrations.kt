@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * migration can be exercised by [FerngeistMigrationTest] against the exported
  * schemas in `schemas/`.
  */
-val MIGRATION_14_15: Migration =
+val migration14To15: Migration =
     object : Migration(14, 15) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE sessions ADD COLUMN gatewaySessionId TEXT")
@@ -22,7 +22,7 @@ val MIGRATION_14_15: Migration =
  * (v15 → v16). Null for custom and embedded agents, which have no registry
  * entry and therefore no logo.
  */
-val MIGRATION_15_16: Migration =
+val migration15To16: Migration =
     object : Migration(15, 16) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE gateway_agent_bindings ADD COLUMN icon TEXT")
@@ -30,7 +30,7 @@ val MIGRATION_15_16: Migration =
     }
 
 /** Keeps each turn's start and finish for a week, since a replay carries no times (v16 → v17). */
-val MIGRATION_16_17: Migration =
+val migration16To17: Migration =
     object : Migration(16, 17) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(

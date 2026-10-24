@@ -1,5 +1,8 @@
 package com.tamimarafat.ferngeist.gateway
 
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -57,7 +60,16 @@ class GatewayWorkspaceTest {
                         """.trimIndent(),
                 ) { captured = it }
 
-            val status = repo.fetchGitStatus("http", "10.0.0.2:5788", "plain-token", "rt-1")
+            val status =
+                repo.fetchGitStatus(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "10.0.0.2:5788",
+                            gatewayCredential = "plain-token",
+                        ),
+                )
 
             val request = requireNotNull(captured)
             assertEquals(HttpMethod.Get, request.method)
@@ -87,7 +99,16 @@ class GatewayWorkspaceTest {
             val repo =
                 repoCapturing(responseBody = """{"branch":"main","ahead":0,"behind":0,"changed":null}""")
 
-            val status = repo.fetchGitStatus("http", "10.0.0.2:5788", "plain-token", "rt-1")
+            val status =
+                repo.fetchGitStatus(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "10.0.0.2:5788",
+                            gatewayCredential = "plain-token",
+                        ),
+                )
 
             assertEquals("main", status.branch)
             assertNull(status.changed)
@@ -99,8 +120,28 @@ class GatewayWorkspaceTest {
             val queries = mutableListOf<String?>()
             val repo = repoCapturing(responseBody = """[]""") { queries += it.url.encodedQuery }
 
-            runCatching { repo.fetchGitStatus("http", "10.0.0.2:5788", "plain-token", "rt-1", acpSessionId = "s-1") }
-            repo.fetchGitDiff("http", "10.0.0.2:5788", "plain-token", "rt-1", acpSessionId = "s-1")
+            runCatching {
+                repo.fetchGitStatus(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "10.0.0.2:5788",
+                            gatewayCredential = "plain-token",
+                        ),
+                    acpSessionId = "s-1",
+                )
+            }
+            repo.fetchGitDiff(
+                connection =
+                    GatewayWorkspaceConnection(
+                        runtimeId = "rt-1",
+                        scheme = "http",
+                        host = "10.0.0.2:5788",
+                        gatewayCredential = "plain-token",
+                    ),
+                query = GatewayDiffQuery(acpSessionId = "s-1"),
+            )
 
             assertEquals(listOf("acpSessionId=s-1", "acpSessionId=s-1"), queries)
         }
@@ -114,7 +155,17 @@ class GatewayWorkspaceTest {
                     responseBody = """{"path":"src/main.kt","oldText":"old\n","newText":"new\n","type":"diff"}""",
                 ) { captured = it }
 
-            val diffs = repo.fetchGitDiff("http", "10.0.0.2:5788", "plain-token", "rt-1", path = "src/main.kt")
+            val diffs =
+                repo.fetchGitDiff(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "10.0.0.2:5788",
+                            gatewayCredential = "plain-token",
+                        ),
+                    query = GatewayDiffQuery(path = "src/main.kt"),
+                )
 
             val request = requireNotNull(captured)
             assertEquals("/v1/runtimes/rt-1/git/diff", request.url.encodedPath)
@@ -138,12 +189,21 @@ class GatewayWorkspaceTest {
                         ]""",
                 ) { captured = it }
 
-            val diffs = repo.fetchGitDiff("http", "10.0.0.2:5788", "plain-token", "rt-1")
+            val diffs =
+                repo.fetchGitDiff(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "10.0.0.2:5788",
+                            gatewayCredential = "plain-token",
+                        ),
+                )
 
             val request = requireNotNull(captured)
             assertEquals("/v1/runtimes/rt-1/git/diff", request.url.encodedPath)
             // No path param → empty query (Ktor represents no query as "" rather than null).
-            assertTrue(request.url.encodedQuery.isNullOrEmpty())
+            assertTrue(request.url.encodedQuery.isEmpty())
             assertEquals(2, diffs.size)
             // New/untracked files have no oldText.
             assertNull(diffs[1].oldText)
@@ -156,10 +216,19 @@ class GatewayWorkspaceTest {
             val repo =
                 repoCapturing(responseBody = """[]""") { captured = it }
 
-            repo.fetchGitDiff("http", "10.0.0.2:5788", "plain-token", "rt-1", path = "  ")
+            repo.fetchGitDiff(
+                connection =
+                    GatewayWorkspaceConnection(
+                        runtimeId = "rt-1",
+                        scheme = "http",
+                        host = "10.0.0.2:5788",
+                        gatewayCredential = "plain-token",
+                    ),
+                query = GatewayDiffQuery(path = "  "),
+            )
 
             val request = requireNotNull(captured)
-            assertTrue(request.url.encodedQuery.isNullOrEmpty())
+            assertTrue(request.url.encodedQuery.isEmpty())
         }
 
     @Test
@@ -169,7 +238,16 @@ class GatewayWorkspaceTest {
             val repo =
                 repoCapturing(responseBody = """{"path":"b.kt","newText":"","type":"diff"}""") { captured = it }
 
-            repo.fetchGitDiff("http", "h", "plain-token", "rt-1", path = "b.kt", commit = "abc1234", oldPath = "a.kt")
+            repo.fetchGitDiff(
+                connection =
+                    GatewayWorkspaceConnection(
+                        runtimeId = "rt-1",
+                        scheme = "http",
+                        host = "h",
+                        gatewayCredential = "plain-token",
+                    ),
+                query = GatewayDiffQuery(path = "b.kt", commit = "abc1234", oldPath = "a.kt"),
+            )
 
             assertEquals("path=b.kt&commit=abc1234&oldPath=a.kt", requireNotNull(captured).url.encodedQuery)
         }
@@ -196,7 +274,16 @@ class GatewayWorkspaceTest {
                 ) { captured = it }
 
             val log =
-                repo.fetchGitLog("http", "h", "plain-token", "rt-1", head = "0901beff", skip = 50, limit = 50)
+                repo.fetchGitLog(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "plain-token",
+                        ),
+                    query = GatewayLogQuery(head = "0901beff", skip = 50, limit = 50),
+                )
 
             val request = requireNotNull(captured)
             assertEquals("/v1/runtimes/rt-1/git/log", request.url.encodedPath)
@@ -216,7 +303,17 @@ class GatewayWorkspaceTest {
                     responseBody = """{"sha":"abc","changed":[{"path":"b.kt","status":"R","oldPath":"a.kt"}]}""",
                 ) { captured = it }
 
-            val files = repo.fetchGitCommit("http", "h", "plain-token", "rt-1", sha = "abc")
+            val files =
+                repo.fetchGitCommit(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "plain-token",
+                        ),
+                    sha = "abc",
+                )
 
             assertEquals("/v1/runtimes/rt-1/git/commits/abc", requireNotNull(captured).url.encodedPath)
             assertEquals("a.kt", files.changed[0].oldPath)
@@ -234,7 +331,15 @@ class GatewayWorkspaceTest {
                         it
                 }
 
-            repo.fetchGitStatus("http", "10.0.0.2:5788", credential, "rt-1")
+            repo.fetchGitStatus(
+                connection =
+                    GatewayWorkspaceConnection(
+                        runtimeId = "rt-1",
+                        scheme = "http",
+                        host = "10.0.0.2:5788",
+                        gatewayCredential = credential,
+                    ),
+            )
 
             val request = requireNotNull(captured)
             assertEquals("Bearer tok-1", request.headers["Authorization"])
@@ -249,7 +354,15 @@ class GatewayWorkspaceTest {
             val repo = repoCapturing(status = HttpStatusCode.UnprocessableEntity, responseBody = "not a git repository")
 
             try {
-                repo.fetchGitStatus("http", "10.0.0.2:5788", "plain-token", "rt-1")
+                repo.fetchGitStatus(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "10.0.0.2:5788",
+                            gatewayCredential = "plain-token",
+                        ),
+                )
                 fail("expected IllegalStateException")
             } catch (e: IllegalStateException) {
                 assertTrue(e.message.orEmpty().contains("422"))
@@ -333,19 +446,39 @@ class GatewayWorkspaceTest {
                 ) { requests += it }
             val ref = "refs/heads/main"
 
-            val status = repo.fetchGitStatus("http", "h", "t", "rt-1", compare = ref)
-            runCatching { repo.fetchGitDiff("http", "h", "t", "rt-1", path = "a.kt", compare = ref) }
+            val status =
+                repo.fetchGitStatus(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "t",
+                        ),
+                    compare = ref,
+                )
+            runCatching {
+                repo.fetchGitDiff(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "t",
+                        ),
+                    query = GatewayDiffQuery(path = "a.kt", compare = ref),
+                )
+            }
             runCatching {
                 repo.fetchGitLog(
-                    "http",
-                    "h",
-                    "t",
-                    "rt-1",
-                    head = null,
-                    skip = 0,
-                    limit = 50,
-                    compare = ref,
-                    beyond = 1,
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "t",
+                        ),
+                    query = GatewayLogQuery(head = null, skip = 0, limit = 50, compare = ref, beyond = 1),
                 )
             }
 
@@ -364,7 +497,17 @@ class GatewayWorkspaceTest {
                     responseBody = """{"head":"h","commits":[],"baseCommit":"abc1234"}""",
                 ) { captured = it }
 
-            val log = repo.fetchGitLog("http", "h", "t", "rt-1", head = null, skip = 0, limit = 50)
+            val log =
+                repo.fetchGitLog(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "t",
+                        ),
+                    query = GatewayLogQuery(head = null, skip = 0, limit = 50),
+                )
 
             assertEquals("abc1234", log.baseCommit)
             assertNull(requireNotNull(captured).url.parameters["beyond"])
@@ -376,7 +519,16 @@ class GatewayWorkspaceTest {
             var captured: HttpRequestData? = null
             val repo = repoCapturing(responseBody = """{"branch":"main"}""") { captured = it }
 
-            val status = repo.fetchGitStatus("http", "h", "t", "rt-1")
+            val status =
+                repo.fetchGitStatus(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "t",
+                        ),
+                )
 
             assertNull(requireNotNull(captured).url.parameters["compare"])
             assertNull(status.compare)
@@ -393,7 +545,16 @@ class GatewayWorkspaceTest {
                             """{"name":"origin/main","kind":"remote"}]}""",
                 ) { captured = it }
 
-            val refs = repo.fetchGitRefs("http", "h", "t", "rt-1")
+            val refs =
+                repo.fetchGitRefs(
+                    connection =
+                        GatewayWorkspaceConnection(
+                            runtimeId = "rt-1",
+                            scheme = "http",
+                            host = "h",
+                            gatewayCredential = "t",
+                        ),
+                )
 
             assertEquals("/v1/runtimes/rt-1/git/refs", requireNotNull(captured).url.encodedPath)
             assertEquals("main", refs.default)

@@ -67,18 +67,21 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.common.ui.DarkGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
-import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
+import com.tamimarafat.ferngeist.core.common.ui.darkGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.history.AuthorAvatar
+import com.tamimarafat.ferngeist.feature.chat.ui.history.RefBadge
+import com.tamimarafat.ferngeist.feature.chat.ui.history.commitWebUrl
+import com.tamimarafat.ferngeist.feature.chat.ui.history.order
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.net.URI
 
 private const val SHORT_SHA = 7
 private const val BODY_COLLAPSED_LINES = 4
@@ -176,40 +179,6 @@ private fun GitCommitHeader(
     }
 }
 
-private val ScpRemote = Regex("^[\\w.-]+@([\\w.-]+):(?!/)(.+)$")
-private val ShaPattern = Regex("^[0-9a-f]{4,64}$")
-
-/**
- * The forge's web page for [sha], from a remote URL in any form git accepts: `https://`,
- * `ssh://`, or scp-like `git@host:owner/repo.git`. Credentials and ports are dropped, so a
- * token embedded in the remote never ends up in a browser. Null for local or unknown remotes.
- * The GitHub app claims github.com links, so Android opens it there when installed.
- */
-internal fun commitWebUrl(
-    remoteUrl: String,
-    sha: String,
-): String? {
-    val (scheme, host, path) = parseRemote(remoteUrl.trim()) ?: return null
-    val repo = path.trim('/').removeSuffix(".git").trim('/')
-    // owner/repo at minimum; GitLab subgroups add more segments and keep the same /commit/ path.
-    val valid = ShaPattern.matches(sha) && '/' in repo && repo.split('/').none { it.isBlank() || it == ".." }
-    return if (valid) "$scheme://${host.lowercase()}/$repo/commit/$sha" else null
-}
-
-/** Web scheme, host and repo path of a remote; userinfo and port are left behind. */
-private fun parseRemote(remote: String): Triple<String, String, String>? {
-    ScpRemote.find(remote)?.destructured?.let { (host, path) -> return Triple("https", host, path) }
-    val uri = runCatching { URI(remote) }.getOrNull()
-    val scheme =
-        when (uri?.scheme?.lowercase()) {
-            "https", "ssh", "git" -> "https"
-            "http" -> "http"
-            else -> null
-        }
-    val host = uri?.host
-    return if (scheme != null && host != null) Triple(scheme, host, uri.path.orEmpty()) else null
-}
-
 @Composable
 private fun GitCommitMeta(commit: ChatGitCommit) {
     val context = LocalContext.current
@@ -284,26 +253,32 @@ private fun ShaChip(sha: String) {
                     text = short,
                     style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
                 )
-                val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
-                AnimatedContent(
-                    targetState = copied,
-                    transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
-                    label = "shaCopied",
-                ) { done ->
-                    Icon(
-                        imageVector = if (done) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
-                        contentDescription = null,
-                        tint =
-                            if (done) {
-                                LocalGitSemanticColors.current.added
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
+                ShaCopyIcon(copied)
             }
         }
+    }
+}
+
+/** Copy glyph that cross-fades to a check, in the added colour, once the sha is on the clipboard. */
+@Composable
+private fun ShaCopyIcon(copied: Boolean) {
+    val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    AnimatedContent(
+        targetState = copied,
+        transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
+        label = "shaCopied",
+    ) { done ->
+        Icon(
+            imageVector = if (done) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+            contentDescription = null,
+            tint =
+                if (done) {
+                    localGitSemanticColors.current.added
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            modifier = Modifier.size(14.dp),
+        )
     }
 }
 
@@ -489,7 +464,7 @@ private fun GitCommitPreview() {
 @Composable
 private fun GitCommitDarkPreview() {
     MaterialTheme(colorScheme = darkColorScheme()) {
-        CompositionLocalProvider(LocalGitSemanticColors provides DarkGitSemanticColors) { GitCommitPreviewFrame() }
+        CompositionLocalProvider(localGitSemanticColors provides darkGitSemanticColors) { GitCommitPreviewFrame() }
     }
 }
 

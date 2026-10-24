@@ -38,10 +38,10 @@ data class ChatElicitationField(
     val description: String? = null,
     val required: Boolean = false,
     val kind: ElicitationFieldKind = ElicitationFieldKind.Text(),
-) {
-    /** Display label: schema title, falling back to the raw property key. */
-    val label: String get() = title?.takeIf { it.isNotBlank() } ?: key
-}
+)
+
+/** Display label: schema title, falling back to the raw property key. */
+val ChatElicitationField.label: String get() = title?.takeIf { it.isNotBlank() } ?: key
 
 sealed interface ElicitationFieldKind {
     data class Text(
@@ -84,9 +84,9 @@ data class ElicitationOption(
     val value: String,
     val title: String? = null,
     val description: String? = null,
-) {
-    val label: String get() = title?.takeIf { it.isNotBlank() } ?: value
-}
+)
+
+val ElicitationOption.label: String get() = title?.takeIf { it.isNotBlank() } ?: value
 
 sealed interface ChatElicitationValue {
     data class TextValue(
@@ -134,53 +134,94 @@ fun ChatElicitationRequest.Form.defaultValues(): Map<String, ChatElicitationValu
  * pattern, range, item-count and option-membership checks). Null value is valid
  * only for optional fields.
  */
-@Suppress("CyclomaticComplexMethod", "ReturnCount")
 fun isElicitationValueValid(
     field: ChatElicitationField,
     value: ChatElicitationValue?,
 ): Boolean {
     if (value == null) return !field.required
     return when (val kind = field.kind) {
-        is ElicitationFieldKind.Text -> {
-            val text = (value as? ChatElicitationValue.TextValue)?.value ?: return false
-            if (field.required && text.isBlank()) return false
-            if (text.isEmpty()) return true
-            kind.minLength?.let { if (text.length < it) return false }
-            kind.maxLength?.let { if (text.length > it) return false }
-            val pattern = kind.pattern
-            if (pattern != null) {
-                // Fail open on unparseable patterns: a buggy agent schema must not
-                // trap the user with a Submit that can never enable.
-                val matches = runCatching { text.matches(Regex(pattern)) }.getOrDefault(true)
-                if (!matches) return false
-            }
-            true
-        }
-        is ElicitationFieldKind.SingleSelect -> {
-            val text = (value as? ChatElicitationValue.TextValue)?.value ?: return false
-            if (field.required && text.isBlank()) return false
-            if (text.isEmpty()) return true
-            kind.options.isEmpty() || kind.options.any { it.value == text }
-        }
+        is ElicitationFieldKind.Text -> isTextValid(field, kind, value)
+        is ElicitationFieldKind.SingleSelect -> isSingleSelectValid(field, kind, value)
         is ElicitationFieldKind.BooleanField -> value is ChatElicitationValue.BooleanValue
-        is ElicitationFieldKind.IntegerField -> {
-            val number = (value as? ChatElicitationValue.IntegerValue)?.value ?: return false
-            kind.minimum?.let { if (number < it) return false }
-            kind.maximum?.let { if (number > it) return false }
-            true
-        }
-        is ElicitationFieldKind.NumberField -> {
-            val number = (value as? ChatElicitationValue.NumberValue)?.value ?: return false
-            kind.minimum?.let { if (number < it) return false }
-            kind.maximum?.let { if (number > it) return false }
-            true
-        }
-        is ElicitationFieldKind.MultiSelect -> {
-            val items = (value as? ChatElicitationValue.StringListValue)?.values ?: return false
-            if (field.required && items.isEmpty()) return false
-            kind.minItems?.let { if (items.size < it) return false }
-            kind.maxItems?.let { if (items.size > it) return false }
-            kind.options.isEmpty() || items.all { item -> kind.options.any { it.value == item } }
-        }
+        is ElicitationFieldKind.IntegerField -> isIntegerValid(kind, value)
+        is ElicitationFieldKind.NumberField -> isNumberValid(kind, value)
+        is ElicitationFieldKind.MultiSelect -> isMultiSelectValid(field, kind, value)
     }
 }
+
+private fun isTextValid(
+    field: ChatElicitationField,
+    kind: ElicitationFieldKind.Text,
+    value: ChatElicitationValue,
+): Boolean =
+    isTextFieldValid(field, value) { text ->
+        sizeWithin(text.length, kind.minLength, kind.maxLength) && matchesPattern(text, kind.pattern)
+    }
+
+private fun isSingleSelectValid(
+    field: ChatElicitationField,
+    kind: ElicitationFieldKind.SingleSelect,
+    value: ChatElicitationValue,
+): Boolean =
+    isTextFieldValid(field, value) { text ->
+        kind.options.isEmpty() || kind.options.any { it.value == text }
+    }
+
+/** A text answer: blank is rejected when required, empty is accepted otherwise, anything else is [rule]. */
+private fun isTextFieldValid(
+    field: ChatElicitationField,
+    value: ChatElicitationValue,
+    rule: (String) -> Boolean,
+): Boolean {
+    val text = (value as? ChatElicitationValue.TextValue)?.value ?: return false
+    return when {
+        field.required && text.isBlank() -> false
+        text.isEmpty() -> true
+        else -> rule(text)
+    }
+}
+
+private fun isIntegerValid(
+    kind: ElicitationFieldKind.IntegerField,
+    value: ChatElicitationValue,
+): Boolean {
+    val number = (value as? ChatElicitationValue.IntegerValue)?.value ?: return false
+    return kind.minimum?.let { number < it } != true && kind.maximum?.let { number > it } != true
+}
+
+// Comparisons stay on Double's primitive operators: a generic compareTo orders NaN differently.
+private fun isNumberValid(
+    kind: ElicitationFieldKind.NumberField,
+    value: ChatElicitationValue,
+): Boolean {
+    val number = (value as? ChatElicitationValue.NumberValue)?.value ?: return false
+    return kind.minimum?.let { number < it } != true && kind.maximum?.let { number > it } != true
+}
+
+private fun isMultiSelectValid(
+    field: ChatElicitationField,
+    kind: ElicitationFieldKind.MultiSelect,
+    value: ChatElicitationValue,
+): Boolean {
+    val items = (value as? ChatElicitationValue.StringListValue)?.values ?: return false
+    return when {
+        field.required && items.isEmpty() -> false
+        else ->
+            sizeWithin(items.size, kind.minItems, kind.maxItems) &&
+                (kind.options.isEmpty() || items.all { item -> kind.options.any { it.value == item } })
+    }
+}
+
+private fun sizeWithin(
+    size: Int,
+    min: Int?,
+    max: Int?,
+): Boolean = size >= (min ?: 0) && size <= (max ?: Int.MAX_VALUE)
+
+private fun matchesPattern(
+    text: String,
+    pattern: String?,
+): Boolean =
+    // Fail open on unparseable patterns: a buggy agent schema must not
+    // trap the user with a Submit that can never enable.
+    pattern == null || runCatching { text.matches(Regex(pattern)) }.getOrDefault(true)

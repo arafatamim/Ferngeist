@@ -100,9 +100,9 @@ internal fun SessionListContent(
 ) {
     val content =
         when {
-            !state.cacheRead -> ListContent.Unread
-            state.sessions.isEmpty() -> ListContent.Empty
-            else -> ListContent.Sessions
+            !state.rows.cacheRead -> ListContent.UNREAD
+            state.rows.sessions.isEmpty() -> ListContent.EMPTY
+            else -> ListContent.SESSIONS
         }
     val enter = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val grow = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
@@ -111,7 +111,7 @@ internal fun SessionListContent(
         targetState = content,
         transitionSpec = {
             // The first read lands with no motion: the rows were on disk all along.
-            if (initialState == ListContent.Unread) {
+            if (initialState == ListContent.UNREAD) {
                 EnterTransition.None togetherWith ExitTransition.None
             } else {
                 (fadeIn(enter) + scaleIn(grow, initialScale = 0.92f)) togetherWith fadeOut(exit)
@@ -136,7 +136,7 @@ internal fun SessionListContent(
     }
 }
 
-private enum class ListContent { Unread, Empty, Sessions }
+private enum class ListContent { UNREAD, EMPTY, SESSIONS }
 
 @OptIn(
     ExperimentalMaterial3ExpressiveApi::class,
@@ -164,19 +164,19 @@ private fun SessionListContentFor(
         // empty state claims "no sessions" when the list is merely unread. So
         // paint neither: the rows or the empty state arrive on the next frame,
         // and with no spinner there is no flash on the way there.
-        ListContent.Unread -> {
+        ListContent.UNREAD -> {
             Box(modifier = Modifier.fillMaxSize().padding(padding))
         }
 
-        ListContent.Empty -> {
+        ListContent.EMPTY -> {
             SessionListEmptyContent(
                 padding = padding,
-                supportsSessionList = state.supportsSessionList,
+                supportsSessionList = state.rows.supportsSessionList,
                 scopeName =
-                    if (state.scopeEnabled &&
-                        state.scope != WorktreeScope.All
+                    if (state.repoScope.scopeEnabled &&
+                        state.repoScope.scope != WorktreeScope.All
                     ) {
-                        scopeLabel(state.scope, state.scopeOptions)
+                        scopeLabel(state.repoScope.scope, state.repoScope.scopeOptions)
                     } else {
                         null
                     },
@@ -184,28 +184,28 @@ private fun SessionListContentFor(
             )
         }
 
-        ListContent.Sessions -> {
+        ListContent.SESSIONS -> {
             // Chats whose folder is gone cannot load; they wait at the bottom instead of mixing in.
             val (missing, present) =
-                state.sessions.partition { session -> session.cwd?.let(::cwdKey) in state.missingCwds }
+                state.rows.sessions.partition { session -> session.cwd?.let(::cwdKey) in state.rows.missingCwds }
             val snackbarScope = rememberCoroutineScope()
             val goneMessage = stringResource(R.string.sessionlist_missing_folder_message)
             SessionListLazyColumn(
                 groupedSessions = groupSessionsByDate(present),
                 missingSessions = missing,
-                onOpenMissing = { snackbarScope.launch { state.snackbarHostState.showSnackbar(goneMessage) } },
-                sessionCount = state.sessions.size,
+                onOpenMissing = { snackbarScope.launch { state.screen.snackbarHostState.showSnackbar(goneMessage) } },
+                sessionCount = state.rows.sessions.size,
                 padding = padding,
-                liveSessionIds = state.liveSessionIds,
+                liveSessionIds = state.rows.liveSessionIds,
                 onCloseSession = onCloseSession,
                 onDeleteSession = onDeleteSession,
-                canDeleteSession = state.supportsSessionDelete,
+                canDeleteSession = state.rows.supportsSessionDelete,
                 onNavigateToChat = onNavigateToChat,
                 onRemoveWorktree = onRemoveWorktree,
-                worktrees = state.worktrees,
+                worktrees = state.worktree.worktrees,
                 // A directory is picked, so every card shares its path; the badge says which worktree.
-                showCwd = state.currentCwd.isNullOrBlank(),
-                removingWorktreeIds = state.removingWorktreeIds,
+                showCwd = state.project.currentCwd.isNullOrBlank(),
+                removingWorktreeIds = state.worktree.removingWorktreeIds,
                 onChatOpened = onChatOpened,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -322,24 +322,14 @@ private fun SessionListLazyColumn(
             gone = gone,
             removing = worktree?.id in removingWorktreeIds,
             onRemoveWorktree = worktree?.let { { onRemoveWorktree(session.id, it.id) } },
-            onDisconnect =
-                if (session.id in liveSessionIds || session.gatewaySessionId != null) {
-                    { onCloseSession(session.id) }
-                } else {
-                    null
-                },
-            onDelete =
-                if (canDeleteSession) {
-                    { onDeleteSession(session.id) }
-                } else {
-                    null
-                },
+            onDisconnect = disconnectAction(session, live = session.id in liveSessionIds, onClose = onCloseSession),
+            onDelete = deleteAction(session, enabled = canDeleteSession, onDelete = onDeleteSession),
             onClick = {
                 if (gone) return@SessionCard onOpenMissing()
                 onChatOpened()
                 onNavigateToChat(
                     session.id,
-                    session.cwd ?: "",
+                    session.cwd.orEmpty(),
                     session.updatedAt,
                     session.title,
                 )
@@ -481,6 +471,56 @@ private fun RowScope.SessionCardText(
     }
 }
 
+/** Close is offered for a live chat, or one the gateway still runs a process for. */
+private fun disconnectAction(
+    session: SessionSummary,
+    live: Boolean,
+    onClose: (String) -> Unit,
+): (() -> Unit)? = if (live || session.gatewaySessionId != null) ({ onClose(session.id) }) else null
+
+private fun deleteAction(
+    session: SessionSummary,
+    enabled: Boolean,
+    onDelete: (String) -> Unit,
+): (() -> Unit)? = if (enabled) ({ onDelete(session.id) }) else null
+
+/** The long-press menu has something to offer only while the chat is not being removed. */
+private fun menuAvailable(
+    removing: Boolean,
+    onDisconnect: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+    onRemoveWorktree: (() -> Unit)?,
+): Boolean = !removing && (onDisconnect != null || onDelete != null || onRemoveWorktree != null)
+
+/**
+ * Two claimants for one key scale the card to the other's bounds; the workspace shows the
+ * agent list beside this list, so panes take no bounds at all.
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun Modifier.sessionSharedBounds(
+    sessionId: String,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+    enabled: Boolean,
+): Modifier =
+    if (enabled) {
+        with(sharedTransitionScope) {
+            this@sessionSharedBounds.sharedBounds(
+                sharedContentState =
+                    rememberSharedContentState(
+                        key = SessionSharedBoundsKey(sessionId),
+                    ),
+                animatedVisibilityScope = animatedContentScope,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+            )
+        }
+    } else {
+        this
+    }
+
 @OptIn(
     ExperimentalSharedTransitionApi::class,
     ExperimentalFoundationApi::class,
@@ -506,7 +546,7 @@ private fun SessionCard(
 ) {
     val haptics = LocalHapticFeedback.current
     var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
-    val hasMenuActions = !removing && (onDisconnect != null || onDelete != null || onRemoveWorktree != null)
+    val hasMenuActions = menuAvailable(removing, onDisconnect, onDelete, onRemoveWorktree)
     // Right-click is the mouse equivalent of a long press: same menu, same gate.
     val openActionsMenu = {
         if (hasMenuActions) {
@@ -526,31 +566,17 @@ private fun SessionCard(
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "sessionCardContainer",
     )
-    // Two claimants for one key scale the card to the other's bounds; the workspace shows the
-    // agent list beside this list, so panes take no bounds at all.
-    val boundsModifier =
-        if (sharedBoundsEnabled) {
-            with(sharedTransitionScope) {
-                Modifier.sharedBounds(
-                    sharedContentState =
-                        rememberSharedContentState(
-                            key = SessionSharedBoundsKey(session.id),
-                        ),
-                    animatedVisibilityScope = animatedContentScope,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                )
-            }
-        } else {
-            Modifier
-        }
     Box {
         with(sharedTransitionScope) {
             Card(
                 modifier =
-                    boundsModifier
-                        .fillMaxWidth()
+                    Modifier
+                        .sessionSharedBounds(
+                            sessionId = session.id,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedContentScope = animatedContentScope,
+                            enabled = sharedBoundsEnabled,
+                        ).fillMaxWidth()
                         .clip(CardDefaults.shape)
                         .alpha(if (removing || gone) REMOVING_CARD_ALPHA else 1f)
                         .handCursor()

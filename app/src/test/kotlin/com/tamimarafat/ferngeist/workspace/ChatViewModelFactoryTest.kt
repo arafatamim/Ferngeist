@@ -22,6 +22,7 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -46,24 +47,28 @@ class ChatViewModelFactoryTest {
             gatewayRepository = mockk<GatewayRepository>(relaxed = true),
         )
     private val sessionFacadeFactory = mockk<ChatSessionFacadeFactory>(relaxed = true)
+    private val mainDispatcher = StandardTestDispatcher()
 
     private val factory =
         ChatViewModelFactory(
-            sessionFacadeFactory = sessionFacadeFactory,
-            sessionRepository = mockk<SessionRepository>(relaxed = true),
+            services =
+                ChatSessionServices(
+                    sessionFacadeFactory = sessionFacadeFactory,
+                    sessionRepository = mockk<SessionRepository>(relaxed = true),
+                    presence = presence,
+                    launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true),
+                    turnTimingRepository = mockk<TurnTimingRepository>(relaxed = true),
+                ),
             chatScrollStateStore = mockk<ChatScrollStateStore>(relaxed = true),
             pendingPromptStore = mockk<PendingPromptStore>(relaxed = true),
             switcherHintStore = mockk<SwitcherHintStore>(relaxed = true),
             recentSelectionStore = mockk<RecentSelectionStore>(relaxed = true),
-            presence = presence,
-            launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true),
-            turnTimingRepository = mockk<TurnTimingRepository>(relaxed = true),
-            ioDispatcher = Dispatchers.Unconfined,
+            ioDispatcher = UnconfinedTestDispatcher(mainDispatcher.scheduler),
         )
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(StandardTestDispatcher())
+        Dispatchers.setMain(mainDispatcher)
     }
 
     @After

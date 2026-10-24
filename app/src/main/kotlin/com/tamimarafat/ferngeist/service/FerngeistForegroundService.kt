@@ -97,7 +97,9 @@ class FerngeistForegroundService : Service() {
         ensureForegroundStarted()
 
         // Now safe to check state — startForeground() already called.
-        if (!shouldContinueObserving()) {
+        // Returns true when any manager is connected or connecting, warranting continued observation.
+        // A fully idle process self-stops.
+        if (!chatConnectionHub.anyActive.value) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -142,13 +144,6 @@ class FerngeistForegroundService : Service() {
             .cancel(ERROR_NOTIFICATION_ID)
     }
 
-    /**
-     * Returns true when any manager is connected or connecting, warranting
-     * continued observation. Returns false for a fully idle process, signaling
-     * the caller to self-stop.
-     */
-    private fun shouldContinueObserving(): Boolean = chatConnectionHub.anyActive.value
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
@@ -162,50 +157,58 @@ class FerngeistForegroundService : Service() {
         observationJob?.cancel()
         observationJob =
             scope.launch {
-                launch {
-                    // Stop only when the aggregate is fully idle — no manager
-                    // Connected or Connecting. Connecting windows (transient
-                    // reconnects) keep the service alive.
-                    chatConnectionHub.anyActive
-                        .collect { anyActive ->
-                            if (!isStarted) return@collect
-                            if (!anyActive) stopSelf()
-                        }
-                }
-                launch {
-                    // Notification title tracks actual connectivity, not the
-                    // connecting window that merely keeps the service alive.
-                    chatConnectionHub.anyConnected
-                        .collect { anyConnected ->
-                            if (!isStarted) return@collect
-                            updateNotification(anyConnected)
-                        }
-                }
-                launch {
-                    chatConnectionHub.warmServers
-                        .combine(launchableTargetRepository.getTargets()) { ids, targets ->
-                            targets
-                                .filter { it.id in ids }
-                                .map { it.name }
-                                .distinct()
-                                .joinToString(", ")
-                        }.distinctUntilChanged()
-                        .collect { names ->
-                            connectedAgentNames = names
-                            if (!isStarted) return@collect
-                            updateNotification(chatConnectionHub.anyConnected.value)
-                        }
-                }
-                launch {
-                    // Keep the notification's deep-link target in sync with the chat
-                    // the user is currently viewing (falling back to the most recently
-                    // focused pooled chat after back-out).
-                    chatConnectionHub.tapTarget
-                        .collect {
-                            if (!isStarted) return@collect
-                            updateNotification(chatConnectionHub.anyConnected.value)
-                        }
-                }
+                launch { stopWhenIdle() }
+                launch { updateTitleOnConnectivity() }
+                launch { trackConnectedAgentNames() }
+                launch { refreshOnTapTargetChange() }
+            }
+    }
+
+    private suspend fun stopWhenIdle() {
+        // Stop only when the aggregate is fully idle — no manager
+        // Connected or Connecting. Connecting windows (transient
+        // reconnects) keep the service alive.
+        chatConnectionHub.anyActive
+            .collect { anyActive ->
+                if (!isStarted) return@collect
+                if (!anyActive) stopSelf()
+            }
+    }
+
+    private suspend fun updateTitleOnConnectivity() {
+        // Notification title tracks actual connectivity, not the
+        // connecting window that merely keeps the service alive.
+        chatConnectionHub.anyConnected
+            .collect { anyConnected ->
+                if (!isStarted) return@collect
+                updateNotification(anyConnected)
+            }
+    }
+
+    private suspend fun trackConnectedAgentNames() {
+        chatConnectionHub.warmServers
+            .combine(launchableTargetRepository.getTargets()) { ids, targets ->
+                targets
+                    .filter { it.id in ids }
+                    .map { it.name }
+                    .distinct()
+                    .joinToString(", ")
+            }.distinctUntilChanged()
+            .collect { names ->
+                connectedAgentNames = names
+                if (!isStarted) return@collect
+                updateNotification(chatConnectionHub.anyConnected.value)
+            }
+    }
+
+    private suspend fun refreshOnTapTargetChange() {
+        // Keep the notification's deep-link target in sync with the chat
+        // the user is currently viewing (falling back to the most recently
+        // focused pooled chat after back-out).
+        chatConnectionHub.tapTarget
+            .collect {
+                if (!isStarted) return@collect
+                updateNotification(chatConnectionHub.anyConnected.value)
             }
     }
 

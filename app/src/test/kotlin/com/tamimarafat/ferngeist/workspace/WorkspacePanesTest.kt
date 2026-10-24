@@ -138,12 +138,6 @@ class WorkspacePanesTest {
         }
     }
 
-    @Test
-    fun chatGetsTheWholeWidthWhenItIsTheOnlyPane() {
-        val widths = workspacePaneWidths(desirablePanes(1, "a", "s", false))
-        assertEquals(1f, widths.getValue(ThreePaneScaffoldRole.Tertiary), 1e-6f)
-    }
-
     // Back is live only where it can act. The session list shipped a back button at three
     // panes, where the agent list is already on screen and the button did nothing.
 

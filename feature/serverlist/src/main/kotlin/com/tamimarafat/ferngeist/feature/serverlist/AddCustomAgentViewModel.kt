@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
+import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.gatewayErrorMessage
@@ -28,9 +29,9 @@ internal const val CUSTOM_AGENT_MAX_ARGS = 20
 internal const val CUSTOM_AGENT_MAX_ARG_LENGTH = 1024
 
 /** A host-absolute path, POSIX or Windows. The gateway host may be either. */
-private fun String.isAbsoluteHostPath(): Boolean = startsWith("/") || WINDOWS_ABSOLUTE_PATH.matches(this)
+private fun String.isAbsoluteHostPath(): Boolean = startsWith("/") || windowsAbsolutePath.matches(this)
 
-private val WINDOWS_ABSOLUTE_PATH = Regex("""^[A-Za-z]:[\\/].*""")
+private val windowsAbsolutePath = Regex("""^[A-Za-z]:[\\/].*""")
 
 /**
  * Mirrors the gateway's own rules (`customagents.validateCustomAgentFields` +
@@ -162,10 +163,13 @@ class AddCustomAgentViewModel
                             scheme = gateway.scheme,
                             host = gateway.host,
                             gatewayCredential = gateway.gatewayCredential,
-                            displayName = name,
-                            command = command,
-                            args = args,
-                            hint = _hint.value.trim(),
+                            request =
+                                GatewayCustomAgentRequest(
+                                    displayName = name,
+                                    command = command,
+                                    args = args,
+                                    hint = _hint.value.trim(),
+                                ),
                         )
                     _events.emit(
                         if (created.detected) {

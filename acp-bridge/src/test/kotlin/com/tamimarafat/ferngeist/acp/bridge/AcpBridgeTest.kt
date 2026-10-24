@@ -5,7 +5,6 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.McpCapabilities
 import com.agentclientprotocol.model.PromptCapabilities
-import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.SessionCapabilities
 import com.agentclientprotocol.model.SessionListCapabilities
 import com.agentclientprotocol.model.SessionResumeCapabilities
@@ -14,10 +13,8 @@ import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpDiagnosticsStore
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
-import com.tamimarafat.ferngeist.acp.bridge.connection.PermissionFlow
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionListingUnavailableException
 import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
@@ -29,19 +26,14 @@ import com.tamimarafat.ferngeist.acp.bridge.facade.mapCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.facade.userFacingSendError
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
-import com.tamimarafat.ferngeist.acp.bridge.session.allChoices
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonNull
@@ -49,7 +41,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -62,66 +53,6 @@ private val noGatewayResume: suspend (
 ) -> String = { _, _ -> error("no gateway resume in this test") }
 
 class SessionBridgeTest {
-    @Test
-    fun `SessionBridge should initialize with correct sessionId`() =
-        runTest {
-            val sessionId = "test_session_123"
-            val bridge = SessionBridge(sessionId, null)
-
-            assertEquals(sessionId, bridge.sessionId)
-        }
-
-    @Test
-    fun `SessionBridge should surface legacy modes as config options`() =
-        runTest {
-            val bridge = SessionBridge("test_session", null)
-
-            bridge.emitEvent(
-                AppSessionEvent.ModesUpdated(
-                    modes =
-                        listOf(
-                            SessionMode(id = "code", name = "Code"),
-                            SessionMode(id = "ask", name = "Ask"),
-                        ),
-                    currentModeId = "code",
-                ),
-            )
-
-            val option =
-                bridge.snapshot.value.configOptions
-                    .first() as SessionConfigOption.Select
-            assertTrue(option.category is SessionConfigCategory.Mode)
-            assertEquals("code", option.currentValue)
-            assertEquals(2, option.allChoices().size)
-        }
-
-    @Test
-    fun `SessionBridge should expose config options in snapshot`() =
-        runTest {
-            val bridge = SessionBridge("test_session", null)
-            assertTrue(
-                bridge.snapshot.value.configOptions
-                    .isEmpty(),
-            )
-        }
-
-    @Test
-    fun `SessionBridge should emit events via emitEvent`() =
-        runTest {
-            val bridge = SessionBridge("test_session", null)
-
-            val collectJob =
-                launch {
-                    bridge.events.test {
-                        val event = awaitItem()
-                        assertEquals("hello", (event as AppSessionEvent.AgentMessage).text)
-                        cancelAndIgnoreRemainingEvents()
-                    }
-                }
-            bridge.emitEvent(AppSessionEvent.AgentMessage("hello"))
-            collectJob.join()
-        }
-
     @Test
     fun `SessionBridge should deliver model selection confirmations on the narrow flow`() =
         runTest {
@@ -160,14 +91,6 @@ class SessionBridgeTest {
             assertFalse("the whole event history must not be retained", replayed.contains("chunk 0"))
             assertEquals("chunk 49", replayed.last())
         }
-
-    @Test
-    fun `SessionBridge sendPrompt should execute without throwing`() =
-        runTest {
-            val bridge = SessionBridge("test_session", null)
-            bridge.sendPrompt("Hello world")
-            assertTrue(true)
-        }
 }
 
 class ConnectivityObserverStub(
@@ -175,42 +98,18 @@ class ConnectivityObserverStub(
 ) : ConnectivityObserver {
     private val _isConnected = MutableStateFlow(initialState)
     override val isConnected: Flow<Boolean> = _isConnected
-
-    fun setConnected(connected: Boolean) {
-        _isConnected.value = connected
-    }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AcpConnectionTest {
     @Test
     fun `AcpConnection should start in disconnected state`() =
         runTest {
             val connectivityObserver = ConnectivityObserverStub(initialState = true)
-            val scope = CoroutineScope(Dispatchers.Unconfined)
+            val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
             val manager = AcpConnection(connectivityObserver, noGatewayResume, scope)
 
             assertEquals(AcpConnectionState.Disconnected, manager.connectionState.value)
-        }
-
-    @Test
-    fun `AcpConnection getSession should return null for unknown session`() =
-        runTest {
-            val connectivityObserver = ConnectivityObserverStub(initialState = true)
-            val scope = CoroutineScope(Dispatchers.Unconfined)
-            val manager = AcpConnection(connectivityObserver, noGatewayResume, scope)
-
-            val session = manager.sessions.getSession("unknown")
-
-            assertEquals(null, session)
-        }
-
-    @Test
-    fun `AcpConnection should track isConnected state`() =
-        runTest {
-            val connectivityObserver = ConnectivityObserverStub(initialState = false)
-            val scope = CoroutineScope(Dispatchers.Unconfined)
-            val manager = AcpConnection(connectivityObserver, noGatewayResume, scope)
-
             assertFalse(manager.isConnected)
         }
 
@@ -221,7 +120,7 @@ class AcpConnectionTest {
                 AcpConnection(
                     connectivityObserver = ConnectivityObserverStub(initialState = true),
                     resumeAttachToken = noGatewayResume,
-                    scope = CoroutineScope(Dispatchers.Unconfined),
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )
 
             manager.events.test {
@@ -246,81 +145,19 @@ class AcpConnectionTest {
         }
 
     @Test
-    fun `PermissionFlow cancelForSession cancels only matching session pendings`() =
-        runTest {
-            val flow = PermissionFlow()
-            val deferred1 = CompletableDeferred<RequestPermissionOutcome>()
-            val deferred2 = CompletableDeferred<RequestPermissionOutcome>()
-
-            flow.addPending("tool-1", "session-1", deferred1)
-            flow.addPending("tool-2", "session-2", deferred2)
-
-            flow.cancelForSession("session-1")
-
-            assertTrue(deferred1.isCancelled)
-            assertNull(flow.takePending("tool-1"))
-            assertNotNull(flow.takePending("tool-2"))
-        }
-
-    @Test
-    fun `PermissionFlow cancelAll cleans up all pending requests`() =
-        runTest {
-            val flow = PermissionFlow()
-            val deferred = CompletableDeferred<RequestPermissionOutcome>()
-            flow.addPending("tool-a", "session-x", deferred)
-
-            flow.cancelAll()
-
-            assertTrue(deferred.isCancelled)
-            assertNull(flow.takePending("tool-a"))
-        }
-
-    @Test
-    fun `diagnostics starts with supportsSessionCancel null`() =
+    fun `diagnostics starts with supportsSessionCancel null and records both setter values`() =
         runTest {
             val connectivityObserver = ConnectivityObserverStub(initialState = true)
-            val scope = CoroutineScope(Dispatchers.Unconfined)
+            val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
             val manager = AcpConnection(connectivityObserver, noGatewayResume, scope)
 
             assertNull(manager.diagnostics.value.supportsSessionCancel)
-        }
 
-    @Test
-    fun `setSessionCancelSupport false updates diagnostics flag`() =
-        runTest {
-            val store = AcpDiagnosticsStore()
-            store.setSessionCancelSupport(false)
-            assertFalse(store.diagnostics.value.supportsSessionCancel!!)
-        }
+            manager.diagnosticsStore.setSessionCancelSupport(false)
+            assertFalse(manager.diagnostics.value.supportsSessionCancel!!)
 
-    @Test
-    fun `setSessionCancelSupport true updates diagnostics flag`() =
-        runTest {
-            val store = AcpDiagnosticsStore()
-            store.setSessionCancelSupport(true)
-            assertTrue(store.diagnostics.value.supportsSessionCancel!!)
-        }
-
-    @Test
-    fun `awaitConnectivityForReconnect waits until observer reports online`() =
-        runTest {
-            val connectivityObserver = ConnectivityObserverStub(initialState = false)
-            val manager =
-                AcpConnection(
-                    connectivityObserver = connectivityObserver,
-                    resumeAttachToken = noGatewayResume,
-                    scope = CoroutineScope(Dispatchers.Unconfined),
-                )
-
-            val waitJob =
-                launch {
-                    manager.awaitConnectivityForReconnect()
-                }
-
-            assertFalse(waitJob.isCompleted)
-            connectivityObserver.setConnected(true)
-            waitJob.join()
-            assertTrue(waitJob.isCompleted)
+            manager.diagnosticsStore.setSessionCancelSupport(true)
+            assertTrue(manager.diagnostics.value.supportsSessionCancel!!)
         }
 
     /**
@@ -337,7 +174,7 @@ class AcpConnectionTest {
                 AcpConnection(
                     connectivityObserver = ConnectivityObserverStub(initialState = true),
                     resumeAttachToken = noGatewayResume,
-                    scope = CoroutineScope(Dispatchers.Unconfined),
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
                 )
 
             val result = runCatching { connection.listSessions(cwd = null) }
@@ -347,34 +184,6 @@ class AcpConnectionTest {
                 result.exceptionOrNull() is SessionListingUnavailableException,
             )
         }
-}
-
-class AcpConnectionConfigTest {
-    @Test
-    fun `should carry preferred auth method id`() {
-        val config =
-            AcpConnectionConfig.Manual(
-                scheme = "ws",
-                host = "localhost:8080",
-                preferredAuthMethodId = "env:github_token",
-                displayName = null,
-            )
-
-        assertEquals("env:github_token", config.preferredAuthMethodId)
-    }
-
-    @Test
-    fun `should default preferred auth method id to null`() {
-        val config =
-            AcpConnectionConfig.Manual(
-                scheme = "ws",
-                host = "localhost:8080",
-                preferredAuthMethodId = null,
-                displayName = null,
-            )
-
-        assertNull(config.preferredAuthMethodId)
-    }
 }
 
 class AcpErrorFormattingTest {
@@ -548,19 +357,17 @@ class AcpAgentCapabilitiesTest {
             listOf("Load", "Images", "Context", "MCP HTTP", "List", "Resume"),
             capabilities.displayLabels(),
         )
-    }
-
-    @OptIn(UnstableApi::class)
-    @Test
-    fun `display labels are empty when nothing is advertised`() {
-        assertTrue(AgentCapabilities().displayLabels().isEmpty())
+        assertTrue(
+            "an agent that advertises nothing must show no labels",
+            AgentCapabilities().displayLabels().isEmpty(),
+        )
     }
 
     @OptIn(UnstableApi::class)
     @Test
     fun `attach RPC is load when the agent advertises load`() {
         assertEquals(
-            SessionAttachRpc.Load,
+            SessionAttachRpc.LOAD,
             AgentCapabilities(loadSession = true).sessionAttachRpc(),
         )
     }
@@ -570,7 +377,7 @@ class AcpAgentCapabilitiesTest {
     fun `attach RPC is load while the capabilities are still unobserved`() {
         val capabilities: AgentCapabilities? = null
 
-        assertEquals(SessionAttachRpc.Load, capabilities.sessionAttachRpc())
+        assertEquals(SessionAttachRpc.LOAD, capabilities.sessionAttachRpc())
     }
 
     @OptIn(UnstableApi::class)
@@ -582,7 +389,7 @@ class AcpAgentCapabilitiesTest {
                 sessionCapabilities = SessionCapabilities(resume = SessionResumeCapabilities()),
             )
 
-        assertEquals(SessionAttachRpc.Load, capabilities.sessionAttachRpc())
+        assertEquals(SessionAttachRpc.LOAD, capabilities.sessionAttachRpc())
     }
 
     @OptIn(UnstableApi::class)
@@ -594,7 +401,7 @@ class AcpAgentCapabilitiesTest {
                 sessionCapabilities = SessionCapabilities(resume = SessionResumeCapabilities()),
             )
 
-        assertEquals(SessionAttachRpc.Resume, capabilities.sessionAttachRpc())
+        assertEquals(SessionAttachRpc.RESUME, capabilities.sessionAttachRpc())
     }
 
     @OptIn(UnstableApi::class)
@@ -607,19 +414,14 @@ class AcpAgentCapabilitiesTest {
 
     @OptIn(UnstableApi::class)
     @Test
-    fun `resume-only agent maps to chat capabilities without history replay`() {
-        val capabilities =
+    fun `capabilities map to chat capabilities in both directions`() {
+        val resumeOnly =
             AgentCapabilities(
                 loadSession = false,
                 sessionCapabilities = SessionCapabilities(resume = SessionResumeCapabilities()),
             )
 
-        assertFalse(mapCapabilities(capabilities).supportsHistoryReplay)
-    }
-
-    @OptIn(UnstableApi::class)
-    @Test
-    fun `load-capable agent maps to chat capabilities with history replay`() {
+        assertFalse(mapCapabilities(resumeOnly).supportsHistoryReplay)
         assertTrue(mapCapabilities(AgentCapabilities(loadSession = true)).supportsHistoryReplay)
     }
 }

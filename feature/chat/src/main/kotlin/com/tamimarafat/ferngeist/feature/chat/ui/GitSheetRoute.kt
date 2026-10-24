@@ -41,7 +41,7 @@ internal sealed interface GitSheetRoute {
     }
 }
 
-internal val GitSheetRouteSaver =
+internal val gitSheetRouteSaver =
     Saver<GitSheetRoute, List<String?>>(
         save = { route ->
             when (route) {
@@ -54,8 +54,8 @@ internal val GitSheetRouteSaver =
         restore = { saved ->
             when (saved[0]) {
                 "history" -> GitSheetRoute.History
-                "commit" -> GitSheetRoute.Commit(saved[1]!!)
-                "diff" -> GitSheetRoute.FileDiff(saved[1]!!, saved[2], saved[3])
+                "commit" -> GitSheetRoute.Commit(checkNotNull(saved[1]))
+                "diff" -> GitSheetRoute.FileDiff(checkNotNull(saved[1]), saved[2], saved[3])
                 else -> GitSheetRoute.Changes
             }
         },

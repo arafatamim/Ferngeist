@@ -44,7 +44,7 @@ import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.feature.chat.R
 
-private const val AGENT_TEXT_MAX_LINES = 3
+internal const val AGENT_TEXT_MAX_LINES = 3
 
 // An option label longer than a short sentence means the agent is using permission elicitation
 // to ask an open question, not offering a one-tap approve/reject. Those labels are paragraphs,

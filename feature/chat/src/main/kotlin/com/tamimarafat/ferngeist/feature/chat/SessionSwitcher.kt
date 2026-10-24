@@ -11,6 +11,8 @@ import kotlin.math.abs
 data class SwitcherServer(
     val id: String,
     val name: String,
+    /** The gateway's worktrees, which name a worktree row's project; empty off a gateway. */
+    val worktrees: List<WorktreeRef> = emptyList(),
 )
 
 /** One live session row in the switcher sheet. Null title renders as "Untitled" in UI. */
@@ -34,6 +36,18 @@ data class SwitcherGroup(
     val serverId: String,
     val serverName: String,
     val sessions: List<SwitcherSession>,
+)
+
+/** The session the switcher was opened from; its row is the one flagged [SwitcherSession.isCurrent]. */
+data class SwitcherCurrent(
+    val serverId: String,
+    val sessionId: String,
+)
+
+/** Distances a drag must cover, or fling past, to commit to a neighbouring session. */
+data class SwipeThresholds(
+    val commitPx: Float,
+    val flingPxPerSec: Float,
 )
 
 /** Full switcher model: groups plus the bubble count. */
@@ -114,17 +128,16 @@ fun switcherNeighbors(groups: List<SwitcherGroup>): Pair<SwitcherSession?, Switc
 fun resolveSwipeTarget(
     totalPx: Float,
     velocityPxPerSec: Float,
-    commitThresholdPx: Float,
-    flingThresholdPxPerSec: Float,
+    thresholds: SwipeThresholds,
     previous: SwitcherSession?,
     next: SwitcherSession?,
 ): SwitcherSession? {
     val direction = if (totalPx != 0f) totalPx else velocityPxPerSec
     if (direction == 0f) return null
     val boosted =
-        abs(velocityPxPerSec) > flingThresholdPxPerSec &&
+        abs(velocityPxPerSec) > thresholds.flingPxPerSec &&
             (velocityPxPerSec < 0) == (direction < 0)
-    val committed = abs(totalPx) > commitThresholdPx || boosted
+    val committed = abs(totalPx) > thresholds.commitPx || boosted
     if (!committed) return null
     return if (direction < 0) next else previous
 }
@@ -142,9 +155,7 @@ fun deriveSwitcherGroups(
     sessionsByServer: Map<String, List<SessionSummary>>,
     liveIdsByServer: Map<String, Set<String>>,
     isGenerating: (serverId: String, sessionId: String) -> Boolean,
-    currentServerId: String,
-    currentSessionId: String,
-    worktreesByServer: Map<String, List<WorktreeRef>> = emptyMap(),
+    current: SwitcherCurrent,
 ): List<SwitcherGroup> {
     val unsorted =
         servers.mapNotNull { server ->
@@ -152,9 +163,7 @@ fun deriveSwitcherGroups(
             if (live.isEmpty()) return@mapNotNull null
             val candidates = sessionsByServer[server.id].orEmpty()
             val liveRows = candidates.filter { it.id in live }
-            val current = currentServerId to currentSessionId
             val orderedRows = liveRows.sortedByUpdatedAtDesc()
-            val worktrees = worktreesByServer[server.id].orEmpty()
             val mapped =
                 orderedRows.map { summary ->
                     val cwd = summary.cwd?.takeIf { it.isNotBlank() }
@@ -165,9 +174,9 @@ fun deriveSwitcherGroups(
                         cwd = summary.cwd,
                         updatedAt = summary.updatedAt,
                         isGenerating = isGenerating(server.id, summary.id),
-                        isCurrent = server.id to summary.id == current,
-                        project = cwd?.let { projectName(projectRootOf(it, worktrees)) },
-                        worktree = cwd?.let { worktreeOf(it, worktrees) },
+                        isCurrent = server.id == current.serverId && summary.id == current.sessionId,
+                        project = cwd?.let { projectName(projectRootOf(it, server.worktrees)) },
+                        worktree = cwd?.let { worktreeOf(it, server.worktrees) },
                     )
                 }
             val rows = mapped.sortedByCurrentFirst()

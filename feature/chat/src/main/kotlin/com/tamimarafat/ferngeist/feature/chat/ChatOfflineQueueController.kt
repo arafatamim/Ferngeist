@@ -24,12 +24,9 @@ import kotlinx.coroutines.sync.withLock
 internal class ChatOfflineQueueController(
     private val scope: CoroutineScope,
     private val coordinator: ChatSessionCoordinator,
-    private val store: PendingPromptStore,
-    private val serverId: String,
-    private val durableSessionId: () -> String?,
+    private val persistence: ChatPromptPersistence,
     private val state: StateFlow<ChatState>,
     private val update: (ChatState.() -> ChatState) -> Unit,
-    private val emitError: suspend (String) -> Unit,
 ) {
     /** Queue of locally-created prompts that have not been delivered to the server yet. */
     private val offlineQueue = OfflineQueue()
@@ -82,8 +79,7 @@ internal class ChatOfflineQueueController(
     suspend fun restorePendingPrompts() {
         if (pendingPromptsRestored) return
         pendingPromptsRestored = true
-        val queueId = durableSessionId() ?: return
-        val records = store.restore(serverId, queueId)
+        val records = persistence.restore()
         if (records.isEmpty()) return
         records.forEach { record ->
             offlineQueue.enqueue(
@@ -122,12 +118,11 @@ internal class ChatOfflineQueueController(
      */
     suspend fun persistQueue() {
         persistMutex.withLock {
-            val queueId = durableSessionId() ?: return
             val records =
                 offlineQueue.snapshot().map {
                     QueuedPromptRecord(it.clientId, it.text, it.images, it.files)
                 }
-            store.save(serverId, queueId, records)
+            persistence.save(records)
         }
     }
 
@@ -288,7 +283,7 @@ internal class ChatOfflineQueueController(
     private suspend fun steerIntoTurn(prompt: PendingPrompt) {
         setPendingStatus(prompt.clientId, MessageDeliveryStatus.QUEUED, MessageDeliveryStatus.SENDING)
         val outcome = coordinator.steerMessage(prompt.text, prompt.images, prompt.files)
-        if (outcome == SteerOutcome.NotConsumed) {
+        if (outcome == SteerOutcome.NOT_CONSUMED) {
             offlineQueue.enqueueFirst(prompt)
             setPendingStatus(prompt.clientId, MessageDeliveryStatus.SENDING, MessageDeliveryStatus.QUEUED)
             persistQueue()
@@ -350,6 +345,26 @@ internal class ChatOfflineQueueController(
         // applySnapshot can remove it on delivery confirmation.
         setPendingStatus(clientId, MessageDeliveryStatus.FAILED, MessageDeliveryStatus.QUEUED)
         flushOfflineQueue()
+    }
+}
+
+/**
+ * The durable copy of one chat's queue, keyed by the chat's real session id. Nothing is read
+ * or written while the chat still has no id (a create-on-arrival chat before the facade mints one).
+ */
+internal class ChatPromptPersistence(
+    private val store: PendingPromptStore,
+    private val serverId: String,
+    private val durableSessionId: () -> String?,
+) {
+    suspend fun restore(): List<QueuedPromptRecord> {
+        val queueId = durableSessionId() ?: return emptyList()
+        return store.restore(serverId, queueId)
+    }
+
+    suspend fun save(records: List<QueuedPromptRecord>) {
+        val queueId = durableSessionId() ?: return
+        store.save(serverId, queueId, records)
     }
 }
 

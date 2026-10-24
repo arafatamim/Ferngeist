@@ -169,26 +169,26 @@ private fun ConnectionStateIcon(
         label = "StatusIcon",
     ) { kind ->
         when (kind) {
-            StatusIconKind.Connecting -> ConnectingSunnyIcon()
-            StatusIconKind.UsageRing ->
+            StatusIconKind.CONNECTING -> ConnectingSunnyIcon()
+            StatusIconKind.USAGE_RING ->
                 UsageRingIcon(
                     totalTokens = totalTokens ?: 0,
                     contextWindowTokens = contextWindowTokens ?: 1,
                 )
-            StatusIconKind.Connected -> StatusDot(color = MaterialTheme.colorScheme.primary)
-            StatusIconKind.Failed -> StatusDot(color = MaterialTheme.colorScheme.error)
-            StatusIconKind.Disconnected -> StatusDot(color = MaterialTheme.colorScheme.outline)
+            StatusIconKind.CONNECTED -> StatusDot(color = MaterialTheme.colorScheme.primary)
+            StatusIconKind.FAILED -> StatusDot(color = MaterialTheme.colorScheme.error)
+            StatusIconKind.DISCONNECTED -> StatusDot(color = MaterialTheme.colorScheme.outline)
         }
     }
 }
 
 /** Icon variants of [ConnectionStateIcon], used as the transition key. */
 private enum class StatusIconKind {
-    Connecting,
-    UsageRing,
-    Connected,
-    Failed,
-    Disconnected,
+    CONNECTING,
+    USAGE_RING,
+    CONNECTED,
+    FAILED,
+    DISCONNECTED,
 }
 
 private fun statusIconKind(
@@ -197,15 +197,15 @@ private fun statusIconKind(
     contextWindowTokens: Int?,
 ): StatusIconKind =
     when (connectionState) {
-        is ChatConnectionState.Connecting -> StatusIconKind.Connecting
+        is ChatConnectionState.Connecting -> StatusIconKind.CONNECTING
         is ChatConnectionState.Connected ->
             if (totalTokens != null && contextWindowTokens != null && contextWindowTokens > 0) {
-                StatusIconKind.UsageRing
+                StatusIconKind.USAGE_RING
             } else {
-                StatusIconKind.Connected
+                StatusIconKind.CONNECTED
             }
-        is ChatConnectionState.Failed -> StatusIconKind.Failed
-        is ChatConnectionState.Disconnected -> StatusIconKind.Disconnected
+        is ChatConnectionState.Failed -> StatusIconKind.FAILED
+        is ChatConnectionState.Disconnected -> StatusIconKind.DISCONNECTED
     }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

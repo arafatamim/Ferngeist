@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -75,13 +76,14 @@ object ImageAttachmentHelper {
 
     /**
      * Reads the bytes and MIME type of [uri] from [contentResolver], then
-     * delegates to [encodeImageBytes] on [Dispatchers.IO].
+     * delegates to [encodeImageBytes] on [ioDispatcher].
      */
     suspend fun uriToChatImageData(
         contentResolver: ContentResolver,
         uri: Uri,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ): ChatImageData? =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val bytes: ByteArray =
                 contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: return@withContext null

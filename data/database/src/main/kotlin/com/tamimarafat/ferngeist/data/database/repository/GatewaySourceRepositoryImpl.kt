@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.data.database.dao.GatewayAgentBindingDao
 import com.tamimarafat.ferngeist.data.database.dao.GatewaySourceDao
 import com.tamimarafat.ferngeist.data.database.dao.SessionDao
 import com.tamimarafat.ferngeist.data.database.entity.GatewaySourceEntity
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,12 +21,13 @@ class GatewaySourceRepositoryImpl(
     private val credentialEncryptor: CredentialEncryptor,
     private val sessionDao: SessionDao,
     private val bindingDao: GatewayAgentBindingDao,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : GatewaySourceRepository {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
 
     override fun getGateways(): Flow<List<GatewaySource>> =
         gatewayDao.getAllGateways().map { entities ->
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 entities.mapNotNull { entity ->
                     toDomainOrCleanUp(entity)
                 }
@@ -33,19 +35,19 @@ class GatewaySourceRepositoryImpl(
         }
 
     override suspend fun addGateway(gateway: GatewaySource) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             gatewayDao.insertGateway(gateway.toEntity())
         }
     }
 
     override suspend fun updateGateway(gateway: GatewaySource) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             gatewayDao.updateGateway(gateway.toEntity())
         }
     }
 
     override suspend fun deleteGateway(id: String) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             // The gateway's bindings cascade away with its row, and each binding's id keys
             // its own chat history — so collect them before the delete leaves nothing to
             // enumerate. Without this the sessions outlive every way of reaching them.
@@ -58,14 +60,14 @@ class GatewaySourceRepositoryImpl(
     }
 
     override suspend fun getGateway(id: String): GatewaySource? {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             val entity = gatewayDao.getGatewayById(id) ?: return@withContext null
             toDomainOrCleanUp(entity)
         }
     }
 
     override suspend fun getGatewayByGatewayId(gatewayId: String): GatewaySource? {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             val entity = gatewayDao.getGatewayByGatewayId(gatewayId) ?: return@withContext null
             toDomainOrCleanUp(entity)
         }

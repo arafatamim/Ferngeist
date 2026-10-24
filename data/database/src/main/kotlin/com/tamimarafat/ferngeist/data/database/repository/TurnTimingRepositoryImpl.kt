@@ -13,7 +13,7 @@ class TurnTimingRepositoryImpl(
 ) : TurnTimingRepository {
     override suspend fun getTimings(sessionId: String): Map<TurnKey, TurnTiming> {
         // Pruned on read: every chat open is a chance, so no scheduled job is needed.
-        dao.deleteFinishedBefore(now() - RETENTION_MS)
+        dao.deleteFinishedBefore(now() - retentionMs)
         return dao.getForSession(sessionId).associate {
             TurnKey(it.turnIndex, it.promptHash) to TurnTiming(it.startedAt, it.finishedAt)
         }
@@ -26,6 +26,6 @@ class TurnTimingRepositoryImpl(
     ) = dao.upsert(TurnTimingEntity(sessionId, key.index, key.promptHash, timing.startedAt, timing.finishedAt))
 
     private companion object {
-        val RETENTION_MS = TimeUnit.DAYS.toMillis(7)
+        val retentionMs = TimeUnit.DAYS.toMillis(7)
     }
 }

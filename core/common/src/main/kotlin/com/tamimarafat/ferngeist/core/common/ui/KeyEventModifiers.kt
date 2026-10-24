@@ -19,7 +19,7 @@ import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-private val SUBMIT_SHORTCUT_KEYS = setOf(Key.Enter, Key.NumPadEnter)
+private val submitShortcutKeys = setOf(Key.Enter, Key.NumPadEnter)
 
 /**
  * Runs [onEscape] and consumes the key when Escape is pressed while this node — or one of its
@@ -81,7 +81,7 @@ fun Modifier.onSubmitShortcut(
     )
 
 private fun KeyEvent.isSubmitShortcut(): Boolean {
-    val submitKey = (isCtrlPressed || isMetaPressed) && key in SUBMIT_SHORTCUT_KEYS
+    val submitKey = (isCtrlPressed || isMetaPressed) && key in submitShortcutKeys
     // Auto-repeat is ignored: holding the shortcut down must not submit repeatedly.
     return type == KeyEventType.KeyDown && nativeKeyEvent.repeatCount == 0 && submitKey
 }

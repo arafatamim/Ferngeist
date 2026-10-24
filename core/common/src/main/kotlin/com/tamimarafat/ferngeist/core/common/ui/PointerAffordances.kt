@@ -6,9 +6,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -57,28 +60,7 @@ fun Modifier.onSecondaryClick(
         } else {
             Modifier.pointerInput(Unit) {
                 awaitPointerEventScope {
-                    // The pointer the secondary press started on. A mouse is always alone in
-                    // `changes`, but a finger already down must not be mistaken for it, and only
-                    // this pointer is consumed so the others keep their own gestures.
-                    var secondaryPointer: PointerId? = null
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val pressed = event.changes.firstOrNull { it.id == secondaryPointer }
-                        if (pressed == null) {
-                            val down =
-                                event.changes.firstOrNull {
-                                    it.changedToDown() && event.buttons.isSecondaryPressed
-                                } ?: continue
-                            secondaryPointer = down.id
-                            down.consume()
-                            currentOnClick()
-                        } else {
-                            pressed.consume()
-                            if (pressed.changedToUp() || !event.buttons.isSecondaryPressed) {
-                                secondaryPointer = null
-                            }
-                        }
-                    }
+                    swallowSecondaryPresses { currentOnClick() }
                 }
             }
         },
@@ -113,37 +95,76 @@ fun Modifier.initialPassLongPress(
                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                     // A secondary press belongs to onSecondaryClick.
                     if (currentEvent.buttons.isSecondaryPressed) return@awaitEachGesture
-                    val releasedEarly =
-                        withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                            var pressed = true
-                            var travelled = 0f
-                            // A press that wanders past touch slop is a scroll or a drag, not a hold.
-                            while (pressed && travelled <= viewConfiguration.touchSlop) {
-                                val change =
-                                    awaitPointerEvent(PointerEventPass.Initial)
-                                        .changes
-                                        .firstOrNull { it.id == down.id }
-                                        ?: continue
-                                pressed = change.pressed
-                                travelled += change.positionChange().getDistance()
-                            }
-                        }
-                    if (releasedEarly != null) return@awaitEachGesture
+                    if (releasedBeforeLongPress(down)) return@awaitEachGesture
                     currentOnLongPress()
-                    // Swallow the rest of this pointer's press, release included; other pointers
-                    // (a second finger) keep their own gestures.
-                    var pressed = true
-                    while (pressed) {
-                        val change =
-                            awaitPointerEvent(PointerEventPass.Initial)
-                                .changes
-                                .firstOrNull { it.id == down.id }
-                                ?: continue
-                        pressed = change.pressed
-                        change.consume()
-                    }
+                    swallowRestOfPress(down)
                 }
             }
         },
     )
+}
+
+/**
+ * Consumes every secondary press in this scope and calls [onClick] once per press. Only the pointer
+ * the press started on is consumed, so a finger already down keeps its own gestures.
+ */
+private suspend fun AwaitPointerEventScope.swallowSecondaryPresses(onClick: () -> Unit) {
+    // The pointer the secondary press started on. A mouse is always alone in
+    // `changes`, but a finger already down must not be mistaken for it, and only
+    // this pointer is consumed so the others keep their own gestures.
+    var secondaryPointer: PointerId? = null
+    while (true) {
+        val event = awaitPointerEvent(PointerEventPass.Initial)
+        val pressed = event.changes.firstOrNull { it.id == secondaryPointer }
+        if (pressed == null) {
+            secondaryPointer = startSecondaryPress(event, onClick) ?: secondaryPointer
+        } else {
+            pressed.consume()
+            if (pressed.changedToUp() || !event.buttons.isSecondaryPressed) secondaryPointer = null
+        }
+    }
+}
+
+/** Consumes the secondary press that begins in [event], fires [onClick] and returns its pointer id. */
+private fun startSecondaryPress(
+    event: PointerEvent,
+    onClick: () -> Unit,
+): PointerId? {
+    val down = event.changes.firstOrNull { it.changedToDown() && event.buttons.isSecondaryPressed } ?: return null
+    down.consume()
+    onClick()
+    return down.id
+}
+
+/** True when [down] is lifted, or dragged past touch slop, before the long-press timeout. */
+private suspend fun AwaitPointerEventScope.releasedBeforeLongPress(down: PointerInputChange): Boolean =
+    withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+        var pressed = true
+        var travelled = 0f
+        // A press that wanders past touch slop is a scroll or a drag, not a hold.
+        while (pressed && travelled <= viewConfiguration.touchSlop) {
+            val change =
+                awaitPointerEvent(PointerEventPass.Initial)
+                    .changes
+                    .firstOrNull { it.id == down.id }
+                    ?: continue
+            pressed = change.pressed
+            travelled += change.positionChange().getDistance()
+        }
+    } != null
+
+/** Consumes the rest of [down]'s press, release included, once the long press has fired. */
+private suspend fun AwaitPointerEventScope.swallowRestOfPress(down: PointerInputChange) {
+    // Swallow the rest of this pointer's press, release included; other pointers
+    // (a second finger) keep their own gestures.
+    var pressed = true
+    while (pressed) {
+        val change =
+            awaitPointerEvent(PointerEventPass.Initial)
+                .changes
+                .firstOrNull { it.id == down.id }
+                ?: continue
+        pressed = change.pressed
+        change.consume()
+    }
 }

@@ -24,7 +24,7 @@ fun resolveChatDeepLink(intent: Intent): ChatDeepLinkTarget? {
     return ChatDeepLinkTarget(
         serverId = localServerId,
         sessionId = sessionId,
-        cwd = intent.getStringExtra(FerngeistForegroundService.EXTRA_CWD) ?: "",
+        cwd = intent.getStringExtra(FerngeistForegroundService.EXTRA_CWD).orEmpty(),
         title = intent.getStringExtra(FerngeistForegroundService.EXTRA_TITLE).orEmpty(),
         gatewayId = intent.getStringExtra(FerngeistForegroundService.EXTRA_GATEWAY_ID),
     )

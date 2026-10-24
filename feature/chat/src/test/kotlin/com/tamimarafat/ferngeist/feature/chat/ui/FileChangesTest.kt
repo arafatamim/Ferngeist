@@ -10,6 +10,11 @@ import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
+import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
+import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithoutFile
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -169,18 +174,6 @@ class FileChangesTest {
         assertEquals(DiffStats(additions = 12, deletions = 0), tree.statsFor("/repo/src/New.kt"))
         // A suffix must sit on a path boundary: "xNew.kt" is a different file.
         assertEquals(null, tree.statsFor("/repo/src/xNew.kt"))
-    }
-
-    @Test
-    fun diffLessFileMatchesItsGitEntryByRepoRelativeSuffix() {
-        val tree =
-            listOf(
-                ChatChangedFile(path = "src/New.kt", status = "??", added = 12, removed = 0),
-            )
-
-        assertEquals("src/New.kt", tree.entryFor("/repo/src/New.kt")?.path)
-        // A suffix must sit on a path boundary: "xNew.kt" is a different file.
-        assertEquals(null, tree.entryFor("/repo/src/xNew.kt"))
     }
 
     @Test

@@ -1,13 +1,10 @@
 @file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
 // One row, header or skeleton per shape the history draws; splitting them would spread the
 // graph's geometry across files.
-@file:Suppress("TooManyFunctions")
 
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import android.content.res.Configuration
 import android.text.format.DateUtils
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,34 +19,28 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -58,8 +49,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -70,14 +59,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
-import com.tamimarafat.ferngeist.core.common.ui.DarkGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
-import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
 import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.feature.chat.BandFade
@@ -89,18 +74,23 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.dayGroupSizes
 import com.tamimarafat.ferngeist.feature.chat.graphReach
 import com.tamimarafat.ferngeist.feature.chat.historyBandFades
+import com.tamimarafat.ferngeist.feature.chat.isFlat
 import com.tamimarafat.ferngeist.feature.chat.layoutGraph
+import com.tamimarafat.ferngeist.feature.chat.mid
 import com.tamimarafat.ferngeist.feature.chat.strokesFor
+import com.tamimarafat.ferngeist.feature.chat.ui.history.AuthorAvatar
+import com.tamimarafat.ferngeist.feature.chat.ui.history.MoreRefsBadge
+import com.tamimarafat.ferngeist.feature.chat.ui.history.RefBadge
+import com.tamimarafat.ferngeist.feature.chat.ui.history.order
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import java.security.MessageDigest
 
 // Fixed so graph segments in neighbouring rows meet exactly at the row boundary.
-private val CommitRowHeight = 48.dp
-private val LaneWidth = 10.dp
-private val DayHeaderHeight = 32.dp
+private val commitRowHeight = 48.dp
+private val laneWidth = 10.dp
+private val dayHeaderHeight = 32.dp
 private const val MAX_LANES = 6
-private const val MAX_REF_CHARS = 12
+internal const val MAX_REF_CHARS = 12
 private const val LOADING_MORE_ROWS = 3
 private const val LOAD_MORE_AHEAD = 10
 
@@ -169,6 +159,28 @@ private fun GitHistoryCountBadge(total: Int) {
     }
 }
 
+/** Asks for the next page as the list nears its end; a failed page waits for its retry instead. */
+@Composable
+private fun LoadMoreWatcher(
+    listState: LazyListState,
+    moreError: String?,
+    onLoadMore: () -> Unit,
+) {
+    val currentOnLoadMore by rememberUpdatedState(onLoadMore)
+    LaunchedEffect(listState, moreError) {
+        // A failed page waits for its retry button rather than re-asking on every scroll.
+        if (moreError != null) return@LaunchedEffect
+        // Keyed on the item count, so a page that lands still near the end asks for the next.
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val nearEnd = (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - LOAD_MORE_AHEAD
+            if (nearEnd) info.totalItemsCount else -1
+        }.distinctUntilChanged()
+            .filter { it >= 0 }
+            .collect { currentOnLoadMore() }
+    }
+}
+
 /**
  * Commit history with a graph column. Rows never animate in: the list is scrolled
  * constantly, and motion there would read as lag.
@@ -185,22 +197,10 @@ internal fun GitHistoryList(
     /** A later page failed; the end of the list offers [onLoadMore] as a retry. */
     moreError: String? = null,
     /** Which rows are this branch's own work: the lane colour says so, and nothing else does. */
-    scope: GitBranchScope = GitBranchScope.None,
+    scope: GitBranchScope = GitBranchScope.none,
 ) {
     val listState = rememberLazyListState()
-    val currentOnLoadMore by rememberUpdatedState(onLoadMore)
-    LaunchedEffect(listState, moreError) {
-        // A failed page waits for its retry button rather than re-asking on every scroll.
-        if (moreError != null) return@LaunchedEffect
-        // Keyed on the item count, so a page that lands still near the end asks for the next.
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val nearEnd = (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - LOAD_MORE_AHEAD
-            if (nearEnd) info.totalItemsCount else -1
-        }.distinctUntilChanged()
-            .filter { it >= 0 }
-            .collect { currentOnLoadMore() }
-    }
+    LoadMoreWatcher(listState, moreError, onLoadMore)
     val rows = remember(commits) { layoutGraph(commits) }
     val days = remember(commits) { commits.map { localDay(it.commitTimeMillis) } }
     val daySizes = remember(days) { dayGroupSizes(days) }
@@ -313,16 +313,16 @@ private fun GitCommitRowSkeleton(
 ) {
     val bone = MaterialTheme.colorScheme.surfaceContainerHighest
     Row(
-        modifier = Modifier.fillMaxWidth().height(CommitRowHeight).padding(end = 12.dp),
+        modifier = Modifier.fillMaxWidth().height(commitRowHeight).padding(end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(
             modifier =
                 Modifier
-                    .width(LaneWidth * laneCount + 6.dp)
+                    .width(laneWidth * laneCount + 6.dp)
                     .fillMaxHeight()
                     .drawBehind {
-                        val x = (6.dp + LaneWidth / 2).toPx()
+                        val x = (6.dp + laneWidth / 2).toPx()
                         val mid = size.height / 2
                         val top = if (first) mid else 0f
                         val bottom = if (last) mid else size.height
@@ -332,7 +332,7 @@ private fun GitCommitRowSkeleton(
         )
         Spacer(Modifier.width(8.dp))
         Box(modifier = Modifier.weight(1f)) {
-            Bone(height = 12.dp, modifier = Modifier.fillMaxWidth(BoneFractions[index % BoneFractions.size]))
+            Bone(height = 12.dp, modifier = Modifier.fillMaxWidth(boneFractions[index % boneFractions.size]))
         }
         Spacer(Modifier.width(8.dp))
         Bone(height = 10.dp, width = 28.dp)
@@ -353,14 +353,14 @@ private fun GitCommitRow(
     nowMillis: Long,
     onClick: () -> Unit,
     /** Inherited history below the base: the lane recedes to the muted colour, the row does not. */
-    fade: BandFade = BandFade.None,
+    fade: BandFade = BandFade.none,
 ) {
     val description = commitDescription(commit, nowMillis)
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(CommitRowHeight)
+                .height(commitRowHeight)
                 .semantics(mergeDescendants = true) { contentDescription = description }
                 .padding(end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -426,12 +426,6 @@ private fun GitCommitRow(
     }
 }
 
-/** Current branch first, then local branches, tags, detached HEAD, remotes. */
-private val RefKindOrder =
-    listOf(ChatGitRef.Kind.BRANCH, ChatGitRef.Kind.TAG, ChatGitRef.Kind.HEAD, ChatGitRef.Kind.REMOTE)
-
-internal fun ChatGitRef.order(): Int = if (isHead) -1 else RefKindOrder.indexOf(kind)
-
 /**
  * Lane colours for a branch's own commits, in the order lanes are handed out. Deliberately no grey:
  * [fadedLaneColor] is the only grey the graph draws, so any colour here means the branch's own work.
@@ -443,7 +437,7 @@ private fun graphPalette(): List<Color> {
         colors.primary,
         colors.tertiary,
         colors.secondary,
-        LocalGitSemanticColors.current.added,
+        localGitSemanticColors.current.added,
         colors.error,
     )
 }
@@ -463,7 +457,7 @@ private fun GitGraphCell(
     laneCount: Int,
     isHead: Boolean,
     /** How far this row's lane has receded into the muted colour, edge to edge. */
-    fade: BandFade = BandFade.None,
+    fade: BandFade = BandFade.none,
 ) {
     val palette = graphPalette()
     val faded = fadedLaneColor()
@@ -480,12 +474,12 @@ private fun GitGraphCell(
     Spacer(
         modifier =
             Modifier
-                .width(LaneWidth * lanes + 6.dp)
+                .width(laneWidth * lanes + 6.dp)
                 .fillMaxHeight()
                 .clearAndSetSemantics {}
                 .drawBehind {
                     // Lanes past the cap share the last column so they stay visible.
-                    fun x(lane: Int) = (6.dp + LaneWidth * lane.coerceAtMost(laneCount - 1) + LaneWidth / 2).toPx()
+                    fun x(lane: Int) = (6.dp + laneWidth * lane.coerceAtMost(laneCount - 1) + laneWidth / 2).toPx()
                     val mid = size.height / 2
                     val stroke = 2.dp.toPx()
                     val edgeStroke = Stroke(width = stroke, cap = StrokeCap.Round)
@@ -537,7 +531,7 @@ private fun GitDayHeader(
     through: List<GraphEdge>,
     laneCount: Int,
     /** The rows below are inherited history, so their lines recede with them. */
-    fade: BandFade = BandFade.None,
+    fade: BandFade = BandFade.none,
     /** Commits loaded under this header; the badge waits for [DAY_COUNT_ABOVE] of them, and later pages add to the last day's count as they land. */
     commits: Int = 0,
 ) {
@@ -545,17 +539,17 @@ private fun GitDayHeader(
     val faded = fadedLaneColor()
     val lanes = through.map { it.to }
     Row(
-        modifier = Modifier.fillMaxWidth().height(DayHeaderHeight).padding(end = 12.dp),
+        modifier = Modifier.fillMaxWidth().height(dayHeaderHeight).padding(end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(
             modifier =
                 Modifier
-                    .width(LaneWidth * ((lanes.maxOrNull() ?: 0) + 1).coerceAtMost(laneCount) + 6.dp)
+                    .width(laneWidth * ((lanes.maxOrNull() ?: 0) + 1).coerceAtMost(laneCount) + 6.dp)
                     .fillMaxHeight()
                     .drawBehind {
                         through.forEach { e ->
-                            val x = (6.dp + LaneWidth * e.to.coerceAtMost(laneCount - 1) + LaneWidth / 2).toPx()
+                            val x = (6.dp + laneWidth * e.to.coerceAtMost(laneCount - 1) + laneWidth / 2).toPx()
                             val start = Offset(x, 0f)
                             val end = Offset(x, size.height)
                             val width = 2.dp.toPx()
@@ -614,145 +608,6 @@ private fun GitDayCountBadge(commits: Int) {
 }
 
 @Composable
-internal fun RefBadge(
-    ref: ChatGitRef,
-    /** Cut long names short, for rows with no room to spare. */
-    truncate: Boolean = true,
-) {
-    val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(percent = 50)
-    val (container, content) =
-        when {
-            ref.isHead -> colors.primaryContainer to colors.onPrimaryContainer
-            ref.kind == ChatGitRef.Kind.TAG -> colors.tertiaryContainer to colors.onTertiaryContainer
-            ref.kind == ChatGitRef.Kind.REMOTE -> colors.surfaceVariant to colors.onSurfaceVariant
-            ref.kind == ChatGitRef.Kind.HEAD -> colors.secondaryContainer to colors.onSecondaryContainer
-            else -> Color.Transparent to colors.onSurface
-        }
-    Surface(
-        shape = shape,
-        color = container,
-        contentColor = content,
-        modifier =
-            if (ref.kind == ChatGitRef.Kind.BRANCH && !ref.isHead) {
-                Modifier.border(1.dp, colors.outline, shape)
-            } else {
-                Modifier
-            },
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        ) {
-            if (ref.kind == ChatGitRef.Kind.TAG) {
-                Icon(Icons.Outlined.Sell, contentDescription = null, modifier = Modifier.size(12.dp))
-            }
-            Text(
-                text = if (truncate) ref.name.ellipsize(MAX_REF_CHARS) else ref.name,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-private fun String.ellipsize(max: Int): String = if (length <= max) this else take(max - 1) + "…"
-
-@Composable
-private fun MoreRefsBadge(count: Int) {
-    Surface(
-        shape = RoundedCornerShape(percent = 50),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    ) {
-        Text(
-            text = "+$count",
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-    }
-}
-
-/**
- * Initials on a color picked from the email, so one author keeps one color everywhere. The
- * author's picture covers them once it loads; a miss or no network leaves the initials.
- */
-@Composable
-internal fun AuthorAvatar(
-    name: String,
-    email: String,
-    size: Dp = 24.dp,
-) {
-    val colors = MaterialTheme.colorScheme
-    val swatches =
-        listOf(
-            colors.primaryContainer to colors.onPrimaryContainer,
-            colors.secondaryContainer to colors.onSecondaryContainer,
-            colors.tertiaryContainer to colors.onTertiaryContainer,
-        )
-    val (container, content) = swatches[Math.floorMod(email.lowercase().hashCode(), swatches.size)]
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(size).clearAndSetSemantics {},
-    ) {
-        Surface(shape = CircleShape, color = container, contentColor = content, modifier = Modifier.size(size)) {}
-        Text(
-            text = initialsOf(name, email),
-            style = MaterialTheme.typography.labelSmall,
-            color = content,
-            maxLines = 1,
-        )
-        val pixels = with(LocalDensity.current) { size.roundToPx() }
-        avatarUrl(email, pixels)?.let { url ->
-            AsyncImage(
-                model = url,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(size).clip(CircleShape),
-            )
-        }
-    }
-}
-
-private val GitHubNoReply = Regex("^(\\d+)\\+[^@]+@users\\.noreply\\.github\\.com$")
-
-/**
- * GitHub's own avatar for its noreply addresses, Gravatar for the rest. Gravatar's `d=404` makes
- * an address without a picture fail, so the initials stay rather than a generated pattern.
- */
-internal fun avatarUrl(
-    email: String,
-    pixels: Int,
-): String? {
-    val normalized = email.trim().lowercase()
-    if (normalized.isEmpty()) return null
-    val gitHubId = GitHubNoReply.find(normalized)?.groupValues?.get(1)
-    if (gitHubId != null) return "https://avatars.githubusercontent.com/u/$gitHubId?s=$pixels"
-    val hash =
-        MessageDigest
-            .getInstance("SHA-256")
-            .digest(normalized.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-    return "https://gravatar.com/avatar/$hash?s=$pixels&d=404"
-}
-
-internal fun initialsOf(
-    name: String,
-    email: String,
-): String {
-    val words = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    val letters =
-        when {
-            words.size >= 2 -> "${words.first().first()}${words.last().first()}"
-            words.size == 1 -> words.first().first().toString()
-            else -> email.firstOrNull()?.toString() ?: "?"
-        }
-    return letters.uppercase()
-}
-
-@Composable
 private fun commitDescription(
     commit: ChatGitCommit,
     nowMillis: Long,
@@ -770,182 +625,3 @@ private fun commitDescription(
         DateUtils.getRelativeTimeSpanString(commit.commitTimeMillis, nowMillis, DateUtils.MINUTE_IN_MILLIS).toString()
     return (listOf(commit.subject) + refs + listOf(commit.authorName, ago)).joinToString(", ")
 }
-
-// region Previews
-
-private const val PREVIEW_NOW = 1_792_000_000_000L
-
-private fun previewCommit(
-    sha: String,
-    subject: String,
-    hoursAgo: Double,
-    author: String = "Tamim Arafat",
-    email: String = "tamim@example.com",
-    parents: List<String>,
-    refs: List<ChatGitRef> = emptyList(),
-) = ChatGitCommit(
-    sha = sha,
-    parents = parents,
-    subject = subject,
-    authorName = author,
-    authorEmail = email,
-    authorTimeMillis = PREVIEW_NOW - (hoursAgo * DateUtils.HOUR_IN_MILLIS).toLong(),
-    refs = refs,
-)
-
-/** A feature branch merged back, a second open branch, and a tag — the shapes a real log has. */
-private val previewBranchyHistory =
-    listOf(
-        previewCommit(
-            "m2",
-            "Merge branch 'feat/history' into master",
-            0.01,
-            parents = listOf("c5", "h3"),
-            refs =
-                listOf(
-                    ChatGitRef("master", ChatGitRef.Kind.BRANCH, isHead = true),
-                    ChatGitRef("origin/master", ChatGitRef.Kind.REMOTE),
-                ),
-        ),
-        previewCommit(
-            "h3",
-            "feat(chat): draw the history graph",
-            0.4,
-            author = "Claude",
-            email = "agent@ferngeist",
-            parents = listOf("h2"),
-        ),
-        previewCommit(
-            "w1",
-            "wip: try a squarer avatar",
-            1.5,
-            author = "Ada Lovelace",
-            email = "ada@example.com",
-            parents = listOf("c4"),
-            refs = listOf(ChatGitRef("try/avatar", ChatGitRef.Kind.BRANCH)),
-        ),
-        previewCommit("c5", "fix(app): resize for the keyboard instead of panning", 3.0, parents = listOf("c4")),
-        previewCommit(
-            "h2",
-            "feat(chat): lay out graph lanes",
-            5.0,
-            author = "Claude",
-            email = "agent@ferngeist",
-            parents = listOf("h1"),
-        ),
-        previewCommit(
-            "h1",
-            "feat(gateway): add /git/log",
-            26.0,
-            author = "Claude",
-            email = "agent@ferngeist",
-            parents = listOf("c4"),
-        ),
-        previewCommit(
-            "c4",
-            "fix(chat): time a turn by the gateway's duration",
-            70.0,
-            parents = listOf("c3"),
-            refs = listOf(ChatGitRef("v0.9.0", ChatGitRef.Kind.TAG)),
-        ),
-        previewCommit("c3", "fix(chat): leave a reply closed by a reattach untimed", 200.0, parents = listOf("c2")),
-        previewCommit(
-            "c2",
-            "fix(chat): let go of the held reply once the reader scrolls",
-            400.0,
-            parents = listOf("c1"),
-            refs =
-                listOf(
-                    ChatGitRef("v0.8.0", ChatGitRef.Kind.TAG),
-                    ChatGitRef("v0.8.0-rc2", ChatGitRef.Kind.TAG),
-                ),
-        ),
-        previewCommit("c1", "fix(chat): restore a chat's scroll once", 9000.0, parents = emptyList()),
-    )
-
-private val previewLinearHistory =
-    listOf(
-        previewCommit(
-            "l4",
-            "fix(app): resize for the keyboard instead of panning the window",
-            0.2,
-            parents = listOf("l3"),
-            refs =
-                listOf(
-                    ChatGitRef("master", ChatGitRef.Kind.BRANCH, isHead = true),
-                    ChatGitRef("origin/master", ChatGitRef.Kind.REMOTE),
-                ),
-        ),
-        previewCommit("l3", "fix(chat): time a turn by the gateway's duration", 2.0, parents = listOf("l2")),
-        previewCommit("l2", "fix(chat): leave a reply closed by a reattach untimed", 30.0, parents = listOf("l1")),
-        previewCommit("l1", "fix(chat): restore a chat's scroll once", 900.0, parents = emptyList()),
-    )
-
-@Composable
-private fun GitHistoryPreviewFrame(commits: List<ChatGitCommit>) {
-    var tab by remember { mutableIntStateOf(1) }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(text = stringResource(R.string.chat_git_status_title), style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(12.dp))
-            GitSheetTabs(selected = tab, onSelect = { tab = it }, total = commits.size)
-            Spacer(Modifier.height(8.dp))
-            GitHistoryList(commits = commits, nowMillis = PREVIEW_NOW, onCommitClick = {})
-        }
-    }
-}
-
-@Preview(name = "History · branches", widthDp = 380, heightDp = 720)
-@Composable
-private fun GitHistoryBranchyPreview() {
-    MaterialTheme { GitHistoryPreviewFrame(previewBranchyHistory) }
-}
-
-@Preview(name = "History · branches · dark", widthDp = 380, heightDp = 720, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun GitHistoryBranchyDarkPreview() {
-    MaterialTheme(colorScheme = darkColorScheme()) {
-        CompositionLocalProvider(
-            LocalGitSemanticColors provides DarkGitSemanticColors,
-        ) {
-            GitHistoryPreviewFrame(previewBranchyHistory)
-        }
-    }
-}
-
-@Preview(name = "History · loading", widthDp = 380, heightDp = 480)
-@Composable
-private fun GitHistoryLoadingPreview() {
-    MaterialTheme {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                GitSheetTabs(selected = 1, onSelect = {})
-                Spacer(Modifier.height(8.dp))
-                GitHistorySkeleton()
-            }
-        }
-    }
-}
-
-@Preview(name = "History · loading more", widthDp = 380, heightDp = 360)
-@Composable
-private fun GitHistoryLoadingMorePreview() {
-    MaterialTheme {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-            GitHistoryList(
-                commits = previewLinearHistory,
-                nowMillis = PREVIEW_NOW,
-                onCommitClick = {},
-                isLoadingMore = true,
-            )
-        }
-    }
-}
-
-@Preview(name = "History · linear", widthDp = 380, heightDp = 360)
-@Composable
-private fun GitHistoryLinearPreview() {
-    MaterialTheme { GitHistoryPreviewFrame(previewLinearHistory) }
-}
-
-// endregion

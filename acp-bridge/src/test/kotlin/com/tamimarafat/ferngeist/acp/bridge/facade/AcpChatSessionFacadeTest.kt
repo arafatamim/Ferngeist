@@ -3,15 +3,20 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.gateway.GatewayCreateWorktreeRequest
+import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
 import com.tamimarafat.ferngeist.gateway.GatewayFileContents
 import com.tamimarafat.ferngeist.gateway.GatewayFileList
 import com.tamimarafat.ferngeist.gateway.GatewayGitCommitFiles
@@ -23,6 +28,8 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -67,15 +74,10 @@ class AcpChatSessionFacadeTest {
             snapshot: ChatSessionSnapshot,
         ) = Unit
 
-        override suspend fun register(
+        override fun register(
             serverId: String,
             sessionId: String,
-            gatewaySessionId: String?,
-            gatewaySourceId: String,
-            agentId: String,
-            isConnected: () -> Boolean,
-            isStreaming: () -> Boolean,
-            manager: AcpConnection?,
+            registration: ChatRegistration,
         ): String = TODO("unused in facade attendance tests")
 
         override fun refresh() = Unit
@@ -152,9 +154,7 @@ class AcpChatSessionFacadeTest {
             scheme: String,
             host: String,
             gatewayCredential: String,
-            repo: String,
-            base: String?,
-            branch: String?,
+            request: GatewayCreateWorktreeRequest,
         ) = TODO("unused in facade tests")
 
         override suspend fun listWorktrees(
@@ -260,70 +260,40 @@ class AcpChatSessionFacadeTest {
         ) = Unit
 
         override suspend fun fetchGitStatus(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             acpSessionId: String?,
             compare: String?,
         ) = TODO("unused in facade tests")
 
         override suspend fun fetchGitDiff(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
-            path: String?,
-            acpSessionId: String?,
-            commit: String?,
-            oldPath: String?,
-            compare: String?,
+            connection: GatewayWorkspaceConnection,
+            query: GatewayDiffQuery,
         ) = TODO("unused in facade tests")
 
         override suspend fun fetchGitLog(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
-            head: String?,
-            skip: Int,
-            limit: Int,
-            acpSessionId: String?,
-            compare: String?,
-            beyond: Int,
+            connection: GatewayWorkspaceConnection,
+            query: GatewayLogQuery,
         ): GatewayGitLog = TODO("unused in facade tests")
 
         override suspend fun fetchGitRefs(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             acpSessionId: String?,
         ): GatewayGitRefs = TODO("unused in facade attendance tests")
 
         override suspend fun fetchGitCommit(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             sha: String,
             acpSessionId: String?,
         ): GatewayGitCommitFiles = TODO("unused in facade tests")
 
         override suspend fun fetchFile(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             path: String,
             acpSessionId: String?,
         ): GatewayFileContents = TODO("unused in facade tests")
 
         override suspend fun fetchFileList(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             acpSessionId: String?,
         ): GatewayFileList = TODO("unused in facade tests")
 
@@ -331,10 +301,7 @@ class AcpChatSessionFacadeTest {
             scheme: String,
             host: String,
             gatewayCredential: String,
-            displayName: String,
-            command: String,
-            args: List<String>,
-            hint: String,
+            request: GatewayCustomAgentRequest,
         ): GatewayAgent = TODO("unused in facade tests")
 
         override suspend fun deleteCustomAgent(
@@ -382,12 +349,13 @@ class AcpChatSessionFacadeTest {
         AcpChatSessionFacade(
             scope = scope,
             connectionManager = manager,
-            launchableTargetRepository = targets,
-            gatewaySourceRepository = FakeGatewaySources(),
-            gatewayRepository = repo,
-            serverId = "srv",
-            initialSessionId = "s1",
-            cwd = "/work",
+            repositories =
+                LaunchRepositories(
+                    gatewayRepository = repo,
+                    gatewaySourceRepository = FakeGatewaySources(),
+                    launchableTargetRepository = targets,
+                ),
+            opening = ChatOpening(serverId = "srv", sessionId = "s1", cwd = "/work", cachedSnapshot = null),
             hub = surface,
         )
 

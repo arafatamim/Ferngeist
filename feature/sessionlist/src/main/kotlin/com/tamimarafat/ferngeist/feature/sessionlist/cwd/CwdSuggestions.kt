@@ -1,7 +1,6 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.worktreeRepoOf
 
 enum class CwdSuggestionSource { RECENT, SESSION }
 
@@ -24,7 +23,7 @@ fun buildCwdSuggestions(
     query: String,
     recentCwds: List<String>,
     sessions: List<SessionSummary>,
-    rootOf: (String) -> String = { worktreeRepoOf(it) ?: it },
+    rootOf: (String) -> String,
 ): List<CwdSuggestion> {
     val candidates = LinkedHashMap<String, CwdSuggestion>()
     recentCwds.forEach { cwd ->

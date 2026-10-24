@@ -20,7 +20,7 @@ internal class InlineChips(
 )
 
 /** Null (no chips) by default, so previews and every renderer outside an assistant run are untouched. */
-internal val LocalInlineChips = compositionLocalOf<InlineChips?> { null }
+internal val localInlineChips = compositionLocalOf<InlineChips?> { null }
 
 /**
  * Appends [literal], each of [chips]' matches as a placeholder. A chip's alternate text is the text

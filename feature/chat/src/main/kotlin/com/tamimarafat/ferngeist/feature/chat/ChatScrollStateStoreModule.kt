@@ -8,8 +8,8 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class ChatScrollStateStoreModule {
+interface ChatScrollStateStoreModule {
     @Binds
     @Singleton
-    abstract fun bindChatScrollStateStore(impl: DataStoreChatScrollStateStore): ChatScrollStateStore
+    fun bindChatScrollStateStore(impl: DataStoreChatScrollStateStore): ChatScrollStateStore
 }

@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import com.tamimarafat.ferngeist.feature.chat.ui.history.commitWebUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

@@ -325,7 +325,7 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
      * is created synchronously inside the view model's constructor, so it is available
      * here to configure before any intent runs.
      */
-    private suspend fun gatewayViewModel(
+    private fun gatewayViewModel(
         configure: FakeChatSessionFacade.() -> Unit = {},
     ): Pair<ChatViewModel, FakeChatSessionFacade> {
         val facadeFactory = FakeChatSessionFacadeFactory()

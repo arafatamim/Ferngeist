@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.ui.theme
 
-import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -8,6 +7,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.tamimarafat.ferngeist.R
+import androidx.compose.material3.Typography as MaterialTypography
 
 /**
  * The app's typeface: Geist Mono (Vercel, OFL-1.1).
@@ -25,7 +25,7 @@ import com.tamimarafat.ferngeist.R
  * markdown emphasis is a real italic face rather than a synthesised oblique slant, which is what
  * the previous static cut had to carry two extra files for.
  */
-private val AppFontFamily =
+private val appFontFamily =
     FontFamily(
         Font(R.font.geist_mono_wght, FontWeight.Normal, FontStyle.Normal),
         Font(R.font.geist_mono_wght, FontWeight.Medium, FontStyle.Normal),
@@ -53,14 +53,14 @@ private const val OPTICAL_SCALE = 1.0f
 
 private fun TextStyle.forGeistMono(): TextStyle =
     copy(
-        fontFamily = AppFontFamily,
+        fontFamily = appFontFamily,
         fontSize = fontSize * OPTICAL_SCALE,
         lineHeight = lineHeight * OPTICAL_SCALE,
         letterSpacing = 0.sp,
     )
 
-private val BaseTypography =
-    Typography(
+private val baseTypography =
+    MaterialTypography(
         bodyLarge =
             TextStyle(
                 fontWeight = FontWeight.Normal,
@@ -69,21 +69,21 @@ private val BaseTypography =
             ).forGeistMono(),
     )
 
-val Typography =
-    BaseTypography.copy(
-        displayLarge = BaseTypography.displayLarge.forGeistMono(),
-        displayMedium = BaseTypography.displayMedium.forGeistMono(),
-        displaySmall = BaseTypography.displaySmall.forGeistMono(),
-        headlineLarge = BaseTypography.headlineLarge.forGeistMono(),
-        headlineMedium = BaseTypography.headlineMedium.forGeistMono(),
-        headlineSmall = BaseTypography.headlineSmall.forGeistMono(),
-        titleLarge = BaseTypography.titleLarge.forGeistMono(),
-        titleMedium = BaseTypography.titleMedium.forGeistMono(),
-        titleSmall = BaseTypography.titleSmall.forGeistMono(),
-        bodyLarge = BaseTypography.bodyLarge.forGeistMono(),
-        bodyMedium = BaseTypography.bodyMedium.forGeistMono(),
-        bodySmall = BaseTypography.bodySmall.forGeistMono(),
-        labelLarge = BaseTypography.labelLarge.forGeistMono(),
-        labelMedium = BaseTypography.labelMedium.forGeistMono(),
-        labelSmall = BaseTypography.labelSmall.forGeistMono(),
+val appTypography =
+    baseTypography.copy(
+        displayLarge = baseTypography.displayLarge.forGeistMono(),
+        displayMedium = baseTypography.displayMedium.forGeistMono(),
+        displaySmall = baseTypography.displaySmall.forGeistMono(),
+        headlineLarge = baseTypography.headlineLarge.forGeistMono(),
+        headlineMedium = baseTypography.headlineMedium.forGeistMono(),
+        headlineSmall = baseTypography.headlineSmall.forGeistMono(),
+        titleLarge = baseTypography.titleLarge.forGeistMono(),
+        titleMedium = baseTypography.titleMedium.forGeistMono(),
+        titleSmall = baseTypography.titleSmall.forGeistMono(),
+        bodyLarge = baseTypography.bodyLarge.forGeistMono(),
+        bodyMedium = baseTypography.bodyMedium.forGeistMono(),
+        bodySmall = baseTypography.bodySmall.forGeistMono(),
+        labelLarge = baseTypography.labelLarge.forGeistMono(),
+        labelMedium = baseTypography.labelMedium.forGeistMono(),
+        labelSmall = baseTypography.labelSmall.forGeistMono(),
     )

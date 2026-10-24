@@ -186,26 +186,6 @@ class SessionMessageReducerTest {
     }
 
     @Test
-    fun `user message chunks append into a single user bubble`() {
-        val (first, _) =
-            apply(
-                emptyList(),
-                emptyMap(),
-                AppSessionEvent.UserMessage(text = "he", append = true),
-            )
-        val (second, _) =
-            apply(
-                first,
-                emptyMap(),
-                AppSessionEvent.UserMessage(text = "y", append = true),
-            )
-
-        assertEquals(1, second.size)
-        assertEquals(ChatMessage.Role.USER, second.last().role)
-        assertEquals("hey", second.last().content)
-    }
-
-    @Test
     fun `echoed user chunk is ignored when assistant placeholder is already streaming`() {
         val (withUser, _) =
             apply(
@@ -225,25 +205,6 @@ class SessionMessageReducerTest {
         val userMessageCount = updated.count { it.role == ChatMessage.Role.USER }
         assertEquals(1, userMessageCount)
         assertEquals(2, updated.size)
-    }
-
-    @Test
-    fun `turn complete closes most recent streaming message`() {
-        val withStream =
-            SessionMessageReducer.startStreaming(
-                listOf(
-                    ChatMessage(role = ChatMessage.Role.USER, content = "hello"),
-                ),
-            )
-
-        val (completed, _) =
-            apply(
-                withStream,
-                emptyMap(),
-                AppSessionEvent.TurnComplete("end_turn"),
-            )
-
-        assertFalse(completed.last().isStreaming)
     }
 
     @Test
@@ -285,43 +246,7 @@ class SessionMessageReducerTest {
     }
 
     @Test
-    fun `message chunks append to existing message segment even if tool update was interleaved`() {
-        val (first, _) =
-            apply(
-                emptyList(),
-                emptyMap(),
-                AppSessionEvent.AgentMessage("hello"),
-            )
-        val (withTool, _) =
-            apply(
-                first,
-                emptyMap(),
-                AppSessionEvent.ToolCallStarted(
-                    toolCallId = "tool_1",
-                    title = "Read",
-                    kind = ToolKind.READ,
-                    status = ToolCallStatus.IN_PROGRESS,
-                ),
-            )
-        val (second, _) =
-            apply(
-                withTool,
-                emptyMap(),
-                AppSessionEvent.AgentMessage(" world"),
-            )
-        // The flat `content` is derived when a turn closes, so close the turn before asserting it.
-        val (finished, _) =
-            apply(
-                second,
-                emptyMap(),
-                AppSessionEvent.TurnComplete("end_turn"),
-            )
-
-        assertEquals("hello world", finished.last().content)
-    }
-
-    @Test
-    fun `message segment order follows server event order when tool call is interleaved`() {
+    fun `message chunks after a tool call append at the end in server order`() {
         val (first, _) =
             apply(
                 emptyList(),

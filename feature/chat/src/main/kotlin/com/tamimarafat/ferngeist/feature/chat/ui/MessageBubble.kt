@@ -1,19 +1,10 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
@@ -24,7 +15,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,31 +32,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Help
-import androidx.compose.material.icons.filled.CheckBox
-import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -83,57 +65,39 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.agentclientprotocol.model.PlanEntry
-import com.agentclientprotocol.model.PlanEntryPriority
-import com.agentclientprotocol.model.PlanEntryStatus
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
-import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
-import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
-import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
-import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SegmentBlock
 import com.tamimarafat.ferngeist.feature.chat.displayBlocks
-import com.tamimarafat.ferngeist.feature.chat.markdown.LocalInlineChips
+import com.tamimarafat.ferngeist.feature.chat.markdown.InlineChips
 import com.tamimarafat.ferngeist.feature.chat.markdown.MarkdownBlocks
 import com.tamimarafat.ferngeist.feature.chat.markdown.RunReveal
 import com.tamimarafat.ferngeist.feature.chat.markdown.documentMarkdownTypography
+import com.tamimarafat.ferngeist.feature.chat.markdown.localInlineChips
 import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
+import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachments
+import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
+import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
+import com.tamimarafat.ferngeist.feature.chat.ui.message.StreamingIndicator
 import kotlinx.collections.immutable.ImmutableMap
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import kotlin.random.Random
 
 @Composable
 fun MessageBubble(
@@ -175,42 +139,19 @@ fun MessageBubble(
             fadeIn(tween(ENTRANCE_FADE_MS)) +
                 expandVertically(spring(stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top),
     ) {
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
-        ) {
-            if (isUser) {
-                UserMessageBubble(
-                    message = message,
-                    contentColor = contentColor,
-                    onRetryMessage = onRetryMessage,
-                    onImageClick = { fullscreenImage = it },
-                )
-            } else {
-                AssistantMessageContent(
-                    message = message,
-                    markdownDocuments = markdownDocuments,
-                    reveals = reveals,
-                    showStreamingIndicator = showStreamingIndicator,
-                    onThoughtClick = onThoughtClick,
-                    onToolCallClick = onToolCallClick,
-                    // Height springs to each new line instead of jumping by a line at a time. Only on a
-                    // live bubble: on history it would animate unrelated size changes (rotation).
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .then(
-                                // Paused while a tool group folds: chasing the fold's expressive spring
-                                // with this softer one made live folds feel unlike history's.
-                                if (live && reveals.foldsInFlight.intValue == 0) {
-                                    Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                )
-            }
-        }
+        BubbleContent(
+            message = message,
+            isUser = isUser,
+            contentColor = contentColor,
+            markdownDocuments = markdownDocuments,
+            reveals = reveals,
+            live = live,
+            showStreamingIndicator = showStreamingIndicator,
+            onThoughtClick = onThoughtClick,
+            onToolCallClick = onToolCallClick,
+            onRetryMessage = onRetryMessage,
+            onImageClick = { fullscreenImage = it },
+        )
     }
 
     fullscreenImage?.let { image ->
@@ -218,18 +159,71 @@ fun MessageBubble(
     }
 }
 
+/** The bubble's row: a user prompt at the end, or the assistant's content at the start. */
+@Composable
+private fun BubbleContent(
+    message: ChatMessage,
+    isUser: Boolean,
+    contentColor: Color,
+    markdownDocuments: ImmutableMap<String, MarkdownRenderedDocument>,
+    reveals: BubbleReveals,
+    live: Boolean,
+    showStreamingIndicator: Boolean,
+    onThoughtClick: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
+    onRetryMessage: ((String) -> Unit)?,
+    onImageClick: (ChatImageData) -> Unit,
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        if (isUser) {
+            UserMessageBubble(
+                message = message,
+                contentColor = contentColor,
+                onRetryMessage = onRetryMessage,
+                onImageClick = onImageClick,
+            )
+        } else {
+            AssistantMessageContent(
+                message = message,
+                markdownDocuments = markdownDocuments,
+                reveals = reveals,
+                showStreamingIndicator = showStreamingIndicator,
+                onThoughtClick = onThoughtClick,
+                onToolCallClick = onToolCallClick,
+                // Height springs to each new line instead of jumping by a line at a time. Only on a
+                // live bubble: on history it would animate unrelated size changes (rotation).
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .then(
+                            // Paused while a tool group folds: chasing the fold's expressive spring
+                            // with this softer one made live folds feel unlike history's.
+                            if (live && reveals.foldsInFlight.intValue == 0) {
+                                Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+                            } else {
+                                Modifier
+                            },
+                        ),
+            )
+        }
+    }
+}
+
 private const val ENTRANCE_FADE_MS = 220
 
 /** Shared with [PinnedPrompt], whose chip must read as the same bubble. */
-internal val UserBubbleShape =
+internal val userBubbleShape =
     RoundedCornerShape(
         topStart = 20.dp,
         topEnd = 20.dp,
         bottomStart = 20.dp,
         bottomEnd = 8.dp,
     )
-private const val SHIMMER_START_OFFSET = -200f
-private const val SHIMMER_END_OFFSET = 600f
+internal const val SHIMMER_START_OFFSET = -200f
+internal const val SHIMMER_END_OFFSET = 600f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -252,7 +246,7 @@ private fun UserMessageBubble(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = contentColor,
             ),
-        shape = UserBubbleShape,
+        shape = userBubbleShape,
         modifier = Modifier.widthIn(max = 420.dp),
     ) {
         UserMessageContent(
@@ -285,7 +279,7 @@ internal fun PendingPromptQueue(
                 .widthIn(max = 720.dp)
                 .fillMaxWidth()
                 .animateContentSize()
-                .heightIn(max = PENDING_QUEUE_MAX_HEIGHT)
+                .heightIn(max = pendingQueueMaxHeight)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.End,
@@ -317,7 +311,7 @@ internal fun PendingPromptQueue(
     }
 }
 
-private val PENDING_QUEUE_MAX_HEIGHT = 200.dp
+private val pendingQueueMaxHeight = 200.dp
 private const val PENDING_PROMPT_MAX_LINES = 3
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -493,60 +487,17 @@ private fun AssistantMessageContent(
         blocks.forEach { block ->
             if (!gateOpen) return@forEach
             key(block.key) {
-                when (block) {
-                    is SegmentBlock.Run ->
-                        if (block.kind == AssistantSegment.Kind.THOUGHT) {
-                            // Reasoning with no adjacent call still gets the rail: the same live
-                            // single-line row while it streams, the same foldable group once settled.
-                            ToolCallGroup(
-                                items = listOf(block),
-                                isStreaming = message.isStreaming,
-                                isTail = block === blocks.last(),
-                                liveSegmentId = liveSegmentId,
-                                onToolCallClick = onToolCallClick,
-                                onThoughtClick = onThoughtClick,
-                                foldsInFlight = reveals.foldsInFlight,
-                                startedAtMs = block.firstSegment().receivedAtMs,
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        } else if (block.text.isNotBlank()) {
-                            // Keyed by the run's first chunk: MarkdownStateStore caches the whole
-                            // run's parse under that id, and the key is stable as chunks arrive,
-                            // so the node survives and the bubble grows instead of resetting
-                            // every chunk.
-                            val document = markdownDocuments[block.key]
-                            val total = remember(document) { document?.blocks?.sumOf { it.revealLength() } ?: 0 }
-                            val reveal = reveals.forRun(block.key, startHidden = message.isStreaming, total)
-                            SideEffect { reveal.target = total }
-                            // Prose only: reasoning rows render through ToolCallGroup, outside this.
-                            CompositionLocalProvider(LocalInlineChips provides fileChips) {
-                                RenderedMarkdown(text = block.text, document = document, reveal = reveal)
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            val settled by remember(reveal) { derivedStateOf { reveal.isSettled } }
-                            gateOpen = settled
-                        }
-
-                    is SegmentBlock.Group -> {
-                        ToolCallGroup(
-                            items = block.items,
-                            isStreaming = message.isStreaming,
-                            isTail = block === blocks.last(),
-                            liveSegmentId = liveSegmentId,
-                            onToolCallClick = onToolCallClick,
-                            onThoughtClick = onThoughtClick,
-                            foldsInFlight = reveals.foldsInFlight,
-                            startedAtMs = block.firstSegment().receivedAtMs,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    is SegmentBlock.Single ->
-                        if (block.segment.kind == AssistantSegment.Kind.PLAN) {
-                            PlanBubble(block.segment.planEntries.orEmpty())
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                }
+                AssistantBlock(
+                    block = block,
+                    isTail = block === blocks.last(),
+                    message = message,
+                    liveSegmentId = liveSegmentId,
+                    markdownDocuments = markdownDocuments,
+                    reveals = reveals,
+                    fileChips = fileChips,
+                    onToolCallClick = onToolCallClick,
+                    onThoughtClick = onThoughtClick,
+                )?.let { gateOpen = it }
             }
         }
 
@@ -562,6 +513,127 @@ private fun AssistantMessageContent(
             onToolCallClick = onToolCallClick,
         )
     }
+}
+
+/** A run of tool calls or reasoning, drawn on the rail, followed by the bubble's usual gap. */
+@Composable
+private fun AssistantToolGroup(
+    items: List<SegmentBlock>,
+    isStreaming: Boolean,
+    isTail: Boolean,
+    liveSegmentId: String?,
+    startedAtMs: Long?,
+    reveals: BubbleReveals,
+    onToolCallClick: (String) -> Unit,
+    onThoughtClick: (String) -> Unit,
+) {
+    ToolCallGroup(
+        items = items,
+        isStreaming = isStreaming,
+        isTail = isTail,
+        liveSegmentId = liveSegmentId,
+        onToolCallClick = onToolCallClick,
+        onThoughtClick = onThoughtClick,
+        foldsInFlight = reveals.foldsInFlight,
+        startedAtMs = startedAtMs,
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+}
+
+/**
+ * One block of an assistant message. Returns whether the blocks after it may open, or null when it
+ * leaves the gate as it found it.
+ */
+@Composable
+private fun AssistantBlock(
+    block: SegmentBlock,
+    isTail: Boolean,
+    message: ChatMessage,
+    liveSegmentId: String?,
+    markdownDocuments: ImmutableMap<String, MarkdownRenderedDocument>,
+    reveals: BubbleReveals,
+    fileChips: InlineChips?,
+    onToolCallClick: (String) -> Unit,
+    onThoughtClick: (String) -> Unit,
+): Boolean? =
+    when (block) {
+        is SegmentBlock.Run ->
+            when {
+                // Reasoning with no adjacent call still gets the rail: the same live
+                // single-line row while it streams, the same foldable group once settled.
+                block.kind == AssistantSegment.Kind.THOUGHT -> {
+                    AssistantToolGroup(
+                        items = listOf(block),
+                        isStreaming = message.isStreaming,
+                        isTail = isTail,
+                        liveSegmentId = liveSegmentId,
+                        startedAtMs = block.firstSegment().receivedAtMs,
+                        reveals = reveals,
+                        onToolCallClick = onToolCallClick,
+                        onThoughtClick = onThoughtClick,
+                    )
+                    null
+                }
+                block.text.isNotBlank() ->
+                    AssistantProseRun(
+                        block = block,
+                        document = markdownDocuments[block.key],
+                        isStreaming = message.isStreaming,
+                        reveals = reveals,
+                        fileChips = fileChips,
+                    )
+                else -> null
+            }
+
+        is SegmentBlock.Group -> {
+            AssistantToolGroup(
+                items = block.items,
+                isStreaming = message.isStreaming,
+                isTail = isTail,
+                liveSegmentId = liveSegmentId,
+                startedAtMs = block.firstSegment().receivedAtMs,
+                reveals = reveals,
+                onToolCallClick = onToolCallClick,
+                onThoughtClick = onThoughtClick,
+            )
+            null
+        }
+
+        is SegmentBlock.Single -> {
+            if (block.segment.kind == AssistantSegment.Kind.PLAN) {
+                PlanBubble(block.segment.planEntries.orEmpty())
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            null
+        }
+    }
+
+/**
+ * Renders one prose run and reports whether its reveal has settled, which is what lets the
+ * blocks after it open.
+ */
+@Composable
+private fun AssistantProseRun(
+    block: SegmentBlock.Run,
+    document: MarkdownRenderedDocument?,
+    isStreaming: Boolean,
+    reveals: BubbleReveals,
+    fileChips: InlineChips?,
+): Boolean {
+    // Keyed by the run's first chunk: MarkdownStateStore caches the whole
+    // run's parse under that id, and the key is stable as chunks arrive,
+    // so the node survives and the bubble grows instead of resetting
+    // every chunk.
+    val total = remember(document) { document?.blocks?.sumOf { it.revealLength() } ?: 0 }
+    val reveal = reveals.forRun(block.key, startHidden = isStreaming, total)
+    SideEffect { reveal.target = total }
+    // Prose only: reasoning rows render through ToolCallGroup, outside this.
+    CompositionLocalProvider(localInlineChips provides fileChips) {
+        RenderedMarkdown(text = block.text, document = document, reveal = reveal)
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    val settled by remember(reveal) { derivedStateOf { reveal.isSettled } }
+    return settled
 }
 
 /** What closes a turn: the waiting indicator while it is open, its edits once it has ended. */
@@ -693,366 +765,13 @@ internal fun RenderedMarkdown(
     }
 }
 
-@Composable
-private fun PlanBubble(
-    entries: List<PlanEntry>,
-    modifier: Modifier = Modifier,
-) {
-    if (entries.isEmpty()) return
-    Card(
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            entries.forEachIndexed { index, entry ->
-                PlanEntryItem(entry)
-                if (index < entries.lastIndex) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlanEntryItem(entry: PlanEntry) {
-    val isCompleted = entry.status == PlanEntryStatus.COMPLETED
-    val isInProgress = entry.status == PlanEntryStatus.IN_PROGRESS
-    val isPending = entry.status == PlanEntryStatus.PENDING
-    val iconTint =
-        if (isInProgress) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-        }
-    val textColor by animateColorAsState(
-        targetValue =
-            if (isPending) {
-                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-            } else if (isInProgress) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
-            },
-        label = "planTextColor",
-    )
-
-    // Pop the checkbox when it ticks, so a completed step is felt rather than read.
-    val tick by animateFloatAsState(
-        targetValue = if (isCompleted) 1f else 0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "planTick",
-    )
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = if (isCompleted) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-            contentDescription =
-                if (isCompleted) {
-                    stringResource(R.string.chat_completed_desc)
-                } else {
-                    stringResource(R.string.chat_plan_desc)
-                },
-            tint = iconTint,
-            modifier =
-                Modifier
-                    .size(18.dp)
-                    .graphicsLayer {
-                        val pop =
-                            if (isCompleted) {
-                                PLAN_TICK_POP_MIN_SCALE + (1f - PLAN_TICK_POP_MIN_SCALE) * tick
-                            } else {
-                                1f
-                            }
-                        scaleX = pop
-                        scaleY = pop
-                    },
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = entry.content,
-            style = MaterialTheme.typography.bodySmall,
-            color = textColor,
-            fontWeight = if (isInProgress) FontWeight.Medium else null,
-            textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-private const val TOOL_STATUS_SETTLE_MS = 180
+internal const val TOOL_STATUS_SETTLE_MS = 180
 private const val TURN_QUIET_MS = 600L
-private const val TOOL_STATUS_MIN_SCALE = 0.6f
-private const val PLAN_TICK_POP_MIN_SCALE = 0.4f
+internal const val TOOL_STATUS_MIN_SCALE = 0.6f
+internal const val PLAN_TICK_POP_MIN_SCALE = 0.4f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-internal fun ToolCallStatusIndicator(toolCall: ToolCallDisplay) {
-    toolCall.status?.let { status ->
-        val isTerminal = status == ToolCallStatus.COMPLETED || status == ToolCallStatus.FAILED
-        val containerColor by animateColorAsState(
-            targetValue =
-                if (status == ToolCallStatus.FAILED) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
-            label = "toolStatusContainer",
-        )
-
-        // Scale+fade the terminal state in rather than swapping it in: the swap used to land on the
-        // frame the spinner stopped, so a whole step of the agent's work passed with no signal.
-        val settle by animateFloatAsState(
-            targetValue = if (isTerminal) 1f else 0f,
-            animationSpec = tween(if (isTerminal) TOOL_STATUS_SETTLE_MS else 0),
-            label = "toolStatusSettle",
-        )
-
-        when (status) {
-            ToolCallStatus.PENDING, ToolCallStatus.IN_PROGRESS ->
-                ContainedLoadingIndicator(
-                    polygons = pickLoadingPolygons(toolCall.toolCallId ?: toolCall.title),
-                    containerShape = MaterialTheme.shapes.medium,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp),
-                )
-
-            ToolCallStatus.COMPLETED, ToolCallStatus.FAILED -> {
-                val failed = status == ToolCallStatus.FAILED
-                Surface(
-                    modifier =
-                        Modifier
-                            .size(24.dp)
-                            .graphicsLayer {
-                                scaleX = TOOL_STATUS_MIN_SCALE + (1f - TOOL_STATUS_MIN_SCALE) * settle
-                                scaleY = scaleX
-                                alpha = settle
-                            },
-                    shape = MaterialTheme.shapes.medium,
-                    color = containerColor,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            modifier = Modifier.size(16.dp),
-                            imageVector = if (failed) Icons.Rounded.Error else toolKindIcon(toolCall.kind),
-                            contentDescription =
-                                stringResource(
-                                    if (failed) R.string.chat_error_desc else R.string.chat_completed_desc,
-                                ),
-                            tint =
-                                if (failed) {
-                                    MaterialTheme.colorScheme.onError
-                                } else {
-                                    MaterialTheme.colorScheme.onPrimary
-                                },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@ExperimentalMaterial3ExpressiveApi
-@Composable
-private fun ImageAttachments(
-    images: List<ChatImageData>,
-    modifier: Modifier = Modifier,
-    onImageClick: ((ChatImageData) -> Unit)? = null,
-) {
-    Column(modifier = modifier) {
-        images.forEach { image ->
-            key(image.base64) {
-                ImageAttachmentItem(image = image, onClick = onImageClick?.let { cb -> { cb(image) } })
-            }
-        }
-    }
-}
-
-@Composable
-private fun FileAttachments(
-    files: List<ChatFileData>,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier) {
-        files.forEach { file ->
-            key("${file.name}:${file.sizeBytes}") {
-                FileAttachmentItem(file = file)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FileAttachmentItem(file: ChatFileData) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = file.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = FileAttachmentHelper.formatSize(file.sizeBytes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                )
-            }
-        }
-    }
-    Spacer(modifier = Modifier.height(4.dp))
-}
-
-@Composable
-private fun rememberImageBitmap(base64: String): ImageBitmap? =
-    produceState<ImageBitmap?>(initialValue = null, base64) {
-        value =
-            withContext(Dispatchers.Default) {
-                runCatching {
-                    val bytes = Base64.decode(base64, Base64.DEFAULT)
-                    val boundsOpts =
-                        BitmapFactory.Options().apply {
-                            inJustDecodeBounds = true
-                        }
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
-
-                    if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
-
-                    val sampleSize =
-                        ImageAttachmentHelper.computeSampleSize(
-                            outWidth = boundsOpts.outWidth,
-                            outHeight = boundsOpts.outHeight,
-                            maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
-                        )
-
-                    val bitmap =
-                        BitmapFactory.decodeByteArray(
-                            bytes,
-                            0,
-                            bytes.size,
-                            BitmapFactory.Options().apply { inSampleSize = sampleSize },
-                        ) ?: return@withContext null
-
-                    bitmap.asImageBitmap()
-                }.getOrNull()
-            }
-    }.value
-
-@Composable
-private fun ImageAttachmentItem(
-    image: ChatImageData,
-    onClick: (() -> Unit)? = null,
-) {
-    val bitmap = rememberImageBitmap(image.base64)
-
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-    ) {
-        val currentBitmap = bitmap
-        if (currentBitmap != null) {
-            Image(
-                bitmap = currentBitmap,
-                contentDescription = stringResource(R.string.chat_image_desc),
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 220.dp)
-                        .padding(4.dp)
-                        .clip(MaterialTheme.shapes.medium),
-                contentScale = ContentScale.Fit,
-            )
-        } else {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = stringResource(R.string.chat_image_desc),
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.chat_image_label, image.mimeType),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-    }
-    Spacer(modifier = Modifier.height(4.dp))
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun StreamingIndicator(
-    streamKey: String,
-    modifier: Modifier = Modifier,
-    baseColor: Color = LocalContentColor.current.copy(alpha = 0.8f),
-) {
-    val resources = LocalResources.current
-    val spinnerVerb =
-        remember(streamKey) {
-            val verbs = resources.getStringArray(R.array.chat_spinner_verbs)
-            verbs[Random.nextInt(verbs.size)]
-        }
-    val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
-    val textBrush =
-        rememberShimmerTextBrush(
-            isActive = true,
-            baseColor = baseColor,
-            labelPrefix = "spinnerVerb",
-        )
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        LoadingIndicator(
-            polygons = polygons,
-            modifier = Modifier.size(28.dp),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = stringResource(R.string.chat_streaming_indicator, spinnerVerb),
-            style =
-                MaterialTheme.typography.bodySmall.copy(
-                    brush = textBrush,
-                ),
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-private val LOADING_SHAPES =
+internal val loadingShapes =
     listOf(
         MaterialShapes.Oval,
         MaterialShapes.ClamShell,
@@ -1066,12 +785,9 @@ private val LOADING_SHAPES =
         MaterialShapes.Bun,
     )
 
-private const val LOADING_POLYGON_COUNT = 6
+internal const val LOADING_POLYGON_COUNT = 6
 
-private fun pickLoadingPolygons(seedKey: String) =
-    LOADING_SHAPES.shuffled(Random(seedKey.hashCode())).take(LOADING_POLYGON_COUNT)
-
-private fun toolKindIcon(kind: ToolKind?): ImageVector =
+internal fun toolKindIcon(kind: ToolKind?): ImageVector =
     when (kind) {
         ToolKind.READ -> Icons.Rounded.Search
         ToolKind.EDIT -> Icons.Rounded.Edit
@@ -1085,70 +801,3 @@ private fun toolKindIcon(kind: ToolKind?): ImageVector =
         ToolKind.OTHER -> Icons.Rounded.Build
         null -> Icons.AutoMirrored.Rounded.Help
     }
-
-@Composable
-internal fun rememberShimmerTextBrush(
-    isActive: Boolean,
-    baseColor: Color,
-    labelPrefix: String,
-): Brush {
-    val shimmerTransition = rememberInfiniteTransition(label = "${labelPrefix}Shimmer")
-    val shimmerOffset =
-        if (isActive) {
-            shimmerTransition
-                .animateFloat(
-                    initialValue = SHIMMER_START_OFFSET,
-                    targetValue = SHIMMER_END_OFFSET,
-                    animationSpec =
-                        infiniteRepeatable(
-                            animation = tween(durationMillis = 1400, easing = LinearEasing),
-                            repeatMode = RepeatMode.Restart,
-                        ),
-                    label = "${labelPrefix}ShimmerOffset",
-                ).value
-        } else {
-            0f
-        }
-
-    return if (isActive) {
-        Brush.linearGradient(
-            colors =
-                listOf(
-                    baseColor.copy(alpha = 0.45f),
-                    baseColor.copy(alpha = 0.95f),
-                    baseColor.copy(alpha = 0.45f),
-                ),
-            start = Offset(shimmerOffset - SHIMMER_START_OFFSET, 0f),
-            end = Offset(shimmerOffset, 0f),
-        )
-    } else {
-        SolidColor(baseColor)
-    }
-}
-
-@Preview
-@Composable
-private fun PlanBubblePreview() {
-    Surface {
-        PlanBubble(
-            entries =
-                listOf(
-                    PlanEntry(
-                        content = "Analyze the existing codebase structure",
-                        priority = PlanEntryPriority.HIGH,
-                        status = PlanEntryStatus.COMPLETED,
-                    ),
-                    PlanEntry(
-                        content = "Identify components that need refactoring",
-                        priority = PlanEntryPriority.HIGH,
-                        status = PlanEntryStatus.IN_PROGRESS,
-                    ),
-                    PlanEntry(
-                        content = "Create unit tests for critical functions",
-                        priority = PlanEntryPriority.MEDIUM,
-                        status = PlanEntryStatus.PENDING,
-                    ),
-                ),
-        )
-    }
-}

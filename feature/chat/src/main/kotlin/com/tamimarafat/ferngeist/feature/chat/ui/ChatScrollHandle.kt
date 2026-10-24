@@ -57,7 +57,7 @@ private const val SETTLE_MS = 220
 private const val CHASE_PASSES = 3
 
 /** Within this of the end counts as at the end: following, and no jump button. */
-private val RELATCH_DISTANCE = 48.dp
+private val relatchDistance = 48.dp
 
 /** Share of the remaining distance a glide covers per 60 fps frame. */
 private const val GLIDE_PER_FRAME = 0.15f
@@ -95,7 +95,7 @@ internal class ChatScrollHandle(
     /** Easing a sent prompt up to the top. */
     private var gliding by mutableStateOf(false)
 
-    /** Open, live tool rails; see [LocalActiveRails]. */
+    /** Open, live tool rails; see [localActiveRails]. */
     val activeRails = mutableIntStateOf(0)
 
     /** The reader scrolled since the last send; the turn's rails are then theirs to watch. */
@@ -140,7 +140,12 @@ internal class ChatScrollHandle(
             }
         }
 
-    val showJumpToBottom: State<Boolean> = derivedStateOf { !gliding && !easing && distanceToEnd() > relatchPx }
+    val showJumpToBottom: State<Boolean> =
+        derivedStateOf {
+            !gliding &&
+                !easing &&
+                listState.distanceToBottom() > relatchPx
+        }
 
     /** Called from composition, ahead of the measure that lays [messages] out. */
     fun onMessages(messages: List<ChatMessage>) {
@@ -201,29 +206,6 @@ internal class ChatScrollHandle(
         ease { listState.animateScrollToItem(index, 0) }
     }
 
-    /**
-     * Height [rowKey] needs, with [reservedPx] (and the item spacing, if a row follows) below it, to reach from the runway prompt at the top
-     * to the viewport's end; 0 when either is not laid out. Only what sits above the row is read
-     * from the last layout, and that holds still while the row grows. A row not laid out yet is
-     * about to take the bottom spacer's place, so it is measured from there.
-     */
-    fun runwayPx(
-        promptKey: Any?,
-        rowKey: Any?,
-        reservedPx: Int,
-    ): Int {
-        val info = listState.layoutInfo
-        val items = info.visibleItemsInfo
-        val prompt = promptKey?.let { key -> items.firstOrNull { it.key == key } } ?: return 0
-        val row =
-            items.firstOrNull { it.key == rowKey }
-                ?: items.lastOrNull()?.takeIf { it.index == info.totalItemsCount - 1 }
-                ?: return 0
-        val followed = row.key != rowKey || row.index < info.totalItemsCount - 1
-        val below = reservedPx + if (followed) info.mainAxisItemSpacing else 0
-        return runwayPx(prompt.offset, row.offset, info.viewportEndOffset, below)
-    }
-
     /** Runs the glide after each send, and follows live tool rails. */
     suspend fun follow() {
         while (true) {
@@ -244,10 +226,10 @@ internal class ChatScrollHandle(
             val now = withFrameNanos { it }
             val dt = ((now - last) / NANOS_PER_SECOND).coerceAtMost(MAX_FRAME_SECONDS)
             last = now
-            val distance = distanceToEnd()
+            val distance = listState.distanceToBottom()
             // A row landing at once eases in; ordinary growth is pinned in its own measure.
             when {
-                distance > relatchPx -> glide(distance, dt, mayJump = false)
+                distance > relatchPx -> listState.glideFrame(distance, dt, mayJump = false, endIndexHint = endIndexHint)
                 distance > PIN_EPSILON_PX -> pin()
             }
         }
@@ -263,7 +245,7 @@ internal class ChatScrollHandle(
             if (ours || listState.isScrollInProgress) {
                 null
             } else {
-                distanceToEnd() <= relatchPx
+                listState.distanceToBottom() <= relatchPx
             }
         }.filterNotNull().collect { following = it }
     }
@@ -275,21 +257,10 @@ internal class ChatScrollHandle(
             val now = withFrameNanos { it }
             val dt = ((now - last) / NANOS_PER_SECOND).coerceAtMost(MAX_FRAME_SECONDS)
             last = now
-            val distance = glideDistance()
-            jumped = glide(distance, dt, mayJump = !jumped) || jumped
+            val distance = glideDistance(listState, runwayPromptKey, awaitingTurn)
+            jumped = listState.glideFrame(distance, dt, mayJump = !jumped, endIndexHint = endIndexHint) || jumped
             if (!awaitingTurn && distance <= PIN_EPSILON_PX) gliding = false
         }
-    }
-
-    /**
-     * To the end, but no further than the runway prompt reaching the top: a reply already past the
-     * viewport stays below it. Until the prompt is in the list the old one still holds the key.
-     */
-    private fun glideDistance(): Float {
-        val end = distanceToEnd()
-        val key = runwayPromptKey?.takeIf { !awaitingTurn } ?: return end
-        val prompt = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: return end
-        return minOf(end, prompt.offset.toFloat())
     }
 
     /**
@@ -299,28 +270,6 @@ internal class ChatScrollHandle(
     private fun pin() = listState.requestScrollToItem(endIndexHint)
 
     /** One glide step; true when it jumped instead of easing. */
-    private suspend fun glide(
-        distance: Float,
-        dt: Float,
-        mayJump: Boolean,
-    ): Boolean {
-        if (distance <= PIN_EPSILON_PX) return false
-        try {
-            // A far end would compose everything in between: land a few viewports short of it, once.
-            // Its distance stays an estimate after landing, so jumping again would never arrive.
-            if (mayJump && distance > listState.maxEasePx()) {
-                listState.scrollToItem(endIndexHint)
-                listState.scrollBy(-listState.maxEasePx())
-                return true
-            }
-            // Frame-rate independent ease-out toward a target that may still be moving.
-            listState.scrollBy(distance * (1f - (1f - GLIDE_PER_FRAME).pow(dt * FRAMES_PER_SECOND)))
-        } catch (e: CancellationException) {
-            // A drag took the scroll; following has already stopped. Only our own cancellation ends us.
-            if (!currentCoroutineContext().isActive) throw e
-        }
-        return false
-    }
 
     private suspend fun ease(animation: suspend () -> Unit) {
         easing = true
@@ -336,8 +285,6 @@ internal class ChatScrollHandle(
         following = false
         gliding = false
     }
-
-    private fun distanceToEnd(): Float = listState.distanceToBottom()
 
     internal fun markRestored(isFollowing: Boolean) {
         following = isFollowing
@@ -394,7 +341,7 @@ internal fun rememberChatScrollState(
     SideEffect {
         handle.onMessages(renderedMessages)
         handle.live = activelyStreaming
-        handle.relatchPx = with(density) { RELATCH_DISTANCE.toPx() }
+        handle.relatchPx = with(density) { relatchDistance.toPx() }
     }
     LaunchedEffect(handle) { handle.follow() }
     LaunchedEffect(handle) { handle.relatch() }
@@ -553,4 +500,66 @@ private fun LazyListLayoutInfo.averageItemSpan(): Float {
     val items = visibleItemsInfo
     if (items.isEmpty()) return 0f
     return items.sumOf { it.size }.toFloat() / items.size + mainAxisItemSpacing
+}
+
+/**
+ * Height [rowKey] needs, with [reservedPx] (and the item spacing, if a row follows) below it, to reach from the runway prompt at the top
+ * to the viewport's end; 0 when either is not laid out. Only what sits above the row is read
+ * from the last layout, and that holds still while the row grows. A row not laid out yet is
+ * about to take the bottom spacer's place, so it is measured from there.
+ */
+internal fun ChatScrollHandle.runwayPx(
+    promptKey: Any?,
+    rowKey: Any?,
+    reservedPx: Int,
+): Int {
+    val info = listState.layoutInfo
+    val items = info.visibleItemsInfo
+    val prompt = promptKey?.let { key -> items.firstOrNull { it.key == key } } ?: return 0
+    val row =
+        items.firstOrNull { it.key == rowKey }
+            ?: items.lastOrNull()?.takeIf { it.index == info.totalItemsCount - 1 }
+            ?: return 0
+    val followed = row.key != rowKey || row.index < info.totalItemsCount - 1
+    val below = reservedPx + if (followed) info.mainAxisItemSpacing else 0
+    return runwayPx(prompt.offset, row.offset, info.viewportEndOffset, below)
+}
+
+/**
+ * To the end, but no further than the runway prompt reaching the top: a reply already past the
+ * viewport stays below it. Until the prompt is in the list the old one still holds the key.
+ */
+private fun glideDistance(
+    listState: LazyListState,
+    promptKey: Any?,
+    awaitingTurn: Boolean,
+): Float {
+    val end = listState.distanceToBottom()
+    val key = promptKey?.takeIf { !awaitingTurn } ?: return end
+    val prompt = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: return end
+    return minOf(end, prompt.offset.toFloat())
+}
+
+private suspend fun LazyListState.glideFrame(
+    distance: Float,
+    dt: Float,
+    mayJump: Boolean,
+    endIndexHint: Int,
+): Boolean {
+    if (distance <= PIN_EPSILON_PX) return false
+    try {
+        // A far end would compose everything in between: land a few viewports short of it, once.
+        // Its distance stays an estimate after landing, so jumping again would never arrive.
+        if (mayJump && distance > this.maxEasePx()) {
+            this.scrollToItem(endIndexHint)
+            this.scrollBy(-this.maxEasePx())
+            return true
+        }
+        // Frame-rate independent ease-out toward a target that may still be moving.
+        this.scrollBy(distance * (1f - (1f - GLIDE_PER_FRAME).pow(dt * FRAMES_PER_SECOND)))
+    } catch (e: CancellationException) {
+        // A drag took the scroll; following has already stopped. Only our own cancellation ends us.
+        if (!currentCoroutineContext().isActive) throw e
+    }
+    return false
 }

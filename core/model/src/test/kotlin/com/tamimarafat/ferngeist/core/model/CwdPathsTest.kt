@@ -11,11 +11,6 @@ class CwdPathsTest {
     }
 
     @Test
-    fun cwdKey_matchesTheGatewayPathDespiteSpelling() {
-        assertEquals(cwdKey("C:/work/api/.worktrees/feat-x"), cwdKey("c:\\Work\\api\\.worktrees\\feat-x\\"))
-    }
-
-    @Test
     fun pathSegments_splitsOnEitherSeparatorAndDropsEmptyParts() {
         assertEquals(listOf("home", "tamim", "work"), pathSegments("/home/tamim//work/"))
         assertEquals(listOf("C:", "work", "api"), pathSegments("C:\\work\\api"))

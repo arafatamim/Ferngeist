@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -15,7 +16,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 /**
- * Tests that [launchGatewayRuntime] propagates cancellation instead of reporting
+ * Tests that [GatewayRuntimeLauncher.launch] propagates cancellation instead of reporting
  * it as a launch failure, as its KDoc promises.
  *
  * A launch runs inside the caller's scope (a chat screen or a list refresh), so a
@@ -43,9 +44,7 @@ class GatewayLaunchRuntimeCancellationTest {
 
             val thrown =
                 try {
-                    launchGatewayRuntime(
-                        gatewayRepository = repository,
-                        gatewaySourceRepository = FakeGatewaySources(),
+                    GatewayRuntimeLauncher(repository, FakeGatewaySources()).launch(
                         gatewaySource = SOURCE,
                         agentId = "pi-acp",
                     )

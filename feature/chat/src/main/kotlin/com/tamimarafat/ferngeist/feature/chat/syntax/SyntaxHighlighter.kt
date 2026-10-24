@@ -27,8 +27,6 @@ internal data class HighlightedCode(
 internal class SyntaxHighlighter(
     private val tokenizer: SyntaxTokenizer = SyntaxTokenizer(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
-    private val maxChars: Int = MAX_CHARS,
-    private val cacheEntries: Int = CACHE_ENTRIES,
 ) {
     companion object {
         /** Above this a block/file stays plain; the cap is what keeps tokenization bounded. */
@@ -47,10 +45,10 @@ internal class SyntaxHighlighter(
     }
 
     private val cache =
-        object : LinkedHashMap<Pair<String, String>, List<SyntaxTokenSpan>>(cacheEntries, 0.75f, true) {
+        object : LinkedHashMap<Pair<String, String>, List<SyntaxTokenSpan>>(CACHE_ENTRIES, 0.75f, true) {
             override fun removeEldestEntry(
                 eldest: MutableMap.MutableEntry<Pair<String, String>, List<SyntaxTokenSpan>>,
-            ): Boolean = size > cacheEntries
+            ): Boolean = size > CACHE_ENTRIES
         }
 
     suspend fun highlight(
@@ -59,7 +57,7 @@ internal class SyntaxHighlighter(
     ): HighlightedCode? {
         val rawLabel = label?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
         val language = tokenizer.resolveLanguageId(rawLabel)?.value ?: return null
-        if (code.isEmpty() || code.length > maxChars) return null
+        if (code.isEmpty() || code.length > MAX_CHARS) return null
 
         val key = language to code
         val cacheable = code.length <= CACHE_MAX_CHARS

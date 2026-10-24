@@ -42,34 +42,47 @@ fun performQrScan(
     try {
         scanner
             .startScan()
-            .addOnSuccessListener { barcode: Barcode ->
-                val raw = barcode.rawValue.orEmpty()
-                if (raw.isBlank()) {
-                    viewModel.showMessage(resources.getString(R.string.serverlist_qr_error_empty))
-                    return@addOnSuccessListener
-                }
-                val parsed =
-                    GatewayPairingPayloadParser
-                        .parse(raw)
-                if (parsed == null) {
-                    viewModel.showMessage(resources.getString(R.string.serverlist_qr_error_invalid))
-                    return@addOnSuccessListener
-                }
-                viewModel.updatePairingQrPayload(raw)
-                viewModel.applyPairingPayload()
-            }.addOnCanceledListener {
-            }.addOnFailureListener { error: Exception ->
-                val errorDetail =
-                    error.message
-                        ?: resources.getString(R.string.serverlist_error_unknown)
-                viewModel.showMessage(
-                    resources.getString(
-                        R.string.serverlist_qr_error_scan_failed,
-                        errorDetail,
-                    ),
-                )
-            }
+            .addOnSuccessListener { barcode: Barcode -> onScanned(barcode, resources, viewModel) }
+            .addOnCanceledListener {
+            }.addOnFailureListener { error: Exception -> onScanFailed(error, resources, viewModel) }
     } catch (_: Exception) {
         viewModel.showMessage(resources.getString(R.string.serverlist_qr_error_cannot_start))
     }
+}
+
+private fun onScanned(
+    barcode: Barcode,
+    resources: Resources,
+    viewModel: AddGatewayViewModel,
+) {
+    val raw = barcode.rawValue.orEmpty()
+    if (raw.isBlank()) {
+        viewModel.showMessage(resources.getString(R.string.serverlist_qr_error_empty))
+        return
+    }
+    val parsed =
+        GatewayPairingPayloadParser
+            .parse(raw)
+    if (parsed == null) {
+        viewModel.showMessage(resources.getString(R.string.serverlist_qr_error_invalid))
+        return
+    }
+    viewModel.updatePairingQrPayload(raw)
+    viewModel.applyPairingPayload()
+}
+
+private fun onScanFailed(
+    error: Exception,
+    resources: Resources,
+    viewModel: AddGatewayViewModel,
+) {
+    val errorDetail =
+        error.message
+            ?: resources.getString(R.string.serverlist_error_unknown)
+    viewModel.showMessage(
+        resources.getString(
+            R.string.serverlist_qr_error_scan_failed,
+            errorDetail,
+        ),
+    )
 }

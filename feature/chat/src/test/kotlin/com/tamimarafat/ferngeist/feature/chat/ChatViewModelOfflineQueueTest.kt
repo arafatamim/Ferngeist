@@ -28,7 +28,20 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
     @Test
     fun `sessionReady flushes all queued prompts in FIFO order`() =
         runTest {
-            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
+            val sent = mutableListOf<String>()
+            val facadeFactory =
+                TestFacadeFactory {
+                    object : TestFacade(sendResult = true) {
+                        override suspend fun sendMessage(
+                            text: String,
+                            images: List<ChatImageData>,
+                            files: List<ChatFileData>,
+                        ): Boolean {
+                            sent += text
+                            return true
+                        }
+                    }
+                }
             val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
@@ -49,6 +62,8 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
 
                 facadeFactory.lastFacade.value?.emitSessionReady()
                 advanceUntilIdle()
+
+                assertEquals(listOf("first", "second"), sent)
 
                 state = viewModel.state.value
                 assertEquals(2, state.pendingMessages.size)
@@ -97,7 +112,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
     @Test
     fun `a prompt queued mid-turn is steered into it without waiting for the turn`() =
         runTest {
-            val facade = SteeringFacade(SteerOutcome.Injected)
+            val facade = SteeringFacade(SteerOutcome.INJECTED)
             val viewModel = steeringViewModel(facade)
 
             assertEquals(listOf("nudge"), facade.steered)
@@ -117,7 +132,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
     fun `a prompt queued during this screen's own turn is steered into it`() =
         runTest {
             // A real send holds until its turn ends; the next prompt must not wait behind it.
-            val facade = SteeringFacade(SteerOutcome.Injected, holdSends = true)
+            val facade = SteeringFacade(SteerOutcome.INJECTED, holdSends = true)
             val viewModel = createViewModel(facadeFactory = TestFacadeFactory { facade })
             advanceUntilIdle()
             facade.connect()
@@ -140,7 +155,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
     @Test
     fun `a steer the agent does not take waits for the turn like any queued prompt`() =
         runTest {
-            val facade = SteeringFacade(SteerOutcome.NotConsumed)
+            val facade = SteeringFacade(SteerOutcome.NOT_CONSUMED)
             val viewModel = steeringViewModel(facade)
 
             assertEquals(listOf("nudge"), facade.steered)
@@ -183,7 +198,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
     @Test
     fun `a removed prompt is never sent and leaves no durable copy`() =
         runTest {
-            val facade = SteeringFacade(SteerOutcome.NotConsumed)
+            val facade = SteeringFacade(SteerOutcome.NOT_CONSUMED)
             val store = InMemoryPendingPromptStore()
             val viewModel = steeringViewModel(facade, store)
 
@@ -327,7 +342,8 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         runTest {
             val store = InMemoryPendingPromptStore()
             val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }
-            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            val viewModel =
+                createViewModel(facadeFactory = facadeFactory, stores = testStores(pendingPromptStore = store))
             advanceUntilIdle()
 
             viewModel.dispatch(ChatIntent.SendMessage("delivered"))
@@ -351,7 +367,8 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         runTest {
             val store = InMemoryPendingPromptStore()
             val facadeFactory = TestFacadeFactory { SuspendingSendFacade() }
-            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            val viewModel =
+                createViewModel(facadeFactory = facadeFactory, stores = testStores(pendingPromptStore = store))
             advanceUntilIdle()
 
             viewModel.dispatch(ChatIntent.SendMessage("survive"))
@@ -379,7 +396,8 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             val store = InMemoryPendingPromptStore()
             // The real sendMessage returns only when the agent's turn ends.
             val facadeFactory = TestFacadeFactory { SuspendingSendFacade() }
-            val viewModel = createViewModel(facadeFactory = facadeFactory, pendingPromptStore = store)
+            val viewModel =
+                createViewModel(facadeFactory = facadeFactory, stores = testStores(pendingPromptStore = store))
             advanceUntilIdle()
 
             viewModel.dispatch(ChatIntent.SendMessage("once"))
@@ -405,8 +423,8 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             val chatA =
                 createViewModel(
                     facadeFactory = facadeA,
-                    pendingPromptStore = store,
                     savedStateHandle = newChatSavedStateHandle(),
+                    stores = testStores(pendingPromptStore = store),
                 )
             advanceUntilIdle()
             facadeA.lastFacade.value?.emitLiveChatId("server_1/session_a")
@@ -425,8 +443,8 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             val chatB =
                 createViewModel(
                     facadeFactory = facadeB,
-                    pendingPromptStore = store,
                     savedStateHandle = newChatSavedStateHandle(),
+                    stores = testStores(pendingPromptStore = store),
                 )
             advanceUntilIdle()
             facadeB.lastFacade.value?.emitLiveChatId("server_1/session_b")
@@ -526,7 +544,11 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         facade: SteeringFacade,
         store: InMemoryPendingPromptStore = InMemoryPendingPromptStore(),
     ): ChatViewModel {
-        val viewModel = createViewModel(facadeFactory = TestFacadeFactory { facade }, pendingPromptStore = store)
+        val viewModel =
+            createViewModel(
+                facadeFactory = TestFacadeFactory { facade },
+                stores = testStores(pendingPromptStore = store),
+            )
         advanceUntilIdle()
         facade.emitSnapshot(readySnapshot(isStreaming = true))
         advanceUntilIdle()

@@ -48,6 +48,7 @@ dependencies {
     implementation(libs.androidx.window)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.javax.inject)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)

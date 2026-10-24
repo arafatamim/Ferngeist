@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayAgentSecurity
+import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import io.mockk.coEvery
@@ -78,7 +79,7 @@ class AddCustomAgentViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
             coVerify(exactly = 0) {
-                gatewayRepository.createCustomAgent(any(), any(), any(), any(), any(), any(), any())
+                gatewayRepository.createCustomAgent(any(), any(), any(), any())
             }
         }
 
@@ -86,7 +87,7 @@ class AddCustomAgentViewModelTest {
     fun `creates the agent and reports a detected result`() =
         runTest {
             coEvery {
-                gatewayRepository.createCustomAgent(any(), any(), any(), any(), any(), any(), any())
+                gatewayRepository.createCustomAgent(any(), any(), any(), any())
             } returns agent(detected = true)
             val vm = viewModel()
             vm.updateDisplayName("My Agent")
@@ -103,10 +104,12 @@ class AddCustomAgentViewModelTest {
                     "http",
                     "gw.local:5788",
                     "token",
-                    "My Agent",
-                    "my-agent",
-                    listOf("--acp"),
-                    "",
+                    GatewayCustomAgentRequest(
+                        displayName = "My Agent",
+                        command = "my-agent",
+                        args = listOf("--acp"),
+                        hint = "",
+                    ),
                 )
             }
         }
@@ -115,7 +118,7 @@ class AddCustomAgentViewModelTest {
     fun `reports a not-detected result with the command`() =
         runTest {
             coEvery {
-                gatewayRepository.createCustomAgent(any(), any(), any(), any(), any(), any(), any())
+                gatewayRepository.createCustomAgent(any(), any(), any(), any())
             } returns agent(detected = false)
             val vm = viewModel()
             vm.updateDisplayName("My Agent")
@@ -138,7 +141,7 @@ class AddCustomAgentViewModelTest {
                     responseBody = """{"error":"custom agent limit reached (50)"}""",
                 )
             coEvery {
-                gatewayRepository.createCustomAgent(any(), any(), any(), any(), any(), any(), any())
+                gatewayRepository.createCustomAgent(any(), any(), any(), any())
             } throws refusal
             val vm = viewModel()
             vm.updateDisplayName("My Agent")
@@ -158,7 +161,7 @@ class AddCustomAgentViewModelTest {
             // GatewayRequestException: uncaught it escapes viewModelScope.launch and kills
             // the process, so the form must report it and stay usable.
             coEvery {
-                gatewayRepository.createCustomAgent(any(), any(), any(), any(), any(), any(), any())
+                gatewayRepository.createCustomAgent(any(), any(), any(), any())
             } throws IOException("unreachable host")
             val vm = viewModel()
             vm.updateDisplayName("My Agent")

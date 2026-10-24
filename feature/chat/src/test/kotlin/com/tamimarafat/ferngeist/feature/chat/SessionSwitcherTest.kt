@@ -25,13 +25,30 @@ class SessionSwitcherTest {
                 sessionsByServer = mapOf("srvA" to listOf(summary("s1", 30L), summary("s2", 10L))),
                 liveIdsByServer = mapOf("srvA" to setOf("s1", "s2")),
                 isGenerating = { _, _ -> false },
-                currentServerId = "srvA",
-                currentSessionId = "s1",
+                current = SwitcherCurrent("srvA", "s1"),
             )
         assertEquals(1, groups.size)
         assertEquals(listOf("s1", "s2"), groups[0].sessions.map { it.sessionId })
         assertTrue(groups[0].sessions[0].isCurrent)
         assertFalse(groups[0].sessions[1].isCurrent)
+
+        // A solo live session still yields its group with only the current row.
+        val solo =
+            deriveSwitcherGroups(
+                servers = listOf(serverA),
+                sessionsByServer = mapOf("srvA" to listOf(summary("s1", 1L))),
+                liveIdsByServer = mapOf("srvA" to setOf("s1")),
+                isGenerating = { _, _ -> false },
+                current = SwitcherCurrent("srvA", "s1"),
+            )
+        assertEquals(listOf("s1"), solo.single().sessions.map { it.sessionId })
+        assertTrue(
+            solo
+                .single()
+                .sessions
+                .single()
+                .isCurrent,
+        )
     }
 
     @Test
@@ -39,23 +56,23 @@ class SessionSwitcherTest {
         val worktreePath = "/orca/workspaces/Ferngeist/feat-x"
         val groups =
             deriveSwitcherGroups(
-                servers = listOf(serverA),
+                servers =
+                    listOf(
+                        serverA.copy(
+                            worktrees =
+                                listOf(
+                                    WorktreeRef(
+                                        repo = "/orca/workspaces/Ferngeist",
+                                        path = worktreePath,
+                                        branch = "feat-x",
+                                    ),
+                                ),
+                        ),
+                    ),
                 sessionsByServer = mapOf("srvA" to listOf(summary("wt", 10L, worktreePath))),
                 liveIdsByServer = mapOf("srvA" to setOf("wt")),
                 isGenerating = { _, _ -> false },
-                currentServerId = "srvA",
-                currentSessionId = "other",
-                worktreesByServer =
-                    mapOf(
-                        "srvA" to
-                            listOf(
-                                WorktreeRef(
-                                    repo = "/orca/workspaces/Ferngeist",
-                                    path = worktreePath,
-                                    branch = "feat-x",
-                                ),
-                            ),
-                    ),
+                current = SwitcherCurrent("srvA", "other"),
             )
 
         val row = groups.single().sessions.single()
@@ -77,8 +94,7 @@ class SessionSwitcherTest {
                 ),
             liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1", "bcur")),
             isGenerating = { _, _ -> false },
-            currentServerId = currentServer,
-            currentSessionId = currentSession,
+            current = SwitcherCurrent(currentServer, currentSession),
         )
         // Display order re-anchors per screen ([bcur, b1, a1] here), but the
         // cycle follows recency [a1, b1, bcur] on every screen: no ping-pong.
@@ -95,19 +111,19 @@ class SessionSwitcherTest {
         val prev = SwitcherSession("srvA", "p", null, null, null, false, false)
         val next = SwitcherSession("srvA", "n", null, null, null, false, false)
         // Slow drag past the distance threshold follows travel direction.
-        assertEquals("n", resolveSwipeTarget(-60f, 0f, 48f, 1000f, prev, next)?.sessionId)
-        assertEquals("p", resolveSwipeTarget(60f, 0f, 48f, 1000f, prev, next)?.sessionId)
+        assertEquals("n", resolveSwipeTarget(-60f, 0f, SwipeThresholds(48f, 1000f), prev, next)?.sessionId)
+        assertEquals("p", resolveSwipeTarget(60f, 0f, SwipeThresholds(48f, 1000f), prev, next)?.sessionId)
         // Short of the distance but fast and agreeing: velocity commits it.
-        assertEquals("n", resolveSwipeTarget(-10f, -1500f, 48f, 1000f, prev, next)?.sessionId)
-        assertEquals("p", resolveSwipeTarget(10f, 1500f, 48f, 1000f, prev, next)?.sessionId)
+        assertEquals("n", resolveSwipeTarget(-10f, -1500f, SwipeThresholds(48f, 1000f), prev, next)?.sessionId)
+        assertEquals("p", resolveSwipeTarget(10f, 1500f, SwipeThresholds(48f, 1000f), prev, next)?.sessionId)
         // A disagreeing release wiggle never overrules an established drag…
-        assertEquals("n", resolveSwipeTarget(-200f, 1500f, 48f, 1000f, prev, next)?.sessionId)
+        assertEquals("n", resolveSwipeTarget(-200f, 1500f, SwipeThresholds(48f, 1000f), prev, next)?.sessionId)
         // …and without established travel it only earns a snap-back.
-        assertEquals(null, resolveSwipeTarget(-10f, 1500f, 48f, 1000f, prev, next))
+        assertEquals(null, resolveSwipeTarget(-10f, 1500f, SwipeThresholds(48f, 1000f), prev, next))
         // Short and slow springs back; missing neighbor commits to nothing.
-        assertEquals(null, resolveSwipeTarget(-10f, 0f, 48f, 1000f, prev, next))
-        assertEquals(null, resolveSwipeTarget(0f, 0f, 48f, 1000f, prev, next))
-        assertEquals(null, resolveSwipeTarget(-60f, 0f, 48f, 1000f, prev, null))
+        assertEquals(null, resolveSwipeTarget(-10f, 0f, SwipeThresholds(48f, 1000f), prev, next))
+        assertEquals(null, resolveSwipeTarget(0f, 0f, SwipeThresholds(48f, 1000f), prev, next))
+        assertEquals(null, resolveSwipeTarget(-60f, 0f, SwipeThresholds(48f, 1000f), prev, null))
     }
 
     @Test
@@ -119,8 +135,7 @@ class SessionSwitcherTest {
                 sessionsByServer = mapOf("srvA" to listOf(summary("s1", 1L))),
                 liveIdsByServer = mapOf("srvA" to setOf("s1")),
                 isGenerating = { _, _ -> false },
-                currentServerId = "srvA",
-                currentSessionId = "s1",
+                current = SwitcherCurrent("srvA", "s1"),
             )
         assertEquals(null to null, switcherNeighbors(solo))
         val noCurrent =
@@ -139,21 +154,6 @@ class SessionSwitcherTest {
     }
 
     @Test
-    fun `solo live session yields its group with only the current row`() {
-        val groups =
-            deriveSwitcherGroups(
-                servers = listOf(serverA),
-                sessionsByServer = mapOf("srvA" to listOf(summary("s1", 1L))),
-                liveIdsByServer = mapOf("srvA" to setOf("s1")),
-                isGenerating = { _, _ -> false },
-                currentServerId = "srvA",
-                currentSessionId = "s1",
-            )
-        assertEquals(1, groups.size)
-        assertTrue(groups[0].sessions[0].isCurrent)
-    }
-
-    @Test
     fun `groups span servers ordered by newest row`() {
         val groups =
             deriveSwitcherGroups(
@@ -165,8 +165,7 @@ class SessionSwitcherTest {
                     ),
                 liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1")),
                 isGenerating = { _, _ -> false },
-                currentServerId = "srvA",
-                currentSessionId = "zzz",
+                current = SwitcherCurrent("srvA", "zzz"),
             )
         assertEquals(listOf("srvB", "srvA"), groups.map { it.serverId })
     }
@@ -183,8 +182,7 @@ class SessionSwitcherTest {
                     ),
                 liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1", "bcur")),
                 isGenerating = { _, _ -> false },
-                currentServerId = "srvB",
-                currentSessionId = "bcur",
+                current = SwitcherCurrent("srvB", "bcur"),
             )
         assertEquals(listOf("srvB", "srvA"), groups.map { it.serverId })
         assertEquals(listOf("bcur", "b1"), groups[0].sessions.map { it.sessionId })
@@ -201,8 +199,7 @@ class SessionSwitcherTest {
                     ),
                 liveIdsByServer = mapOf("srvA" to setOf("old", "new"), "ghost" to setOf("g1")),
                 isGenerating = { _, _ -> false },
-                currentServerId = "srvA",
-                currentSessionId = "zzz",
+                current = SwitcherCurrent("srvA", "zzz"),
             )
         assertEquals(listOf("new", "old"), groups[0].sessions.map { it.sessionId })
     }

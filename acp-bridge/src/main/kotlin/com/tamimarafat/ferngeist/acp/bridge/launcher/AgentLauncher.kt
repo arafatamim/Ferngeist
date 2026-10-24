@@ -7,6 +7,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.GatewayRuntime
+import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildEnvPayload
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildInitializeFailureMessage
@@ -23,15 +25,13 @@ import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
-import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -59,11 +59,10 @@ private const val ENV_AUTH_TYPE = "env"
  */
 class AgentLauncher(
     private val hub: ChatConnectionHub,
-    private val gatewayRepository: GatewayRepository,
-    private val gatewaySourceRepository: GatewaySourceRepository,
-    private val launchableTargetRepository: LaunchableTargetRepository,
+    private val repositories: LaunchRepositories,
     private val authEnvValueStore: AuthEnvValueStore,
     private val sessionCatalog: SessionCatalog,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     /**
      * Server ids whose agent holds a live hub-tracked transport. The card dot
@@ -96,31 +95,28 @@ class AgentLauncher(
     /** Binds a verification transport to [scope]; the hub releases it with the scope. */
     fun session(scope: CoroutineScope): AgentLaunchSession =
         AgentLaunchSession(
-            connection = hub.createBrowserManager(scope),
-            hangUp = hub::hangUpBrowserTransport,
+            hub = hub,
             scope = scope,
-            gatewayRepository = gatewayRepository,
-            gatewaySourceRepository = gatewaySourceRepository,
-            launchableTargetRepository = launchableTargetRepository,
+            repositories = repositories,
             authEnvValueStore = authEnvValueStore,
             sessionCatalog = sessionCatalog,
+            ioDispatcher = ioDispatcher,
         )
 }
 
 /**
  * One screen's verification transport and every launch operation over it.
  */
-@Suppress("TooManyFunctions")
 class AgentLaunchSession internal constructor(
-    private val connection: AcpConnection,
-    private val hangUp: (AcpConnection, Boolean) -> Unit,
+    private val hub: ChatConnectionHub,
     scope: CoroutineScope,
-    private val gatewayRepository: GatewayRepository,
-    private val gatewaySourceRepository: GatewaySourceRepository,
-    private val launchableTargetRepository: LaunchableTargetRepository,
+    private val repositories: LaunchRepositories,
     private val authEnvValueStore: AuthEnvValueStore,
     private val sessionCatalog: SessionCatalog,
+    private val ioDispatcher: CoroutineDispatcher,
 ) {
+    private val connection: AcpConnection = hub.createBrowserManager(scope)
+
     /** The transport's lifecycle, in the feature layer's own vocabulary. */
     val connectionState: StateFlow<ChatConnectionState> =
         connection.connectionState
@@ -133,7 +129,7 @@ class AgentLaunchSession internal constructor(
     val isConnected: Boolean get() = connection.isConnected
 
     /** Gateway runtime and source the last launch provisioned, for the auth restart. */
-    private var pendingGateway: PendingGateway? = null
+    private var pendingGateway: GatewayRuntime? = null
 
     /** Methods the last initialize reported; authentication reads the method's kind here. */
     private var authMethods: List<AcpAuthMethodInfo> = emptyList()
@@ -162,17 +158,16 @@ class AgentLaunchSession internal constructor(
 
                 is LaunchableTarget.GatewayAgent -> {
                     val context =
-                        buildGatewayLaunchContext(gatewayRepository, gatewaySourceRepository, server)
-                            .getOrElse { error ->
-                                return AgentLaunchOutcome.Failed(error.message ?: "Failed to launch ${server.name}")
-                            }
-                    pendingGateway = PendingGateway(source = context.gatewaySource, runtimeId = context.runtimeId)
+                        buildGatewayLaunchContext(repositories.runtimeLauncher, server).getOrElse { error ->
+                            return AgentLaunchOutcome.Failed(error.message ?: "Failed to launch ${server.name}")
+                        }
+                    pendingGateway = GatewayRuntime(source = context.gatewaySource, runtimeId = context.runtimeId)
                     context.config
                 }
             }
         timer.mark("gateway")
 
-        val initialized = withContext(Dispatchers.IO) { connection.connectAndInitialize(config) }
+        val initialized = withContext(ioDispatcher) { connection.connectAndInitialize(config) }
         timer.mark("connect")
         if (initialized == null) return connectFailure(server)
 
@@ -183,7 +178,7 @@ class AgentLaunchSession internal constructor(
                 // connection, instead of letting it launch the whole agent again.
                 sessionCatalog.adoptListing(server.id, connection)
                 timer.mark("list")
-                hangUp(connection, false)
+                hub.hangUpBrowserTransport(connection, false)
                 pendingGateway = null
                 AgentLaunchOutcome.Ready(
                     agentName = initialized.agentInfo.name,
@@ -198,7 +193,7 @@ class AgentLaunchSession internal constructor(
                     capabilities = initialized.agentCapabilities.displayLabels(),
                     methods = initialized.authMethods.map { it.toAgentAuthMethod() },
                     persistedEnvValues =
-                        loadPersistedEnvValues(authEnvValueStore, server.id, initialized.authMethods),
+                        loadPersistedEnvValues(authEnvValueStore, server.id, initialized.authMethods, ioDispatcher),
                     errorMessage = initialized.authErrorMessage,
                     gatewayBacked = pendingGateway != null,
                 )
@@ -218,7 +213,7 @@ class AgentLaunchSession internal constructor(
         val gateway = pendingGateway
         val method = authMethods.firstOrNull { it.id == methodId }
         if (gateway == null || method == null || method.type != ENV_AUTH_TYPE) {
-            return withContext(Dispatchers.IO) { connection.authenticate(methodId) }.toAuthOutcome()
+            return withContext(ioDispatcher) { connection.authenticate(methodId) }.toAuthOutcome()
         }
         return authenticateGatewayEnv(serverId, method, envValues, gateway)
     }
@@ -226,7 +221,7 @@ class AgentLaunchSession internal constructor(
     /** Hangs the verification transport up and forgets the runtime it was using. */
     fun disconnect() {
         pendingGateway = null
-        hangUp(connection, false)
+        hub.hangUpBrowserTransport(connection, false)
     }
 
     /** Surfaces whatever stopped a connect or an initialize, then logs the long form. */
@@ -234,20 +229,19 @@ class AgentLaunchSession internal constructor(
         if (!connection.isConnected) {
             val error = recentConnectError("Failed to connect to ${server.name}")
             // The gateway launched a session before the attach failed.
-            hangUp(connection, false)
+            hub.hangUpBrowserTransport(connection, false)
             return AgentLaunchOutcome.Failed(error)
         }
         val detail =
             buildInitializeFailureMessage(
                 connectionManager = connection,
-                gatewayRepository = gatewayRepository,
-                gatewaySourceRepository = gatewaySourceRepository,
+                repositories = repositories,
                 server = server,
-                gatewaySource = pendingGateway?.source,
-                runtimeId = pendingGateway?.runtimeId,
+                gateway = pendingGateway,
+                ioDispatcher = ioDispatcher,
             )
         logConnectionFailure(server, "initialize", detail)
-        hangUp(connection, false)
+        hub.hangUpBrowserTransport(connection, false)
         return AgentLaunchOutcome.Failed(shortInitializeFailureMessage(server))
     }
 
@@ -266,10 +260,10 @@ class AgentLaunchSession internal constructor(
         serverId: String,
         method: AcpAuthMethodInfo,
         envValues: Map<String, String>,
-        gateway: PendingGateway,
+        gateway: GatewayRuntime,
     ): AgentAuthOutcome {
         val server =
-            withContext(Dispatchers.IO) { launchableTargetRepository.getTarget(serverId) }
+            withContext(ioDispatcher) { repositories.launchableTargetRepository.getTarget(serverId) }
                 ?: return AgentAuthOutcome.Failure("Server was removed before authentication could complete.")
         val gatewayTarget =
             server as? LaunchableTarget.GatewayAgent
@@ -292,8 +286,8 @@ class AgentLaunchSession internal constructor(
 
         val restart =
             runCatching {
-                withContext(Dispatchers.IO) {
-                    gatewayRepository.restartRuntime(
+                withContext(ioDispatcher) {
+                    repositories.gatewayRepository.restartRuntime(
                         scheme = source.scheme,
                         host = source.host,
                         gatewayCredential = source.gatewayCredential,
@@ -305,7 +299,7 @@ class AgentLaunchSession internal constructor(
                 return AgentAuthOutcome.Failure(error.message ?: "Failed to restart ${server.name}.")
             }
         // Restart launches a new runtime; later retries and diagnostics must target it.
-        pendingGateway = PendingGateway(source = source, runtimeId = restart.runtimeId)
+        pendingGateway = GatewayRuntime(source = source, runtimeId = restart.runtimeId)
 
         return reconnectWithHandoff(server, source, method, restart)
     }
@@ -319,7 +313,7 @@ class AgentLaunchSession internal constructor(
     ): AgentAuthOutcome {
         connection.disconnect()
         val reconnected =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 connection.connect(
                     AcpConnectionConfig.fromGatewayHandoff(
                         gatewaySource = source,
@@ -335,21 +329,20 @@ class AgentLaunchSession internal constructor(
             return AgentAuthOutcome.Failure(message, connectionError = message)
         }
 
-        val initialized = withContext(Dispatchers.IO) { connection.initialize() }
+        val initialized = withContext(ioDispatcher) { connection.initialize() }
         if (initialized == null) {
             val detail =
                 buildInitializeFailureMessage(
                     connectionManager = connection,
-                    gatewayRepository = gatewayRepository,
-                    gatewaySourceRepository = gatewaySourceRepository,
+                    repositories = repositories,
                     server = server,
-                    gatewaySource = source,
-                    runtimeId = restart.runtimeId,
+                    gateway = GatewayRuntime(source = source, runtimeId = restart.runtimeId),
+                    ioDispatcher = ioDispatcher,
                 )
             return AgentAuthOutcome.Failure(detail, connectionError = shortInitializeFailureMessage(server))
         }
         authMethods = initialized.authMethods
-        return withContext(Dispatchers.IO) { connection.authenticate(method.id) }.toAuthOutcome()
+        return withContext(ioDispatcher) { connection.authenticate(method.id) }.toAuthOutcome()
     }
 
     /**
@@ -359,11 +352,11 @@ class AgentLaunchSession internal constructor(
     private suspend fun refreshedGatewaySource(gatewayTarget: LaunchableTarget.GatewayAgent): AuthSource =
         try {
             val source =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     refreshGatewaySourceIfNeeded(
                         gatewayTarget.gatewaySource,
-                        gatewayRepository,
-                        gatewaySourceRepository,
+                        repositories.gatewayRepository,
+                        repositories.gatewaySourceRepository,
                     )
                 }
             when {
@@ -371,17 +364,11 @@ class AgentLaunchSession internal constructor(
                 else -> AuthSource.Ready(source)
             }
         } catch (_: GatewayCredentialExpiredException) {
-            withContext(Dispatchers.IO) {
-                gatewaySourceRepository.deleteGateway(gatewayTarget.gatewaySource.id)
+            withContext(ioDispatcher) {
+                repositories.gatewaySourceRepository.deleteGateway(gatewayTarget.gatewaySource.id)
             }
             AuthSource.Failed("Gateway credential expired. Please pair this gateway again.")
         }
-
-    /** The gateway runtime the last launch left up, and the source it came from. */
-    private data class PendingGateway(
-        val source: GatewaySource,
-        val runtimeId: String,
-    )
 
     /** A refreshed gateway credential, or the message to show when it could not be renewed. */
     private sealed interface AuthSource {

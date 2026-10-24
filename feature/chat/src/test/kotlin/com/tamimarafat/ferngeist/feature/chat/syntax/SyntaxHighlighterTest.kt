@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.syntax
 
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -8,8 +9,9 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SyntaxHighlighterTest {
-    private val highlighter = SyntaxHighlighter(dispatcher = Dispatchers.Unconfined)
+    private val highlighter = SyntaxHighlighter(dispatcher = UnconfinedTestDispatcher())
 
     @Test
     fun `alias resolves to the canonical language and yields spans`() =

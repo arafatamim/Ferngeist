@@ -81,12 +81,12 @@ class AddGatewayViewModel
 
         fun updateScheme(value: String) {
             _scheme.value = value
-            clearStatus()
+            _uiState.value = _uiState.value.copy(status = null)
         }
 
         fun updateHost(value: String) {
             _host.value = value
-            clearStatus()
+            _uiState.value = _uiState.value.copy(status = null)
         }
 
         fun updateDeviceName(value: String) {
@@ -118,7 +118,7 @@ class AddGatewayViewModel
 
         fun checkStatus() {
             viewModelScope.launch {
-                val gatewayHost = normalizedHost()
+                val gatewayHost = normalizeHost(_host.value)
                 if (gatewayHost == null) {
                     emitError("Gateway host is required")
                     return@launch
@@ -138,7 +138,7 @@ class AddGatewayViewModel
 
         fun pairAndSaveWithCode(codeFromDialog: String) {
             viewModelScope.launch {
-                val gatewayHost = normalizedHost()
+                val gatewayHost = normalizeHost(_host.value)
                 if (gatewayHost == null) {
                     emitError("Gateway host is required")
                     return@launch
@@ -188,7 +188,7 @@ class AddGatewayViewModel
 
         fun saveGateway() {
             viewModelScope.launch {
-                val gatewayHost = normalizedHost()
+                val gatewayHost = normalizeHost(_host.value)
                 if (gatewayHost == null) {
                     emitError("Gateway host is required")
                     return@launch
@@ -358,23 +358,6 @@ class AddGatewayViewModel
                 emitError(message)
             }
         }
-
-        private fun clearStatus() {
-            _uiState.value = _uiState.value.copy(status = null)
-        }
-
-        private fun normalizedHost(): String? = _host.value.trim().ifBlank { null }
-
-        private fun extractHostnameFromHost(host: String): String {
-            val hostname = host.substringBefore(':')
-            return hostname.ifBlank { "Gateway" }
-        }
-
-        private fun defaultDeviceName(): String =
-            listOfNotNull(Build.MANUFACTURER, Build.MODEL)
-                .joinToString(" ")
-                .trim()
-                .ifBlank { "Ferngeist Android" }
     }
 
 sealed interface AddGatewayEvent {
@@ -384,6 +367,19 @@ sealed interface AddGatewayEvent {
         val message: String,
     ) : AddGatewayEvent
 }
+
+private fun normalizeHost(host: String): String? = host.trim().ifBlank { null }
+
+private fun extractHostnameFromHost(host: String): String {
+    val hostname = host.substringBefore(':')
+    return hostname.ifBlank { "Gateway" }
+}
+
+private fun defaultDeviceName(): String =
+    listOfNotNull(Build.MANUFACTURER, Build.MODEL)
+        .joinToString(" ")
+        .trim()
+        .ifBlank { "Ferngeist Android" }
 
 private fun String.toEpochMillisOrNull(): Long? =
     runCatching {

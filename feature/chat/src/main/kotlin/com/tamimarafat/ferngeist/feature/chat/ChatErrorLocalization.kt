@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import android.content.Context
+import com.tamimarafat.ferngeist.feature.chat.R
 
 private const val GATEWAY_UNPAIRED_PREFIX = "Gateway is not paired for "
 private const val RECONNECT_PREFIX = "Failed to reconnect to "

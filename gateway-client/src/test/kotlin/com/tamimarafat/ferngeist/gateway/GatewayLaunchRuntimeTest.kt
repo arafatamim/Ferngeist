@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -31,9 +32,7 @@ class GatewayLaunchRuntimeTest {
         runTest {
             val requested = mutableListOf<String>()
             val result =
-                launchGatewayRuntime(
-                    gatewayRepository = repo(requested),
-                    gatewaySourceRepository = FakeGatewaySources(),
+                GatewayRuntimeLauncher(repo(requested), FakeGatewaySources()).launch(
                     gatewaySource = SOURCE,
                     agentId = "pi-acp",
                 )
@@ -71,12 +70,12 @@ class GatewayLaunchRuntimeTest {
                 }
 
             val handoff =
-                launchGatewayRuntime(
-                    gatewayRepository = GatewayRepositoryImpl(HttpClient(engine), json),
-                    gatewaySourceRepository = FakeGatewaySources(),
-                    gatewaySource = SOURCE,
-                    agentId = "pi-acp",
-                ).getOrThrow().handoff
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(
+                        gatewaySource = SOURCE,
+                        agentId = "pi-acp",
+                    ).getOrThrow()
+                    .handoff
 
             assertEquals("s-old", handoff.sessionId)
             assertEquals("r-1", handoff.runtimeId)
@@ -120,9 +119,7 @@ class GatewayLaunchRuntimeTest {
                     )
                 }
             val result =
-                launchGatewayRuntime(
-                    gatewayRepository = GatewayRepositoryImpl(HttpClient(engine), json),
-                    gatewaySourceRepository = FakeGatewaySources(),
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources()).launch(
                     gatewaySource = SOURCE,
                     agentId = "pi-acp",
                 )

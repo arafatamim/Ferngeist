@@ -18,10 +18,7 @@ class FakeSessionRepository : SessionRepository {
         sessionsFlows.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = sessions
     }
 
-    var getSessionResult: SessionSummary? = null
-    var getSessionCalls: Int = 0
-
-    var updateTitleCalls: MutableList<Triple<String, String, String>> = mutableListOf()
+    val updateTitleCalls: MutableList<Triple<String, String, String>> = mutableListOf()
 
     override suspend fun updateSessionTitle(
         serverId: String,
@@ -31,15 +28,11 @@ class FakeSessionRepository : SessionRepository {
         updateTitleCalls.add(Triple(serverId, sessionId, title))
     }
 
-    var touchCalls: MutableList<Pair<String, String>> = mutableListOf()
-
     override suspend fun touchSession(
         serverId: String,
         sessionId: String,
         updatedAt: Long,
-    ) {
-        touchCalls.add(serverId to sessionId)
-    }
+    ) = Unit
 
     override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
         sessionsFlows.getOrPut(serverId) { MutableStateFlow(emptyList()) }
@@ -49,10 +42,7 @@ class FakeSessionRepository : SessionRepository {
     override suspend fun getSession(
         serverId: String,
         sessionId: String,
-    ): SessionSummary? {
-        getSessionCalls += 1
-        return getSessionResult
-    }
+    ): SessionSummary? = null
 
     override suspend fun upsertSession(
         serverId: String,

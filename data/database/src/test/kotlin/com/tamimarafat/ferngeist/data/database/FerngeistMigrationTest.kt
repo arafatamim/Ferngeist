@@ -39,7 +39,7 @@ class FerngeistMigrationTest {
             )
         }
 
-        val migrated = helper.runMigrationsAndValidate(TEST_DB, 15, true, MIGRATION_14_15)
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 15, true, migration14To15)
         migrated.use { db ->
             db
                 .query(
@@ -71,7 +71,7 @@ class FerngeistMigrationTest {
             )
         }
 
-        val migrated = helper.runMigrationsAndValidate(TEST_DB, 16, true, MIGRATION_15_16)
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 16, true, migration15To16)
         migrated.use { db ->
             db
                 .query(
@@ -96,7 +96,7 @@ class FerngeistMigrationTest {
     fun migrate16To17_addsAnEmptyTurnTimingsTable() {
         helper.createDatabase(TEST_DB, 16).close()
 
-        helper.runMigrationsAndValidate(TEST_DB, 17, true, MIGRATION_16_17).use { db ->
+        helper.runMigrationsAndValidate(TEST_DB, 17, true, migration16To17).use { db ->
             db.query("SELECT COUNT(*) FROM turn_timings").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(0, cursor.getInt(0))

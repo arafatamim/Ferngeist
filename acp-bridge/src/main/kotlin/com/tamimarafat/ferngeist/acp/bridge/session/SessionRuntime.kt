@@ -276,49 +276,19 @@ class SessionRuntime(
         event: AppSessionEvent,
         nowMs: Long?,
     ): RuntimeData {
-        // Text arriving after a stop would otherwise land in the stopped reply, and its
-        // turn-close fold would glue it onto that reply's last sentence.
-        val stoppedReply = current.messages.lastOrNull()?.takeIf { it.id == current.stoppedAt }
-        val opensReply =
-            stoppedReply?.segments?.isNotEmpty() == true &&
-                (
-                    event is AppSessionEvent.AgentMessage ||
-                        event is AppSessionEvent.AgentThought ||
-                        event is AppSessionEvent.PlanUpdated
-                )
-        var messages = if (opensReply) SessionMessageReducer.startStreaming(current.messages) else current.messages
-        var toolCallIndex = current.toolCallIndex
-        var isStreaming = current.isStreaming
-
-        // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
-        // which owns both the message list and the tool-call index
-        val fromReducer =
-            when (event) {
-                is AppSessionEvent.SessionLoadComplete -> null
-                else -> SessionMessageReducer.handleEvent(messages, toolCallIndex, event, nowMs)
-            }
-        if (fromReducer != null) {
-            messages = fromReducer.messages
-            toolCallIndex = fromReducer.toolCallIndex
-        }
-        if (fromReducer == null || current.stoppedAt != null) {
-            // ponytail: re-folds the trailing reply per late event; fine for a stop's short tail.
-            messages = SessionMessageReducer.finishStreaming(messages)
-        }
-
+        val transcript = reduceTranscript(current, event, nowMs)
         val fields = applySideFieldUpdates(current, event)
 
         // TurnComplete / SessionLoadComplete end the streaming turn.
-        if (event is AppSessionEvent.TurnComplete || event is AppSessionEvent.SessionLoadComplete) {
-            isStreaming = false
-        }
+        val endsTurn = event is AppSessionEvent.TurnComplete || event is AppSessionEvent.SessionLoadComplete
         // Only the trailing bubble can be mid-stream: finishStreaming clears the flag on
         // every message it closes, and a new streaming bubble is always appended last.
         // A full scan is O(messages) and this runs per event.
-        val derivedStreaming = isStreaming || messages.lastOrNull()?.isStreaming == true
+        val derivedStreaming =
+            (current.isStreaming && !endsTurn) || transcript.messages.lastOrNull()?.isStreaming == true
         return current.copy(
-            messages = messages,
-            toolCallIndex = toolCallIndex,
+            messages = transcript.messages,
+            toolCallIndex = transcript.toolCallIndex,
             isStreaming = derivedStreaming,
             usage = fields.usage,
             availableCommands = fields.availableCommands,
@@ -331,21 +301,38 @@ class SessionRuntime(
         )
     }
 
-    /**
-     * First-class pending list, unlike permissions which ride on tool-call segments:
-     * elicitations may arrive without any tool call, so there is no segment to attach to.
-     */
-    private fun applyElicitationUpdate(
-        current: List<ChatElicitationRequest>,
+    /** Folds one event into the transcript: a stop's tail, the reducer, and the turn-close fold. */
+    private fun reduceTranscript(
+        current: RuntimeData,
         event: AppSessionEvent,
-    ): List<ChatElicitationRequest> =
-        when (event) {
-            is AppSessionEvent.ElicitationRequested ->
-                (current.filterNot { it.key == event.request.key } + event.request)
-            is AppSessionEvent.ElicitationResolved ->
-                current.filterNot { it.key == event.key }
-            else -> current
+        nowMs: Long?,
+    ): ReducerResult {
+        // Text arriving after a stop would otherwise land in the stopped reply, and its
+        // turn-close fold would glue it onto that reply's last sentence.
+        val stoppedReply = current.messages.lastOrNull()?.takeIf { it.id == current.stoppedAt }
+        val opensReply =
+            stoppedReply?.segments?.isNotEmpty() == true &&
+                (
+                    event is AppSessionEvent.AgentMessage ||
+                        event is AppSessionEvent.AgentThought ||
+                        event is AppSessionEvent.PlanUpdated
+                )
+        val opened = if (opensReply) SessionMessageReducer.startStreaming(current.messages) else current.messages
+
+        // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
+        // which owns both the message list and the tool-call index
+        val fromReducer =
+            when (event) {
+                is AppSessionEvent.SessionLoadComplete -> null
+                else -> SessionMessageReducer.handleEvent(opened, current.toolCallIndex, event, nowMs)
+            }
+        val reduced = fromReducer ?: ReducerResult(opened, current.toolCallIndex)
+        if (fromReducer == null || current.stoppedAt != null) {
+            // ponytail: re-folds the trailing reply per late event; fine for a stop's short tail.
+            return reduced.copy(messages = SessionMessageReducer.finishStreaming(reduced.messages))
         }
+        return reduced
+    }
 
     /**
      * Applies side-field updates (usage, commands, config options, legacy mode/model)
@@ -393,58 +380,6 @@ class SessionRuntime(
             legacyModel = legacyModel,
             title = title,
         )
-    }
-
-    private fun mapUsage(event: AppSessionEvent.UsageUpdated): SessionUsage =
-        SessionUsage(
-            promptTokens = event.promptTokens,
-            completionTokens = event.completionTokens,
-            totalTokens = event.totalTokens,
-            cachedReadTokens = event.cachedReadTokens,
-            contextWindowTokens = event.contextWindowTokens,
-            costAmount = event.costAmount,
-            costCurrency = event.costCurrency,
-        )
-
-    private fun confirmModeChanged(
-        legacyModes: LegacyModeState?,
-        modeId: String,
-    ): LegacyModeState {
-        val base = legacyModes ?: LegacyModeState()
-        return base.copy(currentModeId = modeId)
-    }
-
-    private fun mapModes(
-        event: AppSessionEvent.ModesUpdated,
-        legacyModes: LegacyModeState?,
-    ): LegacyModeState =
-        LegacyModeState(
-            modes = event.modes,
-            currentModeId = event.currentModeId ?: legacyModes?.currentModeId,
-        )
-
-    private fun mapLegacyModel(event: AppSessionEvent.LegacyModelOptionsUpdated): LegacyModelState =
-        LegacyModelState(
-            choices = event.choices,
-            currentModelId = event.currentModelId,
-        )
-
-    /** Mutates config options via the central policy for type-safe value changes. */
-    private fun applyConfigValueChange(
-        options: List<SessionConfigOption>,
-        event: AppSessionEvent.ConfigOptionValueChanged,
-    ): List<SessionConfigOption> =
-        options.map { option ->
-            SessionConfigPolicy.applyValueChange(option, event.optionId, event.value)
-        }
-
-    /** Confirms the selected model id on the legacy model state, if a model set exists. */
-    private fun confirmModelSelection(
-        legacyModel: LegacyModelState?,
-        modelId: String?,
-    ): LegacyModelState? {
-        if (modelId.isNullOrBlank() || legacyModel == null) return legacyModel
-        return legacyModel.copy(currentModelId = modelId)
     }
 
     private data class SideFields(
@@ -503,41 +438,6 @@ class SessionRuntime(
                 "commands=${live.availableCommands.size} configOptions=${effectiveConfigOptions.size}"
         }
     }
-
-    /**
-     * Debug-only one-line summary of an event. Exhaustive `when` over the sealed
-     * [AppSessionEvent] hierarchy — one branch per event type, no branching logic,
-     * so cyclomatic complexity equals the type count and cannot be meaningfully
-     * reduced without losing exhaustiveness.
-     */
-    @Suppress("CyclomaticComplexMethod")
-    private fun summarizeEvent(event: AppSessionEvent): String =
-        when (event) {
-            is AppSessionEvent.UserMessage -> "userLen=${event.text.length} append=${event.append}"
-            is AppSessionEvent.AgentMessage -> "agentLen=${event.text.length}"
-            is AppSessionEvent.AgentThought -> "thoughtLen=${event.text.length}"
-            is AppSessionEvent.ToolCallStarted -> "toolCallId=${event.toolCallId} status=${event.status}"
-            is AppSessionEvent.ToolCallUpdated -> "toolCallId=${event.toolCallId} status=${event.status}"
-            is AppSessionEvent.ToolPermissionRequested -> "toolCallId=${event.toolCallId} options=${event.options.size}"
-            is AppSessionEvent.ToolPermissionResolved -> "toolCallId=${event.toolCallId}"
-            is AppSessionEvent.ElicitationRequested -> "elicitationKey=${event.request.key}"
-            is AppSessionEvent.ElicitationResolved -> "elicitationKey=${event.key}"
-            is AppSessionEvent.ElicitationCompleted -> "elicitationId=${event.elicitationId}"
-            is AppSessionEvent.ModeChanged -> "modeId=${event.modeId}"
-            is AppSessionEvent.ModesUpdated -> "modes=${event.modes.size} current=${event.currentModeId}"
-            is AppSessionEvent.ConfigOptionsUpdated -> "configOptions=${event.options.size}"
-            is AppSessionEvent.ConfigOptionValueChanged -> "optionId=${event.optionId} value=${event.value}"
-            is AppSessionEvent.LegacyModelOptionsUpdated ->
-                "legacyModels=${event.choices.size} current=${event.currentModelId}"
-            is AppSessionEvent.ModelSelectionConfirmed -> "modelId=${event.modelId}"
-            is AppSessionEvent.PlanUpdated -> "entries=${event.entries.size}"
-            is AppSessionEvent.UsageUpdated -> "usageTotal=${event.totalTokens} context=${event.contextWindowTokens}"
-            is AppSessionEvent.CommandsUpdated -> "commands=${event.commands.size}"
-            is AppSessionEvent.SessionInfoUpdated -> "title=${event.title} updatedAt=${event.updatedAt}"
-            is AppSessionEvent.SessionLoadComplete -> "sessionLoadComplete"
-            is AppSessionEvent.TurnComplete -> "stopReason=${event.stopReason}"
-            is AppSessionEvent.Unknown -> "unknownRawLen=${event.raw.length}"
-        }
 
     /**
      * Every path that closes a reply (turn end, cancel, a failed send, a steer, a new prompt)

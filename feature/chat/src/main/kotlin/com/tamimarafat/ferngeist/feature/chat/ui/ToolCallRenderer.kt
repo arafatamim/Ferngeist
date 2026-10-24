@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ToolCallContent
-import com.tamimarafat.ferngeist.core.common.ui.LocalSyntaxColors
+import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
 import com.tamimarafat.ferngeist.feature.chat.syntax.rememberHighlightedCode
@@ -158,7 +158,7 @@ private fun ResourceContentBlock(resource: EmbeddedResourceResource) {
                     SyntaxLanguageResolver.fromPath(resource.uri) ?: mimeLabel(resource.mimeType)
                 }
             val highlighted = rememberHighlightedCode(resource.text, label, streaming = false)
-            val colors = LocalSyntaxColors.current
+            val colors = localSyntaxColors.current
             val body =
                 remember(resource.text, highlighted, label, colors) {
                     styledCode(resource.text, highlighted, label, colors)
@@ -218,9 +218,9 @@ internal fun TerminalRenderer(terminal: ToolCallContent.Terminal) {
 }
 
 /** Maps a resource MIME type to a SyntaxMP label when the URI has no usable extension. */
-private fun mimeLabel(mimeType: String?): String? = MIME_LABELS[mimeType?.substringBefore(';')?.trim()?.lowercase()]
+private fun mimeLabel(mimeType: String?): String? = mimeLabels[mimeType?.substringBefore(';')?.trim()?.lowercase()]
 
-private val MIME_LABELS =
+private val mimeLabels =
     mapOf(
         "application/json" to "json",
         "text/json" to "json",

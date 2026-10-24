@@ -32,7 +32,7 @@ data class SyntaxColors(
  * near-identical tints: a palette with more nominal roles than the scheme has hues reads as noise.
  *
  * The trade-off is fewer distinct hues than a dedicated editor theme, especially in a monochrome
- * dynamic scheme. [LightSyntaxColors]/[DarkSyntaxColors] remain available as a high-separation
+ * dynamic scheme. [lightSyntaxColors] remains available as a high-separation
  * fixed palette if that trade-off is not wanted.
  */
 fun syntaxColorsFor(scheme: ColorScheme): SyntaxColors =
@@ -56,10 +56,10 @@ fun syntaxColorsFor(scheme: ColorScheme): SyntaxColors =
     )
 
 /**
- * Fixed fallback palettes: [LocalSyntaxColors]'s default for previews and tests. The app provides
+ * Fixed fallback palette: [localSyntaxColors]'s default for previews and tests. The app provides
  * the dynamic-derived palette from [syntaxColorsFor] instead.
  */
-val LightSyntaxColors =
+val lightSyntaxColors =
     SyntaxColors(
         keyword = Color(0xFFCF222E),
         string = Color(0xFF0A3069),
@@ -79,24 +79,4 @@ val LightSyntaxColors =
         markup = Color(0xFF24292F),
     )
 
-val DarkSyntaxColors =
-    SyntaxColors(
-        keyword = Color(0xFFFF7B72),
-        string = Color(0xFFA5D6FF),
-        number = Color(0xFF79C0FF),
-        comment = Color(0xFF8B949E),
-        function = Color(0xFFD2A8FF),
-        type = Color(0xFFFFA657),
-        property = Color(0xFF7EE787),
-        variable = Color(0xFFC9D1D9),
-        operator = Color(0xFF8B949E),
-        punctuation = Color(0xFF8B949E),
-        annotation = Color(0xFFFFA657),
-        tag = Color(0xFF7EE787),
-        attribute = Color(0xFF79C0FF),
-        constant = Color(0xFF79C0FF),
-        escape = Color(0xFFFF7B72),
-        markup = Color(0xFFC9D1D9),
-    )
-
-val LocalSyntaxColors = staticCompositionLocalOf { LightSyntaxColors }
+val localSyntaxColors = staticCompositionLocalOf { lightSyntaxColors }

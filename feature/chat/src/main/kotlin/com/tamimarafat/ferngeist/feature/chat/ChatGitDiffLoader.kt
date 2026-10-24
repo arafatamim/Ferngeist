@@ -3,9 +3,10 @@ package com.tamimarafat.ferngeist.feature.chat
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
-import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
+import com.tamimarafat.ferngeist.core.model.ChatWorkspaceReader
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GitRefsUnsupportedException
+import com.tamimarafat.ferngeist.core.model.qualified
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -23,7 +24,7 @@ import kotlinx.coroutines.sync.withLock
  */
 internal class ChatGitDiffLoader(
     private val scope: CoroutineScope,
-    private val facade: ChatSessionFacade,
+    private val facade: ChatWorkspaceReader,
     private val update: (ChatState.() -> ChatState) -> Unit,
     /** The ACP session this chat shows, scoping workspace calls to its cwd; null before it is minted. */
     private val acpSessionId: () -> String?,

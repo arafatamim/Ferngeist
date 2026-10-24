@@ -1,9 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.common.MviViewModel
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
@@ -14,19 +14,17 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
-import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.TurnKey
-import com.tamimarafat.ferngeist.core.model.TurnTiming
 import com.tamimarafat.ferngeist.core.model.iconUrl
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
-import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
+import com.tamimarafat.ferngeist.core.model.qualified
+import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
+import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
+import com.tamimarafat.ferngeist.feature.chat.pending.reconcileEchoes
+import com.tamimarafat.ferngeist.feature.chat.timing.ChatTurnTimings
+import com.tamimarafat.ferngeist.feature.chat.title.ChatTitleController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -43,33 +41,18 @@ import javax.inject.Inject
  *
  * The view model holds no ACP details; all transport-specific logic is delegated to the facade.
  */
-@Suppress("TooManyFunctions")
 @HiltViewModel
 class ChatViewModel
     @Inject
     constructor(
         sessionFacadeFactory: ChatSessionFacadeFactory,
-        private val sessionRepository: SessionRepository,
-        private val chatScrollStateStore: ChatScrollStateStore,
-        private val pendingPromptStore: PendingPromptStore,
-        private val switcherHintStore: SwitcherHintStore,
-        val recentSelectionStore: RecentSelectionStore,
         private val presence: ChatSessionPresence,
-        private val launchableTargetRepository: LaunchableTargetRepository,
-        private val turnTimingRepository: TurnTimingRepository,
+        private val repositories: ChatRepositories,
+        private val stores: ChatLocalStores,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
         private val savedStateHandle: SavedStateHandle,
     ) : MviViewModel<ChatState, ChatIntent, ChatEffect>(initialChatState()) {
         companion object {
-            private const val TRACE_TAG = "TSChatVM"
-
-            /**
-             * Delay before each `session/list` title attempt, relative to the end of the
-             * first response. The first is immediate; the rest give a slow agent time to
-             * name the session — it often does so just after the turn settles.
-             */
-            private val TITLE_FETCH_RETRY_DELAYS_MS = listOf(0L, 3_000L, 8_000L)
-
             /**
              * [SavedStateHandle] key holding the session id a create-on-arrival chat
              * minted, so a rebuilt ViewModel reattaches to that session instead of
@@ -89,7 +72,6 @@ class ChatViewModel
          */
         private val mintedSessionId: String? = savedStateHandle[KEY_MINTED_SESSION_ID]
         val cwd: String = savedStateHandle["cwd"] ?: ""
-        private val sessionUpdatedAt: Long? = savedStateHandle.get<Long>("updatedAt")?.takeIf { it > 0L }
         private val sessionTitle: String =
             savedStateHandle.get<String>("title")?.let { Uri.decode(it) }.orEmpty()
 
@@ -126,21 +108,9 @@ class ChatViewModel
         private val durableSessionId: String?
             get() = trackedSessionId.takeIf { it != NEW_SESSION_ARG }
 
-        /**
-         * True once the agent pushed a title over `session_info_update`. A pushed title is
-         * the agent naming the session, so it is canonical: nothing replaces it afterwards.
-         */
-        private var titlePushedByAgent = false
-
-        /**
-         * True once this chat has asked the agent's session list for a title. Reset when a
-         * new turn starts, so a name the agent assigns at any point still reaches the bar.
-         */
-        private var titleFetchDone = false
-
-        /** Recorded turn times for [storedTurnsSession], loaded once a reply needs them. */
-        private var storedTurns: MutableMap<TurnKey, TurnTiming>? = null
-        private var storedTurnsSession: String? = null
+        /** Recorded turn times, read and written on behalf of replies that need them. */
+        private val turnTimings =
+            ChatTurnTimings(viewModelScope, repositories.turnTimingRepository, ioDispatcher)
 
         private val sessionFacade: ChatSessionFacade =
             sessionFacadeFactory.create(
@@ -247,12 +217,27 @@ class ChatViewModel
             ChatOfflineQueueController(
                 scope = viewModelScope,
                 coordinator = sessionCoordinator,
-                store = pendingPromptStore,
-                serverId = serverId,
-                durableSessionId = { durableSessionId },
+                persistence =
+                    ChatPromptPersistence(
+                        store = stores.pendingPrompts,
+                        serverId = serverId,
+                        durableSessionId = { durableSessionId },
+                    ),
                 state = state,
                 update = { reducer -> updateState(reducer) },
-                emitError = { message -> emitEffect(ChatEffect.ShowError(message)) },
+            )
+
+        /** The app-bar title, from the nav arg, the session store, and the agent. */
+        private val titleController =
+            ChatTitleController(
+                scope = viewModelScope,
+                state = state,
+                update = { reducer -> updateState(reducer) },
+                persistTitle = { targetId, name ->
+                    repositories.sessionRepository.updateSessionTitle(serverId, targetId, name)
+                },
+                durableSessionId = { durableSessionId },
+                fetchTitle = { sessionFacade.fetchSessionTitle() },
             )
 
         /** Gateway git status and per-file diff loading. */
@@ -296,11 +281,10 @@ class ChatViewModel
             ChatSwitcherController(
                 scope = viewModelScope,
                 presence = presence,
-                sessionRepository = sessionRepository,
-                launchableTargetRepository = launchableTargetRepository,
+                sessionRepository = repositories.sessionRepository,
+                launchableTargetRepository = repositories.launchableTargetRepository,
                 serverId = serverId,
                 currentSessionId = { trackedSessionId },
-                emitError = { message -> emitEffect(ChatEffect.ShowError(message)) },
             )
 
         /** Live sessions across all servers, current included, for the chat switcher. */
@@ -312,8 +296,11 @@ class ChatViewModel
          * hint never flashes it while the store answers.
          */
         val switcherHintSeen: StateFlow<Boolean> =
-            switcherHintStore.seen
+            stores.switcherHints.seen
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+        /** The recent-value memory the pickers read and write. */
+        val recentSelectionStore: RecentSelectionStore = stores.recentSelections
 
         init {
             updateState { copy(serverId = serverId, isNewChat = !openedExistingSession) }
@@ -330,7 +317,7 @@ class ChatViewModel
             }
             resolveSessionTitle()
             viewModelScope.launch {
-                val snapshot = durableSessionId?.let { chatScrollStateStore.restore(serverId, it) }
+                val snapshot = durableSessionId?.let { stores.scrollState.restore(serverId, it) }
                 updateState { copy(restoredScrollSnapshot = snapshot) }
             }
             viewModelScope.launch { offlineQueue.restorePendingPrompts() }
@@ -356,7 +343,7 @@ class ChatViewModel
                             // gateway id below is an UPDATE that also needs the row to exist.
                             val minted =
                                 SessionSummary(id = trackedSessionId, cwd = cwd, updatedAt = System.currentTimeMillis())
-                            withContext(ioDispatcher) { sessionRepository.upsertSession(serverId, minted) }
+                            withContext(ioDispatcher) { repositories.sessionRepository.upsertSession(serverId, minted) }
                         }
                         // chatId is "$serverId/$sessionId" and carries the REAL
                         // session id even for create-on-arrival chats, where the
@@ -367,7 +354,11 @@ class ChatViewModel
                         if (gatewaySessionId != null) {
                             val realSessionId = chatId.substringAfter('/')
                             withContext(ioDispatcher) {
-                                sessionRepository.setGatewaySessionId(serverId, realSessionId, gatewaySessionId)
+                                repositories.sessionRepository.setGatewaySessionId(
+                                    serverId,
+                                    realSessionId,
+                                    gatewaySessionId,
+                                )
                             }
                         }
                     }
@@ -443,58 +434,22 @@ class ChatViewModel
         }
 
         /**
-         * Populates [ChatState.title] for the app bar, and the agent logo URL for
-         * identity marks. Custom and manual agents have no registry logo, so a null icon
-         * simply keeps the fallback.
-         *
-         * The nav arg carries the title the session list had when this chat was opened
-         * (blank on the deep-link path, which cannot carry one) and seeds the first frame;
-         * from there the session store is the source of truth, because every path that
-         * learns a title writes it — the agent's push, this chat's `session/list` read,
-         * and the session list's own refresh. A name the agent reports late then reaches
-         * an already-open chat instead of being frozen at whatever the row said when the
-         * user tapped it.
+         * Seeds the app-bar title from the nav arg, then follows the session store and the
+         * chat's icon. The title itself is decided by [titleController].
          */
         private fun resolveSessionTitle() {
-            adoptTitle(sessionTitle)
+            titleController.seed(sessionTitle)
             viewModelScope.launch {
-                sessionRepository.getSessions(serverId).collect { sessions ->
-                    val currentId = durableSessionId ?: return@collect
-                    adoptTitle(sessions.firstOrNull { it.id == currentId }?.title)
+                repositories.sessionRepository.getSessions(serverId).collect { sessions ->
+                    titleController.onSessionsListed(sessions)
                 }
             }
             viewModelScope.launch {
-                val icon = launchableTargetRepository.getTarget(serverId)?.iconUrl
+                val icon = repositories.launchableTargetRepository.getTarget(serverId)?.iconUrl
                 if (icon != null) {
                     updateState { copy(iconUrl = icon) }
                 }
             }
-        }
-
-        /**
-         * A replay carries no times, so turns are recorded as they finish here and put back on
-         * the replayed replies that match them.
-         */
-        private suspend fun withTurnTimings(messages: List<ChatMessage>): List<ChatMessage> {
-            val sessionId = durableSessionId ?: return messages
-            val keys = messages.turnKeys()
-            if (keys.isEmpty()) return messages
-            val stored =
-                storedTurns?.takeIf { storedTurnsSession == sessionId }
-                    ?: withContext(ioDispatcher) { turnTimingRepository.getTimings(sessionId) }
-                        .toMutableMap()
-                        .also {
-                            storedTurns = it
-                            storedTurnsSession = sessionId
-                        }
-            val fresh = messages.unstoredTurns(keys, stored)
-            if (fresh.isNotEmpty()) {
-                stored.putAll(fresh)
-                viewModelScope.launch(ioDispatcher) {
-                    fresh.forEach { (key, timing) -> turnTimingRepository.record(sessionId, key, timing) }
-                }
-            }
-            return messages.withStoredTurns(keys, stored)
         }
 
         /**
@@ -520,60 +475,23 @@ class ChatViewModel
                     messages = snapshot.messages,
                     loadState = snapshot.loadState,
                 )
-            val (reconciledPending, echoKeys) = reconcileSendingPendingBubbles(snapshot.messages)
-            val failed = snapshot.loadState == ChatLoadState.FAILED
+            val (reconciledPending, echoKeys) = reconcileEchoes(state.value.pendingMessages, snapshot.messages)
             val wasStreaming = state.value.isStreaming
             val wasReady = state.value.isSessionReady
-            // A HYDRATING snapshot is an in-flight marker: it asserts that a load is
-            // running, not that a reported failure is over. Letting it rewrite the error
-            // to null and `isLoading` back to true replaces a visible load error with a
-            // spinner that never resolves — the user sees "still loading" forever while
-            // the message explaining why was dropped one emission ago.
-            val loadErrorStands =
-                !failed && snapshot.loadState == ChatLoadState.HYDRATING && state.value.error != null
             // The echo is the runtime's own record of the prompt, written just before the
             // turn starts on the bridge's scope, which outlives this screen. From here the
             // prompt is delivered, so its durable copy goes now rather than when the turn
             // ends: a screen closed mid-turn would otherwise restore and re-send it.
             if (echoKeys.isNotEmpty()) offlineQueue.persistQueue()
-            val messages = withTurnTimings(snapshot.messages)
+            val messages =
+                durableSessionId?.let { turnTimings.withTurnTimings(it, snapshot.messages) } ?: snapshot.messages
             updateState {
-                copy(
-                    messages = messages,
-                    pendingMessages = reconciledPending,
-                    listKeys = if (echoKeys.isEmpty()) listKeys else listKeys + echoKeys,
-                    markdownDocuments = markdownProjection.documents,
-                    isStreaming = snapshot.isStreaming,
-                    usage = snapshot.usage,
-                    availableCommands = snapshot.availableCommands,
-                    commandsAdvertised = snapshot.commandsAdvertised,
-                    configOptions = snapshot.configOptions,
-                    pendingElicitations = snapshot.pendingElicitations,
-                    isLoading =
-                        !loadErrorStands &&
-                            (
-                                snapshot.loadState == ChatLoadState.HYDRATING ||
-                                    markdownProjection.pendingInitialHydration
-                            ),
-                    isSessionReady =
-                        snapshot.loadState == ChatLoadState.READY &&
-                            !markdownProjection.pendingInitialHydration,
-                    error =
-                        when {
-                            failed ->
-                                snapshot.error
-                                    ?: "Could not load this session. Check connection and retry."
-                            loadErrorStands -> error
-                            else -> null
-                        },
-                )
+                withSnapshot(snapshot, messages, reconciledPending, echoKeys, markdownProjection)
             }
             if (wasStreaming && !snapshot.isStreaming) touchSessionAfterTurn()
             onTurnBoundary(wasStreaming, snapshot.isStreaming)
             refreshGitStatusOnceReady(wasReady)
-            dropTitleThatIsThePrompt()
-            applyServerTitle(snapshot.title)
-            fetchGeneratedTitleIfNeeded(snapshot)
+            titleController.onSnapshot(snapshot)
         }
 
         /**
@@ -582,7 +500,9 @@ class ChatViewModel
          */
         private suspend fun touchSessionAfterTurn() {
             val id = durableSessionId ?: return
-            withContext(ioDispatcher) { sessionRepository.touchSession(serverId, id, System.currentTimeMillis()) }
+            withContext(ioDispatcher) {
+                repositories.sessionRepository.touchSession(serverId, id, System.currentTimeMillis())
+            }
         }
 
         /**
@@ -595,146 +515,6 @@ class ChatViewModel
         ) {
             if (!wasStreaming && isStreaming) gitDiffLoader.clearTurnDiffs()
         }
-
-        /**
-         * A title stored before this chat knew its first message can be the prompt
-         * itself, since that is what an agent synthesises for a session it has not
-         * named. Now that the transcript can tell, drop it and let a real name land.
-         */
-        private fun dropTitleThatIsThePrompt() {
-            val storedTitle = state.value.title
-            val storedTitleIsThePrompt =
-                storedTitle != null && sessionTitleOrNull(storedTitle, firstMessage()) == null
-            if (!titlePushedByAgent && storedTitleIsThePrompt) {
-                updateState { copy(title = null) }
-            }
-        }
-
-        /**
-         * Reconciles SENDING pending bubbles with their reducer echo in [messages].
-         * A SENDING bubble is removed when a matching USER message appears in the
-         * snapshot (content + images + files match), because the echoed message
-         * in [messages] is the canonical delivery.
-         */
-        private fun reconcileSendingPendingBubbles(
-            messages: List<ChatMessage>,
-        ): Pair<List<ChatMessage>, Map<String, String>> {
-            val pending = state.value.pendingMessages
-            val pendingSending = pending.filter { it.status == MessageDeliveryStatus.SENDING }
-            if (pendingSending.isEmpty()) return pending to emptyMap()
-            val echoes = findEchoes(pendingSending, messages)
-            if (echoes.isEmpty()) return pending to emptyMap()
-            val echoedClientIds = echoes.values.toSet()
-            return pending.filterNot { (it.clientId ?: it.id) in echoedClientIds } to echoes
-        }
-
-        /** Echo message id to the client id of the pending bubble it delivers. */
-        private fun findEchoes(
-            pendingSending: List<ChatMessage>,
-            messages: List<ChatMessage>,
-        ): Map<String, String> =
-            buildMap {
-                for (sending in pendingSending) {
-                    // The last match: an identical earlier prompt ("continue") is not this echo.
-                    val echoed =
-                        messages.lastOrNull { msg ->
-                            msg.role == ChatMessage.Role.USER &&
-                                msg.content == sending.content &&
-                                msg.images == sending.images &&
-                                msg.files == sending.files
-                        }
-                    if (echoed != null) put(echoed.id, sending.clientId ?: sending.id)
-                }
-            }
-
-        /**
-         * Adopts [candidate] as the app-bar title, from any path that learns one: the nav
-         * arg, the session store, or this chat's `session/list` read. Refused when the
-         * agent already pushed a title — that is the agent's own name for the session, and
-         * nothing replaces it — and when [sessionTitleOrNull] says the candidate is not a
-         * name at all. Returns whether it was adopted.
-         */
-        private fun adoptTitle(candidate: String?): Boolean {
-            if (titlePushedByAgent) return false
-            val name = sessionTitleOrNull(candidate, firstMessage()) ?: return false
-            if (state.value.title != name) {
-                updateState { copy(title = name) }
-            }
-            return true
-        }
-
-        /**
-         * Applies the title the agent pushed over `session_info_update`. Pushing a name is
-         * the agent telling the client what to call the session, so it wins over anything
-         * the session list reported and closes the app bar to further changes. Uses a
-         * targeted UPDATE (not upsert) to preserve updatedAt and all other columns.
-         */
-        private suspend fun applyServerTitle(serverTitle: String?) {
-            if (serverTitle.isNullOrBlank()) return
-            if (titlePushedByAgent && state.value.title == serverTitle) return
-            titlePushedByAgent = true
-            updateState { copy(title = serverTitle) }
-            // A create-on-arrival chat's nav arg is still the sentinel; only the
-            // minted id names a real row.
-            val targetId = durableSessionId ?: return
-            sessionRepository.updateSessionTitle(
-                serverId = serverId,
-                sessionId = targetId,
-                title = serverTitle,
-            )
-        }
-
-        /**
-         * Asks the agent's session list for this session's title. An agent that names a
-         * session server-side does not necessarily push it — pi-acp pushes a name only for
-         * an explicit `/name` — so the list is the only way to learn it. Re-armed for every
-         * turn, and once on open for a session with history, so a name an agent assigns
-         * later still reaches the app bar.
-         */
-        private fun fetchGeneratedTitleIfNeeded(snapshot: ChatSessionSnapshot) {
-            if (snapshot.isStreaming) {
-                // A turn is running; whether the agent has named the session is only
-                // answerable once it settles, so re-arm the read for that snapshot.
-                titleFetchDone = false
-                return
-            }
-            if (!shouldAskForGeneratedTitle(snapshot)) return
-            titleFetchDone = true
-            viewModelScope.launch {
-                for (delayMs in TITLE_FETCH_RETRY_DELAYS_MS) {
-                    delay(delayMs)
-                    if (titlePushedByAgent || !state.value.title.isNullOrBlank()) return@launch
-                    val title = sessionFacade.fetchSessionTitle()
-                    if (title.isNullOrBlank() || !adoptTitle(title)) continue
-                    // Record it so the session list and every other screen see the same name.
-                    val targetId = durableSessionId ?: return@launch
-                    sessionRepository.updateSessionTitle(serverId, targetId, title)
-                    return@launch
-                }
-            }
-        }
-
-        /**
-         * Whether this settled snapshot is a moment to ask the agent's session list for a
-         * title: the chat is loaded with a response in it, still has no title, and has not
-         * already asked since the last turn began.
-         */
-        private fun shouldAskForGeneratedTitle(snapshot: ChatSessionSnapshot): Boolean =
-            !titleFetchDone &&
-                !titlePushedByAgent &&
-                snapshot.loadState == ChatLoadState.READY &&
-                state.value.title.isNullOrBlank() &&
-                snapshot.messages.any { it.role == ChatMessage.Role.ASSISTANT } &&
-                durableSessionId != null
-
-        /**
-         * The first thing the user said, which is what an agent synthesises a session
-         * title from when it has not named the session itself.
-         */
-        private fun firstMessage(): String? =
-            state.value.messages
-                .firstOrNull { it.role == ChatMessage.Role.USER }
-                ?.content
 
         override fun onCleared() {
             sessionCoordinator.clear()
@@ -861,8 +641,21 @@ class ChatViewModel
                 is ChatIntent.LoadGitRefs,
                 is ChatIntent.SelectCompareRef,
                 -> handleGitSheetIntent(intent)
-                is ChatIntent.MarkSwitcherHintSeen -> switcherHintStore.markSeen()
-                is ChatIntent.CloseSession -> switcherController.close(intent.serverId, intent.sessionId)
+                is ChatIntent.MarkSwitcherHintSeen -> stores.switcherHints.markSeen()
+                is ChatIntent.CloseSession ->
+                    switcherController.close(intent.serverId, intent.sessionId)?.let { message ->
+                        emitEffect(ChatEffect.ShowError(message))
+                    }
+                is ChatIntent.SubmitElicitation,
+                is ChatIntent.DeclineElicitation,
+                is ChatIntent.CancelElicitation,
+                -> handleElicitationIntent(intent)
+                else -> Unit
+            }
+        }
+
+        private suspend fun handleElicitationIntent(intent: ChatIntent) {
+            when (intent) {
                 is ChatIntent.SubmitElicitation -> sessionCoordinator.submitElicitation(intent.key, intent.values)
                 is ChatIntent.DeclineElicitation -> sessionCoordinator.declineElicitation(intent.key)
                 is ChatIntent.CancelElicitation -> sessionCoordinator.cancelElicitation(intent.key)
@@ -875,7 +668,7 @@ class ChatViewModel
          */
         fun persistScrollSnapshot(snapshot: ChatScrollSnapshot) {
             viewModelScope.launch {
-                durableSessionId?.let { chatScrollStateStore.save(serverId, it, snapshot) }
+                durableSessionId?.let { stores.scrollState.save(serverId, it, snapshot) }
             }
             updateState {
                 if (restoredScrollSnapshot == snapshot) {
@@ -885,10 +678,53 @@ class ChatViewModel
                 }
             }
         }
-
-        /** Debug-only trace logger. */
-        private fun trace(message: String) {
-            if (!BuildConfig.DEBUG) return
-            runCatching { Log.d(TRACE_TAG, message) }
-        }
     }
+
+/**
+ * The state a settled snapshot leaves on screen. [ChatState.error] is what the chat shows before the
+ * snapshot, because a HYDRATING snapshot must not wipe a load error it has not replaced.
+ */
+private fun ChatState.withSnapshot(
+    snapshot: ChatSessionSnapshot,
+    messages: List<ChatMessage>,
+    pending: List<ChatMessage>,
+    echoKeys: Map<String, String>,
+    markdown: MarkdownStateProjection,
+): ChatState {
+    val failed = snapshot.loadState == ChatLoadState.FAILED
+    // A HYDRATING snapshot is an in-flight marker: it asserts that a load is
+    // running, not that a reported failure is over. Letting it rewrite the error
+    // to null and `isLoading` back to true replaces a visible load error with a
+    // spinner that never resolves — the user sees "still loading" forever while
+    // the message explaining why was dropped one emission ago.
+    val loadErrorStands = !failed && snapshot.loadState == ChatLoadState.HYDRATING && error != null
+    return copy(
+        messages = messages,
+        pendingMessages = pending,
+        listKeys = if (echoKeys.isEmpty()) listKeys else listKeys + echoKeys,
+        markdownDocuments = markdown.documents,
+        isStreaming = snapshot.isStreaming,
+        usage = snapshot.usage,
+        availableCommands = snapshot.availableCommands,
+        commandsAdvertised = snapshot.commandsAdvertised,
+        configOptions = snapshot.configOptions,
+        pendingElicitations = snapshot.pendingElicitations,
+        isLoading =
+            !loadErrorStands &&
+                (
+                    snapshot.loadState == ChatLoadState.HYDRATING ||
+                        markdown.pendingInitialHydration
+                ),
+        isSessionReady =
+            snapshot.loadState == ChatLoadState.READY &&
+                !markdown.pendingInitialHydration,
+        error =
+            when {
+                failed ->
+                    snapshot.error
+                        ?: "Could not load this session. Check connection and retry."
+                loadErrorStands -> error
+                else -> null
+            },
+    )
+}

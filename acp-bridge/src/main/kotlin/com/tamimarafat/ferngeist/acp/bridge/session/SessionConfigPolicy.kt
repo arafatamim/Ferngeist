@@ -214,39 +214,45 @@ internal object SessionConfigPolicy {
         option: SessionConfigOption,
         legacyModes: LegacyModeState?,
         legacyModel: LegacyModelState?,
+    ): SessionConfigCategory? = exactMatchCategory(option, legacyModes, legacyModel) ?: keywordCategory(option)
+
+    // Exact match is a strong signal: if the set of choice values equals the set of
+    // legacy mode IDs or model values, this option is almost certainly a mode or model.
+    private fun exactMatchCategory(
+        option: SessionConfigOption,
+        legacyModes: LegacyModeState?,
+        legacyModel: LegacyModelState?,
     ): SessionConfigCategory? {
-        if (option is SessionConfigOption.Select) {
-            // Exact match is a strong signal: if the set of choice values equals the set of
-            // legacy mode IDs or model values, this option is almost certainly a mode or model.
-            val optionValues = option.allChoices().map { it.value }.toSet()
-            val modeValues =
-                legacyModes
-                    ?.modes
-                    ?.map { it.id }
-                    ?.toSet()
-                    .orEmpty()
-            val modelValues =
-                legacyModel
-                    ?.choices
-                    ?.map { it.value }
-                    ?.toSet()
-                    .orEmpty()
+        if (option !is SessionConfigOption.Select) return null
+        val optionValues = option.allChoices().map { it.value }.toSet()
+        val modeValues =
+            legacyModes
+                ?.modes
+                ?.map { it.id }
+                ?.toSet()
+                .orEmpty()
+        val modelValues =
+            legacyModel
+                ?.choices
+                ?.map { it.value }
+                ?.toSet()
+                .orEmpty()
 
-            if (modeValues.isNotEmpty() && optionValues == modeValues) {
-                return Mode
-            }
-            if (modelValues.isNotEmpty() && optionValues == modelValues) {
-                return Model
-            }
+        return when {
+            modeValues.isNotEmpty() && optionValues == modeValues -> Mode
+            modelValues.isNotEmpty() && optionValues == modelValues -> Model
+            else -> null
         }
+    }
 
-        // Fallback to keyword heuristics in the ID/name.
+    // Fallback to keyword heuristics in the ID/name.
+    private fun keywordCategory(option: SessionConfigOption): SessionConfigCategory? {
         val normalizedId = normalize(option.id)
         val normalizedName = normalize(option.name)
         return when {
-            normalizedId in MODE_HINTS || normalizedName in MODE_HINTS || "approval" in normalizedName ->
+            normalizedId in modeHints || normalizedName in modeHints || "approval" in normalizedName ->
                 Mode
-            normalizedId in MODEL_HINTS || normalizedName in MODEL_HINTS ->
+            normalizedId in modelHints || normalizedName in modelHints ->
                 Model
             else -> null
         }
@@ -255,8 +261,8 @@ internal object SessionConfigPolicy {
     /** Lowercases and removes all non-alphanumeric characters from a string. */
     private fun normalize(value: String): String = value.lowercase().filter { it.isLetterOrDigit() }
 
-    private val MODE_HINTS = setOf("mode", "modes", "sessionmode", "approvalpreset")
-    private val MODEL_HINTS = setOf("model", "models", "sessionmodel")
+    private val modeHints = setOf("mode", "modes", "sessionmode", "approvalpreset")
+    private val modelHints = setOf("model", "models", "sessionmodel")
 }
 
 /**

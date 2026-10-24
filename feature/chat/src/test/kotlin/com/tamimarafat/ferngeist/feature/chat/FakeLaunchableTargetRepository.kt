@@ -11,11 +11,6 @@ class FakeLaunchableTargetRepository(
 ) : LaunchableTargetRepository {
     private val targetsFlow = MutableStateFlow(initial)
 
-    /** Test hook: replaces the emitted target list. */
-    fun setTargets(targets: List<LaunchableTarget>) {
-        targetsFlow.value = targets
-    }
-
     override fun getTargets(): Flow<List<LaunchableTarget>> = targetsFlow
 
     override suspend fun getTarget(id: String): LaunchableTarget? = targetsFlow.value.firstOrNull { it.id == id }

@@ -27,10 +27,10 @@ data class DiagnosticErrorEntry(
 )
 
 enum class RpcDirection {
-    OutboundRequest,
-    InboundResult,
-    InboundError,
-    InboundNotification,
+    OUTBOUND_REQUEST,
+    INBOUND_RESULT,
+    INBOUND_ERROR,
+    INBOUND_NOTIFICATION,
 }
 
 enum class WebSocketState {

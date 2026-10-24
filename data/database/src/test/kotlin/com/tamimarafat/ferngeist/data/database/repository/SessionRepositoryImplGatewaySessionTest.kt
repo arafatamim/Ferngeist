@@ -38,7 +38,7 @@ class SessionRepositoryImplGatewaySessionTest {
                     FerngeistDatabase::class.java,
                 ).allowMainThreadQueries()
                 .build()
-        repository = SessionRepositoryImpl(database.sessionDao())
+        repository = SessionRepositoryImpl(database)
     }
 
     @After
@@ -132,7 +132,7 @@ class SessionRepositoryImplGatewaySessionTest {
 
                 val owners =
                     listOf("chat-a", "chat-b")
-                        .filter { repository.getSession(SERVER_ID, it)?.gatewaySessionId == "gw-1" }
+                        .filter { chat -> repository.getSession(SERVER_ID, chat)?.gatewaySessionId == "gw-1" }
                 assertEquals("round $it must leave exactly one owner, got $owners", 1, owners.size)
                 repository.setGatewaySessionId(SERVER_ID, "chat-a", null)
                 repository.setGatewaySessionId(SERVER_ID, "chat-b", null)

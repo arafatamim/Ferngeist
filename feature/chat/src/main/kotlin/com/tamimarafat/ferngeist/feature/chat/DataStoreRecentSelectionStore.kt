@@ -65,7 +65,7 @@ class DataStoreRecentSelectionStore
             context.recentSelectionDataStore.data.map { prefs ->
                 prefs[stringPreferencesKey(STORE_KEY_PREFIX + key)]
                     ?.let { json.decodeFromString<List<String>>(it) }
-                    ?: emptyList()
+                    .orEmpty()
             }
 
         /**
@@ -83,7 +83,7 @@ class DataStoreRecentSelectionStore
                 val current =
                     prefs[prefKey]
                         ?.let { json.decodeFromString<List<String>>(it) }
-                        ?: emptyList()
+                        .orEmpty()
                 val updated = (listOf(value) + current.filter { it != value }).take(MAX_RECENT)
                 prefs[prefKey] = json.encodeToString(updated)
             }
@@ -109,8 +109,8 @@ class DataStoreRecentSelectionStore
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class RecentSelectionModule {
+interface RecentSelectionModule {
     @Binds
     @Singleton
-    abstract fun bindRecentSelectionStore(impl: DataStoreRecentSelectionStore): RecentSelectionStore
+    fun bindRecentSelectionStore(impl: DataStoreRecentSelectionStore): RecentSelectionStore
 }

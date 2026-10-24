@@ -19,13 +19,14 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.feature.chat.markdown.InlineChips
+import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 
 /** The files a turn's tool calls name: what each read, edit, delete or move works on, and every diff's file. */
 internal fun List<AssistantSegment>.fileReferences(): Set<String> =
     mapNotNullTo(LinkedHashSet()) { it.toolCall?.filePath() } + fileChanges().map { it.path }
 
 // Runs of path characters; ':' and '#' end a token, so "A.kt:42" chips the name and keeps the line.
-private val PATH_TOKEN = Regex("""[\w.~@+\-/\\]+""")
+private val pathToken = Regex("""[\w.~@+\-/\\]+""")
 
 /**
  * Where [literal] names a file, and the chip id each opens ([chipCandidates]). The [workspace]'s
@@ -40,7 +41,7 @@ internal fun findFileReferences(
     paths: Set<String>,
     workspace: Map<String, List<String>>? = null,
 ): List<Pair<IntRange, String>> =
-    PATH_TOKEN
+    pathToken
         .findAll(literal)
         .mapNotNull { match ->
             // A sentence-ending period is not part of the name.
@@ -60,7 +61,7 @@ internal fun findFileReferences(
             val file =
                 when {
                     listed.isNotEmpty() -> listed.joinToString(CANDIDATE_SEPARATOR)
-                    hits.isEmpty() -> mention.takeIf { RELATIVE_FILE_PATH.matches(it) }
+                    hits.isEmpty() -> mention.takeIf { relativeFilePath.matches(it) }
                     else -> hits.sameFile()
                 }
             file?.let { (start until end) to it }
@@ -87,32 +88,32 @@ private fun Map<String, List<String>>.listed(mention: String): List<String> {
  * first segment without a dot unless it leads with one (`.github/`), so `example.com/a.html`,
  * `and/or` and `1/2` stay text.
  */
-private val RELATIVE_FILE_PATH = Regex("""(?:\.?[\w@+-]+)(?:/[\w.@+-]+)*/[\w.@+-]*\.[A-Za-z]\w*""")
+private val relativeFilePath = Regex("""(?:\.?[\w@+-]+)(?:/[\w.@+-]+)*/[\w.@+-]*\.[A-Za-z]\w*""")
 
 /** The one file [this] names: calls can name it absolute and relative, so a path ending another's is the same file. */
 private fun List<String>.sameFile(): String? {
     val longest = maxByOrNull { it.length } ?: return null
     val normalized = longest.replace('\\', '/')
-    return longest.takeIf { all { it == longest || normalized.endsWith("/" + it.replace('\\', '/')) } }
+    return if (all { it == longest || normalized.endsWith("/" + it.replace('\\', '/')) }) longest else null
 }
 
 /**
  * Opens the file a chip names, or a picker when its name is shared ([chipCandidates]); null where
  * there is no workspace to read it from.
  */
-internal val LocalFileOpener = compositionLocalOf<((List<String>) -> Unit)?> { null }
+internal val localFileOpener = compositionLocalOf<((List<String>) -> Unit)?> { null }
 
 /** The workspace's files by file name (`ChatState.workspaceFiles`); null until the gateway lists them. */
-internal val LocalWorkspaceFiles = compositionLocalOf<Map<String, List<String>>?> { null }
+internal val localWorkspaceFiles = compositionLocalOf<Map<String, List<String>>?> { null }
 
 // Mirrors FileChip's chrome: 6dp padding each side, the 14dp icon and the 4dp gap; 2dp above and below.
-private val CHIP_CHROME_WIDTH = 30.dp
-private val CHIP_CHROME_HEIGHT = 4.dp
-private val CHIP_ICON = 14.dp
+private val chipChromeWidth = 30.dp
+private val chipChromeHeight = 4.dp
+private val chipIcon = 14.dp
 
 /**
  * File mentions in [segments]' prose as inline [FileChip]s that open the whole file
- * ([LocalFileOpener]); none without an opener. None while the turn streams: a file edited late
+ * ([localFileOpener]); none without an opener. None while the turn streams: a file edited late
  * would chip prose already on screen.
  */
 @Composable
@@ -120,8 +121,8 @@ internal fun rememberFileChips(
     segments: List<AssistantSegment>,
     isStreaming: Boolean,
 ): InlineChips? {
-    val opener = LocalFileOpener.current
-    val workspace = LocalWorkspaceFiles.current
+    val opener = localFileOpener.current
+    val workspace = localWorkspaceFiles.current
     val paths = remember(segments) { segments.fileReferences() }
     val open by rememberUpdatedState(opener)
     val measurer = rememberTextMeasurer()
@@ -165,8 +166,8 @@ private fun chipContent(
         with(density) {
             Placeholder(
                 // One pixel of slack, so rounding never ellipsizes the name.
-                width = (text.width + CHIP_CHROME_WIDTH.roundToPx() + 1).toSp(),
-                height = (maxOf(text.height, CHIP_ICON.roundToPx()) + CHIP_CHROME_HEIGHT.roundToPx()).toSp(),
+                width = (text.width + chipChromeWidth.roundToPx() + 1).toSp(),
+                height = (maxOf(text.height, chipIcon.roundToPx()) + chipChromeHeight.roundToPx()).toSp(),
                 placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
             )
         }

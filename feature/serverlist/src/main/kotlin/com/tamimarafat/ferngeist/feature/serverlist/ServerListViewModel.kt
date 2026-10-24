@@ -5,23 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentAuthMethod
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentAuthOutcome
-import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchEvent
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchOutcome
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchSession
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLauncher
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
-import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
-import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
-import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -95,26 +87,21 @@ private const val RECENT_SESSIONS_LIMIT = 5
 class ServerListViewModel
     @Inject
     constructor(
-        private val gatewaySourceRepository: GatewaySourceRepository,
-        private val launchableTargetRepository: LaunchableTargetRepository,
-        private val sessionRepository: SessionRepository,
-        private val authEnvValueStore: AuthEnvValueStore,
-        private val agentLaunchConsentStore: AgentLaunchConsentStore,
-        private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
-        private val recentCwdStore: RecentCwdStore,
-        private val recentSelectionStore: RecentSelectionStore,
+        private val repos: ServerRepositories,
+        private val stores: ServerLocalStores,
         private val agentLauncher: AgentLauncher,
+        @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
         /** This screen's verification transport; [AgentLauncher] owns everything behind it. */
         private val session: AgentLaunchSession = agentLauncher.session(viewModelScope)
 
         val servers: StateFlow<List<LaunchableTarget>> =
-            launchableTargetRepository
+            repos.launchableTargetRepository
                 .getTargets()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         val hasGateways: StateFlow<Boolean> =
-            gatewaySourceRepository
+            repos.gatewaySourceRepository
                 .getGateways()
                 .map { gateways -> gateways.isNotEmpty() }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -127,7 +114,7 @@ class ServerListViewModel
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         val recentSessions: StateFlow<List<RecentSession>> =
-            sessionRepository
+            repos.sessionRepository
                 .getRecentSessions(RECENT_SESSIONS_LIMIT)
                 .map { summaries ->
                     summaries
@@ -137,7 +124,7 @@ class ServerListViewModel
                             }
                         }.mapNotNull { summary ->
                             val target =
-                                launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
+                                repos.launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
                             RecentSession(
                                 sessionId = summary.id,
                                 title = summary.title,
@@ -166,7 +153,7 @@ class ServerListViewModel
             // Observe the agent events a launch can also raise on its own
             viewModelScope.launch {
                 session.events.collect { event ->
-                    handleLaunchEvent(event)
+                    _uiState.update { it.withLaunchEvent(event) }
                 }
             }
 
@@ -181,8 +168,8 @@ class ServerListViewModel
             // short-lived subscriptions, no lasting duplicate collectors alongside the
             // stateIn ones.
             viewModelScope.launch {
-                launchableTargetRepository.getTargets().first()
-                sessionRepository.getRecentSessions(RECENT_SESSIONS_LIMIT).first()
+                repos.launchableTargetRepository.getTargets().first()
+                repos.sessionRepository.getRecentSessions(RECENT_SESSIONS_LIMIT).first()
                 _isLoading.value = false
             }
         }
@@ -199,8 +186,8 @@ class ServerListViewModel
                     agentId = server.binding.agentId,
                 )
             val hasConsent =
-                withContext(Dispatchers.IO) {
-                    agentLaunchConsentStore.hasConsent(consentKey)
+                withContext(ioDispatcher) {
+                    stores.agentLaunchConsentStore.hasConsent(consentKey)
                 }
             if (hasConsent) return true
             _uiState.update {
@@ -245,7 +232,7 @@ class ServerListViewModel
                 // the old runtime can survive long enough to be reused, which some
                 // stdio agents do not handle correctly on reattach.
                 if (_uiState.value.connectionState !is ChatConnectionState.Disconnected) {
-                    withContext(Dispatchers.IO) {
+                    withContext(ioDispatcher) {
                         session.disconnect()
                     }
                 }
@@ -268,49 +255,11 @@ class ServerListViewModel
 
                 when (val outcome = session.launch(server)) {
                     is AgentLaunchOutcome.Ready -> openLaunchedServer(server, outcome)
-                    is AgentLaunchOutcome.AuthenticationRequired -> showAuthenticationPrompt(server, outcome)
-                    is AgentLaunchOutcome.Failed -> showLaunchFailure(outcome)
+                    is AgentLaunchOutcome.AuthenticationRequired ->
+                        _uiState.update { it.withAuthenticationPrompt(server, outcome) }
+
+                    is AgentLaunchOutcome.Failed -> _uiState.update { it.withLaunchFailure(outcome) }
                 }
-            }
-        }
-
-        /** Surfaces the auth prompt an agent raised, with the values it already knows. */
-        private fun showAuthenticationPrompt(
-            server: LaunchableTarget,
-            outcome: AgentLaunchOutcome.AuthenticationRequired,
-        ) {
-            _uiState.update {
-                it.copy(
-                    connectingServerId = null,
-                    pendingAuthentication =
-                        PendingAuthentication(
-                            serverId = server.id,
-                            serverName = server.name,
-                            agentName = outcome.agentName,
-                            authMethods = outcome.methods,
-                            persistedEnvValues = outcome.persistedEnvValues,
-                            authErrorMessage = outcome.errorMessage,
-                            gatewayBacked = outcome.gatewayBacked,
-                        ),
-                    connectedServerState =
-                        it.connectedServerState?.copy(
-                            agentName = outcome.agentName,
-                            capabilities = outcome.capabilities,
-                            isInitializing = false,
-                        ),
-                )
-            }
-        }
-
-        /** Surfaces a launch that never reached a usable agent. */
-        private fun showLaunchFailure(outcome: AgentLaunchOutcome.Failed) {
-            _uiState.update {
-                it.copy(
-                    connectingServerId = null,
-                    connectionState = ChatConnectionState.Failed(outcome.message),
-                    connectedServerState = null,
-                    showConnectionError = outcome.message,
-                )
             }
         }
 
@@ -390,11 +339,11 @@ class ServerListViewModel
         fun retryPendingAuthentication(serverId: String) {
             viewModelScope.launch {
                 val server =
-                    withContext(Dispatchers.IO) {
-                        launchableTargetRepository.getTarget(serverId)
+                    withContext(ioDispatcher) {
+                        repos.launchableTargetRepository.getTarget(serverId)
                     } ?: return@launch
 
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     session.disconnect()
                 }
                 connectAndOpenServer(server)
@@ -412,8 +361,8 @@ class ServerListViewModel
         fun confirmLaunchConsent(serverId: String) {
             viewModelScope.launch {
                 val server =
-                    withContext(Dispatchers.IO) {
-                        launchableTargetRepository.getTarget(serverId)
+                    withContext(ioDispatcher) {
+                        repos.launchableTargetRepository.getTarget(serverId)
                     }
                 val gatewayTarget =
                     server as? LaunchableTarget.GatewayAgent ?: run {
@@ -425,8 +374,8 @@ class ServerListViewModel
                         gatewaySourceId = gatewayTarget.gatewaySource.id,
                         agentId = gatewayTarget.binding.agentId,
                     )
-                withContext(Dispatchers.IO) {
-                    agentLaunchConsentStore.setConsent(consentKey, true)
+                withContext(ioDispatcher) {
+                    stores.agentLaunchConsentStore.setConsent(consentKey, true)
                 }
                 _uiState.update { it.copy(pendingLaunchConsent = null) }
                 connectAndOpenServer(gatewayTarget)
@@ -448,25 +397,25 @@ class ServerListViewModel
 
         fun deleteServer(serverId: String) {
             viewModelScope.launch {
-                withContext(Dispatchers.IO) {
-                    val target = launchableTargetRepository.getTarget(serverId)
+                withContext(ioDispatcher) {
+                    val target = repos.launchableTargetRepository.getTarget(serverId)
                     if (target is LaunchableTarget.GatewayAgent) {
                         val consentKey =
                             buildLaunchConsentKey(
                                 gatewaySourceId = target.gatewaySource.id,
                                 agentId = target.binding.agentId,
                             )
-                        agentLaunchConsentStore.clearByPrefix(consentKey)
+                        stores.agentLaunchConsentStore.clearByPrefix(consentKey)
                     }
-                    authEnvValueStore.deleteValues(serverId)
-                    recentCwdStore.clear(serverId)
+                    stores.authEnvValueStore.deleteValues(serverId)
+                    stores.recentCwdStore.clear(serverId)
                     // Prefix-based cleanup: clearByPrefix removes all entries whose DataStore key
                     // starts with the given prefix. Trailing ":" prevents cross-server ID matches.
-                    recentSelectionStore.clearByPrefix("config_option:$serverId:")
-                    recentSelectionStore.clearByPrefix("commands:$serverId:")
-                    sessionRepository.clearSessions(serverId)
-                    sessionSettingsRepository.deleteSettings(serverId)
-                    launchableTargetRepository.deleteTarget(serverId)
+                    stores.recentSelectionStore.clearByPrefix("config_option:$serverId:")
+                    stores.recentSelectionStore.clearByPrefix("commands:$serverId:")
+                    repos.sessionRepository.clearSessions(serverId)
+                    repos.sessionSettingsRepository.deleteSettings(serverId)
+                    repos.launchableTargetRepository.deleteTarget(serverId)
                 }
                 // If we were connected to this server, disconnect
                 if (_uiState.value.connectedServerState?.serverId == serverId) {
@@ -479,51 +428,12 @@ class ServerListViewModel
             _uiState.update { it.copy(showConnectionError = null) }
         }
 
-        private fun handleLaunchEvent(event: AgentLaunchEvent) {
-            when (event) {
-                is AgentLaunchEvent.Initialized -> {
-                    _uiState.update { current ->
-                        current.copy(
-                            connectedServerState =
-                                current.connectedServerState?.copy(
-                                    agentName = event.agentName,
-                                    isInitializing = false,
-                                ),
-                        )
-                    }
-                }
-
-                is AgentLaunchEvent.Failed -> {
-                    _uiState.update { current ->
-                        val pendingAuthentication = current.pendingAuthentication
-                        if (pendingAuthentication != null &&
-                            current.connectingServerId == pendingAuthentication.serverId
-                        ) {
-                            current.copy(
-                                connectingServerId = null,
-                                pendingAuthentication = pendingAuthentication.copy(authErrorMessage = event.message),
-                                connectedServerState = current.connectedServerState?.copy(isInitializing = false),
-                            )
-                        } else {
-                            current.copy(
-                                showConnectionError = event.message,
-                                connectedServerState =
-                                    current.connectedServerState?.copy(
-                                        isInitializing = false,
-                                    ),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         private suspend fun savePreferredAuthMethod(
             targetId: String,
             methodId: String,
         ) {
-            withContext(Dispatchers.IO) {
-                launchableTargetRepository.updatePreferredAuthMethod(targetId, methodId)
+            withContext(ioDispatcher) {
+                repos.launchableTargetRepository.updatePreferredAuthMethod(targetId, methodId)
             }
         }
 

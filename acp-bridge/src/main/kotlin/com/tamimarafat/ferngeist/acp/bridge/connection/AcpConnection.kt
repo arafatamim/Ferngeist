@@ -38,9 +38,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @Suppress("TooManyFunctions") // the module's single connection entry point
 class AcpConnection(
-    private val connectivityObserver: ConnectivityObserver,
+    connectivityObserver: ConnectivityObserver,
     // Mints a fresh attachToken for a gateway session; see [AcpTransportClient].
-    private val resumeAttachToken: suspend (
+    resumeAttachToken: suspend (
         gateway: AcpConnectionConfig.Gateway,
         session: AcpConnectionConfig.ResumeInfo,
     ) -> String,
@@ -104,12 +104,35 @@ class AcpConnection(
             resumeAttachToken = resumeAttachToken,
             scope = scope,
             diagnosticsStore = diagnosticsStore,
-            updateConnectionState = { state -> _connectionState.value = state },
-            emitManagerEvent = { event -> _events.emit(event) },
-            // Runs after a background reconnect's handshake, before Connected is announced.
-            onReconnected = { result -> restoreSessions(result) },
-            onRemoteTurnEnded = { sessionId, stopReason -> sessions.endRemoteTurn(sessionId, stopReason) },
-            onRemoteResumed = { sessionId, replayedFrames -> sessions.onRemoteResumed(sessionId, replayedFrames) },
+            listener =
+                object : AcpTransportListener {
+                    override fun updateConnectionState(state: AcpConnectionState) {
+                        _connectionState.value = state
+                    }
+
+                    override suspend fun emitManagerEvent(event: AcpManagerEvent) {
+                        _events.emit(event)
+                    }
+
+                    // Runs after a background reconnect's handshake, before Connected is announced.
+                    override suspend fun onReconnected(result: AcpInitializeResult) {
+                        restoreSessions(result)
+                    }
+
+                    override suspend fun onRemoteTurnEnded(
+                        sessionId: String,
+                        stopReason: String,
+                    ) {
+                        sessions.endRemoteTurn(sessionId, stopReason)
+                    }
+
+                    override suspend fun onRemoteResumed(
+                        sessionId: String,
+                        replayedFrames: Int,
+                    ) {
+                        sessions.onRemoteResumed(sessionId, replayedFrames)
+                    }
+                },
         )
 
     /** True while a background reconnect loop is armed, including its backoff waits. */
@@ -156,7 +179,7 @@ class AcpConnection(
         label: String,
         summary: String,
     ) {
-        diagnosticsStore.appendRpcEntry(RpcDirection.InboundResult, label, summary = summary)
+        diagnosticsStore.appendRpcEntry(RpcDirection.INBOUND_RESULT, label, summary = summary)
     }
 
     // A transport reset detaches sessions but keeps their bridges: the transcript a
@@ -231,16 +254,16 @@ class AcpConnection(
     }
 
     suspend fun initialize(): AcpInitializeResult? {
-        val result = transportClient.initialize()
+        val result = transportClient.handshake.initialize()
         _agentCapabilities.value = result?.agentCapabilities
         _agentInfo.value = result?.agentInfo
-        authMethodsFlow.value = result?.authMethods ?: emptyList()
+        authMethodsFlow.value = result?.authMethods.orEmpty()
         return result
     }
 
-    fun currentConnectionConfig(): AcpConnectionConfig? = transportClient.currentConnectionConfig()
+    fun currentConnectionConfig(): AcpConnectionConfig? = transportClient.currentConnectionConfig
 
-    suspend fun authenticate(methodId: String): AcpAuthenticateResult = transportClient.authenticate(methodId)
+    suspend fun authenticate(methodId: String): AcpAuthenticateResult = transportClient.handshake.authenticate(methodId)
 
     fun disconnect() {
         transportClient.disconnect(resetState = ::releaseConnectionState)
@@ -293,39 +316,37 @@ class AcpConnection(
                     )
                 }
             }
-        }.getOrElse { error ->
-            // A real cancellation — not our own 10s bound — is the caller going away, so it
-            // passes through untouched. Everything else is raised as itself: an auth challenge
-            // replaces the failure and is not also logged as a listing error, and any other
-            // cause is recorded before it is re-raised, because the caller needs the failure
-            // rather than an empty list that reads as "this agent has no sessions".
-            val realCancellation =
-                error is CancellationException &&
-                    error !is kotlinx.coroutines.TimeoutCancellationException
-            val toRaise =
-                if (realCancellation) {
-                    error
-                } else {
-                    val failure =
-                        if (error is kotlinx.coroutines.TimeoutCancellationException) {
-                            SessionListingUnavailableException(
-                                "Timed out waiting for the agent to list its sessions " +
-                                    "(${LIST_SESSIONS_TIMEOUT_MS / 1000}s). Check the connection and retry.",
-                            )
-                        } else {
-                            error
-                        }
-                    val auth = toAuthRequiredException(failure)
-                    if (auth == null) {
-                        diagnosticsStore.appendError(
-                            "session/list",
-                            formatAcpErrorMessage(failure, "Failed to list sessions"),
-                        )
-                    }
-                    auth ?: failure
-                }
-            throw toRaise
+        }.getOrElse { error -> throw listingFailure(error) }
+    }
+
+    /**
+     * What a failed listing raises. A real cancellation — not our own 10s bound — is the caller
+     * going away, so it passes through untouched. Everything else is raised as itself: an auth
+     * challenge replaces the failure and is not also logged as a listing error, and any other
+     * cause is recorded before it is re-raised, because the caller needs the failure rather than
+     * an empty list that reads as "this agent has no sessions".
+     */
+    private fun listingFailure(error: Throwable): Throwable {
+        if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) {
+            return error
         }
+        val failure =
+            if (error is kotlinx.coroutines.TimeoutCancellationException) {
+                SessionListingUnavailableException(
+                    "Timed out waiting for the agent to list its sessions " +
+                        "(${LIST_SESSIONS_TIMEOUT_MS / 1000}s). Check the connection and retry.",
+                )
+            } else {
+                error
+            }
+        val auth = toAuthRequiredException(failure)
+        if (auth == null) {
+            diagnosticsStore.appendError(
+                "session/list",
+                formatAcpErrorMessage(failure, "Failed to list sessions"),
+            )
+        }
+        return auth ?: failure
     }
 
     /**
@@ -349,10 +370,6 @@ class AcpConnection(
             )
             false
         }
-    }
-
-    internal suspend fun awaitConnectivityForReconnect() {
-        transportClient.awaitConnectivityForReconnect()
     }
 
     private fun resetAgentMetadata() {

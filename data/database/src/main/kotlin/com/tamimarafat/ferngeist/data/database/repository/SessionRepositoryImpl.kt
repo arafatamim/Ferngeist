@@ -1,16 +1,20 @@
 package com.tamimarafat.ferngeist.data.database.repository
 
+import androidx.room.withTransaction
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.data.database.dao.SessionDao
+import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.entity.SessionEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 class SessionRepositoryImpl(
-    private val sessionDao: SessionDao,
+    private val database: FerngeistDatabase,
 ) : SessionRepository {
+    private val sessionDao = database.sessionDao()
+    private val leaseDao = database.gatewaySessionLeaseDao()
+
     override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
         sessionDao
             .getSessionsByServerId(serverId)
@@ -57,13 +61,42 @@ class SessionRepositoryImpl(
         // One gateway session serves one chat, so this both records the mapping
         // and makes this row the sole owner — any other row pointing at the same
         // session releases it, since a stale claim would otherwise resume the
-        // session on a cold start and put two chats on one lease. Atomicity is
-        // the DAO's job: see [SessionDao.setGatewaySessionId].
-        sessionDao.setGatewaySessionId(
-            serverId = serverId,
-            sessionId = sessionId,
-            gatewaySessionId = gatewaySessionId,
-        )
+        // session on a cold start and put two chats on one lease.
+        //
+        // The claim and the release have to be separate statements (the release is an
+        // "everything except this row" predicate), which leaves a window: two chats
+        // claiming the same gateway session in an interleaved order — update A,
+        // update B, clear-for-A drops B, clear-for-B drops A — leave **no** row
+        // owning the session, so neither chat resumes it and it is leaked. Running
+        // both statements in one transaction serialises the two claims, making the
+        // last writer the sole owner.
+        database.withTransaction {
+            val updated =
+                leaseDao.updateGatewaySessionId(
+                    sessionId = sessionId,
+                    serverId = serverId,
+                    gatewaySessionId = gatewaySessionId,
+                )
+            if (updated == 0 && gatewaySessionId != null) {
+                // Create-on-arrival chats can attach before any list refresh has
+                // inserted the row; seed a minimal one so the mapping survives.
+                sessionDao.upsertSession(
+                    sessionId = sessionId,
+                    serverId = serverId,
+                    title = null,
+                    cwd = null,
+                    updatedAt = null,
+                    gatewaySessionId = gatewaySessionId,
+                )
+            }
+            if (gatewaySessionId != null) {
+                leaseDao.clearGatewaySessionClaim(
+                    serverId = serverId,
+                    gatewaySessionId = gatewaySessionId,
+                    sessionId = sessionId,
+                )
+            }
+        }
     }
 
     override suspend fun updateSessionTitle(
@@ -94,9 +127,9 @@ class SessionRepositoryImpl(
         liveGatewaySessionIds: Set<String>,
     ): Int =
         if (liveGatewaySessionIds.isEmpty()) {
-            sessionDao.clearAllGatewaySessions(serverId)
+            leaseDao.clearAllGatewaySessions(serverId)
         } else {
-            sessionDao.clearStaleGatewaySessions(serverId, liveGatewaySessionIds)
+            leaseDao.clearStaleGatewaySessions(serverId, liveGatewaySessionIds)
         }
 
     override suspend fun clearSessions(serverId: String) {

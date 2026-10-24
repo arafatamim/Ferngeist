@@ -191,7 +191,7 @@ internal fun PinnedPrompt(
         // The prompt's own bubble, cut to two lines.
         ElevatedCard(
             onClick = onClick,
-            shape = UserBubbleShape,
+            shape = userBubbleShape,
             colors =
                 CardDefaults.elevatedCardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,

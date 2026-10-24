@@ -17,7 +17,7 @@ internal data class GitBranchScope(
 ) {
     companion object {
         /** Nothing marked: every row draws in its lane's own colour. */
-        val None = GitBranchScope(ownCount = 0, baseLoaded = false)
+        val none = GitBranchScope(ownCount = 0, baseLoaded = false)
     }
 }
 
@@ -34,12 +34,12 @@ internal fun gitBranchScope(
     base: String?,
     hasMore: Boolean,
 ): GitBranchScope {
-    if (base == null || commits.isEmpty()) return GitBranchScope.None
+    if (base == null || commits.isEmpty()) return GitBranchScope.none
     val baseIndex = commits.indexOfFirst { it.sha == base }
     return when {
         baseIndex >= 0 -> GitBranchScope(ownCount = baseIndex, baseLoaded = true)
         hasMore -> GitBranchScope(ownCount = commits.size, baseLoaded = false)
-        else -> GitBranchScope.None
+        else -> GitBranchScope.none
     }
 }
 
@@ -51,16 +51,16 @@ internal data class BandFade(
     val top: Float,
     val bottom: Float,
 ) {
-    /** The blend the band's node sits in, and the one a fadeless band draws in. */
-    val mid: Float get() = (top + bottom) / 2f
-
-    /** A band that is one colour top to bottom needs no gradient. */
-    val isFlat: Boolean get() = top == bottom
-
     companion object {
-        val None = BandFade(0f, 0f)
+        val none = BandFade(0f, 0f)
     }
 }
+
+/** The blend the band's node sits in, and the one a fadeless band draws in. */
+internal val BandFade.mid: Float get() = (top + bottom) / 2f
+
+/** A band that is one colour top to bottom needs no gradient. */
+internal val BandFade.isFlat: Boolean get() = top == bottom
 
 /**
  * Where each band of the list draws the lane between its own colour and the muted grey, one band

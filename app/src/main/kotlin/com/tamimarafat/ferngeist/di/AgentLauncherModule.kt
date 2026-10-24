@@ -1,8 +1,10 @@
 package com.tamimarafat.ferngeist.di
 
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog
+import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLauncher
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
@@ -11,6 +13,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
 import javax.inject.Singleton
 
 /**
@@ -26,18 +29,28 @@ object AgentLauncherModule {
     @Singleton
     fun provideAgentLauncher(
         hub: ChatConnectionHub,
-        gatewayRepository: GatewayRepository,
-        gatewaySourceRepository: GatewaySourceRepository,
-        launchableTargetRepository: LaunchableTargetRepository,
+        repositories: LaunchRepositories,
         authEnvValueStore: AuthEnvValueStore,
         sessionCatalog: SessionCatalog,
     ): AgentLauncher =
         AgentLauncher(
             hub = hub,
+            repositories = repositories,
+            authEnvValueStore = authEnvValueStore,
+            sessionCatalog = sessionCatalog,
+        )
+
+    @Provides
+    fun provideLaunchRepositories(
+        gatewayRepository: GatewayRepository,
+        gatewaySourceRepository: GatewaySourceRepository,
+        launchableTargetRepository: LaunchableTargetRepository,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher,
+    ): LaunchRepositories =
+        LaunchRepositories(
             gatewayRepository = gatewayRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             launchableTargetRepository = launchableTargetRepository,
-            authEnvValueStore = authEnvValueStore,
-            sessionCatalog = sessionCatalog,
+            ioDispatcher = ioDispatcher,
         )
 }

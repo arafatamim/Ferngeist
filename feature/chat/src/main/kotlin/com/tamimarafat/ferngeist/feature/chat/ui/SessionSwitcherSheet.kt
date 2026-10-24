@@ -94,6 +94,7 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
 import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
+import com.tamimarafat.ferngeist.feature.chat.ui.message.rememberShimmerTextBrush
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -104,7 +105,7 @@ import kotlin.math.abs
  * geometric size looks heavier next to a long capsule, so the circle sits
  * slightly under the pill height (centered by the host row).
  */
-private val SWITCHER_BUBBLE_OPTICAL_INSET = 4.dp
+private val switcherBubbleOpticalInset = 4.dp
 
 /** How long a dismissed row waits for the model to drop it before springing back. */
 private const val DISMISS_REMOVE_GRACE_MS = 600L
@@ -117,9 +118,9 @@ private fun <T> switcherShiftSpring() =
     )
 
 /** Count box: landscape rounded rectangle one digit sits in; wider counts grow it. */
-private val SWITCHER_COUNT_BOX_MIN_WIDTH = 24.dp
-private val SWITCHER_COUNT_BOX_MIN_HEIGHT = 20.dp
-private val SWITCHER_COUNT_BOX_CORNER = 5.dp
+private val switcherCountBoxMinWidth = 24.dp
+private val switcherCountBoxMinHeight = 20.dp
+private val switcherCountBoxCorner = 5.dp
 
 /** First-run hint waits out the entrance wipe so the bubble pops onto a settled button. */
 private const val SWITCHER_HINT_DELAY_MS = 600L
@@ -131,14 +132,14 @@ private const val SWITCHER_HINT_TIMEOUT_MS = 7_000L
 private const val SWITCHER_HINT_EXIT_MS = 200L
 
 /** Coach-mark bubble: chunkier than a PlainTooltip — bigger corners, roomier padding. */
-private val SWITCHER_HINT_CORNER = 12.dp
+private val switcherHintCorner = 12.dp
 
 /** Coach-mark arrow: a wide downward triangle pointing at the button's center. */
-private val SWITCHER_HINT_ARROW_WIDTH = 16.dp
-private val SWITCHER_HINT_ARROW_HEIGHT = 8.dp
+private val switcherHintArrowWidth = 16.dp
+private val switcherHintArrowHeight = 8.dp
 
 /** Gap between the arrow tip and the top of the button. */
-private val SWITCHER_HINT_GAP = 8.dp
+private val switcherHintGap = 8.dp
 
 /**
  * Reports a horizontal drag for the Chrome-style switch: deltas while moving,
@@ -279,7 +280,7 @@ internal fun SessionSwitcherBubble(
         val hintPositionProvider =
             remember(density) {
                 SwitcherHintPositionProvider(
-                    gapPx = with(density) { SWITCHER_HINT_GAP.toPx().toInt() },
+                    gapPx = with(density) { switcherHintGap.toPx().toInt() },
                 )
             }
         TooltipBox(
@@ -304,7 +305,7 @@ internal fun SessionSwitcherBubble(
                 shadowElevation = 6.dp,
                 modifier =
                     Modifier
-                        .size(COLLAPSED_COMPOSER_HEIGHT - SWITCHER_BUBBLE_OPTICAL_INSET)
+                        .size(collapsedComposerHeight - switcherBubbleOpticalInset)
                         .switcherDrag(
                             onDragStart = {
                                 consumeHint()
@@ -327,12 +328,12 @@ internal fun SessionSwitcherBubble(
                         modifier =
                             Modifier
                                 .sizeIn(
-                                    minWidth = SWITCHER_COUNT_BOX_MIN_WIDTH,
-                                    minHeight = SWITCHER_COUNT_BOX_MIN_HEIGHT,
+                                    minWidth = switcherCountBoxMinWidth,
+                                    minHeight = switcherCountBoxMinHeight,
                                 ).border(
                                     width = 2.dp,
                                     color = MaterialTheme.colorScheme.onPrimary,
-                                    shape = RoundedCornerShape(SWITCHER_COUNT_BOX_CORNER),
+                                    shape = RoundedCornerShape(switcherCountBoxCorner),
                                 ).padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
                         Text(
@@ -386,7 +387,7 @@ private fun SwitcherHintBubble(modifier: Modifier = Modifier) {
         modifier = modifier,
     ) {
         Surface(
-            shape = RoundedCornerShape(SWITCHER_HINT_CORNER),
+            shape = RoundedCornerShape(switcherHintCorner),
             color = bubbleColor,
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
         ) {
@@ -406,7 +407,7 @@ private fun SwitcherHintBubble(modifier: Modifier = Modifier) {
                 Modifier
                     .padding(end = 21.dp)
                     .offset(y = (-1).dp)
-                    .size(width = SWITCHER_HINT_ARROW_WIDTH, height = SWITCHER_HINT_ARROW_HEIGHT),
+                    .size(width = switcherHintArrowWidth, height = switcherHintArrowHeight),
         ) {
             val path =
                 Path().apply {

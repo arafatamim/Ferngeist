@@ -44,40 +44,61 @@ class PushNotifier
         private val appForegroundState: AppForegroundState,
     ) {
         suspend fun show(data: Map<String, String>) {
-            val title = data[PushPayloadKeys.TITLE] ?: context.getString(R.string.push_default_title)
-            val body = data[PushPayloadKeys.BODY] ?: context.getString(R.string.push_default_body)
             val sessionId = data[PushPayloadKeys.SESSION_ID]
             val category = data[PushPayloadKeys.CATEGORY]
 
-            // The turn is over, so its "working" notification is stale — even when this push
-            // itself is suppressed below.
-            if (sessionId != null && category in TURN_END_CATEGORIES) {
-                context
-                    .getSystemService(NotificationManager::class.java)
-                    .cancel(notificationIdFor(PUSH_CATEGORY_PROGRESS, sessionId) { 0 })
-            }
+            cancelStaleProgress(category, sessionId)
 
             // Skip pushes the user is already watching live in the foreground. Suppression
             // matches on the gateway-owned id, not a local id, so it survives the local-id churn
             // (and duplicate records) a re-pair can introduce. The presence carries the local
             // GatewaySource id, so it is translated first: compared raw, it never matched the push.
-            val onScreen = chatConnectionHub.onScreenChat.value
-            val onScreenGatewayId =
-                onScreen?.gatewaySourceId?.let { gatewaySourceRepository.getGateway(it)?.gatewayId }
-            if (PushNotificationPolicy.shouldSuppress(
-                    isAppForeground = appForegroundState.isForeground.value,
-                    foregroundChat = onScreen?.copy(gatewaySourceId = onScreenGatewayId),
-                    targetGatewayId = data[PushPayloadKeys.SERVER_ID],
-                    targetSessionId = sessionId,
-                )
-            ) {
-                return
-            }
+            if (isWatchedLive(data, sessionId)) return
 
             // Null when unknown → no deep-link.
             val target = chatTarget(data, sessionId)
 
             ensurePushChannels(context)
+            postNotification(data, category, sessionId, target)
+        }
+
+        /** Cancels the "working" notification of a turn that has ended. */
+        private fun cancelStaleProgress(
+            category: String?,
+            sessionId: String?,
+        ) {
+            // The turn is over, so its "working" notification is stale — even when this push
+            // itself is suppressed below.
+            if (sessionId != null && category in turnEndCategories) {
+                context
+                    .getSystemService(NotificationManager::class.java)
+                    .cancel(notificationIdFor(PUSH_CATEGORY_PROGRESS, sessionId) { 0 })
+            }
+        }
+
+        private suspend fun isWatchedLive(
+            data: Map<String, String>,
+            sessionId: String?,
+        ): Boolean {
+            val onScreen = chatConnectionHub.onScreenChat.value
+            val onScreenGatewayId =
+                onScreen?.gatewaySourceId?.let { gatewaySourceRepository.getGateway(it)?.gatewayId }
+            return PushNotificationPolicy.shouldSuppress(
+                isAppForeground = appForegroundState.isForeground.value,
+                foregroundChat = onScreen?.copy(gatewaySourceId = onScreenGatewayId),
+                targetGatewayId = data[PushPayloadKeys.SERVER_ID],
+                targetSessionId = sessionId,
+            )
+        }
+
+        private fun postNotification(
+            data: Map<String, String>,
+            category: String?,
+            sessionId: String?,
+            target: ChatDeepLinkTarget?,
+        ) {
+            val title = data[PushPayloadKeys.TITLE] ?: context.getString(R.string.push_default_title)
+            val body = data[PushPayloadKeys.BODY] ?: context.getString(R.string.push_default_body)
 
             // Progress pushes are throttled server-side to one per ~15s per session, so they
             // should replace (not stack) the previous "Agent working" notification for that
@@ -165,5 +186,5 @@ class PushNotifier
         }
     }
 
-private val TURN_END_CATEGORIES =
+private val turnEndCategories =
     setOf(PUSH_CATEGORY_TURN_COMPLETE, PUSH_CATEGORY_AGENT_ERROR, PUSH_CATEGORY_AGENT_CRASH)

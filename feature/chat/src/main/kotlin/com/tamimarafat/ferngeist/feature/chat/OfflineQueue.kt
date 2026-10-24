@@ -71,17 +71,9 @@ class OfflineQueue {
     /** Removes and returns the oldest prompt, or null if empty. */
     fun dequeue(): PendingPrompt? = prompts.removeFirstOrNull()
 
-    /** Returns the oldest prompt without removing it. */
-    fun peek(): PendingPrompt? = prompts.firstOrNull()
-
     /**
      * Removes every prompt whose [PendingPrompt.clientId] equals [clientId].
      * Returns true if at least one prompt was removed.
      */
     fun removeByClientId(clientId: String): Boolean = prompts.removeAll { it.clientId == clientId }
-
-    /** Clears all pending prompts. */
-    fun clear() {
-        prompts.clear()
-    }
 }

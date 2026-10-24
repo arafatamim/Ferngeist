@@ -25,13 +25,13 @@ internal object SyntaxLanguageResolver {
             name == "containerfile" || name.startsWith("containerfile.") -> "dockerfile"
             name == "makefile" -> "makefile"
             name == ".env" -> "dotenv"
-            else -> EXTENSIONS[name.substringAfterLast('.', "")]
+            else -> eXTENSIONS[name.substringAfterLast('.', "")]
         }
     }
 }
 
 /** Canonical SyntaxMP language ids; the tokenizer also accepts the usual aliases. */
-private val EXTENSIONS =
+private val eXTENSIONS =
     mapOf(
         "kt" to "kotlin",
         "kts" to "kotlin",

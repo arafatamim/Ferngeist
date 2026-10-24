@@ -7,7 +7,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
-import androidx.compose.animation.core.EaseOutExpo
 import androidx.compose.animation.core.EaseOutQuint
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
@@ -21,13 +20,10 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,7 +37,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -52,28 +47,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
@@ -84,9 +70,19 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SegmentBlock
-import com.tamimarafat.ferngeist.feature.chat.markdown.RunReveal
-import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
-import kotlin.math.min
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
+import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
+import com.tamimarafat.ferngeist.feature.chat.ui.files.landed
+import com.tamimarafat.ferngeist.feature.chat.ui.message.rememberShimmerTextBrush
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.RailRowFrame
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ThoughtRowContent
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ToolRowContent
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.description
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.joinSummary
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.summaryParts
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.summaryVerb
 
 /*
  * Adjacent tool calls as one activity: a summary line that folds open into compact rows joined
@@ -94,20 +90,20 @@ import kotlin.math.min
  * docs/design/tool-call-rail.md for what was kept and what Compose already does.
  */
 
-private val TRUNK_X = 12.dp
-private val BEND_RADIUS = 6.dp
-private val BRANCH_END_X = 28.dp
-private val ICON_LEFT = 32.dp
-private val ICON_SIZE = 24.dp
-private val TEXT_GAP = 8.dp
-private val ROW_HEIGHT = 36.dp
-internal val RAIL_ROW_HEIGHT get() = ROW_HEIGHT
-internal val RAIL_TEXT_START get() = ICON_LEFT
-private val RAIL_STROKE = 1.5.dp
-private val CHEVRON_SIZE = 16.dp
+private val trunkX = 12.dp
+private val bendRadius = 6.dp
+private val branchEndX = 28.dp
+internal val iconLeft = 32.dp
+internal val iconSize = 24.dp
+internal val textGap = 8.dp
+internal val rowHeight = 36.dp
+internal val railRowHeight get() = rowHeight
+internal val railTextStart get() = iconLeft
+private val railStroke = 1.5.dp
+private val chevronSize = 16.dp
 
-private const val CONNECTOR_MS = 480
-private const val ROW_REVEAL_MS = 360
+internal const val CONNECTOR_MS = 480
+internal const val ROW_REVEAL_MS = 360
 private const val FIRST_ROW_DELAY_MS = 90
 private const val ROW_STAGGER_MS = 65
 private const val CHEVRON_OPEN_DEGREES = 90f
@@ -150,64 +146,8 @@ internal enum class ToolVerb(
     FAILED(R.plurals.chat_tool_summary_failed),
 }
 
-/** One resolved summary part: the phrase (or twice-string) for a verb and its count. */
-internal data class SummaryPart(
-    @PluralsRes val phrase: Int,
-    @StringRes val twice: Int?,
-    val count: Int,
-    @StringRes val label: Int? = null,
-)
-
-/** Picks the past-tense or present-continuous phrase per verb. Pure, so JVM tests can cover it. */
-internal fun summaryParts(
-    verbs: List<ToolVerb>,
-    running: Boolean,
-): List<SummaryPart> =
-    toolVerbCounts(verbs).map { (verb, count) ->
-        if (running && verb.runningLabel != null) {
-            SummaryPart(verb.phrase, null, count, verb.runningLabel)
-        } else if (running && verb.runningPhrase != null) {
-            SummaryPart(verb.runningPhrase, verb.runningTwice, count)
-        } else {
-            SummaryPart(verb.phrase, verb.twice, count)
-        }
-    }
-
-/** Items counted by verb, in the order each verb first appears, with FAILED always last. */
-internal fun toolVerbCounts(verbs: List<ToolVerb>): List<Pair<ToolVerb, Int>> =
-    verbs
-        .groupingBy { it }
-        .eachCount()
-        .toList()
-        .sortedBy { it.first == ToolVerb.FAILED }
-
-/** A failed call did not do its verb, so it counts as FAILED instead. */
-internal fun ToolCallDisplay.summaryVerb(): ToolVerb =
-    if (status == ToolCallStatus.FAILED) {
-        ToolVerb.FAILED
-    } else {
-        when (kind) {
-            ToolKind.EXECUTE -> ToolVerb.EXECUTE
-            ToolKind.READ -> ToolVerb.READ
-            ToolKind.EDIT -> ToolVerb.EDIT
-            ToolKind.DELETE -> ToolVerb.DELETE
-            ToolKind.MOVE -> ToolVerb.MOVE
-            ToolKind.SEARCH -> ToolVerb.SEARCH
-            ToolKind.FETCH -> ToolVerb.FETCH
-            // A THINK call renders no reasoning, so counting it as a thought would describe
-            // nothing visible.
-            ToolKind.THINK, ToolKind.SWITCH_MODE, ToolKind.OTHER, null -> ToolVerb.OTHER
-        }
-    }
-
-/** Joins the summary's phrases and capitalises the first, as a sentence. */
-internal fun joinSummary(
-    phrases: List<String>,
-    separator: String,
-): String = joinPhrases(phrases, separator).replaceFirstChar { it.titlecase() }
-
 /** One row on the rail: a tool call, or a run of reasoning. */
-private class RailRow(
+internal class RailRow(
     val id: String,
     val call: ToolCallDisplay?,
     val thought: SegmentBlock.Run?,
@@ -217,14 +157,14 @@ private class RailRow(
         get() = thinking || call?.status == ToolCallStatus.PENDING || call?.status == ToolCallStatus.IN_PROGRESS
 }
 
-private val RailRow.verb: ToolVerb get() = call?.summaryVerb() ?: ToolVerb.THOUGHT
+internal val RailRow.verb: ToolVerb get() = call?.summaryVerb() ?: ToolVerb.THOUGHT
 
 // A file verb counts files, not calls: three edits to one file are "edited a file".
-private val RailRow.summaryKey: Any
+internal val RailRow.summaryKey: Any
     get() = call?.filePath()?.takeIf { verb != ToolVerb.FAILED }?.let { verb to it } ?: id
 
 // Only a change that happened counts toward the group's total (see landed()).
-private fun RailRow.landedDiffs(): List<ToolCallContent.Diff> = call?.takeIf { it.landed() }?.diffs().orEmpty()
+internal fun RailRow.landedDiffs(): List<ToolCallContent.Diff> = call?.takeIf { it.landed() }?.diffs().orEmpty()
 
 /** The diffs' total, or null when there are none to count. */
 @Composable
@@ -254,20 +194,7 @@ internal fun ToolCallGroup(
     modifier: Modifier = Modifier,
     startedAtMs: Long? = null,
 ) {
-    val rows =
-        items.mapNotNull { item ->
-            when (item) {
-                is SegmentBlock.Single -> item.segment.toolCall?.let { RailRow(item.key, it, null, thinking = false) }
-                is SegmentBlock.Run ->
-                    RailRow(
-                        item.key,
-                        null,
-                        item,
-                        thinking = item.segments.last().id == liveSegmentId,
-                    )
-                is SegmentBlock.Group -> null
-            }
-        }
+    val rows = railRowsOf(items, liveSegmentId)
     if (rows.isEmpty()) return
 
     val running = rows.any { it.running }
@@ -292,15 +219,7 @@ internal fun ToolCallGroup(
     // Only while live: once the group ends, the time is clutter beside the reply.
     val elapsed = rememberElapsedLabel(startedAtMs, live = live)
     // A sole row with a diff would repeat the header's total, so only the header shows it.
-    val soleDiffRow =
-        rows
-            .singleOrNull {
-                it.call
-                    ?.diffs()
-                    .orEmpty()
-                    .isNotEmpty()
-            }?.takeIf { it.landedDiffs().isNotEmpty() }
-            ?.id
+    val soleDiffRow = soleDiffRowId(rows)
 
     Column(modifier = modifier.fillMaxWidth()) {
         ToolGroupHeader(
@@ -322,16 +241,45 @@ internal fun ToolCallGroup(
     }
 }
 
-/** Open, live rails in the transcript, counted for [ChatScrollHandle]; null outside it. */
-internal val LocalActiveRails = compositionLocalOf<MutableIntState?> { null }
+/** One rail row per call or thought run; a group of rows has no row of its own. */
+private fun railRowsOf(
+    items: List<SegmentBlock>,
+    liveSegmentId: String?,
+): List<RailRow> =
+    items.mapNotNull { item ->
+        when (item) {
+            is SegmentBlock.Single -> item.segment.toolCall?.let { RailRow(item.key, it, null, thinking = false) }
+            is SegmentBlock.Run ->
+                RailRow(
+                    item.key,
+                    null,
+                    item,
+                    thinking = item.segments.last().id == liveSegmentId,
+                )
+            is SegmentBlock.Group -> null
+        }
+    }
 
-/** Counts this rail into [LocalActiveRails] while it is [open] and [live]. */
+private fun soleDiffRowId(rows: List<RailRow>): String? =
+    rows
+        .singleOrNull {
+            it.call
+                ?.diffs()
+                .orEmpty()
+                .isNotEmpty()
+        }?.takeIf { it.landedDiffs().isNotEmpty() }
+        ?.id
+
+/** Open, live rails in the transcript, counted for [ChatScrollHandle]; null outside it. */
+internal val localActiveRails = compositionLocalOf<MutableIntState?> { null }
+
+/** Counts this rail into [localActiveRails] while it is [open] and [live]. */
 @Composable
 private fun TrackActiveRail(
     open: Boolean,
     live: Boolean,
 ) {
-    val rails = LocalActiveRails.current ?: return
+    val rails = localActiveRails.current ?: return
     if (open && live) {
         DisposableEffect(rails) {
             rails.intValue++
@@ -340,7 +288,7 @@ private fun TrackActiveRail(
     }
 }
 
-/** A fully drawn rail behind [rowCount] rows of [RAIL_ROW_HEIGHT], for lists that share the tool rail's look. */
+/** A fully drawn rail behind [rowCount] rows of [railRowHeight], for lists that share the tool rail's look. */
 @Composable
 internal fun SettledRail(
     rowCount: Int,
@@ -436,12 +384,12 @@ internal fun ToolGroupHeader(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = stringResource(R.string.chat_tool_call_details_desc),
                 tint = baseColor,
-                modifier = modifier.size(CHEVRON_SIZE).graphicsLayer { rotationZ = rotation },
+                modifier = modifier.size(chevronSize).graphicsLayer { rotationZ = rotation },
             )
         }
         if (!chevronAtEnd) {
             // Centred on the trunk, so the open chevron points straight down the rail.
-            chevron(Modifier.padding(start = TRUNK_X - CHEVRON_SIZE / 2))
+            chevron(Modifier.padding(start = trunkX - chevronSize / 2))
             Spacer(modifier = Modifier.width(4.dp))
         }
         // The summary wraps freely; the diff total holds the end. A new summary rises
@@ -539,190 +487,6 @@ private fun ToolRail(
     }
 }
 
-@Composable
-private fun RailRow.description(): String =
-    call?.let { it.titleWithFile() + " " + (it.status?.name?.lowercase() ?: "unknown") }
-        ?: stringResource(R.string.chat_reasoning_desc)
-
-@Composable
-private fun RailRowFrame(
-    reveal: Animatable<Float, AnimationVector1D>,
-    description: String,
-    onClick: () -> Unit,
-    content: @Composable RowScope.() -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(ROW_HEIGHT)
-                .handCursor()
-                .clickable(onClick = onClick)
-                .semantics { contentDescription = description }
-                .padding(start = ICON_LEFT)
-                // Content is readable before its line lands: expo over 360ms against the line's 480ms.
-                .graphicsLayer {
-                    alpha = EaseOutExpo.transform((reveal.value * CONNECTOR_MS / ROW_REVEAL_MS).coerceAtMost(1f))
-                },
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
-}
-
-@Composable
-private fun RowScope.ToolRowContent(
-    call: ToolCallDisplay,
-    showStats: Boolean,
-) {
-    Box(modifier = Modifier.size(ICON_SIZE), contentAlignment = Alignment.Center) {
-        ToolCallStatusIndicator(call)
-    }
-    Spacer(modifier = Modifier.width(TEXT_GAP))
-    val file = call.filePath()
-    if (file == null) {
-        Text(
-            text = call.title.ifBlank { stringResource(R.string.chat_tool_call) },
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f),
-        )
-    } else {
-        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            call.titleWithoutFile().takeIf { it.isNotEmpty() }?.let {
-                Text(
-                    text = it,
-                    maxLines = 1,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(end = 6.dp),
-                )
-            }
-            FileChip(file, modifier = Modifier.weight(1f, fill = false))
-        }
-    }
-    if (!call.permissionOptions.isNullOrEmpty()) {
-        Text(
-            text = stringResource(R.string.chat_awaiting_permission),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 8.dp),
-        )
-    } else if (showStats) {
-        DiffSummaryRow(call.diffs(), modifier = Modifier.padding(start = 8.dp))
-    }
-}
-
-/** Reasoning row: live single-line tail while it streams, "Show Reasoning" once settled. No shimmer. */
-@Composable
-private fun RowScope.ThoughtRowContent(
-    thoughtText: String,
-    thinking: Boolean,
-) {
-    if (!thinking) {
-        Text(
-            text = stringResource(R.string.chat_show_reasoning),
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        return
-    }
-    // The line is bound to a reveal cursor, not straight to the text: reasoning arrives in a few
-    // large chunks a second, and swapping the whole line per chunk reads as popping. The cursor
-    // is rate-capped, so the tail glides out at a readable pace instead of jumping chunk to chunk.
-    val collapsed = remember(thoughtText) { collapseThought(thoughtText) }
-    val reveal = remember { RunReveal(startHidden = true, maxCharsPerSecond = THOUGHT_CHARS_PER_SECOND) }
-    SideEffect { reveal.target = collapsed.length }
-    val reducedMotion = rememberReducedMotion()
-    LaunchedEffect(reveal) { reveal.run(reducedMotion) }
-    val shown = reveal.shown.toInt()
-    val preview = remember(collapsed, shown) { liveThoughtPreview(collapsed, shown) }
-    // Anchored to the newest character, not the start: ellipsis-at-end would show the oldest text
-    // of the window and hop a character at a time. The fractional cursor slides the line between
-    // whole characters, so the tail scrolls by pixels rather than stepping.
-    val fontSize = MaterialTheme.typography.bodySmall.fontSize
-    val fontSizePx = with(LocalDensity.current) { fontSize.toPx() }
-    val charWidthPx = fontSizePx * AVG_CHAR_EM
-    var overflowing by remember { mutableStateOf(false) }
-    Text(
-        // Until the first characters release the row says what it is, rather than sitting empty.
-        text = preview.ifBlank { stringResource(R.string.chat_reasoning) },
-        style = MaterialTheme.typography.bodySmall,
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Visible,
-        modifier =
-            Modifier
-                .weight(1f)
-                .clipToBounds()
-                .liveThoughtFade { overflowing }
-                .layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints.copy(maxWidth = Constraints.Infinity))
-                    overflowing = placeable.width > constraints.maxWidth
-                    layout(constraints.maxWidth, placeable.height) {
-                        val x = (constraints.maxWidth - placeable.width).coerceAtMost(0)
-                        placeable.placeWithLayer(x, 0) {
-                            // Never slides past the start edge: until the line overflows it is
-                            // left-aligned and still, instead of sawtoothing a character per release.
-                            val slide = (1f - (reveal.shown - shown).coerceIn(0f, 1f)) * charWidthPx
-                            translationX = min(slide, -x.toFloat())
-                        }
-                    }
-                },
-    )
-}
-
-/** Collapses a reasoning run to one line: runs of whitespace become single spaces. */
-internal fun collapseThought(thoughtText: String): String = thoughtText.replace(WHITESPACE_RUN, " ").trim()
-
-/**
- * The newest [maxChars] of the first [shown] characters of an already-collapsed run. Taking the tail
- * of the released prefix keeps the newest tokens on screen, and running it over the collapsed string
- * lets the reveal cursor advance a frame at a time without re-scanning the whole run each frame.
- */
-internal fun liveThoughtPreview(
-    collapsed: String,
-    shown: Int,
-    maxChars: Int = THOUGHT_PREVIEW_CHARS,
-): String {
-    val end = shown.coerceIn(0, collapsed.length)
-    return collapsed.substring((end - maxChars).coerceAtLeast(0), end)
-}
-
-private const val THOUGHT_PREVIEW_CHARS = 200
-
-/** Reading pace for the one-line tail: a burst of reasoning queues behind it instead of flashing past. */
-private const val THOUGHT_CHARS_PER_SECOND = 25f
-
-/** Rough width of a body character in ems, to size the sub-character slide. */
-private const val AVG_CHAR_EM = 0.5f
-
-private val WHITESPACE_RUN = Regex("\\s+")
-
-/** Fades the cut edges so tokens dissolve instead of hard-clipping. */
-private fun Modifier.liveThoughtFade(
-    fadeFraction: Float = 0.25f,
-    fadeStart: () -> Boolean,
-): Modifier =
-    // Offscreen so the mask below cuts only this text, not the bubble drawn behind it.
-    this
-        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-        .drawWithContent {
-            drawContent()
-            val edge = fadeFraction.coerceIn(0f, 0.45f)
-            drawRect(
-                brush =
-                    Brush.horizontalGradient(
-                        0f to if (fadeStart()) Color.Transparent else Color.Black,
-                        edge to Color.Black,
-                        (1f - edge) to Color.Black,
-                        1f to Color.Transparent,
-                    ),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-
 /**
  * Draws the rail as one stroked path. One `drawPath` is one coverage mask, so the trunk and branch
  * never blend twice where they meet: that is what zeron's ribbon union buys, for free here.
@@ -738,16 +502,16 @@ private class RailPainter {
         progress: List<Float>,
         color: Color,
     ) {
-        val trunkX = TRUNK_X.toPx()
-        val radius = BEND_RADIUS.toPx()
-        val rowHeight = ROW_HEIGHT.toPx()
+        val trunkX = trunkX.toPx()
+        val radius = bendRadius.toPx()
+        val rowHeight = rowHeight.toPx()
         if (builtFor != density) {
             // The elbow is a quad with its control point at the corner (zeron's t², 2t−t²), then the
             // straight leg. PathMeasure trims it by arc length, so the tip moves at one speed.
             branch.reset()
             branch.moveTo(0f, 0f)
             branch.quadraticTo(0f, radius, radius, radius)
-            branch.lineTo(BRANCH_END_X.toPx() - trunkX, radius)
+            branch.lineTo(branchEndX.toPx() - trunkX, radius)
             measure.setPath(branch, false)
             builtFor = density
         }
@@ -771,7 +535,7 @@ private class RailPainter {
             }
             trunkTop = elbowTop
         }
-        drawPath(rail, color, style = Stroke(width = RAIL_STROKE.toPx()))
+        drawPath(rail, color, style = Stroke(width = railStroke.toPx()))
     }
 }
 

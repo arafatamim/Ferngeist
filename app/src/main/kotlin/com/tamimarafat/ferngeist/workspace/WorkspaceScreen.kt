@@ -98,32 +98,7 @@ fun WorkspaceScreen(
         )
     val widths = workspacePaneWidths(panes)
 
-    // D9: seed the workspace once, wide windows only (this composable is only reached wide).
-    // A warm hub entry means the transport is already attached, so mounting the chat reuses it;
-    // a cold one would connect, load and can mint a gateway session, so it is skipped.
-    // Keyed on the list because `recentSessions` starts empty and fills in asynchronously — a
-    // `Unit`-keyed effect would read that first empty value and never retry.
-    var seeded by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(recentSessions) {
-        if (seeded || workspace.selectedServerId != null) return@LaunchedEffect
-        val recent = recentSessions.firstOrNull() ?: return@LaunchedEffect
-        seeded = true
-        // The hub keys a chat as `"<serverId>/<sessionId>"`. `chatIdFor` owns that format but
-        // is internal to acp-bridge, so the string is built here.
-        val chatId = "${recent.serverId}/${recent.sessionId}"
-        if (chatConnectionHub.managerFor(chatId) != null) {
-            workspace.resumeSession(
-                WorkspaceSelection(
-                    serverId = recent.serverId,
-                    sessionId = recent.sessionId,
-                    cwd = recent.cwd ?: "/",
-                    title = recent.title.orEmpty(),
-                ),
-            )
-        } else {
-            workspace.selectAgent(recent.serverId)
-        }
-    }
+    SeedWorkspaceEffect(workspace, recentSessions, chatConnectionHub)
 
     // D1: at two panes, back steps the left pane up to the agent list while the chat stays
     // pinned. Three panes show everything, so there is nothing to undo; one pane is the
@@ -163,35 +138,86 @@ fun WorkspaceScreen(
             AnimatedPane(
                 modifier = Modifier.preferredWidth(widths.getValue(ThreePaneScaffoldRole.Tertiary)),
             ) {
-                val serverId = workspace.selectedServerId
-                val sessionId = workspace.selectedSessionId
-                if (serverId == null || sessionId == null) {
-                    EmptyPanePlaceholder()
-                } else {
-                    SwitchingChatPane(
-                        selection =
-                            WorkspaceSelection(
-                                serverId = serverId,
-                                sessionId = sessionId,
-                                cwd = workspace.cwd,
-                                title = workspace.title,
-                            ),
-                        mintedSessionId = workspace.mintedSessionId,
-                        chatViewModelFactory = chatViewModelFactory,
-                        // The workspace never gives the chat a back button: at two panes the
-                        // session list owns the one back affordance (it is the pane that
-                        // changes), and at three there is nothing to go back to. Two buttons
-                        // calling the same action on one screen is one button too many.
-                        showBackButton = false,
-                        onNavigateBack = workspace::backToAgents,
-                        onSelectSession = workspace::selectSession,
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                    )
-                }
+                WorkspaceChatPane(
+                    workspace = workspace,
+                    chatViewModelFactory = chatViewModelFactory,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                )
             }
         },
     )
+}
+
+/** The right pane: the selected chat, or the empty placeholder until a session is picked. */
+@Composable
+private fun WorkspaceChatPane(
+    workspace: WorkspaceState,
+    chatViewModelFactory: ChatViewModelFactory,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+) {
+    val serverId = workspace.selectedServerId
+    val sessionId = workspace.selectedSessionId
+    if (serverId == null || sessionId == null) {
+        EmptyPanePlaceholder()
+    } else {
+        SwitchingChatPane(
+            selection =
+                WorkspaceSelection(
+                    serverId = serverId,
+                    sessionId = sessionId,
+                    cwd = workspace.cwd,
+                    title = workspace.title,
+                ),
+            mintedSessionId = workspace.mintedSessionId,
+            chatViewModelFactory = chatViewModelFactory,
+            // The workspace never gives the chat a back button: at two panes the
+            // session list owns the one back affordance (it is the pane that
+            // changes), and at three there is nothing to go back to. Two buttons
+            // calling the same action on one screen is one button too many.
+            showBackButton = false,
+            onNavigateBack = workspace::backToAgents,
+            onSelectSession = workspace::selectSession,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+        )
+    }
+}
+
+/** Seeds the workspace from the most recent session, once, on wide windows. */
+@Composable
+private fun SeedWorkspaceEffect(
+    workspace: WorkspaceState,
+    recentSessions: List<RecentSession>,
+    chatConnectionHub: ChatConnectionHub,
+) {
+    // D9: seed the workspace once, wide windows only (this composable is only reached wide).
+    // A warm hub entry means the transport is already attached, so mounting the chat reuses it;
+    // a cold one would connect, load and can mint a gateway session, so it is skipped.
+    // Keyed on the list because `recentSessions` starts empty and fills in asynchronously — a
+    // `Unit`-keyed effect would read that first empty value and never retry.
+    var seeded by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(recentSessions) {
+        if (seeded || workspace.selectedServerId != null) return@LaunchedEffect
+        val recent = recentSessions.firstOrNull() ?: return@LaunchedEffect
+        seeded = true
+        // The hub keys a chat as `"<serverId>/<sessionId>"`. `chatIdFor` owns that format but
+        // is internal to acp-bridge, so the string is built here.
+        val chatId = "${recent.serverId}/${recent.sessionId}"
+        if (chatConnectionHub.managerFor(chatId) != null) {
+            workspace.resumeSession(
+                WorkspaceSelection(
+                    serverId = recent.serverId,
+                    sessionId = recent.sessionId,
+                    cwd = recent.cwd ?: "/",
+                    title = recent.title.orEmpty(),
+                ),
+            )
+        } else {
+            workspace.selectAgent(recent.serverId)
+        }
+    }
 }
 
 /**

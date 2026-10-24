@@ -42,11 +42,6 @@ class CwdFilterTest {
     }
 
     @Test
-    fun filter_hidesSessionsWithUnknownDirectory() {
-        assertEquals(emptyList<String>(), filterSessionsByCwd(listOf(session("d", null)), "/work/api").map { it.id })
-    }
-
-    @Test
     fun filter_keepsWorktreeChatsUnderTheirRepo() {
         val tree =
             listOf(

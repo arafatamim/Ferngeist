@@ -1,17 +1,17 @@
 package com.tamimarafat.ferngeist.feature.chat.syntax
 
+import androidx.compose.ui.graphics.Color
 import com.gallatinapps.syntaxmp.language.LanguageId
 import com.gallatinapps.syntaxmp.role.SyntaxRole
 import com.gallatinapps.syntaxmp.spans.SyntaxTokenSpan
 import com.gallatinapps.syntaxmp.tokenizer.SyntaxTokenizer
-import com.tamimarafat.ferngeist.core.common.ui.DarkSyntaxColors
-import com.tamimarafat.ferngeist.core.common.ui.LightSyntaxColors
+import com.tamimarafat.ferngeist.core.common.ui.lightSyntaxColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SyntaxSpansTest {
-    private val colors = LightSyntaxColors
+    private val colors = lightSyntaxColors
     private val tokenizer = SyntaxTokenizer()
 
     @Test
@@ -45,16 +45,18 @@ class SyntaxSpansTest {
     fun `the same tokens restyle for the other theme`() {
         val code = "val answer = 42"
         val tokens = tokenizer.tokenize(code, "kotlin")
-        val light = buildSyntaxAnnotatedString(code, tokens, LightSyntaxColors)
-        val dark = buildSyntaxAnnotatedString(code, tokens, DarkSyntaxColors)
+        val lightPalette = colors.copy(keyword = Color(0xFF102030))
+        val darkPalette = colors.copy(keyword = Color(0xFF203040))
+        val light = buildSyntaxAnnotatedString(code, tokens, lightPalette)
+        val dark = buildSyntaxAnnotatedString(code, tokens, darkPalette)
 
         assertEquals(light.text, dark.text)
         assertEquals(
             light.spanStyles.map { it.start to it.end },
             dark.spanStyles.map { it.start to it.end },
         )
-        val lightKeyword = light.spanStyles.first { it.item.color == LightSyntaxColors.keyword }
-        val darkKeyword = dark.spanStyles.first { it.item.color == DarkSyntaxColors.keyword }
+        val lightKeyword = light.spanStyles.first { it.item.color == lightPalette.keyword }
+        val darkKeyword = dark.spanStyles.first { it.item.color == darkPalette.keyword }
         assertEquals(lightKeyword.start to lightKeyword.end, darkKeyword.start to darkKeyword.end)
     }
 

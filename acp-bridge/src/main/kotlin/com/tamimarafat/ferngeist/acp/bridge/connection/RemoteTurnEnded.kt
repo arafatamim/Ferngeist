@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.serializer
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
@@ -28,7 +29,7 @@ internal data class RemoteTurnEnded(
 ) : AcpNotification
 
 private val remoteTurnEndedMethod =
-    AcpMethod.AcpNotificationMethod("_ferngeist/turn_ended", RemoteTurnEnded.serializer())
+    AcpMethod.AcpNotificationMethod("_ferngeist/turn_ended", serializer<RemoteTurnEnded>())
 
 /**
  * The turn's length as the gateway measured it, from `_meta.ferngeist.durationMs` on a prompt

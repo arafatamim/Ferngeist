@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat
 
-import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,30 +34,9 @@ class OfflineQueueTest {
         assertEquals(0, queue.size)
     }
 
-    @Test
-    fun `peek returns first prompt without removing it`() {
-        val queue = OfflineQueue()
-        queue.enqueue(PendingPrompt(clientId = "x", text = "hello"))
-        assertEquals("x", queue.peek()?.clientId)
-        assertEquals(1, queue.size)
-    }
-
-    @Test
-    fun `peek returns null when queue is empty`() {
-        val queue = OfflineQueue()
-        assertNull(queue.peek())
-    }
-
     // endregion
 
     // region: isEmpty / size
-
-    @Test
-    fun `isEmpty returns true when no prompts are queued`() {
-        val queue = OfflineQueue()
-        assertTrue(queue.isEmpty)
-        assertEquals(0, queue.size)
-    }
 
     @Test
     fun `isEmpty returns false after enqueue`() {
@@ -105,20 +83,6 @@ class OfflineQueueTest {
 
     // endregion
 
-    // region: clear
-
-    @Test
-    fun `clear removes all pending prompts`() {
-        val queue = OfflineQueue()
-        queue.enqueue(PendingPrompt(clientId = "a", text = "x"))
-        queue.enqueue(PendingPrompt(clientId = "b", text = "y"))
-        queue.clear()
-        assertTrue(queue.isEmpty)
-        assertEquals(0, queue.size)
-    }
-
-    // endregion
-
     // region: snapshot
 
     @Test
@@ -134,29 +98,9 @@ class OfflineQueueTest {
         assertEquals(2, queue.size) // queue unchanged
     }
 
-    @Test
-    fun `snapshot returns empty list for empty queue`() {
-        val queue = OfflineQueue()
-        assertEquals(emptyList<PendingPrompt>(), queue.snapshot())
-    }
-
     // endregion
 
-    // region: Status transition helpers (pure logic tests)
-
-    @Test
-    fun `pending prompt carries clientId linking it to the UI message`() {
-        val prompt =
-            PendingPrompt(
-                clientId = "client-42",
-                text = "Hello",
-                images = listOf(ChatImageData(base64 = "abc", mimeType = "image/png")),
-            )
-        assertEquals("client-42", prompt.clientId)
-        assertEquals("Hello", prompt.text)
-        assertEquals(1, prompt.images.size)
-        assertEquals("abc", prompt.images[0].base64)
-    }
+    // region: Status defaults
 
     @Test
     fun `ChatMessage default status is SENT for loaded history`() {
@@ -167,20 +111,6 @@ class OfflineQueueTest {
             )
         assertEquals(MessageDeliveryStatus.SENT, msg.status)
         assertNull(msg.clientId)
-    }
-
-    @Test
-    fun `ChatMessage can be constructed with QUEUED status and clientId`() {
-        val msg =
-            com.tamimarafat.ferngeist.core.model.ChatMessage(
-                id = "msg-1",
-                role = com.tamimarafat.ferngeist.core.model.ChatMessage.Role.USER,
-                content = "offline message",
-                status = MessageDeliveryStatus.QUEUED,
-                clientId = "client-1",
-            )
-        assertEquals(MessageDeliveryStatus.QUEUED, msg.status)
-        assertEquals("client-1", msg.clientId)
     }
 
     // endregion

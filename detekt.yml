@@ -24,12 +24,20 @@ style:
   UnusedParameter:
     # Kotlin convention: `_`-prefixed params are intentionally unused.
     allowedNames: 'ignored|expected|_.*'
+  UnusedPrivateFunction:
+    # @Preview functions are invoked by tooling rather than Kotlin callers.
+    ignoreAnnotated: ['Preview']
+  # Dispatcher providers are injection boundaries; exceptions stay local to the binding.
 
 complexity:
   LongMethod:
     # Compose UI functions are long by structure (parameter lists + UI trees),
     # same rationale as FunctionNaming above; LongMethod still guards
     # ViewModels, reducers, and other logic-bearing functions.
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    # Compose state hoisting uses explicit state, callbacks, and slots;
+    # Room SQL bindings and other functions retain the project parameter limit.
     ignoreAnnotated: ['Composable']
   # Thresholds are the house limit, not a survey of current code. Anything already
   # over it is listed in the per-module detekt-baseline.xml files; raising a number
@@ -39,6 +47,7 @@ complexity:
     allowedFunctionsPerInterface: 15
     allowedFunctionsPerObject: 15
     allowedFunctionsPerFile: 15
+    # Preview functions remain visible to the function-count gate.
   LargeClass:
     allowedLines: 600
   NestedBlockDepth:

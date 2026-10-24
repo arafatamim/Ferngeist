@@ -8,8 +8,8 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class GatewayModule {
+interface GatewayModule {
     @Binds
     @Singleton
-    abstract fun bindGatewayRepository(impl: GatewayRepositoryImpl): GatewayRepository
+    fun bindGatewayRepository(impl: GatewayRepositoryImpl): GatewayRepository
 }

@@ -9,8 +9,8 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class AuthEnvValueModule {
+interface AuthEnvValueModule {
     @Binds
     @Singleton
-    abstract fun bindAuthEnvValueStore(impl: EncryptedAuthEnvValueStore): AuthEnvValueStore
+    fun bindAuthEnvValueStore(impl: EncryptedAuthEnvValueStore): AuthEnvValueStore
 }

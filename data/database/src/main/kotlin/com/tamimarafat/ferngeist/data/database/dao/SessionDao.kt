@@ -21,10 +21,12 @@ interface SessionDao {
      * Atomic upsert: inserts the row or, on conflict, updates every summary
      * column while keeping the stored [SessionEntity.gatewaySessionId] when
      * [gatewaySessionId] is null. A gateway session recorded concurrently by
-     * [updateGatewaySessionId] therefore survives a stale summary write —
+     * [GatewaySessionLeaseDao.updateGatewaySessionId] therefore survives a stale summary write —
      * there is no read-then-REPLACE window to clobber it. The mapping can
-     * only be cleared explicitly through [updateGatewaySessionId].
+     * only be cleared explicitly through [GatewaySessionLeaseDao.updateGatewaySessionId].
+     * All six column bindings belong to this single atomic statement.
      */
+    @Suppress("LongParameterList")
     @Query(
         "INSERT INTO sessions (sessionId, serverId, title, cwd, updatedAt, gatewaySessionId) " +
             "VALUES (:sessionId, :serverId, :title, :cwd, :updatedAt, :gatewaySessionId) " +
@@ -56,102 +58,11 @@ interface SessionDao {
         updatedAt: Long,
     )
 
-    @Query(
-        "UPDATE sessions SET gatewaySessionId = :gatewaySessionId WHERE sessionId = :sessionId AND serverId = :serverId",
-    )
-    suspend fun updateGatewaySessionId(
-        sessionId: String,
-        serverId: String,
-        gatewaySessionId: String?,
-    ): Int
-
     @Query("DELETE FROM sessions WHERE sessionId = :sessionId")
     suspend fun deleteSessionById(sessionId: String)
 
-    /**
-     * Clears [gatewaySessionId] from every other row on [serverId] that still
-     * claims it. A gateway session is leased to exactly one chat, so when the
-     * true owner records its session any stale claimant must release it —
-     * otherwise two chats resume one session and fight over the lease.
-     */
-    @Query(
-        "UPDATE sessions SET gatewaySessionId = NULL WHERE serverId = :serverId " +
-            "AND gatewaySessionId = :gatewaySessionId AND sessionId != :sessionId",
-    )
-    suspend fun clearGatewaySessionClaim(
-        serverId: String,
-        gatewaySessionId: String,
-        sessionId: String,
-    ): Int
-
-    /**
-     * Records [gatewaySessionId] on one row and releases every other row still
-     * claiming it, as a single transaction.
-     *
-     * The clear has to be a separate statement from the update (it is a
-     * "everything except this row" predicate), which leaves a window: two chats
-     * claiming the same gateway session in an interleaved order — update A,
-     * update B, clear-for-A drops B, clear-for-B drops A — leave **no** row
-     * owning the session, so neither chat resumes it and it is leaked. Running
-     * both statements in one transaction serialises the two claims, making the
-     * last writer the sole owner.
-     */
-    @Transaction
-    suspend fun setGatewaySessionId(
-        serverId: String,
-        sessionId: String,
-        gatewaySessionId: String?,
-    ) {
-        val updated =
-            updateGatewaySessionId(
-                sessionId = sessionId,
-                serverId = serverId,
-                gatewaySessionId = gatewaySessionId,
-            )
-        if (updated == 0 && gatewaySessionId != null) {
-            // Create-on-arrival chats can attach before any list refresh has
-            // inserted the row; seed a minimal one so the mapping survives.
-            upsertSession(
-                sessionId = sessionId,
-                serverId = serverId,
-                title = null,
-                cwd = null,
-                updatedAt = null,
-                gatewaySessionId = gatewaySessionId,
-            )
-        }
-        if (gatewaySessionId != null) {
-            clearGatewaySessionClaim(
-                serverId = serverId,
-                gatewaySessionId = gatewaySessionId,
-                sessionId = sessionId,
-            )
-        }
-    }
-
     @Query("DELETE FROM sessions WHERE serverId = :serverId")
     suspend fun deleteSessionsByServerId(serverId: String)
-
-    /**
-     * Drops recorded gateway leases on [serverId] that are absent from
-     * [liveIds]. Callers must branch on an empty [liveIds]: Room expands an
-     * empty `NOT IN` list to `NOT IN (NULL)`, which matches nothing — but an
-     * empty live set means every pointer is stale.
-     */
-    @Query(
-        "UPDATE sessions SET gatewaySessionId = NULL WHERE serverId = :serverId " +
-            "AND gatewaySessionId IS NOT NULL AND gatewaySessionId NOT IN (:liveIds)",
-    )
-    suspend fun clearStaleGatewaySessions(
-        serverId: String,
-        liveIds: Set<String>,
-    ): Int
-
-    @Query(
-        "UPDATE sessions SET gatewaySessionId = NULL WHERE serverId = :serverId " +
-            "AND gatewaySessionId IS NOT NULL",
-    )
-    suspend fun clearAllGatewaySessions(serverId: String): Int
 
     @Query("DELETE FROM sessions WHERE serverId = :serverId AND sessionId NOT IN (:sessionIds)")
     suspend fun deleteSessionsNotIn(

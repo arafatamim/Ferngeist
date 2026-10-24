@@ -128,6 +128,18 @@ class ServerListViewModelTest {
                         secondEvent.serverId == serverId,
                 )
 
+                // 4. Same server, but the transport reports disconnected: the guard must not fire.
+                every { launchSession.isConnected } returns false
+
+                viewModel.connectAndOpenServer(server)
+                val thirdEvent = awaitItem()
+                assertTrue(
+                    "Expected NavigateToSessions(serverId=$serverId) after a real reconnect, got $thirdEvent",
+                    thirdEvent is ServerListEvent.NavigateToSessions &&
+                        thirdEvent.serverId == serverId,
+                )
+                coVerify(exactly = 2) { launchSession.launch(any()) }
+
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -177,41 +189,9 @@ class ServerListViewModelTest {
                         secondEvent.serverId == serverBId,
                 )
 
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
-    @Test
-    fun `connectAndOpenServer should skip reuse guard when not connected`() =
-        runTest(testDispatcher) {
-            val serverId = UUID.randomUUID().toString()
-            val server =
-                LaunchableTarget.Manual(
-                    server = ServerConfig(id = serverId, name = "Test Server", host = "localhost"),
-                )
-
-            coEvery { launchSession.launch(any()) } returns
-                AgentLaunchOutcome.Ready(
-                    agentName = "Test Agent",
-                    capabilities = emptyList(),
-                )
-
-            val viewModel = createViewModel()
-
-            viewModel.events.test {
-                every { launchSession.isConnected } returns false
-
-                // connectAndOpenServer with isConnected=false should proceed past guard
-                viewModel.connectAndOpenServer(server)
-                val event = awaitItem()
-                assertTrue(
-                    "Expected NavigateToSessions, got $event",
-                    event is ServerListEvent.NavigateToSessions &&
-                        event.serverId == serverId,
-                )
-
-                // Verify full connection lifecycle ran (guard was skipped)
-                coVerify(exactly = 1) { launchSession.launch(any()) }
+                // Two servers, two launches: B did not ride on A's connection.
+                coVerify(exactly = 1) { launchSession.launch(serverA) }
+                coVerify(exactly = 1) { launchSession.launch(serverB) }
 
                 cancelAndIgnoreRemainingEvents()
             }
@@ -252,14 +232,14 @@ class ServerListViewModelTest {
 
     private fun createViewModel() =
         ServerListViewModel(
-            gatewaySourceRepository,
-            launchableTargetRepository,
-            sessionRepository,
-            authEnvValueStore,
-            agentLaunchConsentStore,
-            sessionSettingsRepository,
-            recentCwdStore,
-            recentSelectionStore,
+            ServerRepositories(
+                launchableTargetRepository,
+                gatewaySourceRepository,
+                sessionRepository,
+                sessionSettingsRepository,
+            ),
+            ServerLocalStores(authEnvValueStore, agentLaunchConsentStore, recentCwdStore, recentSelectionStore),
             agentLauncher,
+            testDispatcher,
         )
 }

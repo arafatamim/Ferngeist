@@ -19,24 +19,13 @@ class PushNotificationPolicyTest {
 
     @Test
     fun `suppresses when foregrounded on the exact session and gateway`() {
+        // Matching keys on the gateway-owned id, never the local server id: a re-pair can
+        // leave duplicate local ids, so the presence's local id and the push's translated id
+        // may differ while both resolve to the same gatewaySourceId — still suppressed.
         assertTrue(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
                 foregroundChat = chat(sessionId = "sess-1"),
-                targetGatewayId = "gw-1",
-                targetSessionId = "sess-1",
-            ),
-        )
-    }
-
-    @Test
-    fun `suppresses across re-pair when local ids differ but the gateway matches`() {
-        // The presence entry's local server id and the push's translated id differ (a
-        // duplicate record from re-pairing), but both resolve to the same gatewaySourceId.
-        assertTrue(
-            PushNotificationPolicy.shouldSuppress(
-                isAppForeground = true,
-                foregroundChat = chat(serverId = "local-old", sessionId = "sess-1"),
                 targetGatewayId = "gw-1",
                 targetSessionId = "sess-1",
             ),
@@ -94,6 +83,8 @@ class PushNotificationPolicyTest {
 
     @Test
     fun `does not suppress when no chat is open`() {
+        // After the user backs out of a chat its transport may stay pooled (so the hub's
+        // tapTarget still names it), but onScreenChat — the suppression input — is null.
         assertFalse(
             PushNotificationPolicy.shouldSuppress(
                 isAppForeground = true,
@@ -112,20 +103,6 @@ class PushNotificationPolicyTest {
                 foregroundChat = chat(),
                 targetGatewayId = "gw-1",
                 targetSessionId = null,
-            ),
-        )
-    }
-
-    @Test
-    fun `does not suppress a pooled chat after back-out when onScreenChat is null`() {
-        // After the user backs out of a chat its transport may stay pooled (so the hub's
-        // tapTarget still names it), but onScreenChat — the suppression input — is null.
-        assertFalse(
-            PushNotificationPolicy.shouldSuppress(
-                isAppForeground = true,
-                foregroundChat = null,
-                targetGatewayId = "gw-1",
-                targetSessionId = "sess-1",
             ),
         )
     }

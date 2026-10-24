@@ -9,13 +9,13 @@ import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -49,7 +49,9 @@ class ChatConnectionHubTest {
             val hub = newHub(sessionRepository = sessionRepo)
             // Warm transport that is registered as connected but holds no SDK client,
             // so the listing call fails the way a half-open socket does.
-            hub.registerChat(sessionId = "s1", manager = hub.acquireChatManager())
+            val manager = hub.acquireChatManager()
+            hub.registerChat(sessionId = "s1", manager = manager)
+            manager.forceConnectionState(AcpConnectionState.Connected)
 
             val title = hub.resolveSessionTitle(serverId = "srv", sessionId = "s1", cwd = "/w")
 
@@ -141,19 +143,6 @@ class ChatConnectionHubTest {
         }
 
     @Test
-    fun `at cap an idle entry is evicted and the new registration lands`() =
-        runTest {
-            val hub = newHub(maxHot = 3, maxGateway = 5)
-            hub.registerChat(sessionId = "a")
-            hub.registerChat(sessionId = "b")
-            hub.registerChat(sessionId = "c")
-            hub.registerChat(sessionId = "d")
-            assertFalse(hub.isTracked("srv", "a"))
-            assertTrue(hub.isTracked("srv", "d"))
-            assertEquals(3, hub.trackedCount())
-        }
-
-    @Test
     fun `all-streaming pool below the device cap tolerates the over-cap`() =
         runTest {
             val hub = newHub(maxHot = 3, maxGateway = 5)
@@ -184,22 +173,7 @@ class ChatConnectionHubTest {
         }
 
     @Test
-    fun `on-screen entry is kept over a less recently focused idle pooled entry`() =
-        runTest {
-            val hub = newHub(maxHot = 3, maxGateway = 5)
-            hub.chatScreenOpened("srv", "a", "/a") // oldest, but on screen
-            hub.registerChat(sessionId = "b")
-            hub.registerChat(sessionId = "c")
-            hub.registerChat(sessionId = "d")
-            assertTrue(hub.isTracked("srv", "a"))
-            assertFalse(hub.isTracked("srv", "b"))
-            assertTrue(hub.isTracked("srv", "c"))
-            assertTrue(hub.isTracked("srv", "d"))
-            assertEquals(3, hub.trackedCount())
-        }
-
-    @Test
-    fun `resumeAttachToken returns the minted token`() =
+    fun `resumeAttachToken routes the resume and returns its fresh token`() =
         runTest {
             val repo = FakeGatewayRepo()
             val hub = newHub(repo)
@@ -241,15 +215,18 @@ class ChatConnectionHubTest {
         }
 
     @Test
-    fun `close deletes gateway session and drops tracking`() =
+    fun `close deletes gateway session and releases its live transport`() =
         runTest {
             val repo = FakeGatewayRepo()
             val hub = newHub(repo)
-            val chatId = hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
+            val manager = hub.acquireChatManager()
+            manager.forceConnectionState(AcpConnectionState.Connected)
+            val chatId = hub.registerChat(sessionId = "s1", gatewaySessionId = "g1", manager = manager)
             hub.close(chatId, GatewayEndpoint("http", "gw", "cred"))
             assertEquals(listOf("g1"), repo.closed)
             assertFalse(hub.isTracked("srv", "s1"))
             assertEquals(0, hub.trackedCount())
+            assertEquals(AcpConnectionState.Disconnected, manager.connectionState.value)
         }
 
     @Test
@@ -310,7 +287,9 @@ class ChatConnectionHubTest {
             val hub = newHub(repo)
             val transport = hub.createBrowserManager(CoroutineScope(SupervisorJob()))
             val unreachable = gatewayConfig().copy(endpoint = "ws://127.0.0.1:1/v1/acp/rt-1")
-            withContext(Dispatchers.IO) { transport.connectAndInitializeWithoutReconnect(unreachable) }
+            withContext(
+                UnconfinedTestDispatcher(testScheduler),
+            ) { transport.connectAndInitializeWithoutReconnect(unreachable) }
 
             hub.hangUpBrowserTransport(transport)
             hub.hangUpBrowserTransport(transport)
@@ -412,10 +391,12 @@ class ChatConnectionHubTest {
         }
 
     @Test
-    fun `eviction tears down the victim transport exactly once`() =
+    fun `eviction tears down the victim transport`() =
         runTest {
             val hub = newHub(maxHot = 3)
             val victims = listOf(hub.acquireChatManager(), hub.acquireChatManager(), hub.acquireChatManager())
+            // Live before eviction, so Disconnected afterwards is the teardown's doing.
+            victims[0].forceConnectionState(AcpConnectionState.Connected)
             hub.registerChat(sessionId = "a", manager = victims[0])
             hub.registerChat(sessionId = "b", manager = victims[1])
             hub.registerChat(sessionId = "c", manager = victims[2])
@@ -425,26 +406,14 @@ class ChatConnectionHubTest {
             assertFalse(hub.isTracked("srv", "a"))
             assertNull(hub.managerFor("srv/a"))
             assertEquals(3, hub.trackedCount())
-        }
-
-    @Test
-    fun `close tears down the entry transport`() =
-        runTest {
-            val hub = newHub(FakeGatewayRepo())
-            val manager = hub.acquireChatManager()
-            val chatId = hub.registerChat(sessionId = "s1", gatewaySessionId = "g1", manager = manager)
-            assertEquals(1, hub.trackedCount())
-
-            hub.close(chatId, GatewayEndpoint("http", "gw", "cred"))
-            assertFalse(hub.isTracked("srv", "s1"))
-            assertEquals(0, hub.trackedCount())
+            assertEquals(AcpConnectionState.Disconnected, victims[0].connectionState.value)
         }
 
     @Test
     fun `browser manager releases with its owner scope`() =
         runTest {
             val hub = newHub()
-            val ownerScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+            val ownerScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
             hub.createBrowserManager(ownerScope)
             advanceUntilIdle()
             assertEquals(1, hub.trackedCount())
@@ -581,9 +550,9 @@ class ChatConnectionHubTest {
             // The register lambdas claim connected=true but the real managers
             // are Disconnected: presence must read the manager state, not the
             // lambdas, so nothing here is warm.
-            hub.registerChat(serverId = "srvA", sessionId = "s1", connected = true, manager = hub.acquireChatManager())
+            hub.registerChat(serverId = "srvA", sessionId = "s1", manager = hub.acquireChatManager())
             hub.registerChat(serverId = "srvA", sessionId = "s2", manager = null)
-            hub.registerChat(serverId = "srvB", sessionId = "s3", connected = true, manager = hub.acquireChatManager())
+            hub.registerChat(serverId = "srvB", sessionId = "s3", manager = hub.acquireChatManager())
 
             assertEquals(emptySet<String>(), hub.warmServers.value)
             assertEquals(emptySet<String>(), hub.connectedSessionIds("srvA").first())

@@ -8,7 +8,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequired
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AuthEnvVarInfo
-import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
+import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildEnvPayload
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
@@ -23,13 +23,11 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
-import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -71,13 +69,11 @@ private const val NANOS_PER_MS = 1_000_000L
 @Suppress("TooManyFunctions")
 class SessionCatalog(
     private val hub: ChatConnectionHub,
-    private val gatewayRepository: GatewayRepository,
+    private val repositories: LaunchRepositories,
     private val sessionRepository: SessionRepository,
-    private val launchableTargetRepository: LaunchableTargetRepository,
-    private val gatewaySourceRepository: GatewaySourceRepository,
-    private val connectivityObserver: ConnectivityObserver,
     private val authEnvValueStore: AuthEnvValueStore,
     private val scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     /** Outcome of a session-list listing attempt. */
     sealed interface ListSessionsResult {
@@ -143,7 +139,7 @@ class SessionCatalog(
      * Network availability, so the session list can re-run a listing that failed
      * while the device was offline.
      */
-    val networkAvailable: Flow<Boolean> = connectivityObserver.isConnected
+    val networkAvailable: Flow<Boolean> = hub.networkAvailable
 
     /** Servers holding at least one connected chat transport. */
     val warmServers: StateFlow<Set<String>> get() = hub.warmServers
@@ -172,7 +168,7 @@ class SessionCatalog(
     ): ListSessionsResult {
         if (reuseRecent && cwd == null) recentListing(serverId)?.let { return it }
         val target =
-            launchableTargetRepository.getTarget(serverId)
+            repositories.launchableTargetRepository.getTarget(serverId)
                 ?: return ListSessionsResult.Failed(
                     // Not necessarily "removed": a stored credential this device can no longer
                     // decrypt surfaces here as a missing target too, so name only what is known.
@@ -310,7 +306,7 @@ class SessionCatalog(
      */
     suspend fun initializeListing(serverId: String): Boolean {
         val transport = retainedListingTransport(serverId) ?: return false
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             transport.initialize()
         } != null
     }
@@ -377,17 +373,18 @@ class SessionCatalog(
         try {
             val live =
                 withTimeout(RECONCILE_TIMEOUT_MS) {
-                    gatewayRepository
+                    repositories.gatewayRepository
                         .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
                         .map { it.sessionId }
                         .toSet()
                 }
             sessionRepository.clearStaleGatewaySessions(serverId, live)
-        } catch (error: CancellationException) {
+        } catch (_: TimeoutCancellationException) {
             // A timeout degrades to "keep the pointers" so a slow gateway
             // cannot cancel the refresh this runs inside; anything else
             // cancels normally.
-            if (error !is TimeoutCancellationException) throw error
+        } catch (error: CancellationException) {
+            throw error
         } catch (_: Throwable) {
             // Best-effort by contract: stale pointers are harmless (a tap
             // self-heals through the 404 path in closeSession).
@@ -477,7 +474,6 @@ class SessionCatalog(
      * hanging up afterwards. On auth the socket stays up for the follow-up
      * [authenticateListing] call.
      */
-    @Suppress("TooGenericExceptionCaught")
     @OptIn(UnstableApi::class)
     private suspend fun listViaBrowserListing(
         listing: ListingSession,
@@ -502,7 +498,7 @@ class SessionCatalog(
                         )
                     }
                 try {
-                    withContext(Dispatchers.IO) {
+                    withContext(ioDispatcher) {
                         transport.connectAndInitializeWithoutReconnect(config)
                     } != null
                 } catch (error: CancellationException) {
@@ -514,40 +510,8 @@ class SessionCatalog(
                 }
             }
         timer.mark("connect")
-        if (!connected) {
-            // A failed attach still leaves the session the gateway just launched.
-            hangUpListing(listing)
-            return ListSessionsResult.Failed(
-                transport.diagnostics.value.recentErrors
-                    .lastOrNull { it.source == "connect" || it.source == "connection" }
-                    ?.message
-                    ?: "Failed to connect to ${target.name}. Check your connection and try again.",
-            )
-        }
-        val result =
-            try {
-                val sessions = transport.listSessions(cwd = cwd)
-                sessionRepository.replaceSessions(serverId, sessions)
-                timer.mark("list")
-                ListSessionsResult.Listed(
-                    sessions = sessions,
-                    agentCapabilities = transport.agentCapabilities.value ?: capabilities,
-                    viaWarmChat = false,
-                )
-            } catch (error: AcpAuthenticationRequiredException) {
-                // Keep the browser transport connected: the follow-up
-                // authenticateListing runs on this same socket.
-                listing.authTransport = transport
-                authRequiredResult(transport, viaWarmChat = false, error = error)
-            } catch (error: Throwable) {
-                if (error is CancellationException) {
-                    // A cancelled listing still releases the browser transport: an
-                    // idle connected socket holds the gateway's single-attach slot.
-                    hangUpListing(listing)
-                    throw error
-                }
-                ListSessionsResult.Failed(formatAcpErrorMessage(error, "Failed to load sessions"))
-            }
+        if (!connected) return failedAttach(listing, target)
+        val result = listConnected(listing, serverId, cwd, timer, capabilities)
         if (result !is ListSessionsResult.AuthRequired) {
             // Idle browser socket's reconnect would steal the gateway's
             // single-attach slot from a chat opened next.
@@ -556,11 +520,61 @@ class SessionCatalog(
         return result
     }
 
+    /** Lists over the connected browser transport of [listing]; failures come back as results. */
+    @Suppress("TooGenericExceptionCaught")
+    @OptIn(UnstableApi::class)
+    private suspend fun listConnected(
+        listing: ListingSession,
+        serverId: String,
+        cwd: String?,
+        timer: OpenStepTimer,
+        connectedCapabilities: AgentCapabilities?,
+    ): ListSessionsResult {
+        val transport = listing.browserTransport
+        return try {
+            val sessions = transport.listSessions(cwd = cwd)
+            sessionRepository.replaceSessions(serverId, sessions)
+            timer.mark("list")
+            ListSessionsResult.Listed(
+                sessions = sessions,
+                agentCapabilities = transport.agentCapabilities.value ?: connectedCapabilities,
+                viaWarmChat = false,
+            )
+        } catch (error: AcpAuthenticationRequiredException) {
+            // Keep the browser transport connected: the follow-up
+            // authenticateListing runs on this same socket.
+            listing.authTransport = transport
+            authRequiredResult(transport, viaWarmChat = false, error = error)
+        } catch (error: Throwable) {
+            if (error is CancellationException) {
+                // A cancelled listing still releases the browser transport: an
+                // idle connected socket holds the gateway's single-attach slot.
+                hangUpListing(listing)
+                throw error
+            }
+            ListSessionsResult.Failed(formatAcpErrorMessage(error, "Failed to load sessions"))
+        }
+    }
+
+    /** A failed attach still leaves the session the gateway just launched, so it is hung up first. */
+    private suspend fun failedAttach(
+        listing: ListingSession,
+        target: LaunchableTarget,
+    ): ListSessionsResult.Failed {
+        hangUpListing(listing)
+        return ListSessionsResult.Failed(
+            listing.browserTransport.diagnostics.value.recentErrors
+                .lastOrNull { it.source == "connect" || it.source == "connection" }
+                ?.message
+                ?: "Failed to connect to ${target.name}. Check your connection and try again.",
+        )
+    }
+
     /** Disconnects the browser transport of [listing] (kept for reuse, not closed). */
     private suspend fun hangUpListing(listing: ListingSession) {
         // NonCancellable: called from CancellationException catches, where a
         // plain IO hop would re-cancel before disconnect() runs.
-        withContext(NonCancellable + Dispatchers.IO) { hub.hangUpBrowserTransport(listing.browserTransport) }
+        withContext(NonCancellable + ioDispatcher) { hub.hangUpBrowserTransport(listing.browserTransport) }
     }
 
     /**
@@ -574,8 +588,8 @@ class SessionCatalog(
         configFor: () -> AcpConnectionConfig,
     ): Boolean {
         val transport = retainedListingTransport(serverId) ?: return false
-        withContext(Dispatchers.IO) { transport.disconnect() }
-        return withContext(Dispatchers.IO) { transport.connect(configFor()) }
+        withContext(ioDispatcher) { transport.disconnect() }
+        return withContext(ioDispatcher) { transport.connect(configFor()) }
     }
 
     /**
@@ -603,7 +617,7 @@ class SessionCatalog(
                 }
                 return
             }
-            val target = launchableTargetRepository.getTarget(serverId) ?: return
+            val target = repositories.launchableTargetRepository.getTarget(serverId) ?: return
             val listing = listingSession(serverId)
             val transport = listing.browserTransport
             try {
@@ -612,7 +626,7 @@ class SessionCatalog(
                         run {
                             val config = buildListingConfig(target).getOrNull()
                             config != null &&
-                                withContext(Dispatchers.IO) {
+                                withContext(ioDispatcher) {
                                     transport.connectAndInitializeWithoutReconnect(config)
                                 } != null
                         }
@@ -659,7 +673,7 @@ class SessionCatalog(
 
     /** Gateway REST endpoint for [serverId], or null for a target with no gateway leg. */
     private suspend fun gatewayEndpoint(serverId: String): GatewayEndpoint? =
-        (launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent)
+        (repositories.launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent)
             ?.let { target ->
                 GatewayEndpoint(
                     scheme = target.gatewaySource.scheme,
@@ -680,8 +694,7 @@ class SessionCatalog(
         when (target) {
             is LaunchableTarget.GatewayAgent ->
                 buildGatewayLaunchContext(
-                    gatewayRepository = gatewayRepository,
-                    gatewaySourceRepository = gatewaySourceRepository,
+                    runtimeLauncher = repositories.runtimeLauncher,
                     server = target,
                 ).map { it.config }
 

@@ -4,8 +4,9 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -19,11 +20,12 @@ class AgentLaunchConsentStoreImpl
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
+        @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : AgentLaunchConsentStore {
         private val dataStore get() = context.consentDataStore
 
         override suspend fun hasConsent(key: String): Boolean =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 dataStore.data
                     .map { prefs ->
                         prefs[booleanPreferencesKey(consentKeyName(key))] ?: false
@@ -34,7 +36,7 @@ class AgentLaunchConsentStoreImpl
             key: String,
             granted: Boolean,
         ) {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 dataStore.edit { prefs ->
                     prefs[booleanPreferencesKey(consentKeyName(key))] = granted
                 }
@@ -42,7 +44,7 @@ class AgentLaunchConsentStoreImpl
         }
 
         override suspend fun clearByPrefix(prefix: String) {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 dataStore.edit { prefs ->
                     val prefixed = consentKeyName(prefix)
                     prefs

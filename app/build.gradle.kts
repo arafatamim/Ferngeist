@@ -114,7 +114,13 @@ android {
     }
 }
 
+val mockkAgent by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
 dependencies {
+    mockkAgent(libs.byte.buddy.agent)
     implementation(projects.core.model)
     implementation(projects.core.common)
     implementation(projects.data.database)
@@ -170,4 +176,9 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+tasks.withType<Test>().configureEach {
+    // Install MockK's instrumentation at startup instead of dynamically attaching it.
+    jvmArgs("-javaagent:${mockkAgent.asPath}")
 }

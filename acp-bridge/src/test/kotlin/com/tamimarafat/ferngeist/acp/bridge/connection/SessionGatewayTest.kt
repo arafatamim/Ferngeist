@@ -32,10 +32,11 @@ import com.agentclientprotocol.transport.Transport
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
+import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -49,6 +50,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
@@ -60,7 +62,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
 class SessionGatewayTest {
     private class ConnectivityStub : ConnectivityObserver {
         private val _isConnected = MutableStateFlow(true)
@@ -88,6 +90,8 @@ class SessionGatewayTest {
         override val client: Client get() = error("unused")
         override val operations: ClientSessionOperations get() = error("unused")
 
+        // ClientSession requires a suspending RPC that returns the event stream.
+        @Suppress("SuspendFunWithFlowReturnType")
         override suspend fun prompt(
             content: List<ContentBlock>,
             _meta: JsonElement?,
@@ -134,7 +138,7 @@ class SessionGatewayTest {
     }
 
     private fun newGateway(): SessionGateway {
-        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val scope = CoroutineScope(UnconfinedTestDispatcher())
         val connection =
             AcpConnection(
                 connectivityObserver = ConnectivityStub(),
@@ -200,7 +204,7 @@ class SessionGatewayTest {
         gatewayField(gateway, "permissionFlow") as PermissionFlow
 
     /**
-     * Installs an SDK client on the connection's transport. `AcpTransportClient.sdkClient`
+     * Installs an SDK client on the connection's socket owner. Its client property
      * is `private set` and only assigned by a real connect, so a test that needs
      * `attachSession` past its disconnected check has to set it reflectively.
      */
@@ -212,9 +216,12 @@ class SessionGatewayTest {
         val transportField = connection.javaClass.getDeclaredField("transportClient")
         transportField.isAccessible = true
         val transport = transportField.get(connection)!!
-        val clientField = transport.javaClass.getDeclaredField("sdkClient")
+        val socketField = transport.javaClass.getDeclaredField("socket")
+        socketField.isAccessible = true
+        val socket = socketField.get(transport)!!
+        val clientField = socket.javaClass.getDeclaredField("client")
         clientField.isAccessible = true
-        clientField.set(transport, client)
+        clientField.set(socket, client)
     }
 
     /**
@@ -228,7 +235,7 @@ class SessionGatewayTest {
     private fun clientOver(transport: Transport): Client =
         Client(
             Protocol(
-                parentScope = CoroutineScope(Dispatchers.Unconfined),
+                parentScope = CoroutineScope(UnconfinedTestDispatcher()),
                 transport = transport,
                 options = ProtocolOptions(protocolDebugName = "SessionGatewayTest"),
             ),
@@ -276,12 +283,6 @@ class SessionGatewayTest {
         runTest {
             val gateway = newGateway()
             assertNull(gateway.createSession(""))
-        }
-
-    @Test
-    fun `createSession with whitespace cwd returns null`() =
-        runTest {
-            val gateway = newGateway()
             assertNull(gateway.createSession("   "))
         }
 
@@ -300,7 +301,7 @@ class SessionGatewayTest {
             val bridge = installBridge(gateway, "s1")
             installSdkClient(gateway, clientFailingSessionLoad(CancellationException("screen closed")))
 
-            val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is CancellationException)
             assertSame("cancellation must not tear the session down", bridge, registeredBridge(gateway, "s1"))
@@ -314,7 +315,7 @@ class SessionGatewayTest {
             installBridge(gateway, "s1")
             installSdkClient(gateway, clientFailingSessionLoad(IllegalStateException("transport boom")))
 
-            val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             assertNull("a real load failure must clear the session", registeredBridge(gateway, "s1"))
@@ -330,7 +331,7 @@ class SessionGatewayTest {
             val timedOut = runCatching { withTimeout(1) { delay(1_000) } }.exceptionOrNull()!!
             installSdkClient(gateway, clientFailingSessionLoad(timedOut))
 
-            val result = runCatching { gateway.attachSession(SessionAttachRpc.Load, "s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is TimeoutCancellationException)
             assertNull(
@@ -348,7 +349,7 @@ class SessionGatewayTest {
             val transport = FailingSendTransport(IllegalStateException("transport boom"))
             installSdkClient(gateway, clientOver(transport))
 
-            val result = runCatching { gateway.attachSession(SessionAttachRpc.Resume, "s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.RESUME, "s1", "/some/cwd") }
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             assertEquals(
@@ -380,7 +381,7 @@ class SessionGatewayTest {
                 ),
             )
 
-            val result = runCatching { gateway.attachSession(SessionAttachRpc.Resume, "s1", "/some/cwd") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.RESUME, "s1", "/some/cwd") }
 
             val message = result.exceptionOrNull()?.message
             assertTrue(
@@ -528,25 +529,7 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `a turn that receives a response clears the cancel mark`() =
-        runTest {
-            val gateway = newGateway()
-            val bridge =
-                installSession(
-                    gateway,
-                    "s1",
-                    FakeClientSession(listOf(responseTurn(), responseTurn())),
-                )
-
-            gateway.cancelSession("s1")
-            gateway.sendSessionMessage("s1", "first")
-            gateway.sendSessionMessage("s1", "second")
-
-            assertEquals(listOf("end_turn", "end_turn"), turnReasons(bridge))
-        }
-
-    @Test
-    fun `a failing cancel propagates and leaves the turn unmarked`() =
+    fun `a failing cancel propagates to the caller`() =
         runTest {
             val gateway = newGateway()
             val failure =
@@ -555,20 +538,46 @@ class SessionGatewayTest {
                     message = "Method not found",
                     data = JsonNull,
                 )
-            val bridge =
-                installSession(
-                    gateway,
-                    "s1",
-                    FakeClientSession(listOf(responseTurn(), emptyFlow()), cancelError = failure),
-                )
+            installSession(
+                gateway,
+                "s1",
+                FakeClientSession(emptyList(), cancelError = failure),
+            )
 
             val result = runCatching { gateway.cancelSession("s1") }
 
             // Swallowing this used to leave the UI reporting a cancelled turn the agent never
             // received, and made both of the facade's cancel-failure branches unreachable.
             assertSame(failure, result.exceptionOrNull())
-            // No cancel reached the agent, so a stream that ends now must not claim one.
-            gateway.sendSessionMessage("s1", "first")
+        }
+
+    @Test
+    fun `a failed cancel does not mark the active turn cancelled`() =
+        runTest {
+            val gateway = newGateway()
+            val collecting = CompletableDeferred<Unit>()
+            val endTurn = CompletableDeferred<Unit>()
+            val failure = IllegalStateException("cancel rejected")
+            val session =
+                FakeClientSession(
+                    turns =
+                        listOf(
+                            flow {
+                                collecting.complete(Unit)
+                                endTurn.await()
+                                error("prompt connection closed")
+                            },
+                        ),
+                    cancelError = failure,
+                )
+            val bridge = installSession(gateway, "s1", session)
+            val send = async { runCatching { gateway.sendSessionMessage("s1", "hello") } }
+            collecting.await()
+
+            assertSame(failure, runCatching { gateway.cancelSession("s1") }.exceptionOrNull())
+            endTurn.complete(Unit)
+            assertTrue(send.await().isFailure)
+
             assertEquals(listOf("end_turn"), turnReasons(bridge))
         }
 
@@ -602,7 +611,7 @@ class SessionGatewayTest {
                 flow {
                     collecting.complete(Unit)
                     turn.receiveAsFlow().collect { emit(it) }
-                    throw IllegalStateException("aborted")
+                    error("aborted")
                 }
             val bridge =
                 installSession(gateway, "s1", FakeClientSession(listOf(failsAfterClose)))
@@ -624,7 +633,15 @@ class SessionGatewayTest {
                 installSession(
                     gateway,
                     "s1",
-                    FakeClientSession(listOf(responseTurn(), responseTurn())),
+                    FakeClientSession(
+                        listOf(
+                            responseTurn(),
+                            // A stream that dies without a terminal response is the only
+                            // shape that reads the cancel mark, so a stale mark would
+                            // surface here as "cancelled".
+                            flow { throw IllegalStateException("turn aborted") },
+                        ),
+                    ),
                 )
 
             // Turn 1 ends normally, with no response expected after it.
@@ -632,7 +649,7 @@ class SessionGatewayTest {
             // A cancel lands after the turn is over (user tapped STOP late).
             gateway.cancelSession("s1")
             // Turn 2 must not inherit that stale mark.
-            gateway.sendSessionMessage("s1", "second")
+            runCatching { gateway.sendSessionMessage("s1", "second") }
 
             assertEquals(listOf("end_turn", "end_turn"), turnReasons(bridge))
         }
@@ -650,7 +667,7 @@ class SessionGatewayTest {
                             flow {
                                 collecting.complete(Unit)
                                 turn.receiveAsFlow().collect { emit(it) }
-                                throw IllegalStateException("aborted")
+                                error("aborted")
                             },
                         ),
                     // The RPC does not return until the test releases it, so the turn

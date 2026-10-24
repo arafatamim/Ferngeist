@@ -78,6 +78,8 @@ import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.ScopeOption
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.branch
+import com.tamimarafat.ferngeist.feature.sessionlist.cwd.path
 import com.tamimarafat.ferngeist.feature.sessionlist.worktree.worktreeAge
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -99,10 +101,10 @@ internal fun scopeLabel(
                 ?: pathSegments(scope.path).lastOrNull().orEmpty()
     }
 
-private val SELECTOR_MAX_WIDTH = 104.dp
+private val selectorMaxWidth = 104.dp
 
 /** A label's cap when it has the toolbar to itself. */
-private val SELECTOR_WIDE_MAX_WIDTH = 200.dp
+private val selectorWideMaxWidth = 200.dp
 
 private const val MAX_RECENT_PROJECTS = 5
 
@@ -132,8 +134,6 @@ internal fun WorktreeToolbar(
     onNewWorktree: () -> Unit,
     onRemoveWorktree: (worktreeId: String) -> Unit,
 ) {
-    var projectSheet by remember { mutableStateOf(false) }
-    var scopeMenu by remember { mutableStateOf(false) }
     val scopeName = scopeLabel(scope, options)
     val narrowed = worktreesEnabled && scope != WorktreeScope.All
     val newChat =
@@ -145,20 +145,7 @@ internal fun WorktreeToolbar(
     HorizontalFloatingToolbar(
         expanded = expanded,
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
-        floatingActionButton = {
-            TooltipBox(
-                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-                tooltip = { PlainTooltip { Text(newChat) } },
-                state = rememberTooltipState(),
-            ) {
-                FloatingToolbarDefaults.VibrantFloatingActionButton(
-                    onClick = onNewChat,
-                    modifier = Modifier.handCursor(),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = newChat)
-                }
-            }
-        },
+        floatingActionButton = { NewChatButton(newChat = newChat, onNewChat = onNewChat) },
         content = {
             // One non-bouncy width animation for the whole row: several springs resizing their own
             // labels at once fought each other, and the bounce shook the toolbar's leading edge.
@@ -166,67 +153,137 @@ internal fun WorktreeToolbar(
                 modifier = Modifier.animateContentSize(MotionScheme.standard().defaultSpatialSpec()),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SelectorButton(
-                    icon = Icons.Outlined.FolderOpen,
-                    label =
-                        repo?.takeIf { it.isNotBlank() }?.let(::projectName)
-                            ?: stringResource(R.string.sessionlist_scope_all_projects),
-                    // Two names do not fit beside the FAB; once a worktree is picked it is the one that matters.
-                    showLabel = !narrowed,
-                    // Alone in the toolbar, it can take the room the worktree selector would use.
-                    maxWidth = if (worktreesEnabled) SELECTOR_MAX_WIDTH else SELECTOR_WIDE_MAX_WIDTH,
-                    focusable = expanded,
-                    onClick = { projectSheet = true },
+                ProjectSelector(
+                    expanded = expanded,
+                    repo = repo,
+                    projects = projects,
+                    worktreesEnabled = worktreesEnabled,
+                    narrowed = narrowed,
+                    onSelectRepo = onSelectRepo,
+                    onOtherProject = onOtherProject,
                 )
-                if (projectSheet) {
-                    ProjectSheet(
-                        repo = repo,
-                        projects = projects,
-                        onDismiss = { projectSheet = false },
-                        onSelectProject = {
-                            projectSheet = false
-                            onSelectRepo(it)
-                        },
-                        onOtherProject = {
-                            projectSheet = false
-                            onOtherProject()
-                        },
-                    )
-                }
                 if (worktreesEnabled) {
-                    SelectorButton(
-                        icon = Icons.Outlined.AccountTree,
-                        label = scopeName,
-                        maxWidth = if (narrowed) SELECTOR_WIDE_MAX_WIDTH else SELECTOR_MAX_WIDTH,
-                        focusable = expanded,
-                        onClick = { scopeMenu = true },
-                        showArrow = false,
-                        labelOverflow = TextOverflow.StartEllipsis,
+                    ScopeSelector(
+                        expanded = expanded,
+                        repo = repo,
+                        scope = scope,
+                        scopeName = scopeName,
+                        options = options,
+                        narrowed = narrowed,
+                        onSelectScope = onSelectScope,
+                        onNewWorktree = onNewWorktree,
+                        onRemoveWorktree = onRemoveWorktree,
                     )
-                    if (scopeMenu) {
-                        WorktreeSheet(
-                            repo = repo.orEmpty(),
-                            scope = scope,
-                            options = options,
-                            onDismiss = { scopeMenu = false },
-                            onSelectScope = {
-                                scopeMenu = false
-                                onSelectScope(it)
-                            },
-                            onNewWorktree = {
-                                scopeMenu = false
-                                onNewWorktree()
-                            },
-                            onRemoveWorktree = {
-                                scopeMenu = false
-                                onRemoveWorktree(it)
-                            },
-                        )
-                    }
                 }
             }
         },
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun NewChatButton(
+    newChat: String,
+    onNewChat: () -> Unit,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(newChat) } },
+        state = rememberTooltipState(),
+    ) {
+        FloatingToolbarDefaults.VibrantFloatingActionButton(
+            onClick = onNewChat,
+            modifier = Modifier.handCursor(),
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = newChat)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProjectSelector(
+    expanded: Boolean,
+    repo: String?,
+    projects: List<String>,
+    worktreesEnabled: Boolean,
+    narrowed: Boolean,
+    onSelectRepo: (String) -> Unit,
+    onOtherProject: () -> Unit,
+) {
+    var projectSheet by remember { mutableStateOf(false) }
+    SelectorButton(
+        icon = Icons.Outlined.FolderOpen,
+        label =
+            repo?.takeIf { it.isNotBlank() }?.let(::projectName)
+                ?: stringResource(R.string.sessionlist_scope_all_projects),
+        // Two names do not fit beside the FAB; once a worktree is picked it is the one that matters.
+        showLabel = !narrowed,
+        // Alone in the toolbar, it can take the room the worktree selector would use.
+        maxWidth = if (worktreesEnabled) selectorMaxWidth else selectorWideMaxWidth,
+        focusable = expanded,
+        onClick = { projectSheet = true },
+    )
+    if (projectSheet) {
+        ProjectSheet(
+            repo = repo,
+            projects = projects,
+            onDismiss = { projectSheet = false },
+            onSelectProject = {
+                projectSheet = false
+                onSelectRepo(it)
+            },
+            onOtherProject = {
+                projectSheet = false
+                onOtherProject()
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScopeSelector(
+    expanded: Boolean,
+    repo: String?,
+    scope: WorktreeScope,
+    scopeName: String,
+    options: List<ScopeOption>,
+    narrowed: Boolean,
+    onSelectScope: (WorktreeScope) -> Unit,
+    onNewWorktree: () -> Unit,
+    onRemoveWorktree: (worktreeId: String) -> Unit,
+) {
+    var scopeMenu by remember { mutableStateOf(false) }
+    SelectorButton(
+        icon = Icons.Outlined.AccountTree,
+        label = scopeName,
+        maxWidth = if (narrowed) selectorWideMaxWidth else selectorMaxWidth,
+        focusable = expanded,
+        onClick = { scopeMenu = true },
+        showArrow = false,
+        labelOverflow = TextOverflow.StartEllipsis,
+    )
+    if (scopeMenu) {
+        WorktreeSheet(
+            repo = repo.orEmpty(),
+            scope = scope,
+            options = options,
+            onDismiss = { scopeMenu = false },
+            onSelectScope = {
+                scopeMenu = false
+                onSelectScope(it)
+            },
+            onNewWorktree = {
+                scopeMenu = false
+                onNewWorktree()
+            },
+            onRemoveWorktree = {
+                scopeMenu = false
+                onRemoveWorktree(it)
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -238,7 +295,7 @@ private fun SelectorButton(
     onClick: () -> Unit,
     showLabel: Boolean = true,
     showArrow: Boolean = true,
-    maxWidth: Dp = SELECTOR_MAX_WIDTH,
+    maxWidth: Dp = selectorMaxWidth,
     labelOverflow: TextOverflow = TextOverflow.MiddleEllipsis,
 ) {
     TooltipBox(

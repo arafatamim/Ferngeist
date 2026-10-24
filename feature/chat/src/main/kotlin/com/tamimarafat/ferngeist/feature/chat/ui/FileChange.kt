@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -29,7 +28,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
-import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
@@ -39,83 +37,12 @@ import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.core.model.TurnTiming
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
+import com.tamimarafat.ferngeist.feature.chat.ui.files.editedPaths
+import com.tamimarafat.ferngeist.feature.chat.ui.files.landed
 import kotlin.random.Random
-
-private val PATH_KEYS = listOf("file_path", "filePath", "path", "filename")
-private val CONTENT_KEYS = listOf("content", "contents", "text", "file_text")
-
-// Search-and-replace pairs as agents name them in an edit's raw input.
-private val REPLACEMENT_KEYS =
-    listOf(
-        "old_string" to "new_string",
-        "oldString" to "newString",
-        "old_str" to "new_str",
-        "old_text" to "new_text",
-        "oldText" to "newText",
-    )
-
-/**
- * The call's diffs. When an EDIT call reports none, they are rebuilt exactly from its raw input:
- * a write's contents count as a new file, every line added; a search-and-replace (or each entry of
- * an `edits` list) becomes a diff of the replaced text.
- */
-internal fun ToolCallDisplay.diffs(): List<ToolCallContent.Diff> {
-    val reported = content.orEmpty().filterIsInstance<ToolCallContent.Diff>()
-    val path = editedPath()
-    val input = rawInput as? JsonObject
-    return if (reported.isEmpty() && path != null && input != null) input.inferredDiffs(path) else reported
-}
-
-// ponytail: a replace-all edit counts its replacement once; multiply by occurrences if that misleads.
-private fun JsonObject.inferredDiffs(path: String): List<ToolCallContent.Diff> {
-    val written = firstString(CONTENT_KEYS)
-    val edits = (get("edits") as? JsonArray)?.filterIsInstance<JsonObject>() ?: listOf(this)
-    return if (written != null) {
-        listOf(ToolCallContent.Diff(path = path, oldText = null, newText = written))
-    } else {
-        edits.mapNotNull { it.replacement(path) }
-    }
-}
-
-private fun JsonObject.replacement(path: String): ToolCallContent.Diff? =
-    REPLACEMENT_KEYS.firstNotNullOfOrNull { (oldKey, newKey) ->
-        val old = firstString(listOf(oldKey))
-        val new = firstString(listOf(newKey))
-        if (old != null && new != null) ToolCallContent.Diff(path = path, oldText = old, newText = new) else null
-    }
-
-/** The file an EDIT call names in its raw input, whether or not it reported what it changed. */
-private fun ToolCallDisplay.editedPath(): String? =
-    (rawInput as? JsonObject)?.firstString(PATH_KEYS)?.takeIf { kind == ToolKind.EDIT }
-
-/**
- * Every file an EDIT call says it touched: its raw-input path, or else its ACP `locations`, which
- * name files even for agents that report nothing else about a write.
- */
-private fun ToolCallDisplay.editedPaths(): List<String> =
-    editedPath()?.let(::listOf) ?: locations.orEmpty().takeIf { kind == ToolKind.EDIT }.orEmpty()
-
-private val FILE_KINDS = setOf(ToolKind.READ, ToolKind.EDIT, ToolKind.DELETE, ToolKind.MOVE)
-
-/** The file a read, edit, delete or move works on, from its raw input or else its first location. */
-internal fun ToolCallDisplay.filePath(): String? =
-    ((rawInput as? JsonObject)?.firstString(PATH_KEYS) ?: locations?.firstOrNull())
-        ?.takeIf { kind in FILE_KINDS && it.isNotBlank() }
-
-/** The call's title, with its file's name added when the agent's title leaves it out ("Read" → "Read a.kt"). */
-internal fun ToolCallDisplay.titleWithFile(): String {
-    val name = filePath()?.replace('\\', '/')?.trimEnd('/')?.substringAfterLast('/')
-    return if (name.isNullOrEmpty() || title.contains(name)) title else "$title $name"
-}
-
-/** The title without its file ("Read src/A.kt" → "Read"), for a row that shows the file as a [FileChip]. */
-internal fun ToolCallDisplay.titleWithoutFile(): String {
-    val name = filePath()?.fileName()?.takeIf { it.isNotEmpty() } ?: return title
-    return title.replaceFirst(Regex("""\S*${Regex.escape(name)}\S*"""), "").trim()
-}
 
 /**
  * Git's entry for [path], from the working tree as it is now. [path] is usually absolute and git's
@@ -139,13 +66,13 @@ private fun List<ChatChangedFile>.matching(
 }
 
 /** Git's status and counts for an entry: a request for the same file at a different value refetches. */
-private fun ChatChangedFile.revision() = "$status:$added:$removed"
+internal fun ChatChangedFile.revision() = "$status:$added:$removed"
 
 /**
  * The working tree's changed files, provided to the newest turn only: git reports the tree as it is
  * now, so counts it gave an older turn would include everything since.
  */
-internal val LocalWorkingTreeChanges = compositionLocalOf { emptyList<ChatChangedFile>() }
+internal val localWorkingTreeChanges = compositionLocalOf { emptyList<ChatChangedFile>() }
 
 /**
  * Git's changed files that can stand for the newest turn's work: a file already changed when the
@@ -171,13 +98,7 @@ internal data class TurnGitFallback(
     val onRefresh: () -> Unit = {},
 )
 
-internal val LocalTurnGitFallback = compositionLocalOf { TurnGitFallback() }
-
-private fun JsonObject.firstString(keys: List<String>): String? =
-    keys.firstNotNullOfOrNull { key -> (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content }
-
-/** A failed call's change never happened, and one awaiting permission has not happened yet. */
-internal fun ToolCallDisplay.landed(): Boolean = status != ToolCallStatus.FAILED && permissionOptions.isNullOrEmpty()
+internal val localTurnGitFallback = compositionLocalOf { TurnGitFallback() }
 
 /** One file a turn changed: the diffs the turn reported for it (maybe none), and the last call that touched it. */
 internal class FileChange(
@@ -281,7 +202,7 @@ internal fun TurnChanges(
         }
         return
     }
-    val tree = LocalWorkingTreeChanges.current
+    val tree = localWorkingTreeChanges.current
     val stats =
         remember(files, tree) {
             files.map { it.stats(tree) }
@@ -320,10 +241,10 @@ internal fun TurnChanges(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .height(RAIL_ROW_HEIGHT)
+                                .height(railRowHeight)
                                 .handCursor()
                                 .clickable { onToolCallClick(file.selectionId()) }
-                                .padding(start = RAIL_TEXT_START),
+                                .padding(start = railTextStart),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // The name and its directory share one flexible slot. Measured loose, a long
@@ -351,41 +272,6 @@ internal fun TurnChanges(
         }
     }
 }
-
-/**
- * What the tool call sheet's diff slot shows for an EDIT call with no exact diff of its own: none
- * reported, and none rebuilt from its input but a whole-file write, which cannot tell an overwrite
- * from a new file. It is the working tree's diffs for the files the call touched, requested on first
- * display and again whenever git's entry for a file changes. Empty until git answers, for a file git
- * no longer lists (committed or reverted), and wherever no tree is provided (see [turnWorkingTree]).
- */
-@Composable
-internal fun ToolCallDisplay.gitFallbackDiffs(): List<ToolCallContent.Diff> {
-    val tree = LocalWorkingTreeChanges.current
-    val fallback = LocalTurnGitFallback.current
-    val wanted =
-        remember(this) {
-            kind == ToolKind.EDIT &&
-                content.orEmpty().none { it is ToolCallContent.Diff } &&
-                diffs().all { it.oldText == null }
-        }
-    // The status may predate this call, so it is re-read once when the sheet opens.
-    LaunchedEffect(wanted) { if (wanted) fallback.onRefresh() }
-    val entries =
-        remember(this, tree, wanted) {
-            if (wanted) {
-                editedPaths().mapNotNull { tree.entryFor(it) }.distinctBy { it.path }
-            } else {
-                emptyList()
-            }
-        }
-    LaunchedEffect(entries) {
-        entries.forEach { fallback.onRequest(it.path, it.oldPath, it.revision()) }
-    }
-    return entries.flatMap { fallback.diffs[it.path].orEmpty() }
-}
-
-private fun ToolCallContent.Diff.lineCount() = maxOf(newText.count { it == '\n' }, oldText?.count { it == '\n' } ?: 0)
 
 /** "Brewed for 1m 20s · done 2:24 AM": the verb is seeded by the turn, so it stays put across reloads. */
 @Composable

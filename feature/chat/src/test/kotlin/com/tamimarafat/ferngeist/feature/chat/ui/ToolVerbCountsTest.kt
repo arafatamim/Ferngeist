@@ -4,6 +4,11 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.SummaryPart
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.joinSummary
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.summaryParts
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.summaryVerb
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.toolVerbCounts
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

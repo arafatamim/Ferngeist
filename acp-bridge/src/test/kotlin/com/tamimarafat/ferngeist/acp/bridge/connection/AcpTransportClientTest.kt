@@ -2,11 +2,11 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -19,14 +19,6 @@ class AcpTransportClientTest {
     @Test
     fun `manual config derives its endpoint from scheme and host`() {
         assertEquals("ws://192.168.1.5:5788", manualConfig().endpoint)
-    }
-
-    @Test
-    fun `gateway handoff carries the session and its attach token`() {
-        val config = gatewayConfig(sessionId = "sess-42", attachToken = "at-1")
-
-        assertEquals("sess-42", config.resume.sessionId)
-        assertEquals("at-1", config.resume.attachToken)
     }
 
     // ---- Reconnect backoff ----
@@ -126,9 +118,16 @@ class AcpTransportClientTest {
         }
 
     private fun scheduleReconnect(client: AcpTransportClient) {
-        val method = client.javaClass.getDeclaredMethod("scheduleReconnect", Function0::class.java)
+        val loop = reconnectLoopOf(client)
+        val method = loop.javaClass.getDeclaredMethod("schedule", Function0::class.java)
         method.isAccessible = true
-        method.invoke(client, {})
+        method.invoke(loop, {})
+    }
+
+    private fun reconnectLoopOf(client: AcpTransportClient): Any {
+        val field = client.javaClass.getDeclaredField("reconnect")
+        field.isAccessible = true
+        return checkNotNull(field.get(client))
     }
 
     private fun setField(
@@ -143,7 +142,7 @@ class AcpTransportClientTest {
 
     private fun newClient(
         online: Boolean = true,
-        scope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
+        scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),
         resume: suspend (AcpConnectionConfig.Gateway, AcpConnectionConfig.ResumeInfo) -> String =
             { _, _ -> error("no gateway resume in this test") },
         emitEvent: suspend (AcpManagerEvent) -> Unit = {},
@@ -153,8 +152,12 @@ class AcpTransportClientTest {
             resumeAttachToken = resume,
             scope = scope,
             diagnosticsStore = AcpDiagnosticsStore(),
-            updateConnectionState = {},
-            emitManagerEvent = emitEvent,
+            listener =
+                object : AcpTransportListener {
+                    override fun updateConnectionState(state: AcpConnectionState) = Unit
+
+                    override suspend fun emitManagerEvent(event: AcpManagerEvent) = emitEvent(event)
+                },
         )
 
     private fun manualConfig(): AcpConnectionConfig.Manual =
@@ -185,9 +188,10 @@ class AcpTransportClientTest {
         client: AcpTransportClient,
         job: Job,
     ) {
-        val field = client.javaClass.getDeclaredField("reconnectJob")
+        val loop = reconnectLoopOf(client)
+        val field = loop.javaClass.getDeclaredField("reconnectJob")
         field.isAccessible = true
-        field.set(client, job)
+        field.set(loop, job)
     }
 
     // ---- Diagnostics telemetry ----
@@ -196,27 +200,37 @@ class AcpTransportClientTest {
     fun `setReconnectAttempt records attempts and dedupes`() =
         runTest {
             val store = AcpDiagnosticsStore()
-            assertEquals(0, store.diagnostics.value.reconnectAttempts)
+            val emissions = mutableListOf<ConnectionDiagnostics>()
+            val collect =
+                launch(UnconfinedTestDispatcher(testScheduler)) {
+                    store.diagnostics.collect { emissions += it }
+                }
+            assertEquals(0, emissions.single().reconnectAttempts)
 
             store.setReconnectAttempt(1)
-            assertEquals(1, store.diagnostics.value.reconnectAttempts)
+            assertEquals(1, emissions.last().reconnectAttempts)
 
-            // Same value -> no redundant update.
+            // A redundant set must be a true no-op: the diagnostics sheet re-reads the
+            // whole state on every emission, so a backoff tick that repeats the attempt
+            // count must not emit again.
             store.setReconnectAttempt(1)
-            val updatedAtAfterDedupe = store.diagnostics.value.lastUpdatedAtMs
+            assertEquals("a redundant update must not emit", 2, emissions.size)
+
             store.setReconnectAttempt(2)
-            assertEquals(2, store.diagnostics.value.reconnectAttempts)
-            assertTrue(store.diagnostics.value.lastUpdatedAtMs >= updatedAtAfterDedupe)
+            assertEquals(2, emissions.last().reconnectAttempts)
+
+            collect.cancel()
         }
 
     @Test
-    fun `setReconnectAttempt ignores non-positive values`() =
-        runTest {
-            val store = AcpDiagnosticsStore()
-            store.setReconnectAttempt(0)
-            store.setReconnectAttempt(-1)
-            assertEquals(0, store.diagnostics.value.reconnectAttempts)
-        }
+    fun `setReconnectAttempt ignores non-positive values`() {
+        val store = AcpDiagnosticsStore()
+
+        store.setReconnectAttempt(0)
+        store.setReconnectAttempt(-1)
+
+        assertEquals(0, store.diagnostics.value.reconnectAttempts)
+    }
 
     @Test
     fun `markDisconnected and startConnect reset reconnect attempts`() =

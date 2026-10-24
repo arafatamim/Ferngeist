@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.SlideDirection
+import com.tamimarafat.ferngeist.feature.chat.SwipeThresholds
 import com.tamimarafat.ferngeist.feature.chat.SwitchSlide
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import com.tamimarafat.ferngeist.feature.chat.resolveSwipeTarget
@@ -78,8 +79,11 @@ internal fun rememberSwitcherDragHandlers(
                     resolveSwipeTarget(
                         totalPx = totalPx,
                         velocityPxPerSec = velocityPxPerSec,
-                        commitThresholdPx = commitThresholdPx,
-                        flingThresholdPxPerSec = SWITCHER_FLING_VELOCITY_PX_PER_SEC,
+                        thresholds =
+                            SwipeThresholds(
+                                commitPx = commitThresholdPx,
+                                flingPxPerSec = SWITCHER_FLING_VELOCITY_PX_PER_SEC,
+                            ),
                         previous = previousSession,
                         next = nextSession,
                     )
@@ -87,31 +91,38 @@ internal fun rememberSwitcherDragHandlers(
                     // No fly-off animation here: navigate immediately and let
                     // the directional exit transition continue the drag from
                     // the finger's release point — one motion, no blank gap.
-                    val direction = if (totalPx != 0f) totalPx else velocityPxPerSec
-                    onSwitchSession(
-                        target,
-                        SwitchSlide(
-                            direction = if (direction < 0) SlideDirection.LEFT else SlideDirection.RIGHT,
-                            travelled = (abs(chatOffset.value) / screenWidthPx).coerceIn(0f, 1f),
-                        ),
-                    )
+                    onSwitchSession(target, switchSlide(totalPx, velocityPxPerSec, chatOffset.value, screenWidthPx))
                 } else {
-                    coroutineScope.launch {
-                        chatOffset.animateTo(
-                            targetValue = 0f,
-                            animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                        )
-                    }
+                    springBack(chatOffset, coroutineScope)
                 }
             },
-            onDragCancel = {
-                coroutineScope.launch {
-                    chatOffset.animateTo(
-                        targetValue = 0f,
-                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                    )
-                }
-            },
+            onDragCancel = { springBack(chatOffset, coroutineScope) },
+        )
+    }
+}
+
+/** Where the drag let go: the direction it was travelling and how much of the screen it had crossed. */
+private fun switchSlide(
+    totalPx: Float,
+    velocityPxPerSec: Float,
+    offsetPx: Float,
+    screenWidthPx: Float,
+): SwitchSlide {
+    val direction = if (totalPx != 0f) totalPx else velocityPxPerSec
+    return SwitchSlide(
+        direction = if (direction < 0) SlideDirection.LEFT else SlideDirection.RIGHT,
+        travelled = (abs(offsetPx) / screenWidthPx).coerceIn(0f, 1f),
+    )
+}
+
+private fun springBack(
+    chatOffset: Animatable<Float, AnimationVector1D>,
+    coroutineScope: CoroutineScope,
+) {
+    coroutineScope.launch {
+        chatOffset.animateTo(
+            targetValue = 0f,
+            animationSpec = spring(stiffness = Spring.StiffnessMedium),
         )
     }
 }

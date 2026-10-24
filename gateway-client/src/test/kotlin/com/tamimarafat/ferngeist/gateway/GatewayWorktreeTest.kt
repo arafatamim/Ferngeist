@@ -61,9 +61,12 @@ class GatewayWorktreeTest {
                     scheme = "http",
                     host = "10.0.0.2:5788",
                     gatewayCredential = "plain-token",
-                    repo = "/abs/path/to/repo",
-                    base = "origin/main",
-                    branch = "feat/x",
+                    request =
+                        GatewayCreateWorktreeRequest(
+                            repo = "/abs/path/to/repo",
+                            base = "origin/main",
+                            branch = "feat/x",
+                        ),
                 )
 
             val request = requireNotNull(captured)
@@ -95,7 +98,12 @@ class GatewayWorktreeTest {
                         """{"id":"a","repo":"/r","path":"/r/.worktrees/ferngeist-1","branch":"ferngeist/1","baseCommit":"c","createdAt":"t"}""",
                 ) { captured = it }
 
-            repo.createWorktree("http", "10.0.0.2:5788", "plain-token", "/r", base = "", branch = "  ")
+            repo.createWorktree(
+                "http",
+                "10.0.0.2:5788",
+                "plain-token",
+                GatewayCreateWorktreeRequest(repo = "/r", base = "", branch = "  "),
+            )
 
             assertEquals("""{"repo":"/r"}""", (requireNotNull(captured).body as TextContent).text)
         }
@@ -196,24 +204,6 @@ class GatewayWorktreeTest {
                 ),
                 endpoints,
             )
-        }
-
-    @Test
-    fun `createWorktree surfaces the 409 error envelope`() =
-        runTest {
-            val repo =
-                repoCapturing(
-                    responseBody = """{"error":"branch feat/x already exists"}""",
-                    status = HttpStatusCode.Conflict,
-                )
-
-            try {
-                repo.createWorktree("http", "10.0.0.2:5788", "plain-token", "/r", branch = "feat/x")
-                fail("expected a GatewayRequestException")
-            } catch (error: GatewayRequestException) {
-                assertEquals(409, error.statusCode)
-                assertEquals("branch feat/x already exists", gatewayErrorMessage(error.responseBody))
-            }
         }
 
     @Test

@@ -62,16 +62,16 @@ internal data class MarkdownTypography(
     }
 }
 
-private val LocalMarkdownColors = staticCompositionLocalOf<MarkdownColors> { error("No ProvideMarkdownTheme") }
-private val LocalMarkdownTypography =
+private val localMarkdownColors = staticCompositionLocalOf<MarkdownColors> { error("No ProvideMarkdownTheme") }
+private val localMarkdownTypography =
     staticCompositionLocalOf<MarkdownTypography> { error("No ProvideMarkdownTheme") }
 
 internal object MarkdownTheme {
     val colors: MarkdownColors
-        @Composable get() = LocalMarkdownColors.current
+        @Composable get() = localMarkdownColors.current
 
     val typography: MarkdownTypography
-        @Composable get() = LocalMarkdownTypography.current
+        @Composable get() = localMarkdownTypography.current
 }
 
 /**
@@ -115,8 +115,8 @@ internal fun ProvideMarkdownTheme(
         }
     val tinted = remember(typography, scheme) { typography.withTextColors(scheme.onSurface, scheme.onSurfaceVariant) }
     CompositionLocalProvider(
-        LocalMarkdownColors provides colors,
-        LocalMarkdownTypography provides tinted,
+        localMarkdownColors provides colors,
+        localMarkdownTypography provides tinted,
         content = content,
     )
 }

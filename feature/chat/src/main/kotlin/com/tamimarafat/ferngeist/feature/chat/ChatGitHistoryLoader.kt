@@ -1,7 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatGitLogPage
-import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
+import com.tamimarafat.ferngeist.core.model.ChatWorkspaceReader
 import com.tamimarafat.ferngeist.core.model.GitHistoryHeadGoneException
 import com.tamimarafat.ferngeist.core.model.GitHistoryUnsupportedException
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
  */
 internal class ChatGitHistoryLoader(
     private val scope: CoroutineScope,
-    private val facade: ChatSessionFacade,
+    private val facade: ChatWorkspaceReader,
     private val history: () -> GitHistoryState,
     private val update: (GitHistoryState.() -> GitHistoryState) -> Unit,
 ) {
@@ -36,6 +36,17 @@ internal class ChatGitHistoryLoader(
         val current = history()
         if (if (more) !current.canLoadMore else current.isLoading) return
         val request = ++logRequest
+        markLogLoading(more)
+        scope.launch {
+            val result = runCatching { fetchLog(current, more) }
+            if (request != logRequest) return@launch
+            result
+                .onSuccess { page -> onPage(page, more) }
+                .onFailure { error -> onLogFailure(error, more) }
+        }
+    }
+
+    private fun markLogLoading(more: Boolean) {
         update {
             if (more) {
                 copy(
@@ -46,20 +57,17 @@ internal class ChatGitHistoryLoader(
                 copy(isLoading = true, isLoadingMore = false, error = null)
             }
         }
-        scope.launch {
-            val result =
-                runCatching {
-                    facade.fetchGitLog(
-                        if (more) current.head else null,
-                        if (more) current.commits.size else 0,
-                    )
-                }
-            if (request != logRequest) return@launch
-            result
-                .onSuccess { page -> onPage(page, more) }
-                .onFailure { error -> onLogFailure(error, more) }
-        }
     }
+
+    /** Pages past the pinned head when [more], otherwise the first page from the current head. */
+    private suspend fun fetchLog(
+        current: GitHistoryState,
+        more: Boolean,
+    ): ChatGitLogPage? =
+        facade.fetchGitLog(
+            if (more) current.head else null,
+            if (more) current.commits.size else 0,
+        )
 
     private fun onPage(
         page: ChatGitLogPage?,

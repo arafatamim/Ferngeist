@@ -248,7 +248,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             val (viewModel, _) =
                 gatewayViewModel {
                     gitRefs =
-                        { if (fail) throw IllegalStateException("offline") else ChatGitRefs("main", listOf(main)) }
+                        { if (fail) error("offline") else ChatGitRefs("main", listOf(main)) }
                 }
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
@@ -388,7 +388,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             assertEquals(listOf("refs/heads/main"), facade.gitCompareStatusRequests)
         }
 
-    private suspend fun TestScope.openedOn(
+    private fun TestScope.openedOn(
         branch: String,
         refs: ChatGitRefs,
     ): ChatViewModel {
@@ -424,7 +424,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
         remoteUrl = null,
     )
 
-    private suspend fun gatewayViewModel(
+    private fun gatewayViewModel(
         configure: FakeChatSessionFacade.() -> Unit,
     ): Pair<ChatViewModel, FakeChatSessionFacade> {
         val facadeFactory = FakeChatSessionFacadeFactory()

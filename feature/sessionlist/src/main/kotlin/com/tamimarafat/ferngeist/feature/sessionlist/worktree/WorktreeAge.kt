@@ -3,7 +3,7 @@ package com.tamimarafat.ferngeist.feature.sessionlist.worktree
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 
-private val AGE_UNITS = listOf(ChronoUnit.YEARS, ChronoUnit.MONTHS, ChronoUnit.WEEKS, ChronoUnit.DAYS, ChronoUnit.HOURS)
+private val ageUnits = listOf(ChronoUnit.YEARS, ChronoUnit.MONTHS, ChronoUnit.WEEKS, ChronoUnit.DAYS, ChronoUnit.HOURS)
 
 /**
  * A worktree's age as its largest whole unit, for a `2d`-style label; under an hour counts in
@@ -11,7 +11,7 @@ private val AGE_UNITS = listOf(ChronoUnit.YEARS, ChronoUnit.MONTHS, ChronoUnit.W
  */
 internal fun worktreeAge(age: Duration): Pair<Long, ChronoUnit> {
     val days = age.toDays()
-    for (unit in AGE_UNITS) {
+    for (unit in ageUnits) {
         val count =
             when (unit) {
                 ChronoUnit.YEARS -> days / 365

@@ -20,7 +20,7 @@ data class GitSemanticColors(
     val neutral: Color,
 )
 
-val LightGitSemanticColors =
+val lightGitSemanticColors =
     GitSemanticColors(
         // Deep green vs brighter red: strong luminance gap so adjacent
         // bars/counts stay distinguishable (green 900 ~0.09 vs red 600 ~0.20).
@@ -29,7 +29,7 @@ val LightGitSemanticColors =
         neutral = Color(0xFF616161), // gray 700
     )
 
-val DarkGitSemanticColors =
+val darkGitSemanticColors =
     GitSemanticColors(
         // Very light green vs mid red: a large luminance gap on dark surfaces
         // (green A200 ~0.63 vs red 400 ~0.33) keeps them clearly distinct.
@@ -38,4 +38,4 @@ val DarkGitSemanticColors =
         neutral = Color(0xFFBDBDBD), // gray 400
     )
 
-val LocalGitSemanticColors = staticCompositionLocalOf { LightGitSemanticColors }
+val localGitSemanticColors = staticCompositionLocalOf { lightGitSemanticColors }

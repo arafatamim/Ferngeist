@@ -135,7 +135,7 @@ data class GitHistoryState(
     val commitFiles: List<ChatChangedFile>? = null,
     val isCommitLoading: Boolean = false,
     val commitError: String? = null,
-) {
-    /** A next page exists from a pinned head and no page is in flight. */
-    val canLoadMore: Boolean get() = hasMore && head != null && !isLoading && !isLoadingMore
-}
+)
+
+/** A next page exists from a pinned head and no page is in flight. */
+val GitHistoryState.canLoadMore: Boolean get() = hasMore && head != null && !isLoading && !isLoadingMore

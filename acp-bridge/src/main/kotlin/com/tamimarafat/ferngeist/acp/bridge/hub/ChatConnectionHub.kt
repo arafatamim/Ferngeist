@@ -13,6 +13,7 @@ import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -103,6 +104,7 @@ class ChatConnectionHub(
     private val connectivityObserver: ConnectivityObserver,
     private val sessionRepository: SessionRepository,
     private val limits: HubLimits = HubLimits(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ChatConnectionSurface {
     private data class Entry(
         val chatId: String,
@@ -119,9 +121,9 @@ class ChatConnectionHub(
         // A screen before the old one's teardown closes it, and a flag would end up closed.
         val openScreens: Int,
         val cwd: String,
-    ) {
-        val screenOpen: Boolean get() = openScreens > 0
-    }
+    )
+
+    private val Entry.screenOpen: Boolean get() = openScreens > 0
 
     private val entries = LinkedHashMap<String, Entry>()
     private val snapshots = LinkedHashMap<String, ChatSessionSnapshot>()
@@ -190,6 +192,9 @@ class ChatConnectionHub(
         connectedManagerValues(filter = { true }, select = { it.serverId })
             .stateIn(scope, SharingStarted.Eagerly, emptySet())
 
+    /** Network availability, so a feature can re-run work that failed while the device was offline. */
+    val networkAvailable: Flow<Boolean> get() = connectivityObserver.isConnected
+
     /** True when any tracked manager is currently connected. */
     val anyConnected: StateFlow<Boolean> =
         revision
@@ -198,7 +203,7 @@ class ChatConnectionHub(
                 if (managers.isEmpty()) {
                     flowOf(false)
                 } else {
-                    combine(managers.map { it.connectionState }) { states ->
+                    combine(managers.map { manager -> manager.connectionState }) { states ->
                         states.any { it is AcpConnectionState.Connected }
                     }
                 }
@@ -304,33 +309,50 @@ class ChatConnectionHub(
      * [manager] is the chat's connection, promoted from pending into the hot
      * entry. Eviction and explicit close tear it down here; callers never do.
      */
-    override suspend fun register(
+    override fun register(
         serverId: String,
         sessionId: String,
-        gatewaySessionId: String?,
-        gatewaySourceId: String,
-        agentId: String,
-        isConnected: () -> Boolean,
-        isStreaming: () -> Boolean,
-        manager: AcpConnection?,
+        registration: ChatRegistration,
     ): String {
         val chatId = chatIdFor(serverId, sessionId)
-        if (manager != null) {
-            pendingManagers.remove(manager)
+        if (registration.manager != null) {
+            pendingManagers.remove(registration.manager)
         }
-        entries[chatId]?.let { existing ->
+        val existing = entries[chatId]
+        if (existing != null) {
             entries[chatId] =
                 existing.copy(
-                    gatewaySessionId = gatewaySessionId,
-                    gatewaySourceId = gatewaySourceId,
-                    agentId = agentId,
-                    isConnected = isConnected,
-                    isStreaming = isStreaming,
-                    manager = manager,
+                    gatewaySessionId = registration.gatewaySessionId,
+                    gatewaySourceId = registration.gatewaySourceId,
+                    agentId = registration.agentId,
+                    isConnected = registration.isConnected,
+                    isStreaming = registration.isStreaming,
+                    manager = registration.manager,
                 )
-            republish()
-            return chatId
+        } else {
+            makeRoomForEntry()
+            entries[chatId] =
+                Entry(
+                    chatId = chatId,
+                    serverId = serverId,
+                    sessionId = sessionId,
+                    gatewaySessionId = registration.gatewaySessionId,
+                    gatewaySourceId = registration.gatewaySourceId,
+                    agentId = registration.agentId,
+                    isConnected = registration.isConnected,
+                    isStreaming = registration.isStreaming,
+                    manager = registration.manager,
+                    lastFocusedMs = limits.clock(),
+                    openScreens = 0,
+                    cwd = "",
+                )
         }
+        republish()
+        return chatId
+    }
+
+    /** Evicts entries until one more fits under the hot cap; see [register] for the over-cap policy. */
+    private fun makeRoomForEntry() {
         while (entries.size >= limits.maxHotConnections) {
             val victim =
                 entries.values
@@ -346,23 +368,6 @@ class ChatConnectionHub(
                     ?: break
             removeAndEvict(victim.chatId)
         }
-        entries[chatId] =
-            Entry(
-                chatId = chatId,
-                serverId = serverId,
-                sessionId = sessionId,
-                gatewaySessionId = gatewaySessionId,
-                gatewaySourceId = gatewaySourceId,
-                agentId = agentId,
-                isConnected = isConnected,
-                isStreaming = isStreaming,
-                manager = manager,
-                lastFocusedMs = limits.clock(),
-                openScreens = 0,
-                cwd = "",
-            )
-        republish()
-        return chatId
     }
 
     /** The live transport for a tracked chat, or null when untracked/cold. */
@@ -492,7 +497,7 @@ class ChatConnectionHub(
                 ?.takeIf { transport.connectionState.value != AcpConnectionState.Disconnected }
         if (release) transport.release() else transport.disconnect()
         gateway ?: return
-        scope.launch(Dispatchers.IO) {
+        scope.launch(ioDispatcher) {
             // Best-effort: the reaper still collects a session this misses.
             runCatching {
                 gatewayRepository.closeSession(
@@ -557,7 +562,7 @@ class ChatConnectionHub(
     private fun allManagers(): List<AcpConnection> =
         entries.values.mapNotNullTo(mutableListOf()) { it.manager } + pendingManagers + browserManagers
 
-    private suspend fun removeAndEvict(chatId: String) {
+    private fun removeAndEvict(chatId: String) {
         val entry = entries.remove(chatId)
         if (entry != null) {
             entry.manager?.let { it.release() }

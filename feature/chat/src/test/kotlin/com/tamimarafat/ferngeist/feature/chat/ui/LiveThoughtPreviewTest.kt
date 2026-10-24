@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.collapseThought
+import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.liveThoughtPreview
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

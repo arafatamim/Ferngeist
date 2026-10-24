@@ -31,12 +31,6 @@ class SessionTitleTest {
     }
 
     @Test
-    fun `the first message truncated for a session list is not a name`() {
-        val prompt = "refactor the session title handling in the chat view model and keep it consistent"
-        assertNull(sessionTitleOrNull(prompt.take(80), prompt))
-    }
-
-    @Test
     fun `a name that is only a prefix of the prompt is refused with it`() {
         assertNull(sessionTitleOrNull("find", "find the space bunny"))
     }

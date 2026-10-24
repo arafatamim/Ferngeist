@@ -22,8 +22,7 @@ import kotlinx.coroutines.withTimeout
  */
 internal class SessionLoadCoordinator(
     private val connectionManager: AcpConnection,
-    private val initialSessionId: String,
-    private val cwd: String,
+    private val opening: ChatOpening,
     private val sessionLoadTimeoutMs: Long,
     private val currentCapabilitiesProvider: () -> AgentCapabilities?,
     private val onAttachBridge: suspend (SessionPort) -> Unit,
@@ -38,7 +37,7 @@ internal class SessionLoadCoordinator(
      * Live bridge snapshots still flow through observers regardless.
      */
     suspend fun run(
-        sessionId: String = initialSessionId,
+        sessionId: String = opening.sessionId,
         announceReady: Boolean = true,
     ): SessionLoadOutcome {
         connectionManager.sessions.getSession(sessionId)?.let { existing ->
@@ -64,7 +63,7 @@ internal class SessionLoadCoordinator(
         val bridge =
             try {
                 withTimeout(sessionLoadTimeoutMs) {
-                    connectionManager.sessions.attachSession(rpc, sessionId, cwd)
+                    connectionManager.sessions.attachSession(rpc, sessionId, opening.cwd)
                 }
             } catch (_: AcpAuthenticationRequiredException) {
                 return SessionLoadOutcome.Failed(

@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.catalog
 
-import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
+import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.FakeAuthEnvValueStore
 import com.tamimarafat.ferngeist.acp.bridge.hub.FakeGatewayRepo
@@ -19,8 +19,8 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,17 +50,22 @@ class SessionCatalogTest {
         targets: FakeLaunchableTargets = FakeLaunchableTargets(),
         authEnvValueStore: AuthEnvValueStore = FakeAuthEnvValueStore(),
         hub: ChatConnectionHub = newHub(repo = repo, sessionRepository = sessionRepository),
-    ): SessionCatalog =
-        SessionCatalog(
+    ): SessionCatalog {
+        val dispatcher = UnconfinedTestDispatcher()
+        return SessionCatalog(
             hub = hub,
-            gatewayRepository = repo,
+            repositories =
+                LaunchRepositories(
+                    gatewayRepository = repo,
+                    gatewaySourceRepository = FakeGatewaySources(),
+                    launchableTargetRepository = targets,
+                ),
             sessionRepository = sessionRepository,
-            launchableTargetRepository = targets,
-            gatewaySourceRepository = FakeGatewaySources(),
-            connectivityObserver = ConnectivityObserverStub(initialState = true),
             authEnvValueStore = authEnvValueStore,
-            scope = CoroutineScope(Dispatchers.Unconfined),
+            scope = CoroutineScope(dispatcher),
+            ioDispatcher = dispatcher,
         )
+    }
 
     /** A gateway target whose source carries the endpoint triple the REST legs must use. */
     private fun gatewayTarget(): LaunchableTarget.GatewayAgent =
@@ -93,7 +98,7 @@ class SessionCatalogTest {
         runTest {
             val sessions = FakeSessionRepo()
             val hub = newHub(sessionRepository = sessions)
-            val transport = hub.createBrowserManager(CoroutineScope(Dispatchers.Unconfined))
+            val transport = hub.createBrowserManager(CoroutineScope(UnconfinedTestDispatcher()))
             val catalog = newCatalog(sessionRepository = sessions, hub = hub)
 
             catalog.adoptListing("srv", transport)

@@ -44,7 +44,7 @@ internal object ElicitationMappers {
                     description = schema.description,
                     fields =
                         schema.properties.map { (name, property) ->
-                            toField(name, property, schema.required ?: emptyList())
+                            toField(name, property, schema.required.orEmpty())
                         },
                 )
             }
@@ -122,7 +122,7 @@ internal object ElicitationMappers {
                     kind =
                         ElicitationFieldKind.MultiSelect(
                             options = property.items.toOptions(),
-                            default = property.default ?: emptyList(),
+                            default = property.default.orEmpty(),
                             minItems = property.minItems?.toInt(),
                             maxItems = property.maxItems?.toInt(),
                         ),

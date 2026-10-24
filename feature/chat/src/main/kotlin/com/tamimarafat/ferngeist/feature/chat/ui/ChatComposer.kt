@@ -2,12 +2,8 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import android.graphics.BitmapFactory
-import android.util.Base64
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
@@ -18,34 +14,23 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.KeyboardActionHandler
@@ -55,22 +40,14 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.ScheduleSend
-import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CheckableDropdownMenuItem
-import androidx.compose.material3.DropdownMenuGroup
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -78,11 +55,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
@@ -97,22 +72,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
@@ -120,22 +89,23 @@ import com.tamimarafat.ferngeist.core.common.ui.onSubmitShortcut
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.allChoices
-import com.tamimarafat.ferngeist.core.model.displayValueLabel
 import com.tamimarafat.ferngeist.feature.chat.ChatState
-import com.tamimarafat.ferngeist.feature.chat.FileAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.FileChipRow
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ImageThumbnailRow
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
 
 private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
 
 // Resting height of the collapsed pill. Shared with the session switcher bubble
 // so its circle always matches the pill's height.
-internal val COLLAPSED_COMPOSER_HEIGHT = 62.dp
+internal val collapsedComposerHeight = 62.dp
 
 // Floor for the expanded composer. There is no matching ceiling: while expanded the
 // panel is sized by its content, and the text field's own line bounds (minLines /
 // maxLines) are what stop it growing and make the text scroll instead.
-private val EXPANDED_COMPOSER_MIN_HEIGHT = 142.dp
+private val expandedComposerMinHeight = 142.dp
 
 /**
  * Main entry point for the chat composer UI.
@@ -344,10 +314,10 @@ private fun ComposerSurfaceContainer(
         val density = LocalDensity.current
         val expandedHeight =
             with(density) {
-                expandedContentHeightPx.toDp().coerceAtLeast(EXPANDED_COMPOSER_MIN_HEIGHT)
+                expandedContentHeightPx.toDp().coerceAtLeast(expandedComposerMinHeight)
             }
         val widthKnown = composerExpanded || collapsedContentWidthPx > 0
-        val restingHeight = if (composerExpanded) expandedHeight else COLLAPSED_COMPOSER_HEIGHT
+        val restingHeight = if (composerExpanded) expandedHeight else collapsedComposerHeight
         // Reports the resting height, not the animated one: the parent turns this into list
         // padding at screen level, so a per-frame value recomposed the whole chat screen and
         // re-laid out the list on every frame of the expand/collapse.
@@ -363,12 +333,8 @@ private fun ComposerSurfaceContainer(
         )
         val animatedWidth = rememberPanelWidth(composerExpanded, collapsedContentWidthPx, expandedWidth)
 
-        Surface(
-            // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
-            shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shadowElevation = 6.dp,
+        ComposerPanel(
+            composerExpanded = composerExpanded,
             modifier =
                 Modifier
                     .height(animatedHeight)
@@ -381,59 +347,97 @@ private fun ComposerSurfaceContainer(
                             Modifier.widthIn(max = expandedWidth)
                         },
                     ),
+            expandedWidth = expandedWidth,
+            onExpandedContentHeightPx = { expandedContentHeightPx = it },
+            onCollapsedContentWidthPx = { collapsedContentWidthPx = it },
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun ComposerPanel(
+    composerExpanded: Boolean,
+    modifier: Modifier,
+    expandedWidth: Dp,
+    onExpandedContentHeightPx: (Int) -> Unit,
+    onCollapsedContentWidthPx: (Int) -> Unit,
+    content: @Composable RowScope.(collapsedMaxToolbarWidth: Dp) -> Unit,
+) {
+    Surface(
+        // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
+        shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shadowElevation = 6.dp,
+        modifier = modifier,
+    ) {
+        Box(
+            // Height only: filling the width would stretch the collapsed pill to the
+            // panel's maximum, because the panel's width is content-driven when collapsed.
+            modifier = Modifier.fillMaxHeight(),
+            // Both resting layouts fill the panel, so this only matters mid-resize. Pinning
+            // the collapsed bar to the bottom keeps it at its final position while the panel
+            // shrinks, instead of letting it ride the top edge down the screen. The spring's
+            // undershoot does squeeze it by a few dp at the tail, which reads as a settle.
+            contentAlignment = if (composerExpanded) Alignment.TopCenter else Alignment.BottomCenter,
         ) {
-            Box(
-                // Height only: filling the width would stretch the collapsed pill to the
-                // panel's maximum, because the panel's width is content-driven when collapsed.
-                modifier = Modifier.fillMaxHeight(),
-                // Both resting layouts fill the panel, so this only matters mid-resize. Pinning
-                // the collapsed bar to the bottom keeps it at its final position while the panel
-                // shrinks, instead of letting it ride the top edge down the screen. The spring's
-                // undershoot does squeeze it by a few dp at the tail, which reads as a settle.
-                contentAlignment = if (composerExpanded) Alignment.TopCenter else Alignment.BottomCenter,
-            ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .then(
-                                if (composerExpanded) {
-                                    // Measured unconstrained so the content can report its full
-                                    // height while the panel is still growing; the excess is
-                                    // clipped by the panel's shape until the panel catches up.
-                                    Modifier.fillMaxWidth().wrapContentHeight(unbounded = true)
-                                } else {
-                                    // Exactly the resting height, so the bar sits where it will
-                                    // come to rest rather than stretching to the animating panel.
-                                    Modifier
-                                        .height(COLLAPSED_COMPOSER_HEIGHT)
-                                        // Unbounded for the same reason as the height above: the
-                                        // panel's width is this measurement, so a bar measured
-                                        // under the panel's own width could never report wider than
-                                        // it already is. Left bounded, the two lock at whichever
-                                        // width the first frame happened to measure.
-                                        .wrapContentWidth(unbounded = true)
-                                },
-                            )
-                            // Placed before the padding so it reports the padded width, which
-                            // is what the panel itself has to be.
-                            .onSizeChanged {
-                                if (!composerExpanded && collapsedContentWidthPx != it.width) {
-                                    collapsedContentWidthPx = it.width
-                                }
-                            }.padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
+            ComposerContentRow(
+                composerExpanded = composerExpanded,
+                expandedWidth = expandedWidth,
+                onExpandedContentHeightPx = onExpandedContentHeightPx,
+                onCollapsedContentWidthPx = onCollapsedContentWidthPx,
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ComposerContentRow(
+    composerExpanded: Boolean,
+    expandedWidth: Dp,
+    onExpandedContentHeightPx: (Int) -> Unit,
+    onCollapsedContentWidthPx: (Int) -> Unit,
+    content: @Composable RowScope.(collapsedMaxToolbarWidth: Dp) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .then(
                     if (composerExpanded) {
-                        val rowScope = this
-                        Box(modifier = Modifier.fillMaxWidth().onSizeChanged { expandedContentHeightPx = it.height }) {
-                            with(rowScope) { content(expandedWidth) }
-                        }
+                        // Measured unconstrained so the content can report its full
+                        // height while the panel is still growing; the excess is
+                        // clipped by the panel's shape until the panel catches up.
+                        Modifier.fillMaxWidth().wrapContentHeight(unbounded = true)
                     } else {
-                        content(expandedWidth)
-                    }
-                }
+                        // Exactly the resting height, so the bar sits where it will
+                        // come to rest rather than stretching to the animating panel.
+                        Modifier
+                            .height(collapsedComposerHeight)
+                            // Unbounded for the same reason as the height above: the
+                            // panel's width is this measurement, so a bar measured
+                            // under the panel's own width could never report wider than
+                            // it already is. Left bounded, the two lock at whichever
+                            // width the first frame happened to measure.
+                            .wrapContentWidth(unbounded = true)
+                    },
+                )
+                // Placed before the padding so it reports the padded width, which
+                // is what the panel itself has to be.
+                .onSizeChanged {
+                    if (!composerExpanded) onCollapsedContentWidthPx(it.width)
+                }.padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        if (composerExpanded) {
+            val rowScope = this
+            Box(modifier = Modifier.fillMaxWidth().onSizeChanged { onExpandedContentHeightPx(it.height) }) {
+                with(rowScope) { content(expandedWidth) }
             }
+        } else {
+            content(expandedWidth)
         }
     }
 }
@@ -571,6 +575,25 @@ private fun ExpandedComposerTextField(
     }
 }
 
+@Composable
+private fun AttachComposerButton(
+    onAttach: () -> Unit,
+    dropTargetActive: Boolean,
+) {
+    IconButton(onClick = onAttach, modifier = Modifier.handCursor()) {
+        Icon(
+            imageVector =
+                if (dropTargetActive) {
+                    Icons.Default.MoveToInbox
+                } else {
+                    Icons.Default.AttachFile
+                },
+            contentDescription = stringResource(R.string.chat_attach_desc),
+            tint = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
+}
+
 /**
  * The bottom action row inside [ExpandedComposerContent], containing the
  * close button, attach-file affordance, and primary action button.
@@ -607,18 +630,7 @@ private fun ExpandedComposerBottomBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (canSendImages || canSendFiles) {
-                IconButton(onClick = onAttach, modifier = Modifier.handCursor()) {
-                    Icon(
-                        imageVector =
-                            if (dropTargetActive) {
-                                Icons.Default.MoveToInbox
-                            } else {
-                                Icons.Default.AttachFile
-                            },
-                        contentDescription = stringResource(R.string.chat_attach_desc),
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
+                AttachComposerButton(onAttach = onAttach, dropTargetActive = dropTargetActive)
             }
 
             PrimaryComposerActionButton(
@@ -832,278 +844,6 @@ private fun JumpToBottomButton(onJumpToBottom: () -> Unit) {
 }
 
 /**
- * A dropdown menu button for selecting the chat mode.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun ModeMenuButton(
-    modifier: Modifier = Modifier,
-    currentModeLabel: String,
-    modeOption: ChatConfigOption.Select,
-    maxWidth: Dp,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    interactionSource: MutableInteractionSource,
-    onSetConfigOption: (String, String) -> Unit,
-) {
-    Box(modifier = modifier) {
-        TooltipBox(
-            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-            tooltip = { PlainTooltip { Text(stringResource(R.string.chat_mode)) } },
-            state = rememberTooltipState(),
-        ) {
-            TextButton(
-                onClick = { onExpandedChange(true) },
-                modifier = Modifier.widthIn(max = maxWidth).handCursor(),
-                colors =
-                    ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        containerColor = Color.Transparent,
-                    ),
-            ) {
-                // The bar, and the panel hugging it, take their width from this label, so sizing
-                // the swap here is what makes the whole pill resize smoothly on a mode change.
-                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntSize>()
-                val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-                AnimatedContent(
-                    targetState = currentModeLabel,
-                    transitionSpec = {
-                        (fadeIn(effects) + slideInVertically { it / 2 })
-                            .togetherWith(fadeOut(effects) + slideOutVertically { -it / 2 })
-                            .using(SizeTransform { _, _ -> spatial })
-                    },
-                    label = "ModeLabel",
-                ) { label ->
-                    Text(
-                        text = label,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-        DropdownMenuPopup(
-            expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) },
-        ) {
-            ModeMenuContent(
-                modeOption = modeOption,
-                onExpandedChange = onExpandedChange,
-                interactionSource = interactionSource,
-                onSetConfigOption = onSetConfigOption,
-            )
-        }
-    }
-}
-
-/**
- * The dropdown content inside [ModeMenuButton], rendering each available mode
- * as a [DropdownMenuItem] with optional tooltip.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ModeMenuContent(
-    modeOption: ChatConfigOption.Select,
-    onExpandedChange: (Boolean) -> Unit,
-    interactionSource: MutableInteractionSource,
-    onSetConfigOption: (String, String) -> Unit,
-) {
-    DropdownMenuGroup(
-        shapes = MenuDefaults.groupShape(0, 1),
-        interactionSource = interactionSource,
-    ) {
-        val availableModes = modeOption.allChoices()
-        val modeCount = availableModes.size
-        if (modeCount == 0) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_no_modes_available)) },
-                onClick = { onExpandedChange(false) },
-                enabled = false,
-            )
-        } else {
-            availableModes.forEachIndexed { index, mode ->
-                val item: @Composable () -> Unit = {
-                    CheckableDropdownMenuItem(
-                        text = { Text(mode.label.uppercase()) },
-                        shapes = MenuDefaults.itemShape(index, modeCount),
-                        checked = mode.value == modeOption.currentValue,
-                        onCheckedChange = { checked ->
-                            if (checked && mode.value != modeOption.currentValue) {
-                                onExpandedChange(false)
-                                onSetConfigOption(modeOption.id, mode.value)
-                            }
-                        },
-                    )
-                }
-                val description = mode.description
-                if (!description.isNullOrBlank()) {
-                    TooltipBox(
-                        positionProvider =
-                            TooltipDefaults.rememberTooltipPositionProvider(
-                                TooltipAnchorPosition.Above,
-                            ),
-                        tooltip = { PlainTooltip { Text(description) } },
-                        state = rememberTooltipState(),
-                    ) { item() }
-                } else {
-                    item()
-                }
-            }
-        }
-    }
-}
-
-/**
- * A dropdown button containing various session options and commands.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun ToolbarOptionsButton(
-    commandsAdvertised: Boolean,
-    configOptions: List<ChatConfigOption>,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    interactionSource: MutableInteractionSource,
-    onSetBooleanConfigOption: (String, Boolean) -> Unit,
-    onShowCommands: () -> Unit,
-    onShowConfigOptionPicker: (String) -> Unit,
-) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text(stringResource(R.string.chat_options)) } },
-        state = rememberTooltipState(),
-    ) {
-        Box {
-            IconButton(onClick = { onExpandedChange(true) }, modifier = Modifier.handCursor()) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.chat_options),
-                )
-            }
-            DropdownMenuPopup(
-                expanded = expanded,
-                onDismissRequest = { onExpandedChange(false) },
-            ) {
-                ToolbarOptionsMenuContent(
-                    commandsAdvertised = commandsAdvertised,
-                    configOptions = configOptions,
-                    onExpandedChange = onExpandedChange,
-                    interactionSource = interactionSource,
-                    onSetBooleanConfigOption = onSetBooleanConfigOption,
-                    onShowCommands = onShowCommands,
-                    onShowConfigOptionPicker = onShowConfigOptionPicker,
-                )
-            }
-        }
-    }
-}
-
-/**
- * The dropdown menu content inside [ToolbarOptionsButton], rendering the
- * commands, config options, and the fallback empty-state item.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ToolbarOptionsMenuContent(
-    commandsAdvertised: Boolean,
-    configOptions: List<ChatConfigOption>,
-    onExpandedChange: (Boolean) -> Unit,
-    interactionSource: MutableInteractionSource,
-    onSetBooleanConfigOption: (String, Boolean) -> Unit,
-    onShowCommands: () -> Unit,
-    onShowConfigOptionPicker: (String) -> Unit,
-) {
-    DropdownMenuGroup(
-        shapes = MenuDefaults.groupShape(0, 1),
-        interactionSource = interactionSource,
-    ) {
-        val hasConfigOptions = configOptions.isNotEmpty()
-        if (commandsAdvertised) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_commands)) },
-                onClick = {
-                    onExpandedChange(false)
-                    onShowCommands()
-                },
-            )
-        }
-
-        configOptions.forEach { option ->
-            ConfigOptionMenuItem(
-                option = option,
-                onClick = {
-                    when (option) {
-                        is ChatConfigOption.BooleanOption -> {
-                            onExpandedChange(false)
-                            onSetBooleanConfigOption(option.id, !option.currentValue)
-                        }
-
-                        is ChatConfigOption.Select -> {
-                            onExpandedChange(false)
-                            onShowConfigOptionPicker(option.id)
-                        }
-
-                        is ChatConfigOption.Unknown -> Unit
-                    }
-                },
-            )
-        }
-
-        if (!commandsAdvertised && !hasConfigOptions) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_no_options_available)) },
-                onClick = { onExpandedChange(false) },
-                enabled = false,
-            )
-        }
-    }
-}
-
-/**
- * A menu item for a specific [SessionConfigOption].
- * Displays the option name and its current status/value.
- */
-@Composable
-internal fun ConfigOptionMenuItem(
-    option: ChatConfigOption,
-    onClick: () -> Unit,
-) {
-    DropdownMenuItem(
-        text = {
-            Column {
-                Text(option.name)
-                Text(
-                    text = option.dropdownSubtitle(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        },
-        onClick = onClick,
-        enabled = option is ChatConfigOption.Select || option is ChatConfigOption.BooleanOption,
-    )
-}
-
-/**
- * Extension to get a user-friendly subtitle for a config option in the dropdown.
- */
-@Composable
-internal fun ChatConfigOption.dropdownSubtitle(): String =
-    when (this) {
-        is ChatConfigOption.BooleanOption ->
-            if (currentValue) {
-                stringResource(
-                    R.string.chat_enabled,
-                )
-            } else {
-                stringResource(R.string.chat_disabled)
-            }
-        else -> displayValueLabel() ?: stringResource(R.string.chat_not_selected)
-    }
-
-/**
  * The primary action button (Send or Stop).
  * Uses a filled icon button style consistent with the composer theme.
  */
@@ -1133,204 +873,6 @@ internal fun PrimaryComposerActionButton(
                 imageVector = it,
                 contentDescription =
                     stringResource(if (stopping) R.string.chat_stop_desc else R.string.chat_send_desc),
-            )
-        }
-    }
-}
-
-/**
- * Horizontal scrolling row of attached-image thumbnails, each with a remove (x) affordance.
- */
-@Composable
-private fun ImageThumbnailRow(
-    images: List<ChatImageData>,
-    onRemove: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyRow(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp),
-    ) {
-        itemsIndexed(
-            items = images,
-            key = { _, image -> image.base64 },
-        ) { index, image ->
-            ImageThumbnailItem(
-                image = image,
-                onRemove = { onRemove(index) },
-            )
-        }
-    }
-}
-
-/**
- * Horizontal scrolling row of attached-file chips, each with a remove (x) affordance.
- */
-@Composable
-private fun FileChipRow(
-    files: List<ChatFileData>,
-    onRemove: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyRow(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp),
-    ) {
-        itemsIndexed(
-            items = files,
-            key = { index, file -> "${file.name}:$index" },
-        ) { index, file ->
-            FileChipItem(file = file, onRemove = { onRemove(index) })
-        }
-    }
-}
-
-@Composable
-private fun FileChipItem(
-    file: ChatFileData,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
-        modifier = modifier.height(56.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-            )
-            Spacer(Modifier.width(8.dp))
-            Column(modifier = Modifier.widthIn(max = 160.dp)) {
-                Text(
-                    text = file.name,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = FileAttachmentHelper.formatSize(file.sizeBytes),
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp).handCursor()) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.chat_remove_file_desc),
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ImageThumbnailItem(
-    image: ChatImageData,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(modifier = modifier) {
-        val bitmap =
-            remember(image.base64) {
-                runCatching {
-                    val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-                    BitmapFactory
-                        .decodeByteArray(bytes, 0, bytes.size)
-                        ?.asImageBitmap()
-                }.getOrNull()
-            }
-
-        ThumbnailImageContent(bitmap = bitmap)
-
-        // Remove button — positioned top-end of the thumbnail
-        ThumbnailRemoveButton(onRemove = onRemove)
-    }
-}
-
-/**
- * The thumbnail image surface inside [ImageThumbnailItem], showing either the
- * decoded bitmap or a placeholder icon when decoding fails.
- */
-@Composable
-private fun ThumbnailImageContent(
-    bitmap: androidx.compose.ui.graphics.ImageBitmap?,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
-        modifier = modifier.size(56.dp),
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = stringResource(R.string.chat_image_desc),
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .clip(MaterialTheme.shapes.large),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AddPhotoAlternate,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-        }
-    }
-}
-
-/**
- * The remove (x) button overlay for [ImageThumbnailItem], positioned at the
- * top-end of the thumbnail.
- */
-@Composable
-private fun BoxScope.ThumbnailRemoveButton(
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-        modifier =
-            modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 4.dp, y = (-4).dp)
-                .size(18.dp),
-    ) {
-        IconButton(
-            onClick = onRemove,
-            modifier = Modifier.fillMaxSize().handCursor(),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = stringResource(R.string.chat_remove_image_desc),
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(12.dp),
             )
         }
     }

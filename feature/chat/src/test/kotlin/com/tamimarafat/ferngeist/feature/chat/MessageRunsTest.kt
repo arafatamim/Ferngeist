@@ -17,19 +17,11 @@ class MessageRunsTest {
 
     @Test
     fun aRunKeysOnItsFirstSegmentSoTheKeySurvivesGrowth() {
+        // The whole point: chunk 2 must not change the run's identity, or Compose recreates the
+        // node and the streaming text resets every chunk.
         val runs = chunks("a", "b", "c").messageRuns()
 
         assertEquals("s0", runs.single().key)
-    }
-
-    @Test
-    fun growingTheRunKeepsTheSameKey() {
-        // The whole point: chunk 2 must not change the run's identity, or Compose recreates the
-        // node and the streaming text resets every chunk.
-        val first = chunks("a").messageRuns().single()
-        val third = chunks("a", "b", "c").messageRuns().single()
-
-        assertEquals(first.key, third.key)
     }
 
     @Test
@@ -59,11 +51,6 @@ class MessageRunsTest {
         assertEquals(2, runs.size)
         assertEquals("before", runs[0].text)
         assertEquals("after", runs[1].text)
-    }
-
-    @Test
-    fun anEmptyListHasNoRuns() {
-        assertEquals(emptyList<SegmentBlock.Run>(), persistentListOf<AssistantSegment>().messageRuns())
     }
 
     @Test

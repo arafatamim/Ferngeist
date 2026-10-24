@@ -8,10 +8,9 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -75,8 +74,9 @@ class GatewayRoundTripTest {
                 }
             val repo = GatewayRepositoryImpl(HttpClient(engine), json)
 
-            val closing = launch(Dispatchers.Default) { repo.closeSession("http", "gw.local:5788", "", "s-1") }
-            withContext(Dispatchers.Default) { deleteStarted.await() }
+            val closing =
+                launch(StandardTestDispatcher(testScheduler)) { repo.closeSession("http", "gw.local:5788", "", "s-1") }
+            deleteStarted.await()
             val during = repo.listGatewaySessions("http", "gw.local:5788", "")
             finishDelete.complete(Unit)
             closing.join()

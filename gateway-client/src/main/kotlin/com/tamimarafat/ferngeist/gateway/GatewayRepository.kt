@@ -1,6 +1,9 @@
 package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 
 /** Pairing and initial status operations. */
 interface GatewayPairingRepository {
@@ -135,10 +138,7 @@ interface GatewayWorkspaceRepository {
      * and the response echoes it; a gateway that ignores the parameter omits the echo.
      */
     suspend fun fetchGitStatus(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String? = null,
         compare: String? = null,
     ): GatewayGitStatus
@@ -154,15 +154,8 @@ interface GatewayWorkspaceRepository {
      * tip instead of `HEAD`.
      */
     suspend fun fetchGitDiff(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
-        path: String? = null,
-        acpSessionId: String? = null,
-        commit: String? = null,
-        oldPath: String? = null,
-        compare: String? = null,
+        connection: GatewayWorkspaceConnection,
+        query: GatewayDiffQuery = GatewayDiffQuery(),
     ): List<ToolCallContent.Diff>
 
     /**
@@ -175,16 +168,8 @@ interface GatewayWorkspaceRepository {
      * many commits of the ref's own history from its tip in [GatewayGitLog.target], so 1 is just the tip.
      */
     suspend fun fetchGitLog(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
-        head: String?,
-        skip: Int,
-        limit: Int,
-        acpSessionId: String? = null,
-        compare: String? = null,
-        beyond: Int = 0,
+        connection: GatewayWorkspaceConnection,
+        query: GatewayLogQuery,
     ): GatewayGitLog
 
     /**
@@ -192,39 +177,27 @@ interface GatewayWorkspaceRepository {
      * `{"error"}` envelope on gateways that predate branch comparison.
      */
     suspend fun fetchGitRefs(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String? = null,
     ): GatewayGitRefs
 
     /** The files [sha] changed under the project directory, against its first parent. */
     suspend fun fetchGitCommit(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         sha: String,
         acpSessionId: String? = null,
     ): GatewayGitCommitFiles
 
     /** `GET /files`: one file of the project directory; [path] is relative to it. */
     suspend fun fetchFile(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         path: String,
         acpSessionId: String? = null,
     ): GatewayFileContents
 
     /** `GET /files/list`: every file of the project directory git doesn't ignore. */
     suspend fun fetchFileList(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String? = null,
     ): GatewayFileList
 }
@@ -235,10 +208,7 @@ interface GatewayCustomAgentRepository {
         scheme: String,
         host: String,
         gatewayCredential: String,
-        displayName: String,
-        command: String,
-        args: List<String>,
-        hint: String,
+        request: GatewayCustomAgentRequest,
     ): GatewayAgent
 
     suspend fun deleteCustomAgent(
@@ -260,16 +230,14 @@ interface GatewayCustomAgentRepository {
 /** Gateway-managed git worktree operations. */
 interface GatewayWorktreeRepository {
     /**
-     * Creates a worktree for the git repo containing [repo] on a new branch, returning the
-     * directory to open the chat in. [base] and [branch] are the gateway's defaults when null.
+     * Creates a worktree for the git repo in `request.repo` on a new branch, returning the
+     * directory to open the chat in. `request.base` and `request.branch` use gateway defaults when null.
      */
     suspend fun createWorktree(
         scheme: String,
         host: String,
         gatewayCredential: String,
-        repo: String,
-        base: String? = null,
-        branch: String? = null,
+        request: GatewayCreateWorktreeRequest,
     ): GatewayWorktree
 
     /**

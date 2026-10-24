@@ -70,4 +70,4 @@ internal fun Bone(
 }
 
 /** Varied but stable line lengths, so a skeleton looks like text rather than a barcode. */
-internal val BoneFractions = listOf(0.72f, 0.5f, 0.86f, 0.62f, 0.4f, 0.78f, 0.56f, 0.9f)
+internal val boneFractions = listOf(0.72f, 0.5f, 0.86f, 0.62f, 0.4f, 0.78f, 0.56f, 0.9f)

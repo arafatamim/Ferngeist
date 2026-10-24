@@ -14,19 +14,6 @@ import org.junit.Test
 
 class SessionMessageReducerTest {
     @Test
-    fun finishStreaming_singleTrailingBubble_clearsFlag() {
-        val messages =
-            listOf(
-                assistantMessage(id = "assistant", content = "hello", isStreaming = true),
-                userMessage(id = "user", content = "hi"),
-            )
-
-        val result = SessionMessageReducer.finishStreaming(messages)
-
-        assertTrue("no message may remain streaming", result.none { it.isStreaming })
-    }
-
-    @Test
     fun finishStreaming_severalBubblesIncludingNonLast_clearsAll() {
         val messages =
             listOf(

@@ -31,38 +31,63 @@ import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.worktreeScopeOptions
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
-internal class SessionListState(
+/** The session rows the list paints, and what the agent allows for them. */
+internal class SessionRowsUi(
     val sessions: List<SessionSummary>,
     val liveSessionIds: Set<String>,
     /** False only until the cache's first emission; see `SessionRows.loaded`. */
     val cacheRead: Boolean,
-    val currentCwd: String?,
+    /** `cwdKey`s of chat folders gone from disk; their chats sit in a collapsed section. */
+    val missingCwds: Set<String>,
+    val supportsSessionList: Boolean,
+    /** True when the agent advertised `sessionCapabilities.delete` — gates the menu's Delete item. */
+    val supportsSessionDelete: Boolean,
+)
+
+/** The connection pill and its details, and the auth challenge the agent raised. */
+internal class ConnectionUi(
     val connectionState: ChatConnectionState,
     val connectionDiagnostics: ChatConnectionDiagnostics,
+    val showConnectionStatusDialog: MutableState<Boolean>,
     val pendingAuthentication: SessionListPendingAuthentication?,
+    val selectedAuthMethodId: MutableState<String?>,
+    val envValues: MutableMap<String, String>,
+)
+
+/** Screen chrome and refresh: the snackbar, the title and scroll, pull-to-refresh, and the launch latch. */
+internal class ScreenUi(
     val snackbarHostState: SnackbarHostState,
+    val serverName: String,
+    val scrollBehavior: TopAppBarScrollBehavior,
+    val isRefreshing: Boolean,
+    val pullToRefreshState: PullToRefreshState,
+    val hasConsumedLaunchCreate: MutableState<Boolean>,
+)
+
+/** The working-folder picker: the current folder, the recent ones and the projects it offers. */
+internal class ProjectUi(
+    val currentCwd: String?,
     val recentCwds: List<String>,
     /** Every project the project sheet offers. */
     val projects: List<String>,
     val showCwdDialog: MutableState<Boolean>,
     val cwdDialogValue: MutableState<String>,
-    val showConnectionStatusDialog: MutableState<Boolean>,
-    val selectedAuthMethodId: MutableState<String?>,
-    val envValues: MutableMap<String, String>,
-    val isRefreshing: Boolean,
-    val pullToRefreshState: PullToRefreshState,
-    val supportsSessionList: Boolean,
-    /** True when the agent advertised `sessionCapabilities.delete` — gates the menu's Delete item. */
-    val supportsSessionDelete: Boolean,
-    val serverName: String,
-    val scrollBehavior: TopAppBarScrollBehavior,
-    val hasConsumedLaunchCreate: MutableState<Boolean>,
+)
+
+/** The gateway's worktrees, and the state of creating and removing them. */
+internal class WorktreeUi(
     /** Managed worktrees, or null when this gateway has none to show (older gateway). */
     val worktrees: List<GatewayWorktree>?,
     val removingWorktreeIds: Set<String>,
-    /** `cwdKey`s of chat folders gone from disk; their chats sit in a collapsed section. */
-    val missingCwds: Set<String>,
+    val creatingWorktree: Boolean,
+    val worktreeError: String?,
     val showWorktreeSheet: MutableState<Boolean>,
+    /** Set when the gateway refused a removal over uncommitted changes. */
+    val pendingWorktreeRemoval: MutableState<SessionListEvent.ConfirmRemoveWorktree?>,
+)
+
+/** Which part of the filtered repo the list shows, and the toolbar that picks it. */
+internal class ScopeUi(
     /** Which part of the filtered repo the list shows; New chat starts there. */
     val scope: WorktreeScope,
     /** The filtered repo's worktrees the scope menu offers, managed and not. */
@@ -70,10 +95,15 @@ internal class SessionListState(
     /** True when the filter names a repo on a gateway with worktrees: New chat becomes a toolbar. */
     val scopeEnabled: Boolean,
     val toolbarExpanded: MutableState<Boolean>,
-    val creatingWorktree: Boolean,
-    val worktreeError: String?,
-    /** Set when the gateway refused a removal over uncommitted changes. */
-    val pendingWorktreeRemoval: MutableState<SessionListEvent.ConfirmRemoveWorktree?>,
+)
+
+internal class SessionListState(
+    val rows: SessionRowsUi,
+    val connection: ConnectionUi,
+    val screen: ScreenUi,
+    val project: ProjectUi,
+    val worktree: WorktreeUi,
+    val repoScope: ScopeUi,
 )
 
 @OptIn(
@@ -110,53 +140,93 @@ internal fun rememberSessionListState(
                 ?.let { worktreeScopeOptions(it, worktrees.orEmpty(), sessionRows.inRepo) }
                 .orEmpty()
         }
+    val liveSessionIds = viewModel.liveSessionIds.collectAsState().value
+    val connectionState = viewModel.connectionState.collectAsState().value
+    val connectionDiagnostics = viewModel.connectionDiagnostics.collectAsState().value
+    val snackbarHostState = remember { SnackbarHostState() }
+    val recentCwds = viewModel.recentCwds.collectAsState().value
+    val projects = viewModel.projects.collectAsState().value
+    val showCwdDialog = remember { mutableStateOf(false) }
+    val cwdDialogValue = remember(currentCwd) { mutableStateOf(currentCwd.orEmpty()) }
+    val showConnectionStatusDialog = remember { mutableStateOf(false) }
+    val selectedAuthMethodId =
+        rememberSaveable(
+            pendingAuthentication?.serverId,
+            pendingAuthentication?.pendingAction,
+        ) {
+            mutableStateOf(
+                pendingAuthentication?.preferredAuthMethodId
+                    ?: pendingAuthentication?.authMethods?.firstOrNull()?.id,
+            )
+        }
+    val envValues =
+        remember(
+            pendingAuthentication?.serverId,
+            pendingAuthentication?.pendingAction,
+        ) { mutableStateMapOf<String, String>() }
+    val isRefreshing = viewModel.refreshing.collectAsState().value
+    val pullToRefreshState = rememberPullToRefreshState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val hasConsumedLaunchCreate = rememberSaveable { mutableStateOf(false) }
+    val removingWorktreeIds = viewModel.removingWorktreeIds.collectAsState().value
+    val missingCwds = viewModel.missingCwds.collectAsState().value
+    val showWorktreeSheet = rememberSaveable { mutableStateOf(false) }
+    val toolbarExpanded = rememberSaveable { mutableStateOf(true) }
+    val creatingWorktree = viewModel.creatingWorktree.collectAsState().value
+    val worktreeError = viewModel.worktreeError.collectAsState().value
+    val pendingWorktreeRemoval = remember { mutableStateOf<SessionListEvent.ConfirmRemoveWorktree?>(null) }
     return SessionListState(
-        sessions = sessionRows.rows,
-        liveSessionIds = viewModel.liveSessionIds.collectAsState().value,
-        cacheRead = sessionRows.loaded,
-        currentCwd = currentCwd,
-        connectionState = viewModel.connectionState.collectAsState().value,
-        connectionDiagnostics = viewModel.connectionDiagnostics.collectAsState().value,
-        pendingAuthentication = pendingAuthentication,
-        snackbarHostState = remember { SnackbarHostState() },
-        recentCwds = viewModel.recentCwds.collectAsState().value,
-        projects = viewModel.projects.collectAsState().value,
-        showCwdDialog = remember { mutableStateOf(false) },
-        cwdDialogValue = remember(currentCwd) { mutableStateOf(currentCwd.orEmpty()) },
-        showConnectionStatusDialog = remember { mutableStateOf(false) },
-        selectedAuthMethodId =
-            rememberSaveable(
-                pendingAuthentication?.serverId,
-                pendingAuthentication?.pendingAction,
-            ) {
-                mutableStateOf(
-                    pendingAuthentication?.preferredAuthMethodId
-                        ?: pendingAuthentication?.authMethods?.firstOrNull()?.id,
-                )
-            },
-        envValues =
-            remember(
-                pendingAuthentication?.serverId,
-                pendingAuthentication?.pendingAction,
-            ) { mutableStateMapOf<String, String>() },
-        isRefreshing = viewModel.refreshing.collectAsState().value,
-        pullToRefreshState = rememberPullToRefreshState(),
-        supportsSessionList = supportsSessionList,
-        supportsSessionDelete = supportsSessionDelete,
-        serverName = serverName,
-        scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
-        hasConsumedLaunchCreate = rememberSaveable { mutableStateOf(false) },
-        worktrees = worktrees,
-        removingWorktreeIds = viewModel.removingWorktreeIds.collectAsState().value,
-        missingCwds = viewModel.missingCwds.collectAsState().value,
-        showWorktreeSheet = rememberSaveable { mutableStateOf(false) },
-        scope = scope,
-        scopeOptions = scopeOptions,
-        scopeEnabled = worktrees != null && !currentCwd.isNullOrBlank(),
-        toolbarExpanded = rememberSaveable { mutableStateOf(true) },
-        creatingWorktree = viewModel.creatingWorktree.collectAsState().value,
-        worktreeError = viewModel.worktreeError.collectAsState().value,
-        pendingWorktreeRemoval = remember { mutableStateOf(null) },
+        rows =
+            SessionRowsUi(
+                sessions = sessionRows.rows,
+                liveSessionIds = liveSessionIds,
+                cacheRead = sessionRows.loaded,
+                missingCwds = missingCwds,
+                supportsSessionList = supportsSessionList,
+                supportsSessionDelete = supportsSessionDelete,
+            ),
+        connection =
+            ConnectionUi(
+                connectionState = connectionState,
+                connectionDiagnostics = connectionDiagnostics,
+                showConnectionStatusDialog = showConnectionStatusDialog,
+                pendingAuthentication = pendingAuthentication,
+                selectedAuthMethodId = selectedAuthMethodId,
+                envValues = envValues,
+            ),
+        screen =
+            ScreenUi(
+                snackbarHostState = snackbarHostState,
+                serverName = serverName,
+                scrollBehavior = scrollBehavior,
+                isRefreshing = isRefreshing,
+                pullToRefreshState = pullToRefreshState,
+                hasConsumedLaunchCreate = hasConsumedLaunchCreate,
+            ),
+        project =
+            ProjectUi(
+                currentCwd = currentCwd,
+                recentCwds = recentCwds,
+                projects = projects,
+                showCwdDialog = showCwdDialog,
+                cwdDialogValue = cwdDialogValue,
+            ),
+        worktree =
+            WorktreeUi(
+                worktrees = worktrees,
+                removingWorktreeIds = removingWorktreeIds,
+                creatingWorktree = creatingWorktree,
+                worktreeError = worktreeError,
+                showWorktreeSheet = showWorktreeSheet,
+                pendingWorktreeRemoval = pendingWorktreeRemoval,
+            ),
+        repoScope =
+            ScopeUi(
+                scope = scope,
+                scopeOptions = scopeOptions,
+                scopeEnabled = worktrees != null && !currentCwd.isNullOrBlank(),
+                toolbarExpanded = toolbarExpanded,
+            ),
     )
 }
 
@@ -192,8 +262,8 @@ internal fun SessionListEventEffects(
             when (event) {
                 is SessionListEvent.NavigateToChat -> {
                     // A worktree create leaves its sheet open until its chat is ready.
-                    state.showCwdDialog.value = false
-                    state.showWorktreeSheet.value = false
+                    state.project.showCwdDialog.value = false
+                    state.worktree.showWorktreeSheet.value = false
                     onNavigateToChat(
                         event.sessionId,
                         event.cwd,
@@ -204,7 +274,7 @@ internal fun SessionListEventEffects(
 
                 is SessionListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
 
-                is SessionListEvent.ConfirmRemoveWorktree -> state.pendingWorktreeRemoval.value = event
+                is SessionListEvent.ConfirmRemoveWorktree -> state.worktree.pendingWorktreeRemoval.value = event
             }
         }
     }
@@ -212,10 +282,10 @@ internal fun SessionListEventEffects(
     LaunchedEffect(openCreateSessionDialogOnLaunch) {
         if (openCreateSessionDialogOnLaunch && !hasConsumedLaunchCreate.value) {
             hasConsumedLaunchCreate.value = true
-            if (state.currentCwd.isNullOrBlank()) {
-                state.cwdDialogValue.value = state.currentCwd.orEmpty()
+            if (state.project.currentCwd.isNullOrBlank()) {
+                state.project.cwdDialogValue.value = state.project.currentCwd.orEmpty()
                 viewModel.setPendingCreateAfterCwd()
-                state.showCwdDialog.value = true
+                state.project.showCwdDialog.value = true
             } else {
                 viewModel.createSessionInScope()
             }

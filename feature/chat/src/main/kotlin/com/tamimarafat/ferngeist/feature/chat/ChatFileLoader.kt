@@ -2,8 +2,8 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
-import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
-import com.tamimarafat.ferngeist.feature.chat.ui.diffLines
+import com.tamimarafat.ferngeist.core.model.ChatWorkspaceReader
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.diffLines
 import com.tamimarafat.ferngeist.feature.chat.ui.entryFor
 import io.github.diff.DeltaType
 import io.github.diff.generatePatch
@@ -42,7 +42,7 @@ data class FileView(
  */
 internal class ChatFileLoader(
     private val scope: CoroutineScope,
-    private val facade: ChatSessionFacade,
+    private val facade: ChatWorkspaceReader,
     private val update: (ChatState.() -> ChatState) -> Unit,
     /** The project directory the gateway reads paths relative to. */
     private val cwd: String,
@@ -161,12 +161,12 @@ internal fun String.relativeTo(cwd: String): String? {
     val root = cwd.replace('\\', '/').trimEnd('/')
     return when {
         root.isNotEmpty() && path.startsWith("$root/") -> path.removePrefix("$root/")
-        path.startsWith('/') || WINDOWS_ROOT.containsMatchIn(path) -> null
+        path.startsWith('/') || windowsRoot.containsMatchIn(path) -> null
         else -> path.removePrefix("./")
     }
 }
 
-private val WINDOWS_ROOT = Regex("^[A-Za-z]:/")
+private val windowsRoot = Regex("^[A-Za-z]:/")
 
 /** [newText] as the whole file, its gutter marked with what changed since [oldText] (null: all new). */
 internal fun markedFile(

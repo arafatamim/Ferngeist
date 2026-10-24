@@ -113,7 +113,7 @@ class ChatFileLoaderTest {
         }
 
     /** A facade with a gateway workspace, so its reads answer instead of reporting none. */
-    private suspend fun workspace(): FakeChatSessionFacade =
+    private fun workspace(): FakeChatSessionFacade =
         FakeChatSessionFacade().also {
             it.emitGatewayWorkspaceConnection(
                 GatewayWorkspaceConnection(runtimeId = "rt", scheme = "http", host = "host", gatewayCredential = "c"),

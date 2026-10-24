@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.push.PushRegistrar
 import com.tamimarafat.ferngeist.push.ensurePushChannels
 import com.tamimarafat.ferngeist.service.ForegroundServiceController
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,7 +43,7 @@ class FerngeistApplication : Application() {
     @Inject
     lateinit var appForegroundState: AppForegroundState
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val appScope = newAppScope()
     private var serviceStopBackstop: Job? = null
 
     companion object {
@@ -109,4 +110,8 @@ class FerngeistApplication : Application() {
         appScope.cancel()
         super.onTerminate()
     }
+
+    // The scope is built at construction, before Hilt injects fields, so its dispatcher is a default argument.
+    private fun newAppScope(dispatcher: CoroutineDispatcher = Dispatchers.Default) =
+        CoroutineScope(SupervisorJob() + dispatcher)
 }

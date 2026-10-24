@@ -1,6 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.gateway.GatewayCreateWorktreeRequest
+import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
 import com.tamimarafat.ferngeist.gateway.GatewayFileContents
 import com.tamimarafat.ferngeist.gateway.GatewayFileList
 import com.tamimarafat.ferngeist.gateway.GatewayGitCommitFiles
@@ -9,6 +12,8 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 import com.tamimarafat.ferngeist.gateway.GatewayGitStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 
 /**
  * No-op [GatewayRepository] for chat tests that build the real hub: only [closeSession] is
@@ -25,9 +30,7 @@ class FakeGatewayRepository : GatewayRepository {
         scheme: String,
         host: String,
         gatewayCredential: String,
-        repo: String,
-        base: String?,
-        branch: String?,
+        request: GatewayCreateWorktreeRequest,
     ) = TODO()
 
     override suspend fun listWorktrees(
@@ -147,70 +150,40 @@ class FakeGatewayRepository : GatewayRepository {
     ) = Unit
 
     override suspend fun fetchGitStatus(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String?,
         compare: String?,
     ): GatewayGitStatus = TODO()
 
     override suspend fun fetchGitDiff(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
-        path: String?,
-        acpSessionId: String?,
-        commit: String?,
-        oldPath: String?,
-        compare: String?,
+        connection: GatewayWorkspaceConnection,
+        query: GatewayDiffQuery,
     ) = TODO()
 
     override suspend fun fetchGitLog(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
-        head: String?,
-        skip: Int,
-        limit: Int,
-        acpSessionId: String?,
-        compare: String?,
-        beyond: Int,
+        connection: GatewayWorkspaceConnection,
+        query: GatewayLogQuery,
     ): GatewayGitLog = TODO()
 
     override suspend fun fetchGitRefs(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String?,
     ): GatewayGitRefs = TODO()
 
     override suspend fun fetchGitCommit(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         sha: String,
         acpSessionId: String?,
     ): GatewayGitCommitFiles = TODO()
 
     override suspend fun fetchFile(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         path: String,
         acpSessionId: String?,
     ): GatewayFileContents = TODO()
 
     override suspend fun fetchFileList(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String?,
     ): GatewayFileList = TODO()
 
@@ -218,10 +191,7 @@ class FakeGatewayRepository : GatewayRepository {
         scheme: String,
         host: String,
         gatewayCredential: String,
-        displayName: String,
-        command: String,
-        args: List<String>,
-        hint: String,
+        request: GatewayCustomAgentRequest,
     ): GatewayAgent = TODO()
 
     override suspend fun deleteCustomAgent(

@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 /**
- * Lets [content] be flicked upward: released past [SEND_THRESHOLD] it fires [onSend], short of
+ * Lets [content] be flicked upward: released past [sendThreshold] it fires [onSend], short of
  * it it springs back. It only travels up, fading as it nears the threshold.
  *
  * ponytail: it claims every vertical drag, so an overflowing queue scrolls only from its gaps;
@@ -29,7 +29,7 @@ internal fun SwipeUpToSend(
 ) {
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
-    val threshold = with(LocalDensity.current) { SEND_THRESHOLD.toPx() }
+    val threshold = with(LocalDensity.current) { sendThreshold.toPx() }
     Box(
         modifier =
             Modifier
@@ -52,5 +52,5 @@ internal fun SwipeUpToSend(
     ) { content() }
 }
 
-private val SEND_THRESHOLD = 56.dp
+private val sendThreshold = 56.dp
 private const val FADE_AT_THRESHOLD = 0.6f

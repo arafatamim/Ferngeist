@@ -3,6 +3,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.model.CreateElicitationRequest
+import com.agentclientprotocol.model.ElicitationContentValue
 import com.agentclientprotocol.model.ElicitationId
 import com.agentclientprotocol.model.ElicitationMode
 import com.agentclientprotocol.model.ElicitationPropertySchema
@@ -108,6 +109,10 @@ internal class ElicitationMappersTest {
 
         val content =
             (response.action as com.agentclientprotocol.model.ElicitationAction.Accept).content
-        assertEquals(5, content?.size)
+        assertEquals(ElicitationContentValue.StringValue("ada"), content?.get("name"))
+        assertEquals(ElicitationContentValue.BooleanValue(true), content?.get("enabled"))
+        assertEquals(ElicitationContentValue.IntegerValue(3), content?.get("count"))
+        assertEquals(ElicitationContentValue.NumberValue(1.5), content?.get("ratio"))
+        assertEquals(ElicitationContentValue.StringArrayValue(listOf("a", "b")), content?.get("tags"))
     }
 }

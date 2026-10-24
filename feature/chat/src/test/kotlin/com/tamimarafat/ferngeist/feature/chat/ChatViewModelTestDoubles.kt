@@ -36,7 +36,8 @@ import kotlinx.coroutines.flow.StateFlow
  */
 open class TestFacade(
     private val sendResultProvider: () -> Boolean = { true },
-) : FakeChatSessionFacade() {
+    operationErrorText: String = "Session is not ready. Please retry in a moment.",
+) : FakeChatSessionFacade(operationErrorText) {
     constructor(sendResult: Boolean) : this({ sendResult })
 
     var reconnectCount = 0
@@ -49,7 +50,7 @@ open class TestFacade(
     ): Boolean {
         val result = sendResultProvider()
         if (!result) {
-            emitSendOperationError()
+            emitOperationError()
         }
         return result
     }
@@ -68,10 +69,6 @@ open class TestFacade(
 
     suspend fun emitSnapshot(snapshot: ChatSessionSnapshot) {
         sessionSnapshotFlow.emit(snapshot)
-    }
-
-    private suspend fun emitSendOperationError() {
-        operationErrorFlow.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
     }
 }
 
@@ -101,7 +98,10 @@ class TestFacadeFactory(
  * Fake [ChatSessionFacade] that simulates a session that is never ready.
  * [loadSession] emits a load-failed error; all operations emit [operationError].
  */
-open class FakeChatSessionFacade : ChatSessionFacade {
+open class FakeChatSessionFacade(
+    /** Message [emitOperationError] carries; tests pass a sentinel to keep it distinct from a load failure. */
+    protected val operationErrorText: String = "Session is not ready. Please retry in a moment.",
+) : ChatSessionFacade {
     protected val connectionStateFlow = MutableStateFlow<ChatConnectionState>(ChatConnectionState.Disconnected)
     protected val diagnosticsFlow = MutableStateFlow(ChatConnectionDiagnostics())
     protected val sessionSnapshotFlow = MutableStateFlow<ChatSessionSnapshot?>(null)
@@ -316,11 +316,11 @@ open class FakeChatSessionFacade : ChatSessionFacade {
     }
 
     protected suspend fun emitOperationError() {
-        operationErrorFlow.emit(ChatOperationError("Session is not ready. Please retry in a moment.", false))
+        operationErrorFlow.emit(ChatOperationError(operationErrorText, false))
     }
 
     /** Emits a gateway workspace connection to the view model's init collector. */
-    suspend fun emitGatewayWorkspaceConnection(connection: GatewayWorkspaceConnection) {
+    fun emitGatewayWorkspaceConnection(connection: GatewayWorkspaceConnection) {
         gatewayWorkspaceConnectionFlow.value = connection
     }
 
@@ -407,13 +407,6 @@ class InMemoryPendingPromptStore(
         } else {
             entries[serverId to sessionId] = records
         }
-    }
-
-    override suspend fun clear(
-        serverId: String,
-        sessionId: String,
-    ) {
-        entries.remove(serverId to sessionId)
     }
 }
 

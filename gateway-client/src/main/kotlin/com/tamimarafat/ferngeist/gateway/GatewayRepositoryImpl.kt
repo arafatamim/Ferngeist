@@ -1,13 +1,20 @@
 package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-private val PROTOCOL_VERIFIED_NANOS = TimeUnit.MINUTES.toNanos(5)
+private val protocolVerifiedNanos = TimeUnit.MINUTES.toNanos(5)
+
+private const val AGENTS_SEGMENT = "agents"
+private const val RUNTIMES_SEGMENT = "runtimes"
+private const val WORKTREES_SEGMENT = "worktrees"
 
 @Suppress("TooManyFunctions") // one override per gateway endpoint
 class GatewayRepositoryImpl
@@ -65,7 +72,7 @@ class GatewayRepositoryImpl
             val now = System.nanoTime()
             protocolVerifiedUntil[key]?.let { until -> if (until - now > 0) return }
             fetchStatus(scheme, host)
-            protocolVerifiedUntil[key] = now + PROTOCOL_VERIFIED_NANOS
+            protocolVerifiedUntil[key] = now + protocolVerifiedNanos
         }
 
         override suspend fun startPairing(
@@ -92,7 +99,7 @@ class GatewayRepositoryImpl
                     host,
                     gatewayCredential,
                     "v1",
-                    "agents",
+                    AGENTS_SEGMENT,
                 )
             return response.agents
         }
@@ -108,7 +115,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "agents",
+                AGENTS_SEGMENT,
                 agentId,
                 "connect",
             )
@@ -117,19 +124,22 @@ class GatewayRepositoryImpl
             scheme: String,
             host: String,
             gatewayCredential: String,
-            displayName: String,
-            command: String,
-            args: List<String>,
-            hint: String,
+            request: GatewayCustomAgentRequest,
         ): GatewayAgent =
             http.postJson(
                 scheme = scheme,
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "agents",
+                AGENTS_SEGMENT,
                 "custom",
-                body = buildCustomAgentRequestBody(displayName, command, args, hint),
+                body =
+                    buildCustomAgentRequestBody(
+                        request.displayName,
+                        request.command,
+                        request.args,
+                        request.hint,
+                    ),
             )
 
         override suspend fun deleteCustomAgent(
@@ -143,7 +153,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "agents",
+                AGENTS_SEGMENT,
                 "custom",
                 agentId,
             )
@@ -160,7 +170,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "agents",
+                AGENTS_SEGMENT,
                 agentId,
                 "stop",
             )
@@ -170,17 +180,15 @@ class GatewayRepositoryImpl
             scheme: String,
             host: String,
             gatewayCredential: String,
-            repo: String,
-            base: String?,
-            branch: String?,
+            request: GatewayCreateWorktreeRequest,
         ): GatewayWorktree =
             http.postJson(
                 scheme = scheme,
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "worktrees",
-                body = buildCreateWorktreeRequestBody(repo, base, branch),
+                WORKTREES_SEGMENT,
+                body = buildCreateWorktreeRequestBody(request.repo, request.base, request.branch),
             )
 
         override suspend fun listWorktrees(
@@ -194,7 +202,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "worktrees",
+                WORKTREES_SEGMENT,
                 query = repo?.let { mapOf("repo" to it) }.orEmpty(),
             )
 
@@ -226,7 +234,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "worktrees",
+                WORKTREES_SEGMENT,
                 "refs",
                 query = mapOf("repo" to repo),
             )
@@ -245,7 +253,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "worktrees",
+                WORKTREES_SEGMENT,
                 worktreeId,
                 query = if (force) mapOf("force" to "true") else emptyMap(),
             )
@@ -352,7 +360,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "runtimes",
+                RUNTIMES_SEGMENT,
                 runtimeId,
                 "restart",
                 body = json.encodeToString(GatewayRestartRequest(env = envVars)),
@@ -370,7 +378,7 @@ class GatewayRepositoryImpl
                     host = host,
                     credential = gatewayCredential,
                     "v1",
-                    "runtimes",
+                    RUNTIMES_SEGMENT,
                     runtimeId,
                     "logs",
                 )
@@ -378,144 +386,119 @@ class GatewayRepositoryImpl
         }
 
         override suspend fun fetchGitStatus(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             acpSessionId: String?,
             compare: String?,
         ): GatewayGitStatus =
             http.getJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                segments = arrayOf("v1", "runtimes", runtimeId, "git", "status"),
+                scheme = connection.scheme,
+                host = connection.host,
+                credential = connection.gatewayCredential,
+                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "status"),
                 query = compareQuery(compare) + acpSessionQuery(acpSessionId),
             )
 
         override suspend fun fetchGitDiff(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
-            path: String?,
-            acpSessionId: String?,
-            commit: String?,
-            oldPath: String?,
-            compare: String?,
+            connection: GatewayWorkspaceConnection,
+            query: GatewayDiffQuery,
         ): List<ToolCallContent.Diff> {
-            val segments = arrayOf("v1", "runtimes", runtimeId, "git", "diff")
-            val pathQuery = path?.takeIf { it.isNotBlank() }?.let { mapOf("path" to it) } ?: emptyMap()
+            val segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "diff")
+            val pathQuery =
+                query.path
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { mapOf("path" to it) }
+                    .orEmpty()
             val commitQuery =
-                listOfNotNull(commit?.let { "commit" to it }, oldPath?.let { "oldPath" to it }).toMap()
-            val query = pathQuery + commitQuery + compareQuery(compare) + acpSessionQuery(acpSessionId)
+                listOfNotNull(query.commit?.let { "commit" to it }, query.oldPath?.let { "oldPath" to it }).toMap()
+            val httpQuery = pathQuery + commitQuery + compareQuery(query.compare) + acpSessionQuery(query.acpSessionId)
             return if (pathQuery.isEmpty()) {
                 // Whole-tree: gateway returns a JSON array of ToolCallContentDiff objects.
                 http.getJson(
-                    scheme = scheme,
-                    host = host,
-                    credential = gatewayCredential,
+                    scheme = connection.scheme,
+                    host = connection.host,
+                    credential = connection.gatewayCredential,
                     segments = segments,
-                    query = query,
+                    query = httpQuery,
                 )
             } else {
                 // Single file: gateway returns one ToolCallContentDiff object.
                 val single =
                     http.getJson<ToolCallContent.Diff>(
-                        scheme = scheme,
-                        host = host,
-                        credential = gatewayCredential,
+                        scheme = connection.scheme,
+                        host = connection.host,
+                        credential = connection.gatewayCredential,
                         segments = segments,
-                        query = query,
+                        query = httpQuery,
                     )
                 listOf(single)
             }
         }
 
         override suspend fun fetchGitLog(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
-            head: String?,
-            skip: Int,
-            limit: Int,
-            acpSessionId: String?,
-            compare: String?,
-            beyond: Int,
+            connection: GatewayWorkspaceConnection,
+            query: GatewayLogQuery,
         ): GatewayGitLog =
             http.getJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                segments = arrayOf("v1", "runtimes", runtimeId, "git", "log"),
+                scheme = connection.scheme,
+                host = connection.host,
+                credential = connection.gatewayCredential,
+                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "log"),
                 query =
                     listOfNotNull(
-                        head?.let { "head" to it },
-                        "skip" to skip.toString(),
-                        "limit" to limit.toString(),
-                    ).toMap() + compareQuery(compare) + beyondQuery(beyond) + acpSessionQuery(acpSessionId),
+                        query.head?.let { "head" to it },
+                        "skip" to query.skip.toString(),
+                        "limit" to query.limit.toString(),
+                    ).toMap() + compareQuery(query.compare) + beyondQuery(query.beyond) +
+                        acpSessionQuery(query.acpSessionId),
             )
 
         override suspend fun fetchGitRefs(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             acpSessionId: String?,
         ): GatewayGitRefs =
             http.getJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                segments = arrayOf("v1", "runtimes", runtimeId, "git", "refs"),
+                scheme = connection.scheme,
+                host = connection.host,
+                credential = connection.gatewayCredential,
+                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "refs"),
                 query = acpSessionQuery(acpSessionId),
             )
 
         override suspend fun fetchGitCommit(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             sha: String,
             acpSessionId: String?,
         ): GatewayGitCommitFiles =
             http.getJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                segments = arrayOf("v1", "runtimes", runtimeId, "git", "commits", sha),
+                scheme = connection.scheme,
+                host = connection.host,
+                credential = connection.gatewayCredential,
+                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "commits", sha),
                 query = acpSessionQuery(acpSessionId),
             )
 
         override suspend fun fetchFile(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             path: String,
             acpSessionId: String?,
         ): GatewayFileContents =
             http.getJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                segments = arrayOf("v1", "runtimes", runtimeId, "files"),
+                scheme = connection.scheme,
+                host = connection.host,
+                credential = connection.gatewayCredential,
+                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "files"),
                 query = mapOf("path" to path) + acpSessionQuery(acpSessionId),
             )
 
         override suspend fun fetchFileList(
-            scheme: String,
-            host: String,
-            gatewayCredential: String,
-            runtimeId: String,
+            connection: GatewayWorkspaceConnection,
             acpSessionId: String?,
         ): GatewayFileList =
             http.getJson(
-                scheme = scheme,
-                host = host,
-                credential = gatewayCredential,
-                segments = arrayOf("v1", "runtimes", runtimeId, "files", "list"),
+                scheme = connection.scheme,
+                host = connection.host,
+                credential = connection.gatewayCredential,
+                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "files", "list"),
                 query = acpSessionQuery(acpSessionId),
             )
 
@@ -667,10 +650,10 @@ private fun GatewayRequestException.isTransientProofRejection(): Boolean =
     parseGatewayErrorBody(responseBody.orEmpty().trim()).isTransientProofRejection(responseBody)
 
 private fun acpSessionQuery(acpSessionId: String?): Map<String, String> =
-    acpSessionId?.takeIf { it.isNotBlank() }?.let { mapOf("acpSessionId" to it) } ?: emptyMap()
+    acpSessionId?.takeIf { it.isNotBlank() }?.let { mapOf("acpSessionId" to it) }.orEmpty()
 
 private fun compareQuery(compare: String?): Map<String, String> =
-    compare?.takeIf { it.isNotBlank() }?.let { mapOf("compare" to it) } ?: emptyMap()
+    compare?.takeIf { it.isNotBlank() }?.let { mapOf("compare" to it) }.orEmpty()
 
 private fun beyondQuery(beyond: Int): Map<String, String> =
     if (beyond > 0) mapOf("beyond" to beyond.toString()) else emptyMap()

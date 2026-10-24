@@ -59,7 +59,7 @@ internal fun steeringParams(
 /** `promptRequired`, codex's `failed` and anything unknown all leave the prompt unsent. */
 internal fun parseSteerOutcome(result: JsonElement): SteerOutcome =
     when (((result as? JsonObject)?.get("outcome") as? JsonPrimitive)?.contentOrNull) {
-        "injected" -> SteerOutcome.Injected
-        "startedNewTurn" -> SteerOutcome.StartedNewTurn
-        else -> SteerOutcome.NotConsumed
+        "injected" -> SteerOutcome.INJECTED
+        "startedNewTurn" -> SteerOutcome.STARTED_NEW_TURN
+        else -> SteerOutcome.NOT_CONSUMED
     }

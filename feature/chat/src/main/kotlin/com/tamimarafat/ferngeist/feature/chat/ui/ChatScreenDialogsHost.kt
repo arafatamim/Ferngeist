@@ -20,7 +20,7 @@ internal fun ChatScreenDialogsHost(
     val coroutineScope = rememberCoroutineScope()
     val noBrowserMessage = stringResource(R.string.chat_elicitation_no_browser)
     ChatScreenDialogs(
-        selectedConfigPickerOption = screenState.selectedConfigPickerOption,
+        selectedConfigPickerOption = screenState.derived.selectedConfigPickerOption,
         onConfigOptionSelected = { optionId, value ->
             viewModel.dispatch(
                 ChatIntent.SetConfigOption(
@@ -29,12 +29,12 @@ internal fun ChatScreenDialogsHost(
                 ),
             )
         },
-        onDismissConfigPicker = { screenState.selectedConfigPickerOptionId.value = null },
-        selectedThought = screenState.selectedThought,
-        onDismissThought = { screenState.selectedThoughtSegmentId.value = null },
-        selectedToolCall = screenState.selectedToolCall,
-        onDismissToolCall = { screenState.selectedToolCallSegmentId.value = null },
-        activePermissionRequest = screenState.activePermissionRequest,
+        onDismissConfigPicker = { screenState.mutations.selectedConfigPickerOptionId.value = null },
+        selectedThought = screenState.derived.selectedThought,
+        onDismissThought = { screenState.mutations.selectedThoughtSegmentId.value = null },
+        selectedToolCall = screenState.derived.selectedToolCall,
+        onDismissToolCall = { screenState.mutations.selectedToolCallSegmentId.value = null },
+        activePermissionRequest = screenState.derived.activePermissionRequest,
         onPermissionGrant = { toolCallId, optionId ->
             viewModel.dispatch(
                 ChatIntent.GrantPermission(toolCallId, optionId),
@@ -59,21 +59,21 @@ internal fun ChatScreenDialogsHost(
                 request = request,
                 onConsented = { viewModel.dispatch(ChatIntent.SubmitElicitation(request.key, emptyMap())) },
                 onNoHandler = {
-                    coroutineScope.launch { screenState.snackbarHostState.showSnackbar(noBrowserMessage) }
+                    coroutineScope.launch { screenState.mutations.snackbarHostState.showSnackbar(noBrowserMessage) }
                 },
             )
         },
-        showConnectionStatusDialog = screenState.showConnectionStatusDialog.value,
+        showConnectionStatusDialog = screenState.mutations.showConnectionStatusDialog.value,
         connectionState = screenState.state.connectionState,
         diagnostics = screenState.state.connectionDiagnostics,
         usage = screenState.state.usage,
-        onDismissConnectionStatus = { screenState.showConnectionStatusDialog.value = false },
-        showCommandsDialog = screenState.showCommandsDialog.value,
+        onDismissConnectionStatus = { screenState.mutations.showConnectionStatusDialog.value = false },
+        showCommandsDialog = screenState.mutations.showCommandsDialog.value,
         commands = screenState.state.availableCommands,
         serverId = screenState.state.serverId,
         recentSelectionStore = viewModel.recentSelectionStore,
-        onDismissCommands = { screenState.showCommandsDialog.value = false },
-        onCommandClick = screenState.sendCommand,
+        onDismissCommands = { screenState.mutations.showCommandsDialog.value = false },
+        onCommandClick = screenState.actions.sendCommand,
     )
 }
 

@@ -182,7 +182,6 @@ class GatewayAgentsViewModel
          * Deletes the agent. [stopFirst] is set when the user accepted the stop offer
          * after a refused delete, so the second attempt stops the runtime first.
          */
-        @Suppress("TooGenericExceptionCaught")
         fun confirmDelete(
             agent: GatewayAgent,
             stopFirst: Boolean,
@@ -192,45 +191,57 @@ class GatewayAgentsViewModel
             viewModelScope.launch {
                 // Renew first: a credential that died since the list loaded would otherwise
                 // surface as a generic delete error and stay stored.
-                val gateway =
-                    try {
-                        refreshGatewaySourceIfNeeded(storedGateway, gatewayRepository, gatewaySourceRepository)
-                    } catch (_: GatewayCredentialExpiredException) {
-                        gatewaySourceRepository.deleteGateway(storedGateway.id)
-                        _events.emit(
-                            resources.getString(R.string.serverlist_custom_agent_error_credential_expired),
-                        )
-                        return@launch
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (_: Exception) {
-                        // A transport fault while renewing is still a failed delete, not a crash.
-                        _events.emit(resources.getString(R.string.serverlist_custom_agent_error_delete_failed))
-                        return@launch
-                    }
-                try {
-                    if (stopFirst) stopRuntimes(agent, gateway)
-                    gatewayRepository.deleteCustomAgent(
-                        scheme = gateway.scheme,
-                        host = gateway.host,
-                        gatewayCredential = gateway.gatewayCredential,
-                        agentId = agent.id,
-                    )
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    if (!stopFirst && isAgentRunningError(error)) {
-                        _pendingDelete.value = CustomAgentDelete.Running(agent)
-                    } else {
-                        _events.emit(resources.getString(R.string.serverlist_custom_agent_error_delete_failed))
-                    }
-                    return@launch
-                }
+                val gateway = renewGateway(storedGateway) ?: return@launch
+                if (!deleteAgent(agent, gateway, stopFirst)) return@launch
                 // The gateway delete succeeded, so local bookkeeping must never turn success
                 // into a reported failure — or, worse, crash the process.
                 removeBindingsQuietly(agent.id, gateway.id)
                 _events.emit(resources.getString(R.string.serverlist_custom_agent_deleted, agent.displayName))
                 refresh()
+            }
+        }
+
+        /** The gateway with a live credential, or null after the failure has been reported. */
+        private suspend fun renewGateway(storedGateway: GatewaySource): GatewaySource? =
+            try {
+                refreshGatewaySourceIfNeeded(storedGateway, gatewayRepository, gatewaySourceRepository)
+            } catch (_: GatewayCredentialExpiredException) {
+                gatewaySourceRepository.deleteGateway(storedGateway.id)
+                _events.emit(resources.getString(R.string.serverlist_custom_agent_error_credential_expired))
+                null
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // A transport fault while renewing is still a failed delete, not a crash.
+                _events.emit(resources.getString(R.string.serverlist_custom_agent_error_delete_failed))
+                null
+            }
+
+        /** Asks the gateway to delete [agent]; false after the outcome (a running-agent prompt or an error) is shown. */
+        @Suppress("TooGenericExceptionCaught")
+        private suspend fun deleteAgent(
+            agent: GatewayAgent,
+            gateway: GatewaySource,
+            stopFirst: Boolean,
+        ): Boolean {
+            try {
+                if (stopFirst) stopRuntimes(agent, gateway)
+                gatewayRepository.deleteCustomAgent(
+                    scheme = gateway.scheme,
+                    host = gateway.host,
+                    gatewayCredential = gateway.gatewayCredential,
+                    agentId = agent.id,
+                )
+                return true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (!stopFirst && isAgentRunningError(error)) {
+                    _pendingDelete.value = CustomAgentDelete.Running(agent)
+                } else {
+                    _events.emit(resources.getString(R.string.serverlist_custom_agent_error_delete_failed))
+                }
+                return false
             }
         }
 

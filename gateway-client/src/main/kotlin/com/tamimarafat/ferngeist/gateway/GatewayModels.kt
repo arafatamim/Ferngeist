@@ -185,23 +185,7 @@ data class GatewaySessionSummary(
     @SerialName("agentId") val agentId: String,
     val status: String,
     @SerialName("createdAt") val createdAt: String? = null,
-) {
-    /**
-     * Whether the gateway will still resume this session.
-     *
-     * Mirrors the gateway's own `RuntimeSession.Resume` check: only an `active` or
-     * `disconnected` session still owns a live agent process. Anything else
-     * (`failed`, `closing`) has a dead runtime behind it, so attaching to its
-     * `runtimeId` fails on connect.
-     */
-    val isResumable: Boolean
-        get() = status == STATUS_ACTIVE || status == STATUS_DISCONNECTED
-
-    private companion object {
-        const val STATUS_ACTIVE = "active"
-        const val STATUS_DISCONNECTED = "disconnected"
-    }
-}
+)
 
 @Serializable
 data class GatewayChangedFile(
@@ -367,13 +351,13 @@ object GatewayProtocol {
      * it no longer serves the removed start/connect-runtime endpoints, so a v1
      * gateway must fail the version check instead of failing opaquely later.
      */
-    val SUPPORTED: Set<String> = setOf(CURRENT)
+    val supported: Set<String> = setOf(CURRENT)
 }
 
 /** Thrown when a gateway's reported protocol version is incompatible with this client. */
 class GatewayProtocolMismatchException(
     val gatewayVersion: String?,
-    val supportedVersions: Set<String> = GatewayProtocol.SUPPORTED,
+    val supportedVersions: Set<String> = GatewayProtocol.supported,
 ) : IllegalStateException(
         "This gateway uses protocol version \"$gatewayVersion\", but this app supports " +
             supportedVersions.joinToString(", ") { "\"$it\"" } +
@@ -386,7 +370,7 @@ class GatewayProtocolMismatchException(
  * (older build) is treated as a mismatch rather than silently assumed compatible.
  */
 fun GatewayStatus.requireSupportedProtocol() {
-    if (protocolVersion !in GatewayProtocol.SUPPORTED) {
+    if (protocolVersion !in GatewayProtocol.supported) {
         throw GatewayProtocolMismatchException(protocolVersion)
     }
 }

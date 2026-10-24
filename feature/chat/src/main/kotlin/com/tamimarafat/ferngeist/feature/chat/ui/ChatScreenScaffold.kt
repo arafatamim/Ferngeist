@@ -25,6 +25,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -114,11 +115,11 @@ internal fun ChatScreenScaffold(
                 .composerContentReceiver(
                     canSendImages = screenState.state.canSendImages,
                     canSendFiles = screenState.state.supportsEmbeddedContext,
-                    onUris = screenState.attachUris,
+                    onUris = screenState.actions.attachUris,
                     onDragHoverChange = { dropTargetActive = it },
                     onNothingToAttach = {
                         coroutineScope.launch {
-                            screenState.snackbarHostState.showSnackbar(nothingToAttachMessage)
+                            screenState.mutations.snackbarHostState.showSnackbar(nothingToAttachMessage)
                         }
                     },
                 ),
@@ -198,7 +199,7 @@ private fun BoxScope.ChatScreenOverlays(
     )
     ChatScreenSnackbar(screenState)
 
-    if (screenState.showComposerToolbar) {
+    if (screenState.insets.showComposerToolbar) {
         ChatComposerHost(
             screenState = screenState,
             coroutineScope = coroutineScope,
@@ -207,11 +208,50 @@ private fun BoxScope.ChatScreenOverlays(
             switcherState = switcherState,
             chatOffset = chatOffset,
             onSwitchSession = onSwitchSession,
-            onSwitcherClick = { screenState.showSwitcherSheet.value = true },
+            onSwitcherClick = { screenState.mutations.showSwitcherSheet.value = true },
             dropTargetActive = dropTargetActive,
         )
     }
 }
+
+/** Opens a file in one step, or asks the reader to pick among the [candidates] a shared name could mean. */
+@Composable
+private fun rememberOpenFile(
+    viewModel: ChatViewModel,
+    hasWorkspace: Boolean,
+    fileCandidates: MutableState<List<String>?>,
+): ((List<String>) -> Unit)? =
+    remember(viewModel, hasWorkspace) {
+        if (hasWorkspace) {
+            { candidates ->
+                val only = candidates.singleOrNull()
+                if (only != null) {
+                    viewModel.dispatch(ChatIntent.OpenFile(only))
+                } else {
+                    fileCandidates.value = candidates
+                }
+            }
+        } else {
+            null
+        }
+    }
+
+// The whole file is read at the revision of the diff it was opened from, so the git sheet says
+// what that file is rather than always asking for the working tree.
+@Composable
+private fun rememberOpenFileAt(
+    viewModel: ChatViewModel,
+    hasWorkspace: Boolean,
+): ((String, String?, String?, String?) -> Unit)? =
+    remember(viewModel, hasWorkspace) {
+        if (hasWorkspace) {
+            { path, commit, compare, oldPath ->
+                viewModel.dispatch(ChatIntent.OpenFile(path, commit, compare, oldPath))
+            }
+        } else {
+            null
+        }
+    }
 
 @Composable
 private fun BoxScope.ChatScreenContentOverlays(
@@ -224,51 +264,28 @@ private fun BoxScope.ChatScreenContentOverlays(
 ) {
     // The tool call sheet reads the working tree's diff for an edit with none of its own, but only in
     // the newest turn: the tree holds everything since, so an older call's diff would be wrong.
-    val selected = screenState.selectedToolCallSegmentId.value?.selectedSegmentId()
+    val selected =
+        screenState.mutations.selectedToolCallSegmentId.value
+            ?.selectedSegmentId()
     val inNewestTurn =
         screenState.state.messages
             .lastOrNull()
             ?.segments
             ?.any { it.id == selected } == true
     // The files a chip's shared name could mean, while the reader picks one.
-    var fileCandidates by remember { mutableStateOf<List<String>?>(null) }
+    val fileCandidates = remember { mutableStateOf<List<String>?>(null) }
     // Reading preferences, not per-file: each keeps its choice for the next file. Markdown opens
     // rendered; the toggle is the way back to its source.
     var softWrapFile by rememberSaveable { mutableStateOf(false) }
     var markdownPreview by rememberSaveable { mutableStateOf(true) }
     // Opening a file needs a workspace to read it from; without a gateway there is none.
     val hasWorkspace = screenState.state.gatewayWorkspaceConnection != null
-    val openFile: ((List<String>) -> Unit)? =
-        remember(viewModel, hasWorkspace) {
-            if (hasWorkspace) {
-                { candidates ->
-                    val only = candidates.singleOrNull()
-                    if (only != null) {
-                        viewModel.dispatch(ChatIntent.OpenFile(only))
-                    } else {
-                        fileCandidates = candidates
-                    }
-                }
-            } else {
-                null
-            }
-        }
-    // The whole file is read at the revision of the diff it was opened from, so the git sheet says
-    // what that file is rather than always asking for the working tree.
-    val openFileAt: ((String, String?, String?, String?) -> Unit)? =
-        remember(viewModel, hasWorkspace) {
-            if (hasWorkspace) {
-                { path, commit, compare, oldPath ->
-                    viewModel.dispatch(ChatIntent.OpenFile(path, commit, compare, oldPath))
-                }
-            } else {
-                null
-            }
-        }
+    val openFile = rememberOpenFile(viewModel, hasWorkspace, fileCandidates)
+    val openFileAt = rememberOpenFileAt(viewModel, hasWorkspace)
     CompositionLocalProvider(
-        LocalWorkingTreeChanges provides
+        localWorkingTreeChanges provides
             if (inNewestTurn) screenState.state.turnWorkingTree() else emptyList(),
-        LocalTurnGitFallback provides
+        localTurnGitFallback provides
             TurnGitFallback(
                 diffs = screenState.state.turnGitDiffs,
                 loading = screenState.state.turnGitDiffsLoading,
@@ -279,22 +296,22 @@ private fun BoxScope.ChatScreenContentOverlays(
                 onRefresh = { if (inNewestTurn) viewModel.dispatch(ChatIntent.RefreshGitStatus) },
             ),
         // The tool call sheet's open-full-file button wants the same opener the transcript chips use.
-        LocalFileOpener provides openFile,
-        LocalWorkspaceFiles provides screenState.state.workspaceFiles,
+        localFileOpener provides openFile,
+        localWorkspaceFiles provides screenState.state.workspaceFiles,
     ) {
         ChatScreenDialogsHost(screenState, viewModel)
     }
-    fileCandidates?.let { candidates ->
+    fileCandidates.value?.let { candidates ->
         FilePickerSheet(
             candidates = candidates,
             onPick = { path ->
-                fileCandidates = null
+                fileCandidates.value = null
                 viewModel.dispatch(ChatIntent.OpenFile(path))
             },
-            onDismiss = { fileCandidates = null },
+            onDismiss = { fileCandidates.value = null },
         )
     }
-    if (screenState.showGitStatusSheet.value) {
+    if (screenState.mutations.showGitStatusSheet.value) {
         // The sheet is where the reader asks what the tree looks like, so every open re-reads the
         // status rather than showing whatever the last turn boundary or resume left in state.
         LaunchedEffect(Unit) { viewModel.dispatch(ChatIntent.RefreshGitStatus) }
@@ -327,15 +344,15 @@ private fun BoxScope.ChatScreenContentOverlays(
                     viewModel.dispatch(ChatIntent.LoadGitRefs)
                     viewModel.dispatch(ChatIntent.RefreshGitStatus)
                 },
-                onDismiss = { screenState.showGitStatusSheet.value = false },
+                onDismiss = { screenState.mutations.showGitStatusSheet.value = false },
             )
         }
     }
-    if (screenState.showSwitcherSheet.value) {
+    if (screenState.mutations.showSwitcherSheet.value) {
         SessionSwitcherSheet(
             uiState = switcherState,
             onSwitch = { session ->
-                screenState.showSwitcherSheet.value = false
+                screenState.mutations.showSwitcherSheet.value = false
                 onSwitchSession(session, null)
             },
             onClose = { session ->
@@ -343,7 +360,7 @@ private fun BoxScope.ChatScreenContentOverlays(
                 // session, and a refusal lands in the snackbar behind it.
                 viewModel.dispatch(ChatIntent.CloseSession(session.serverId, session.sessionId))
             },
-            onDismiss = { screenState.showSwitcherSheet.value = false },
+            onDismiss = { screenState.mutations.showSwitcherSheet.value = false },
         )
     }
     // Last of the sheets so it stacks over whichever one opened it; the transcript chip opens it
@@ -360,22 +377,22 @@ private fun BoxScope.ChatScreenContentOverlays(
     }
 
     CompositionLocalProvider(
-        LocalFileOpener provides openFile,
-        LocalWorkspaceFiles provides screenState.state.workspaceFiles,
+        localFileOpener provides openFile,
+        localWorkspaceFiles provides screenState.state.workspaceFiles,
     ) {
         ChatScreenBody(
             state = screenState.state,
-            scroll = screenState.scrollHandle,
+            scroll = screenState.derived.scrollHandle,
             appBarScrollConnection = appBarScrollConnection,
-            renderedLastMessageId = screenState.renderedLastMessageId,
+            renderedLastMessageId = screenState.derived.renderedLastMessageId,
             listTopPadding = innerPadding.calculateTopPadding(),
-            listBottomPadding = screenState.listBottomPadding,
+            listBottomPadding = screenState.insets.listBottomPadding,
             onRetryLoad = { viewModel.dispatch(ChatIntent.RetryLoad) },
             onThoughtClick = { segmentId ->
-                screenState.selectedThoughtSegmentId.value = segmentId
+                screenState.mutations.selectedThoughtSegmentId.value = segmentId
             },
             onToolCallClick = { segmentId ->
-                screenState.selectedToolCallSegmentId.value = segmentId
+                screenState.mutations.selectedToolCallSegmentId.value = segmentId
             },
             onRetryMessage = { clientId ->
                 viewModel.dispatch(ChatIntent.RetryMessage(clientId))
@@ -383,7 +400,7 @@ private fun BoxScope.ChatScreenContentOverlays(
         )
     }
 
-    ChatBottomFade(bandHeight = screenState.bottomFadeBandHeight)
+    ChatBottomFade(bandHeight = screenState.insets.bottomFadeBandHeight)
 
     ChatScreenSnackbar(screenState)
 }
@@ -429,14 +446,14 @@ private fun BoxScope.ChatBottomFade(bandHeight: Dp) {
 @Composable
 private fun BoxScope.ChatScreenSnackbar(screenState: ChatScreenState) {
     SnackbarHost(
-        hostState = screenState.snackbarHostState,
+        hostState = screenState.mutations.snackbarHostState,
         modifier =
             Modifier
                 .align(Alignment.BottomCenter)
                 .padding(
                     start = 16.dp,
                     end = 16.dp,
-                    bottom = screenState.snackbarBottomPadding,
+                    bottom = screenState.insets.snackbarBottomPadding,
                 ).zIndex(2f),
     )
 }

@@ -47,13 +47,14 @@ class PushRegistrarTest {
     private fun subscription(endpoint: String) =
         GatewayPushSubscription(endpoint, GatewayPushSubscription.Keys(p256dh = "pk", auth = "au"))
 
-    private fun givenGateways(vararg ids: String): MutableStateFlow<List<GatewaySource>> {
-        val gateways = MutableStateFlow(ids.map(::gateway))
-        every { gatewaySourceRepository.getGateways() } returns gateways
-        return gateways
+    private val gateways = MutableStateFlow<List<GatewaySource>>(emptyList())
+
+    private fun givenGateways(vararg ids: String) {
+        gateways.value = ids.map(::gateway)
     }
 
     init {
+        every { gatewaySourceRepository.getGateways() } returns gateways
         every { unifiedPush.hasDistributor() } returns true
         coEvery { gatewayRepository.getPushConfig(any(), any(), any()) } answers {
             GatewayPushConfig(vapidPublicKey = "vapid-${secondArg<String>()}")
@@ -88,7 +89,7 @@ class PushRegistrarTest {
     @Test
     fun `uploads each endpoint to its own gateway once`() =
         runTest(UnconfinedTestDispatcher()) {
-            val gateways = givenGateways("a", "b")
+            givenGateways("a", "b")
             val registrar = registrar()
             registrar.start()
 
@@ -111,7 +112,7 @@ class PushRegistrarTest {
     @Test
     fun `retries an upload that failed on the previous emission`() =
         runTest(UnconfinedTestDispatcher()) {
-            val gateways = givenGateways("a")
+            givenGateways("a")
             coEvery {
                 gatewayRepository.registerPushSubscription("https", "host-a", "cred-a", any())
             } throws IOException("offline") andThenJust Runs
@@ -129,7 +130,7 @@ class PushRegistrarTest {
     @Test
     fun `retries a gateway whose push config could not be fetched`() =
         runTest(UnconfinedTestDispatcher()) {
-            val gateways = givenGateways("a")
+            givenGateways("a")
             coEvery {
                 gatewayRepository.getPushConfig("https", "host-a", "cred-a")
             } throws IOException("offline") andThen GatewayPushConfig("vapid-a")
@@ -144,7 +145,7 @@ class PushRegistrarTest {
     @Test
     fun `unregisters a gateway that is removed`() =
         runTest(UnconfinedTestDispatcher()) {
-            val gateways = givenGateways("a", "b")
+            givenGateways("a", "b")
             registrar().start()
 
             gateways.value = listOf(gateway("a"))
@@ -167,7 +168,7 @@ class PushRegistrarTest {
     @Test
     fun `re-registers after the distributor drops an instance`() =
         runTest(UnconfinedTestDispatcher()) {
-            val gateways = givenGateways("a")
+            givenGateways("a")
             val registrar = registrar()
             registrar.start()
 

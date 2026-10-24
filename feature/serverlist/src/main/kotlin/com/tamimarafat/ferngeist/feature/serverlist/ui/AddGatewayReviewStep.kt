@@ -36,6 +36,9 @@ import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayPairingPayload
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
 
+private const val HTTP_SCHEME = "http"
+private const val HTTPS_SCHEME = "https"
+
 @Composable
 internal fun ReviewGatewayStep(
     name: String,
@@ -177,16 +180,16 @@ internal fun GatewayProtocolSelector(
     ) {
         GatewayProtocolOption(
             label = stringResource(R.string.serverlist_add_gateway_http),
-            code = "http",
-            isSelected = selected.equals("http", ignoreCase = true) || selected.equals("ws", ignoreCase = true),
-            onClick = { onSelect("http") },
+            code = HTTP_SCHEME,
+            isSelected = selected.equals(HTTP_SCHEME, ignoreCase = true) || selected.equals("ws", ignoreCase = true),
+            onClick = { onSelect(HTTP_SCHEME) },
             modifier = Modifier.weight(1f),
         )
         GatewayProtocolOption(
             label = stringResource(R.string.serverlist_add_gateway_https),
-            code = "https",
-            isSelected = selected.equals("https", ignoreCase = true) || selected.equals("wss", ignoreCase = true),
-            onClick = { onSelect("https") },
+            code = HTTPS_SCHEME,
+            isSelected = selected.equals(HTTPS_SCHEME, ignoreCase = true) || selected.equals("wss", ignoreCase = true),
+            onClick = { onSelect(HTTPS_SCHEME) },
             modifier = Modifier.weight(1f),
         )
     }
@@ -241,7 +244,7 @@ private fun GatewayProtocolOption(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            if (code == "https") {
+            if (code == HTTPS_SCHEME) {
                 Icon(
                     Icons.Default.Key,
                     contentDescription = stringResource(R.string.serverlist_add_gateway_https),

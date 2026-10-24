@@ -92,7 +92,7 @@ internal fun List<AssistantSegment>.displayBlocks(): List<SegmentBlock> {
     return blocks
 }
 
-private val ACTIVITY_KINDS = setOf(AssistantSegment.Kind.THOUGHT, AssistantSegment.Kind.TOOL_CALL)
+private val activityKinds = setOf(AssistantSegment.Kind.THOUGHT, AssistantSegment.Kind.TOOL_CALL)
 
 private fun List<AssistantSegment>.spanEnd(start: Int): Int {
     val kind = this[start].kind
@@ -107,7 +107,7 @@ private fun List<AssistantSegment>.spanEnd(start: Int): Int {
 private fun continuesSpan(
     first: AssistantSegment.Kind,
     next: AssistantSegment.Kind,
-): Boolean = next == first || first in ACTIVITY_KINDS && next in ACTIVITY_KINDS
+): Boolean = next == first || first in activityKinds && next in activityKinds
 
 /** Adjacent MESSAGE or THOUGHT segments joined into runs; every other segment on its own. */
 private fun List<AssistantSegment>.foldRuns(): List<SegmentBlock> {

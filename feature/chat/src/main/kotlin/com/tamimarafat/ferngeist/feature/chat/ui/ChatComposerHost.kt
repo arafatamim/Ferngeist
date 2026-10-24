@@ -68,8 +68,8 @@ internal fun BoxScope.ChatComposerHost(
     // Skipped on first open — the row never traveled, so no wait is needed.
     var switcherEntranceReady by remember { mutableStateOf(true) }
     var composerWasExpanded by remember { mutableStateOf(false) }
-    LaunchedEffect(screenState.composerExpanded.value) {
-        if (screenState.composerExpanded.value) {
+    LaunchedEffect(screenState.mutations.composerExpanded.value) {
+        if (screenState.mutations.composerExpanded.value) {
             composerWasExpanded = true
             switcherEntranceReady = false
         } else if (composerWasExpanded) {
@@ -85,7 +85,7 @@ internal fun BoxScope.ChatComposerHost(
             onSwitchSession = onSwitchSession,
         )
     val composerDragModifier =
-        if (!screenState.composerExpanded.value && switcherState.hasOthers) {
+        if (!screenState.mutations.composerExpanded.value && switcherState.hasOthers) {
             Modifier.switcherDrag(
                 onDragStart = {
                     if (!switcherHintSeen) {
@@ -104,7 +104,7 @@ internal fun BoxScope.ChatComposerHost(
     var barHeightPx by remember { mutableIntStateOf(0) }
     var queueHeightPx by remember { mutableIntStateOf(0) }
     LaunchedEffect(barHeightPx, queueHeightPx) {
-        screenState.composerContentHeightPx.value = barHeightPx + queueHeightPx
+        screenState.mutations.composerContentHeightPx.value = barHeightPx + queueHeightPx
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -179,38 +179,38 @@ private fun ChatComposerRow(
             // hugging its actions instead of stretching to the share.
             modifier = modifier.weight(1f, fill = false),
             state = screenState.state,
-            toolbarConfigOptions = screenState.toolbarConfigOptions,
-            composerExpanded = screenState.composerExpanded.value,
-            onComposerExpandedChange = { screenState.composerExpanded.value = it },
-            messageText = screenState.messageText,
-            inputAlpha = { screenState.inputAlpha.value },
-            buttonsAlpha = { screenState.buttonsAlpha.value },
-            showModeButton = screenState.showModeButton,
-            modeOption = screenState.modeOption,
-            currentModeLabel = screenState.currentModeLabel,
-            showStopAction = screenState.showStopAction,
-            canCancelStreaming = screenState.canCancelStreaming,
-            focusRequester = screenState.focusRequester,
+            toolbarConfigOptions = screenState.derived.toolbarConfigOptions,
+            composerExpanded = screenState.mutations.composerExpanded.value,
+            onComposerExpandedChange = { screenState.mutations.composerExpanded.value = it },
+            messageText = screenState.mutations.messageText,
+            inputAlpha = { screenState.derived.inputAlphaState.value },
+            buttonsAlpha = { screenState.derived.buttonsAlphaState.value },
+            showModeButton = screenState.derived.showModeButton,
+            modeOption = screenState.derived.modeOption,
+            currentModeLabel = screenState.derived.currentModeLabel,
+            showStopAction = screenState.derived.showStopAction,
+            canCancelStreaming = screenState.derived.canCancelStreaming,
+            focusRequester = screenState.mutations.focusRequester,
             onFocusCleared = { focusManager.clearFocus() },
             onHeightChanged = onBarHeightChanged,
-            onSend = screenState.sendMessage,
+            onSend = screenState.actions.sendMessage,
             onCancelStreaming = callbacks.onCancelStreaming,
             onSetStringConfigOption = callbacks.onSetStringConfigOption,
             onSetBooleanConfigOption = callbacks.onSetBooleanConfigOption,
             onShowCommands = callbacks.onShowCommands,
             onShowConfigOptionPicker = callbacks.onShowConfigOptionPicker,
-            showJumpToBottom = screenState.showJumpToBottom.value,
+            showJumpToBottom = screenState.derived.showJumpToBottom.value,
             onJumpToBottom = callbacks.onJumpToBottom,
             canSendImages = screenState.state.canSendImages,
-            selectedImages = screenState.selectedImages.value,
-            onImagesChanged = { screenState.selectedImages.value = it },
+            selectedImages = screenState.mutations.selectedImages.value,
+            onImagesChanged = { screenState.mutations.selectedImages.value = it },
             canSendFiles = screenState.state.supportsEmbeddedContext,
-            selectedFiles = screenState.selectedFiles.value,
-            onFilesChanged = { screenState.selectedFiles.value = it },
-            onAttach = { screenState.attachmentPickerLauncher.launch(arrayOf("*/*")) },
+            selectedFiles = screenState.mutations.selectedFiles.value,
+            onFilesChanged = { screenState.mutations.selectedFiles.value = it },
+            onAttach = { screenState.actions.attachmentPickerLauncher.launch(arrayOf("*/*")) },
             dropTargetActive = dropTargetActive,
         )
-        if (!screenState.composerExpanded.value) {
+        if (!screenState.mutations.composerExpanded.value) {
             SessionSwitcherBubble(
                 count = switcherState.liveTotalCount,
                 visible = switcherState.hasOthers && switcherEntranceReady,

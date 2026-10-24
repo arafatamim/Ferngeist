@@ -15,7 +15,7 @@ interface ConnectivityObserver {
 }
 
 class AndroidConnectivityObserver(
-    private val context: Context,
+    context: Context,
 ) : ConnectivityObserver {
     override val isConnected: Flow<Boolean> =
         callbackFlow {

@@ -52,10 +52,10 @@ private const val CONTAINER_ICON_RATIO = 1.6f
  * The connecting sun's size. Matches the indicator this replaced, so the mark is
  * drawn at exactly the size the app always showed for a connecting card.
  */
-private val LOADING_SUN_SIZE = 24.dp
+private val loadingSunSize = 24.dp
 
 /** The sun's arrival: overshoots slightly then settles, as the old indicator did. */
-private val BUSY_POP_SPEC =
+private val busyPopSpec =
     spring<Float>(dampingRatio = 0.62f, stiffness = 500f)
 
 /** Cross-fade leg of the swap, kept short so the pop reads as the motion. */
@@ -109,7 +109,7 @@ fun AgentIconBadge(
             // The old indicator popped in with an overshoot; a plain crossfade read
             // flat by comparison. Scaling from a touch under the resting size gives
             // the mark the same springy arrival it always had, in the same direction.
-            (fadeIn(animationSpec = tween(FADE_MILLIS)) + scaleIn(animationSpec = BUSY_POP_SPEC, initialScale = 0.8f))
+            (fadeIn(animationSpec = tween(FADE_MILLIS)) + scaleIn(animationSpec = busyPopSpec, initialScale = 0.8f))
                 .togetherWith(fadeOut(animationSpec = tween(FADE_MILLIS)))
                 .using(SizeTransform(clip = false))
         },
@@ -118,7 +118,7 @@ fun AgentIconBadge(
     ) { isLoading ->
         if (isLoading) {
             LoadingSun(
-                size = LOADING_SUN_SIZE,
+                size = loadingSunSize,
                 containerSize = containerSize ?: size * CONTAINER_ICON_RATIO,
                 modifier = modifier,
             )

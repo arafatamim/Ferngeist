@@ -37,21 +37,18 @@ import kotlin.math.min
  * curvature at both ends removes that edge.
  */
 @Suppress("MagicNumber")
-private val FADE_ALPHA_CURVE: List<Pair<Float, Float>> =
+// Samples sit at i / 64, the even spacing the list overload of verticalGradient assumes.
+private val fadeAlphaCurve: List<Float> =
     (0..64).map { i ->
         val x = i / 64f
-        x to (1f - x * x * x * (6f * x * x - 15f * x + 10f))
+        1f - x * x * x * (6f * x * x - 15f * x + 10f)
     }
 
 private fun fadeBrush(fadeColor: Color): Brush =
-    Brush.verticalGradient(
-        *FADE_ALPHA_CURVE.map { (fraction, alpha) -> fraction to fadeColor.copy(alpha = alpha) }.toTypedArray(),
-    )
+    Brush.verticalGradient(fadeAlphaCurve.map { alpha -> fadeColor.copy(alpha = alpha) })
 
 private fun bottomFadeBrush(fadeColor: Color): Brush =
-    Brush.verticalGradient(
-        *FADE_ALPHA_CURVE.map { (fraction, alpha) -> fraction to fadeColor.copy(alpha = 1f - alpha) }.toTypedArray(),
-    )
+    Brush.verticalGradient(fadeAlphaCurve.map { alpha -> fadeColor.copy(alpha = 1f - alpha) })
 
 /**
  * Fades scrollable content edges into the surrounding surface by overlaying a

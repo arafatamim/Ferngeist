@@ -58,7 +58,7 @@ internal fun rememberRunway(
 }
 
 /** A bottom padding change bigger than this in one frame is a step to ease, not the keyboard moving. */
-private val BOTTOM_STEP = 48.dp
+private val bottomStep = 48.dp
 
 /**
  * [targetPx], with a step eased in: the composer reports its resting height the moment it expands
@@ -68,7 +68,7 @@ private val BOTTOM_STEP = 48.dp
  */
 @Composable
 private fun easedBottomPx(targetPx: Int): Int {
-    val stepPx = with(LocalDensity.current) { BOTTOM_STEP.toPx() }
+    val stepPx = with(LocalDensity.current) { bottomStep.toPx() }
     val shown = remember { Animatable(targetPx.toFloat()) }
     // Plain holder: survives the effect being restarted, which cancels the animation mid-way.
     val easing = remember { booleanArrayOf(false) }

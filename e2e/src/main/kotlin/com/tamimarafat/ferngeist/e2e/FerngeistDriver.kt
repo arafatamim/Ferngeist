@@ -8,10 +8,9 @@ import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
-import java.util.regex.Pattern
 
 const val APP = "com.tamimarafat.ferngeist"
-private const val WAIT_MS = 15_000L
+internal const val WAIT_MS = 15_000L
 
 /** Drives the installed app through UiAutomator; the app has no test tags, so it selects by text and content-desc. */
 class FerngeistDriver {
@@ -85,54 +84,6 @@ class FerngeistDriver {
         text: String,
         timeoutMs: Long = 0,
     ): Boolean = device.wait(Until.hasObject(By.textContains(text)), timeoutMs)
-
-    /** Starts a chat from the agent's session list; only the first one asks for a directory and battery exemption. */
-    fun newChat(firstChat: Boolean) {
-        tapDesc("New session")
-        if (firstChat) {
-            typeInto(By.clazz("android.widget.EditText"), "/tmp")
-            // Directory suggestions from earlier sessions can push Save off-screen.
-            if (!hasObject(By.text("Save"), timeoutMs = 3_000)) device.swipe(360, 1000, 360, 400, 20)
-            tapText("Save")
-        }
-        // The battery-optimisation prompt, when it appears, covers the chat for a while.
-        repeat(30) {
-            if (hasObject(By.text("Not now"))) tapText("Not now")
-            if (hasObject(By.desc("Send"))) return
-            Thread.sleep(500)
-        }
-        find(By.desc("Send"))
-    }
-
-    /** Opens the composer if it is collapsed, types the prompt and sends it. */
-    fun send(prompt: String) {
-        if (!device.hasObject(By.clazz("android.widget.EditText"))) tapDesc("Send")
-        typeInto(By.clazz("android.widget.EditText"), prompt)
-        tapDesc("Send")
-    }
-
-    private val sessionRow = By.text(Pattern.compile("""e2e_\d+_\d+"""))
-
-    /** Titles of the chats on the session list; the list reorders as chats are visited, so open them by title. */
-    fun sessionTitles(waitMs: Long = WAIT_MS): List<String> {
-        device.wait(Until.hasObject(sessionRow), waitMs)
-        return device.findObjects(sessionRow).map { it.text }.sorted()
-    }
-
-    /** Forces the device into Doze (or back out), as a long unplugged idle night would. */
-    fun setDoze(on: Boolean) {
-        if (on) {
-            device.executeShellCommand("dumpsys battery unplug")
-            device.executeShellCommand("dumpsys deviceidle enable all")
-            device.executeShellCommand("dumpsys deviceidle force-idle")
-        } else {
-            device.executeShellCommand("dumpsys deviceidle unforce")
-            device.executeShellCommand("dumpsys battery reset")
-        }
-    }
-
-    fun foregroundServiceRunning(): Boolean =
-        device.executeShellCommand("dumpsys activity services $APP").contains("isForeground=true")
 
     // Nodes go stale while the UI recomposes mid-dump; skip those.
     fun dump(): String =

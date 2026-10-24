@@ -21,6 +21,13 @@ data class GatewayAuthHeaders(
     val proofSignature: String? = null,
 )
 
+/** What a proof signs: the method, the full endpoint URL and the exact body sent with it. */
+data class GatewayProofRequest(
+    val method: String,
+    val endpoint: String,
+    val body: String? = null,
+)
+
 data class GatewayGeneratedProofKey(
     val publicKey: String,
     val privateKey: String,
@@ -77,9 +84,7 @@ object GatewayProofAuth {
 
     fun buildAuthHeaders(
         gatewayCredential: String,
-        method: String,
-        endpoint: String,
-        body: String? = null,
+        request: GatewayProofRequest,
         timestampSeconds: Long = System.currentTimeMillis() / MILLISECONDS_PER_SECOND,
         nonce: String =
             java.util.UUID
@@ -90,9 +95,9 @@ object GatewayProofAuth {
         if (auth.proofPrivateKey.isNullOrBlank()) {
             return GatewayAuthHeaders(authorization = "Bearer ${auth.token}")
         }
-        val bodyHash = sha256Base64Url(body.orEmpty().toByteArray(Charsets.UTF_8))
+        val bodyHash = sha256Base64Url(request.body.orEmpty().toByteArray(Charsets.UTF_8))
         val pathWithQuery =
-            URI(endpoint).run {
+            URI(request.endpoint).run {
                 buildString {
                     append(rawPath ?: "/")
                     rawQuery?.takeIf { it.isNotBlank() }?.let {
@@ -105,7 +110,7 @@ object GatewayProofAuth {
         val message =
             listOf(
                 PROOF_DOMAIN,
-                method.trim().uppercase(),
+                request.method.trim().uppercase(),
                 pathWithQuery,
                 auth.token,
                 timestamp,

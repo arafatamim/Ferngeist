@@ -2,19 +2,19 @@ package com.tamimarafat.ferngeist.feature.sessionlist.worktree
 
 import kotlin.random.Random
 
-private val MOODS =
+private val mOODS =
     (
         "brave calm clever cosy eager gentle happy jolly keen kind lively lucky merry mellow " +
             "nimble plucky proud quiet quick sleepy snappy sunny swift tidy witty zesty"
     ).split(' ')
 
-private val COLOURS =
+private val cOLOURS =
     (
         "amber azure coral crimson golden hazel indigo ivory jade lilac maroon mint ochre olive " +
             "peach plum rose ruby russet sage silver teal violet"
     ).split(' ')
 
-private val CREATURES =
+private val cREATURES =
     (
         "badger beetle crane dingo falcon ferret finch gecko heron ibis koala lemur lynx marten " +
             "moth newt otter owl panda puffin quokka raven robin salmon stoat tapir walrus wombat " +
@@ -27,4 +27,4 @@ private val CREATURES =
  * rare, the gateway reports it inline, and shuffle draws another.
  */
 internal fun newWorktreeBranchName(random: Random = Random.Default): String =
-    "ferngeist/" + listOf(MOODS, COLOURS, CREATURES).joinToString("-") { it.random(random) }
+    "ferngeist/" + listOf(mOODS, cOLOURS, cREATURES).joinToString("-") { it.random(random) }

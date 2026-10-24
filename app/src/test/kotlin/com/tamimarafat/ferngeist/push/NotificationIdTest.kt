@@ -43,8 +43,14 @@ class NotificationIdTest {
     }
 
     @Test
-    fun `progress ids stay within the dedicated range`() {
-        val id = notificationIdFor(PUSH_CATEGORY_PROGRESS, "any-session", nextId)
-        assertTrue(id >= 5000 && id < 6000)
+    fun `fallback ids start clear of the progress range`() {
+        // The incrementing fallback starts at 1000, below the progress range, so the two id
+        // spaces are separate for the reachable window.
+        // shortcut: the fallback counter is unbounded and walks into [5000, 6000) after
+        // ~4000 non-progress notifications — a maintainer follow-up, not fixed here.
+        val fallback = (1..10).map { notificationIdFor(PUSH_CATEGORY_AGENT_ERROR, null, nextId) }
+        assertTrue(fallback.none { it >= 5000 && it < 6000 })
+        val progress = notificationIdFor(PUSH_CATEGORY_PROGRESS, "any-session", nextId)
+        assertTrue(progress >= 5000 && progress < 6000)
     }
 }

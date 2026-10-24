@@ -19,8 +19,8 @@ class GitSheetRouteTest {
         val scope = SaverScope { true }
 
         routes.forEach { route ->
-            val saved = with(GitSheetRouteSaver) { scope.save(route) }!!
-            assertEquals(route, GitSheetRouteSaver.restore(saved))
+            val saved = with(gitSheetRouteSaver) { scope.save(route) }!!
+            assertEquals(route, gitSheetRouteSaver.restore(saved))
         }
     }
 

@@ -8,7 +8,7 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.catalog.CatalogAuthMethod
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog.ListSessionsResult
-import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog.ListingAuthentication
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -16,12 +16,8 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.isSameCwd
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
-import com.tamimarafat.ferngeist.feature.sessionlist.cwd.RecentCwdStore
+import com.tamimarafat.ferngeist.feature.sessionlist.auth.AuthCompletion
+import com.tamimarafat.ferngeist.feature.sessionlist.auth.SessionListAuth
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.ScopeSelection
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.chatsInWorktree
@@ -33,15 +29,11 @@ import com.tamimarafat.ferngeist.feature.sessionlist.cwd.scopeCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.sessionsInRepo
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.worktreeOf
 import com.tamimarafat.ferngeist.feature.sessionlist.worktree.SessionWorktrees
-import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
-import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
-import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -54,7 +46,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -89,10 +80,10 @@ sealed interface PendingAuthAction {
  * this VM only maps results onto UI state, drives the auth dialogs, and keeps
  * env-value persistence. It never holds a transport.
  *
- * Carries more functions than detekt's TooManyFunctions budget: the auth
- * recovery flows (gateway runtime restart, env-var persistence, retry
- * dispatch) are built from many small single-purpose helpers that read better
- * split than merged. Suppressed here rather than force-merging cohesive flows.
+ * The auth recovery flows live in [SessionListAuth] and the gateway worktree
+ * calls in [SessionWorktrees]. The public intents stay here because the screen
+ * binds them by reference; that is why the class carries more functions than
+ * detekt's TooManyFunctions budget.
  */
 @Suppress("TooManyFunctions")
 @HiltViewModel
@@ -101,24 +92,20 @@ class SessionListViewModel
     constructor(
         @ApplicationContext private val context: Context,
         savedStateHandle: SavedStateHandle,
-        private val gatewaySourceRepository: GatewaySourceRepository,
-        private val launchableTargetRepository: LaunchableTargetRepository,
-        private val sessionRepository: SessionRepository,
-        private val gatewayRepository: GatewayRepository,
         private val sessionCatalog: SessionCatalog,
-        private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
-        private val recentCwdStore: RecentCwdStore,
+        private val repos: SessionListRepositories,
+        @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
-        val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
+        val serverId: String = savedStateHandle.get<String>("serverId").orEmpty()
 
         val server: StateFlow<LaunchableTarget?> =
-            launchableTargetRepository
+            repos.launchableTargetRepository
                 .getTargets()
                 .map { servers -> servers.find { it.id == serverId } }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
         val sessionSettings: StateFlow<LaunchableTargetSessionSettings> =
-            sessionSettingsRepository
+            repos.sessionSettingsRepository
                 .getSettings(serverId)
                 .stateIn(
                     viewModelScope,
@@ -128,7 +115,7 @@ class SessionListViewModel
 
         /** Per-target recent working directories, ordered MRU-first. */
         val recentCwds: StateFlow<List<String>> =
-            recentCwdStore
+            repos.recentCwdStore
                 .getRecentCwds(serverId)
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -141,7 +128,7 @@ class SessionListViewModel
          * collector, so loaded-ness has to come from the cold flow itself.
          */
         private val sessions: StateFlow<List<SessionSummary>> =
-            sessionRepository
+            repos.sessionRepository
                 .getSessions(serverId)
                 .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -158,8 +145,8 @@ class SessionListViewModel
                 .connectedSessionIds(serverId)
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-        private val _isLoading = MutableStateFlow(true)
-        val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+        private val outputs = SessionListOutputs()
+        val isLoading: StateFlow<Boolean> = outputs.loading.asStateFlow()
 
         // NOTE: Separate from _isLoading so PullToRefreshDefaults.LoadingIndicator
         // only shows on user-pull, not on initial load with cached sessions.
@@ -189,8 +176,19 @@ class SessionListViewModel
             )
         val connectionDiagnostics: StateFlow<ChatConnectionDiagnostics> = _connectionDiagnostics.asStateFlow()
 
-        private val _events = MutableSharedFlow<SessionListEvent>()
-        val events = _events.asSharedFlow()
+        val events = outputs.events.asSharedFlow()
+
+        private val auth =
+            SessionListAuth(
+                serverId = serverId,
+                server = server,
+                outputs = outputs,
+                sessionCatalog = sessionCatalog,
+                repos = repos,
+                ioDispatcher = ioDispatcher,
+            )
+
+        val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = auth.pendingAuthentication
 
         private var pendingCreateAfterCwd = false
 
@@ -203,12 +201,9 @@ class SessionListViewModel
             SessionWorktrees(
                 context = context,
                 serverId = serverId,
-                gatewayRepository = gatewayRepository,
-                gatewaySourceRepository = gatewaySourceRepository,
-                launchableTargetRepository = launchableTargetRepository,
-                sessionSettingsRepository = sessionSettingsRepository,
-                recentCwdStore = recentCwdStore,
-                emitEvent = { _events.emit(it) },
+                repos = repos,
+                ioDispatcher = ioDispatcher,
+                emitEvent = { outputs.events.emit(it) },
                 openChat = { repo, path ->
                     selectScope(WorktreeScope.Worktree(path), repo)
                     createSession(path)
@@ -251,7 +246,7 @@ class SessionListViewModel
          */
         val sessionRows: StateFlow<SessionRows> =
             combine(
-                sessionRepository.getSessions(serverId).map { cached -> cached to true },
+                repos.sessionRepository.getSessions(serverId).map { cached -> cached to true },
                 sessionSettings,
                 scopeSelection,
                 sessionWorktrees.managed,
@@ -281,9 +276,6 @@ class SessionListViewModel
 
         /** Ids of worktrees whose removal is in flight; their chat cards show as busy. */
         val removingWorktreeIds: StateFlow<Set<String>> = _removingWorktreeIds.asStateFlow()
-
-        private val _pendingAuthentication = MutableStateFlow<SessionListPendingAuthentication?>(null)
-        val pendingAuthentication: StateFlow<SessionListPendingAuthentication?> = _pendingAuthentication.asStateFlow()
         private var refreshJob: kotlinx.coroutines.Job? = null
         private var refreshGeneration = 0
         private var worktreeRefreshJob: kotlinx.coroutines.Job? = null
@@ -315,13 +307,13 @@ class SessionListViewModel
             viewModelScope.launch {
                 sessionCatalog.warmServers.collect { warmServers ->
                     val hasWarmHub = serverId in warmServers
-                    if (hasWarmHub && _isLoading.value && sessions.value.isNotEmpty()) {
+                    if (hasWarmHub && outputs.loading.value && sessions.value.isNotEmpty()) {
                         android.util.Log.d(
                             "TSList",
                             "warm hub appeared — cancelling stale isLoading sessions=${sessions.value.size}",
                         )
                         refreshJob?.cancel()
-                        _isLoading.value = false
+                        outputs.loading.value = false
                         _refreshing.value = false
                     }
                 }
@@ -363,53 +355,53 @@ class SessionListViewModel
                 viewModelScope.launch {
                     try {
                         if (isUserInitiated) _refreshing.value = true
-                        _isLoading.value = true
+                        outputs.loading.value = true
                         // Always the whole list: the cache keeps only what a listing returns,
                         // and an agent filtering by cwd matches it exactly, so a filtered
                         // listing would drop the repo's worktree chats (and every other
                         // directory). The cwd filter is applied locally by sessionRows.
                         val result = sessionCatalog.listSessions(serverId, cwd = null, reuseRecent = reuseRecent)
                         when (result) {
-                            is ListSessionsResult.Listed -> {
-                                lastListingFailed = false
-                                result.agentCapabilities?.let { _agentCapabilities.value = it }
-                            }
-
-                            is ListSessionsResult.Unsupported -> {
-                                lastListingFailed = false
-                                result.agentCapabilities?.let { _agentCapabilities.value = it }
-                            }
-
+                            is ListSessionsResult.Listed -> acceptListing(result.agentCapabilities)
+                            is ListSessionsResult.Unsupported -> acceptListing(result.agentCapabilities)
                             is ListSessionsResult.AuthRequired -> {
                                 lastListingFailed = false
-                                handleAuthenticationRequired(result, PendingAuthAction.RefreshSessions)
+                                auth.handleAuthenticationRequired(result, PendingAuthAction.RefreshSessions)
                                 return@launch
                             }
 
-                            is ListSessionsResult.Failed -> {
-                                val alreadyFailing = lastListingFailed
-                                lastListingFailed = true
-                                // Silent on an auto refresh with cached rows; a warm socket
-                                // mid-reconnect would otherwise toast on every return from
-                                // chat. Still loud for a pull-to-refresh, or once when the
-                                // user is looking at nothing (not on every poll after it).
-                                if (isUserInitiated || (sessions.value.isEmpty() && !alreadyFailing)) {
-                                    _events.emit(
-                                        SessionListEvent.ShowError(result.message),
-                                    )
-                                }
-                            }
+                            is ListSessionsResult.Failed -> reportListingFailure(result, isUserInitiated)
                         }
                         // Paint first, then reconcile leases in the background
                         // (details in publishListingAndReconcile).
                         publishListingAndReconcile(result, generation)
                     } finally {
                         if (generation == refreshGeneration) {
-                            _isLoading.value = false
+                            outputs.loading.value = false
                             _refreshing.value = false
                         }
                     }
                 }
+        }
+
+        private fun acceptListing(agentCapabilities: AgentCapabilities?) {
+            lastListingFailed = false
+            agentCapabilities?.let { _agentCapabilities.value = it }
+        }
+
+        private suspend fun reportListingFailure(
+            failed: ListSessionsResult.Failed,
+            isUserInitiated: Boolean,
+        ) {
+            val alreadyFailing = lastListingFailed
+            lastListingFailed = true
+            // Silent on an auto refresh with cached rows; a warm socket
+            // mid-reconnect would otherwise toast on every return from
+            // chat. Still loud for a pull-to-refresh, or once when the
+            // user is looking at nothing (not on every poll after it).
+            if (isUserInitiated || (sessions.value.isEmpty() && !alreadyFailing)) {
+                outputs.events.emit(SessionListEvent.ShowError(failed.message))
+            }
         }
 
         /**
@@ -424,7 +416,7 @@ class SessionListViewModel
         ) {
             syncCatalogObservables()
             if (generation == refreshGeneration) {
-                _isLoading.value = false
+                outputs.loading.value = false
                 _refreshing.value = false
             }
             viewModelScope.launch {
@@ -470,7 +462,7 @@ class SessionListViewModel
          */
         fun onChatOpened() {
             refreshJob?.cancel()
-            _isLoading.value = false
+            outputs.loading.value = false
             _refreshing.value = false
         }
 
@@ -487,7 +479,7 @@ class SessionListViewModel
          */
         fun createSession(cwd: String) {
             viewModelScope.launch {
-                _events.emit(
+                outputs.events.emit(
                     SessionListEvent.NavigateToChat(
                         serverId = serverId,
                         sessionId = NEW_SESSION_ARG,
@@ -505,28 +497,21 @@ class SessionListViewModel
          * tracked (hot chat) and cold Room-known sessions.
          */
         fun closeSession(sessionId: String) {
-            viewModelScope.launch(Dispatchers.IO) {
-                if (sessionCatalog.isStreaming(serverId, sessionId)) {
-                    _events.emit(
-                        SessionListEvent.ShowError(
-                            "This session is still responding. Cancel or close it from inside the chat first.",
-                        ),
-                    )
-                    return@launch
-                }
-                val target = launchableTargetRepository.getTarget(serverId)
+            viewModelScope.launch(ioDispatcher) {
+                if (refuseWhileStreaming(sessionId)) return@launch
+                val target = repos.launchableTargetRepository.getTarget(serverId)
                 if (target !is LaunchableTarget.GatewayAgent) {
-                    _events.emit(SessionListEvent.ShowError("Close is only available for gateway sessions."))
+                    outputs.events.emit(SessionListEvent.ShowError("Close is only available for gateway sessions."))
                     return@launch
                 }
                 runCatching {
                     sessionCatalog.closeSession(serverId, sessionId)
                 }.onSuccess { closed ->
                     if (!closed) {
-                        _events.emit(SessionListEvent.ShowError("This session has no live process to close."))
+                        outputs.events.emit(SessionListEvent.ShowError("This session has no live process to close."))
                     }
                 }.onFailure { error ->
-                    _events.emit(
+                    outputs.events.emit(
                         SessionListEvent.ShowError(error.message ?: "Failed to close session."),
                     )
                 }
@@ -540,27 +525,31 @@ class SessionListViewModel
          * error — there is simply no remote leg to run.
          */
         fun deleteSession(sessionId: String) {
-            viewModelScope.launch(Dispatchers.IO) {
-                if (sessionCatalog.isStreaming(serverId, sessionId)) {
-                    _events.emit(
-                        SessionListEvent.ShowError(
-                            "This session is still responding. Cancel or close it from inside the chat first.",
-                        ),
-                    )
-                    return@launch
-                }
+            viewModelScope.launch(ioDispatcher) {
+                if (refuseWhileStreaming(sessionId)) return@launch
                 runCatching {
                     sessionCatalog.deleteSession(serverId, sessionId)
                 }.onSuccess { deleted ->
                     if (!deleted) {
-                        _events.emit(SessionListEvent.ShowError("This session could not be found."))
+                        outputs.events.emit(SessionListEvent.ShowError("This session could not be found."))
                     }
                 }.onFailure { error ->
-                    _events.emit(
+                    outputs.events.emit(
                         SessionListEvent.ShowError(error.message ?: "Failed to delete session."),
                     )
                 }
             }
+        }
+
+        /** Tells the user a responding chat cannot be closed or deleted from here; true when it refused. */
+        private suspend fun refuseWhileStreaming(sessionId: String): Boolean {
+            if (!sessionCatalog.isStreaming(serverId, sessionId)) return false
+            outputs.events.emit(
+                SessionListEvent.ShowError(
+                    "This session is still responding. Cancel or close it from inside the chat first.",
+                ),
+            )
+            return true
         }
 
         /**
@@ -577,10 +566,10 @@ class SessionListViewModel
             val cwd = worktree?.repo ?: picked
             worktree?.let { selectScope(WorktreeScope.Worktree(it.path), it.repo) }
             viewModelScope.launch {
-                sessionSettingsRepository.updateCwd(serverId, cwd)
+                repos.sessionSettingsRepository.updateCwd(serverId, cwd)
                 val normalized = cwd.trim().ifBlank { "" }
                 if (normalized.isNotBlank()) {
-                    recentCwdStore.addCwd(serverId, normalized)
+                    repos.recentCwdStore.addCwd(serverId, normalized)
                 }
                 refreshSessions(isUserInitiated = true)
                 if (pendingCreateAfterCwd) {
@@ -598,7 +587,7 @@ class SessionListViewModel
         /** Removes [cwd] from the recent list without affecting the current filter. */
         fun removeRecentCwd(cwd: String) {
             viewModelScope.launch {
-                recentCwdStore.removeCwd(serverId, cwd)
+                repos.recentCwdStore.removeCwd(serverId, cwd)
             }
         }
 
@@ -649,7 +638,7 @@ class SessionListViewModel
         ) {
             val worktree = worktrees.value?.firstOrNull { it.id == worktreeId } ?: return
             viewModelScope.launch {
-                _events.emit(
+                outputs.events.emit(
                     SessionListEvent.ConfirmRemoveWorktree(
                         sessionId = sessionId,
                         worktreeId = worktreeId,
@@ -671,40 +660,44 @@ class SessionListViewModel
          * A 409 comes back as a discard confirm; the caller retries with it.
          */
         fun removeWorktree(request: SessionListEvent.ConfirmRemoveWorktree) {
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher) {
                 _removingWorktreeIds.update { it + request.worktreeId }
                 try {
-                    val path = worktrees.value?.firstOrNull { it.id == request.worktreeId }?.path
-                    val chats = chatsInWorktree(sessions.value, request.sessionId, path)
-                    if (chats.any { sessionCatalog.isStreaming(serverId, it) }) {
-                        _events.emit(
-                            SessionListEvent.ShowError(
-                                context.getString(R.string.sessionlist_worktree_error_chat_busy),
-                            ),
-                        )
-                        return@launch
-                    }
-                    if (launchableTargetRepository.getTarget(serverId) !is LaunchableTarget.GatewayAgent) {
-                        _events.emit(
-                            SessionListEvent.ShowError(
-                                context.getString(R.string.sessionlist_worktree_error_remove_gateway_only),
-                            ),
-                        )
-                        return@launch
-                    }
-                    for (chat in chats) {
-                        runCatching { sessionCatalog.closeSession(serverId, chat) }
-                    }
-                    if (!sessionWorktrees.remove(request)) return@launch
-                    // The picked worktree is gone; leave the scope on something that exists.
-                    val picked = (scope.value as? WorktreeScope.Worktree)?.path
-                    if (picked != null && path != null && isSameCwd(picked, path)) selectScope(WorktreeScope.All)
-                    for (chat in chats) {
-                        runCatching { sessionCatalog.deleteSession(serverId, chat) }
-                    }
+                    removeConfirmedWorktree(request)
                 } finally {
                     _removingWorktreeIds.update { it - request.worktreeId }
                 }
+            }
+        }
+
+        private suspend fun removeConfirmedWorktree(request: SessionListEvent.ConfirmRemoveWorktree) {
+            val path = worktrees.value?.firstOrNull { it.id == request.worktreeId }?.path
+            val chats = chatsInWorktree(sessions.value, request.sessionId, path)
+            if (chats.any { sessionCatalog.isStreaming(serverId, it) }) {
+                outputs.events.emit(
+                    SessionListEvent.ShowError(
+                        context.getString(R.string.sessionlist_worktree_error_chat_busy),
+                    ),
+                )
+                return
+            }
+            if (repos.launchableTargetRepository.getTarget(serverId) !is LaunchableTarget.GatewayAgent) {
+                outputs.events.emit(
+                    SessionListEvent.ShowError(
+                        context.getString(R.string.sessionlist_worktree_error_remove_gateway_only),
+                    ),
+                )
+                return
+            }
+            for (chat in chats) {
+                runCatching { sessionCatalog.closeSession(serverId, chat) }
+            }
+            if (!sessionWorktrees.remove(request)) return
+            // The picked worktree is gone; leave the scope on something that exists.
+            val picked = (scope.value as? WorktreeScope.Worktree)?.path
+            if (picked != null && path != null && isSameCwd(picked, path)) selectScope(WorktreeScope.All)
+            for (chat in chats) {
+                runCatching { sessionCatalog.deleteSession(serverId, chat) }
             }
         }
 
@@ -717,35 +710,7 @@ class SessionListViewModel
             envValues: Map<String, String> = emptyMap(),
         ) {
             viewModelScope.launch {
-                val pending = _pendingAuthentication.value ?: return@launch
-                val method = pending.authMethods.firstOrNull { it.id == methodId } ?: return@launch
-
-                _isLoading.value = true
-                _pendingAuthentication.update { it?.copy(authErrorMessage = null) }
-
-                // Env-based gateway auth is handled by restarting the gateway runtime with env vars.
-                if (method.type == "env" && pending.gatewayRuntimeId != null) {
-                    authenticateGatewayEnvVar(pending, method, envValues)
-                    return@launch
-                }
-
-                // The catalog routes the call to the transport that raised the
-                // challenge (a borrowed warm chat transport when warm-borrowed).
-                when (val result = sessionCatalog.authenticateListing(serverId, methodId)) {
-                    is ListingAuthentication.Failed -> {
-                        _pendingAuthentication.update { it?.copy(authErrorMessage = result.message) }
-                        _isLoading.value = false
-                        return@launch
-                    }
-
-                    ListingAuthentication.Succeeded -> Unit
-                }
-
-                viewModelScope.launch(Dispatchers.IO) {
-                    launchableTargetRepository.updatePreferredAuthMethod(serverId, methodId)
-                }
-                _pendingAuthentication.value = null
-                retryPendingAction(pending.pendingAction)
+                auth.authenticate(methodId, envValues)?.let(::completeAuthentication)
             }
         }
 
@@ -758,285 +723,21 @@ class SessionListViewModel
          */
         fun reconnectPendingAuthentication() {
             viewModelScope.launch {
-                val pending = _pendingAuthentication.value ?: return@launch
-                val server = server.value ?: return@launch
-                _isLoading.value = true
-                _pendingAuthentication.update { it?.copy(authErrorMessage = null) }
-
-                val connected =
-                    when (server) {
-                        is LaunchableTarget.Manual ->
-                            sessionCatalog.reconnectListingToManual(serverId, server)
-
-                        is LaunchableTarget.GatewayAgent -> false
-                    }
-                if (!connected) {
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = "Failed to reconnect to ${server.name}")
-                    }
-                    _isLoading.value = false
-                    return@launch
-                }
-
-                if (!sessionCatalog.initializeListing(serverId)) {
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = "Failed to initialize ${server.name}")
-                    }
-                    _isLoading.value = false
-                    return@launch
-                }
-
-                _pendingAuthentication.value = null
-                retryPendingAction(pending.pendingAction)
+                auth.reconnect()?.let(::retryPendingAction)
             }
         }
 
         /** Dismisses the authentication dialog and clears loading state. */
         fun dismissAuthenticationPrompt() {
-            _pendingAuthentication.value = null
-            _isLoading.value = false
+            auth.dismiss()
         }
 
-        /**
-         * Builds and surfaces a pending authentication model from a hub
-         * listing result that hit an auth challenge.
-         */
-        private suspend fun handleAuthenticationRequired(
-            auth: ListSessionsResult.AuthRequired,
-            action: PendingAuthAction,
-        ) {
-            val currentServer =
-                server.value
-                    ?: withContext(Dispatchers.IO) { launchableTargetRepository.getTarget(serverId) }
-                    ?: run {
-                        _events.emit(
-                            SessionListEvent.ShowError(
-                                "Server was removed before authentication could complete.",
-                            ),
-                        )
-                        _isLoading.value = false
-                        return
-                    }
-            _pendingAuthentication.value =
-                SessionListPendingAuthentication(
-                    serverId = serverId,
-                    serverName = currentServer.name,
-                    agentName = auth.agentName,
-                    authMethods = auth.authMethods,
-                    preferredAuthMethodId = currentServer.preferredAuthMethodId,
-                    persistedEnvValues = sessionCatalog.persistedEnvValues(currentServer.id, auth.authMethods),
-                    authErrorMessage = auth.challengeMessage,
-                    gatewayRuntimeId = auth.gatewayRuntimeId,
-                    pendingAction = action,
-                )
-            _isLoading.value = false
-        }
-
-        private data class AuthContext(
-            val server: LaunchableTarget,
-            val gatewaySource: com.tamimarafat.ferngeist.core.model.GatewaySource,
-        )
-
-        /**
-         * Resolves the server + gateway source for an in-flight authentication,
-         * deleting expired credentials. Returns null after surfacing the error.
-         */
-        private suspend fun resolveAuthContext(): AuthContext? {
-            val currentServer =
-                server.value ?: run {
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = "Server was removed before authentication could complete.")
-                    }
-                    _isLoading.value = false
-                    return null
-                }
-            val gatewayTarget =
-                currentServer as? LaunchableTarget.GatewayAgent ?: run {
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = "Gateway was not found for ${currentServer.name}.")
-                    }
-                    _isLoading.value = false
-                    return null
-                }
-            val gatewaySource =
-                resolveAuthGatewaySource(gatewayTarget) ?: return null
-            return AuthContext(currentServer, gatewaySource)
-        }
-
-        /**
-         * Refreshes the gateway source, deleting the stored credential when it
-         * has expired. Returns null after surfacing the failure.
-         */
-        private suspend fun resolveAuthGatewaySource(
-            gatewayTarget: LaunchableTarget.GatewayAgent,
-        ): com.tamimarafat.ferngeist.core.model.GatewaySource? {
-            val source =
-                try {
-                    withContext(Dispatchers.IO) {
-                        refreshGatewaySourceIfNeeded(
-                            gatewayTarget.gatewaySource,
-                            gatewayRepository,
-                            gatewaySourceRepository,
-                        )
-                    }
-                } catch (_: GatewayCredentialExpiredException) {
-                    withContext(Dispatchers.IO) {
-                        gatewaySourceRepository.deleteGateway(gatewayTarget.gatewaySource.id)
-                    }
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = "Gateway credential expired. Please pair this gateway again.")
-                    }
-                    _isLoading.value = false
-                    return null
-                }
-            if (source.gatewayCredential.isBlank()) {
-                _pendingAuthentication.update {
-                    it?.copy(authErrorMessage = "Gateway is not paired.")
-                }
-                _isLoading.value = false
-                return null
+        /** Remembers the method that worked for this server, then retries the blocked action. */
+        private fun completeAuthentication(completion: AuthCompletion) {
+            viewModelScope.launch(ioDispatcher) {
+                repos.launchableTargetRepository.updatePreferredAuthMethod(completion.targetId, completion.methodId)
             }
-            return source
-        }
-
-        /**
-         * Restarts the gateway runtime with the env payload, then asks the hub
-         * to reconnect the raising transport to the restarted runtime.
-         * Returns the new runtime id the restart launched, or null after
-         * surfacing the failure.
-         */
-        private suspend fun restartAndReconnect(
-            pending: SessionListPendingAuthentication,
-            currentServer: LaunchableTarget,
-            gatewaySource: com.tamimarafat.ferngeist.core.model.GatewaySource,
-            method: CatalogAuthMethod,
-            envValues: Map<String, String>,
-        ): String? {
-            val runtimeId =
-                pending.gatewayRuntimeId ?: run {
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = "Gateway runtime context is missing for ${currentServer.name}.")
-                    }
-                    _isLoading.value = false
-                    return null
-                }
-            val restart =
-                runCatching {
-                    withContext(Dispatchers.IO) {
-                        gatewayRepository.restartRuntime(
-                            scheme = gatewaySource.scheme,
-                            host = gatewaySource.host,
-                            gatewayCredential = gatewaySource.gatewayCredential,
-                            runtimeId = runtimeId,
-                            envVars = sessionCatalog.envPayload(method, envValues),
-                        )
-                    }
-                }.getOrElse { error ->
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = error.message ?: "Failed to restart ${currentServer.name}.")
-                    }
-                    _isLoading.value = false
-                    return null
-                }
-
-            // The transport that owns the socket is the one that raised the
-            // challenge (a borrowed warm chat transport when warm-borrowed);
-            // restart its transport against the new session through the catalog,
-            // which retains that transport.
-            val reconnected =
-                sessionCatalog.reconnectListingToGateway(
-                    serverId = serverId,
-                    gatewaySource = gatewaySource,
-                    restart = restart,
-                    authMethodId = method.id,
-                    displayName = currentServer.name,
-                )
-            if (!reconnected) {
-                _pendingAuthentication.update {
-                    it?.copy(
-                        authErrorMessage = "Failed to reconnect to ${currentServer.name}",
-                        // The gateway closed the old runtime once the new one started.
-                        gatewayRuntimeId = restart.runtimeId,
-                    )
-                }
-                _isLoading.value = false
-                return null
-            }
-            return restart.runtimeId
-        }
-
-        /**
-         * Handles gateway-backed env authentication by restarting the runtime with env vars.
-         *
-         * Each failure path exits early — no auth context, an unreadable stored copy, a failed
-         * restart, a failed reconnect — so the exit count is inherent to the sequence rather
-         * than a sign of nested conditions that want flattening.
-         */
-        @Suppress("ReturnCount")
-        private suspend fun authenticateGatewayEnvVar(
-            pending: SessionListPendingAuthentication,
-            method: CatalogAuthMethod,
-            envValues: Map<String, String>,
-        ) {
-            // Gateway-backed env auth requires a fresh process environment. Restart
-            // the gateway runtime with the saved values, reconnect, authenticate,
-            // then retry the original session action.
-            val context = resolveAuthContext() ?: return
-            val currentServer = context.server
-            val gatewaySource = context.gatewaySource
-
-            try {
-                sessionCatalog.persistEnvValues(currentServer.id, method, envValues)
-            } catch (error: AuthEnvValuesUnreadableException) {
-                // The stored copy decrypts but cannot be parsed, so this write's base was an
-                // empty map. Continuing would destroy secrets the user still has; the stored
-                // blob is left untouched for them to replace.
-                _events.emit(
-                    SessionListEvent.ShowError(
-                        error.message ?: "Saved environment values could not be read on this device.",
-                    ),
-                )
-                return
-            }
-            val runtimeId =
-                restartAndReconnect(
-                    pending = pending,
-                    currentServer = currentServer,
-                    gatewaySource = gatewaySource,
-                    method = method,
-                    envValues = envValues,
-                ) ?: return
-
-            // Keep the whole env-auth sequence on the transport that owns the
-            // socket — the same transport the catalog just reconnected.
-            if (!sessionCatalog.initializeListing(serverId)) {
-                _pendingAuthentication.update {
-                    it?.copy(
-                        authErrorMessage = "Failed to initialize ${currentServer.name}",
-                        gatewayRuntimeId = runtimeId,
-                    )
-                }
-                _isLoading.value = false
-                return
-            }
-
-            when (val result = sessionCatalog.authenticateListing(serverId, method.id)) {
-                is ListingAuthentication.Failed -> {
-                    _pendingAuthentication.update {
-                        it?.copy(authErrorMessage = result.message, gatewayRuntimeId = runtimeId)
-                    }
-                    _isLoading.value = false
-                    return
-                }
-
-                ListingAuthentication.Succeeded -> Unit
-            }
-
-            viewModelScope.launch(Dispatchers.IO) {
-                launchableTargetRepository.updatePreferredAuthMethod(currentServer.id, method.id)
-            }
-            _pendingAuthentication.value = null
-            retryPendingAction(pending.pendingAction)
+            retryPendingAction(completion.retry)
         }
 
         /** Retries the action that triggered the authentication prompt. */

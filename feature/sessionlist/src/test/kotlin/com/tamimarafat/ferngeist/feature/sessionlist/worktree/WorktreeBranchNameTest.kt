@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.worktree
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,6 +16,7 @@ class WorktreeBranchNameTest {
 
     @Test
     fun newWorktreeBranchName_variesWithTheRandomSource() {
+        assertEquals(newWorktreeBranchName(Random(1)), newWorktreeBranchName(Random(1)))
         assertNotEquals(newWorktreeBranchName(Random(1)), newWorktreeBranchName(Random(2)))
     }
 }

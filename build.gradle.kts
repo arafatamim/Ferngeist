@@ -56,8 +56,16 @@ fun Project.configureKtlintAndDetekt() {
         val debugCompile = tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()
             .find { it.name.endsWith("DebugKotlin") && !it.name.contains("UnitTest") && !it.name.contains("AndroidTest") }
             ?: return@afterEvaluate
+        // The aggregate task also analyzes src/test: include its dependency graph so
+        // SDK overrides and test APIs resolve instead of producing spurious findings.
+        val debugTestCompile = tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()
+            .find { it.name == debugCompile.name.replace("Kotlin", "UnitTestKotlin") }
         tasks.withType<Detekt>().configureEach {
             classpath.from(debugCompile.libraries)
+            debugTestCompile?.let {
+                classpath.from(it.libraries)
+                dependsOn(it)
+            }
             dependsOn(debugCompile)
         }
         tasks.withType<DetektCreateBaselineTask>().configureEach {

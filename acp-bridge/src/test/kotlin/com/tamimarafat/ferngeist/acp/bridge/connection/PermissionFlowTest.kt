@@ -5,6 +5,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -44,31 +45,36 @@ internal class PermissionFlowTest {
         val untouched = flow.takePending("call-2")
         assertSame(theirs, untouched?.deferred)
         assertFalse(theirs.isCompleted)
+
+        // A session with no pending permission is a no-op, not an error.
+        assertEquals(emptyList<String>(), flow.cancelPendingForSession("session-c"))
     }
 
     @Test
-    fun cancelPendingForSession_whenNoEntryMatches_returnsEmptyList() {
+    fun `PermissionFlow cancelForSession cancels only matching session pendings`() {
         val flow = PermissionFlow()
-        val other = CompletableDeferred<RequestPermissionOutcome>()
-        flow.addPending(toolCallId = "call-1", sessionId = "session-b", deferred = other)
+        val deferred1 = CompletableDeferred<RequestPermissionOutcome>()
+        val deferred2 = CompletableDeferred<RequestPermissionOutcome>()
 
-        val cancelled = flow.cancelPendingForSession("session-a")
+        flow.addPending("tool-1", "session-1", deferred1)
+        flow.addPending("tool-2", "session-2", deferred2)
 
-        assertTrue(cancelled.isEmpty())
-        assertSame(other, flow.takePending("call-1")?.deferred)
+        flow.cancelForSession("session-1")
+
+        assertTrue(deferred1.isCancelled)
+        assertNull(flow.takePending("tool-1"))
+        assertNotNull(flow.takePending("tool-2"))
     }
 
     @Test
-    fun cancelPendingForSession_removesCancelledEntriesSoTakePendingReturnsNull() {
+    fun `PermissionFlow cancelAll cleans up all pending requests`() {
         val flow = PermissionFlow()
         val deferred = CompletableDeferred<RequestPermissionOutcome>()
-        flow.addPending(toolCallId = "call-1", sessionId = "session-a", deferred = deferred)
+        flow.addPending("tool-a", "session-x", deferred)
 
-        val cancelled = flow.cancelPendingForSession("session-a")
+        flow.cancelAll()
 
-        assertEquals(listOf("call-1"), cancelled)
-        assertNull(flow.takePending("call-1"))
-        assertTrue(deferred.isCompleted)
-        assertSame(RequestPermissionOutcome.Cancelled, deferred.getCompleted())
+        assertTrue(deferred.isCancelled)
+        assertNull(flow.takePending("tool-a"))
     }
 }

@@ -36,14 +36,14 @@ internal fun ChatScreenTopBar(
         // back to the string this screen was opened with.
         sessionTitle = screenState.state.title ?: fallbackTitle,
         cwd = viewModel.cwd,
-        activeModel = screenState.activeModel,
+        activeModel = screenState.derived.activeModel,
         connectionState = screenState.state.connectionState,
         totalTokens = screenState.state.usage?.totalTokens,
         contextWindowTokens = screenState.state.usage?.contextWindowTokens,
         costAmount = screenState.state.usage?.costAmount,
         costCurrency = screenState.state.usage?.costCurrency,
-        gitAdditions = screenState.gitAdditions,
-        gitDeletions = screenState.gitDeletions,
+        gitAdditions = screenState.derived.gitAdditions,
+        gitDeletions = screenState.derived.gitDeletions,
         gitBranch = screenState.state.gitStatus?.branch,
         gitChangedFiles =
             screenState.state.gitStatus
@@ -57,8 +57,8 @@ internal fun ChatScreenTopBar(
         worktree = screenState.state.worktree,
         scrollBehavior = scrollBehavior,
         onNavigateBack = onNavigateBack,
-        onConnectionStatusClick = { screenState.showConnectionStatusDialog.value = true },
-        onGitStatusClick = { screenState.showGitStatusSheet.value = true },
+        onConnectionStatusClick = { screenState.mutations.showConnectionStatusDialog.value = true },
+        onGitStatusClick = { screenState.mutations.showGitStatusSheet.value = true },
         onGitStatusLongPress = { viewModel.dispatch(ChatIntent.RefreshGitStatus) },
         onTitleClick = {
             coroutineScope.launch {
@@ -72,7 +72,7 @@ internal fun ChatScreenTopBar(
                         animationSpec = tween(EASE_MIN_MS, easing = EaseInOutCubic),
                     ) { value, _ -> scrollBehavior.state.heightOffset = value }
                 }
-                screenState.scrollHandle.jumpToTop()
+                screenState.derived.scrollHandle.jumpToTop()
             }
         },
         sharedTransitionScope = sharedTransitionScope,

@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.text.format.DateUtils
+import com.tamimarafat.ferngeist.feature.chat.ui.history.avatarUrl
+import com.tamimarafat.ferngeist.feature.chat.ui.history.initialsOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

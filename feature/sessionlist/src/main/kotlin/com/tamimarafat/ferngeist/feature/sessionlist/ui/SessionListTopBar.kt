@@ -51,7 +51,7 @@ internal fun SessionListTopBar(
                     expanded = false,
                     collapsedFraction = 1f,
                     serverId = serverId,
-                    serverName = state.serverName,
+                    serverName = state.screen.serverName,
                     titleStyle = MaterialTheme.typography.titleLarge,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -77,7 +77,7 @@ internal fun SessionListTopBar(
                     onShowConnectionStatusDialog = onShowConnectionStatusDialog,
                 )
             },
-            scrollBehavior = state.scrollBehavior,
+            scrollBehavior = state.screen.scrollBehavior,
         )
         return
     }
@@ -86,10 +86,10 @@ internal fun SessionListTopBar(
             SessionListTopBarTitle(
                 expanded = expanded,
                 collapsedFraction =
-                    state.scrollBehavior.state.collapsedFraction
+                    state.screen.scrollBehavior.state.collapsedFraction
                         .coerceIn(0f, 1f),
                 serverId = serverId,
-                serverName = state.serverName,
+                serverName = state.screen.serverName,
                 titleStyle = titleStyle,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -117,7 +117,7 @@ internal fun SessionListTopBar(
         },
         collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
         expandedHeight = TopAppBarDefaults.LargeAppBarExpandedHeight,
-        scrollBehavior = state.scrollBehavior,
+        scrollBehavior = state.screen.scrollBehavior,
     )
 }
 
@@ -128,7 +128,7 @@ private fun SessionListTopBarActions(
     onShowConnectionStatusDialog: () -> Unit,
 ) {
     ConnectionStatusPill(
-        connectionState = state.connectionState,
+        connectionState = state.connection.connectionState,
         onClick = onShowConnectionStatusDialog,
     )
 }
@@ -193,12 +193,12 @@ private fun SessionListTopBarTitle(
  * Priority order:
  * 1. [loadedName] if non-blank (server-provided name from the session list response)
  * 2. [navArgName] if non-blank (fallback name passed as a navigation argument)
- * 3. "Sessions" (default)
+ * 3. [defaultName] if both are blank or null
  */
 internal fun resolveServerDisplayName(
     navArgName: String?,
     loadedName: String?,
-    defaultName: String = "Sessions",
+    defaultName: String,
 ): String {
     if (!loadedName.isNullOrBlank()) return loadedName
     if (!navArgName.isNullOrBlank()) return navArgName

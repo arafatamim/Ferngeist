@@ -8,9 +8,12 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
@@ -33,13 +36,7 @@ import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
-import com.tamimarafat.ferngeist.core.model.isSameCwd
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
-import com.tamimarafat.ferngeist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.gateway.GatewayRequestException
-import com.tamimarafat.ferngeist.gateway.launchGatewayRuntime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -51,6 +48,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+
+/**
+ * The session a chat opens with: which server and session, where it runs, and the snapshot it
+ * paints before the live bridge answers.
+ */
+data class ChatOpening(
+    val serverId: String,
+    val sessionId: String,
+    val cwd: String,
+    val cachedSnapshot: ChatSessionSnapshot?,
+)
 
 /**
  * ACP implementation of [ChatSessionFacade].
@@ -68,16 +76,23 @@ import kotlinx.coroutines.sync.withLock
 class AcpChatSessionFacade(
     private val scope: CoroutineScope,
     private val connectionManager: AcpConnection,
-    private val launchableTargetRepository: LaunchableTargetRepository,
-    private val gatewaySourceRepository: GatewaySourceRepository,
-    private val gatewayRepository: GatewayRepository,
-    private val serverId: String,
-    private val initialSessionId: String,
-    private val cwd: String,
+    private val repositories: LaunchRepositories,
+    private val opening: ChatOpening,
     private val hub: ChatConnectionSurface,
     private val sessionLoadTimeoutMs: Long = 60_000L,
-    initialCachedSnapshot: ChatSessionSnapshot? = null,
 ) : ChatSessionFacade {
+    private val serverId: String = opening.serverId
+    private val initialSessionId: String = opening.sessionId
+    private val cwd: String = opening.cwd
+
+    private val workspace =
+        GatewayWorkspaceReader(
+            gatewayRepository = repositories.gatewayRepository,
+            workspaceConnection = { _gatewayWorkspaceConnection.value },
+            liveSessionId = ::liveSessionIdOrNull,
+            cwd = cwd,
+        )
+
     // ---- Connection state mirroring ----
     private val _connectionState =
         MutableStateFlow<ChatConnectionState>(ChatConnectionState.Disconnected)
@@ -96,7 +111,7 @@ class AcpChatSessionFacade(
     // never mutates after construction — reopening builds a fresh facade seeded from
     // the hub, so a live mirror here would duplicate the hub write per chunk.
     override val cachedSnapshot: StateFlow<ChatSessionSnapshot?> =
-        MutableStateFlow(initialCachedSnapshot)
+        MutableStateFlow(opening.cachedSnapshot)
 
     private val _agentCapabilities =
         MutableStateFlow(ChatAgentCapabilities())
@@ -145,8 +160,7 @@ class AcpChatSessionFacade(
     private val sessionLoadCoordinator by lazy {
         SessionLoadCoordinator(
             connectionManager = connectionManager,
-            initialSessionId = initialSessionId,
-            cwd = cwd,
+            opening = opening,
             sessionLoadTimeoutMs = sessionLoadTimeoutMs,
             currentCapabilitiesProvider = { currentAcpCapabilities ?: connectionManager.agentCapabilities.value },
             onAttachBridge = ::attachSessionBridge,
@@ -284,142 +298,29 @@ class AcpChatSessionFacade(
         }
     }
 
-    /**
-     * Git status of this chat's gateway working tree, or null when it has none: a manual
-     * agent, a gateway chat whose runtime is not up yet, or a create-on-arrival chat that
-     * has not minted its real session id (asking then would scope the read to whichever
-     * session the gateway saw last).
-     */
-    override suspend fun fetchGitStatus(compare: String?): ChatGitStatus? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        val acpSessionId = liveSessionIdOrNull() ?: return null
-        return gatewayRepository
-            .fetchGitStatus(
-                scheme = connection.scheme,
-                host = connection.host,
-                gatewayCredential = connection.gatewayCredential,
-                runtimeId = connection.runtimeId,
-                acpSessionId = acpSessionId,
-                compare = compare,
-            ).toChatGitStatus()
-    }
+    override suspend fun fetchGitStatus(compare: String?): ChatGitStatus? = workspace.fetchGitStatus(compare)
 
-    override suspend fun fetchWorktree(): ChatWorktree? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        if (cwd.isBlank()) return null
-        return try {
-            gatewayRepository
-                .listWorktrees(connection.scheme, connection.host, connection.gatewayCredential)
-                .firstOrNull { isSameCwd(it.path, cwd) }
-                ?.toChatWorktree()
-        } catch (error: GatewayRequestException) {
-            if (error.isMissingWorktreeApi()) null else throw error
-        }
-    }
+    override suspend fun fetchWorktree(): ChatWorktree? = workspace.fetchWorktree()
 
-    /**
-     * Unified diff for one file of this chat's gateway working tree, or null when the chat
-     * has no gateway workspace. Transport failures propagate to the caller.
-     */
     override suspend fun fetchGitDiff(
         path: String,
         commit: String?,
         oldPath: String?,
         compare: String?,
-    ): List<ToolCallContent.Diff>? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        return gatewayRepository.fetchGitDiff(
-            scheme = connection.scheme,
-            host = connection.host,
-            gatewayCredential = connection.gatewayCredential,
-            runtimeId = connection.runtimeId,
-            path = path,
-            acpSessionId = liveSessionIdOrNull(),
-            commit = commit,
-            oldPath = oldPath,
-            compare = compare,
-        )
-    }
+    ): List<ToolCallContent.Diff>? = workspace.fetchGitDiff(path, commit, oldPath, compare)
 
     override suspend fun fetchGitLog(
         head: String?,
         skip: Int,
-    ): ChatGitLogPage? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        val acpSessionId = liveSessionIdOrNull() ?: return null
-        return try {
-            gatewayRepository
-                .fetchGitLog(
-                    scheme = connection.scheme,
-                    host = connection.host,
-                    gatewayCredential = connection.gatewayCredential,
-                    runtimeId = connection.runtimeId,
-                    head = head,
-                    skip = skip,
-                    limit = GIT_LOG_PAGE_SIZE,
-                    acpSessionId = acpSessionId,
-                ).toChatGitLogPage()
-        } catch (error: GatewayRequestException) {
-            throw gitLogFailure(error, pinnedHead = head != null)
-        }
-    }
+    ): ChatGitLogPage? = workspace.fetchGitLog(head, skip)
 
-    override suspend fun fetchGitRefs(): ChatGitRefs? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        val acpSessionId = liveSessionIdOrNull() ?: return null
-        return try {
-            gatewayRepository
-                .fetchGitRefs(
-                    scheme = connection.scheme,
-                    host = connection.host,
-                    gatewayCredential = connection.gatewayCredential,
-                    runtimeId = connection.runtimeId,
-                    acpSessionId = acpSessionId,
-                ).toChatGitRefs()
-        } catch (error: GatewayRequestException) {
-            throw gitRefsFailure(error)
-        }
-    }
+    override suspend fun fetchGitRefs(): ChatGitRefs? = workspace.fetchGitRefs()
 
-    override suspend fun fetchGitCommitFiles(sha: String): List<ChatChangedFile>? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        return gatewayRepository
-            .fetchGitCommit(
-                scheme = connection.scheme,
-                host = connection.host,
-                gatewayCredential = connection.gatewayCredential,
-                runtimeId = connection.runtimeId,
-                sha = sha,
-                acpSessionId = liveSessionIdOrNull(),
-            ).changed
-            .map { it.toChatChangedFile() }
-    }
+    override suspend fun fetchGitCommitFiles(sha: String): List<ChatChangedFile>? = workspace.fetchGitCommitFiles(sha)
 
-    override suspend fun fetchFile(path: String): ChatFileContents? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        val file =
-            gatewayRepository.fetchFile(
-                scheme = connection.scheme,
-                host = connection.host,
-                gatewayCredential = connection.gatewayCredential,
-                runtimeId = connection.runtimeId,
-                path = path,
-                acpSessionId = liveSessionIdOrNull(),
-            )
-        return ChatFileContents(text = file.text, truncated = file.truncated)
-    }
+    override suspend fun fetchFile(path: String): ChatFileContents? = workspace.fetchFile(path)
 
-    override suspend fun fetchFileList(): List<String>? {
-        val connection = _gatewayWorkspaceConnection.value ?: return null
-        return gatewayRepository
-            .fetchFileList(
-                scheme = connection.scheme,
-                host = connection.host,
-                gatewayCredential = connection.gatewayCredential,
-                runtimeId = connection.runtimeId,
-                acpSessionId = liveSessionIdOrNull(),
-            ).files
-    }
+    override suspend fun fetchFileList(): List<String>? = workspace.fetchFileList()
 
     /**
      * The real ACP session this chat shows, or null while a create-on-arrival chat still
@@ -475,7 +376,7 @@ class AcpChatSessionFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
-    ): SteerOutcome = sessionBridge?.steer(text, images, files) ?: SteerOutcome.NotConsumed
+    ): SteerOutcome = sessionBridge?.steer(text, images, files) ?: SteerOutcome.NOT_CONSUMED
 
     /** Emits an operation error and returns true when the agent lacks image/file support. */
     private suspend fun isSendCapabilityRejected(
@@ -646,7 +547,7 @@ class AcpChatSessionFacade(
             openTimer?.mark("alreadyConnected")
             return true
         }
-        val server = launchableTargetRepository.getTarget(serverId) ?: return false
+        val server = repositories.launchableTargetRepository.getTarget(serverId) ?: return false
         val connected = connectForTarget(server) ?: return false
         openTimer?.mark("websocket")
         val initialized = connected && initializeSession() != null
@@ -676,25 +577,28 @@ class AcpChatSessionFacade(
      * bridge: it must stay true for a chat whose screen closed mid-turn, and it must
      * not be pinned to `false` by a re-registration while a turn runs.
      */
-    private suspend fun registerHubEntry(sessionId: String) {
+    private fun registerHubEntry(sessionId: String) {
         val gatewayConfig = connectionManager.currentConnectionConfig() as? AcpConnectionConfig.Gateway
         _liveChatId.value =
             hub.register(
                 serverId = serverId,
                 sessionId = sessionId,
-                gatewaySessionId = gatewayConfig?.resume?.sessionId,
-                gatewaySourceId = gatewayConfig?.sourceId.orEmpty(),
-                agentId = resolvedAgentId.orEmpty(),
-                isConnected = { connectionManager.isConnected },
-                isStreaming = {
-                    connectionManager
-                        .sessions
-                        .getSession(activeSessionId)
-                        ?.snapshot
-                        ?.value
-                        ?.isStreaming == true
-                },
-                manager = connectionManager,
+                registration =
+                    ChatRegistration(
+                        gatewaySessionId = gatewayConfig?.resume?.sessionId,
+                        gatewaySourceId = gatewayConfig?.sourceId.orEmpty(),
+                        agentId = resolvedAgentId.orEmpty(),
+                        isConnected = { connectionManager.isConnected },
+                        isStreaming = {
+                            connectionManager
+                                .sessions
+                                .getSession(activeSessionId)
+                                ?.snapshot
+                                ?.value
+                                ?.isStreaming == true
+                        },
+                        manager = connectionManager,
+                    ),
             )
     }
 
@@ -708,7 +612,7 @@ class AcpChatSessionFacade(
      * cap. Their only counting registration is the real-id entry once a bridge
      * attaches.
      */
-    private suspend fun registerConnectingWithHub() {
+    private fun registerConnectingWithHub() {
         if (initialSessionId == NEW_SESSION_ARG) return
         registerHubEntry(sessionId = activeSessionId)
     }
@@ -755,30 +659,21 @@ class AcpChatSessionFacade(
             _loadFailed.emit("Gateway is not paired for ${target.name}.")
             return null
         }
-        return launchGatewayRuntime(
-            gatewayRepository = gatewayRepository,
-            gatewaySourceRepository = gatewaySourceRepository,
-            gatewaySource = gatewaySource,
-            agentId = target.binding.agentId,
-            requireSupportedProtocol = true,
-        ).also { openTimer?.mark("launch") }.fold(
-            onSuccess = { result ->
+        val context =
+            buildGatewayLaunchContext(repositories.runtimeLauncher, target)
+        openTimer?.mark("launch")
+        return context.fold(
+            onSuccess = { launch ->
                 resolvedAgentId = target.binding.agentId
-                val source = result.gatewaySource
-                val handoff = result.handoff
+                val source = launch.gatewaySource
                 _gatewayWorkspaceConnection.value =
                     GatewayWorkspaceConnection(
-                        runtimeId = handoff.runtimeId,
+                        runtimeId = launch.runtimeId,
                         scheme = source.scheme,
                         host = source.host,
                         gatewayCredential = source.gatewayCredential,
                     )
-                AcpConnectionConfig.fromGatewayHandoff(
-                    gatewaySource = source,
-                    handoff = handoff,
-                    authMethodId = target.binding.preferredAuthMethodId,
-                    displayName = target.name,
-                )
+                launch.config
             },
             onFailure = { error ->
                 when (error) {
@@ -786,7 +681,7 @@ class AcpChatSessionFacade(
                         // The stored credential is dead (expired past the gateway's grace
                         // window). Clear it and surface the pairing flow instead of failing
                         // opaquely on every reconnect.
-                        gatewaySourceRepository.deleteGateway(gatewaySource.id)
+                        repositories.gatewaySourceRepository.deleteGateway(gatewaySource.id)
                         _loadFailed.emit(
                             "Gateway credential expired for ${target.name}. Please pair this gateway again.",
                         )
@@ -812,37 +707,23 @@ class AcpChatSessionFacade(
     private suspend fun reconnectAfterRejectedResume() {
         bridgeOperationMutex.withLock {
             val target =
-                launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent ?: return
-            val result =
-                launchGatewayRuntime(
-                    gatewayRepository = gatewayRepository,
-                    gatewaySourceRepository = gatewaySourceRepository,
-                    gatewaySource = target.gatewaySource,
-                    agentId = target.binding.agentId,
-                    requireSupportedProtocol = true,
-                ).getOrElse { error ->
+                repositories.launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent ?: return
+            val context =
+                buildGatewayLaunchContext(repositories.runtimeLauncher, target).getOrElse { error ->
                     // The gateway's own words: a 502 carries the agent's exit error.
                     _loadFailed.emit(error.message ?: "Failed to connect to ${target.name}.")
                     return
                 }
-            val source = result.gatewaySource
-            val handoff = result.handoff
+            val source = context.gatewaySource
             resolvedAgentId = target.binding.agentId
             _gatewayWorkspaceConnection.value =
                 GatewayWorkspaceConnection(
-                    runtimeId = handoff.runtimeId,
+                    runtimeId = context.runtimeId,
                     scheme = source.scheme,
                     host = source.host,
                     gatewayCredential = source.gatewayCredential,
                 )
-            val config =
-                AcpConnectionConfig.fromGatewayHandoff(
-                    gatewaySource = source,
-                    handoff = handoff,
-                    authMethodId = target.binding.preferredAuthMethodId,
-                    displayName = target.name,
-                )
-            if (!connectionManager.connect(config) || initializeSession() == null) {
+            if (!connectionManager.connect(context.config) || initializeSession() == null) {
                 _loadFailed.emit("Failed to connect to ${target.name}.")
                 return
             }
@@ -854,12 +735,12 @@ class AcpChatSessionFacade(
                 ),
             )
             // Attach to the session the gateway just minted, the same way a launch does.
-            val outcome = sessionLoadCoordinator.run(sessionId = handoff.sessionId)
+            val outcome = sessionLoadCoordinator.run(sessionId = context.sessionId)
             if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
         }
     }
 
-    private suspend fun attachSessionBridge(bridge: SessionPort) {
+    private fun attachSessionBridge(bridge: SessionPort) {
         activeSessionId = bridge.sessionId
         // The create-on-arrival sentinel never registers with the hub (see
         // registerConnectingWithHub); switch to the real id so snapshots store
@@ -872,7 +753,7 @@ class AcpChatSessionFacade(
     }
 
     /** Tracks this live session in the hub; synchronous so snapshots store under the entry immediately. */
-    private suspend fun registerWithHub(bridge: SessionPort) {
+    private fun registerWithHub(bridge: SessionPort) {
         registerHubEntry(sessionId = bridge.sessionId)
     }
 
@@ -956,6 +837,3 @@ class AcpChatSessionFacade(
         }
     }
 }
-
-/** Rows per history page; the gateway clamps to 1..200. */
-private const val GIT_LOG_PAGE_SIZE = 50

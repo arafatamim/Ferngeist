@@ -5,8 +5,10 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
 import com.tamimarafat.ferngeist.core.model.ChatFileData
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * Reads arbitrary (non-image) file attachments from a content URI into
@@ -39,13 +41,14 @@ object FileAttachmentHelper {
 
     /**
      * Reads [uri] from [contentResolver], enforcing [MAX_FILE_SIZE_BYTES], and
-     * wraps the Base64-encoded bytes in [ChatFileData]. Runs on [Dispatchers.IO].
+     * wraps the Base64-encoded bytes in [ChatFileData]. Runs on [ioDispatcher].
      */
     suspend fun uriToChatFileData(
         contentResolver: ContentResolver,
         uri: Uri,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ): Result =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val (name, declaredSize) = queryNameAndSize(contentResolver, uri)
             if (declaredSize != null && declaredSize > MAX_FILE_SIZE_BYTES) {
                 return@withContext Result.TooLarge(name, declaredSize)
@@ -93,8 +96,8 @@ object FileAttachmentHelper {
     fun formatSize(bytes: Long): String {
         if (bytes < BYTES_PER_KB) return "$bytes B"
         val kb = bytes / BYTES_PER_KB.toDouble()
-        if (kb < BYTES_PER_KB) return "%.0f KB".format(kb)
+        if (kb < BYTES_PER_KB) return "%.0f KB".format(Locale.getDefault(), kb)
         val mb = kb / BYTES_PER_KB.toDouble()
-        return "%.1f MB".format(mb)
+        return "%.1f MB".format(Locale.getDefault(), mb)
     }
 }

@@ -31,7 +31,7 @@ class DataStoreRecentCwdStore
             context.recentCwdDataStore.data.map { prefs ->
                 prefs[stringPreferencesKey(keyFor(targetId))]
                     ?.let { json.decodeFromString<List<String>>(it) }
-                    ?: emptyList()
+                    .orEmpty()
             }
 
         override suspend fun addCwd(
@@ -45,7 +45,7 @@ class DataStoreRecentCwdStore
                 val current =
                     prefs[key]
                         ?.let { json.decodeFromString<List<String>>(it) }
-                        ?: emptyList()
+                        .orEmpty()
                 val updated = (listOf(normalized) + current.filter { it != normalized }).take(10)
                 prefs[key] = json.encodeToString(updated)
             }

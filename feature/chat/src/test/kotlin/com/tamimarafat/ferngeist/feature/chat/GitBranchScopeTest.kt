@@ -42,14 +42,14 @@ class GitBranchScopeTest {
         // A rebase moved the branch off the walk the gateway handed back, so no row is its own.
         val commits = listOf("mine", "older").map(::commit)
 
-        assertEquals(GitBranchScope.None, gitBranchScope(commits, base = "gone", hasMore = false))
+        assertEquals(GitBranchScope.none, gitBranchScope(commits, base = "gone", hasMore = false))
     }
 
     @Test
     fun `no base marks nothing`() {
         val commits = listOf("a", "b").map(::commit)
 
-        assertEquals(GitBranchScope.None, gitBranchScope(commits, base = null, hasMore = true))
+        assertEquals(GitBranchScope.none, gitBranchScope(commits, base = null, hasMore = true))
     }
 
     @Test
@@ -64,7 +64,7 @@ class GitBranchScopeTest {
 
     @Test
     fun `an empty repository has nothing to mark`() {
-        assertEquals(GitBranchScope.None, gitBranchScope(emptyList(), base = "base", hasMore = false))
+        assertEquals(GitBranchScope.none, gitBranchScope(emptyList(), base = "base", hasMore = false))
     }
 
     @Test
@@ -90,7 +90,7 @@ class GitBranchScopeTest {
 
     @Test
     fun `a history with nothing marked draws one colour all the way down`() {
-        assertEquals(List(3) { BandFade.None }, bandFades(listOf(0f, 0f, 0f)))
+        assertEquals(List(3) { BandFade.none }, bandFades(listOf(0f, 0f, 0f)))
         assertEquals(List(2) { BandFade(top = 1f, bottom = 1f) }, bandFades(listOf(1f, 1f)))
     }
 }

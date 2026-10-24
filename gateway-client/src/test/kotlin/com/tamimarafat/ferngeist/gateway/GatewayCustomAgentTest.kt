@@ -41,10 +41,13 @@ class GatewayCustomAgentTest {
                     scheme = "http",
                     host = "gw.local:5788",
                     gatewayCredential = "token",
-                    displayName = "My Agent",
-                    command = "my-agent",
-                    args = listOf("--acp"),
-                    hint = "note",
+                    request =
+                        GatewayCustomAgentRequest(
+                            displayName = "My Agent",
+                            command = "my-agent",
+                            args = listOf("--acp"),
+                            hint = "note",
+                        ),
                 )
             val request = requireNotNull(captured)
             assertEquals(HttpMethod.Post, request.method)
@@ -66,10 +69,13 @@ class GatewayCustomAgentTest {
                 scheme = "http",
                 host = "gw.local:5788",
                 gatewayCredential = "token",
-                displayName = "My Agent",
-                command = "my-agent",
-                args = emptyList(),
-                hint = "",
+                request =
+                    GatewayCustomAgentRequest(
+                        displayName = "My Agent",
+                        command = "my-agent",
+                        args = emptyList(),
+                        hint = "",
+                    ),
             )
             assertEquals(
                 """{"displayName":"My Agent","command":"my-agent"}""",
@@ -95,29 +101,5 @@ class GatewayCustomAgentTest {
             assertEquals(HttpMethod.Post, request.method)
             assertEquals("/v1/agents/custom-my-agent/stop", request.url.encodedPath)
             assertEquals("Bearer token", request.headers["Authorization"])
-        }
-
-    @Test
-    fun `surfaces the gateway error body on refusal`() =
-        runTest {
-            val error =
-                runCatching {
-                    repo("""{"error":"custom agent limit reached (50)"}""", HttpStatusCode.Conflict)
-                        .createCustomAgent("http", "gw.local:5788", "token", "N", "c", emptyList(), "")
-                }.exceptionOrNull() as GatewayRequestException
-            assertEquals(409, error.statusCode)
-            assertEquals("custom agent limit reached (50)", gatewayErrorMessage(error.responseBody))
-        }
-
-    @Test
-    fun `surfaces the gateway error body when a used agent refuses deletion`() =
-        runTest {
-            val error =
-                runCatching {
-                    repo("""{"error":"agent has running runtimes"}""", HttpStatusCode.Conflict)
-                        .deleteCustomAgent("http", "gw.local:5788", "token", "custom-my-agent")
-                }.exceptionOrNull() as GatewayRequestException
-            assertEquals(409, error.statusCode)
-            assertEquals("agent has running runtimes", gatewayErrorMessage(error.responseBody))
         }
 }

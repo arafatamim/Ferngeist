@@ -32,6 +32,7 @@ room = "2.8.5"
 # Hilt
 hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
+javaxInject = "1"
 ktlintGradle = "14.2.0"
 detekt = "2.0.0-alpha.6"
 
@@ -52,6 +53,8 @@ ktor = "3.6.0"
 # Turbine for Flow testing
 turbine = "1.2.1"
 mockk = "1.14.11"
+# Match MockK's instrumentation dependency for startup agent loading.
+byteBuddy = "1.18.2"
 # Robolectric runs Room migration tests on the JVM (CI has no emulator).
 robolectric = "4.17"
 androidxTestCore = "1.7.0"
@@ -115,6 +118,7 @@ androidx-room-testing = { group = "androidx.room", name = "room-testing", versio
 
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
+javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "javaxInject" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
 # UnifiedPush
@@ -137,6 +141,7 @@ play-services-code-scanner = { group = "com.google.android.gms", name = "play-se
 # Turbine
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+byte-buddy-agent = { module = "net.bytebuddy:byte-buddy-agent", version.ref = "byteBuddy" }
 compose-markdown-core = { group = "com.adamglin.compose.markdown", name = "markdown-core", version.ref = "composeMarkdown" }
 compose-markdown-renderer = { group = "com.adamglin.compose.markdown", name = "markdown-compose", version.ref = "composeMarkdown" }
 syntaxmp-tokenizer = { module = "com.gallatinapps.syntaxmp:syntaxmp-tokenizer", version.ref = "syntaxmp" }

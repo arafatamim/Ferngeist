@@ -4,8 +4,9 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -31,17 +32,18 @@ class DataStoreSwitcherHintStore
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
+        @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : SwitcherHintStore {
         override val seen: Flow<Boolean> =
-            context.switcherHintDataStore.data.map { prefs -> prefs[KEY_SEEN] ?: false }
+            context.switcherHintDataStore.data.map { prefs -> prefs[keySeen] ?: false }
 
         override suspend fun markSeen() {
-            withContext(Dispatchers.IO) {
-                context.switcherHintDataStore.edit { prefs -> prefs[KEY_SEEN] = true }
+            withContext(ioDispatcher) {
+                context.switcherHintDataStore.edit { prefs -> prefs[keySeen] = true }
             }
         }
 
         private companion object {
-            val KEY_SEEN = booleanPreferencesKey("seen")
+            val keySeen = booleanPreferencesKey("seen")
         }
     }

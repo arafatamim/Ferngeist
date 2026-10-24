@@ -1,13 +1,13 @@
 package com.tamimarafat.ferngeist.feature.chat.syntax
 
 import com.gallatinapps.syntaxmp.tokenizer.SyntaxTokenizer
-import com.tamimarafat.ferngeist.core.common.ui.LightSyntaxColors
+import com.tamimarafat.ferngeist.core.common.ui.lightSyntaxColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SyntaxHighlightingTest {
-    private val colors = LightSyntaxColors
+    private val colors = lightSyntaxColors
     private val tokenizer = SyntaxTokenizer()
 
     private fun highlighted(
@@ -19,10 +19,15 @@ class SyntaxHighlightingTest {
     fun `an appended tail keeps the styled prefix and all characters`() {
         val old = highlighted("val x = 1")
         val newText = "val x = 1 + 2"
+        val settled = styledCode(old.text, old, "kotlin", colors)
         val styled = styledCode(newText, old, "kotlin", colors)
 
         assertEquals(newText, styled.text)
         assertTrue(styled.spanStyles.isNotEmpty())
+        // The prefix keeps exactly the settled spans, and none reaches into the tail: styling the
+        // tail alone would leave the prefix plain and still pass the two assertions above.
+        assertEquals(settled.spanStyles, styled.spanStyles)
+        assertTrue(styled.spanStyles.all { it.end <= old.text.length })
     }
 
     @Test

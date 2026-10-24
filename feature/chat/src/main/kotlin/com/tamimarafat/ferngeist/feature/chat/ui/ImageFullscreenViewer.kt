@@ -1,7 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -26,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,7 +32,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -45,50 +41,8 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.feature.chat.ImageAttachmentHelper
 import com.tamimarafat.ferngeist.feature.chat.R
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-/**
- * Decodes a base64-encoded [ChatImageData] into a sampled [ImageBitmap] on
- * [Dispatchers.Default], using the same sampling strategy as the thumbnail in
- * [ImageAttachmentItem]. Returns `null` when the payload cannot be decoded.
- */
-@Composable
-private fun rememberDecodedImageBitmap(base64: String): ImageBitmap? =
-    produceState<ImageBitmap?>(initialValue = null, base64) {
-        value =
-            withContext(Dispatchers.Default) {
-                runCatching {
-                    val bytes = Base64.decode(base64, Base64.DEFAULT)
-                    val boundsOpts =
-                        BitmapFactory.Options().apply {
-                            inJustDecodeBounds = true
-                        }
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOpts)
-
-                    if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) return@withContext null
-
-                    val sampleSize =
-                        ImageAttachmentHelper.computeSampleSize(
-                            outWidth = boundsOpts.outWidth,
-                            outHeight = boundsOpts.outHeight,
-                            maxDimension = ImageAttachmentHelper.MAX_IMAGE_DIMENSION,
-                        )
-
-                    val bitmap =
-                        BitmapFactory.decodeByteArray(
-                            bytes,
-                            0,
-                            bytes.size,
-                            BitmapFactory.Options().apply { inSampleSize = sampleSize },
-                        ) ?: return@withContext null
-
-                    bitmap.asImageBitmap()
-                }.getOrNull()
-            }
-    }.value
+import com.tamimarafat.ferngeist.feature.chat.ui.image.rememberDecodedImageBitmap
 
 /**
  * Fullscreen image overlay for attached chat images.

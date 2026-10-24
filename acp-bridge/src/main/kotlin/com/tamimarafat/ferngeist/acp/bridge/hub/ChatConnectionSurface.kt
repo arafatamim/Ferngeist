@@ -4,6 +4,19 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 
 /**
+ * What a chat connection reports about itself when it registers: the gateway binding it was
+ * opened with, live probes of its transport, and the manager it owns.
+ */
+data class ChatRegistration(
+    val gatewaySessionId: String?,
+    val gatewaySourceId: String,
+    val agentId: String,
+    val isConnected: () -> Boolean,
+    val isStreaming: () -> Boolean,
+    val manager: AcpConnection? = null,
+)
+
+/**
  * The [ChatConnectionHub] operations a chat session depends on: attendance
  * (register/abandon/refresh) and the snapshot paint cache.
  *
@@ -16,6 +29,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
  * Implemented only by [ChatConnectionHub] in production; the interface exists
  * for the test seam, not for polymorphism.
  */
+
 interface ChatConnectionSurface {
     /** Creates an app-scoped chat manager, tracked as pending until [register] promotes it. */
     fun acquireChatManager(): AcpConnection
@@ -39,15 +53,10 @@ interface ChatConnectionSurface {
      * Tracks (or re-attaches) a chat connection, evicting pooled idle entries
      * while at capacity. Returns the stable chat id.
      */
-    suspend fun register(
+    fun register(
         serverId: String,
         sessionId: String,
-        gatewaySessionId: String?,
-        gatewaySourceId: String,
-        agentId: String,
-        isConnected: () -> Boolean,
-        isStreaming: () -> Boolean,
-        manager: AcpConnection? = null,
+        registration: ChatRegistration,
     ): String
 
     /** Recomputes screen presence from the entry table; call after transport changes. */

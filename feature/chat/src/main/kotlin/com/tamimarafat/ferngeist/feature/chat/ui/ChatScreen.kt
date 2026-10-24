@@ -15,7 +15,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,20 +28,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.unit.Dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatMessage
-import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentSupport
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.HeldAttachments
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.processPickedUris
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -84,12 +82,12 @@ fun ChatScreen(
     val screenState = rememberChatScreenState(viewModel, sessionId)
 
     // --- ViewModel effects ---
-    CollectChatEffects(viewModel, screenState.snackbarHostState, onNavigateBack)
+    CollectChatEffects(viewModel, screenState.mutations.snackbarHostState, onNavigateBack)
 
     // Auto-focus the text field when the composer expands
-    LaunchedEffect(screenState.composerExpanded.value, screenState.imageFocusTrigger.value) {
-        if (screenState.composerExpanded.value) {
-            screenState.focusRequester.requestFocus()
+    LaunchedEffect(screenState.mutations.composerExpanded.value, screenState.mutations.imageFocusTrigger.value) {
+        if (screenState.mutations.composerExpanded.value) {
+            screenState.mutations.focusRequester.requestFocus()
         }
     }
 
@@ -141,7 +139,8 @@ fun ChatScreen(
     )
 }
 
-private data class ChatScreenMutations(
+internal data class ChatScreenMutations(
+    val snackbarHostState: SnackbarHostState,
     val selectedConfigPickerOptionId: MutableState<String?>,
     val selectedThoughtSegmentId: MutableState<String?>,
     val selectedToolCallSegmentId: MutableState<String?>,
@@ -161,6 +160,7 @@ private data class ChatScreenMutations(
 @Composable
 private fun rememberChatScreenMutations(): ChatScreenMutations =
     ChatScreenMutations(
+        snackbarHostState = remember { SnackbarHostState() },
         selectedConfigPickerOptionId = remember { mutableStateOf<String?>(null) },
         selectedThoughtSegmentId = remember { mutableStateOf<String?>(null) },
         selectedToolCallSegmentId = remember { mutableStateOf<String?>(null) },
@@ -177,52 +177,20 @@ private fun rememberChatScreenMutations(): ChatScreenMutations =
         imageFocusTrigger = remember { mutableIntStateOf(0) },
     )
 
-internal class ChatScreenState(
-    val state: ChatState,
-    val snackbarHostState: SnackbarHostState,
-    val selectedConfigPickerOptionId: MutableState<String?>,
-    val selectedThoughtSegmentId: MutableState<String?>,
-    val selectedToolCallSegmentId: MutableState<String?>,
-    val showCommandsDialog: MutableState<Boolean>,
-    val showConnectionStatusDialog: MutableState<Boolean>,
-    val showGitStatusSheet: MutableState<Boolean>,
-    val showSwitcherSheet: MutableState<Boolean>,
-    val composerContentHeightPx: MutableState<Int>,
-    val messageText: TextFieldState,
-    val selectedImages: MutableState<List<ChatImageData>>,
-    val selectedFiles: MutableState<List<ChatFileData>>,
-    val composerExpanded: MutableState<Boolean>,
-    val focusRequester: FocusRequester,
-    val imageFocusTrigger: MutableState<Int>,
+/** The attachment picker and the composer's send actions the chat screen hands its children. */
+internal data class ChatScreenActions(
     val attachmentPickerLauncher: ManagedActivityResultLauncher<Array<String>, List<Uri>>,
     val attachUris: (List<Uri>) -> Unit,
-    val scrollHandle: ChatScrollHandle,
-    val showJumpToBottom: State<Boolean>,
-    val activeModel: String?,
-    val modeOption: ChatConfigOption.Select?,
-    val toolbarConfigOptions: List<ChatConfigOption>,
-    val selectedConfigPickerOption: ChatConfigOption.Select?,
-    val canCancelStreaming: Boolean,
-    val hasStreamingBubble: Boolean,
-    val activelyStreaming: Boolean,
-    val showStopAction: Boolean,
-    val showModeButton: Boolean,
-    val currentModeLabel: String,
-    val gitAdditions: Int,
-    val gitDeletions: Int,
-    val renderedMessages: List<ChatMessage>,
-    val selectedThought: String?,
-    val selectedToolCall: ToolCallDisplay?,
-    val activePermissionRequest: PendingPermissionRequest?,
-    val renderedLastMessageId: String?,
-    val listBottomPadding: Dp,
-    val bottomFadeBandHeight: Dp,
-    val snackbarBottomPadding: Dp,
-    val showComposerToolbar: Boolean,
-    val buttonsAlpha: State<Float>,
-    val inputAlpha: State<Float>,
     val sendMessage: () -> Unit,
     val sendCommand: (String) -> Unit,
+)
+
+internal class ChatScreenState(
+    val state: ChatState,
+    val mutations: ChatScreenMutations,
+    val derived: ChatDerivedValues,
+    val insets: ComposerInsets,
+    val actions: ChatScreenActions,
 )
 
 @Composable
@@ -231,7 +199,6 @@ private fun rememberChatScreenState(
     sessionId: String,
 ): ChatScreenState {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val mutations = rememberChatScreenMutations()
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
@@ -253,20 +220,26 @@ private fun rememberChatScreenState(
             mutations.composerExpanded.value = true
             coroutineScope.launch {
                 ingestLock.withLock {
-                    val (images, files, feedback) =
+                    val picked =
                         processPickedUris(
                             uris = uris,
                             context = context,
-                            canSendImages = state.canSendImages,
-                            supportsEmbeddedContext = state.supportsEmbeddedContext,
-                            existingImages = mutations.selectedImages.value,
-                            existingFiles = mutations.selectedFiles.value,
+                            support =
+                                AttachmentSupport(
+                                    canSendImages = state.canSendImages,
+                                    supportsEmbeddedContext = state.supportsEmbeddedContext,
+                                ),
+                            held =
+                                HeldAttachments(
+                                    images = mutations.selectedImages.value,
+                                    files = mutations.selectedFiles.value,
+                                ),
                             resources = resources,
                         )
-                    mutations.selectedImages.value = images
-                    mutations.selectedFiles.value = files
+                    mutations.selectedImages.value = picked.attachments.images
+                    mutations.selectedFiles.value = picked.attachments.files
                     mutations.imageFocusTrigger.value++
-                    feedback?.let { snackbarHostState.showSnackbar(it) }
+                    picked.feedback?.let { mutations.snackbarHostState.showSnackbar(it) }
                 }
             }
         }
@@ -295,83 +268,23 @@ private fun rememberChatScreenState(
         rememberSendHandlers(
             viewModel = viewModel,
             state = state,
-            messageText = mutations.messageText,
-            selectedImages = mutations.selectedImages,
-            selectedFiles = mutations.selectedFiles,
-            composerExpanded = mutations.composerExpanded,
+            mutations = mutations,
             focusManager = focusManager,
             scrollHandle = derived.scrollHandle,
         )
-    return buildChatScreenState(
+    return ChatScreenState(
         state = state,
-        snackbarHostState = snackbarHostState,
         mutations = mutations,
-        attachmentPickerLauncher = attachmentPickerLauncher,
-        attachUris = attachUris,
         derived = derived,
         insets = composerInsets,
-        sendMessage = sendHandlers.first,
-        sendCommand = sendHandlers.second,
+        actions =
+            ChatScreenActions(
+                attachmentPickerLauncher = attachmentPickerLauncher,
+                attachUris = attachUris,
+                sendMessage = sendHandlers.first,
+                sendCommand = sendHandlers.second,
+            ),
     )
 }
-
-private fun buildChatScreenState(
-    state: ChatState,
-    snackbarHostState: SnackbarHostState,
-    mutations: ChatScreenMutations,
-    attachmentPickerLauncher: ManagedActivityResultLauncher<Array<String>, List<Uri>>,
-    attachUris: (List<Uri>) -> Unit,
-    derived: ChatDerivedValues,
-    insets: ComposerInsets,
-    sendMessage: () -> Unit,
-    sendCommand: (String) -> Unit,
-): ChatScreenState =
-    ChatScreenState(
-        state = state,
-        snackbarHostState = snackbarHostState,
-        selectedConfigPickerOptionId = mutations.selectedConfigPickerOptionId,
-        selectedThoughtSegmentId = mutations.selectedThoughtSegmentId,
-        selectedToolCallSegmentId = mutations.selectedToolCallSegmentId,
-        showCommandsDialog = mutations.showCommandsDialog,
-        showConnectionStatusDialog = mutations.showConnectionStatusDialog,
-        showGitStatusSheet = mutations.showGitStatusSheet,
-        showSwitcherSheet = mutations.showSwitcherSheet,
-        composerContentHeightPx = mutations.composerContentHeightPx,
-        messageText = mutations.messageText,
-        selectedImages = mutations.selectedImages,
-        selectedFiles = mutations.selectedFiles,
-        composerExpanded = mutations.composerExpanded,
-        focusRequester = mutations.focusRequester,
-        imageFocusTrigger = mutations.imageFocusTrigger,
-        attachmentPickerLauncher = attachmentPickerLauncher,
-        attachUris = attachUris,
-        scrollHandle = derived.scrollHandle,
-        showJumpToBottom = derived.showJumpToBottom,
-        activeModel = derived.activeModel,
-        modeOption = derived.modeOption,
-        toolbarConfigOptions = derived.toolbarConfigOptions,
-        selectedConfigPickerOption = derived.selectedConfigPickerOption,
-        canCancelStreaming = derived.canCancelStreaming,
-        hasStreamingBubble = derived.hasStreamingBubble,
-        activelyStreaming = derived.activelyStreaming,
-        showStopAction = derived.showStopAction,
-        showModeButton = derived.showModeButton,
-        currentModeLabel = derived.currentModeLabel,
-        gitAdditions = derived.gitAdditions,
-        gitDeletions = derived.gitDeletions,
-        renderedMessages = derived.renderedMessages,
-        selectedThought = derived.selectedThought,
-        selectedToolCall = derived.selectedToolCall,
-        activePermissionRequest = derived.activePermissionRequest,
-        renderedLastMessageId = derived.renderedLastMessageId,
-        listBottomPadding = insets.listBottomPadding,
-        bottomFadeBandHeight = insets.bottomFadeBandHeight,
-        snackbarBottomPadding = insets.snackbarBottomPadding,
-        showComposerToolbar = insets.showComposerToolbar,
-        buttonsAlpha = derived.buttonsAlphaState,
-        inputAlpha = derived.inputAlphaState,
-        sendMessage = sendMessage,
-        sendCommand = sendCommand,
-    )
 
 // endregion

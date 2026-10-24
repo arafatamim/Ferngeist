@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.dao.ServerDao
 import com.tamimarafat.ferngeist.data.database.dao.SessionDao
 import com.tamimarafat.ferngeist.data.database.entity.ServerEntity
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,12 +19,13 @@ class ServerRepositoryImpl(
     private val serverDao: ServerDao,
     private val credentialEncryptor: CredentialEncryptor,
     private val sessionDao: SessionDao,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ServerRepository {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
 
     override fun getServers(): Flow<List<ServerConfig>> =
         serverDao.getAllServers().map { entities ->
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 entities.mapNotNull { entity ->
                     toDomainOrCleanUp(entity)
                 }
@@ -31,19 +33,19 @@ class ServerRepositoryImpl(
         }
 
     override suspend fun addServer(config: ServerConfig) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             serverDao.insertServer(config.toEntity())
         }
     }
 
     override suspend fun updateServer(config: ServerConfig) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             serverDao.updateServer(config.toEntity())
         }
     }
 
     override suspend fun deleteServer(id: String) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             serverDao.deleteServerById(id)
             credentialEncryptor.delete(CredentialEncryptor.serverTokenKey(id))
             // Sessions are keyed by target id. Leaving them behind strands history that
@@ -53,7 +55,7 @@ class ServerRepositoryImpl(
     }
 
     override suspend fun getServer(id: String): ServerConfig? {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             val entity = serverDao.getServerById(id) ?: return@withContext null
             toDomainOrCleanUp(entity)
         }

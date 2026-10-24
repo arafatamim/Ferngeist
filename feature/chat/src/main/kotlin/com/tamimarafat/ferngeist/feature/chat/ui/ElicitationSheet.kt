@@ -49,6 +49,7 @@ import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ElicitationFieldKind
 import com.tamimarafat.ferngeist.core.model.defaultValues
 import com.tamimarafat.ferngeist.core.model.isElicitationValueValid
+import com.tamimarafat.ferngeist.core.model.label
 import com.tamimarafat.ferngeist.feature.chat.R
 
 @Composable

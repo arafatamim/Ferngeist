@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -11,6 +12,8 @@ import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.gateway.GatewayCreateWorktreeRequest
+import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
 import com.tamimarafat.ferngeist.gateway.GatewayFileContents
 import com.tamimarafat.ferngeist.gateway.GatewayFileList
 import com.tamimarafat.ferngeist.gateway.GatewayGitCommitFiles
@@ -22,11 +25,14 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
+import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
 /** Deterministic clock: each call advances one tick, so focus order is exact. */
 internal fun tickingClock(): () -> Long {
@@ -34,16 +40,18 @@ internal fun tickingClock(): () -> Long {
     return { ++ticks }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 internal fun newHub(
     repo: GatewayRepository = FakeGatewayRepo(),
     maxHot: Int = 3,
     maxGateway: Int = 5,
     sessionRepository: SessionRepository = FakeSessionRepo(),
     clock: () -> Long = tickingClock(),
-): ChatConnectionHub =
-    ChatConnectionHub(
+): ChatConnectionHub {
+    val dispatcher = UnconfinedTestDispatcher()
+    return ChatConnectionHub(
         gatewayRepository = repo,
-        scope = CoroutineScope(Dispatchers.Unconfined),
+        scope = CoroutineScope(dispatcher),
         connectivityObserver = ConnectivityObserverStub(initialState = true),
         sessionRepository = sessionRepository,
         limits =
@@ -52,27 +60,30 @@ internal fun newHub(
                 maxGatewaySessionsPerDevice = maxGateway,
                 clock = clock,
             ),
+        ioDispatcher = dispatcher,
     )
+}
 
-internal suspend fun ChatConnectionHub.registerChat(
+/** A connected chat registration; the hub is always handed a live transport probe. */
+internal fun ChatConnectionHub.registerChat(
     serverId: String = "srv",
     sessionId: String,
     gatewaySessionId: String? = "gs-$sessionId",
-    gatewaySourceId: String = "src-1",
-    agentId: String = "agent-1",
-    connected: Boolean = true,
     streaming: Boolean = false,
     manager: AcpConnection? = null,
 ): String =
     register(
         serverId = serverId,
         sessionId = sessionId,
-        gatewaySessionId = gatewaySessionId,
-        gatewaySourceId = gatewaySourceId,
-        agentId = agentId,
-        isConnected = { connected },
-        isStreaming = { streaming },
-        manager = manager,
+        registration =
+            ChatRegistration(
+                gatewaySessionId = gatewaySessionId,
+                gatewaySourceId = "src-1",
+                agentId = "agent-1",
+                isConnected = { true },
+                isStreaming = { streaming },
+                manager = manager,
+            ),
     )
 
 internal class FakeGatewayRepo : GatewayRepository {
@@ -89,7 +100,7 @@ internal class FakeGatewayRepo : GatewayRepository {
     var closeFailure: Exception? = null
     var listFailure: Exception? = null
     var resumeFailure: Exception? = null
-    var resumedSessions = mutableListOf<String>()
+    val resumedSessions = mutableListOf<String>()
     var protocolVersion: String? = GatewayProtocol.CURRENT
     var connectCalls = 0
     var connectFailure: Exception? = null
@@ -98,9 +109,7 @@ internal class FakeGatewayRepo : GatewayRepository {
         scheme: String,
         host: String,
         gatewayCredential: String,
-        repo: String,
-        base: String?,
-        branch: String?,
+        request: GatewayCreateWorktreeRequest,
     ) = TODO("unused in these tests")
 
     override suspend fun listWorktrees(
@@ -244,70 +253,40 @@ internal class FakeGatewayRepo : GatewayRepository {
     ) = TODO("unused in these tests")
 
     override suspend fun fetchGitStatus(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String?,
         compare: String?,
     ) = TODO("unused in these tests")
 
     override suspend fun fetchGitDiff(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
-        path: String?,
-        acpSessionId: String?,
-        commit: String?,
-        oldPath: String?,
-        compare: String?,
+        connection: GatewayWorkspaceConnection,
+        query: GatewayDiffQuery,
     ) = TODO("unused in these tests")
 
     override suspend fun fetchGitLog(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
-        head: String?,
-        skip: Int,
-        limit: Int,
-        acpSessionId: String?,
-        compare: String?,
-        beyond: Int,
+        connection: GatewayWorkspaceConnection,
+        query: GatewayLogQuery,
     ): GatewayGitLog = TODO("unused in these tests")
 
     override suspend fun fetchGitRefs(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String?,
     ): GatewayGitRefs = TODO("unused in these tests")
 
     override suspend fun fetchGitCommit(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         sha: String,
         acpSessionId: String?,
     ): GatewayGitCommitFiles = TODO("unused in these tests")
 
     override suspend fun fetchFile(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         path: String,
         acpSessionId: String?,
     ): GatewayFileContents = TODO("unused in these tests")
 
     override suspend fun fetchFileList(
-        scheme: String,
-        host: String,
-        gatewayCredential: String,
-        runtimeId: String,
+        connection: GatewayWorkspaceConnection,
         acpSessionId: String?,
     ): GatewayFileList = TODO("unused in these tests")
 
@@ -315,10 +294,7 @@ internal class FakeGatewayRepo : GatewayRepository {
         scheme: String,
         host: String,
         gatewayCredential: String,
-        displayName: String,
-        command: String,
-        args: List<String>,
-        hint: String,
+        request: GatewayCustomAgentRequest,
     ): GatewayAgent = TODO("unused in these tests")
 
     override suspend fun deleteCustomAgent(

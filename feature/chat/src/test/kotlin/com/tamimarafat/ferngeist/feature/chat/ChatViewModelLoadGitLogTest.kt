@@ -330,7 +330,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
         total = total,
     )
 
-    private suspend fun gatewayViewModel(
+    private fun gatewayViewModel(
         configure: FakeChatSessionFacade.() -> Unit,
     ): Pair<ChatViewModel, FakeChatSessionFacade> {
         val facadeFactory = FakeChatSessionFacadeFactory()

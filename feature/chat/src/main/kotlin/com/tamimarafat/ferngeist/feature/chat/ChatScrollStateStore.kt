@@ -7,8 +7,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -40,12 +41,13 @@ class DataStoreChatScrollStateStore
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
+        @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ChatScrollStateStore {
         override suspend fun restore(
             serverId: String,
             sessionId: String,
         ): ChatScrollSnapshot? =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 context.chatScrollDataStore.data
                     .map { prefs ->
                         val prefix = "scroll.$serverId.$sessionId."
@@ -66,7 +68,7 @@ class DataStoreChatScrollStateStore
             sessionId: String,
             snapshot: ChatScrollSnapshot,
         ) {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 context.chatScrollDataStore.edit { prefs ->
                     val prefix = "scroll.$serverId.$sessionId."
                     val anchorKey = stringPreferencesKey("${prefix}anchor")
@@ -88,7 +90,7 @@ class DataStoreChatScrollStateStore
             serverId: String,
             sessionId: String,
         ) {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 context.chatScrollDataStore.edit { prefs ->
                     val prefix = "scroll.$serverId.$sessionId."
                     prefs.remove(stringPreferencesKey("${prefix}anchor"))

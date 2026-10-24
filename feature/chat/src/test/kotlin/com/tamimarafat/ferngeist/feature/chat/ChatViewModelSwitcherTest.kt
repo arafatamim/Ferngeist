@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -57,8 +58,6 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             val viewModel =
                 createViewModel(
                     chatConnectionHub = hub,
-                    sessionRepository = sessions,
-                    launchableTargetRepository = targets,
                     savedStateHandle =
                         SavedStateHandle(
                             mapOf(
@@ -67,6 +66,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
                                 "cwd" to "/a",
                             ),
                         ),
+                    repositories = testRepositories(sessionRepository = sessions, launchableTargetRepository = targets),
                 )
             advanceUntilIdle()
 
@@ -97,9 +97,12 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             val viewModel =
                 createViewModel(
                     chatConnectionHub = hub,
-                    sessionRepository = sessions,
-                    launchableTargetRepository = FakeLaunchableTargetRepository(listOf(gatewayTarget())),
                     savedStateHandle = sessionHandle(),
+                    repositories =
+                        testRepositories(
+                            sessionRepository = sessions,
+                            launchableTargetRepository = FakeLaunchableTargetRepository(listOf(gatewayTarget())),
+                        ),
                 )
             advanceUntilIdle()
             assertEquals(2, viewModel.switcherUiState.first { it.liveTotalCount == 2 }.liveTotalCount)
@@ -132,9 +135,12 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             val viewModel =
                 createViewModel(
                     chatConnectionHub = hub,
-                    sessionRepository = sessions,
-                    launchableTargetRepository = FakeLaunchableTargetRepository(listOf(gatewayTarget())),
                     savedStateHandle = sessionHandle(),
+                    repositories =
+                        testRepositories(
+                            sessionRepository = sessions,
+                            launchableTargetRepository = FakeLaunchableTargetRepository(listOf(gatewayTarget())),
+                        ),
                 )
             advanceUntilIdle()
 
@@ -186,7 +192,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
 
     private fun newHub(gatewayRepository: FakeGatewayRepository): ChatConnectionHub = newTestHub(gatewayRepository)
 
-    private suspend fun connectSession(
+    private fun connectSession(
         hub: ChatConnectionHub,
         serverId: String,
         sessionId: String,
@@ -196,12 +202,15 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
         hub.register(
             serverId = serverId,
             sessionId = sessionId,
-            gatewaySessionId = "gw-$sessionId",
-            gatewaySourceId = "src-$serverId",
-            agentId = "agent-1",
-            isConnected = { true },
-            isStreaming = { streaming },
-            manager = manager,
+            registration =
+                ChatRegistration(
+                    gatewaySessionId = "gw-$sessionId",
+                    gatewaySourceId = "src-$serverId",
+                    agentId = "agent-1",
+                    isConnected = { true },
+                    isStreaming = { streaming },
+                    manager = manager,
+                ),
         )
         manager.forceConnected()
     }

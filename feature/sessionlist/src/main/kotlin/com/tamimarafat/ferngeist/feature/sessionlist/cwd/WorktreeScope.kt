@@ -125,10 +125,11 @@ internal fun scopeCwd(
 internal data class ScopeOption(
     val worktree: GatewayWorktree,
     val chats: Int,
-) {
-    val path: String get() = worktree.path
-    val branch: String get() = worktree.displayName
-}
+)
+
+internal val ScopeOption.path: String get() = worktree.path
+
+internal val ScopeOption.branch: String get() = worktree.displayName
 
 /** The branch, or the folder's name on a detached `HEAD`. */
 internal val GatewayWorktree.displayName: String

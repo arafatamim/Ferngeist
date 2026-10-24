@@ -10,6 +10,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
@@ -29,7 +30,7 @@ internal data class RemoteResumed(
 ) : AcpNotification
 
 private val remoteResumedMethod =
-    AcpMethod.AcpNotificationMethod("_ferngeist/resumed", RemoteResumed.serializer())
+    AcpMethod.AcpNotificationMethod("_ferngeist/resumed", serializer<RemoteResumed>())
 
 /** Routes `_ferngeist/resumed` notices to [onResumed]. Register before [Protocol.start]. */
 internal fun Protocol.onRemoteResumed(onResumed: suspend (sessionId: String, replayedFrames: Int) -> Unit) {

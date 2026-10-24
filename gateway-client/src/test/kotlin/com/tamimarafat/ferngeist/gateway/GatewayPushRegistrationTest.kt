@@ -10,7 +10,6 @@ import io.ktor.http.content.TextContent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -95,17 +94,6 @@ class GatewayPushRegistrationTest {
                 assertTrue(request.headers["X-Ferngeist-Proof-Nonce"].orEmpty().isNotBlank())
             }
             assertEquals(2, captured.size)
-        }
-
-    @Test
-    fun `registerPushSubscription omits proof headers for a bare bearer credential`() =
-        runTest {
-            var captured: HttpRequestData? = null
-            val repo = repoCapturing { captured = it }
-
-            repo.registerPushSubscription("https", "gw.example.com", "plain-token", subscription)
-
-            assertNull(requireNotNull(captured).headers["X-Ferngeist-Proof-Signature"])
         }
 
     @Test

@@ -3,7 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import androidx.annotation.DrawableRes
 import com.tamimarafat.ferngeist.feature.chat.R
 
-private val ICONS_BY_EXTENSION: Map<String, Int> =
+private val iconsByExtension: Map<String, Int> =
     buildMap {
         fun icon(
             @DrawableRes res: Int,
@@ -525,5 +525,5 @@ private val ICONS_BY_EXTENSION: Map<String, Int> =
 /** Material Icon Theme (MIT), PKief/vscode-material-icon-theme. */
 @DrawableRes
 internal fun fileIconFor(path: String): Int =
-    ICONS_BY_EXTENSION[path.substringAfterLast('/').substringAfterLast('.', "").lowercase()]
+    iconsByExtension[path.substringAfterLast('/').substringAfterLast('.', "").lowercase()]
         ?: R.drawable.ic_file_document

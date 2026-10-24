@@ -1,12 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
-import androidx.compose.runtime.MutableState
 import androidx.compose.ui.focus.FocusManager
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
-import com.tamimarafat.ferngeist.core.model.ChatFileData
-import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
@@ -16,30 +12,29 @@ import kotlinx.coroutines.launch
 internal fun rememberSendHandlers(
     viewModel: ChatViewModel,
     state: ChatState,
-    messageText: TextFieldState,
-    selectedImages: MutableState<List<ChatImageData>>,
-    selectedFiles: MutableState<List<ChatFileData>>,
-    composerExpanded: MutableState<Boolean>,
+    mutations: ChatScreenMutations,
     focusManager: FocusManager,
     scrollHandle: ChatScrollHandle,
 ): Pair<() -> Unit, (String) -> Unit> {
     // --- Send message (composer) ---
     val sendMessage: () -> Unit = {
         val hasContent =
-            messageText.text.isNotBlank() || selectedImages.value.isNotEmpty() || selectedFiles.value.isNotEmpty()
+            mutations.messageText.text.isNotBlank() ||
+                mutations.selectedImages.value.isNotEmpty() ||
+                mutations.selectedFiles.value.isNotEmpty()
         if (hasContent) {
             viewModel.dispatch(
                 ChatIntent.SendMessage(
-                    text = messageText.text.toString(),
-                    images = selectedImages.value,
-                    files = selectedFiles.value,
+                    text = mutations.messageText.text.toString(),
+                    images = mutations.selectedImages.value,
+                    files = mutations.selectedFiles.value,
                 ),
             )
             scrollHandle.onSendMessage()
-            messageText.clearText()
-            selectedImages.value = emptyList()
-            selectedFiles.value = emptyList()
-            composerExpanded.value = false
+            mutations.messageText.clearText()
+            mutations.selectedImages.value = emptyList()
+            mutations.selectedFiles.value = emptyList()
+            mutations.composerExpanded.value = false
             focusManager.clearFocus()
         }
     }
@@ -90,11 +85,11 @@ internal fun rememberComposerCallbacks(
                 ),
             )
         },
-        onShowCommands = { screenState.showCommandsDialog.value = true },
+        onShowCommands = { screenState.mutations.showCommandsDialog.value = true },
         onShowConfigOptionPicker = { optionId ->
-            screenState.selectedConfigPickerOptionId.value = optionId
+            screenState.mutations.selectedConfigPickerOptionId.value = optionId
         },
         onJumpToBottom = {
-            coroutineScope.launch { screenState.scrollHandle.jumpToBottom() }
+            coroutineScope.launch { screenState.derived.scrollHandle.jumpToBottom() }
         },
     )

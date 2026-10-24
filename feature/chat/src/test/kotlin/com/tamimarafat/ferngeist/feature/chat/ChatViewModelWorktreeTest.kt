@@ -41,7 +41,7 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
             val (viewModel, _) =
                 gatewayViewModel {
                     gitStatus = ChatGitStatus(branch = "feat-x")
-                    worktree = { if (failing) throw IllegalStateException("offline") else featX }
+                    worktree = { if (failing) error("offline") else featX }
                 }
             viewModel.dispatch(ChatIntent.RefreshGitStatus)
             advanceUntilIdle()
@@ -89,7 +89,7 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
             assertNull(viewModel.state.value.worktree)
         }
 
-    private suspend fun gatewayViewModel(
+    private fun gatewayViewModel(
         configure: FakeChatSessionFacade.() -> Unit,
     ): Pair<ChatViewModel, FakeChatSessionFacade> {
         val facadeFactory = FakeChatSessionFacadeFactory()

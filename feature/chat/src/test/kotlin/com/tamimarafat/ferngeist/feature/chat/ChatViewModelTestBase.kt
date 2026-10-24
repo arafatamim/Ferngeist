@@ -3,28 +3,28 @@ package com.tamimarafat.ferngeist.feature.chat
 import androidx.lifecycle.SavedStateHandle
 import com.tamimarafat.ferngeist.acp.bridge.facade.HubChatPresence
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
-import com.tamimarafat.ferngeist.core.model.ChatCommand
-import com.tamimarafat.ferngeist.core.model.ChatConfigOption
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
-import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnKey
 import com.tamimarafat.ferngeist.core.model.TurnTiming
-import com.tamimarafat.ferngeist.core.model.UsageState
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
+import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
+import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -52,7 +52,7 @@ open class ChatViewModelTestBase {
 
     /** Creates a view model with in-memory test doubles. */
     protected fun createViewModel(
-        chatScrollStateStore: ChatScrollStateStore = InMemoryChatScrollStateStore(),
+        facadeFactory: ChatSessionFacadeFactory = FakeChatSessionFacadeFactory(),
         savedStateHandle: SavedStateHandle =
             SavedStateHandle(
                 mapOf(
@@ -61,29 +61,38 @@ open class ChatViewModelTestBase {
                     "cwd" to "/",
                 ),
             ),
-        sessionRepository: SessionRepository = FakeSessionRepository(),
-        launchableTargetRepository: LaunchableTargetRepository = FakeLaunchableTargetRepository(),
-        facadeFactory: ChatSessionFacadeFactory = FakeChatSessionFacadeFactory(),
+        repositories: ChatRepositories = testRepositories(),
+        stores: ChatLocalStores = testStores(),
         chatConnectionHub: ChatConnectionHub = newTestHub(),
-        presence: ChatSessionPresence =
-            HubChatPresence(chatConnectionHub, launchableTargetRepository, FakeGatewayRepository()),
-        pendingPromptStore: PendingPromptStore = InMemoryPendingPromptStore(),
-        switcherHintStore: SwitcherHintStore = InMemorySwitcherHintStore(),
     ): ChatViewModel =
         ChatViewModel(
             sessionFacadeFactory = facadeFactory,
-            sessionRepository = sessionRepository,
-            chatScrollStateStore = chatScrollStateStore,
-            pendingPromptStore = pendingPromptStore,
-            switcherHintStore = switcherHintStore,
-            recentSelectionStore = FakeRecentSelectionStore(),
-            presence = presence,
-            launchableTargetRepository = launchableTargetRepository,
-            turnTimingRepository = InMemoryTurnTimingRepository(),
+            presence =
+                HubChatPresence(
+                    chatConnectionHub,
+                    repositories.launchableTargetRepository,
+                    FakeGatewayRepository(),
+                ),
+            repositories = repositories,
+            stores = stores,
             ioDispatcher = mainDispatcherRule.dispatcher,
             savedStateHandle = savedStateHandle,
         )
 }
+
+/** In-memory repositories for a view model; each override replaces one collaborator. */
+internal fun testRepositories(
+    sessionRepository: SessionRepository = FakeSessionRepository(),
+    launchableTargetRepository: LaunchableTargetRepository = FakeLaunchableTargetRepository(),
+): ChatRepositories = ChatRepositories(sessionRepository, launchableTargetRepository, InMemoryTurnTimingRepository())
+
+/** In-memory local stores for a view model; each override replaces one store. */
+internal fun testStores(
+    chatScrollStateStore: ChatScrollStateStore = InMemoryChatScrollStateStore(),
+    pendingPromptStore: PendingPromptStore = InMemoryPendingPromptStore(),
+    switcherHintStore: SwitcherHintStore = InMemorySwitcherHintStore(),
+): ChatLocalStores =
+    ChatLocalStores(chatScrollStateStore, pendingPromptStore, switcherHintStore, FakeRecentSelectionStore())
 
 internal class InMemoryTurnTimingRepository : TurnTimingRepository {
     val timings = HashMap<String, MutableMap<TurnKey, TurnTiming>>()
@@ -103,10 +112,11 @@ internal class InMemoryTurnTimingRepository : TurnTimingRepository {
  * Builds a hub over the test dispatcher scope with in-memory doubles for every
  * dependency, so presence tests can attach real transports.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 internal fun newTestHub(gatewayRepository: GatewayRepository = FakeGatewayRepository()): ChatConnectionHub =
     ChatConnectionHub(
         gatewayRepository = gatewayRepository,
-        scope = CoroutineScope(Dispatchers.Unconfined),
+        scope = CoroutineScope(UnconfinedTestDispatcher()),
         connectivityObserver = FakeConnectivityObserver(),
         sessionRepository = FakeSessionRepository(),
     )
@@ -133,21 +143,16 @@ internal fun readySnapshot(
     title: String? = null,
     messages: List<ChatMessage> = emptyList(),
     isStreaming: Boolean = false,
-    configOptions: List<ChatConfigOption> = emptyList(),
-    availableCommands: List<ChatCommand> = emptyList(),
-    commandsAdvertised: Boolean = false,
-    usage: UsageState? = null,
-    error: String? = null,
 ): ChatSessionSnapshot =
     ChatSessionSnapshot(
         loadState = ChatLoadState.READY,
         messages = messages,
         isStreaming = isStreaming,
-        configOptions = configOptions,
-        availableCommands = availableCommands,
-        commandsAdvertised = commandsAdvertised,
-        error = error,
-        usage = usage,
+        configOptions = emptyList(),
+        availableCommands = emptyList(),
+        commandsAdvertised = false,
+        error = null,
+        usage = null,
         title = title,
     )
 
@@ -276,12 +281,15 @@ class ChatViewModelPresenceTest : ChatViewModelTestBase() {
             hub.register(
                 serverId = "server_1",
                 sessionId = "session_1",
-                gatewaySessionId = "gateway-session-1",
-                gatewaySourceId = "gateway-1",
-                agentId = "agent-1",
-                isConnected = { false },
-                isStreaming = { false },
-                manager = hub.acquireChatManager(),
+                registration =
+                    ChatRegistration(
+                        gatewaySessionId = "gateway-session-1",
+                        gatewaySourceId = "gateway-1",
+                        agentId = "agent-1",
+                        isConnected = { false },
+                        isStreaming = { false },
+                        manager = hub.acquireChatManager(),
+                    ),
             )
             val viewModel =
                 createViewModel(

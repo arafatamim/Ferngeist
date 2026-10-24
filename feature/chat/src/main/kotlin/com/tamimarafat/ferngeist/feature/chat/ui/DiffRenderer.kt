@@ -61,49 +61,34 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
-import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
-import com.tamimarafat.ferngeist.core.common.ui.LocalSyntaxColors
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.initialPassLongPress
+import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
+import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
-import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxHighlighting
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
-import io.github.diff.DeltaType
-import io.github.diff.generatePatch
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.buildDiffRows
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffBlocks
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.absoluteValue
 
-internal fun isDirectoryPath(path: String): Boolean = path.endsWith('/')
-
-/**
- * True when a git status entry is a directory (submodule or collapsed
- * untracked dir) and therefore not diffable. [ChatChangedFile.isDir] is
- * authoritative (submodule paths carry no trailing slash); the trailing-slash
- * check is a fallback for older gateways that report collapsed dirs only via
- * the path.
- */
-internal fun isDirectoryEntry(file: ChatChangedFile): Boolean = file.isDir || isDirectoryPath(file.path)
-
-/** Returns the last path segment of a file path, or the full path when it ends in '/'. */
-internal fun fileNameOf(path: String): String =
-    path
-        .substringAfterLast('/', missingDelimiterValue = path)
-        .ifEmpty { path }
-
-private const val MAX_DIFF_ROWS = 500
-private const val DIFF_BLOCK_COUNT = 5
+internal const val MAX_DIFF_ROWS = 500
+internal const val DIFF_BLOCK_COUNT = 5
 
 /**
  * Bars per side when additions == deletions: an exact 2/2 split (4 bars)
  * instead of the 5-bar rounding asymmetry (round(2.5)=3 green, 2 red).
  */
-private const val DIFF_EQUAL_BLOCK_COUNT = 2
-private val DIFF_INSERT_COLOR = Color(0xFF43A047)
-private const val DIFF_CONTEXT_LINES = 5
+internal const val DIFF_EQUAL_BLOCK_COUNT = 2
+private val diffInsertColor = Color(0xFF43A047)
+internal const val DIFF_CONTEXT_LINES = 5
 
 /**
  * Renders a unified-diff view for a single file change.
@@ -118,7 +103,7 @@ private const val DIFF_CONTEXT_LINES = 5
  * false — e.g. nested inside an outer scroll container like the tool-call
  * details sheet — the rows render eagerly inside a plain column so the
  * composable never places a vertically scrollable container under unbounded
- * height. Hunk computation stays async on [Dispatchers.Default] in both cases.
+ * height. Hunk computation stays async on [computeDispatcher] in both cases.
  *
  * @param diff The tool call diff containing old and new text content.
  * @param scrollable Whether the diff owns its vertical scrolling.
@@ -128,6 +113,7 @@ internal fun DiffRenderer(
     diff: ToolCallContent.Diff,
     modifier: Modifier = Modifier,
     scrollable: Boolean = true,
+    computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     val rowsState =
         produceState<List<LineDiffRow>?>(
@@ -136,13 +122,13 @@ internal fun DiffRenderer(
             key2 = diff.newText,
         ) {
             value =
-                withContext(Dispatchers.Default) {
+                withContext(computeDispatcher) {
                     buildDiffRows(diff.oldText, diff.newText)
                 }
         }
     val rows = rowsState.value
     val language = remember(diff.path) { SyntaxLanguageResolver.fromPath(diff.path) }
-    val colors = LocalSyntaxColors.current
+    val colors = localSyntaxColors.current
     val rowText by
         produceState<List<AnnotatedString>?>(null, rows, language, colors) {
             value =
@@ -241,7 +227,7 @@ private fun DiffRowItem(
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
                     // MaterialTheme lacks this particular green; hardcode instead of adding
                     // a theme color for a single use.
-                    DIFF_INSERT_COLOR,
+                    diffInsertColor,
                 )
             is LineDiffRow.Equal ->
                 Triple(
@@ -287,225 +273,6 @@ private fun DiffRowItem(
 }
 
 /**
- * Produces the complete list of [LineDiffRow] entries from a patch diff between
- * [oldLines] and [newLines], including equal lines surrounding changes.
- */
-private fun buildFullDiffRows(
-    oldLines: List<String>,
-    newLines: List<String>,
-): List<LineDiffRow> {
-    val fullRows = mutableListOf<LineDiffRow>()
-
-    if (oldLines.isEmpty()) {
-        newLines.forEach { line -> fullRows.add(LineDiffRow.Insert(line)) }
-        return fullRows
-    }
-
-    val patch =
-        generatePatch {
-            original = oldLines
-            revised = newLines
-        }
-    var oldPos = 0
-    for (delta in patch.getDeltas()) {
-        val sourceChunk = delta.source
-        val targetChunk = delta.target
-        val equalCount = sourceChunk.position - oldPos
-        for (i in 0 until equalCount) {
-            fullRows.add(LineDiffRow.Equal(oldLines[oldPos + i]))
-        }
-        oldPos = sourceChunk.position
-        when (delta.type) {
-            DeltaType.DELETE -> {
-                sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
-                oldPos += sourceChunk.lines.size
-            }
-            DeltaType.INSERT -> {
-                targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
-            }
-            DeltaType.CHANGE -> {
-                sourceChunk.lines.forEach { fullRows.add(LineDiffRow.Delete(it)) }
-                targetChunk.lines.forEach { fullRows.add(LineDiffRow.Insert(it)) }
-                oldPos += sourceChunk.lines.size
-            }
-            // Equal runs are emitted positionally before each non-equal delta.
-            DeltaType.EQUAL -> Unit
-        }
-    }
-
-    for (i in oldPos until oldLines.size) {
-        fullRows.add(LineDiffRow.Equal(oldLines[i]))
-    }
-    return fullRows
-}
-
-/**
- * Merges overlapping or adjacent context windows around [changedIndexes] into
- * inclusive [IntRange] values, each extended by [DIFF_CONTEXT_LINES] on both sides.
- */
-private fun mergeContextRanges(
-    changedIndexes: List<Int>,
-    lastIndex: Int,
-): List<IntRange> =
-    changedIndexes
-        .map { index ->
-            (index - DIFF_CONTEXT_LINES).coerceAtLeast(0)..(index + DIFF_CONTEXT_LINES).coerceAtMost(lastIndex)
-        }.fold(mutableListOf<IntRange>()) { merged, range ->
-            val previous = merged.lastOrNull()
-            if (previous != null && range.first <= previous.last + 1) {
-                merged[merged.lastIndex] = previous.first..maxOf(previous.last, range.last)
-            } else {
-                merged.add(range)
-            }
-            merged
-        }
-
-/**
- * Applies context-window merging to [fullRows], collapsing unchanged regions
- * between changed hunks to [LineDiffRow.Omitted] markers and capping the total
- * at [MAX_DIFF_ROWS] lines.
- */
-private fun collapseDiffRows(fullRows: List<LineDiffRow>): List<LineDiffRow> {
-    val changedIndexes = fullRows.indices.filter { fullRows[it].isChanged }
-    if (changedIndexes.isEmpty()) return emptyList()
-
-    val ranges = mergeContextRanges(changedIndexes, fullRows.lastIndex)
-
-    val visibleRows = mutableListOf<LineDiffRow>()
-    ranges.forEachIndexed { index, range ->
-        if (index > 0) visibleRows.add(LineDiffRow.Omitted("…"))
-        visibleRows.addAll(fullRows.subList(range.first, range.last + 1))
-    }
-    return if (visibleRows.size > MAX_DIFF_ROWS) {
-        visibleRows.take(MAX_DIFF_ROWS).toMutableList().apply {
-            add(LineDiffRow.Omitted("… ${visibleRows.size - MAX_DIFF_ROWS} more lines"))
-        }
-    } else {
-        visibleRows
-    }
-}
-
-/**
- * Builds the visible portion of a unified diff: changed rows, five equal rows
- * of context around each changed region, and omission rows between distant
- * regions. An unchanged file has no diff rows to display.
- */
-internal fun buildDiffRows(
-    oldText: String?,
-    newText: String,
-): List<LineDiffRow> {
-    val oldLines = oldText?.diffLines() ?: emptyList()
-    val newLines = newText.diffLines()
-    val fullRows = buildFullDiffRows(oldLines, newLines)
-    return collapseDiffRows(fullRows)
-}
-
-/**
- * Result of proportionally mapping additions and deletions onto a fixed
- * number of visual blocks (5 total).
- *
- * @property green Number of green blocks representing added lines.
- * @property red Number of red blocks representing deleted lines.
- * @property empty Number of unfilled blocks padding to the total of 5.
- */
-internal data class DiffBlockResult(
-    val green: Int,
-    val red: Int,
-    val empty: Int,
-)
-
-/**
- * Distributes [additions] and [deletions] across 5 visual blocks
- * proportional to their relative counts.
- *
- * Guarantees at least one green block when [additions] > 0 and at least
- * one red block when [deletions] > 0, even when the proportion would
- * otherwise round to zero.
- *
- * @param additions The number of added lines.
- * @param deletions The number of deleted lines.
- * @return A [DiffBlockResult] with green, red, and empty block counts.
- */
-internal fun computeDiffBlocks(
-    additions: Int,
-    deletions: Int,
-): DiffBlockResult {
-    val total = additions + deletions
-    if (total == 0) return DiffBlockResult(0, 0, DIFF_BLOCK_COUNT)
-
-    // Balanced diff: show an exact 2/2 split (4 bars) instead of the 5-bar
-    // rounding asymmetry (round(2.5)=3 green, 2 red). Only for strictly equal
-    // non-zero counts; anything else keeps the 5-bar proportion.
-    if (additions == deletions) {
-        return DiffBlockResult(DIFF_EQUAL_BLOCK_COUNT, DIFF_EQUAL_BLOCK_COUNT, 0)
-    }
-
-    // Fixed block count: small enough to fit in a row, enough blocks to show proportion.
-    val totalBlocks = DIFF_BLOCK_COUNT
-
-    var green = kotlin.math.round(additions.toFloat() / total * totalBlocks).toInt()
-    var red = totalBlocks - green
-
-    // When a non-zero count would round to zero blocks, force at least one so the visual isn't misleading.
-    if (additions > 0 && green == 0) {
-        green = 1
-        red -= 1
-    }
-    if (deletions > 0 && red == 0) {
-        red = 1
-        green -= 1
-    }
-
-    return DiffBlockResult(green, red, DIFF_BLOCK_COUNT - green - red)
-}
-
-internal data class DiffStats(
-    val additions: Int,
-    val deletions: Int,
-)
-
-// A final newline ends the last line rather than starting an empty one, as git counts it.
-// An empty text has no lines (a new or deleted file), and a final newline does not start one.
-internal fun String.diffLines(): List<String> {
-    val lines = lines()
-    return if (lines.last().isEmpty()) lines.dropLast(1) else lines
-}
-
-internal fun List<ToolCallContent.Diff>.computeDiffStats(): DiffStats {
-    var totalAdditions = 0
-    var totalDeletions = 0
-    for (diff in this) {
-        val oldLines = diff.oldText?.diffLines() ?: emptyList()
-        val newLines = diff.newText.diffLines()
-        if (oldLines.isEmpty()) {
-            totalAdditions += newLines.size
-        } else {
-            val patch =
-                generatePatch {
-                    original = oldLines
-                    revised = newLines
-                }
-            for (delta in patch.getDeltas()) {
-                when (delta.type) {
-                    DeltaType.INSERT -> {
-                        totalAdditions += delta.target.lines.size
-                    }
-                    DeltaType.DELETE -> {
-                        totalDeletions += delta.source.lines.size
-                    }
-                    DeltaType.CHANGE -> {
-                        totalAdditions += delta.target.lines.size
-                        totalDeletions += delta.source.lines.size
-                    }
-                    DeltaType.EQUAL -> {}
-                }
-            }
-        }
-    }
-    return DiffStats(totalAdditions, totalDeletions)
-}
-
-/**
  * Compact summary row aggregating all [ToolCallContent.Diff] entries
  * into a visual +N / diff-blocks / -N indicator.
  *
@@ -544,7 +311,7 @@ internal fun DiffStatsRow(
             RollingCount(
                 value = stats.additions,
                 prefix = "+",
-                color = LocalGitSemanticColors.current.added,
+                color = localGitSemanticColors.current.added,
             )
         }
         DiffBlocks(
@@ -582,7 +349,7 @@ internal fun DiffBlocks(
     deletions: Int,
     showEmpty: Boolean = true,
 ) {
-    val gitColors = LocalGitSemanticColors.current
+    val gitColors = localGitSemanticColors.current
     val result =
         remember(additions, deletions) {
             computeDiffBlocks(additions, deletions)
@@ -735,11 +502,11 @@ private fun TooltipScope.GitStatusTooltip(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "+$additions",
-                        color = LocalGitSemanticColors.current.added,
+                        color = localGitSemanticColors.current.added,
                     )
                     Text(
                         text = "-$deletions",
-                        color = LocalGitSemanticColors.current.deleted,
+                        color = localGitSemanticColors.current.deleted,
                     )
                 }
             }
@@ -769,45 +536,54 @@ private fun GitStatusButtonContent(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (clean) {
-            if (ahead > 0) {
-                GitAheadBehindIndicator(
-                    icon = Icons.Filled.ArrowUpward,
-                    count = ahead,
-                    tint = LocalGitSemanticColors.current.added,
+            CleanTreeIndicators(ahead = ahead, behind = behind)
+        } else {
+            if (additions > 0) {
+                RollingCount(
+                    value = additions,
+                    prefix = "+",
+                    color = localGitSemanticColors.current.added,
                 )
             }
-            if (behind > 0) {
-                GitAheadBehindIndicator(
-                    icon = Icons.Filled.ArrowDownward,
-                    count = behind,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            DiffBlocks(additions = additions, deletions = deletions)
+            if (deletions > 0) {
+                RollingCount(
+                    value = deletions,
+                    prefix = "-",
+                    color = localGitSemanticColors.current.deleted,
                 )
             }
-            if (ahead == 0 && behind == 0) {
-                Icon(
-                    imageVector = Icons.Filled.Commit,
-                    contentDescription = stringResource(R.string.chat_git_clean),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            return@Row
         }
-        if (additions > 0) {
-            RollingCount(
-                value = additions,
-                prefix = "+",
-                color = LocalGitSemanticColors.current.added,
-            )
-        }
-        DiffBlocks(additions = additions, deletions = deletions)
-        if (deletions > 0) {
-            RollingCount(
-                value = deletions,
-                prefix = "-",
-                color = LocalGitSemanticColors.current.deleted,
-            )
-        }
+    }
+}
+
+/** A clean tree shows how far the branch has moved from its upstream, or a commit mark when level. */
+@Composable
+private fun CleanTreeIndicators(
+    ahead: Int,
+    behind: Int,
+) {
+    if (ahead > 0) {
+        GitAheadBehindIndicator(
+            icon = Icons.Filled.ArrowUpward,
+            count = ahead,
+            tint = localGitSemanticColors.current.added,
+        )
+    }
+    if (behind > 0) {
+        GitAheadBehindIndicator(
+            icon = Icons.Filled.ArrowDownward,
+            count = behind,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (ahead == 0 && behind == 0) {
+        Icon(
+            imageVector = Icons.Filled.Commit,
+            contentDescription = stringResource(R.string.chat_git_clean),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
     }
 }
 

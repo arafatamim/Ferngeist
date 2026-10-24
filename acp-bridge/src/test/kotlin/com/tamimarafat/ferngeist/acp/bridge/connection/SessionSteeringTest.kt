@@ -31,11 +31,11 @@ class SessionSteeringTest {
     fun outcome_onlyInjectedAndStartedNewTurnCountAsTaken() {
         fun parse(json: String) = parseSteerOutcome(Json.parseToJsonElement(json))
 
-        assertEquals(SteerOutcome.Injected, parse("""{"outcome":"injected"}"""))
-        assertEquals(SteerOutcome.StartedNewTurn, parse("""{"outcome":"startedNewTurn"}"""))
-        assertEquals(SteerOutcome.NotConsumed, parse("""{"outcome":"promptRequired","reason":"noRunningTurn"}"""))
-        assertEquals(SteerOutcome.NotConsumed, parse("""{"outcome":"failed"}"""))
-        assertEquals(SteerOutcome.NotConsumed, parse("null"))
+        assertEquals(SteerOutcome.INJECTED, parse("""{"outcome":"injected"}"""))
+        assertEquals(SteerOutcome.STARTED_NEW_TURN, parse("""{"outcome":"startedNewTurn"}"""))
+        assertEquals(SteerOutcome.NOT_CONSUMED, parse("""{"outcome":"promptRequired","reason":"noRunningTurn"}"""))
+        assertEquals(SteerOutcome.NOT_CONSUMED, parse("""{"outcome":"failed"}"""))
+        assertEquals(SteerOutcome.NOT_CONSUMED, parse("null"))
     }
 
     @Test

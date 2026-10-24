@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.AnnotatedString
 import com.tamimarafat.ferngeist.core.common.ui.SyntaxColors
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -25,15 +26,17 @@ internal object SyntaxHighlighting {
     suspend fun highlight(
         code: String,
         label: String?,
-    ): HighlightedCode? = withContext(Dispatchers.Default) { highlighter.highlight(code, label) }
+        defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    ): HighlightedCode? = withContext(defaultDispatcher) { highlighter.highlight(code, label) }
 
     suspend fun highlightLines(
         code: String,
         label: String?,
         colors: SyntaxColors,
+        defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
     ): List<AnnotatedString>? {
-        val highlighted = highlight(code, label) ?: return null
-        return withContext(Dispatchers.Default) {
+        val highlighted = highlight(code, label, defaultDispatcher) ?: return null
+        return withContext(defaultDispatcher) {
             buildSyntaxLines(highlighted.text, highlighted.tokens, colors)
         }
     }

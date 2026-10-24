@@ -28,7 +28,7 @@ internal class MarkdownStateStore {
          * GfmCompat rather than ChatFast: it keeps reference links (ChatFast disables them and
          * agents do emit them) and adds table alignment. Definitions are single-line only.
          */
-        internal val DIALECT = MarkdownDialect.GfmCompat
+        internal val dIALECT = MarkdownDialect.GfmCompat
 
         /** Chats whose parsed transcript outlives their screen; covers every switcher target. */
         private const val RETAINED_CHATS = 8
@@ -97,23 +97,25 @@ internal class MarkdownStateStore {
      */
     private fun collectRequiredEntries(messages: List<ChatMessage>): LinkedHashMap<String, String> {
         val required = linkedMapOf<String, String>()
-        messages.forEach { message ->
-            if (message.role != ChatMessage.Role.ASSISTANT) return@forEach
-            if (message.segments.isNotEmpty()) {
-                message.segments.messageRuns().forEach { run ->
-                    if (run.text.isNotBlank()) required[run.key] = run.text
-                }
-            } else if (message.content.isNotBlank()) {
-                required[message.id] = message.content
-            }
-        }
+        messages
+            .filter { it.role == ChatMessage.Role.ASSISTANT }
+            .forEach { message -> message.parsedRuns().forEach { (key, text) -> required[key] = text } }
         return required
     }
+
+    /** The non-blank markdown runs of [this] message, keyed as [collectRequiredEntries] keys them. */
+    private fun ChatMessage.parsedRuns(): List<Pair<String, String>> =
+        when {
+            segments.isNotEmpty() ->
+                segments.messageRuns().filter { it.text.isNotBlank() }.map { it.key to it.text }
+            content.isNotBlank() -> listOf(id to content)
+            else -> emptyList()
+        }
 }
 
 /** One markdown document's engine and the text it has already been fed: a run here, the reasoning sheet's thought. */
 internal class IncrementalMarkdown(
-    dialect: MarkdownDialect = MarkdownStateStore.DIALECT,
+    dialect: MarkdownDialect = MarkdownStateStore.dIALECT,
 ) {
     private val engine = MarkdownEngine(dialect)
     private var fed: String = ""

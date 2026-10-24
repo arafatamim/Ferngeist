@@ -52,10 +52,14 @@ import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
+import com.tamimarafat.ferngeist.core.model.qualified
 import com.tamimarafat.ferngeist.feature.chat.GitHistoryState
 import com.tamimarafat.ferngeist.feature.chat.GitRefsState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.gitBranchScope
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.isDirectoryEntry
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.isDirectoryPath
+import com.tamimarafat.ferngeist.feature.chat.ui.status.GitDiffDetailContent
 import kotlinx.coroutines.delay
 
 private const val DATE_TICK_MILLIS = 60_000L
@@ -105,7 +109,7 @@ internal fun GitStatusSheet(
     val escapeFocus = rememberEscapeFocusAnchor()
     // Saved across process death so a drilled-in page survives rotation while its request runs.
     var route by rememberSaveable(
-        stateSaver = GitSheetRouteSaver,
+        stateSaver = gitSheetRouteSaver,
     ) { mutableStateOf<GitSheetRoute>(GitSheetRoute.Changes) }
     // Each page's scroll outlives its exit animation, so back lands where the reader left it.
     val pageStates = rememberSaveableStateHolder()
@@ -207,28 +211,17 @@ private fun GitSheetPage(
 ) {
     when (target) {
         GitSheetRoute.Changes, GitSheetRoute.History ->
-            GitSheetTabsPage(
+            GitTabsRoute(
+                target = target,
                 pageStates = pageStates,
                 status = status,
                 history = history,
                 compare = compare,
-                tab = if (target == GitSheetRoute.History) 1 else 0,
-                onSelectTab = { selected ->
-                    if (selected == 1) onLoadGitLog(false)
-                    onNavigate(if (selected == 1) GitSheetRoute.History else GitSheetRoute.Changes)
-                },
-                onFileClick = { file ->
-                    if (!isDirectoryEntry(file)) {
-                        onLoadGitDiff(file.path, null, null)
-                        onNavigate(GitSheetRoute.FileDiff(file.path, null, null))
-                    }
-                },
-                onCommitClick = { sha ->
-                    if (sha != history.commitSha) onLoadGitCommit(sha)
-                    onNavigate(GitSheetRoute.Commit(sha))
-                },
+                onLoadGitDiff = onLoadGitDiff,
                 onLoadGitLog = onLoadGitLog,
+                onLoadGitCommit = onLoadGitCommit,
                 onPickCompare = onPickCompare,
+                onNavigate = onNavigate,
             )
         is GitSheetRoute.Commit ->
             pageStates.SaveableStateProvider(target.stateKey) {
@@ -245,38 +238,105 @@ private fun GitSheetPage(
             }
         is GitSheetRoute.FileDiff ->
             pageStates.SaveableStateProvider(target.stateKey) {
-                GitDiffDetailContent(
-                    path = target.path,
-                    file =
-                        when {
-                            target.commit != null -> history.commitFiles.orEmpty()
-                            // Target-only files exist in the comparison alone, not in the working-tree status.
-                            compare.ref != null -> compare.status?.changed.orEmpty()
-                            else -> status.changed
-                        }.firstOrNull { it.path == target.path },
-                    diff = gitFileDiff,
-                    diffPath = gitFileDiffPath,
-                    isLoading = isGitFileDiffLoading,
-                    error = gitFileDiffError,
-                    onBack = { onNavigate(target.parent) },
-                    onRetry = { onLoadGitDiff(target.path, target.commit, target.oldPath) },
-                    inCommit = target.commit != null,
-                    onOpenFile =
-                        onOpenFile?.let { open ->
-                            {
-                                // The file is read at the revision the diff came from, so the
-                                // whole file agrees with what the reader was just looking at.
-                                open(
-                                    target.path,
-                                    target.commit,
-                                    if (target.commit == null) compare.ref?.qualified else null,
-                                    target.oldPath,
-                                )
-                            }
-                        },
+                GitFileDiffRoute(
+                    target = target,
+                    status = status,
+                    history = history,
+                    compare = compare,
+                    gitFileDiff = gitFileDiff,
+                    gitFileDiffPath = gitFileDiffPath,
+                    isGitFileDiffLoading = isGitFileDiffLoading,
+                    gitFileDiffError = gitFileDiffError,
+                    onLoadGitDiff = onLoadGitDiff,
+                    onOpenFile = onOpenFile,
+                    onNavigate = onNavigate,
                 )
             }
     }
+}
+
+@Composable
+private fun GitTabsRoute(
+    target: GitSheetRoute,
+    pageStates: SaveableStateHolder,
+    status: ChatGitStatus,
+    history: GitHistoryState,
+    compare: GitCompareUi,
+    onLoadGitDiff: (path: String, commit: String?, oldPath: String?) -> Unit,
+    onLoadGitLog: (more: Boolean) -> Unit,
+    onLoadGitCommit: (sha: String) -> Unit,
+    onPickCompare: () -> Unit,
+    onNavigate: (GitSheetRoute) -> Unit,
+) {
+    GitSheetTabsPage(
+        pageStates = pageStates,
+        status = status,
+        history = history,
+        compare = compare,
+        tab = if (target == GitSheetRoute.History) 1 else 0,
+        onSelectTab = { selected ->
+            if (selected == 1) onLoadGitLog(false)
+            onNavigate(if (selected == 1) GitSheetRoute.History else GitSheetRoute.Changes)
+        },
+        onFileClick = { file ->
+            if (!isDirectoryEntry(file)) {
+                onLoadGitDiff(file.path, null, null)
+                onNavigate(GitSheetRoute.FileDiff(file.path, null, null))
+            }
+        },
+        onCommitClick = { sha ->
+            if (sha != history.commitSha) onLoadGitCommit(sha)
+            onNavigate(GitSheetRoute.Commit(sha))
+        },
+        onLoadGitLog = onLoadGitLog,
+        onPickCompare = onPickCompare,
+    )
+}
+
+@Composable
+private fun GitFileDiffRoute(
+    target: GitSheetRoute.FileDiff,
+    status: ChatGitStatus,
+    history: GitHistoryState,
+    compare: GitCompareUi,
+    gitFileDiff: List<ToolCallContent.Diff>?,
+    gitFileDiffPath: String?,
+    isGitFileDiffLoading: Boolean,
+    gitFileDiffError: String?,
+    onLoadGitDiff: (path: String, commit: String?, oldPath: String?) -> Unit,
+    onOpenFile: ((path: String, commit: String?, compare: String?, oldPath: String?) -> Unit)?,
+    onNavigate: (GitSheetRoute) -> Unit,
+) {
+    GitDiffDetailContent(
+        path = target.path,
+        file =
+            when {
+                target.commit != null -> history.commitFiles.orEmpty()
+                // Target-only files exist in the comparison alone, not in the working-tree status.
+                compare.ref != null -> compare.status?.changed.orEmpty()
+                else -> status.changed
+            }.firstOrNull { it.path == target.path },
+        diff = gitFileDiff,
+        diffPath = gitFileDiffPath,
+        isLoading = isGitFileDiffLoading,
+        error = gitFileDiffError,
+        onBack = { onNavigate(target.parent) },
+        onRetry = { onLoadGitDiff(target.path, target.commit, target.oldPath) },
+        inCommit = target.commit != null,
+        onOpenFile =
+            onOpenFile?.let { open ->
+                {
+                    // The file is read at the revision the diff came from, so the
+                    // whole file agrees with what the reader was just looking at.
+                    open(
+                        target.path,
+                        target.commit,
+                        if (target.commit == null) compare.ref?.qualified else null,
+                        target.oldPath,
+                    )
+                }
+            },
+    )
 }
 
 /**
@@ -301,22 +361,40 @@ private fun GitSheetRequests(
         val sha = route.commitSha
         if ((sha != null || route == GitSheetRoute.History) && !history.isLoaded) onLoadGitLog(false)
         if (sha != null && sha != history.commitSha) onLoadGitCommit(sha)
-        if (route !is GitSheetRoute.FileDiff) return@LaunchedEffect
+    }
+    if (route is GitSheetRoute.FileDiff) {
+        FileDiffRequest(
+            route = route,
+            gitFileDiffPath = gitFileDiffPath,
+            gitFileDiffCommit = gitFileDiffCommit,
+            gitFileDiffCompare = gitFileDiffCompare,
+            compare = compare,
+            onLoadGitDiff = onLoadGitDiff,
+            onRedirect = onRedirect,
+        )
+    }
+}
+
+/** Reads the diff a file route shows unless the one on screen was read under the same target. */
+@Composable
+private fun FileDiffRequest(
+    route: GitSheetRoute.FileDiff,
+    gitFileDiffPath: String?,
+    gitFileDiffCommit: String?,
+    gitFileDiffCompare: String?,
+    compare: String?,
+    onLoadGitDiff: (path: String, commit: String?, oldPath: String?) -> Unit,
+    onRedirect: (GitSheetRoute) -> Unit,
+) {
+    LaunchedEffect(route) {
+        val sha = route.commitSha
         val wantedCompare = if (sha == null) compare else null
         when {
             sha == null && isDirectoryPath(route.path) -> onRedirect(GitSheetRoute.Changes)
             // A diff read under one target is never shown under another.
             route.path != gitFileDiffPath ||
                 sha != gitFileDiffCommit ||
-                (
-                    if (sha ==
-                        null
-                    ) {
-                        compare
-                    } else {
-                        null
-                    }
-                ) != gitFileDiffCompare -> onLoadGitDiff(route.path, sha, route.oldPath)
+                wantedCompare != gitFileDiffCompare -> onLoadGitDiff(route.path, sha, route.oldPath)
         }
     }
 }

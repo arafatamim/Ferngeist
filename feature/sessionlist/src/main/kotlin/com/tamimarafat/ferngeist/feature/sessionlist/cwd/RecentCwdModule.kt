@@ -8,8 +8,8 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class RecentCwdModule {
+interface RecentCwdModule {
     @Binds
     @Singleton
-    abstract fun bindRecentCwdStore(impl: DataStoreRecentCwdStore): RecentCwdStore
+    fun bindRecentCwdStore(impl: DataStoreRecentCwdStore): RecentCwdStore
 }

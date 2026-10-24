@@ -3,7 +3,7 @@
  *
  * Modified from upstream in three functional ways: every block takes an optional [BlockReveal], so
  * a streaming run shows only what its reveal cursor has reached and fades the leading edge in (see
- * MarkdownReveal.kt and docs/adr/0001); paragraphs and headings draw [LocalInlineChips]' matches as
+ * MarkdownReveal.kt and docs/adr/0001); paragraphs and headings draw [localInlineChips]' matches as
  * inline content once their reveal settles (see InlineChips.kt); and [MarkdownBlocksLazy] renders a
  * whole document for a screen that owns the scroll. Upstream keeps every
  * block renderer private and offers no per-block hook, so there was no way to do that without copying.
@@ -35,7 +35,6 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -46,23 +45,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withLink
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adamglin.compose.markdown.core.model.BlockNode
-import com.adamglin.compose.markdown.core.model.InlineNode
 import com.adamglin.compose.markdown.core.model.TaskState
-import com.tamimarafat.ferngeist.core.common.ui.LocalSyntaxColors
+import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
 import com.tamimarafat.ferngeist.feature.chat.syntax.rememberHighlightedCode
 import com.tamimarafat.ferngeist.feature.chat.syntax.styledCode
@@ -161,9 +155,8 @@ private fun <T : BlockNode> RevealChildren(
     }
 }
 
-// Vendored: one branch per BlockNode subtype. Suppressed rather than split so this file
-// stays diffable against upstream.
-@Suppress("CyclomaticComplexMethod")
+// Vendored: one branch per BlockNode subtype, split in two so each stays within the complexity
+// limit and this file stays diffable against upstream.
 @Composable
 private fun MarkdownBlock(
     block: BlockNode,
@@ -239,6 +232,19 @@ private fun MarkdownBlock(
             )
         }
 
+        else -> MarkdownLeafBlock(block = block, styles = styles, modifier = modifier, reveal = reveal)
+    }
+}
+
+/** The blocks that hold text or a rule and no child blocks; see [MarkdownBlock] for the rest. */
+@Composable
+private fun MarkdownLeafBlock(
+    block: BlockNode,
+    styles: MarkdownBlockStyles,
+    modifier: Modifier,
+    reveal: BlockReveal?,
+) {
+    when (block) {
         is BlockNode.TableRow ->
             MarkdownText(
                 text =
@@ -317,6 +323,7 @@ private fun MarkdownBlock(
                 reveal = reveal,
                 modifier = modifier.fillMaxWidth(),
             )
+        else -> error("${block::class.simpleName} is not a leaf block")
     }
 }
 
@@ -373,7 +380,7 @@ private fun CodeBlock(
 ) {
     val language = SyntaxLanguageResolver.fromFence(block.languageHint ?: block.infoString)
     val highlighted = rememberHighlightedCode(block.literal, language, streaming = !block.isClosed)
-    val colors = LocalSyntaxColors.current
+    val colors = localSyntaxColors.current
     val annotatedCode =
         remember(block.literal, highlighted, language, colors) {
             styledCode(block.literal, highlighted, language, colors)
@@ -621,97 +628,5 @@ internal fun rememberMarkdownBlockStyles(): MarkdownBlockStyles {
                     lineHeight = 20.sp,
                 ),
         )
-    }
-}
-
-internal fun List<InlineNode>.toAnnotatedString(
-    styles: MarkdownInlineStyles =
-        MarkdownInlineStyles(
-            emphasis = SpanStyle(fontStyle = FontStyle.Italic),
-            strong = SpanStyle(fontWeight = FontWeight.Bold),
-            strike = SpanStyle(textDecoration = TextDecoration.LineThrough),
-            code = SpanStyle(fontFamily = FontFamily.Monospace),
-            link =
-                TextLinkStyles(
-                    style = SpanStyle(textDecoration = TextDecoration.Underline),
-                ),
-        ),
-    chips: InlineChips? = null,
-): AnnotatedString =
-    buildAnnotatedString {
-        appendInlineNodes(nodes = this@toAnnotatedString, styles = styles, chips = chips)
-    }
-
-/** [LocalInlineChips] once [reveal] has settled: a chip landing mid-reveal would jump under the cursor. */
-@Composable
-private fun settledChips(reveal: BlockReveal?): InlineChips? {
-    val chips = LocalInlineChips.current ?: return null
-    val settled by remember(reveal) { derivedStateOf { reveal == null || reveal.run.isSettled } }
-    return chips.takeIf { settled }
-}
-
-@Composable
-internal fun MarkdownInlineText(
-    text: AnnotatedString,
-    style: TextStyle,
-    modifier: Modifier = Modifier,
-    fillMaxWidth: Boolean = true,
-) {
-    BasicText(
-        text = text,
-        style = style,
-        modifier = if (fillMaxWidth) modifier.fillMaxWidth() else modifier,
-    )
-}
-
-private fun AnnotatedString.Builder.appendInlineNodes(
-    nodes: List<InlineNode>,
-    styles: MarkdownInlineStyles,
-    chips: InlineChips? = null,
-) {
-    nodes.forEach { node ->
-        when (node) {
-            is InlineNode.CodeSpan -> appendWithChips(node.literal, chips, styles.code)
-
-            is InlineNode.Emphasis ->
-                withStyle(styles.emphasis) {
-                    appendInlineNodes(node.children, styles, chips)
-                }
-
-            is InlineNode.HardBreak -> append("\n")
-
-            // No chips inside a link: the tap already goes to its destination.
-            is InlineNode.Link ->
-                withLink(
-                    LinkAnnotation.Url(
-                        url = node.destination,
-                        styles = styles.link,
-                    ),
-                ) {
-                    appendInlineNodes(node.children, styles)
-                }
-
-            is InlineNode.SoftBreak -> append("\n")
-
-            is InlineNode.Image -> appendInlineNodes(node.alt, styles)
-
-            is InlineNode.Strikethrough ->
-                withStyle(styles.strike) {
-                    appendInlineNodes(node.children, styles, chips)
-                }
-
-            is InlineNode.Strong ->
-                withStyle(styles.strong) {
-                    appendInlineNodes(node.children, styles, chips)
-                }
-
-            is InlineNode.Text -> appendWithChips(node.literal, chips)
-
-            is InlineNode.UnsupportedInline -> append(node.literal)
-
-            // ponytail: math renders as its raw source. No LaTeX renderer is wired up; swap in a
-            // MathRenderer only if an agent actually emits $$ math in chat.
-            is InlineNode.MathSpan -> append(node.latex)
-        }
     }
 }

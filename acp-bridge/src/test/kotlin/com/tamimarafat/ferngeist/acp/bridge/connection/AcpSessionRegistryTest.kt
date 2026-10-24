@@ -19,10 +19,12 @@ import com.agentclientprotocol.model.SessionModeId
 import com.agentclientprotocol.model.SetSessionConfigOptionResponse
 import com.agentclientprotocol.model.SetSessionModeResponse
 import com.agentclientprotocol.model.SetSessionModelResponse
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.serialization.json.JsonElement
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,7 +37,7 @@ import org.junit.Test
  * throwing stub because [AcpSessionRegistry] only ever calls `close()` on the
  * stored SDK session.
  */
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
 internal class AcpSessionRegistryTest {
     private class RecordingClientSession : ClientSession {
         var closeCalled: Boolean = false
@@ -45,6 +47,8 @@ internal class AcpSessionRegistryTest {
         override val client: Client get() = error("unused")
         override val operations: ClientSessionOperations get() = error("unused")
 
+        // ClientSession requires a suspending RPC that returns the event stream.
+        @Suppress("SuspendFunWithFlowReturnType")
         override suspend fun prompt(
             content: List<ContentBlock>,
             _meta: JsonElement?,
@@ -89,7 +93,7 @@ internal class AcpSessionRegistryTest {
 
     @Test
     fun `close is invoked when shouldCloseSdkSession returns true`() {
-        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val scope = CoroutineScope(UnconfinedTestDispatcher())
         val session = RecordingClientSession()
         val registry = AcpSessionRegistry(scope) { true }
 
@@ -101,7 +105,7 @@ internal class AcpSessionRegistryTest {
 
     @Test
     fun `close is not invoked when shouldCloseSdkSession returns false`() {
-        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val scope = CoroutineScope(UnconfinedTestDispatcher())
         val session = RecordingClientSession()
         val registry = AcpSessionRegistry(scope) { false }
 
@@ -113,7 +117,7 @@ internal class AcpSessionRegistryTest {
 
     @Test
     fun `clearAll respects shouldCloseSdkSession`() {
-        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val scope = CoroutineScope(UnconfinedTestDispatcher())
         val session = RecordingClientSession()
         val registry = AcpSessionRegistry(scope) { true }
 
@@ -125,13 +129,21 @@ internal class AcpSessionRegistryTest {
 
     @Test
     fun `closeSession_whenSdkCloseThrows_doesNotPropagate`() {
-        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val uncaught = mutableListOf<Throwable>()
+        val scope =
+            CoroutineScope(
+                UnconfinedTestDispatcher() +
+                    CoroutineExceptionHandler { _, error -> uncaught += error },
+            )
         val session = ThrowingClientSession()
         val registry = AcpSessionRegistry(scope) { true }
 
         registry.storeSdkSession("s1", session)
-        // This should not throw - the exception from close() is caught internally
+        // This must not throw: an uncaught close failure would reach the handler and, on
+        // Android, crash the process during logout.
         registry.clearSession("s1", closeBridge = false)
+
+        assertTrue("the close failure must stay contained, got $uncaught", uncaught.isEmpty())
     }
 
     private class ThrowingClientSession : ClientSession {
@@ -140,6 +152,8 @@ internal class AcpSessionRegistryTest {
         override val client: Client get() = error("unused")
         override val operations: ClientSessionOperations get() = error("unused")
 
+        // ClientSession requires a suspending RPC that returns the event stream.
+        @Suppress("SuspendFunWithFlowReturnType")
         override suspend fun prompt(
             content: List<ContentBlock>,
             _meta: JsonElement?,
@@ -150,7 +164,7 @@ internal class AcpSessionRegistryTest {
         }
 
         override suspend fun close(_meta: JsonElement?): CloseSessionResponse =
-            throw IllegalStateException("Simulated close failure on dead transport")
+            error("Simulated close failure on dead transport")
 
         override val modesSupported: Boolean get() = false
         override val availableModes: List<SessionMode> get() = emptyList()

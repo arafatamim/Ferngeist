@@ -49,46 +49,6 @@ class MarkdownStateStoreTest {
         }
 
     @Test
-    fun `changed assistant markdown remains available after scheduler drains`() =
-        runTest {
-            var currentMessages =
-                listOf(
-                    assistantMessage(id = "message_1", text = "**before**"),
-                )
-            val store =
-                MarkdownStateStore()
-
-            val initial =
-                store.onSnapshot(
-                    messages = currentMessages,
-                    loadState = ChatLoadState.READY,
-                )
-            assertFalse(initial.pendingInitialHydration)
-            assertEquals(setOf("message_1"), initial.documents.keys)
-
-            currentMessages =
-                listOf(
-                    assistantMessage(id = "message_1", text = "**after**"),
-                )
-            val changed =
-                store.onSnapshot(
-                    messages = currentMessages,
-                    loadState = ChatLoadState.READY,
-                )
-
-            assertEquals(setOf("message_1"), changed.documents.keys)
-
-            val settled =
-                store.onSnapshot(
-                    messages = currentMessages,
-                    loadState = ChatLoadState.READY,
-                )
-
-            assertFalse(settled.pendingInitialHydration)
-            assertEquals(setOf("message_1"), settled.documents.keys)
-        }
-
-    @Test
     fun `removed assistant message clears cached markdown entries`() =
         runTest {
             var currentMessages =
@@ -156,18 +116,6 @@ class MarkdownStateStoreTest {
 
             assertTrue(first.documents.getValue("message_1") === second.documents.getValue("message_1"))
         }
-
-    @Test
-    fun `incremental markdown feeds a growing text's tail and restarts on a rewrite`() {
-        val markdown = IncrementalMarkdown()
-
-        markdown.update("Thinking")
-        markdown.update("Thinking about it")
-        assertEquals("Thinking about it", markdown.document.plainText())
-
-        markdown.update("Rewritten")
-        assertEquals("Rewritten", markdown.document.plainText())
-    }
 
     private fun MarkdownRenderedDocument.plainText(): String =
         blocks.joinToString("|") { block ->

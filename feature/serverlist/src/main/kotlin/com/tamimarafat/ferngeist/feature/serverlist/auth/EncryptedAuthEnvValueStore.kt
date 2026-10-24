@@ -7,10 +7,11 @@ import android.util.Base64
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValuesUnreadableException
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
@@ -37,18 +38,19 @@ class EncryptedAuthEnvValueStore
     constructor(
         @ApplicationContext private val context: Context,
         private val json: Json,
+        @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : AuthEnvValueStore {
         private val cipherProvider = AndroidKeystoreCipherProvider()
 
         override suspend fun getValues(serverId: String): Map<String, String> =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 val preferencesKey = stringPreferencesKey(storageKey(serverId))
                 val encrypted = context.encryptedDataStore.data.first()[preferencesKey] ?: return@withContext emptyMap()
                 decodeValues(cipherProvider.decrypt(encrypted))
             }
 
         override suspend fun deleteValues(serverId: String): Unit =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 context.encryptedDataStore.edit { prefs ->
                     prefs.remove(stringPreferencesKey(storageKey(serverId)))
                 }
@@ -59,7 +61,7 @@ class EncryptedAuthEnvValueStore
             envVarNames: Set<String>,
             envValues: Map<String, String>,
         ): Unit =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 val storeKey = storageKey(serverId)
                 val preferencesKey = stringPreferencesKey(storeKey)
                 val existingEncrypted = context.encryptedDataStore.data.first()[preferencesKey]
@@ -91,7 +93,7 @@ class EncryptedAuthEnvValueStore
                 }
             }
 
-        private fun decodeValues(encoded: String?): Map<String, String> = decodeValuesOrNull(encoded) ?: emptyMap()
+        private fun decodeValues(encoded: String?): Map<String, String> = decodeValuesOrNull(encoded).orEmpty()
 
         /**
          * Decodes the stored map, or null when the blob decrypts but cannot be parsed.

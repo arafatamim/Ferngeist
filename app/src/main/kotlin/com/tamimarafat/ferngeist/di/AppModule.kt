@@ -8,26 +8,16 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserv
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
-import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
-import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
 import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
-import com.tamimarafat.ferngeist.data.database.MIGRATION_14_15
-import com.tamimarafat.ferngeist.data.database.MIGRATION_15_16
-import com.tamimarafat.ferngeist.data.database.MIGRATION_16_17
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
-import com.tamimarafat.ferngeist.data.database.repository.GatewayAgentBindingRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.GatewaySourceRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetSessionSettingsRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.ServerRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.SessionRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.TurnTimingRepositoryImpl
+import com.tamimarafat.ferngeist.data.database.migration14To15
+import com.tamimarafat.ferngeist.data.database.migration15To16
+import com.tamimarafat.ferngeist.data.database.migration16To17
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
 import com.tamimarafat.ferngeist.push.PushRegistrar
@@ -39,6 +29,7 @@ import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -69,85 +60,24 @@ object AppModule {
                 FerngeistDatabase::class.java,
                 FerngeistDatabase.DATABASE_NAME,
             ).addMigrations(
-                MIGRATION_1_2,
-                MIGRATION_2_3,
-                MIGRATION_3_4,
-                MIGRATION_4_5,
-                MIGRATION_5_6,
-                MIGRATION_6_7,
-                MIGRATION_7_8,
-                MIGRATION_8_9,
-                MIGRATION_9_10,
-                MIGRATION_10_11,
-                MIGRATION_11_12,
-                MIGRATION_12_13,
-                MIGRATION_13_14,
-                MIGRATION_14_15,
-                MIGRATION_15_16,
-                MIGRATION_16_17,
+                migration1To2,
+                migration2To3,
+                migration3To4,
+                migration4To5,
+                migration5To6,
+                migration6To7,
+                migration7To8,
+                migration8To9,
+                migration9To10,
+                migration10To11,
+                migration11To12,
+                migration12To13,
+                migration13To14,
+                migration14To15,
+                migration15To16,
+                migration16To17,
             ).fallbackToDestructiveMigration(false)
             .build()
-
-    /** Binds the server repository backed by Room. */
-    @Provides
-    @Singleton
-    fun provideServerRepository(
-        database: FerngeistDatabase,
-        credentialEncryptor: CredentialEncryptor,
-    ): ServerRepository = ServerRepositoryImpl(database.serverDao(), credentialEncryptor, database.sessionDao())
-
-    /** Binds the gateway source repository backed by Room. */
-    @Provides
-    @Singleton
-    fun provideGatewaySourceRepository(
-        database: FerngeistDatabase,
-        credentialEncryptor: CredentialEncryptor,
-    ): GatewaySourceRepository =
-        GatewaySourceRepositoryImpl(
-            database.gatewaySourceDao(),
-            credentialEncryptor,
-            database.sessionDao(),
-            database.gatewayAgentBindingDao(),
-        )
-
-    /** Binds gateway agent bindings stored in the database. */
-    @Provides
-    @Singleton
-    fun provideGatewayAgentBindingRepository(database: FerngeistDatabase): GatewayAgentBindingRepository =
-        GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao(), database.sessionDao())
-
-    /** Combines server + gateway repositories into a launchable target registry. */
-    @Provides
-    @Singleton
-    fun provideLaunchableTargetRepository(
-        serverRepository: ServerRepository,
-        gatewaySourceRepository: GatewaySourceRepository,
-        gatewayAgentBindingRepository: GatewayAgentBindingRepository,
-    ): LaunchableTargetRepository =
-        LaunchableTargetRepositoryImpl(
-            serverRepository = serverRepository,
-            gatewaySourceRepository = gatewaySourceRepository,
-            gatewayAgentBindingRepository = gatewayAgentBindingRepository,
-        )
-
-    /** Binds the session repository backed by Room. */
-    @Provides
-    @Singleton
-    fun provideSessionRepository(database: FerngeistDatabase): SessionRepository =
-        SessionRepositoryImpl(database.sessionDao())
-
-    @Provides
-    @Singleton
-    fun provideTurnTimingRepository(database: FerngeistDatabase): TurnTimingRepository =
-        TurnTimingRepositoryImpl(database.turnTimingDao())
-
-    /** Persists per-target session settings (cwd, etc.). */
-    @Provides
-    @Singleton
-    fun provideLaunchableTargetSessionSettingsRepository(
-        database: FerngeistDatabase,
-    ): LaunchableTargetSessionSettingsRepository =
-        LaunchableTargetSessionSettingsRepositoryImpl(database.launchableTargetSessionSettingsDao())
 
     /** Provides encryptor for sensitive database fields. */
     @Provides
@@ -192,12 +122,14 @@ object AppModule {
         gatewaySourceRepository: GatewaySourceRepository,
         gatewayRepository: GatewayRepository,
         hub: ChatConnectionHub,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher,
     ): ChatSessionFacadeFactory =
         AcpChatSessionFacadeFactory(
             hub = hub,
             launchableTargetRepository = launchableTargetRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayRepository = gatewayRepository,
+            ioDispatcher = ioDispatcher,
         )
 
     /** Keeps every paired gateway subscribed to this device's Web Push notifications. */
@@ -207,12 +139,13 @@ object AppModule {
         @ApplicationContext context: Context,
         gatewayRepository: GatewayRepository,
         gatewaySourceRepository: GatewaySourceRepository,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher,
     ): PushRegistrar =
         PushRegistrar(
             gatewayRepository = gatewayRepository,
             gatewaySourceRepository = gatewaySourceRepository,
             unifiedPush = AndroidUnifiedPushClient(context),
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+            scope = CoroutineScope(SupervisorJob() + ioDispatcher),
         )
 
     /** Provides a shared JSON configuration for network and persistence layers. */
@@ -240,7 +173,7 @@ object AppModule {
         }
 }
 
-private val MIGRATION_1_2 =
+private val migration1To2 =
     object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -267,14 +200,14 @@ private val MIGRATION_1_2 =
         }
     }
 
-private val MIGRATION_2_3 =
+private val migration2To3 =
     object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("DROP TABLE IF EXISTS `messages`")
         }
     }
 
-private val MIGRATION_3_4 =
+private val migration3To4 =
     object : Migration(3, 4) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -286,7 +219,7 @@ private val MIGRATION_3_4 =
         }
     }
 
-private val MIGRATION_4_5 =
+private val migration4To5 =
     object : Migration(4, 5) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -328,7 +261,7 @@ private val MIGRATION_4_5 =
         }
     }
 
-private val MIGRATION_5_6 =
+private val migration5To6 =
     object : Migration(5, 6) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -340,7 +273,7 @@ private val MIGRATION_5_6 =
         }
     }
 
-private val MIGRATION_6_7 =
+private val migration6To7 =
     object : Migration(6, 7) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -389,7 +322,7 @@ private val MIGRATION_6_7 =
         }
     }
 
-private val SQL_CREATE_GATEWAY_AGENT_BINDINGS =
+private val sqlCreateGatewayAgentBindings =
     """
     CREATE TABLE IF NOT EXISTS `gateway_agent_bindings` (
       `id` TEXT NOT NULL,
@@ -407,7 +340,7 @@ private const val SQL_INDEX_GATEWAY_AGENT_BINDINGS_GATEWAY_SOURCE_ID =
     "CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_gatewaySourceId` " +
         "ON `gateway_agent_bindings` (`gatewaySourceId`)"
 
-private val SQL_INSERT_GATEWAY_AGENT_BINDINGS =
+private val sqlInsertGatewayAgentBindings =
     """
     INSERT INTO `gateway_agent_bindings` (
       `id`,
@@ -428,7 +361,7 @@ private val SQL_INSERT_GATEWAY_AGENT_BINDINGS =
     WHERE `sourceKind` = 'DESKTOP_HELPER' AND `gatewaySourceId` IS NOT NULL AND TRIM(`gatewaySourceId`) != ''
     """.trimIndent()
 
-private val SQL_CREATE_SERVERS_NEW =
+private val sqlCreateServersNew =
     """
     CREATE TABLE IF NOT EXISTS `servers_new` (
       `id` TEXT NOT NULL,
@@ -442,7 +375,7 @@ private val SQL_CREATE_SERVERS_NEW =
     )
     """.trimIndent()
 
-private val SQL_INSERT_SERVERS_NEW =
+private val sqlInsertServersNew =
     """
     INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `workingDirectory`, `preferredAuthMethodId`)
     SELECT `id`, `name`, `scheme`, `host`, `token`, `workingDirectory`, `preferredAuthMethodId`
@@ -450,7 +383,7 @@ private val SQL_INSERT_SERVERS_NEW =
     WHERE `sourceKind` = 'MANUAL_ACP'
     """.trimIndent()
 
-private val SQL_CREATE_SESSIONS_NEW =
+private val sqlCreateSessionsNew =
     """
     CREATE TABLE IF NOT EXISTS `sessions_new` (
       `sessionId` TEXT NOT NULL,
@@ -462,13 +395,13 @@ private val SQL_CREATE_SESSIONS_NEW =
     )
     """.trimIndent()
 
-private val SQL_INSERT_SESSIONS_NEW =
+private val sqlInsertSessionsNew =
     """
     INSERT INTO `sessions_new` (`sessionId`, `serverId`, `title`, `cwd`, `updatedAt`)
     SELECT `sessionId`, `serverId`, `title`, `cwd`, `updatedAt` FROM `sessions`
     """.trimIndent()
 
-private val SQL_CREATE_LAUNCHABLE_TARGET_SETTINGS =
+private val sqlCreateLaunchableTargetSettings =
     """
     CREATE TABLE IF NOT EXISTS `launchable_target_session_settings` (
       `targetId` TEXT NOT NULL,
@@ -477,19 +410,19 @@ private val SQL_CREATE_LAUNCHABLE_TARGET_SETTINGS =
     )
     """.trimIndent()
 
-private val SQL_INSERT_TARGET_SETTINGS_FROM_SERVERS =
+private val sqlInsertTargetSettingsFromServers =
     """
     INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
     SELECT `id`, `workingDirectory` FROM `servers`
     """.trimIndent()
 
-private val SQL_INSERT_TARGET_SETTINGS_FROM_BINDINGS =
+private val sqlInsertTargetSettingsFromBindings =
     """
     INSERT INTO `launchable_target_session_settings` (`targetId`, `cwd`)
     SELECT `id`, `workingDirectory` FROM `gateway_agent_bindings`
     """.trimIndent()
 
-private val SQL_8_9_CREATE_SERVERS_NEW =
+private val sql8To9CreateServersNew =
     """
     CREATE TABLE IF NOT EXISTS `servers_new` (
       `id` TEXT NOT NULL,
@@ -502,13 +435,13 @@ private val SQL_8_9_CREATE_SERVERS_NEW =
     )
     """.trimIndent()
 
-private val SQL_8_9_INSERT_SERVERS_NEW =
+private val sql8To9InsertServersNew =
     """
     INSERT INTO `servers_new` (`id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId`)
     SELECT `id`, `name`, `scheme`, `host`, `token`, `preferredAuthMethodId` FROM `servers`
     """.trimIndent()
 
-private val SQL_CREATE_GATEWAY_AGENT_BINDINGS_NEW =
+private val sqlCreateGatewayAgentBindingsNew =
     """
     CREATE TABLE IF NOT EXISTS `gateway_agent_bindings_new` (
       `id` TEXT NOT NULL,
@@ -525,43 +458,43 @@ private const val SQL_INDEX_GATEWAY_AGENT_BINDINGS_NEW =
     "CREATE INDEX IF NOT EXISTS `index_gateway_agent_bindings_new_gatewaySourceId` " +
         "ON `gateway_agent_bindings_new` (`gatewaySourceId`)"
 
-private val SQL_INSERT_GATEWAY_AGENT_BINDINGS_NEW =
+private val sqlInsertGatewayAgentBindingsNew =
     """
     INSERT INTO `gateway_agent_bindings_new` (`id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId`)
     SELECT `id`, `name`, `gatewaySourceId`, `agentId`, `preferredAuthMethodId` FROM `gateway_agent_bindings`
     """.trimIndent()
 
-private val MIGRATION_7_8 =
+private val migration7To8 =
     object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL(SQL_CREATE_GATEWAY_AGENT_BINDINGS)
+            db.execSQL(sqlCreateGatewayAgentBindings)
             db.execSQL(SQL_INDEX_GATEWAY_AGENT_BINDINGS_GATEWAY_SOURCE_ID)
-            db.execSQL(SQL_INSERT_GATEWAY_AGENT_BINDINGS)
-            db.execSQL(SQL_CREATE_SERVERS_NEW)
-            db.execSQL(SQL_INSERT_SERVERS_NEW)
+            db.execSQL(sqlInsertGatewayAgentBindings)
+            db.execSQL(sqlCreateServersNew)
+            db.execSQL(sqlInsertServersNew)
             db.execSQL("DROP TABLE `servers`")
             db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
-            db.execSQL(SQL_CREATE_SESSIONS_NEW)
-            db.execSQL(SQL_INSERT_SESSIONS_NEW)
+            db.execSQL(sqlCreateSessionsNew)
+            db.execSQL(sqlInsertSessionsNew)
             db.execSQL("DROP TABLE `sessions`")
             db.execSQL("ALTER TABLE `sessions_new` RENAME TO `sessions`")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_sessions_serverId` ON `sessions` (`serverId`)")
         }
     }
 
-private val MIGRATION_8_9 =
+private val migration8To9 =
     object : Migration(8, 9) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL(SQL_CREATE_LAUNCHABLE_TARGET_SETTINGS)
-            db.execSQL(SQL_INSERT_TARGET_SETTINGS_FROM_SERVERS)
-            db.execSQL(SQL_INSERT_TARGET_SETTINGS_FROM_BINDINGS)
-            db.execSQL(SQL_8_9_CREATE_SERVERS_NEW)
-            db.execSQL(SQL_8_9_INSERT_SERVERS_NEW)
+            db.execSQL(sqlCreateLaunchableTargetSettings)
+            db.execSQL(sqlInsertTargetSettingsFromServers)
+            db.execSQL(sqlInsertTargetSettingsFromBindings)
+            db.execSQL(sql8To9CreateServersNew)
+            db.execSQL(sql8To9InsertServersNew)
             db.execSQL("DROP TABLE `servers`")
             db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
-            db.execSQL(SQL_CREATE_GATEWAY_AGENT_BINDINGS_NEW)
+            db.execSQL(sqlCreateGatewayAgentBindingsNew)
             db.execSQL(SQL_INDEX_GATEWAY_AGENT_BINDINGS_NEW)
-            db.execSQL(SQL_INSERT_GATEWAY_AGENT_BINDINGS_NEW)
+            db.execSQL(sqlInsertGatewayAgentBindingsNew)
             db.execSQL("DROP TABLE `gateway_agent_bindings`")
             db.execSQL("ALTER TABLE `gateway_agent_bindings_new` RENAME TO `gateway_agent_bindings`")
         }
@@ -571,14 +504,14 @@ private val MIGRATION_8_9 =
 // "rename helper to gateway" refactor without a registered migration, which crashed any
 // upgrade from a v11 database. The rename was code-only (no schema change), so this is a
 // no-op that simply makes the migration chain valid again.
-private val MIGRATION_11_12 =
+private val migration11To12 =
     object : Migration(11, 12) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // No schema change.
         }
     }
 
-private val MIGRATION_12_13 =
+private val migration12To13 =
     object : Migration(12, 13) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // Adds the gateway-owned identifier used to translate push payloads' serverId
@@ -592,14 +525,14 @@ private val MIGRATION_12_13 =
         }
     }
 
-private val MIGRATION_13_14 =
+private val migration13To14 =
     object : Migration(13, 14) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // No schema change — version bump only
         }
     }
 
-private val MIGRATION_10_11 =
+private val migration10To11 =
     object : Migration(10, 11) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // Credentials are now encrypted at the repository layer via CredentialEncryptor.
@@ -611,7 +544,7 @@ private val MIGRATION_10_11 =
         }
     }
 
-private val MIGRATION_9_10 =
+private val migration9To10 =
     object : Migration(9, 10) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(

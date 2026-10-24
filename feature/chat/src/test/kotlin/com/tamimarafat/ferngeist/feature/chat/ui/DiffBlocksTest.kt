@@ -2,6 +2,13 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffBlockResult
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.buildDiffRows
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffBlocks
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.fileNameOf
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.isDirectoryEntry
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -117,6 +124,13 @@ class DiffBlocksTest {
         assertEquals(DiffStats(additions = 2, deletions = 0), listOf(diff).computeDiffStats())
         assertEquals(2, buildDiffRows(diff.oldText, diff.newText).size)
         assert(buildDiffRows(diff.oldText, diff.newText).all { it is LineDiffRow.Insert })
+    }
+
+    @Test
+    fun deletionOnlyDiff_countsRemovedLines() {
+        val diff = ToolCallContent.Diff(path = "a.kt", oldText = "one\ntwo\nthree", newText = "one")
+
+        assertEquals(DiffStats(additions = 0, deletions = 2), listOf(diff).computeDiffStats())
     }
 
     @Test

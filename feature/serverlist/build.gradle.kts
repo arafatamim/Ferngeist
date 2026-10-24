@@ -42,7 +42,13 @@ kotlin {
     }
 }
 
+val mockkAgent by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
 dependencies {
+    mockkAgent(libs.byte.buddy.agent)
     // === Core ===
     implementation(projects.core.model)
     implementation(projects.core.common)
@@ -82,4 +88,9 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
     testImplementation(libs.mockk)
+}
+
+tasks.withType<Test>().configureEach {
+    // Install MockK's instrumentation at startup instead of dynamically attaching it.
+    jvmArgs("-javaagent:${mockkAgent.asPath}")
 }

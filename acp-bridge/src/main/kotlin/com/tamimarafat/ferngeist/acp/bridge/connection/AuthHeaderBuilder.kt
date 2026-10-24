@@ -177,33 +177,34 @@ enum class SessionAttachRpc(
     val rpc: String,
     val failureLabel: String,
 ) {
-    Load("session/load", "Failed to load session"),
-    Resume("session/resume", "Failed to resume session"),
+    LOAD("session/load", "Failed to load session"),
+    RESUME("session/resume", "Failed to resume session"),
 }
 
 /** Single capability→RPC decision; see [SessionAttachRpc]. */
 fun AgentCapabilities?.sessionAttachRpc(): SessionAttachRpc? {
-    if (this == null) return SessionAttachRpc.Load
+    if (this == null) return SessionAttachRpc.LOAD
     return when {
-        loadSession -> SessionAttachRpc.Load
-        supportsResume() -> SessionAttachRpc.Resume
+        loadSession -> SessionAttachRpc.LOAD
+        supportsResume() -> SessionAttachRpc.RESUME
         else -> null
     }
 }
 
 @OptIn(UnstableApi::class)
 fun AgentCapabilities.displayLabels(): List<String> =
-    buildList {
-        if (loadSession) add("Load")
-        if (promptCapabilities.image) add("Images")
-        if (promptCapabilities.embeddedContext) add("Context")
-        if (promptCapabilities.audio) add("Audio")
-        if (mcpCapabilities.http) add("MCP HTTP")
-        if (mcpCapabilities.sse) add("MCP SSE")
-        if (sessionCapabilities.list != null) add("List")
-        if (supportsResume()) add("Resume")
-        if (sessionCapabilities.fork != null) add("Fork")
-    }
+    listOf(
+        loadSession to "Load",
+        promptCapabilities.image to "Images",
+        promptCapabilities.embeddedContext to "Context",
+        promptCapabilities.audio to "Audio",
+        mcpCapabilities.http to "MCP HTTP",
+        mcpCapabilities.sse to "MCP SSE",
+        (sessionCapabilities.list != null) to "List",
+        supportsResume() to "Resume",
+        (sessionCapabilities.fork != null) to "Fork",
+    ).filter { (advertised, _) -> advertised }
+        .map { (_, label) -> label }
 
 sealed interface AcpInitializeResult {
     val agentInfo: AgentInfo

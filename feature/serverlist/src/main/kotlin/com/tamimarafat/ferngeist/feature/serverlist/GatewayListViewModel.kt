@@ -4,13 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
-import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
-import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
-import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
-import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,36 +19,31 @@ import javax.inject.Inject
 class GatewayListViewModel
     @Inject
     constructor(
-        private val gatewaySourceRepository: GatewaySourceRepository,
+        private val repos: ServerRepositories,
+        private val stores: ServerLocalStores,
         private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
-        private val sessionRepository: SessionRepository,
-        private val authEnvValueStore: AuthEnvValueStore,
-        private val agentLaunchConsentStore: AgentLaunchConsentStore,
-        private val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
-        private val recentCwdStore: RecentCwdStore,
-        private val recentSelectionStore: RecentSelectionStore,
     ) : ViewModel() {
         val gateways: StateFlow<List<GatewaySource>> =
-            gatewaySourceRepository
+            repos.gatewaySourceRepository
                 .getGateways()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         fun deleteGateway(gateway: GatewaySource) {
             viewModelScope.launch {
                 gatewayAgentBindingRepository.getBindingsForGateway(gateway.id).forEach { binding ->
-                    authEnvValueStore.deleteValues(binding.id)
-                    sessionRepository.clearSessions(binding.id)
-                    sessionSettingsRepository.deleteSettings(binding.id)
-                    recentCwdStore.clear(binding.id)
+                    stores.authEnvValueStore.deleteValues(binding.id)
+                    repos.sessionRepository.clearSessions(binding.id)
+                    repos.sessionSettingsRepository.deleteSettings(binding.id)
+                    stores.recentCwdStore.clear(binding.id)
                     // Prefix-based cleanup: clearByPrefix removes all entries whose DataStore key
                     // starts with the given prefix. Trailing ":" prevents cross-server ID matches.
-                    recentSelectionStore.clearByPrefix("config_option:${binding.id}:")
-                    recentSelectionStore.clearByPrefix("commands:${binding.id}:")
+                    stores.recentSelectionStore.clearByPrefix("config_option:${binding.id}:")
+                    stores.recentSelectionStore.clearByPrefix("commands:${binding.id}:")
                     gatewayAgentBindingRepository.deleteBinding(binding.id)
                 }
-                agentLaunchConsentStore.clearByPrefix(gateway.id)
-                authEnvValueStore.deleteValues(gateway.id)
-                gatewaySourceRepository.deleteGateway(gateway.id)
+                stores.agentLaunchConsentStore.clearByPrefix(gateway.id)
+                stores.authEnvValueStore.deleteValues(gateway.id)
+                repos.gatewaySourceRepository.deleteGateway(gateway.id)
             }
         }
     }

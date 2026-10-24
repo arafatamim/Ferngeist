@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,7 +41,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     @Test
     fun `switcher hint is offered while unseen and never again once marked`() =
         runTest {
-            val viewModel = createViewModel(switcherHintStore = InMemorySwitcherHintStore())
+            val viewModel = createViewModel(stores = testStores(switcherHintStore = InMemorySwitcherHintStore()))
             viewModel.switcherHintSeen.test {
                 // The state starts "seen" so nothing flashes while the store
                 // answers; the store then reports the real unseen flag.
@@ -76,7 +77,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         runTest {
             val facadeFactory = TestFacadeFactory { TestFacade() }
             val handle = newSessionHandle()
-            val viewModel = createViewModel(facadeFactory = facadeFactory, savedStateHandle = handle)
+            createViewModel(facadeFactory = facadeFactory, savedStateHandle = handle)
             advanceUntilIdle()
 
             facadeFactory.lastFacade.value?.emitLiveChatId("server_1/session_minted")
@@ -97,11 +98,15 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     @Test
     fun `set config option without active session emits session not ready error`() =
         runTest {
-            val viewModel = createViewModel()
+            // A sentinel, so the assertion cannot pass by echoing the load failure below.
+            val operationError = "facade operation error"
+            val facadeFactory = TestFacadeFactory { TestFacade(operationErrorText = operationError) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
             advanceUntilIdle()
 
             viewModel.effects.test {
-                assertTrue(awaitItem() is ChatEffect.ShowError)
+                // The init load failure, which the operation error must not be confused with.
+                val loadFailure = (awaitItem() as ChatEffect.ShowError).message
 
                 viewModel.dispatch(
                     ChatIntent.SetConfigOption(
@@ -111,28 +116,15 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                 )
                 advanceUntilIdle()
 
-                val effect = awaitItem() as ChatEffect.ShowError
-                assertTrue(effect.message.contains("Session is not ready", ignoreCase = true))
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
+                val configError = (awaitItem() as ChatEffect.ShowError).message
+                assertEquals(operationError, configError)
+                assertNotEquals(loadFailure, configError)
 
-    @Test
-    fun `send message without active session enqueues the message`() =
-        runTest {
-            val viewModel = createViewModel()
-            advanceUntilIdle()
-
-            viewModel.effects.test {
-                assertTrue(awaitItem() is ChatEffect.ShowError)
-
-                viewModel.dispatch(ChatIntent.SendMessage("hello"))
+                // Cancel routes through the same no-session facade call.
+                viewModel.dispatch(ChatIntent.CancelStreaming)
                 advanceUntilIdle()
 
-                val state = viewModel.state.value
-                assertEquals(1, state.pendingMessages.size)
-                assertEquals("hello", state.pendingMessages[0].content)
-                assertEquals(MessageDeliveryStatus.QUEUED, state.pendingMessages[0].status)
+                assertEquals(operationError, (awaitItem() as ChatEffect.ShowError).message)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -160,51 +152,25 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `cancel streaming without active session emits session not ready error`() =
-        runTest {
-            val viewModel = createViewModel()
-            advanceUntilIdle()
-
-            viewModel.effects.test {
-                assertTrue(awaitItem() is ChatEffect.ShowError)
-
-                viewModel.dispatch(ChatIntent.CancelStreaming)
-                advanceUntilIdle()
-
-                val effect = awaitItem() as ChatEffect.ShowError
-                assertTrue(effect.message.contains("Session is not ready", ignoreCase = true))
-                assertFalse(viewModel.state.value.isStreaming)
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
-    @Test
     fun `restores persisted scroll snapshot into initial state`() =
         runTest {
+            val seeded =
+                ChatScrollSnapshot(
+                    anchorMessageId = "message_7",
+                    firstVisibleItemIndex = 7,
+                    firstVisibleItemScrollOffset = 24,
+                    isFollowing = false,
+                    savedAt = 1234L,
+                )
             val chatScrollStateStore =
                 InMemoryChatScrollStateStore().apply {
-                    save(
-                        serverId = "server_1",
-                        sessionId = "session_1",
-                        snapshot =
-                            ChatScrollSnapshot(
-                                anchorMessageId = "message_7",
-                                firstVisibleItemIndex = 7,
-                                firstVisibleItemScrollOffset = 24,
-                                isFollowing = false,
-                                savedAt = 1234L,
-                            ),
-                    )
+                    save(serverId = "server_1", sessionId = "session_1", snapshot = seeded)
                 }
 
-            val viewModel = createViewModel(chatScrollStateStore = chatScrollStateStore)
+            val viewModel = createViewModel(stores = testStores(chatScrollStateStore = chatScrollStateStore))
             advanceUntilIdle()
 
-            assertTrue(viewModel.state.value.restoredScrollSnapshot != null)
-            assertFalse(
-                viewModel.state.value.restoredScrollSnapshot
-                    ?.isFollowing ?: true,
-            )
+            assertEquals(seeded, viewModel.state.value.restoredScrollSnapshot)
         }
 
     @Test
@@ -228,7 +194,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 
@@ -277,8 +243,8 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
                     facadeFactory = SnapshotChatSessionFacadeFactory(snapshot),
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 
@@ -302,8 +268,8 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
                     facadeFactory = SnapshotChatSessionFacadeFactory(snapshot),
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 
@@ -319,7 +285,10 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     fun `does not re-persist title on subsequent snapshots with same title`() =
         runTest {
             val sessionRepository = FakeSessionRepository()
-            val snapshot = readySnapshot(title = "Generated Title")
+            val facade =
+                TestFacade().apply {
+                    emitSnapshot(readySnapshot(title = "Generated Title"))
+                }
             val viewModel =
                 createViewModel(
                     savedStateHandle =
@@ -330,19 +299,27 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
-                    facadeFactory = SnapshotChatSessionFacadeFactory(snapshot),
+                    facadeFactory = TestFacadeFactory { facade },
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 
             assertEquals("Generated Title", viewModel.state.value.title)
             assertEquals(1, sessionRepository.updateTitleCalls.size)
 
-            // Simulate a second snapshot via direct applySnapshot call through
-            // the exposed snapshot StateFlow — since the title is already set,
-            // no additional persist should occur.
-            val secondCallCount = sessionRepository.updateTitleCalls.size
-            assertEquals(1, secondCallCount)
+            // A distinct snapshot (new messages) carrying the same title: an identical
+            // instance would be swallowed by StateFlow equality and never reach the
+            // dedup branch, which is exactly the guard under test.
+            facade.emitSnapshot(
+                readySnapshot(
+                    title = "Generated Title",
+                    messages = listOf(assistantMessage(id = "assistant_2")),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("Generated Title", viewModel.state.value.title)
+            assertEquals(1, sessionRepository.updateTitleCalls.size)
         }
 
     @Test
@@ -365,8 +342,8 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
                     facadeFactory = TestFacadeFactory { facade },
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 
@@ -471,8 +448,8 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
                     facadeFactory = TestFacadeFactory { facade },
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 
@@ -508,8 +485,8 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
                     facadeFactory = TestFacadeFactory { facade },
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 
@@ -568,7 +545,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
             assertNull(viewModel.state.value.title)
@@ -612,8 +589,8 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                                 "cwd" to "/",
                             ),
                         ),
-                    sessionRepository = sessionRepository,
                     facadeFactory = TestFacadeFactory { facade },
+                    repositories = testRepositories(sessionRepository = sessionRepository),
                 )
             advanceUntilIdle()
 

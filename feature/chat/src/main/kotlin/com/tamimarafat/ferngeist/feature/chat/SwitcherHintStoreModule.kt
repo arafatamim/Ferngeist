@@ -8,8 +8,8 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class SwitcherHintStoreModule {
+interface SwitcherHintStoreModule {
     @Binds
     @Singleton
-    abstract fun bindSwitcherHintStore(impl: DataStoreSwitcherHintStore): SwitcherHintStore
+    fun bindSwitcherHintStore(impl: DataStoreSwitcherHintStore): SwitcherHintStore
 }

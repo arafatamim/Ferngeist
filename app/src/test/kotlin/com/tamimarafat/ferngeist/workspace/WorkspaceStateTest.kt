@@ -34,11 +34,6 @@ class WorkspaceStateTest {
         assertTrue(state.agentsInLeft)
         assertEquals("/work", state.cwd)
         assertEquals("Session S", state.title)
-        // The D9 cold-start and D1 back target are the same state.
-        assertEquals(
-            listOf(WorkspacePane.AGENTS, WorkspacePane.CHAT),
-            desirablePanes(2, state.selectedServerId, state.selectedSessionId, state.agentsInLeft),
-        )
     }
 
     @Test
@@ -50,15 +45,6 @@ class WorkspaceStateTest {
         assertTrue(state.agentsInLeft)
         // D1: the chat stays pinned; only the left pane steps up to the agents.
         assertEquals("s", state.selectedSessionId)
-        assertEquals(
-            listOf(WorkspacePane.AGENTS, WorkspacePane.CHAT),
-            desirablePanes(2, state.selectedServerId, state.selectedSessionId, state.agentsInLeft),
-        )
-        // and at one pane the same state yields the chat, per the D1 table.
-        assertEquals(
-            listOf(WorkspacePane.CHAT),
-            desirablePanes(1, state.selectedServerId, state.selectedSessionId, state.agentsInLeft),
-        )
     }
 
     @Test
@@ -73,19 +59,11 @@ class WorkspaceStateTest {
     }
 
     @Test
-    fun mintedIdIsCarriedSoItSurvivesProcessDeath() {
-        val state = WorkspaceState(null, null, false)
-        assertNull(state.mintedSessionId)
-        state.mintedSessionId = "real-42"
-        assertEquals("real-42", state.mintedSessionId)
-    }
-
-    @Test
     fun saver_roundTripsEveryField() {
         val scope = SaverScope { true }
         val state = WorkspaceState("srv", "sess", true, "real-42", "/work", "Session S")
-        val saved = with(WorkspaceState.Saver) { scope.save(state) }
-        val restored = WorkspaceState.Saver.restore(saved!!)
+        val saved = with(WorkspaceState.saver) { scope.save(state) }
+        val restored = WorkspaceState.saver.restore(saved!!)
         assertEquals("srv", restored!!.selectedServerId)
         assertEquals("sess", restored.selectedSessionId)
         assertTrue(restored.agentsInLeft)

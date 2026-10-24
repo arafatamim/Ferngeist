@@ -6,10 +6,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.Saver as ComposeSaver
 
 /**
  * The session a pane hosts: its two ids plus the two fields a pane-built `ChatViewModel` cannot
@@ -120,7 +120,7 @@ class WorkspaceState(
         workspacePaneValue(maxPartitions, selectedServerId, selectedSessionId, agentsInLeft)
 
     companion object {
-        val Saver: Saver<WorkspaceState, Any> =
+        val saver: ComposeSaver<WorkspaceState, Any> =
             listSaver(
                 save = {
                     listOf(
@@ -148,6 +148,6 @@ class WorkspaceState(
 
 @Composable
 fun rememberWorkspaceState(): WorkspaceState =
-    rememberSaveable(saver = WorkspaceState.Saver) {
+    rememberSaveable(saver = WorkspaceState.saver) {
         WorkspaceState(selectedServerId = null, selectedSessionId = null, agentsInLeft = false)
     }

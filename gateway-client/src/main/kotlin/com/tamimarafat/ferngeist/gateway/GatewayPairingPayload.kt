@@ -56,7 +56,7 @@ object GatewayPairingPayloadParser {
     ): GatewayPairingPayload? {
         if (host.isBlank() || code.isBlank() || challengeId.isBlank()) return null
         return GatewayPairingPayload(
-            scheme = scheme?.takeUnless { it.isNullOrBlank() } ?: "http",
+            scheme = scheme?.takeUnless { it.isBlank() } ?: "http",
             host = host,
             code = code,
             challengeId = challengeId,

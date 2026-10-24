@@ -8,8 +8,8 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class AgentLaunchConsentModule {
+interface AgentLaunchConsentModule {
     @Binds
     @Singleton
-    abstract fun bindAgentLaunchConsentStore(impl: AgentLaunchConsentStoreImpl): AgentLaunchConsentStore
+    fun bindAgentLaunchConsentStore(impl: AgentLaunchConsentStoreImpl): AgentLaunchConsentStore
 }

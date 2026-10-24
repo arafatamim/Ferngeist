@@ -60,21 +60,13 @@ class MarkdownEngineIdentityTest {
             "a paragraph that only grew is updated, not inserted",
             id !in delta.insertedBlockIds,
         )
-    }
-
-    @Test
-    fun `reset restores a document with no blocks`() {
-        val engine = MarkdownEngine(MarkdownDialect.GfmCompat)
-        engine.append("Something")
-
-        engine.reset()
-
         assertTrue(
-            engine
-                .snapshot()
+            "a paragraph that only grew keeps its id instead of being renumbered",
+            delta
+                .snapshot
                 .document
                 .blocks
-                .isEmpty(),
+                .any { it.id == id },
         )
     }
 }

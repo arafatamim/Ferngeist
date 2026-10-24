@@ -78,7 +78,13 @@ internal fun formatElapsed(
             elapsed.minutes.takeIf { it > 0 }?.let { Measure(it, MeasureUnit.MINUTE) },
             elapsed.seconds.takeIf { it > 0 }?.let { Measure(it, MeasureUnit.SECOND) },
         )
-    return format.formatMeasures(*measures.toTypedArray())
+    // At most three units, so each is passed directly rather than through a spread of an array copy.
+    return when (measures.size) {
+        0 -> format.formatMeasures()
+        1 -> format.formatMeasures(measures[0])
+        2 -> format.formatMeasures(measures[0], measures[1])
+        else -> format.formatMeasures(measures[0], measures[1], measures[2])
+    }
 }
 
 /** The header's "1m 20s", and the spoken form TalkBack reads instead. */

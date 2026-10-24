@@ -31,10 +31,8 @@ class InMemoryChatScrollStateStore : ChatScrollStateStore {
 }
 
 /** In-memory switcher hint store for tests; unseen until marked. */
-class InMemorySwitcherHintStore(
-    seen: Boolean = false,
-) : SwitcherHintStore {
-    private val state = MutableStateFlow(seen)
+class InMemorySwitcherHintStore : SwitcherHintStore {
+    private val state = MutableStateFlow(false)
     override val seen: StateFlow<Boolean> = state
 
     override suspend fun markSeen() {

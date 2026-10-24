@@ -26,7 +26,6 @@ internal class ChatSwitcherController(
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val serverId: String,
     private val currentSessionId: () -> String,
-    private val emitError: suspend (String) -> Unit,
 ) {
     companion object {
         /**
@@ -76,6 +75,7 @@ internal class ChatSwitcherController(
                     SwitcherServer(
                         id = sid,
                         name = launchableTargetRepository.getTarget(sid)?.name ?: sid,
+                        worktrees = worktreesByServer[sid].orEmpty(),
                     )
                 }
             val groups =
@@ -84,9 +84,7 @@ internal class ChatSwitcherController(
                     sessionsByServer = sessionsByServer,
                     liveIdsByServer = liveByServer,
                     isGenerating = { sid, sess -> presence.isStreaming(sid, sess) },
-                    currentServerId = serverId,
-                    currentSessionId = currentSessionId(),
-                    worktreesByServer = worktreesByServer,
+                    current = SwitcherCurrent(serverId, currentSessionId()),
                 )
             SwitcherUiState(
                 groups = groups,
@@ -118,23 +116,20 @@ internal class ChatSwitcherController(
      * "close": the gateway process stops and the local transport is released.
      * Refused while the session streams — the gateway would cut a live turn —
      * and for manual agents, which have no gateway leg to release.
+     *
+     * Returns the message to show when the close is refused or fails, or null on success.
      */
     suspend fun close(
         targetServerId: String,
         targetSessionId: String,
-    ) {
-        if (presence.isStreaming(targetServerId, targetSessionId)) {
-            emitError(CLOSE_STREAMING_MESSAGE)
-            return
-        }
-        if (!presence.isGatewayBacked(targetServerId)) {
-            emitError(CLOSE_GATEWAY_ONLY_MESSAGE)
-            return
-        }
-        runCatching {
+    ): String? {
+        if (presence.isStreaming(targetServerId, targetSessionId)) return CLOSE_STREAMING_MESSAGE
+        if (!presence.isGatewayBacked(targetServerId)) return CLOSE_GATEWAY_ONLY_MESSAGE
+        return runCatching {
             presence.closeSession(targetServerId, targetSessionId)
-        }.onFailure { error ->
-            emitError(error.message ?: CLOSE_FAILED_MESSAGE)
-        }
+        }.fold(
+            onSuccess = { null },
+            onFailure = { error -> error.message ?: CLOSE_FAILED_MESSAGE },
+        )
     }
 }

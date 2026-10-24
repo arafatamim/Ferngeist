@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.cwd
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -8,7 +9,12 @@ class CwdSuggestionsTest {
     @Test
     fun worktreeChat_suggestsItsRepoInsteadOfTheWorktreePath() {
         val suggestions =
-            buildCwdSuggestions("", emptyList(), listOf(session("/work/api/.worktrees/feat-x", updatedAt = 1)))
+            buildCwdSuggestions(
+                "",
+                emptyList(),
+                listOf(session("/work/api/.worktrees/feat-x", updatedAt = 1)),
+                rootOf = { projectRoot(it, emptyList()) },
+            )
 
         assertEquals(listOf("/work/api"), suggestions.map { it.cwd })
     }
@@ -24,6 +30,7 @@ class CwdSuggestionsTest {
                     session("/work/app", updatedAt = 2),
                     session("/work/api/.worktrees/feat-x", updatedAt = 3),
                 ),
+                rootOf = { projectRoot(it, emptyList()) },
             )
 
         assertEquals(listOf("/work/api", "/work/app"), suggestions.map { it.cwd })
@@ -31,13 +38,14 @@ class CwdSuggestionsTest {
 
     @Test
     fun worktreeOutsideTheRepo_foldsIntoItsRepoAndIsNotRemovable() {
-        val rootOf = { cwd: String -> if (cwd.startsWith("/orca/api/")) "/work/api" else cwd }
+        // A worktree git knows about, but outside the repo's own .worktrees folder.
+        val managed = listOf(managedWorktree(repo = "/work/api", path = "/orca/api/feat-y"))
         val suggestions =
             buildCwdSuggestions(
                 "",
                 recentCwds = listOf("/orca/api/feat-y", "/work/app"),
-                sessions = listOf(session("/orca/api/feat-z", updatedAt = 1)),
-                rootOf = rootOf,
+                sessions = listOf(session("/orca/api/feat-y/src", updatedAt = 1)),
+                rootOf = { projectRoot(it, managed) },
             )
 
         assertEquals(
@@ -48,6 +56,18 @@ class CwdSuggestionsTest {
             suggestions,
         )
     }
+
+    private fun managedWorktree(
+        repo: String,
+        path: String,
+    ) = GatewayWorktree(
+        id = path,
+        repo = repo,
+        path = path,
+        branch = path.substringAfterLast('/'),
+        baseCommit = "abc",
+        createdAt = "2026-10-21T00:00:00Z",
+    )
 
     private fun session(
         cwd: String,

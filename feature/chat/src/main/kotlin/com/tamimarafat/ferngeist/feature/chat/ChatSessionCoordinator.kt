@@ -119,18 +119,17 @@ internal class ChatSessionCoordinator(
      * message). The facade's own failures are already surfaced as events — this only
      * catches what escapes them.
      */
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun loadGuarded(load: suspend () -> Unit) {
-        try {
-            load()
-        } catch (error: CancellationException) {
-            // The screen closed mid-load; that is not a load failure.
-            throw error
-        } catch (error: Exception) {
-            callbacks.onLoadFailed(
-                error.message?.takeIf { it.isNotBlank() }
-                    ?: "Could not load this session. Check connection and retry.",
-            )
+        runCatching { load() }.onFailure { error ->
+            when (error) {
+                // The screen closed mid-load, and an error (not an exception) is not ours to show.
+                is CancellationException, !is Exception -> throw error
+                else ->
+                    callbacks.onLoadFailed(
+                        error.message?.takeIf { it.isNotBlank() }
+                            ?: "Could not load this session. Check connection and retry.",
+                    )
+            }
         }
     }
 

@@ -73,7 +73,7 @@ internal fun rememberComposerInsets(
     // above the composer's own top edge so content begins to dim just before it
     // slides under the pill.
     //
-    // [BOTTOM_FADE_LEAD] must stay under the 36dp of clearance the list keeps
+    // [bottomFadeLead] must stay under the 36dp of clearance the list keeps
     // above the composer (see [listBottomPadding]), otherwise the last message
     // would be tinted while at rest.
     val bottomFadeBandHeight =
@@ -84,7 +84,7 @@ internal fun rememberComposerInsets(
                 composerContentHeightDp +
                     systemBottomInsetDp +
                     FloatingToolbarDefaults.ScreenOffset +
-                    BOTTOM_FADE_LEAD
+                    bottomFadeLead
             }
         }
     return ComposerInsets(
@@ -97,4 +97,4 @@ internal fun rememberComposerInsets(
 }
 
 // How far above the composer's top edge the bottom fade begins.
-private val BOTTOM_FADE_LEAD = 24.dp
+private val bottomFadeLead = 24.dp

@@ -99,25 +99,31 @@ private fun Char.isBoundary(byLine: Boolean): Boolean = if (byLine) this == '\n'
 
 /**
  * Rendered length of [this] block — must agree with what [MarkdownBlocks] draws for it. One branch
- * per BlockNode subtype, mirroring MarkdownBlock; splitting it would hide that pairing.
+ * per BlockNode subtype, mirroring MarkdownBlock: containers here, leaf blocks in [leafRevealLength].
  */
-@Suppress("CyclomaticComplexMethod")
 internal fun BlockNode.revealLength(): Int =
+    when (this) {
+        is BlockNode.TableRow -> cells.sumOf { it.revealLength() }
+        is BlockNode.TableBlock -> header.revealLength() + rows.sumOf { it.revealLength() }
+        is BlockNode.Document -> children.sumOf { it.revealLength() }
+        is BlockNode.BlockQuote -> children.sumOf { it.revealLength() }
+        is BlockNode.ListBlock -> items.sumOf { it.revealLength() }
+        is BlockNode.ListItem -> children.sumOf { it.revealLength() }
+        else -> leafRevealLength()
+    }
+
+/** The blocks with no child blocks: their text, or a thematic break's single mark. */
+private fun BlockNode.leafRevealLength(): Int =
     when (this) {
         is BlockNode.Paragraph -> children.inlineLength()
         is BlockNode.Heading -> children.inlineLength()
         is BlockNode.TableCell -> children.inlineLength()
-        is BlockNode.TableRow -> cells.sumOf { it.revealLength() }
-        is BlockNode.TableBlock -> header.revealLength() + rows.sumOf { it.revealLength() }
         is BlockNode.FencedCodeBlock -> literal.length
         is BlockNode.RawTextBlock -> literal.length
         is BlockNode.UnsupportedBlock -> literal.length
         is BlockNode.MathBlock -> latex.length
         is BlockNode.ThematicBreak -> 1
-        is BlockNode.Document -> children.sumOf { it.revealLength() }
-        is BlockNode.BlockQuote -> children.sumOf { it.revealLength() }
-        is BlockNode.ListBlock -> items.sumOf { it.revealLength() }
-        is BlockNode.ListItem -> children.sumOf { it.revealLength() }
+        else -> error("${this::class.simpleName} is measured by revealLength, not as a leaf")
     }
 
 /** Mirrors `appendInlineNodes` in MarkdownBlocks.kt; the two must count the same characters. */

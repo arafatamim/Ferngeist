@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -53,8 +54,8 @@ private const val EVENT_REPLAY_TAIL = 8
 class SessionBridge(
     override val sessionId: String,
     private val connectionManager: AcpConnection?,
+    defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : SessionPort {
-    // runCatching: JVM unit tests drive bridges against android.jar stubs, as SessionDebug does.
     internal val runtime: SessionRuntime =
         SessionRuntime(sessionId = sessionId, clock = { runCatching { SystemClock.elapsedRealtime() }.getOrNull() })
     override val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
@@ -86,7 +87,7 @@ class SessionBridge(
     override val modelSelectionEvents: SharedFlow<AppSessionEvent.ModelSelectionConfirmed> =
         _modelSelectionEvents.asSharedFlow()
 
-    private val eventScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val eventScope = CoroutineScope(SupervisorJob() + defaultDispatcher)
 
     private val traceTag = "TSBridge"
 
@@ -116,26 +117,6 @@ class SessionBridge(
     /** Cancels the turn in flight, if any, keeping the bridge usable for the next attach. */
     internal fun interruptTurn() {
         eventScope.coroutineContext.cancelChildren()
-    }
-
-    /** Marks the session as entering hydration (history replay) mode. */
-    suspend fun beginHydration() {
-        runtime.beginHydration()
-    }
-
-    /** Marks hydration as completed and transitions the runtime toward ready. */
-    suspend fun completeHydration() {
-        runtime.completeHydration()
-    }
-
-    /** Marks hydration as failed and stores the failure message. */
-    suspend fun failHydration(error: String?) {
-        runtime.failHydration(error)
-    }
-
-    /** Marks the session as ready once initial state has been fully built. */
-    suspend fun markReady() {
-        runtime.markReady()
     }
 
     /**
@@ -189,9 +170,9 @@ class SessionBridge(
     ): SteerOutcome {
         val outcome =
             connectionManager?.sessions?.steerSession(sessionId, text, images, files)
-                ?: SteerOutcome.NotConsumed
-        if (outcome != SteerOutcome.NotConsumed) {
-            runtime.onPromptSteered(text, images, files, injected = outcome == SteerOutcome.Injected)
+                ?: SteerOutcome.NOT_CONSUMED
+        if (outcome != SteerOutcome.NOT_CONSUMED) {
+            runtime.onPromptSteered(text, images, files, injected = outcome == SteerOutcome.INJECTED)
         }
         return outcome
     }

@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.data.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.tamimarafat.ferngeist.data.database.dao.GatewayAgentBindingDao
+import com.tamimarafat.ferngeist.data.database.dao.GatewaySessionLeaseDao
 import com.tamimarafat.ferngeist.data.database.dao.GatewaySourceDao
 import com.tamimarafat.ferngeist.data.database.dao.LaunchableTargetSessionSettingsDao
 import com.tamimarafat.ferngeist.data.database.dao.ServerDao
@@ -35,6 +36,8 @@ abstract class FerngeistDatabase : RoomDatabase() {
     abstract fun gatewayAgentBindingDao(): GatewayAgentBindingDao
 
     abstract fun sessionDao(): SessionDao
+
+    abstract fun gatewaySessionLeaseDao(): GatewaySessionLeaseDao
 
     abstract fun launchableTargetSessionSettingsDao(): LaunchableTargetSessionSettingsDao
 

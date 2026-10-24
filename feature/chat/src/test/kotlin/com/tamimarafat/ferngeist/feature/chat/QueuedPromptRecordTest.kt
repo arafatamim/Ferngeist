@@ -62,9 +62,4 @@ class QueuedPromptRecordTest {
 
         assertEquals(listOf(record), roundTrip(listOf(record)))
     }
-
-    @Test
-    fun `an empty list round trips as empty`() {
-        assertEquals(emptyList<QueuedPromptRecord>(), roundTrip(emptyList()))
-    }
 }

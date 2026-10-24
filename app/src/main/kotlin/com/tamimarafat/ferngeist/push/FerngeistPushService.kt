@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.push
 import android.util.Log
 import com.tamimarafat.ferngeist.gateway.GatewayPushSubscription
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -79,6 +80,9 @@ class FerngeistPushService : PushService() {
         val json = Json { ignoreUnknownKeys = true }
 
         // Outlives the briefly bound service so a notification still posts after it unbinds.
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val scope = newScope()
+
+        // A static scope is created before Hilt injects anything, so its dispatcher is a default argument.
+        fun newScope(dispatcher: CoroutineDispatcher = Dispatchers.IO) = CoroutineScope(SupervisorJob() + dispatcher)
     }
 }

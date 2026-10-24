@@ -29,7 +29,7 @@ class ThoughtRunTest {
     }
 
     @Test
-    fun aSingleThoughtSegmentStillResolvesToItsOwnText() {
+    fun aSingleThoughtSegmentResolvesToItsOwnText() {
         val message =
             ChatMessage(
                 role = ChatMessage.Role.ASSISTANT,

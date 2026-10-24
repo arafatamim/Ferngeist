@@ -72,10 +72,10 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.common.ui.LocalGitSemanticColors
-import com.tamimarafat.ferngeist.core.common.ui.LocalSyntaxColors
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
+import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.feature.chat.FileView
@@ -86,6 +86,8 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.MarkdownBlocksLazy
 import com.tamimarafat.ferngeist.feature.chat.markdown.documentMarkdownTypography
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxHighlighting
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
+import com.tamimarafat.ferngeist.feature.chat.ui.diff.diffLines
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -103,6 +105,7 @@ internal fun FileSheet(
     markdownPreview: Boolean,
     onMarkdownPreviewChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
+    parseDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     // Expanded only: the file lands after the sheet opens, as the tool call sheet's diff does.
     val sheetState =
@@ -117,7 +120,7 @@ internal fun FileSheet(
     // a re-tokenize and re-parse behind a spinner: the latter is what made the switch lurch.
     val lines = remember(file.text) { file.text.orEmpty().diffLines() }
     val language = remember(file.path) { SyntaxLanguageResolver.fromPath(file.path) }
-    val syntaxColors = LocalSyntaxColors.current
+    val syntaxColors = localSyntaxColors.current
     val annotatedLines by produceState<List<AnnotatedString>?>(null, file.text, language, syntaxColors) {
         value = SyntaxHighlighting.highlightLines(file.text.orEmpty(), language, syntaxColors)
     }
@@ -125,7 +128,7 @@ internal fun FileSheet(
         val text = file.text
         if (!isMarkdown || text.isNullOrEmpty()) return@produceState
         value =
-            withContext(Dispatchers.Default) {
+            withContext(parseDispatcher) {
                 IncrementalMarkdown().apply { update(text) }.document
             }
     }
@@ -536,7 +539,7 @@ private fun FileLines(
     listState: LazyListState,
     horizontalScroll: ScrollState,
 ) {
-    val colors = LocalGitSemanticColors.current
+    val colors = localGitSemanticColors.current
     val style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
     val numberColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     // Measured, not guessed: the widest number at this style and font scale, so none wraps.
@@ -620,22 +623,22 @@ private fun Gutter(
     Box(
         modifier =
             Modifier
-                .width(GUTTER_WIDTH)
+                .width(gutterWidth)
                 .fillMaxHeight()
                 .padding(end = 4.dp)
                 .background(if (changed) added else Color.Transparent)
                 .drawBehind {
                     val tick = 2.dp.toPx()
                     // Longer than the bar is wide, so a deletion reads apart from a change.
-                    val length = DELETION_TICK_LENGTH.toPx()
+                    val length = deletionTickLength.toPx()
                     if (deletedAbove) drawLine(deleted, Offset(0f, 0f), Offset(length, 0f), tick)
                     if (deletedBelow) drawLine(deleted, Offset(0f, size.height), Offset(length, size.height), tick)
                 },
     )
 }
 
-private val GUTTER_WIDTH = 7.dp
-private val DELETION_TICK_LENGTH = 9.dp
+private val gutterWidth = 7.dp
+private val deletionTickLength = 9.dp
 private const val SHORT_SHA = 7
 
 // The mode change is a fade, not a slide: two long documents moving past each other reads as a

@@ -84,7 +84,6 @@ internal fun String.lineRanges(): List<IntRange> {
     return ranges
 }
 
-@Suppress("CyclomaticComplexMethod")
 private fun syntaxStyle(
     role: SyntaxRole,
     colors: SyntaxColors,
@@ -101,24 +100,25 @@ private fun syntaxStyle(
     )
 }
 
-@Suppress("CyclomaticComplexMethod")
-private fun SyntaxColors.colorFor(role: String): Color? =
-    when (role) {
-        "keyword" -> keyword
-        "string" -> string
-        "number" -> number
-        "comment" -> comment
-        "function" -> function
-        "type" -> type
-        "property" -> property
-        "variable" -> variable
-        "operator" -> operator
-        "punctuation" -> punctuation
-        "annotation" -> annotation
-        "tag" -> tag
-        "attribute" -> attribute
-        "constant" -> constant
-        "escape" -> escape
-        "markup" -> markup
-        else -> null
-    }
+/** The colour each syntax role takes from the theme; a role without one renders plain. */
+private val syntaxRoleColors: Map<String, (SyntaxColors) -> Color?> =
+    mapOf(
+        "keyword" to { colors -> colors.keyword },
+        "string" to { colors -> colors.string },
+        "number" to { colors -> colors.number },
+        "comment" to { colors -> colors.comment },
+        "function" to { colors -> colors.function },
+        "type" to { colors -> colors.type },
+        "property" to { colors -> colors.property },
+        "variable" to { colors -> colors.variable },
+        "operator" to { colors -> colors.operator },
+        "punctuation" to { colors -> colors.punctuation },
+        "annotation" to { colors -> colors.annotation },
+        "tag" to { colors -> colors.tag },
+        "attribute" to { colors -> colors.attribute },
+        "constant" to { colors -> colors.constant },
+        "escape" to { colors -> colors.escape },
+        "markup" to { colors -> colors.markup },
+    )
+
+private fun SyntaxColors.colorFor(role: String): Color? = syntaxRoleColors[role]?.invoke(this)

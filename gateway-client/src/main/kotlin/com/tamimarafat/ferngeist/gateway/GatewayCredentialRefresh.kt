@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.gateway
 
+import android.util.Log
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import kotlinx.coroutines.CancellationException
@@ -7,6 +8,7 @@ import java.io.IOException
 import java.time.Instant
 
 private const val GATEWAY_REFRESH_WINDOW_MS = 24L * 60L * 60L * 1000L
+private const val TAG = "GatewayCredentialRefresh"
 
 suspend fun refreshGatewaySourceIfNeeded(
     gatewaySource: GatewaySource,
@@ -55,16 +57,16 @@ private suspend fun refreshGatewayCredential(
     } catch (e: GatewayRequestException) {
         // Non-fatal: the gateway rejected the refresh (HTTP error, transient failure).
         // Fall back to the existing credential rather than blocking the caller.
-        println(
-            "GatewayCredentialRefresh: refresh rejected for ${gatewaySource.name}, keeping existing credential: ${e.message}",
-        )
+        runCatching {
+            Log.w(TAG, "refresh rejected for ${gatewaySource.name}, keeping existing credential: ${e.message}")
+        }
         null
     } catch (e: IOException) {
         // Non-fatal: network error during credential refresh.
         // Fall back to the existing credential.
-        println(
-            "GatewayCredentialRefresh: network error refreshing ${gatewaySource.name}, keeping existing credential: ${e.message}",
-        )
+        runCatching {
+            Log.w(TAG, "network error refreshing ${gatewaySource.name}, keeping existing credential: ${e.message}")
+        }
         null
     }
 

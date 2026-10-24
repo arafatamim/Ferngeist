@@ -4,11 +4,13 @@ import android.util.Log
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
-import com.tamimarafat.ferngeist.gateway.launchGatewayRuntime
+import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -18,6 +20,23 @@ private const val LOG_TAG = "GatewayLaunchSupport"
 data class GatewayLaunchContext(
     val config: AcpConnectionConfig,
     val gatewaySource: GatewaySource,
+    val runtimeId: String,
+    val sessionId: String,
+)
+
+/** The repositories a launch reads its target, gateway source and gateway runtime from. */
+class LaunchRepositories(
+    val gatewayRepository: GatewayRepository,
+    val gatewaySourceRepository: GatewaySourceRepository,
+    val launchableTargetRepository: LaunchableTargetRepository,
+    val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
+    val runtimeLauncher = GatewayRuntimeLauncher(gatewayRepository, gatewaySourceRepository, ioDispatcher)
+}
+
+/** A gateway runtime a launch left up: the source it was provisioned from and the runtime's id. */
+data class GatewayRuntime(
+    val source: GatewaySource,
     val runtimeId: String,
 )
 
@@ -43,6 +62,7 @@ suspend fun loadPersistedEnvValues(
     authEnvValueStore: AuthEnvValueStore,
     serverId: String,
     authMethods: List<AcpAuthMethodInfo>,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ): Map<String, String> {
     val allowedNames =
         authMethods
@@ -51,7 +71,7 @@ suspend fun loadPersistedEnvValues(
     if (allowedNames.isEmpty()) {
         return emptyMap()
     }
-    return withContext(Dispatchers.IO) {
+    return withContext(ioDispatcher) {
         authEnvValueStore
             .getValues(serverId)
             .filterKeys { key -> key in allowedNames }
@@ -64,11 +84,12 @@ suspend fun persistEnvValues(
     serverId: String,
     method: AcpAuthMethodInfo,
     envValues: Map<String, String>,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     if (method.envVars.isEmpty()) {
         return
     }
-    withContext(Dispatchers.IO) {
+    withContext(ioDispatcher) {
         authEnvValueStore.updateValues(
             serverId = serverId,
             envVarNames = method.envVars.mapTo(linkedSetOf()) { envVar -> envVar.name },
@@ -82,34 +103,33 @@ suspend fun persistEnvValues(
  * call, which also returns the runtime-scoped ACP WebSocket handoff.
  */
 suspend fun buildGatewayLaunchContext(
-    gatewayRepository: GatewayRepository,
-    gatewaySourceRepository: GatewaySourceRepository,
+    runtimeLauncher: GatewayRuntimeLauncher,
     server: LaunchableTarget.GatewayAgent,
 ): Result<GatewayLaunchContext> =
-    launchGatewayRuntime(
-        gatewayRepository = gatewayRepository,
-        gatewaySourceRepository = gatewaySourceRepository,
-        gatewaySource = server.gatewaySource,
-        agentId = server.binding.agentId,
-        // The server list is a connect path like the chat screen: probe the
-        // protocol version first so a mismatch fails here with a clear
-        // message instead of opaquely on the connect call.
-        requireSupportedProtocol = true,
-    ).map { result ->
-        val source = result.gatewaySource
-        val handoff = result.handoff
-        GatewayLaunchContext(
-            config =
-                AcpConnectionConfig.fromGatewayHandoff(
-                    gatewaySource = source,
-                    handoff = handoff,
-                    authMethodId = server.preferredAuthMethodId,
-                    displayName = server.name,
-                ),
-            gatewaySource = source,
-            runtimeId = handoff.runtimeId,
-        )
-    }
+    runtimeLauncher
+        .launch(
+            gatewaySource = server.gatewaySource,
+            agentId = server.binding.agentId,
+            // The server list is a connect path like the chat screen: probe the
+            // protocol version first so a mismatch fails here with a clear
+            // message instead of opaquely on the connect call.
+            requireSupportedProtocol = true,
+        ).map { result ->
+            val source = result.gatewaySource
+            val handoff = result.handoff
+            GatewayLaunchContext(
+                config =
+                    AcpConnectionConfig.fromGatewayHandoff(
+                        gatewaySource = source,
+                        handoff = handoff,
+                        authMethodId = server.preferredAuthMethodId,
+                        displayName = server.name,
+                    ),
+                gatewaySource = source,
+                runtimeId = handoff.runtimeId,
+                sessionId = handoff.sessionId,
+            )
+        }
 
 /**
  * Gateway-backed initialize failures can happen after the gateway has already
@@ -120,11 +140,10 @@ suspend fun buildGatewayLaunchContext(
  */
 suspend fun buildInitializeFailureMessage(
     connectionManager: AcpConnection,
-    gatewayRepository: GatewayRepository,
-    gatewaySourceRepository: GatewaySourceRepository,
+    repositories: LaunchRepositories,
     server: LaunchableTarget,
-    gatewaySource: GatewaySource?,
-    runtimeId: String?,
+    gateway: GatewayRuntime?,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ): String {
     val diagnosticMessage =
         connectionManager.diagnostics.value.recentErrors
@@ -133,38 +152,11 @@ suspend fun buildInitializeFailureMessage(
             ?.takeIf { it.isNotBlank() }
             ?: "Failed to initialize session with ${server.name}"
 
-    if (gatewaySource == null || runtimeId.isNullOrBlank() || gatewaySource.gatewayCredential.isBlank()) {
+    if (gateway == null || gateway.runtimeId.isBlank() || gateway.source.gatewayCredential.isBlank()) {
         return diagnosticMessage
     }
 
-    val runtimeHint =
-        runCatching {
-            val refreshedSource =
-                try {
-                    withContext(Dispatchers.IO) {
-                        refreshGatewaySourceIfNeeded(gatewaySource, gatewayRepository, gatewaySourceRepository)
-                    }
-                } catch (error: GatewayCredentialExpiredException) {
-                    // The credential is dead — clear it so the next launch
-                    // surfaces the pairing flow instead of opaque 401s.
-                    withContext(Dispatchers.IO) {
-                        gatewaySourceRepository.deleteGateway(gatewaySource.id)
-                    }
-                    throw error
-                }
-            gatewayRepository.fetchRuntimeLogs(
-                scheme = refreshedSource.scheme,
-                host = refreshedSource.host,
-                gatewayCredential = refreshedSource.gatewayCredential,
-                runtimeId = runtimeId,
-            )
-        }.getOrNull()
-            ?.asReversed()
-            ?.firstNotNullOfOrNull { entry ->
-                entry.message.trim().takeIf {
-                    it.isNotEmpty() && (entry.stream == "stderr" || entry.stream == "acp.stdout")
-                }
-            }
+    val runtimeHint = runtimeLogHint(gateway, repositories, ioDispatcher)
 
     // De-dup by the exact line this function would append. Substring containment
     // suppressed the runtime hint whenever some *shorter* stderr line happened to be a
@@ -176,6 +168,44 @@ suspend fun buildInitializeFailureMessage(
     }
     return "$diagnosticMessage\nGateway runtime: $hint"
 }
+
+/** The newest stderr or ACP stdout line the gateway runtime logged, or null when none can be fetched. */
+private suspend fun runtimeLogHint(
+    gateway: GatewayRuntime,
+    repositories: LaunchRepositories,
+    ioDispatcher: CoroutineDispatcher,
+): String? =
+    runCatching {
+        val refreshedSource =
+            try {
+                withContext(ioDispatcher) {
+                    refreshGatewaySourceIfNeeded(
+                        gateway.source,
+                        repositories.gatewayRepository,
+                        repositories.gatewaySourceRepository,
+                    )
+                }
+            } catch (error: GatewayCredentialExpiredException) {
+                // The credential is dead — clear it so the next launch
+                // surfaces the pairing flow instead of opaque 401s.
+                withContext(ioDispatcher) {
+                    repositories.gatewaySourceRepository.deleteGateway(gateway.source.id)
+                }
+                throw error
+            }
+        repositories.gatewayRepository.fetchRuntimeLogs(
+            scheme = refreshedSource.scheme,
+            host = refreshedSource.host,
+            gatewayCredential = refreshedSource.gatewayCredential,
+            runtimeId = gateway.runtimeId,
+        )
+    }.getOrNull()
+        ?.asReversed()
+        ?.firstNotNullOfOrNull { entry ->
+            entry.message.trim().takeIf {
+                it.isNotEmpty() && (entry.stream == "stderr" || entry.stream == "acp.stdout")
+            }
+        }
 
 fun shortInitializeFailureMessage(server: LaunchableTarget): String =
     "Failed to initialize session with ${server.name}. See logcat for details."

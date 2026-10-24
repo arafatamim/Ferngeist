@@ -3,6 +3,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.model.CreateElicitationResponse
+import com.agentclientprotocol.model.ElicitationAction
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
@@ -27,8 +28,8 @@ internal class ElicitationFlowTest {
         assertEquals(listOf("key-1", "key-2").sorted(), cancelled.sorted())
         assertTrue(first.isCompleted)
         assertTrue(second.isCompleted)
-        assertEquals(ElicitationMappers.cancelResponse().action, first.getCompleted().action)
-        assertEquals(ElicitationMappers.cancelResponse().action, second.getCompleted().action)
+        assertEquals(ElicitationAction.Cancel, first.getCompleted().action)
+        assertEquals(ElicitationAction.Cancel, second.getCompleted().action)
     }
 
     @Test
@@ -46,17 +47,8 @@ internal class ElicitationFlowTest {
         val untouched = flow.takePending("key-2")
         assertSame(theirs, untouched?.deferred)
         assertFalse(theirs.isCompleted)
-    }
 
-    @Test
-    fun cancelPendingForSession_whenNoEntryMatches_returnsEmptyList() {
-        val flow = ElicitationFlow()
-        val other = CompletableDeferred<CreateElicitationResponse>()
-        flow.addPending(key = "key-1", sessionId = "session-b", deferred = other)
-
-        val cancelled = flow.cancelPendingForSession("session-a")
-
-        assertTrue(cancelled.isEmpty())
-        assertSame(other, flow.takePending("key-1")?.deferred)
+        // A session with no pending elicitation is a no-op, not an error.
+        assertEquals(emptyList<String>(), flow.cancelPendingForSession("session-c"))
     }
 }
