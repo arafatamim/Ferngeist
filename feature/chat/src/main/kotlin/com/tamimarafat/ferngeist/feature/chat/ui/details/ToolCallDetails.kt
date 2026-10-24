@@ -49,13 +49,13 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.AGENT_TEXT_MAX_LINES
 import com.tamimarafat.ferngeist.feature.chat.ui.ContentBlockRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.DiffRenderer
-import com.tamimarafat.ferngeist.feature.chat.ui.GitTooltip
 import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
 import com.tamimarafat.ferngeist.feature.chat.ui.TerminalRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.gitFallbackDiffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitTooltip
 import com.tamimarafat.ferngeist.feature.chat.ui.localFileOpener
 import com.tamimarafat.ferngeist.feature.chat.ui.toolCallStatusLabel
 import com.tamimarafat.ferngeist.feature.chat.ui.toolKindLabel

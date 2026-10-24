@@ -37,7 +37,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = true))
             advanceUntilIdle()
 
-            val history = viewModel.state.value.gitHistory
+            val history = viewModel.state.value.git.history
             assertEquals(listOf("a", "b"), history.commits.map { it.sha })
             assertFalse(history.hasMore)
             assertTrue(history.isLoaded)
@@ -59,7 +59,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = true))
             advanceUntilIdle()
 
-            assertEquals(5, viewModel.state.value.gitHistory.total)
+            assertEquals(5, viewModel.state.value.git.history.total)
         }
 
     @Test
@@ -70,7 +70,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = false))
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.gitHistory.total)
+            assertNull(viewModel.state.value.git.history.total)
         }
 
     @Test
@@ -96,7 +96,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = false))
             advanceUntilIdle()
 
-            val history = viewModel.state.value.gitHistory
+            val history = viewModel.state.value.git.history
             assertEquals(listOf("new", "a", "b", "c", "d"), history.commits.map { it.sha })
             assertEquals("h2", history.head)
             assertTrue(history.hasMore)
@@ -133,7 +133,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = true))
             advanceUntilIdle()
 
-            val history = viewModel.state.value.gitHistory
+            val history = viewModel.state.value.git.history
             assertEquals(listOf(null to 0, "h2" to 1, null to 0), facade.gitLogRequests)
             assertNull(history.moreError)
             assertFalse(history.isLoadingMore)
@@ -147,7 +147,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = false))
             advanceUntilIdle()
 
-            val history = viewModel.state.value.gitHistory
+            val history = viewModel.state.value.git.history
             assertTrue(history.unsupported)
             assertFalse(history.isLoading)
             assertNull(history.error)
@@ -181,7 +181,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
 
             assertEquals(
                 listOf("p1-1"),
-                viewModel.state.value.gitHistory.commits
+                viewModel.state.value.git.history.commits
                     .map { it.sha },
             )
             assertEquals(listOf(null to 0, "h" to 1, null to 0), facade.gitLogRequests)
@@ -208,7 +208,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             assertEquals(1, facade.gitLogRequests.size)
             assertEquals(
                 listOf("a"),
-                viewModel.state.value.gitHistory.commits
+                viewModel.state.value.git.history.commits
                     .map { it.sha },
             )
         }
@@ -226,7 +226,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = true))
             advanceUntilIdle()
 
-            val history = viewModel.state.value.gitHistory
+            val history = viewModel.state.value.git.history
             assertEquals(listOf("a"), history.commits.map { it.sha })
             assertEquals("offline", history.moreError)
             assertNull(history.error)
@@ -244,9 +244,9 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertEquals("abc", state.gitHistory.commitSha)
-            assertEquals(listOf(renamed), state.gitHistory.commitFiles)
-            assertEquals("abc", state.gitFileDiffCommit)
+            assertEquals("abc", state.git.history.commitSha)
+            assertEquals(listOf(renamed), state.git.history.commitFiles)
+            assertEquals("abc", state.git.fileDiffCommit)
             assertEquals(listOf("abc" to "a.kt"), facade.gitDiffCommitRequests)
         }
 
@@ -261,7 +261,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = false))
             advanceUntilIdle()
 
-            assertEquals("base123", viewModel.state.value.gitHistory.base)
+            assertEquals("base123", viewModel.state.value.git.history.base)
         }
 
     @Test
@@ -282,7 +282,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitLog(more = true))
             advanceUntilIdle()
 
-            assertEquals("base123", viewModel.state.value.gitHistory.base)
+            assertEquals("base123", viewModel.state.value.git.history.base)
         }
 
     @Test
@@ -294,7 +294,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
             // Before session/load the gateway has no directory for this session, so status is empty.
             facade.emitGatewayWorkspaceConnection(GatewayWorkspaceConnection("rt-1", "http", "10.0.0.2:5788", "token"))
             advanceUntilIdle()
-            assertNull(viewModel.state.value.gitStatus)
+            assertNull(viewModel.state.value.git.status)
 
             facade.gitStatus = ChatGitStatus(branch = "main")
             facade.emitSnapshot(readySnapshot())
@@ -302,7 +302,7 @@ class ChatViewModelLoadGitLogTest : ChatViewModelTestBase() {
 
             assertEquals(
                 "main",
-                viewModel.state.value.gitStatus
+                viewModel.state.value.git.status
                     ?.branch,
             )
         }

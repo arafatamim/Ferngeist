@@ -513,13 +513,13 @@ interface ChatWorkspaceReader {
      * has not minted its real session id (the gateway would scope the read to whichever
      * session it saw last).
      */
-    suspend fun fetchGitStatus(compare: String? = null): ChatGitStatus? = null
+    suspend fun fetchGitStatus(compare: String? = null): ChatGitStatus?
 
     /**
      * The gateway worktree this chat's directory is, or null when it is not one: a manual agent, a
      * chat outside any worktree, or a gateway that predates worktrees. Other failures propagate.
      */
-    suspend fun fetchWorktree(): ChatWorktree? = null
+    suspend fun fetchWorktree(): ChatWorktree?
 
     /**
      * Diff of one file in the chat's gateway working tree, or in [commit] against its first
@@ -530,7 +530,7 @@ interface ChatWorkspaceReader {
         commit: String? = null,
         oldPath: String? = null,
         compare: String? = null,
-    ): List<ToolCallContent.Diff>? = null
+    ): List<ToolCallContent.Diff>?
 
     /**
      * One page of history from [head] (`HEAD` when null), or null when the chat has no gateway
@@ -541,28 +541,28 @@ interface ChatWorkspaceReader {
     suspend fun fetchGitLog(
         head: String?,
         skip: Int,
-    ): ChatGitLogPage? = null
+    ): ChatGitLogPage?
 
     /**
      * Branches, remote branches and tags to compare against, or null when the chat has no gateway
      * workspace. Throws [GitRefsUnsupportedException] on a gateway without branch comparison.
      */
-    suspend fun fetchGitRefs(): ChatGitRefs? = null
+    suspend fun fetchGitRefs(): ChatGitRefs?
 
     /** Files [sha] changed against its first parent, or null when the chat has no gateway workspace. */
-    suspend fun fetchGitCommitFiles(sha: String): List<ChatChangedFile>? = null
+    suspend fun fetchGitCommitFiles(sha: String): List<ChatChangedFile>?
 
     /**
      * One file of the chat's gateway workspace, [path] relative to its project directory, or null
      * when it has none. Transport failures propagate.
      */
-    suspend fun fetchFile(path: String): ChatFileContents? = null
+    suspend fun fetchFile(path: String): ChatFileContents?
 
     /**
      * The workspace's files, relative to its project directory, or null when it has none. Possibly
      * cut short on a huge repo. Throws on a gateway without the list, and on transport failures.
      */
-    suspend fun fetchFileList(): List<String>? = null
+    suspend fun fetchFileList(): List<String>?
 }
 
 /** A workspace file as the gateway read it: [text] is null for a binary file, cut at 1 MiB when [truncated]. */

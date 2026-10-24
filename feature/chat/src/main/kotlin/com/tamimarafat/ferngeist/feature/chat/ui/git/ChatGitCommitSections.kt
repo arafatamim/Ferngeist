@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
 
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.git
 
 import android.content.ClipData
 import android.content.res.Configuration
@@ -76,6 +76,7 @@ import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.ui.history.AuthorAvatar
 import com.tamimarafat.ferngeist.feature.chat.ui.history.RefBadge
 import com.tamimarafat.ferngeist.feature.chat.ui.history.commitWebUrl
@@ -358,7 +359,7 @@ private fun ColumnScope.GitCommitFiles(
         error != null ->
             ErrorStateCard(
                 headline = stringResource(R.string.chat_git_commit_error_title),
-                body = error,
+                body = localizeChatError(LocalContext.current, error),
                 icon = Icons.Rounded.CloudOff,
                 medallionContainer = MaterialTheme.colorScheme.errorContainer,
                 medallionContent = MaterialTheme.colorScheme.onErrorContainer,

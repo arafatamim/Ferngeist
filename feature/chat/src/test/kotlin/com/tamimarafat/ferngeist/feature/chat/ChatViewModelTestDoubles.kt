@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatGitLogPage
 import com.tamimarafat.ferngeist.core.model.ChatGitRefs
@@ -314,6 +315,11 @@ open class FakeChatSessionFacade(
         fetchGitDiffError?.let { throw it }
         return fetchGitDiffResults[path] ?: fetchGitDiffResult
     }
+
+    /** These tests exercise the git-backed reads; a plain-file open answers "no workspace". */
+    override suspend fun fetchFile(path: String): ChatFileContents? = null
+
+    override suspend fun fetchFileList(): List<String>? = null
 
     protected suspend fun emitOperationError() {
         operationErrorFlow.emit(ChatOperationError(operationErrorText, false))

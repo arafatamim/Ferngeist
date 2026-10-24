@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.git
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column

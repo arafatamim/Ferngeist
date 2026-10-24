@@ -179,6 +179,15 @@
     <string name="chat_git_compare_current">বর্তমান</string>
     <string name="chat_git_compare_error_title">তুলনা লোড করা যায়নি</string>
     <string name="chat_git_compare_identical">%1$s থেকে কোনো পার্থক্য নেই</string>
+    <string name="chat_git_compare_load_failed">তুলনা লোড করা যায়নি</string>
+    <string name="chat_git_compare_no_workspace">তুলনা লোড করার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই</string>
+    <string name="chat_git_compare_not_honoured">গেটওয়ে তুলনাটি প্রয়োগ করেনি</string>
+    <string name="chat_git_diff_no_workspace">গিট ডিফ লোড করার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই: %1$s</string>
+    <string name="chat_git_diff_load_failed">%1$s-এর জন্য গিট ডিফ লোড করা যায়নি</string>
+    <string name="chat_git_history_no_workspace">ইতিহাস লোড করার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই</string>
+    <string name="chat_git_history_load_failed">ইতিহাস লোড করা যায়নি</string>
+    <string name="chat_git_commit_load_failed">এই কমিট লোড করা যায়নি</string>
+    <string name="chat_file_no_workspace">ফাইল পড়ার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই</string>
     <string name="chat_load_earlier">আগের বার্তাগুলো লোড করুন</string>
     <string-array name="chat_empty_titles">
         <item>আজ কী বানাতে চাও?</item>

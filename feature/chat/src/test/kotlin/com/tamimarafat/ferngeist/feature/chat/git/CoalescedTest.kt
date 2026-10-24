@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.chat
+package com.tamimarafat.ferngeist.feature.chat.git
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi

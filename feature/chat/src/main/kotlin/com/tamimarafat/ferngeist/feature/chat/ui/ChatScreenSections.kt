@@ -478,7 +478,7 @@ private fun ChatMessageItem(
         }
     val isLast = message.id == renderedLastMessageId
     CompositionLocalProvider(
-        localWorkingTreeChanges provides if (isLast) state.turnWorkingTree() else emptyList(),
+        localWorkingTreeChanges provides if (isLast) state.git.turnWorkingTree() else emptyList(),
     ) {
         MessageBubble(
             message = message,

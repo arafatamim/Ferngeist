@@ -180,6 +180,15 @@
     <string name="chat_git_compare_current">atual</string>
     <string name="chat_git_compare_error_title">Não foi possível carregar a comparação</string>
     <string name="chat_git_compare_identical">Sem diferenças em relação a %1$s</string>
+    <string name="chat_git_compare_load_failed">Não foi possível carregar a comparação</string>
+    <string name="chat_git_compare_no_workspace">Não há conexão de espaço de trabalho do gateway para carregar a comparação</string>
+    <string name="chat_git_compare_not_honoured">O gateway não aplicou a comparação</string>
+    <string name="chat_git_diff_no_workspace">Não há conexão de espaço de trabalho do gateway para carregar o diff do git de %1$s</string>
+    <string name="chat_git_diff_load_failed">Não foi possível carregar o diff do git de %1$s</string>
+    <string name="chat_git_history_no_workspace">Não há conexão de espaço de trabalho do gateway para carregar o histórico</string>
+    <string name="chat_git_history_load_failed">Não foi possível carregar o histórico</string>
+    <string name="chat_git_commit_load_failed">Não foi possível carregar este commit</string>
+    <string name="chat_file_no_workspace">Não há conexão de espaço de trabalho do gateway para ler o arquivo</string>
     <string name="chat_load_earlier">Carregar mensagens anteriores</string>
     <string-array name="chat_empty_titles">
         <item>O que queres construir hoje?</item>

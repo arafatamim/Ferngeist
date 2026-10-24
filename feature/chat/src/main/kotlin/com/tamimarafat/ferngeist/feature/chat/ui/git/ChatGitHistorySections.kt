@@ -2,7 +2,7 @@
 // One row, header or skeleton per shape the history draws; splitting them would spread the
 // graph's geometry across files.
 
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.git
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable

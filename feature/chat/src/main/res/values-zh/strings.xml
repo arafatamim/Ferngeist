@@ -184,6 +184,15 @@
     <string name="chat_git_compare_current">当前</string>
     <string name="chat_git_compare_error_title">无法加载比较结果</string>
     <string name="chat_git_compare_identical">与 %1$s 没有差异</string>
+    <string name="chat_git_compare_load_failed">无法加载比较结果</string>
+    <string name="chat_git_compare_no_workspace">没有网关工作区连接，无法加载比较</string>
+    <string name="chat_git_compare_not_honoured">网关未应用该比较</string>
+    <string name="chat_git_diff_no_workspace">没有网关工作区连接，无法加载 %1$s 的 git 差异</string>
+    <string name="chat_git_diff_load_failed">无法加载 %1$s 的 git 差异</string>
+    <string name="chat_git_history_no_workspace">没有网关工作区连接，无法加载历史记录</string>
+    <string name="chat_git_history_load_failed">无法加载历史记录</string>
+    <string name="chat_git_commit_load_failed">无法加载此提交</string>
+    <string name="chat_file_no_workspace">没有网关工作区连接，无法读取文件</string>
     <string name="chat_load_earlier">加载更早的消息</string>
     <string-array name="chat_empty_titles">
         <item>今天想构建什么？</item>

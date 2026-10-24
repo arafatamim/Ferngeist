@@ -20,6 +20,10 @@ import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.qualified
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
+import com.tamimarafat.ferngeist.feature.chat.git.ChatGitFileDiffLoader
+import com.tamimarafat.ferngeist.feature.chat.git.ChatGitHistoryLoader
+import com.tamimarafat.ferngeist.feature.chat.git.ChatGitStatusLoader
+import com.tamimarafat.ferngeist.feature.chat.git.ChatGitTurnDiffLoader
 import com.tamimarafat.ferngeist.feature.chat.pending.reconcileEchoes
 import com.tamimarafat.ferngeist.feature.chat.timing.ChatTurnTimings
 import com.tamimarafat.ferngeist.feature.chat.title.ChatTitleController
@@ -240,14 +244,33 @@ class ChatViewModel
                 fetchTitle = { sessionFacade.fetchSessionTitle() },
             )
 
-        /** Gateway git status and per-file diff loading. */
-        private val gitDiffLoader =
-            ChatGitDiffLoader(
+        /** The latest turn's inline fallback diffs, re-read whenever the status refreshes. */
+        private val gitTurnDiffLoader =
+            ChatGitTurnDiffLoader(
                 scope = viewModelScope,
                 facade = sessionFacade,
-                update = { reducer -> updateState(reducer) },
+                update = { reducer -> updateState { copy(git = git.reducer()) } },
+                git = { state.value.git },
+            )
+
+        /** Gateway git status, the compare target and the compare picker's refs. */
+        private val gitStatusLoader =
+            ChatGitStatusLoader(
+                scope = viewModelScope,
+                facade = sessionFacade,
+                update = { reducer -> updateState { copy(git = git.reducer()) } },
                 acpSessionId = { trackedSessionId.takeIf { it != NEW_SESSION_ARG } },
-                compareRef = { state.value.compareRef },
+                git = { state.value.git },
+                onStatusRefreshed = gitTurnDiffLoader::rereadLoaded,
+            )
+
+        /** The git sheet's single-file diff. */
+        private val gitFileDiffLoader =
+            ChatGitFileDiffLoader(
+                scope = viewModelScope,
+                facade = sessionFacade,
+                update = { reducer -> updateState { copy(git = git.reducer()) } },
+                git = { state.value.git },
             )
 
         /** The file sheet's file, read from the gateway workspace. */
@@ -258,7 +281,7 @@ class ChatViewModel
                 update = { reducer -> updateState(reducer) },
                 cwd = cwd,
                 tree = {
-                    state.value.gitStatus
+                    state.value.git.status
                         ?.changed
                         .orEmpty()
                 },
@@ -269,8 +292,8 @@ class ChatViewModel
             ChatGitHistoryLoader(
                 scope = viewModelScope,
                 facade = sessionFacade,
-                history = { state.value.gitHistory },
-                update = { reducer -> updateState { copy(gitHistory = gitHistory.reducer()) } },
+                history = { state.value.git.history },
+                update = { reducer -> updateState { copy(git = git.copy(history = git.history.reducer())) } },
             )
 
         /** The reader picked a compare target by hand, so [preselectDefaultCompare] stands down. */
@@ -395,14 +418,14 @@ class ChatViewModel
                     offlineQueue.flushOfflineQueue()
                     // Retry the git-status fetch once the session is fully initialized,
                     // in case an earlier attempt raced session setup and failed.
-                    state.value.gatewayWorkspaceConnection?.let { gitDiffLoader.refresh() }
+                    state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
                     // Known before the sheet opens, so its first frame already compares against the default.
-                    gitDiffLoader.loadRefs()
+                    gitStatusLoader.loadRefs()
                 }
             }
             viewModelScope.launch {
                 state
-                    .map { it.gitStatus?.branch to it.gitRefs }
+                    .map { it.git.status?.branch to it.git.refs }
                     .distinctUntilChanged()
                     .collect { preselectDefaultCompare() }
             }
@@ -414,14 +437,14 @@ class ChatViewModel
             viewModelScope.launch {
                 sessionFacade.gatewayWorkspaceConnection.collect { connection ->
                     updateState { copy(gatewayWorkspaceConnection = connection) }
-                    if (connection != null) gitDiffLoader.refresh()
+                    if (connection != null) gitStatusLoader.refresh()
                 }
             }
             viewModelScope.launch {
                 // Files only come and go when git status's path set changes, so list again then.
                 // A gateway without the list leaves it null, and chips fall back to the turn's files.
                 state
-                    .map { it.gitStatus }
+                    .map { it.git.status }
                     .distinctUntilChanged()
                     .mapNotNull { status -> status?.changed?.mapTo(HashSet()) { it.path } }
                     .distinctUntilChanged()
@@ -458,8 +481,8 @@ class ChatViewModel
          */
         private fun refreshGitStatusOnceReady(wasReady: Boolean) {
             if (wasReady || !state.value.isSessionReady) return
-            state.value.gatewayWorkspaceConnection?.let { gitDiffLoader.refresh() }
-            gitDiffLoader.loadRefs()
+            state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
+            gitStatusLoader.loadRefs()
         }
 
         /**
@@ -513,7 +536,7 @@ class ChatViewModel
             wasStreaming: Boolean,
             isStreaming: Boolean,
         ) {
-            if (!wasStreaming && isStreaming) gitDiffLoader.clearTurnDiffs()
+            if (!wasStreaming && isStreaming) gitTurnDiffLoader.clearTurnDiffs()
         }
 
         override fun onCleared() {
@@ -542,7 +565,7 @@ class ChatViewModel
                     } else {
                         offlineQueue.enqueuePrompt(intent.text, intent.images, intent.files)
                     }
-                    state.value.gatewayWorkspaceConnection?.let { gitDiffLoader.refresh() }
+                    state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
                 }
                 is ChatIntent.CancelStreaming -> sessionCoordinator.cancelStreaming()
                 is ChatIntent.SetConfigOption -> sessionCoordinator.setConfigOption(intent.optionId, intent.value)
@@ -571,11 +594,11 @@ class ChatViewModel
         }
 
         private fun refreshGit() {
-            state.value.gatewayWorkspaceConnection?.let { gitDiffLoader.refresh() }
+            state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
             // An agent turn changes the working tree, so a compare list read earlier is stale too.
-            if (state.value.compareRef != null) gitDiffLoader.refreshCompare()
+            if (state.value.git.compareRef != null) gitStatusLoader.refreshCompare()
             // A turn may have committed, so history once opened follows along.
-            if (state.value.gitHistory.isLoaded) gitHistoryLoader.loadLog(more = false)
+            if (state.value.git.history.isLoaded) gitHistoryLoader.loadLog(more = false)
         }
 
         /** The git sheet's history, commit and compare intents. */
@@ -583,7 +606,7 @@ class ChatViewModel
             when (intent) {
                 is ChatIntent.LoadGitLog -> gitHistoryLoader.loadLog(intent.more)
                 is ChatIntent.LoadGitCommit -> gitHistoryLoader.loadCommit(intent.sha)
-                is ChatIntent.LoadGitRefs -> gitDiffLoader.loadRefs()
+                is ChatIntent.LoadGitRefs -> gitStatusLoader.loadRefs()
                 is ChatIntent.SelectCompareRef -> {
                     compareChosenByReader = true
                     selectCompareRef(intent.ref)
@@ -599,9 +622,12 @@ class ChatViewModel
          */
         private fun preselectDefaultCompare() {
             val current = state.value
-            val refs = current.gitRefs
-            val branch = current.gitStatus?.branch.orEmpty()
-            if (compareChosenByReader || current.compareRef != null || refs.unsupported) return
+            val refs = current.git.refs
+            val branch =
+                current.git.status
+                    ?.branch
+                    .orEmpty()
+            if (compareChosenByReader || current.git.compareRef != null || refs.unsupported) return
             if (refs.default.isBlank() || branch == refs.default) return
             // Status names a detached HEAD "(detached)", which matches no local branch.
             if (refs.refs.none { it.kind == ChatGitRef.Kind.BRANCH && it.name == branch }) return
@@ -613,12 +639,20 @@ class ChatViewModel
         }
 
         private fun selectCompareRef(ref: ChatGitRef?) {
-            if (ref == state.value.compareRef) return
+            if (ref == state.value.git.compareRef) return
             // The previous target's rows are no stand-in for the new one's.
             updateState {
-                copy(compareRef = ref, compareStatus = null, isCompareStatusLoading = false, compareStatusError = null)
+                copy(
+                    git =
+                        git.copy(
+                            compareRef = ref,
+                            compareStatus = null,
+                            isCompareStatusLoading = false,
+                            compareStatusError = null,
+                        ),
+                )
             }
-            gitDiffLoader.refreshCompare()
+            gitStatusLoader.refreshCompare()
         }
 
         /** One-shot intents outside the send/streaming core: diff fetch, hint flag, session close. */
@@ -626,9 +660,9 @@ class ChatViewModel
             when (intent) {
                 is ChatIntent.RemoveQueuedMessage -> offlineQueue.removeQueuedMessage(intent.clientId)
                 is ChatIntent.ForceSendMessage -> offlineQueue.forceSend(intent.clientId)
-                is ChatIntent.LoadGitDiff -> gitDiffLoader.load(intent.path, intent.commit, intent.oldPath)
+                is ChatIntent.LoadGitDiff -> gitFileDiffLoader.load(intent.path, intent.commit, intent.oldPath)
                 is ChatIntent.LoadTurnFileDiff ->
-                    gitDiffLoader.loadTurnFile(
+                    gitTurnDiffLoader.loadTurnFile(
                         intent.path,
                         intent.oldPath,
                         intent.revision,

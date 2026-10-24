@@ -49,12 +49,22 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
 
             val state = viewModel.state.value
             assertEquals(listOf("refs/heads/main"), facade.gitCompareStatusRequests)
-            assertEquals(listOf("b.kt"), state.compareStatus?.changed?.map { it.path })
-            assertFalse(state.isCompareStatusLoading)
-            assertNull(state.compareStatusError)
+            assertEquals(
+                listOf("b.kt"),
+                state.git.compareStatus
+                    ?.changed
+                    ?.map { it.path },
+            )
+            assertFalse(state.git.isCompareStatusLoading)
+            assertNull(state.git.compareStatusError)
             // The top-bar pill and the transcript rows stay working-tree-relative.
-            assertEquals(listOf("a.kt"), state.gitStatus?.changed?.map { it.path })
-            assertEquals(GitDiffStats(additions = 2, deletions = 0), state.gitDiffStats)
+            assertEquals(
+                listOf("a.kt"),
+                state.git.status
+                    ?.changed
+                    ?.map { it.path },
+            )
+            assertEquals(GitDiffStats(additions = 2, deletions = 0), state.git.diffStats)
         }
 
     @Test
@@ -70,9 +80,9 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertEquals(main, state.compareRef)
-            assertNull(state.compareStatus)
-            assertTrue(state.compareStatusError?.isNotBlank() == true)
+            assertEquals(main, state.git.compareRef)
+            assertNull(state.git.compareStatus)
+            assertTrue(state.git.compareStatusError?.isNotBlank() == true)
         }
 
     @Test
@@ -84,9 +94,9 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertEquals(main, state.compareRef)
-            assertNull(state.compareStatus)
-            assertEquals("boom", state.compareStatusError)
+            assertEquals(main, state.git.compareRef)
+            assertNull(state.git.compareStatus)
+            assertEquals("boom", state.git.compareStatusError)
         }
 
     @Test
@@ -110,8 +120,13 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertEquals(listOf("refs/heads/dev"), state.compareStatus?.changed?.map { it.path })
-            assertNull(state.compareStatusError)
+            assertEquals(
+                listOf("refs/heads/dev"),
+                state.git.compareStatus
+                    ?.changed
+                    ?.map { it.path },
+            )
+            assertNull(state.git.compareStatusError)
         }
 
     @Test
@@ -122,7 +137,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             advanceUntilIdle()
             assertEquals(
                 "refs/heads/main",
-                viewModel.state.value.compareStatus
+                viewModel.state.value.git.compareStatus
                     ?.compare,
             )
 
@@ -130,8 +145,8 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertNull(state.compareRef)
-            assertNull(state.compareStatus)
+            assertNull(state.git.compareRef)
+            assertNull(state.git.compareStatus)
         }
 
     @Test
@@ -154,9 +169,9 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertNull(state.compareRef)
-            assertNull(state.compareStatus)
-            assertFalse(state.isCompareStatusLoading)
+            assertNull(state.git.compareRef)
+            assertNull(state.git.compareStatus)
+            assertFalse(state.git.isCompareStatusLoading)
         }
 
     @Test
@@ -184,11 +199,11 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
 
             viewModel.dispatch(ChatIntent.LoadGitDiff("a.kt"))
             advanceUntilIdle()
-            assertEquals("refs/heads/main", viewModel.state.value.gitFileDiffCompare)
+            assertEquals("refs/heads/main", viewModel.state.value.git.fileDiffCompare)
 
             viewModel.dispatch(ChatIntent.LoadGitDiff("a.kt", commit = "abc1234"))
             advanceUntilIdle()
-            assertNull(viewModel.state.value.gitFileDiffCompare)
+            assertNull(viewModel.state.value.git.fileDiffCompare)
             assertEquals(listOf("refs/heads/main", null), facade.gitDiffCompareRequests)
         }
 
@@ -209,7 +224,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
 
             // History is always HEAD's own walk, so a new target neither reloads nor filters it.
             val shas =
-                viewModel.state.value.gitHistory.commits
+                viewModel.state.value.git.history.commits
                     .map { it.sha }
             assertEquals(listOf("a"), shas)
             assertEquals(listOf(null to 0), facade.gitLogRequests)
@@ -224,7 +239,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             assertEquals(0, facade.gitLogRequests.size)
-            assertFalse(viewModel.state.value.gitHistory.isLoaded)
+            assertFalse(viewModel.state.value.git.history.isLoaded)
         }
 
     @Test
@@ -235,7 +250,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
 
-            val refs = viewModel.state.value.gitRefs
+            val refs = viewModel.state.value.git.refs
             assertEquals(listOf(main, dev), refs.refs)
             assertEquals("main", refs.default)
             assertTrue(refs.isLoaded)
@@ -257,7 +272,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
 
-            val refs = viewModel.state.value.gitRefs
+            val refs = viewModel.state.value.git.refs
             assertEquals(listOf(main), refs.refs)
             assertFalse(refs.unsupported)
         }
@@ -270,7 +285,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
 
-            assertTrue(viewModel.state.value.gitRefs.unsupported)
+            assertTrue(viewModel.state.value.git.refs.unsupported)
         }
 
     @Test
@@ -279,29 +294,36 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             val viewModel = openedOn("feat", ChatGitRefs("main", listOf(main, feat)))
 
             val state = viewModel.state.value
-            assertEquals(main, state.compareRef)
-            assertEquals("refs/heads/main", state.compareStatus?.compare)
-            assertNull(state.gitStatus?.compare)
+            assertEquals(main, state.git.compareRef)
+            assertEquals("refs/heads/main", state.git.compareStatus?.compare)
+            assertNull(state.git.status?.compare)
         }
 
     @Test
     fun `a checkout on the default branch stays on the working tree`() =
         runTest {
             assertNull(
-                openedOn("main", ChatGitRefs("main", listOf(main.copy(isHead = true), dev))).state.value.compareRef,
+                openedOn("main", ChatGitRefs("main", listOf(main.copy(isHead = true), dev)))
+                    .state.value.git.compareRef,
             )
         }
 
     @Test
     fun `a detached HEAD stays on the working tree`() =
         runTest {
-            assertNull(openedOn("(detached)", ChatGitRefs("main", listOf(main, dev))).state.value.compareRef)
+            assertNull(
+                openedOn("(detached)", ChatGitRefs("main", listOf(main, dev)))
+                    .state.value.git.compareRef,
+            )
         }
 
     @Test
     fun `a blank default stays on the working tree`() =
         runTest {
-            assertNull(openedOn("feat", ChatGitRefs("", listOf(main, feat))).state.value.compareRef)
+            assertNull(
+                openedOn("feat", ChatGitRefs("", listOf(main, feat)))
+                    .state.value.git.compareRef,
+            )
         }
 
     @Test
@@ -316,8 +338,8 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.compareRef)
-            assertTrue(viewModel.state.value.gitRefs.unsupported)
+            assertNull(viewModel.state.value.git.compareRef)
+            assertTrue(viewModel.state.value.git.refs.unsupported)
             assertEquals(0, facade.gitCompareStatusRequests.size)
         }
 
@@ -325,7 +347,11 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
     fun `a default shared by a tag and a branch resolves to the branch`() =
         runTest {
             val tag = ChatGitRef("main", ChatGitRef.Kind.TAG)
-            assertEquals(main, openedOn("feat", ChatGitRefs("main", listOf(tag, feat, main))).state.value.compareRef)
+            assertEquals(
+                main,
+                openedOn("feat", ChatGitRefs("main", listOf(tag, feat, main)))
+                    .state.value.git.compareRef,
+            )
         }
 
     @Test
@@ -334,7 +360,8 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             val remote = ChatGitRef("origin/main", ChatGitRef.Kind.REMOTE)
             assertEquals(
                 remote,
-                openedOn("feat", ChatGitRefs("origin/main", listOf(feat, remote))).state.value.compareRef,
+                openedOn("feat", ChatGitRefs("origin/main", listOf(feat, remote)))
+                    .state.value.git.compareRef,
             )
         }
 
@@ -348,7 +375,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.compareRef)
+            assertNull(viewModel.state.value.git.compareRef)
         }
 
     @Test
@@ -364,7 +391,7 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
 
-            assertEquals(dev, viewModel.state.value.compareRef)
+            assertEquals(dev, viewModel.state.value.git.compareRef)
         }
 
     @Test
@@ -377,14 +404,14 @@ class ChatViewModelCompareTest : ChatViewModelTestBase() {
                 }
             viewModel.dispatch(ChatIntent.RefreshGitStatus)
             advanceUntilIdle()
-            assertNull(viewModel.state.value.compareRef)
+            assertNull(viewModel.state.value.git.compareRef)
 
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
             viewModel.dispatch(ChatIntent.LoadGitRefs)
             advanceUntilIdle()
 
-            assertEquals(main, viewModel.state.value.compareRef)
+            assertEquals(main, viewModel.state.value.git.compareRef)
             assertEquals(listOf("refs/heads/main"), facade.gitCompareStatusRequests)
         }
 

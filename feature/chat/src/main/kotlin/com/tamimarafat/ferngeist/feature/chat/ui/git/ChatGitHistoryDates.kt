@@ -1,10 +1,12 @@
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.git
 
 import android.text.format.DateUtils
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.RelativeAge
+import com.tamimarafat.ferngeist.feature.chat.ui.relativeAge
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId

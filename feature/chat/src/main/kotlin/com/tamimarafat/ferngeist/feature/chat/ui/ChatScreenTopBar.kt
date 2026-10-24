@@ -44,17 +44,29 @@ internal fun ChatScreenTopBar(
         costCurrency = screenState.state.usage?.costCurrency,
         gitAdditions = screenState.derived.gitAdditions,
         gitDeletions = screenState.derived.gitDeletions,
-        gitBranch = screenState.state.gitStatus?.branch,
+        gitBranch =
+            screenState.state.git.status
+                ?.branch,
         gitChangedFiles =
-            screenState.state.gitStatus
+            screenState.state.git.status
                 ?.changed
                 ?.size ?: 0,
-        gitRepo = screenState.state.gitStatus != null,
+        gitRepo = screenState.state.git.status != null,
         // A managed worktree's counts are against its base ref, which is the only comparison that
         // means anything there; the status counts are against the upstream and stay zero without one.
-        gitAhead = screenState.state.worktree?.ahead ?: screenState.state.gitStatus?.ahead ?: 0,
-        gitBehind = screenState.state.worktree?.behind ?: screenState.state.gitStatus?.behind ?: 0,
-        worktree = screenState.state.worktree,
+        gitAhead =
+            screenState.state.git.worktree
+                ?.ahead
+                ?: screenState.state.git.status
+                    ?.ahead
+                ?: 0,
+        gitBehind =
+            screenState.state.git.worktree
+                ?.behind
+                ?: screenState.state.git.status
+                    ?.behind
+                ?: 0,
+        worktree = screenState.state.git.worktree,
         scrollBehavior = scrollBehavior,
         onNavigateBack = onNavigateBack,
         onConnectionStatusClick = { screenState.mutations.showConnectionStatusDialog.value = true },

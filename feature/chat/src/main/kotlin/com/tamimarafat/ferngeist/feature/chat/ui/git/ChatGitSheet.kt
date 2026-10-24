@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.git
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -57,6 +58,7 @@ import com.tamimarafat.ferngeist.feature.chat.GitHistoryState
 import com.tamimarafat.ferngeist.feature.chat.GitRefsState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.gitBranchScope
+import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.isDirectoryEntry
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.isDirectoryPath
 import com.tamimarafat.ferngeist.feature.chat.ui.status.GitDiffDetailContent
@@ -502,7 +504,7 @@ private fun GitHistoryBody(
         history.commits.isEmpty() && history.error != null ->
             ErrorStateCard(
                 headline = stringResource(R.string.chat_git_history_error_title),
-                body = history.error,
+                body = localizeChatError(LocalContext.current, history.error),
                 icon = Icons.Rounded.CloudOff,
                 medallionContainer = MaterialTheme.colorScheme.errorContainer,
                 medallionContent = MaterialTheme.colorScheme.onErrorContainer,

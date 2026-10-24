@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
 
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.git
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -59,6 +60,9 @@ import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.localizeChatError
+import com.tamimarafat.ferngeist.feature.chat.ui.DiffBlocks
+import com.tamimarafat.ferngeist.feature.chat.ui.FileChip
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.isDirectoryEntry
 
 /**
@@ -170,7 +174,7 @@ internal fun ColumnScope.GitCompareChangesBody(
         error != null ->
             ErrorStateCard(
                 headline = stringResource(R.string.chat_git_compare_error_title),
-                body = error,
+                body = localizeChatError(LocalContext.current, error),
                 icon = Icons.Rounded.CloudOff,
                 medallionContainer = MaterialTheme.colorScheme.errorContainer,
                 medallionContent = MaterialTheme.colorScheme.onErrorContainer,

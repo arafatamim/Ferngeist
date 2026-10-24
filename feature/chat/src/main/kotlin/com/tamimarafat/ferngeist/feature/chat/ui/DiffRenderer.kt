@@ -74,6 +74,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.buildDiffRows
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffBlocks
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitAheadBehindIndicator
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

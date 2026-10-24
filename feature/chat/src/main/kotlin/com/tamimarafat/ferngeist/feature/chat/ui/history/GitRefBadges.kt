@@ -22,7 +22,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
-import com.tamimarafat.ferngeist.feature.chat.ui.MAX_REF_CHARS
+import com.tamimarafat.ferngeist.feature.chat.ui.git.MAX_REF_CHARS
 
 /** Current branch first, then local branches, tags, detached HEAD, remotes. */
 internal val refKindOrder =

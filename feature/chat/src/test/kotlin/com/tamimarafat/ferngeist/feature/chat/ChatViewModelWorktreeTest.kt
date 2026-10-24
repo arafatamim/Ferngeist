@@ -31,7 +31,7 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.RefreshGitStatus)
             advanceUntilIdle()
 
-            assertEquals(featX, viewModel.state.value.worktree)
+            assertEquals(featX, viewModel.state.value.git.worktree)
         }
 
     @Test
@@ -50,7 +50,7 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.RefreshGitStatus)
             advanceUntilIdle()
 
-            assertEquals(featX, viewModel.state.value.worktree)
+            assertEquals(featX, viewModel.state.value.git.worktree)
         }
 
     @Test
@@ -72,10 +72,10 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
             advanceUntilIdle()
             collector.cancel()
 
-            assertEquals(featX, viewModel.state.value.worktree)
+            assertEquals(featX, viewModel.state.value.git.worktree)
             // The pill draws "clean" from the status and ahead/behind from the worktree: a status
             // published ahead of its worktree showed a check, then replaced it with the arrows.
-            assertTrue(states.none { it.gitStatus != null && it.worktree == null })
+            assertTrue(states.none { it.git.status != null && it.git.worktree == null })
         }
 
     @Test
@@ -86,7 +86,7 @@ class ChatViewModelWorktreeTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.RefreshGitStatus)
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.worktree)
+            assertNull(viewModel.state.value.git.worktree)
         }
 
     private fun gatewayViewModel(
