@@ -38,6 +38,7 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -51,6 +52,9 @@ import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
+import com.tamimarafat.ferngeist.feature.chat.localizeChatError
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitCompareUi
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitStatusSheet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -284,12 +288,15 @@ private fun BoxScope.ChatScreenContentOverlays(
     val openFileAt = rememberOpenFileAt(viewModel, hasWorkspace)
     CompositionLocalProvider(
         localWorkingTreeChanges provides
-            if (inNewestTurn) screenState.state.turnWorkingTree() else emptyList(),
+            if (inNewestTurn) screenState.state.git.turnWorkingTree() else emptyList(),
         localTurnGitFallback provides
             TurnGitFallback(
-                diffs = screenState.state.turnGitDiffs,
-                loading = screenState.state.turnGitDiffsLoading,
-                errors = screenState.state.turnGitDiffsErrors,
+                diffs = screenState.state.git.turnDiffs,
+                loading = screenState.state.git.turnDiffsLoading,
+                errors =
+                    screenState.state.git.turnDiffsErrors.mapValues { (_, message) ->
+                        localizeChatError(LocalContext.current, message)
+                    },
                 onRequest = { path, oldPath, revision ->
                     viewModel.dispatch(ChatIntent.LoadTurnFileDiff(path, oldPath, revision))
                 },
@@ -315,22 +322,22 @@ private fun BoxScope.ChatScreenContentOverlays(
         // The sheet is where the reader asks what the tree looks like, so every open re-reads the
         // status rather than showing whatever the last turn boundary or resume left in state.
         LaunchedEffect(Unit) { viewModel.dispatch(ChatIntent.RefreshGitStatus) }
-        screenState.state.gitStatus?.let { status ->
+        screenState.state.git.status?.let { status ->
             GitStatusSheet(
                 status = status,
-                history = screenState.state.gitHistory,
-                gitFileDiff = screenState.state.gitFileDiff,
-                gitFileDiffPath = screenState.state.gitFileDiffPath,
-                gitFileDiffCommit = screenState.state.gitFileDiffCommit,
-                gitFileDiffCompare = screenState.state.gitFileDiffCompare,
-                isGitFileDiffLoading = screenState.state.isGitFileDiffLoading,
-                gitFileDiffError = screenState.state.gitFileDiffError,
+                history = screenState.state.git.history,
+                gitFileDiff = screenState.state.git.fileDiff,
+                gitFileDiffPath = screenState.state.git.fileDiffPath,
+                gitFileDiffCommit = screenState.state.git.fileDiffCommit,
+                gitFileDiffCompare = screenState.state.git.fileDiffCompare,
+                isGitFileDiffLoading = screenState.state.git.isFileDiffLoading,
+                gitFileDiffError = screenState.state.git.fileDiffError,
                 compare =
                     GitCompareUi(
-                        ref = screenState.state.compareRef,
-                        refs = screenState.state.gitRefs,
-                        status = screenState.state.compareStatus,
-                        error = screenState.state.compareStatusError,
+                        ref = screenState.state.git.compareRef,
+                        refs = screenState.state.git.refs,
+                        status = screenState.state.git.compareStatus,
+                        error = screenState.state.git.compareStatusError,
                         onSelect = { ref -> viewModel.dispatch(ChatIntent.SelectCompareRef(ref)) },
                         onRetry = { viewModel.dispatch(ChatIntent.RefreshGitStatus) },
                     ),

@@ -6,6 +6,8 @@ import com.tamimarafat.ferngeist.feature.chat.R
 private const val GATEWAY_UNPAIRED_PREFIX = "Gateway is not paired for "
 private const val RECONNECT_PREFIX = "Failed to reconnect to "
 private const val RECONNECT_SEPARATOR = ": "
+private const val GIT_DIFF_NO_WORKSPACE_PREFIX = "No gateway workspace connection to load git diff for "
+private const val GIT_DIFF_FAILED_PREFIX = "Failed to load git diff for "
 
 /**
  * Maps the fixed error strings the facade (acp-bridge) and this module emit onto their
@@ -13,9 +15,9 @@ private const val RECONNECT_SEPARATOR = ": "
  * card body).
  *
  * acp-bridge has no resources of its own, so it emits English. Keys here must stay
- * byte-identical to the emitters — AcpChatSessionFacade, AcpChatSessionFacadeMappers and
- * ChatViewModel — and messages with no resource (agent text, SDK errors) pass through
- * untranslated.
+ * byte-identical to the emitters — AcpChatSessionFacade, AcpChatSessionFacadeMappers,
+ * ChatViewModel and the git loaders — and messages with no resource (agent text, SDK errors)
+ * pass through untranslated.
  */
 internal fun localizeChatError(
     context: Context,
@@ -33,6 +35,18 @@ internal fun localizeChatError(
                 message.removePrefix(RECONNECT_PREFIX).split(RECONNECT_SEPARATOR, limit = 2)
             context.getString(R.string.chat_session_error_reconnect, server, cause)
         }
+
+        message.startsWith(GIT_DIFF_NO_WORKSPACE_PREFIX) ->
+            context.getString(
+                R.string.chat_git_diff_no_workspace,
+                message.removePrefix(GIT_DIFF_NO_WORKSPACE_PREFIX),
+            )
+
+        message.startsWith(GIT_DIFF_FAILED_PREFIX) ->
+            context.getString(
+                R.string.chat_git_diff_load_failed,
+                message.removePrefix(GIT_DIFF_FAILED_PREFIX),
+            )
 
         else -> chatErrorResources[message]?.let(context::getString) ?: message
     }
@@ -81,4 +95,18 @@ private val chatErrorResources: Map<String, Int> =
             to R.string.chat_session_error_close_failed,
         "The connection to the ACP bridge was lost while loading this session. Opened a new live session."
             to R.string.chat_session_error_bridge_connection_lost,
+        "Failed to load the comparison"
+            to R.string.chat_git_compare_load_failed,
+        "No gateway workspace connection to load the comparison"
+            to R.string.chat_git_compare_no_workspace,
+        "The gateway did not apply the comparison"
+            to R.string.chat_git_compare_not_honoured,
+        "No gateway workspace connection to load history"
+            to R.string.chat_git_history_no_workspace,
+        "Failed to load history"
+            to R.string.chat_git_history_load_failed,
+        "Failed to load this commit"
+            to R.string.chat_git_commit_load_failed,
+        "No gateway workspace connection to read the file"
+            to R.string.chat_file_no_workspace,
     )

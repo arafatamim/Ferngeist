@@ -134,8 +134,8 @@ private fun rememberChatMessages(
             renderedMessages.thoughtForSegment(selectedThoughtSegmentId.value)
         }
     val selectedToolCall =
-        remember(renderedMessages, selectedToolCallSegmentId.value, state.gitStatus, state.turnDirtyAtStart) {
-            renderedMessages.toolCallForSelection(selectedToolCallSegmentId.value, state.turnWorkingTree())
+        remember(renderedMessages, selectedToolCallSegmentId.value, state.git.status, state.git.dirtyAtStart) {
+            renderedMessages.toolCallForSelection(selectedToolCallSegmentId.value, state.git.turnWorkingTree())
         }
     val activePermissionRequest =
         remember(renderedMessages) {
@@ -235,8 +235,8 @@ internal fun rememberChatDerived(
 ): ChatDerivedValues {
     val configDerived =
         rememberChatConfigDerived(state, selectedConfigPickerOptionId)
-    val gitAdditions = state.gitDiffStats?.additions ?: 0
-    val gitDeletions = state.gitDiffStats?.deletions ?: 0
+    val gitAdditions = state.git.diffStats?.additions ?: 0
+    val gitDeletions = state.git.diffStats?.deletions ?: 0
     val messages =
         rememberChatMessages(state, selectedThoughtSegmentId, selectedToolCallSegmentId)
     val scrollAndAnimation =

@@ -35,7 +35,7 @@ import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.core.model.TurnTiming
-import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.GitState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
@@ -78,9 +78,9 @@ internal val localWorkingTreeChanges = compositionLocalOf { emptyList<ChatChange
  * Git's changed files that can stand for the newest turn's work: a file already changed when the
  * turn started would mix earlier work into its diff and counts, so it is left out.
  */
-internal fun ChatState.turnWorkingTree(): List<ChatChangedFile> {
-    val tree = gitStatus?.changed.orEmpty()
-    val dirty = turnDirtyAtStart ?: return tree
+internal fun GitState.turnWorkingTree(): List<ChatChangedFile> {
+    val tree = status?.changed.orEmpty()
+    val dirty = dirtyAtStart ?: return tree
     return tree.filterNot { it.path in dirty }
 }
 

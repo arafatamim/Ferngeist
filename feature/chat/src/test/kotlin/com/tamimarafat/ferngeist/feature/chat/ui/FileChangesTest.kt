@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.GitState
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
@@ -262,10 +263,17 @@ class FileChangesTest {
                 ChatChangedFile(path = "old.kt", status = "M"),
                 ChatChangedFile(path = "new.kt", status = "??"),
             )
-        val state = ChatState(gitStatus = ChatGitStatus(changed = tree))
+        val state = ChatState(git = GitState(status = ChatGitStatus(changed = tree)))
 
-        assertEquals(tree, state.turnWorkingTree())
-        assertEquals(listOf("new.kt"), state.copy(turnDirtyAtStart = setOf("old.kt")).turnWorkingTree().map { it.path })
+        assertEquals(tree, state.git.turnWorkingTree())
+        assertEquals(
+            listOf("new.kt"),
+            state
+                .copy(git = state.git.copy(dirtyAtStart = setOf("old.kt")))
+                .git
+                .turnWorkingTree()
+                .map { it.path },
+        )
     }
 
     @Test

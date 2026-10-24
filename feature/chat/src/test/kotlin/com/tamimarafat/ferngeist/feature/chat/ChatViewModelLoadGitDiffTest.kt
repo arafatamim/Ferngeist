@@ -40,16 +40,16 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
 
             // The fetch is still in flight, so the loading transition is observable.
             var state = viewModel.state.value
-            assertTrue(state.isGitFileDiffLoading)
-            assertEquals("src/Main.kt", state.gitFileDiffPath)
+            assertTrue(state.git.isFileDiffLoading)
+            assertEquals("src/Main.kt", state.git.fileDiffPath)
 
             gate.complete(Unit)
             advanceUntilIdle()
 
             state = viewModel.state.value
-            assertFalse(state.isGitFileDiffLoading)
-            assertEquals("src/Main.kt", state.gitFileDiffPath)
-            assertEquals(diff, state.gitFileDiff?.single())
+            assertFalse(state.git.isFileDiffLoading)
+            assertEquals("src/Main.kt", state.git.fileDiffPath)
+            assertEquals(diff, state.git.fileDiff?.single())
             assertEquals("src/Main.kt", facade.gitDiffRequests.single())
         }
 
@@ -66,10 +66,14 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertEquals("src/Main.kt", state.gitFileDiffPath)
-            assertNull(state.gitFileDiff)
-            assertFalse(state.isGitFileDiffLoading)
-            assertTrue(state.gitFileDiffError.isNullOrBlank().not())
+            assertEquals("src/Main.kt", state.git.fileDiffPath)
+            assertNull(state.git.fileDiff)
+            assertFalse(state.git.isFileDiffLoading)
+            assertTrue(
+                state.git.fileDiffError
+                    .isNullOrBlank()
+                    .not(),
+            )
             assertEquals("src/Main.kt", facade.gitDiffRequests.single())
         }
 
@@ -84,10 +88,14 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertEquals("src/Main.kt", state.gitFileDiffPath)
-            assertNull(state.gitFileDiff)
-            assertFalse(state.isGitFileDiffLoading)
-            assertTrue(state.gitFileDiffError.isNullOrBlank().not())
+            assertEquals("src/Main.kt", state.git.fileDiffPath)
+            assertNull(state.git.fileDiff)
+            assertFalse(state.git.isFileDiffLoading)
+            assertTrue(
+                state.git.fileDiffError
+                    .isNullOrBlank()
+                    .not(),
+            )
             // The facade has no workspace connection, so it answers null without asking a gateway.
             assertTrue(
                 facadeFactory.lastFacade.value!!
@@ -118,16 +126,16 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             // The first request is in flight; a second, newer request supersedes it.
             viewModel.dispatch(ChatIntent.LoadGitDiff("src/Latest.kt"))
             advanceUntilIdle()
-            assertEquals("src/Latest.kt", viewModel.state.value.gitFileDiffPath)
-            assertTrue(viewModel.state.value.isGitFileDiffLoading)
+            assertEquals("src/Latest.kt", viewModel.state.value.git.fileDiffPath)
+            assertTrue(viewModel.state.value.git.isFileDiffLoading)
 
             // The latest request completes first and its diff becomes the state.
             latestGate.complete(Unit)
             advanceUntilIdle()
-            assertEquals("src/Latest.kt", viewModel.state.value.gitFileDiffPath)
+            assertEquals("src/Latest.kt", viewModel.state.value.git.fileDiffPath)
             assertEquals(
                 latestDiff,
-                viewModel.state.value.gitFileDiff
+                viewModel.state.value.git.fileDiff
                     ?.single(),
             )
 
@@ -136,10 +144,10 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertFalse(state.isGitFileDiffLoading)
-            assertEquals("src/Latest.kt", state.gitFileDiffPath)
-            assertEquals(latestDiff, state.gitFileDiff?.single())
-            assertTrue(state.gitFileDiffError.isNullOrBlank())
+            assertFalse(state.git.isFileDiffLoading)
+            assertEquals("src/Latest.kt", state.git.fileDiffPath)
+            assertEquals(latestDiff, state.git.fileDiff?.single())
+            assertTrue(state.git.fileDiffError.isNullOrBlank())
         }
 
     @Test
@@ -159,9 +167,9 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertEquals(diff, state.turnGitDiffs["src/New.kt"]?.single())
-            assertTrue(state.turnGitDiffsLoading.isEmpty())
-            assertTrue(state.turnGitDiffsErrors.isEmpty())
+            assertEquals(diff, state.git.turnDiffs["src/New.kt"]?.single())
+            assertTrue(state.git.turnDiffsLoading.isEmpty())
+            assertTrue(state.git.turnDiffsErrors.isEmpty())
             assertEquals(listOf("src/New.kt"), facade.gitDiffRequests)
         }
 
@@ -181,9 +189,13 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertNull(state.turnGitDiffs["src/New.kt"])
-            assertTrue(state.turnGitDiffsLoading.isEmpty())
-            assertTrue(state.turnGitDiffsErrors["src/New.kt"].isNullOrBlank().not())
+            assertNull(state.git.turnDiffs["src/New.kt"])
+            assertTrue(state.git.turnDiffsLoading.isEmpty())
+            assertTrue(
+                state.git.turnDiffsErrors["src/New.kt"]
+                    .isNullOrBlank()
+                    .not(),
+            )
             assertEquals(listOf("src/New.kt", "src/New.kt"), facade.gitDiffRequests)
         }
 
@@ -198,9 +210,13 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertNull(state.turnGitDiffs["src/New.kt"])
-            assertTrue(state.turnGitDiffsLoading.isEmpty())
-            assertTrue(state.turnGitDiffsErrors["src/New.kt"].isNullOrBlank().not())
+            assertNull(state.git.turnDiffs["src/New.kt"])
+            assertTrue(state.git.turnDiffsLoading.isEmpty())
+            assertTrue(
+                state.git.turnDiffsErrors["src/New.kt"]
+                    .isNullOrBlank()
+                    .not(),
+            )
             // The facade has no workspace connection, so it answers null without asking a gateway.
             assertTrue(
                 facadeFactory.lastFacade.value!!
@@ -224,13 +240,13 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             advanceUntilIdle()
             viewModel.dispatch(ChatIntent.LoadTurnFileDiff("src/New.kt", revision = "M:1:0"))
             advanceUntilIdle()
-            assertEquals(setOf("src/New.kt"), viewModel.state.value.turnGitDiffsLoading)
+            assertEquals(setOf("src/New.kt"), viewModel.state.value.git.turnDiffsLoading)
             gate.complete(Unit)
             advanceUntilIdle()
 
             val state = viewModel.state.value
-            assertTrue(state.turnGitDiffsLoading.isEmpty())
-            assertEquals(1, state.turnGitDiffs["src/New.kt"]?.size)
+            assertTrue(state.git.turnDiffsLoading.isEmpty())
+            assertEquals(1, state.git.turnDiffs["src/New.kt"]?.size)
             assertEquals(listOf("src/New.kt"), facade.gitDiffRequests)
         }
 
@@ -251,8 +267,13 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
 
             assertEquals(2, facade.gitDiffRequests.size)
             val state = viewModel.state.value
-            assertEquals("newer\n", state.turnGitDiffs["src/New.kt"]?.single()?.newText)
-            assertTrue(state.turnGitDiffsLoading.isEmpty())
+            assertEquals(
+                "newer\n",
+                state.git.turnDiffs["src/New.kt"]
+                    ?.single()
+                    ?.newText,
+            )
+            assertTrue(state.git.turnDiffsLoading.isEmpty())
         }
 
     @Test
@@ -266,7 +287,7 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             viewModel.dispatch(ChatIntent.LoadTurnFileDiff("src/New.kt"))
             advanceUntilIdle()
 
-            assertEquals(emptyList<Any>(), viewModel.state.value.turnGitDiffs["src/New.kt"])
+            assertEquals(emptyList<Any>(), viewModel.state.value.git.turnDiffs["src/New.kt"])
             assertEquals(1, facade.gitDiffRequests.size)
         }
 
@@ -290,7 +311,7 @@ class ChatViewModelLoadGitDiffTest : ChatViewModelTestBase() {
             assertEquals(2, facade.gitDiffRequests.size)
             assertEquals(
                 "newer\n",
-                viewModel.state.value.turnGitDiffs["src/New.kt"]
+                viewModel.state.value.git.turnDiffs["src/New.kt"]
                     ?.single()
                     ?.newText,
             )

@@ -59,45 +59,53 @@ data class ChatState(
     val openFile: FileView? = null,
     /** The workspace's files by file name, for chips on names no tool call touched; null until listed. */
     val workspaceFiles: Map<String, List<String>>? = null,
-    val gitStatus: ChatGitStatus? = null,
-    /** The gateway worktree this chat runs in; null when it is not one or the gateway has not said yet. */
-    val worktree: ChatWorktree? = null,
-    val gitDiffStats: GitDiffStats? = null,
-    val gitFileDiff: List<ToolCallContent.Diff>? = null,
-    val gitFileDiffPath: String? = null,
-    val isGitFileDiffLoading: Boolean = false,
-    val gitFileDiffError: String? = null,
-    /** The commit [gitFileDiff] was read from; null for the working tree. */
-    val gitFileDiffCommit: String? = null,
-    /** The qualified compare ref [gitFileDiff] was read against; null for the working tree or a commit. */
-    val gitFileDiffCompare: String? = null,
-    /**
-     * Working-tree diffs backing the latest turn's files whose tool calls reported
-     * none, keyed by git-relative path. Read only for the newest turn: git
-     * describes the tree as it is now, so an older turn must never borrow them.
-     */
-    val turnGitDiffs: Map<String, List<ToolCallContent.Diff>> = emptyMap(),
-    val turnGitDiffsLoading: Set<String> = emptySet(),
-    val turnGitDiffsErrors: Map<String, String> = emptyMap(),
-    /** Git paths already changed when the newest turn started; null when git was not known then. */
-    val turnDirtyAtStart: Set<String>? = null,
-    val gitHistory: GitHistoryState = GitHistoryState(),
-    /** The branch the git sheet compares against; null is `Working tree`. Lives for this view model only. */
-    val compareRef: ChatGitRef? = null,
-    val gitRefs: GitRefsState = GitRefsState(),
-    /**
-     * The working tree against [compareRef], kept apart from [gitStatus] and [gitDiffStats]: those
-     * feed the top-bar pill and the transcript's per-turn rows, which stay working-tree-relative.
-     */
-    val compareStatus: ChatGitStatus? = null,
-    val isCompareStatusLoading: Boolean = false,
-    val compareStatusError: String? = null,
+    val git: GitState = GitState(),
     val error: String? = null,
     /**
      * Registry logo URL for this chat's agent, for identity marks like the
      * empty-session hero. Null for manual agents or when unresolved.
      */
     val iconUrl: String? = null,
+)
+
+/**
+ * The chat's git view: the working tree's status and counts, the sheet's single-file diff, the
+ * newest turn's inline fallback diffs, and the compare and history tabs.
+ */
+data class GitState(
+    val status: ChatGitStatus? = null,
+    /** The gateway worktree this chat runs in; null when it is not one or the gateway has not said yet. */
+    val worktree: ChatWorktree? = null,
+    val diffStats: GitDiffStats? = null,
+    val fileDiff: List<ToolCallContent.Diff>? = null,
+    val fileDiffPath: String? = null,
+    val isFileDiffLoading: Boolean = false,
+    val fileDiffError: String? = null,
+    /** The commit [fileDiff] was read from; null for the working tree. */
+    val fileDiffCommit: String? = null,
+    /** The qualified compare ref [fileDiff] was read against; null for the working tree or a commit. */
+    val fileDiffCompare: String? = null,
+    /**
+     * Working-tree diffs backing the latest turn's files whose tool calls reported
+     * none, keyed by git-relative path. Read only for the newest turn: git
+     * describes the tree as it is now, so an older turn must never borrow them.
+     */
+    val turnDiffs: Map<String, List<ToolCallContent.Diff>> = emptyMap(),
+    val turnDiffsLoading: Set<String> = emptySet(),
+    val turnDiffsErrors: Map<String, String> = emptyMap(),
+    /** Git paths already changed when the newest turn started; null when git was not known then. */
+    val dirtyAtStart: Set<String>? = null,
+    val history: GitHistoryState = GitHistoryState(),
+    /** The branch the git sheet compares against; null is `Working tree`. Lives for this view model only. */
+    val compareRef: ChatGitRef? = null,
+    val refs: GitRefsState = GitRefsState(),
+    /**
+     * The working tree against [compareRef], kept apart from [status] and [diffStats]: those
+     * feed the top-bar pill and the transcript's per-turn rows, which stay working-tree-relative.
+     */
+    val compareStatus: ChatGitStatus? = null,
+    val isCompareStatusLoading: Boolean = false,
+    val compareStatusError: String? = null,
 )
 
 /** What the compare picker lists. A failed reload keeps [refs]; [unsupported] hides the whole affordance. */

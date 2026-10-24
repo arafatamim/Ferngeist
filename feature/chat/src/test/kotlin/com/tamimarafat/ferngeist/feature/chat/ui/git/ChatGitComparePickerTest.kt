@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.git
 
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.feature.chat.GitRefsState

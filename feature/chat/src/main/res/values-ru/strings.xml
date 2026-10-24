@@ -184,6 +184,15 @@
     <string name="chat_git_compare_current">текущая</string>
     <string name="chat_git_compare_error_title">Не удалось загрузить сравнение</string>
     <string name="chat_git_compare_identical">Нет отличий от %1$s</string>
+    <string name="chat_git_compare_load_failed">Не удалось загрузить сравнение</string>
+    <string name="chat_git_compare_no_workspace">Нет подключения к рабочей области шлюза для загрузки сравнения</string>
+    <string name="chat_git_compare_not_honoured">Шлюз не применил сравнение</string>
+    <string name="chat_git_diff_no_workspace">Нет подключения к рабочей области шлюза для загрузки diff git для %1$s</string>
+    <string name="chat_git_diff_load_failed">Не удалось загрузить diff git для %1$s</string>
+    <string name="chat_git_history_no_workspace">Нет подключения к рабочей области шлюза для загрузки истории</string>
+    <string name="chat_git_history_load_failed">Не удалось загрузить историю</string>
+    <string name="chat_git_commit_load_failed">Не удалось загрузить этот коммит</string>
+    <string name="chat_file_no_workspace">Нет подключения к рабочей области шлюза для чтения файла</string>
     <string name="chat_load_earlier">Загрузить более ранние сообщения</string>
     <string-array name="chat_empty_titles">
         <item>Что будем строить сегодня?</item>

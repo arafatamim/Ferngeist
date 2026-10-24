@@ -1,18 +1,20 @@
-package com.tamimarafat.ferngeist.feature.chat
+package com.tamimarafat.ferngeist.feature.chat.git
 
 import com.tamimarafat.ferngeist.core.model.ChatGitLogPage
 import com.tamimarafat.ferngeist.core.model.ChatWorkspaceReader
 import com.tamimarafat.ferngeist.core.model.GitHistoryHeadGoneException
 import com.tamimarafat.ferngeist.core.model.GitHistoryUnsupportedException
+import com.tamimarafat.ferngeist.feature.chat.GitHistoryState
+import com.tamimarafat.ferngeist.feature.chat.canLoadMore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Reads commit history and a commit's file list into [ChatState.gitHistory]. A newer request
- * supersedes an older one by number, so a stale page or file list can never overwrite it.
+ * Reads commit history and a commit's file list into the chat state's [GitHistoryState]. A newer
+ * request supersedes an older one by number, so a stale page or file list can never overwrite it.
  *
  * The walk is always `HEAD`'s own history; which commits belong to this chat's branch is the
- * view's business, marked against [ChatState.gitBranchBase].
+ * view's business, marked against [GitHistoryState.base].
  *
  * Superseded requests are left to finish rather than cancelled: cancelling one on the main
  * thread makes Ktor's Android engine close the response stream there, which Android rejects

@@ -281,6 +281,15 @@
     <string name="chat_git_compare_current">current</string>
     <string name="chat_git_compare_error_title">Couldn\'t load the comparison</string>
     <string name="chat_git_compare_identical">No differences from %1$s</string>
+    <string name="chat_git_compare_load_failed">Failed to load the comparison</string>
+    <string name="chat_git_compare_no_workspace">No gateway workspace connection to load the comparison</string>
+    <string name="chat_git_compare_not_honoured">The gateway did not apply the comparison</string>
+    <string name="chat_git_diff_no_workspace">No gateway workspace connection to load git diff for %1$s</string>
+    <string name="chat_git_diff_load_failed">Failed to load git diff for %1$s</string>
+    <string name="chat_git_history_no_workspace">No gateway workspace connection to load history</string>
+    <string name="chat_git_history_load_failed">Failed to load history</string>
+    <string name="chat_git_commit_load_failed">Failed to load this commit</string>
+    <string name="chat_file_no_workspace">No gateway workspace connection to read the file</string>
     <string name="chat_load_earlier">Load earlier messages</string>
     <string-array name="chat_empty_titles">
         <item>What do you want to build today?</item>

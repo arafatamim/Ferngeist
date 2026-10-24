@@ -26,6 +26,7 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -38,15 +39,16 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.feature.chat.R
-import com.tamimarafat.ferngeist.feature.chat.ui.Bone
-import com.tamimarafat.ferngeist.feature.chat.ui.DIFF_SKELETON_LINES
+import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.ui.DiffRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.FileTypeIcon
-import com.tamimarafat.ferngeist.feature.chat.ui.GitStatusBadge
-import com.tamimarafat.ferngeist.feature.chat.ui.GitTooltip
-import com.tamimarafat.ferngeist.feature.chat.ui.SkeletonPulse
-import com.tamimarafat.ferngeist.feature.chat.ui.boneFractions
 import com.tamimarafat.ferngeist.feature.chat.ui.diff.fileNameOf
+import com.tamimarafat.ferngeist.feature.chat.ui.git.Bone
+import com.tamimarafat.ferngeist.feature.chat.ui.git.DIFF_SKELETON_LINES
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitStatusBadge
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitTooltip
+import com.tamimarafat.ferngeist.feature.chat.ui.git.SkeletonPulse
+import com.tamimarafat.ferngeist.feature.chat.ui.git.boneFractions
 
 /**
  * Detail body of the git status sheet for one changed file: back arrow with
@@ -217,7 +219,7 @@ internal fun GitDiffDetailBody(
         error != null -> {
             ErrorStateCard(
                 headline = stringResource(R.string.chat_diff_error_title),
-                body = error,
+                body = localizeChatError(LocalContext.current, error),
                 icon = Icons.Rounded.CloudOff,
                 medallionContainer = MaterialTheme.colorScheme.errorContainer,
                 medallionContent = MaterialTheme.colorScheme.onErrorContainer,

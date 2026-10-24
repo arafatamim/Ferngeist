@@ -48,7 +48,10 @@ internal class ChatFileLoader(
     private val cwd: String,
     private val tree: () -> List<ChatChangedFile>,
 ) {
-    /** The read in flight; a newer open or a close replaces it, and a replaced read never lands. */
+    /**
+     * The read in flight; a newer open or a close replaces it, and a replaced read never lands.
+     * Cancels, the cancelling side of the platform limit described in `ChatGitHistoryLoader`.
+     */
     private var job: Job? = null
 
     fun open(

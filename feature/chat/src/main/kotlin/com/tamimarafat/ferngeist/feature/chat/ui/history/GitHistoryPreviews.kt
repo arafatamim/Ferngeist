@@ -26,9 +26,9 @@ import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
 import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.feature.chat.R
-import com.tamimarafat.ferngeist.feature.chat.ui.GitHistoryList
-import com.tamimarafat.ferngeist.feature.chat.ui.GitHistorySkeleton
-import com.tamimarafat.ferngeist.feature.chat.ui.GitSheetTabs
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitHistoryList
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitHistorySkeleton
+import com.tamimarafat.ferngeist.feature.chat.ui.git.GitSheetTabs
 
 // region Previews
 
