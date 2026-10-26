@@ -6,6 +6,7 @@
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(projects)* Animate refreshed home project rows into their new positions in both list views.
 - *(gateway)* Keep protocol compatibility v2-only; reject unverified newer protocol versions.
 - *(projects)* Refresh gateway project timestamps when a local turn stops streaming, after any older fetch finishes.
 - *(projects)* Keep live projects first in both home list views, including live projects with old or unknown timestamps.

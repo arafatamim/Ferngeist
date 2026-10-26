@@ -1,9 +1,11 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui.projects
 
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.animateBounds
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -28,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,27 +95,36 @@ internal fun ProjectsGroup(
     val hidden = projects.size - collapsed.size
     val count = shown.size + if (hidden > 0) 1 else 0
     val showGateway = projects.distinctBy { it.gateway.id }.size > 1
-    Column(
-        modifier = modifier.animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
-        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
-    ) {
-        shown.forEachIndexed { index, project ->
-            key(project.gateway.id, project.repo) {
-                ProjectItem(
-                    project = project,
-                    index = index,
-                    count = count,
-                    showGateway = showGateway,
-                    live = project.isLive(streamingChatKeys),
-                    now = now,
-                    onOpenProject = onOpenProject,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                )
+    val spatialSpec = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.geometry.Rect>()
+    val boundsTransform = remember(spatialSpec) { BoundsTransform { _, _ -> spatialSpec } }
+    LookaheadScope {
+        Column(
+            modifier = modifier.animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
+            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+        ) {
+            shown.forEachIndexed { index, project ->
+                key(project.gateway.id, project.repo) {
+                    ProjectItem(
+                        project = project,
+                        index = index,
+                        count = count,
+                        showGateway = showGateway,
+                        live = project.isLive(streamingChatKeys),
+                        now = now,
+                        onOpenProject = onOpenProject,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        modifier =
+                            Modifier.animateBounds(
+                                lookaheadScope = this@LookaheadScope,
+                                boundsTransform = boundsTransform,
+                            ),
+                    )
+                }
             }
-        }
-        if (hidden > 0) {
-            ProjectsToggle(expanded, hidden, index = shown.size, count = count) { expanded = !expanded }
+            if (hidden > 0) {
+                ProjectsToggle(expanded, hidden, index = shown.size, count = count) { expanded = !expanded }
+            }
         }
     }
 }
