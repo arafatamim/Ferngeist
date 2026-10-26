@@ -590,6 +590,30 @@ class ChatConnectionHubTest {
         }
 
     @Test
+    fun `connected chat keys isolate sessions and servers and follow disconnect without refresh`() =
+        runTest {
+            val hub = newHub()
+            val first = hub.acquireChatManager()
+            val second = hub.acquireChatManager()
+            val other = hub.acquireChatManager()
+            val disconnected = first.connectionState.value
+            hub.registerChat(serverId = "srvA", sessionId = "s1", manager = first)
+            hub.registerChat(serverId = "srvA", sessionId = "s2", manager = second)
+            hub.registerChat(serverId = "srvB", sessionId = "s1", manager = other)
+            advanceUntilIdle()
+            assertEquals(emptySet<String>(), hub.connectedChatIds.value)
+
+            first.forceConnectionState(AcpConnectionState.Connected)
+            other.forceConnectionState(AcpConnectionState.Connected)
+            advanceUntilIdle()
+            assertEquals(setOf("srvA/s1", "srvB/s1"), hub.connectedChatIds.value)
+
+            first.forceConnectionState(disconnected)
+            advanceUntilIdle()
+            assertEquals(setOf("srvB/s1"), hub.connectedChatIds.value)
+        }
+
+    @Test
     fun `queued disconnect observation keeps a newly registered connected chat streaming`() =
         runTest {
             val hub =

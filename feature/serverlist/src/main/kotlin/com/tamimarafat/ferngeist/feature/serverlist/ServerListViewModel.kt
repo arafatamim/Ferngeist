@@ -122,6 +122,10 @@ class ServerListViewModel
             agentLauncher.liveServerIds
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+        val connectedChatKeys: StateFlow<Set<String>> =
+            agentLauncher.connectedChatIds
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
         val recentSessions: StateFlow<List<RecentSession>> =
             combine(
                 projectCatalog.getRecentSessions(RECENT_SESSIONS_LIMIT),

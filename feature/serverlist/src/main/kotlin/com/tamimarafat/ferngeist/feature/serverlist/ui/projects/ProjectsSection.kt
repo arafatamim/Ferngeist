@@ -6,6 +6,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateBounds
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -38,17 +39,17 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.common.ui.status.InProgressIndicator
 import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
+import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitle
 
 /** Live projects lead in both views; each group keeps newest known activity first. */
 internal fun projectsByActivity(
     projects: List<ProjectSummary>,
     streamingChatKeys: Set<String>,
 ): List<ProjectSummary> {
-    val (live, idle) = projects.partition { it.isLive(streamingChatKeys) }
+    val (live, idle) = projects.partition { it.hasLiveChat(streamingChatKeys) }
     return live.sortedByDescending { it.updatedAt } + idle.sortedByDescending { it.updatedAt }
 }
 
@@ -64,12 +65,15 @@ internal fun collapsedProjects(
 ): List<ProjectSummary> =
     projects
         .filter {
-            it.isLive(streamingChatKeys) ||
+            it.hasLiveChat(streamingChatKeys) ||
                 it.updatedAt?.let { updated -> now - updated < RECENT_PROJECT_WINDOW_MS } == true
         }.take(MAX_VISIBLE_PROJECTS)
 
-private fun ProjectSummary.isLive(streamingChatKeys: Set<String>): Boolean =
-    chats.any { "${it.target.id}/${it.summary.id}" in streamingChatKeys }
+internal fun ProjectSummary.hasLiveChat(chatKeys: Set<String>): Boolean =
+    chats.any { "${it.target.id}/${it.summary.id}" in chatKeys }
+
+internal fun ProjectSummary.activeChatCount(streamingChatKeys: Set<String>): Int =
+    chats.count { "${it.target.id}/${it.summary.id}" in streamingChatKeys }
 
 private const val RECENT_PROJECT_WINDOW_MS = 48L * 60 * 60 * 1000
 private const val MAX_VISIBLE_PROJECTS = 5
@@ -82,6 +86,7 @@ private const val MAX_VISIBLE_PROJECTS = 5
 internal fun ProjectsGroup(
     projects: List<ProjectSummary>,
     streamingChatKeys: Set<String>,
+    connectedChatKeys: Set<String>,
     now: Long,
     onOpenProject: (ProjectSummary) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
@@ -109,7 +114,8 @@ internal fun ProjectsGroup(
                         index = index,
                         count = count,
                         showGateway = showGateway,
-                        live = project.isLive(streamingChatKeys),
+                        activeChats = project.activeChatCount(streamingChatKeys),
+                        isConnected = project.hasLiveChat(connectedChatKeys),
                         now = now,
                         onOpenProject = onOpenProject,
                         sharedTransitionScope = sharedTransitionScope,
@@ -136,13 +142,26 @@ private fun ProjectItem(
     index: Int,
     count: Int,
     showGateway: Boolean,
-    live: Boolean,
+    activeChats: Int,
+    isConnected: Boolean,
     now: Long,
     onOpenProject: (ProjectSummary) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
+    val idleSubtitle = if (activeChats == 0) projectCounts(project) else ""
+    val subtitleState = remember(activeChats, idleSubtitle) { activeChats to idleSubtitle }
+    val containerColor by animateColorAsState(
+        targetValue =
+            if (isConnected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            },
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "projectContainerColor",
+    )
     SegmentedListItem(
         onClick = { onOpenProject(project) },
         shapes = ListItemDefaults.segmentedShapes(index, count),
@@ -158,10 +177,26 @@ private fun ProjectItem(
                     resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                 )
             }.handCursor(),
-        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = ListItemDefaults.segmentedColors(containerColor = containerColor),
         overlineContent = if (showGateway) ({ Text(project.gateway.name) }) else null,
-        supportingContent = { Text(projectCounts(project)) },
-        trailingContent = { ProjectTrailing(project, live, now) },
+        supportingContent = {
+            Crossfade(
+                targetState = subtitleState,
+                animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
+                label = "projectSubtitle",
+            ) { (subtitleCount, subtitleText) ->
+                if (subtitleCount > 0) {
+                    ActiveChatsSubtitle(subtitleCount)
+                } else {
+                    Text(subtitleText)
+                }
+            }
+        },
+        trailingContent = {
+            project.updatedAt?.let { updatedAt ->
+                Text(text = relativeTime(updatedAt, now), style = MaterialTheme.typography.labelMedium)
+            }
+        },
     ) {
         with(sharedTransitionScope) {
             Text(
@@ -227,29 +262,4 @@ private fun projectCounts(project: ProjectSummary): String {
     val worktrees = project.checkout?.worktrees?.size ?: 0
     if (worktrees == 0) return chats
     return chats + " · " + pluralStringResource(R.plurals.serverlist_project_worktrees, worktrees, worktrees)
-}
-
-@Composable
-private fun ProjectTrailing(
-    project: ProjectSummary,
-    live: Boolean,
-    now: Long,
-) {
-    Crossfade(
-        targetState = live,
-        modifier = Modifier.animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
-        animationSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
-        label = "projectActivity",
-    ) { working ->
-        if (working) {
-            InProgressIndicator()
-        } else {
-            project.updatedAt?.let { updatedAt ->
-                Text(
-                    text = relativeTime(updatedAt, now),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-        }
-    }
 }

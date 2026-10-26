@@ -192,6 +192,9 @@ class ChatConnectionHub(
         connectedManagerValues(filter = { true }, select = { it.serverId })
             .stateIn(scope, SharingStarted.Eagerly, emptySet())
 
+    private val _connectedChatIds = MutableStateFlow<Set<String>>(emptySet())
+    val connectedChatIds: StateFlow<Set<String>> = _connectedChatIds.asStateFlow()
+
     private val _trackedChatIds = MutableStateFlow<Set<String>>(emptySet())
     val trackedChatIds: StateFlow<Set<String>> = _trackedChatIds.asStateFlow()
 
@@ -202,7 +205,8 @@ class ChatConnectionHub(
 
     init {
         scope.launch {
-            connectedManagerValues(filter = { true }, select = { it.chatId }).collect { _ ->
+            connectedManagerValues(filter = { true }, select = { it.chatId }).collect { connected ->
+                _connectedChatIds.value = connected
                 val disconnected =
                     entries.values
                         .filter {
@@ -623,7 +627,7 @@ class ChatConnectionHub(
     private fun Entry.isConnectedNow(): Boolean = manager?.connectionState?.value is AcpConnectionState.Connected
 
     /**
-     * Live connected-entry derivation shared by [warmServers] and
+     * Live connected-entry derivation shared by [warmServers], [connectedChatIds] and
      * [connectedSessionIds]. Follows the same shape as [anyConnected]: the
      * combination is rebuilt via [flatMapLatest] whenever [revision] bumps
      * (entry-table changes), and within a stable entry set it combines each

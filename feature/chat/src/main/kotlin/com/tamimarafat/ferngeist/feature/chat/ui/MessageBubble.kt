@@ -225,8 +225,6 @@ internal val userBubbleShape =
         bottomStart = 20.dp,
         bottomEnd = 8.dp,
     )
-internal const val SHIMMER_START_OFFSET = -200f
-internal const val SHIMMER_END_OFFSET = 600f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
