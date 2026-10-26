@@ -23,32 +23,48 @@ internal fun rememberSendHandlers(
                 mutations.selectedImages.value.isNotEmpty() ||
                 mutations.selectedFiles.value.isNotEmpty()
         if (hasContent) {
-            viewModel.dispatch(
-                ChatIntent.SendMessage(
-                    text = mutations.messageText.text.toString(),
-                    images = mutations.selectedImages.value,
-                    files = mutations.selectedFiles.value,
-                ),
-            )
-            scrollHandle.onSendMessage()
-            mutations.messageText.clearText()
-            mutations.selectedImages.value = emptyList()
-            mutations.selectedFiles.value = emptyList()
-            mutations.composerExpanded.value = false
-            focusManager.clearFocus()
+            confirmOrSend(viewModel, mutations) {
+                viewModel.dispatch(
+                    ChatIntent.SendMessage(
+                        text = mutations.messageText.text.toString(),
+                        images = mutations.selectedImages.value,
+                        files = mutations.selectedFiles.value,
+                    ),
+                )
+                scrollHandle.onSendMessage()
+                mutations.messageText.clearText()
+                mutations.selectedImages.value = emptyList()
+                mutations.selectedFiles.value = emptyList()
+                mutations.composerExpanded.value = false
+                focusManager.clearFocus()
+            }
         }
     }
 
     // --- Slash-command send (commands sheet) ---
     val sendCommand: (String) -> Unit = { command ->
         if (state.isSessionReady) {
-            val normalized = command.trim()
-            val slashCommand = if (normalized.startsWith("/")) normalized else "/$normalized"
-            viewModel.dispatch(ChatIntent.SendMessage(slashCommand))
-            scrollHandle.onSendMessage()
+            confirmOrSend(viewModel, mutations) {
+                val normalized = command.trim()
+                val slashCommand = if (normalized.startsWith("/")) normalized else "/$normalized"
+                viewModel.dispatch(ChatIntent.SendMessage(slashCommand))
+                scrollHandle.onSendMessage()
+            }
         }
     }
     return sendMessage to sendCommand
+}
+
+private fun confirmOrSend(
+    viewModel: ChatViewModel,
+    mutations: ChatScreenMutations,
+    send: () -> Unit,
+) {
+    if (viewModel.needsActivityConfirmation()) {
+        mutations.pendingSend.value = send
+    } else {
+        send()
+    }
 }
 
 internal data class ComposerCallbacks(

@@ -38,6 +38,7 @@ import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
+import com.tamimarafat.ferngeist.feature.chat.activity.ActiveElsewhereDialog
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentSupport
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.HeldAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.processPickedUris
@@ -137,6 +138,15 @@ fun ChatScreen(
         showBackButton = showBackButton,
         sharedBoundsEnabled = sharedBoundsEnabled,
     )
+    screenState.mutations.pendingSend.value?.let { send ->
+        ActiveElsewhereDialog(
+            onConfirm = {
+                screenState.mutations.pendingSend.value = null
+                send()
+            },
+            onDismiss = { screenState.mutations.pendingSend.value = null },
+        )
+    }
 }
 
 internal data class ChatScreenMutations(
@@ -145,6 +155,7 @@ internal data class ChatScreenMutations(
     val selectedThoughtSegmentId: MutableState<String?>,
     val selectedToolCallSegmentId: MutableState<String?>,
     val showCommandsDialog: MutableState<Boolean>,
+    val pendingSend: MutableState<(() -> Unit)?>,
     val showConnectionStatusDialog: MutableState<Boolean>,
     val showGitStatusSheet: MutableState<Boolean>,
     val showSwitcherSheet: MutableState<Boolean>,
@@ -165,6 +176,7 @@ private fun rememberChatScreenMutations(): ChatScreenMutations =
         selectedThoughtSegmentId = remember { mutableStateOf<String?>(null) },
         selectedToolCallSegmentId = remember { mutableStateOf<String?>(null) },
         showCommandsDialog = remember { mutableStateOf(false) },
+        pendingSend = remember { mutableStateOf<(() -> Unit)?>(null) },
         showConnectionStatusDialog = remember { mutableStateOf(false) },
         showGitStatusSheet = remember { mutableStateOf(false) },
         showSwitcherSheet = remember { mutableStateOf(false) },

@@ -18,6 +18,8 @@ import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.qualified
+import com.tamimarafat.ferngeist.feature.chat.activity.ActivityConfirmation
+import com.tamimarafat.ferngeist.feature.chat.activity.PhoneTurnClock
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitFileDiffLoader
@@ -96,6 +98,15 @@ class ChatViewModel
          * be missing history the agent never replays.
          */
         private val openedExistingSession: Boolean = sessionId != NEW_SESSION_ARG
+        private val activityConfirmation =
+            ActivityConfirmation(savedStateHandle.get<Long>("updatedAt").takeIf { openedExistingSession })
+
+        /** Called only for an explicit send; merely opening the chat never consumes the decision. */
+        fun needsActivityConfirmation(): Boolean =
+            activityConfirmation.needsConfirmation(
+                lastPhoneTurn = PhoneTurnClock.lastTurn(serverId, trackedSessionId),
+                now = System.currentTimeMillis(),
+            )
 
         /**
          * Identity for this chat's own local records (the durable prompt queue and
@@ -488,7 +499,11 @@ class ChatViewModel
             // turn starts on the bridge's scope, which outlives this screen. From here the
             // prompt is delivered, so its durable copy goes now rather than when the turn
             // ends: a screen closed mid-turn would otherwise restore and re-send it.
-            if (echoKeys.isNotEmpty()) offlineQueue.persistQueue()
+            // Only a phone-origin echo advances this clock; completion can arrive after the screen closes.
+            if (echoKeys.isNotEmpty()) {
+                durableSessionId?.let { PhoneTurnClock.record(serverId, it, System.currentTimeMillis()) }
+                offlineQueue.persistQueue()
+            }
             val messages =
                 durableSessionId?.let { turnTimings.withTurnTimings(it, snapshot.messages) } ?: snapshot.messages
             updateState {
