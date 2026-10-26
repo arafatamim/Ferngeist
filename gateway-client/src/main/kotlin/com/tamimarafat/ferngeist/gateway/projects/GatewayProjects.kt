@@ -6,6 +6,7 @@ import io.ktor.client.HttpClient
 import io.ktor.utils.io.readLine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
@@ -23,9 +24,22 @@ class GatewayProjects
             host: String,
             gatewayCredential: String,
             agentIds: List<String>,
+            knownRepos: List<String> = emptyList(),
         ): Flow<GatewayProjectLine> =
             flow {
-                http.getStream(scheme, host, gatewayCredential, agentIds) { channel ->
+                val endpoint =
+                    http.buildGatewayEndpoint(
+                        scheme,
+                        host,
+                        "v1",
+                        "projects",
+                        query =
+                            buildMap {
+                                put("agents", agentIds.joinToString(","))
+                                if (knownRepos.isNotEmpty()) put("repos", json.encodeToString(knownRepos))
+                            },
+                    )
+                http.getStream(host, gatewayCredential, endpoint) { channel ->
                     while (true) {
                         val line = channel.readLine() ?: break
                         if (line.isNotBlank()) emit(json.decodeFromString<GatewayProjectLine>(line))

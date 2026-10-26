@@ -27,6 +27,10 @@ private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
 private const val NANOS_PER_MS = 1_000_000L
 
+// Lines arrive as agents finish, each within the gateway's 10 s listing limit plus
+// the agent's startup, so the client's 30 s idle cut would drop a slow agent's line.
+private const val PROJECTS_SOCKET_TIMEOUT_MS = 60_000L
+
 /**
  * Every JSON call the gateway repository makes funnels through here: [getJson],
  * [postJson], [postJsonUnit] and [deleteJsonUnit] share one signed-send path
@@ -46,23 +50,11 @@ internal class GatewayHttpPipeline(
 
     /** Keep the response open while consuming NDJSON; ordinary get saves the whole body first. */
     internal suspend fun getStream(
-        scheme: String,
         host: String,
         credential: String,
-        agentIds: List<String>,
+        endpoint: String,
         consume: suspend (ByteReadChannel) -> Unit,
     ) {
-        val endpoint =
-            buildGatewayEndpoint(
-                scheme,
-                host,
-                "v1",
-                "projects",
-                query =
-                    mapOf(
-                        "agents" to agentIds.joinToString(","),
-                    ),
-            )
         val request = GatewayProofRequest(method = "GET", endpoint = endpoint)
         repeat(2) { attempt ->
             val authHeaders = proofHeaders(host, credential, request)
@@ -71,7 +63,10 @@ internal class GatewayHttpPipeline(
                     .prepareGet {
                         url(endpoint)
                         accept(ContentType.parse("application/x-ndjson"))
-                        timeout { requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS }
+                        timeout {
+                            requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
+                            socketTimeoutMillis = PROJECTS_SOCKET_TIMEOUT_MS
+                        }
                         authHeaders?.let { applyGatewayAuthHeaders(it) }
                     }.execute { response ->
                         if (response.status.isSuccess()) {

@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.gateway.projects
 
+import com.agentclientprotocol.model.SessionCapabilities
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -11,13 +12,18 @@ sealed interface GatewayProjectLine {
         val agentId: String,
         val status: String,
         val error: String? = null,
+        val launchAvailable: Boolean? = null,
+        /** The agent's own initialize answer, passed through by the gateway; null unless the listing succeeded. */
+        val sessionCapabilities: SessionCapabilities? = null,
         val chats: List<GatewayProjectChat> = emptyList(),
+        val running: List<String> = emptyList(),
     ) : GatewayProjectLine
 
     @Serializable
     @SerialName("checkouts")
     data class Checkouts(
         val repos: List<GatewayProjectRepo> = emptyList(),
+        val missingRepos: List<String> = emptyList(),
     ) : GatewayProjectLine
 }
 

@@ -371,7 +371,7 @@ class GatewayWorkspaceTest {
         }
 
     @Test
-    fun `fetchStatus accepts a matching protocol version`() =
+    fun `fetchStatus accepts the v2 protocol version`() =
         runTest {
             val repo =
                 repoCapturing(
@@ -408,14 +408,14 @@ class GatewayWorkspaceTest {
             val repo =
                 repoCapturing(
                     responseBody =
-                        """{"name":"gw","version":"old","protocolVersion":"v0","remote":{"configured":true}}""",
+                        """{"name":"gw","version":"new","protocolVersion":"v3","remote":{"configured":true}}""",
                 )
 
             try {
                 repo.fetchStatus("http", "10.0.0.2:5788")
                 fail("expected GatewayProtocolMismatchException")
             } catch (e: GatewayProtocolMismatchException) {
-                assertTrue(e.message.orEmpty().contains("v0"))
+                assertTrue(e.message.orEmpty().contains("v3"))
                 assertTrue(e.message.orEmpty().contains("v2"))
             }
         }

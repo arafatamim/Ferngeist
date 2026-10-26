@@ -4,6 +4,9 @@
 ### Features
 
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
+### Fixes
+
+- *(gateway)* Keep protocol compatibility v2-only; reject unverified newer protocol versions.
 
 ## [1.5.1] - 2026-10-19
 
