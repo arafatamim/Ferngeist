@@ -48,4 +48,7 @@
     <string name="common_rpc_direction_res">响应</string>
     <string name="common_rpc_direction_err">错误</string>
     <string name="common_rpc_direction_ntf">通知</string>
+    <string name="common_just_now">刚刚</string>
+    <string name="common_in_progress">进行中</string>
+    <string name="common_recently_active">最近活跃</string>
 </resources>

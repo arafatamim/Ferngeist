@@ -48,4 +48,7 @@
     <string name="common_rpc_direction_res">ОТВ</string>
     <string name="common_rpc_direction_err">ОШИБ</string>
     <string name="common_rpc_direction_ntf">УВЕД</string>
+    <string name="common_just_now">Только что</string>
+    <string name="common_in_progress">В процессе</string>
+    <string name="common_recently_active">Недавняя активность</string>
 </resources>

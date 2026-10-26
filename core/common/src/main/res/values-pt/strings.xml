@@ -43,4 +43,7 @@
     <string name="common_rpc_direction_res">RES</string>
     <string name="common_rpc_direction_err">ERR</string>
     <string name="common_rpc_direction_ntf">NTF</string>
+    <string name="common_just_now">Agora mesmo</string>
+    <string name="common_in_progress">Em andamento</string>
+    <string name="common_recently_active">Atividade recente</string>
 </resources>
