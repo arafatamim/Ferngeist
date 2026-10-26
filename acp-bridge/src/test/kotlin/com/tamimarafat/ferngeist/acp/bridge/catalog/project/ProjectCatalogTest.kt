@@ -4,6 +4,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.newHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.registerChat
+import com.tamimarafat.ferngeist.core.model.ChatLoadState
+import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
@@ -18,6 +20,7 @@ import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectWorktree
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjects
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.ByteChannel
@@ -434,6 +437,116 @@ class ProjectCatalogTest {
             runCurrent()
             assertEquals(mapOf("b-claude/recent" to 1_792_886_430_000L), catalog.activityUpdatedAt.value)
         }
+
+    @Test
+    fun `local turn completion refreshes project timestamp within the fetch throttle`() =
+        runTest {
+            val hub = newHub()
+            var timestamp = "2026-10-25T00:00:00Z"
+            val catalog =
+                catalog(
+                    MockEngine(
+                        MockEngineConfig().apply {
+                            dispatcher = StandardTestDispatcher(testScheduler)
+                            addHandler { respond(timestampLine(timestamp), HttpStatusCode.OK) }
+                        },
+                    ),
+                    hub = hub,
+                )
+            runCurrent()
+            catalog.refresh().join()
+            runCurrent()
+            val key = hub.registerChat(serverId = claude.id, sessionId = "same")
+            hub.storeSnapshot(key, snapshot(streaming = true))
+            runCurrent()
+            assertEquals(setOf(key), catalog.inProgressChatKeys.value)
+            timestamp = "2026-10-25T00:00:30Z"
+            assertEquals(
+                1_792_886_400_000L,
+                catalog.state.value.projects
+                    .single()
+                    .updatedAt,
+            )
+
+            hub.storeSnapshot(key, snapshot(streaming = false))
+            runCurrent()
+
+            assertEquals(
+                1_792_886_430_000L,
+                catalog.state.value.projects
+                    .single()
+                    .updatedAt,
+            )
+        }
+
+    @Test
+    fun `completions sharing a gateway fetch fresh timestamps after an older fetch finishes`() =
+        runTest {
+            val hub = newHub()
+            val body = ByteChannel(autoFlush = true)
+            var requests = 0
+            val catalog =
+                catalog(
+                    MockEngine(
+                        MockEngineConfig().apply {
+                            dispatcher = StandardTestDispatcher(testScheduler)
+                            addHandler {
+                                requests++
+                                if (requests == 1) {
+                                    respond(body, HttpStatusCode.OK)
+                                } else {
+                                    respond(timestampLine("2026-10-25T00:00:30Z"), HttpStatusCode.OK)
+                                }
+                            }
+                        },
+                    ),
+                    hub = hub,
+                )
+            runCurrent()
+            val keys = listOf(claude, codex).map { hub.registerChat(serverId = it.id, sessionId = "same") }
+            keys.forEach { hub.storeSnapshot(it, snapshot(streaming = true)) }
+            runCurrent()
+            assertEquals(keys.toSet(), catalog.inProgressChatKeys.value)
+            catalog.refresh()
+            runCurrent()
+            body.writeStringUtf8(timestampLine("2026-10-25T00:00:00Z"))
+            runCurrent()
+            keys.forEach { hub.storeSnapshot(it, snapshot(streaming = false)) }
+            runCurrent()
+            assertEquals(
+                1_792_886_400_000L,
+                catalog.state.value.projects
+                    .single()
+                    .updatedAt,
+            )
+
+            body.close()
+            runCurrent()
+
+            assertEquals(
+                1_792_886_430_000L,
+                catalog.state.value.projects
+                    .single()
+                    .updatedAt,
+            )
+            assertEquals(2, requests)
+        }
+
+    private fun timestampLine(timestamp: String): String =
+        """{"type":"agent","agentId":"claude","status":"ok","chats":[""" +
+            """{"sessionId":"same","cwd":"$repo","repo":"$repo","updatedAt":"$timestamp"}]}""" + "\n"
+
+    private fun snapshot(streaming: Boolean) =
+        ChatSessionSnapshot(
+            loadState = ChatLoadState.READY,
+            messages = emptyList(),
+            isStreaming = streaming,
+            configOptions = emptyList(),
+            availableCommands = emptyList(),
+            commandsAdvertised = false,
+            error = null,
+            usage = null,
+        )
 
     private fun TestScope.catalog(
         engine: MockEngine,
