@@ -27,6 +27,7 @@ class GatewayProjectsTest {
                 MockEngine { request ->
                     assertEquals("/v1/projects", request.url.encodedPath)
                     assertEquals("claude,codex", request.url.parameters["agents"])
+                    assertEquals(null, request.url.parameters["repos"])
                     assertEquals("Bearer token", request.headers["Authorization"])
                     respond(body, HttpStatusCode.OK)
                 }
@@ -55,6 +56,29 @@ class GatewayProjectsTest {
             body.close()
             collecting.join()
             assertEquals("main", (lines.last() as GatewayProjectLine.Checkouts).repos.single().branch)
+            client.close()
+        }
+
+    @Test
+    fun `known snapshot roots travel as a JSON query without splitting path commas`() =
+        runTest {
+            val engine =
+                MockEngine { request ->
+                    assertEquals("""["/h/a,b","/h/project name"]""", request.url.parameters["repos"])
+                    respond("""{"type":"checkouts","repos":[]}""" + "\n", HttpStatusCode.OK)
+                }
+            val client = HttpClient(engine)
+            val projects = GatewayProjects(client, Json { ignoreUnknownKeys = true })
+
+            projects
+                .fetchProjects(
+                    scheme = "http",
+                    host = "gateway:5788",
+                    gatewayCredential = "token",
+                    agentIds = listOf("claude"),
+                    knownRepos = listOf("/h/a,b", "/h/project name"),
+                ).collect()
+
             client.close()
         }
 }
