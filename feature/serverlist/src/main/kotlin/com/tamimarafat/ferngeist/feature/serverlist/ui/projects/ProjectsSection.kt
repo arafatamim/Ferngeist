@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,19 +40,30 @@ import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
 
+/** Live projects lead in both views; each group keeps newest known activity first. */
+internal fun projectsByActivity(
+    projects: List<ProjectSummary>,
+    streamingChatKeys: Set<String>,
+): List<ProjectSummary> {
+    val (live, idle) = projects.partition { it.isLive(streamingChatKeys) }
+    return live.sortedByDescending { it.updatedAt } + idle.sortedByDescending { it.updatedAt }
+}
+
 /**
  * The home's Projects rows, each opening its project; quiet by design so the hero stays the
- * screen's single emphasized element. Keep known activity strictly within 48 hours, capped at five.
+ * screen's single emphasized element. From activity-ordered projects, keep live ones or known
+ * activity strictly within 48 hours, capped at five.
  */
 internal fun collapsedProjects(
     projects: List<ProjectSummary>,
     now: Long,
+    streamingChatKeys: Set<String>,
 ): List<ProjectSummary> =
     projects
         .filter {
-            it.updatedAt?.let { updated -> now - updated < RECENT_PROJECT_WINDOW_MS } == true
-        }.sortedByDescending { it.updatedAt }
-        .take(MAX_VISIBLE_PROJECTS)
+            it.isLive(streamingChatKeys) ||
+                it.updatedAt?.let { updated -> now - updated < RECENT_PROJECT_WINDOW_MS } == true
+        }.take(MAX_VISIBLE_PROJECTS)
 
 private fun ProjectSummary.isLive(streamingChatKeys: Set<String>): Boolean =
     chats.any { "${it.target.id}/${it.summary.id}" in streamingChatKeys }
@@ -74,8 +86,9 @@ internal fun ProjectsGroup(
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val collapsed = collapsedProjects(projects, now)
-    val shown = if (expanded) projects else collapsed
+    val ordered = remember(projects, streamingChatKeys) { projectsByActivity(projects, streamingChatKeys) }
+    val collapsed = collapsedProjects(ordered, now, streamingChatKeys)
+    val shown = if (expanded) ordered else collapsed
     val hidden = projects.size - collapsed.size
     val count = shown.size + if (hidden > 0) 1 else 0
     val showGateway = projects.distinctBy { it.gateway.id }.size > 1
