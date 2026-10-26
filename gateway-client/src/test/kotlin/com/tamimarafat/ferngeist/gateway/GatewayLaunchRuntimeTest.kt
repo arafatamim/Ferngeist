@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.gateway
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
+import com.tamimarafat.ferngeist.gateway.launch.reattachTarget
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -83,6 +84,19 @@ class GatewayLaunchRuntimeTest {
             assertEquals("ws://gw.local:5788/v1/acp/r-1", handoff.webSocketUrl)
             assertEquals(listOf("GET /v1/sessions", "POST /v1/sessions/s-old/resume"), requested)
         }
+
+    @Test
+    fun `reattach prefers the session running the opened chat over a newer one`() {
+        val sessions =
+            listOf(
+                GatewaySessionSummary("s-mine", "r-1", "pi-acp", "disconnected", "2026-01-01", listOf("chat-a")),
+                GatewaySessionSummary("s-newer", "r-2", "pi-acp", "disconnected", "2026-02-01", listOf("chat-b")),
+                GatewaySessionSummary("s-live", "r-3", "pi-acp", "active", "2026-03-01", listOf("chat-a")),
+            )
+
+        assertEquals("s-mine", reattachTarget(sessions, "pi-acp", "chat-a")?.sessionId)
+        assertEquals("s-newer", reattachTarget(sessions, "pi-acp", "chat-unknown")?.sessionId)
+    }
 
     @Test
     fun `restartRuntime posts to the runtime restart endpoint and parses the v2 response`() =

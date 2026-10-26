@@ -188,6 +188,8 @@ data class GatewaySessionSummary(
     @SerialName("agentId") val agentId: String,
     val status: String,
     @SerialName("createdAt") val createdAt: String? = null,
+    /** The ACP sessions this gateway session's agent runs; empty from a gateway that predates them. */
+    @SerialName("acpSessionIds") val acpSessionIds: List<String> = emptyList(),
 )
 
 @Serializable

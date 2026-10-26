@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayLaunchResult
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -34,12 +35,14 @@ class GatewayRuntimeLauncher(
         gatewaySource: GatewaySource,
         agentId: String,
         requireSupportedProtocol: Boolean = false,
+        acpSessionId: String? = null,
     ): Result<GatewayLaunchResult> =
         try {
             launchRefreshedRuntime(
                 gatewaySource = gatewaySource,
                 agentId = agentId,
                 requireSupportedProtocol = requireSupportedProtocol,
+                acpSessionId = acpSessionId,
             )
         } catch (error: CancellationException) {
             throw error
@@ -59,6 +62,7 @@ class GatewayRuntimeLauncher(
         gatewaySource: GatewaySource,
         agentId: String,
         requireSupportedProtocol: Boolean,
+        acpSessionId: String?,
     ): Result<GatewayLaunchResult> {
         val refreshedSource =
             try {
@@ -83,7 +87,7 @@ class GatewayRuntimeLauncher(
             gatewayRepository.verifyProtocol(refreshedSource.scheme, refreshedSource.host)
         }
 
-        return attemptConnect(refreshedSource, agentId)
+        return attemptConnect(refreshedSource, agentId, acpSessionId)
     }
 
     /**
@@ -100,11 +104,12 @@ class GatewayRuntimeLauncher(
     private suspend fun attemptConnect(
         gatewaySource: GatewaySource,
         agentId: String,
+        acpSessionId: String?,
     ): Result<GatewayLaunchResult> =
         try {
             val handoff =
                 withContext(ioDispatcher) {
-                    resumeExistingSession(gatewaySource, agentId)
+                    resumeExistingSession(gatewaySource, agentId, acpSessionId)
                         ?: gatewayRepository.connectAgent(
                             scheme = gatewaySource.scheme,
                             host = gatewaySource.host,
@@ -120,10 +125,9 @@ class GatewayRuntimeLauncher(
         }
 
     /**
-     * Reattaches to the device's newest disconnected gateway session for [agentId] instead of
-     * spawning another process: connect always starts fresh, and the gateway caps sessions
-     * per device (409), so sessions that survived an app reinstall must be reused. Only
-     * disconnected ones: attaching to an active session would steal it from its live client.
+     * Reattaches to a disconnected gateway session for [agentId] (see [reattachTarget]) instead
+     * of spawning another process: connect always starts fresh, and the gateway caps sessions
+     * per device (409), so sessions that survived an app reinstall must be reused.
      *
      * Null when there is none, or when listing/resuming fails, so the caller falls back to
      * connect.
@@ -132,13 +136,19 @@ class GatewayRuntimeLauncher(
     private suspend fun resumeExistingSession(
         gatewaySource: GatewaySource,
         agentId: String,
+        acpSessionId: String?,
     ): GatewayConnectResponse? =
         try {
             val existing =
-                gatewayRepository
-                    .listGatewaySessions(gatewaySource.scheme, gatewaySource.host, gatewaySource.gatewayCredential)
-                    .filter { it.agentId == agentId && it.status == "disconnected" }
-                    .maxByOrNull { it.createdAt.orEmpty() }
+                reattachTarget(
+                    gatewayRepository.listGatewaySessions(
+                        gatewaySource.scheme,
+                        gatewaySource.host,
+                        gatewaySource.gatewayCredential,
+                    ),
+                    agentId,
+                    acpSessionId,
+                )
             existing?.let {
                 val resumed =
                     gatewayRepository.resumeSession(
@@ -160,4 +170,19 @@ class GatewayRuntimeLauncher(
         } catch (_: Exception) {
             null
         }
+}
+
+/**
+ * The gateway session a launch of [agentId] reattaches to: the one already running
+ * [acpSessionId] when the gateway lists it, else the newest. Only disconnected ones, since
+ * attaching to an active session would steal it from its live client.
+ */
+internal fun reattachTarget(
+    sessions: List<GatewaySessionSummary>,
+    agentId: String,
+    acpSessionId: String?,
+): GatewaySessionSummary? {
+    val disconnected = sessions.filter { it.agentId == agentId && it.status == "disconnected" }
+    return disconnected.firstOrNull { acpSessionId != null && acpSessionId in it.acpSessionIds }
+        ?: disconnected.maxByOrNull { it.createdAt.orEmpty() }
 }

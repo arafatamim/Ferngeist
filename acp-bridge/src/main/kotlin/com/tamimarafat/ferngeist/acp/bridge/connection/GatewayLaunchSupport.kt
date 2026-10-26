@@ -105,6 +105,7 @@ suspend fun persistEnvValues(
 suspend fun buildGatewayLaunchContext(
     runtimeLauncher: GatewayRuntimeLauncher,
     server: LaunchableTarget.GatewayAgent,
+    acpSessionId: String? = null,
 ): Result<GatewayLaunchContext> =
     runtimeLauncher
         .launch(
@@ -114,6 +115,7 @@ suspend fun buildGatewayLaunchContext(
             // protocol version first so a mismatch fails here with a clear
             // message instead of opaquely on the connect call.
             requireSupportedProtocol = true,
+            acpSessionId = acpSessionId,
         ).map { result ->
             val source = result.gatewaySource
             val handoff = result.handoff
