@@ -1,13 +1,13 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /** In-memory session repository stub. */
-class FakeSessionRepository : SessionRepository {
+class FakeChatCatalog : ChatCatalog {
     private val sessionsFlows = mutableMapOf<String, MutableStateFlow<List<SessionSummary>>>()
 
     /** Test hook: sets the session list emitted for a server. */
@@ -17,22 +17,6 @@ class FakeSessionRepository : SessionRepository {
     ) {
         sessionsFlows.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = sessions
     }
-
-    val updateTitleCalls: MutableList<Triple<String, String, String>> = mutableListOf()
-
-    override suspend fun updateSessionTitle(
-        serverId: String,
-        sessionId: String,
-        title: String,
-    ) {
-        updateTitleCalls.add(Triple(serverId, sessionId, title))
-    }
-
-    override suspend fun touchSession(
-        serverId: String,
-        sessionId: String,
-        updatedAt: Long,
-    ) = Unit
 
     override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
         sessionsFlows.getOrPut(serverId) { MutableStateFlow(emptyList()) }
@@ -44,7 +28,7 @@ class FakeSessionRepository : SessionRepository {
         sessionId: String,
     ): SessionSummary? = null
 
-    override suspend fun upsertSession(
+    override fun chatCreated(
         serverId: String,
         summary: SessionSummary,
     ) = Unit
@@ -56,18 +40,7 @@ class FakeSessionRepository : SessionRepository {
 
     override suspend fun clearSessions(serverId: String) = Unit
 
-    override suspend fun setGatewaySessionId(
-        serverId: String,
-        sessionId: String,
-        gatewaySessionId: String?,
-    ) = Unit
-
-    override suspend fun clearStaleGatewaySessions(
-        serverId: String,
-        liveGatewaySessionIds: Set<String>,
-    ): Int = 0
-
-    override suspend fun replaceSessions(
+    override suspend fun recordListing(
         serverId: String,
         sessions: List<SessionSummary>,
     ) = Unit

@@ -1,7 +1,9 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * What a chat connection reports about itself when it registers: the gateway binding it was
@@ -14,6 +16,7 @@ data class ChatRegistration(
     val isConnected: () -> Boolean,
     val isStreaming: () -> Boolean,
     val manager: AcpConnection? = null,
+    val snapshot: StateFlow<SessionSnapshot>? = null,
 )
 
 /**

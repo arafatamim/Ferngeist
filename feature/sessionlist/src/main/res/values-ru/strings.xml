@@ -53,6 +53,9 @@
     <string name="sessionlist_scope_main">Основная копия</string>
     <string name="sessionlist_scope_new_worktree">Новый worktree…</string>
     <string name="sessionlist_new_chat_in">Новый чат в %1$s</string>
+    <string name="sessionlist_project_new_chat_with">Новый чат с %1$s</string>
+    <string name="sessionlist_project_pick_agent">Начать чат с</string>
+    <string name="sessionlist_project_last_used">Использовался здесь последним</string>
     <string name="sessionlist_scope_empty">В %1$s пока нет чатов</string>
     <string name="sessionlist_worktree_branch">Ветка</string>
     <string name="sessionlist_worktree_optional">Необязательно</string>
@@ -95,4 +98,10 @@
     <string name="sessionlist_error_init_gateway">Ошибка инициализации %1$s</string>
     <string name="sessionlist_missing_folders">Удалённые папки (%d)</string>
     <string name="sessionlist_missing_folder_message">Папка этого чата больше не существует, поэтому его нельзя открыть.</string>
+    <string name="sessionlist_all_agents">Все агенты</string>
+    <string name="sessionlist_action_busy">В этом чате ещё формируется ответ. Сначала отмените его внутри чата.</string>
+    <string name="sessionlist_action_failed">Не удалось обновить чат. Повторите попытку.</string>
+    <string name="sessionlist_agent_listing_unsupported">Список чатов недоступен. Новые чаты остаются на этом телефоне до выхода из приложения.</string>
+    <string name="sessionlist_agent_auth_required">Требуется аутентификация</string>
+    <string name="sessionlist_agent_listing_failed">Не удалось обновить чаты. Вы всё ещё можете начать чат.</string>
 </resources>

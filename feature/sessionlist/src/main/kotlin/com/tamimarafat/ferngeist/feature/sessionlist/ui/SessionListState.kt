@@ -31,10 +31,19 @@ import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.worktreeScopeOptions
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
+/** Which rows hold a live connection here, and which Close can act on. */
+internal class RowPresence(
+    val live: Set<String>,
+    val working: Set<String>,
+    val activityUpdatedAt: Map<String, Long>,
+    /** Live here, or still running on the gateway. */
+    val closable: Set<String>,
+)
+
 /** The session rows the list paints, and what the agent allows for them. */
 internal class SessionRowsUi(
     val sessions: List<SessionSummary>,
-    val liveSessionIds: Set<String>,
+    val presence: RowPresence,
     /** False only until the cache's first emission; see `SessionRows.loaded`. */
     val cacheRead: Boolean,
     /** `cwdKey`s of chat folders gone from disk; their chats sit in a collapsed section. */
@@ -141,6 +150,9 @@ internal fun rememberSessionListState(
                 .orEmpty()
         }
     val liveSessionIds = viewModel.liveSessionIds.collectAsState().value
+    val workingSessionIds = viewModel.workingSessionIds.collectAsState().value
+    val activityUpdatedAt = viewModel.activityUpdatedAt.collectAsState().value
+    val closableSessionIds = viewModel.closableSessionIds.collectAsState().value
     val connectionState = viewModel.connectionState.collectAsState().value
     val connectionDiagnostics = viewModel.connectionDiagnostics.collectAsState().value
     val snackbarHostState = remember { SnackbarHostState() }
@@ -179,7 +191,13 @@ internal fun rememberSessionListState(
         rows =
             SessionRowsUi(
                 sessions = sessionRows.rows,
-                liveSessionIds = liveSessionIds,
+                presence =
+                    RowPresence(
+                        live = liveSessionIds,
+                        working = workingSessionIds,
+                        activityUpdatedAt = activityUpdatedAt,
+                        closable = closableSessionIds,
+                    ),
                 cacheRead = sessionRows.loaded,
                 missingCwds = missingCwds,
                 supportsSessionList = supportsSessionList,

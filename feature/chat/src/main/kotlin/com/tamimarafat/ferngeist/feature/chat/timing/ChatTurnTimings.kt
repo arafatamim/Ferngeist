@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
  * are recorded as they finish and put back on the replayed replies that match them.
  */
 internal class ChatTurnTimings(
+    private val serverId: String,
     private val scope: CoroutineScope,
     private val repository: TurnTimingRepository,
     private val ioDispatcher: CoroutineDispatcher,
@@ -37,13 +38,13 @@ internal class ChatTurnTimings(
         if (keys.isEmpty()) return messages
         val known =
             loaded?.takeIf { it.sessionId == sessionId }?.timings
-                ?: withContext(ioDispatcher) { repository.getTimings(sessionId) }
+                ?: withContext(ioDispatcher) { repository.getTimings(serverId, sessionId) }
         val fresh = messages.unstoredTurns(keys, known)
         val stored = known + fresh
         loaded = LoadedTimings(sessionId, stored)
         if (fresh.isNotEmpty()) {
             scope.launch(ioDispatcher) {
-                fresh.forEach { (key, timing) -> repository.record(sessionId, key, timing) }
+                fresh.forEach { (key, timing) -> repository.record(serverId, sessionId, key, timing) }
             }
         }
         return messages.withStoredTurns(keys, stored)

@@ -67,40 +67,28 @@ interface LaunchableTargetRepository {
     suspend fun deleteTarget(id: String)
 }
 
-interface SessionRepository {
+/** Chats as the agents last reported them, plus the ones this phone created since; newest first. */
+interface ChatListings {
     fun getSessions(serverId: String): Flow<List<SessionSummary>>
 
     fun getRecentSessions(limit: Int): Flow<List<SessionSummary>>
+}
 
+/** Snapshot-backed listings and memory-only chats; authoritative listings alone reach disk. */
+interface ChatCatalog : ChatListings {
     suspend fun getSession(
         serverId: String,
         sessionId: String,
     ): SessionSummary?
 
-    suspend fun upsertSession(
+    fun chatCreated(
         serverId: String,
         summary: SessionSummary,
     )
 
-    /** Persists a session title without replacing the entire row. */
-    suspend fun updateSessionTitle(
+    suspend fun recordListing(
         serverId: String,
-        sessionId: String,
-        title: String,
-    )
-
-    /** Bumps a session's last-activity time without replacing the entire row. */
-    suspend fun touchSession(
-        serverId: String,
-        sessionId: String,
-        updatedAt: Long,
-    )
-
-    /** Records (or clears) the live gateway session a chat was last attached to. */
-    suspend fun setGatewaySessionId(
-        serverId: String,
-        sessionId: String,
-        gatewaySessionId: String?,
+        sessions: List<SessionSummary>,
     )
 
     suspend fun deleteSession(
@@ -108,35 +96,19 @@ interface SessionRepository {
         sessionId: String,
     )
 
-    /**
-     * Drops recorded gateway leases on [serverId] whose ids are absent from
-     * [liveGatewaySessionIds] — the gateway forgot them (restart/reap) while
-     * the app was away. Returns the number of rows cleared.
-     */
-    suspend fun clearStaleGatewaySessions(
-        serverId: String,
-        liveGatewaySessionIds: Set<String>,
-    ): Int
-
     suspend fun clearSessions(serverId: String)
-
-    /**
-     * Atomically replaces all of [serverId]'s sessions with [sessions] in a
-     * single Room transaction so the observed flow emits the complete new list
-     * once instead of an intermediate empty list.
-     */
-    suspend fun replaceSessions(
-        serverId: String,
-        sessions: List<SessionSummary>,
-    )
 }
 
 /** Turn times kept for a while, since a session's replay carries none. */
 interface TurnTimingRepository {
     /** The session's recorded turns; also drops turns older than the retention window. */
-    suspend fun getTimings(sessionId: String): Map<TurnKey, TurnTiming>
+    suspend fun getTimings(
+        serverId: String,
+        sessionId: String,
+    ): Map<TurnKey, TurnTiming>
 
     suspend fun record(
+        serverId: String,
         sessionId: String,
         key: TurnKey,
         timing: TurnTiming,

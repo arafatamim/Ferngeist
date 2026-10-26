@@ -114,7 +114,7 @@ class ChatViewModel
 
         /** Recorded turn times, read and written on behalf of replies that need them. */
         private val turnTimings =
-            ChatTurnTimings(viewModelScope, repositories.turnTimingRepository, ioDispatcher)
+            ChatTurnTimings(serverId, viewModelScope, repositories.turnTimingRepository, ioDispatcher)
 
         private val sessionFacade: ChatSessionFacade =
             sessionFacadeFactory.create(
@@ -237,9 +237,6 @@ class ChatViewModel
                 scope = viewModelScope,
                 state = state,
                 update = { reducer -> updateState(reducer) },
-                persistTitle = { targetId, name ->
-                    repositories.sessionRepository.updateSessionTitle(serverId, targetId, name)
-                },
                 durableSessionId = { durableSessionId },
                 fetchTitle = { sessionFacade.fetchSessionTitle() },
             )
@@ -304,7 +301,7 @@ class ChatViewModel
             ChatSwitcherController(
                 scope = viewModelScope,
                 presence = presence,
-                sessionRepository = repositories.sessionRepository,
+                chatListings = repositories.chatListings,
                 launchableTargetRepository = repositories.launchableTargetRepository,
                 serverId = serverId,
                 currentSessionId = { trackedSessionId },
@@ -362,28 +359,14 @@ class ChatViewModel
                             savedStateHandle[KEY_MINTED_SESSION_ID] = trackedSessionId
                             presence.screenOpened(serverId, trackedSessionId, cwd)
                             // The session list renders the store, and nothing else writes a
-                            // row for a session minted here until the next listing; the
-                            // gateway id below is an UPDATE that also needs the row to exist.
+                            // row for a session minted here until the next listing.
                             val minted =
                                 SessionSummary(id = trackedSessionId, cwd = cwd, updatedAt = System.currentTimeMillis())
-                            withContext(ioDispatcher) { repositories.sessionRepository.upsertSession(serverId, minted) }
+                            presence.chatCreated(serverId, minted)
                         }
-                        // chatId is "$serverId/$sessionId" and carries the REAL
-                        // session id even for create-on-arrival chats, where the
-                        // nav arg is still the __new__ sentinel. Record which
-                        // gateway session owns it so cold closes and reattaches
-                        // can find it after process death.
-                        val gatewaySessionId = presence.gatewaySessionIdFor(chatId)
-                        if (gatewaySessionId != null) {
-                            val realSessionId = chatId.substringAfter('/')
-                            withContext(ioDispatcher) {
-                                repositories.sessionRepository.setGatewaySessionId(
-                                    serverId,
-                                    realSessionId,
-                                    gatewaySessionId,
-                                )
-                            }
-                        }
+                        // Nothing records the gateway session that owns this chat: cold
+                        // closes and reattaches find it through `acpSessionIds` on
+                        // /v1/sessions, even after process death.
                     }
                 }
             }
@@ -511,21 +494,9 @@ class ChatViewModel
             updateState {
                 withSnapshot(snapshot, messages, reconciledPending, echoKeys, markdownProjection)
             }
-            if (wasStreaming && !snapshot.isStreaming) touchSessionAfterTurn()
             onTurnBoundary(wasStreaming, snapshot.isStreaming)
             refreshGitStatusOnceReady(wasReady)
             titleController.onSnapshot(snapshot)
-        }
-
-        /**
-         * A finished turn is the session's latest activity, so the list re-sorts it to the top
-         * without waiting for its next listing.
-         */
-        private suspend fun touchSessionAfterTurn() {
-            val id = durableSessionId ?: return
-            withContext(ioDispatcher) {
-                repositories.sessionRepository.touchSession(serverId, id, System.currentTimeMillis())
-            }
         }
 
         /**

@@ -39,7 +39,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
                         LaunchableTarget.Manual(ServerConfig(id = "srvB", name = "Beta", host = "b")),
                     ),
                 )
-            val sessions = FakeSessionRepository()
+            val sessions = FakeChatCatalog()
             sessions.setSessions(
                 "srvA",
                 listOf(
@@ -84,7 +84,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
         runTest {
             val gateway = FakeGatewayRepository()
             val hub = newHub(gateway)
-            val sessions = FakeSessionRepository()
+            val sessions = FakeChatCatalog()
             sessions.setSessions(
                 "srvA",
                 listOf(
@@ -122,7 +122,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
         runTest {
             val gateway = FakeGatewayRepository()
             val hub = newHub(gateway)
-            val sessions = FakeSessionRepository()
+            val sessions = FakeChatCatalog()
             sessions.setSessions(
                 "srvA",
                 listOf(

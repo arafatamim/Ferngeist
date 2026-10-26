@@ -50,6 +50,9 @@
     <string name="sessionlist_scope_main">মূল চেকআউট</string>
     <string name="sessionlist_scope_new_worktree">নতুন worktree…</string>
     <string name="sessionlist_new_chat_in">%1$s-এ নতুন চ্যাট</string>
+    <string name="sessionlist_project_new_chat_with">%1$s-এর সাথে নতুন চ্যাট</string>
+    <string name="sessionlist_project_pick_agent">যার সাথে চ্যাট শুরু করবেন</string>
+    <string name="sessionlist_project_last_used">এখানে শেষবার ব্যবহৃত</string>
     <string name="sessionlist_scope_empty">%1$s-এ এখনও কোনো চ্যাট নেই</string>
     <string name="sessionlist_worktree_branch">ব্রাঞ্চ</string>
     <string name="sessionlist_worktree_optional">ঐচ্ছিক</string>
@@ -89,4 +92,10 @@
     <string name="sessionlist_error_init_gateway">%1$s আরম্ভ করা যায়নি</string>
     <string name="sessionlist_missing_folders">মুছে ফেলা ফোল্ডার (%d)</string>
     <string name="sessionlist_missing_folder_message">এই চ্যাটের ফোল্ডারটি আর নেই, তাই এটি খোলা যাবে না।</string>
+    <string name="sessionlist_all_agents">সব এজেন্ট</string>
+    <string name="sessionlist_action_busy">এই চ্যাটে এখনও উত্তর আসছে। আগে চ্যাটের ভেতর থেকে বাতিল করুন।</string>
+    <string name="sessionlist_action_failed">চ্যাট আপডেট করা যায়নি। আবার চেষ্টা করুন।</string>
+    <string name="sessionlist_agent_listing_unsupported">চ্যাটের তালিকা দেখাতে পারে না। নতুন চ্যাট অ্যাপ ছেড়ে যাওয়া পর্যন্ত এই ফোনেই থাকে।</string>
+    <string name="sessionlist_agent_auth_required">প্রমাণীকরণ প্রয়োজন</string>
+    <string name="sessionlist_agent_listing_failed">চ্যাট রিফ্রেশ করা যায়নি। আপনি এখনও নতুন চ্যাট শুরু করতে পারেন।</string>
 </resources>

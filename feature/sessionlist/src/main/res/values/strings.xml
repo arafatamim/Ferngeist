@@ -51,6 +51,9 @@
     <string name="sessionlist_scope_main">Main checkout</string>
     <string name="sessionlist_scope_new_worktree">New worktree…</string>
     <string name="sessionlist_new_chat_in">New chat in %1$s</string>
+    <string name="sessionlist_project_new_chat_with">New chat with %1$s</string>
+    <string name="sessionlist_project_pick_agent">Start a chat with</string>
+    <string name="sessionlist_project_last_used">Last used here</string>
     <string name="sessionlist_scope_empty">No chats in %1$s yet</string>
     <string name="sessionlist_worktree_branch">Branch</string>
     <string name="sessionlist_worktree_optional">Optional</string>
@@ -91,4 +94,10 @@
     <string name="sessionlist_error_init_gateway">Failed to initialize %1$s</string>
     <string name="sessionlist_missing_folders">Deleted folders (%d)</string>
     <string name="sessionlist_missing_folder_message">This chat\'s folder no longer exists, so it can\'t be opened.</string>
+    <string name="sessionlist_all_agents">All agents</string>
+    <string name="sessionlist_action_busy">This chat is still responding. Cancel it from inside the chat first.</string>
+    <string name="sessionlist_action_failed">Couldn\'t update the chat. Try again.</string>
+    <string name="sessionlist_agent_listing_unsupported">Can\'t list chats. New chats stay on this phone until you leave the app.</string>
+    <string name="sessionlist_agent_auth_required">Authentication required</string>
+    <string name="sessionlist_agent_listing_failed">Couldn\'t refresh chats. You can still start a chat.</string>
 </resources>

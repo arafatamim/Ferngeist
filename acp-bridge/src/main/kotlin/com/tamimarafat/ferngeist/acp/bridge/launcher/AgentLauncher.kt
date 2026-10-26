@@ -68,6 +68,8 @@ class AgentLauncher(
      * Server ids whose agent holds a live hub-tracked transport. The card dot
      * tracks this, not the verification socket, which hangs up after every tap.
      */
+    val streamingChatIds: StateFlow<Set<String>> get() = hub.streamingChatIds
+
     val liveServerIds: StateFlow<Set<String>> get() = hub.warmServers
 
     /**

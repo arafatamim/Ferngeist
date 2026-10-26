@@ -51,6 +51,9 @@
     <string name="sessionlist_scope_main">Copia principal</string>
     <string name="sessionlist_scope_new_worktree">Nuevo worktree…</string>
     <string name="sessionlist_new_chat_in">Nuevo chat en %1$s</string>
+    <string name="sessionlist_project_new_chat_with">Nuevo chat con %1$s</string>
+    <string name="sessionlist_project_pick_agent">Iniciar un chat con</string>
+    <string name="sessionlist_project_last_used">Usado aquí por última vez</string>
     <string name="sessionlist_scope_empty">Aún no hay chats en %1$s</string>
     <string name="sessionlist_worktree_branch">Rama</string>
     <string name="sessionlist_worktree_optional">Opcional</string>
@@ -91,4 +94,10 @@
     <string name="sessionlist_error_init_gateway">No se pudo inicializar %1$s</string>
     <string name="sessionlist_missing_folders">Carpetas eliminadas (%d)</string>
     <string name="sessionlist_missing_folder_message">La carpeta de este chat ya no existe, así que no se puede abrir.</string>
+    <string name="sessionlist_all_agents">Todos los agentes</string>
+    <string name="sessionlist_action_busy">Este chat sigue respondiendo. Cancélalo primero desde el chat.</string>
+    <string name="sessionlist_action_failed">No se pudo actualizar el chat. Inténtalo de nuevo.</string>
+    <string name="sessionlist_agent_listing_unsupported">No puede listar chats. Los nuevos chats permanecen en este teléfono hasta que salgas de la aplicación.</string>
+    <string name="sessionlist_agent_auth_required">Se requiere autenticación</string>
+    <string name="sessionlist_agent_listing_failed">No se pudieron actualizar los chats. Aún puedes iniciar un chat.</string>
 </resources>

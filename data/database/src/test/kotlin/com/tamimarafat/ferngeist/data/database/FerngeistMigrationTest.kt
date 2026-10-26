@@ -104,6 +104,66 @@ class FerngeistMigrationTest {
         }
     }
 
+    @Test
+    fun migrate17To18_retainsOwnedTimingsAndBindingInsertionOrder() {
+        helper.createDatabase(TEST_DB, 17).use { db ->
+            db.execSQL(
+                "INSERT INTO sessions (sessionId, serverId, title, cwd, updatedAt) " +
+                    "VALUES ('owned', 'agent-a', 'Chat', '/repo', 123)",
+            )
+            db.execSQL("INSERT INTO turn_timings VALUES ('owned', 0, 42, 100, 200)")
+            db.execSQL("INSERT INTO turn_timings VALUES ('orphan', 0, 99, 300, 400)")
+            db.execSQL(
+                "INSERT INTO gateway_sources (id, name, scheme, host, gatewayCredential) " +
+                    "VALUES ('gw', 'PC', 'wss', 'host', 'cred')",
+            )
+            listOf("z-oldest", "a-newest").forEach { id ->
+                db.execSQL(
+                    "INSERT INTO gateway_agent_bindings (id, name, gatewaySourceId, agentId) " +
+                        "VALUES ('$id', '$id', 'gw', 'agent')",
+                )
+            }
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 18, true, migration17To18).use { db ->
+            db.query("SELECT serverId, sessionId, turnIndex, promptHash, startedAt, finishedAt FROM turn_timings").use {
+                assertTrue(it.moveToFirst())
+                assertEquals("agent-a", it.getString(0))
+                assertEquals("owned", it.getString(1))
+                assertEquals(0, it.getInt(2))
+                assertEquals(42, it.getInt(3))
+                assertEquals(100L, it.getLong(4))
+                assertEquals(200L, it.getLong(5))
+                assertFalse(it.moveToNext())
+            }
+            db.query("SELECT id FROM gateway_agent_bindings ORDER BY createdAt, id").use {
+                assertTrue(it.moveToFirst())
+                assertEquals("z-oldest", it.getString(0))
+                assertTrue(it.moveToNext())
+                assertEquals("a-newest", it.getString(0))
+            }
+        }
+    }
+
+    @Test
+    fun migrate17To18_discardsTimingsWithAmbiguousOwnership() {
+        helper.createDatabase(TEST_DB, 17).use { db ->
+            // The released schema used a session-only key. Simulate a legacy collision file
+            // without that constraint to ensure the upgrade never guesses an owner.
+            db.execSQL("DROP TABLE sessions")
+            db.execSQL("CREATE TABLE sessions (sessionId TEXT NOT NULL, serverId TEXT NOT NULL)")
+            db.execSQL("INSERT INTO sessions VALUES ('shared', 'agent-a'), ('shared', 'agent-b')")
+            db.execSQL("INSERT INTO turn_timings VALUES ('shared', 0, 42, 100, 200)")
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 18, true, migration17To18).use { db ->
+            db.query("SELECT COUNT(*) FROM turn_timings").use {
+                assertTrue(it.moveToFirst())
+                assertEquals(0, it.getInt(0))
+            }
+        }
+    }
+
     private companion object {
         /**
          * Absolute path on purpose: Room 2.8 resolves the database file through

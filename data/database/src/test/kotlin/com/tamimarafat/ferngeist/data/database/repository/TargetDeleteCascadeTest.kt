@@ -18,15 +18,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Guards that removing a launchable target takes its session history with it.
- *
- * Sessions are keyed by target id: a manual server's row id, or a gateway agent
- * binding's id. Every way in resolves the target first, so a session whose target is
- * gone is unreachable history — it still renders (the recent list reads sessions, and
- * the recents gate then hides it) while no entry point can ever open it.
- *
- * The gateway case is the one that needs care: its bindings disappear with the FK
- * cascade on the gateway row, so their ids have to be read before the delete.
+ * Guards registry deletion and the gateway's binding cascade. Chat history now belongs to
+ * listing snapshots, whose target-removal behavior is exercised at the catalog boundary.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -48,15 +41,13 @@ class TargetDeleteCascadeTest {
         // These paths only call delete() on the encryptor, which is a DataStore write;
         // the Keystore-backed encrypt/decrypt is never reached, so the real one is fine.
         val encryptor = CredentialEncryptor(ApplicationProvider.getApplicationContext())
-        servers = ServerRepositoryImpl(database.serverDao(), encryptor, database.sessionDao())
+        servers = ServerRepositoryImpl(database.serverDao(), encryptor)
         gateways =
             GatewaySourceRepositoryImpl(
                 database.gatewaySourceDao(),
                 encryptor,
-                database.sessionDao(),
-                database.gatewayAgentBindingDao(),
             )
-        bindings = GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao(), database.sessionDao())
+        bindings = GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao())
     }
 
     @After
@@ -65,56 +56,40 @@ class TargetDeleteCascadeTest {
     }
 
     @Test
-    fun deleteServer_dropsItsSessionsAndLeavesEveryOtherTargetAlone() =
+    fun deleteServer_leavesGatewayBindingsAlone() =
         runTest {
             seedTargets()
 
             servers.deleteServer(SERVER_ID)
 
-            assertNull(session("chat-server"))
-            assertNull("the server row itself is gone", database.serverDao().getServerById(SERVER_ID))
-            assertEquals(
-                "another agent's history is not in scope",
-                "chat-agent-a",
-                session("chat-agent-a")?.sessionId,
-            )
-            assertEquals(
-                "an unrelated target's history is not in scope",
-                "chat-other",
-                session("chat-other")?.sessionId,
-            )
+            assertNull(database.serverDao().getServerById(SERVER_ID))
+            assertEquals(AGENT_A, database.gatewayAgentBindingDao().getBindingById(AGENT_A)?.id)
         }
 
     @Test
-    fun deleteGateway_dropsItsAgentsSessionsEvenThoughTheBindingsCascade() =
+    fun deleteGateway_cascadesItsBindingsAndLeavesManualServer() =
         runTest {
             seedTargets()
 
             gateways.deleteGateway(GATEWAY_ID)
 
-            assertNull("the first agent's history", session("chat-agent-a"))
-            assertNull("the second agent's history", session("chat-agent-b"))
-            assertNull("the gateway row", database.gatewaySourceDao().getGatewayById(GATEWAY_ID))
-            assertNull("its bindings cascade", database.gatewayAgentBindingDao().getBindingById(AGENT_A))
-            assertSiblingsUntouched()
+            assertNull(database.gatewaySourceDao().getGatewayById(GATEWAY_ID))
+            assertNull(database.gatewayAgentBindingDao().getBindingById(AGENT_A))
+            assertNull(database.gatewayAgentBindingDao().getBindingById(AGENT_B))
+            assertEquals(SERVER_ID, database.serverDao().getServerById(SERVER_ID)?.id)
         }
 
     @Test
-    fun deleteBinding_dropsOnlyThatAgentsSessions() =
+    fun deleteBinding_leavesSiblingAndGateway() =
         runTest {
             seedTargets()
 
             bindings.deleteBinding(AGENT_A)
 
-            assertNull(session("chat-agent-a"))
-            assertEquals("the other agent keeps its history", "chat-agent-b", session("chat-agent-b")?.sessionId)
-            assertEquals("chat-server", session("chat-server")?.sessionId)
+            assertNull(database.gatewayAgentBindingDao().getBindingById(AGENT_A))
+            assertEquals(AGENT_B, database.gatewayAgentBindingDao().getBindingById(AGENT_B)?.id)
+            assertEquals(GATEWAY_ID, database.gatewaySourceDao().getGatewayById(GATEWAY_ID)?.id)
         }
-
-    private suspend fun assertSiblingsUntouched() {
-        assertEquals("the manual server keeps its history", "chat-server", session("chat-server")?.sessionId)
-        assertEquals("an unrelated target's history is not in scope", "chat-other", session("chat-other")?.sessionId)
-    }
 
     private suspend fun seedTargets() {
         database.serverDao().insertServer(
@@ -140,10 +115,6 @@ class TargetDeleteCascadeTest {
         )
         database.gatewayAgentBindingDao().insertBinding(binding(AGENT_A))
         database.gatewayAgentBindingDao().insertBinding(binding(AGENT_B))
-        seedSession("chat-server", SERVER_ID)
-        seedSession("chat-agent-a", AGENT_A)
-        seedSession("chat-agent-b", AGENT_B)
-        seedSession("chat-other", "srv-other")
     }
 
     private fun binding(id: String) =
@@ -155,22 +126,6 @@ class TargetDeleteCascadeTest {
             preferredAuthMethodId = null,
             icon = null,
         )
-
-    private suspend fun seedSession(
-        sessionId: String,
-        serverId: String,
-    ) {
-        database.sessionDao().upsertSession(
-            sessionId = sessionId,
-            serverId = serverId,
-            title = null,
-            cwd = null,
-            updatedAt = null,
-            gatewaySessionId = null,
-        )
-    }
-
-    private suspend fun session(sessionId: String) = database.sessionDao().getSessionById(sessionId)
 
     private companion object {
         const val SERVER_ID = "srv-1"

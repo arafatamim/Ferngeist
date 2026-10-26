@@ -13,14 +13,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Decides which name the app bar shows for a chat, from every path that learns one: the nav arg,
- * the session store, the agent's push, and the session list's own read. The store is updated
- * whenever a name lands, so the session list and every other screen agree with the bar.
+ * the session store, the agent's push, and the session list's own read. The next authoritative listing
+ * supplies names to other screens; this controller only updates the open chat.
  */
 internal class ChatTitleController(
     private val scope: CoroutineScope,
     private val state: StateFlow<ChatState>,
     private val update: (ChatState.() -> ChatState) -> Unit,
-    private val persistTitle: suspend (sessionId: String, title: String) -> Unit,
     private val durableSessionId: () -> String?,
     private val fetchTitle: suspend () -> String?,
 ) {
@@ -47,7 +46,7 @@ internal class ChatTitleController(
         adoptTitle(sessions.firstOrNull { it.id == currentId }?.title)
     }
 
-    suspend fun onSnapshot(snapshot: ChatSessionSnapshot) {
+    fun onSnapshot(snapshot: ChatSessionSnapshot) {
         dropTitleThatIsThePrompt()
         applyServerTitle(snapshot.title)
         fetchGeneratedTitleIfNeeded(snapshot)
@@ -85,18 +84,13 @@ internal class ChatTitleController(
     /**
      * Applies the title the agent pushed over `session_info_update`. Pushing a name is
      * the agent telling the client what to call the session, so it wins over anything
-     * the session list reported and closes the app bar to further changes. Uses a
-     * targeted UPDATE (not upsert) to preserve updatedAt and all other columns.
+     * the session list reported and closes the app bar to further changes. The snapshot remains the agent listing, rather than a locally rewritten record.
      */
-    private suspend fun applyServerTitle(serverTitle: String?) {
+    private fun applyServerTitle(serverTitle: String?) {
         if (serverTitle.isNullOrBlank()) return
         if (titlePushedByAgent && state.value.title == serverTitle) return
         titlePushedByAgent = true
         update { copy(title = serverTitle) }
-        // A create-on-arrival chat's nav arg is still the sentinel; only the
-        // minted id names a real row.
-        val targetId = durableSessionId() ?: return
-        persistTitle(targetId, serverTitle)
     }
 
     /**
@@ -121,9 +115,7 @@ internal class ChatTitleController(
                 if (titlePushedByAgent || !state.value.title.isNullOrBlank()) return@launch
                 val title = fetchTitle()
                 if (title.isNullOrBlank() || !adoptTitle(title)) continue
-                // Record it so the session list and every other screen see the same name.
-                val targetId = durableSessionId() ?: return@launch
-                persistTitle(targetId, title)
+                // Other screens adopt the name from their next authoritative listing.
                 return@launch
             }
         }

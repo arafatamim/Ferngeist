@@ -177,7 +177,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     fun `resolves title from the session store when nav arg title is blank`() =
         runTest {
             val sessionRepository =
-                FakeSessionRepository().apply {
+                FakeChatCatalog().apply {
                     setSessions(
                         "server_1",
                         listOf(SessionSummary(id = "session_1", title = "Refactoring auth module")),
@@ -226,7 +226,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     fun `agent pushed title replaces the title the session list reported`() =
         runTest {
             val sessionRepository =
-                FakeSessionRepository().apply {
+                FakeChatCatalog().apply {
                     setSessions(
                         "server_1",
                         listOf(SessionSummary(id = "session_1", title = "Listed Title")),
@@ -250,13 +250,12 @@ class ChatViewModelTest : ChatViewModelTestBase() {
 
             // The agent naming the session outranks whatever its session list reported.
             assertEquals("Agent Named Title", viewModel.state.value.title)
-            assertTrue(sessionRepository.updateTitleCalls.any { it.third == "Agent Named Title" })
         }
 
     @Test
-    fun `applies and persists server title when current title is blank`() =
+    fun `applies server title when current title is blank`() =
         runTest {
-            val sessionRepository = FakeSessionRepository()
+            val sessionRepository = FakeChatCatalog()
             val snapshot = readySnapshot(title = "Generated Title")
             val viewModel =
                 createViewModel(
@@ -274,17 +273,12 @@ class ChatViewModelTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             assertEquals("Generated Title", viewModel.state.value.title)
-            assertEquals(1, sessionRepository.updateTitleCalls.size)
-            val (serverId, sessionId, title) = sessionRepository.updateTitleCalls.single()
-            assertEquals("server_1", serverId)
-            assertEquals("session_1", sessionId)
-            assertEquals("Generated Title", title)
         }
 
     @Test
-    fun `does not re-persist title on subsequent snapshots with same title`() =
+    fun `keeps server title on subsequent snapshots with same title`() =
         runTest {
-            val sessionRepository = FakeSessionRepository()
+            val sessionRepository = FakeChatCatalog()
             val facade =
                 TestFacade().apply {
                     emitSnapshot(readySnapshot(title = "Generated Title"))
@@ -305,7 +299,6 @@ class ChatViewModelTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             assertEquals("Generated Title", viewModel.state.value.title)
-            assertEquals(1, sessionRepository.updateTitleCalls.size)
 
             // A distinct snapshot (new messages) carrying the same title: an identical
             // instance would be swallowed by StateFlow equality and never reach the
@@ -319,13 +312,12 @@ class ChatViewModelTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             assertEquals("Generated Title", viewModel.state.value.title)
-            assertEquals(1, sessionRepository.updateTitleCalls.size)
         }
 
     @Test
     fun `fetches the agent title from the session list when nothing was pushed`() =
         runTest {
-            val sessionRepository = FakeSessionRepository()
+            val sessionRepository = FakeChatCatalog()
             val facade =
                 TestFacade().apply {
                     fetchedSessionTitle = "Agent Generated Title"
@@ -351,10 +343,6 @@ class ChatViewModelTest : ChatViewModelTestBase() {
             // session_info_update; it only shows up in a session/list response.
             assertEquals(1, facade.fetchSessionTitleCalls)
             assertEquals("Agent Generated Title", viewModel.state.value.title)
-            val (serverId, sessionId, title) = sessionRepository.updateTitleCalls.single()
-            assertEquals("server_1", serverId)
-            assertEquals("session_1", sessionId)
-            assertEquals("Agent Generated Title", title)
         }
 
     @Test
@@ -426,7 +414,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     @Test
     fun `ignores a session list title that is just the first prompt`() =
         runTest {
-            val sessionRepository = FakeSessionRepository()
+            val sessionRepository = FakeChatCatalog()
             val facade =
                 TestFacade().apply {
                     // What an agent synthesises when it has not really named the session.
@@ -457,13 +445,12 @@ class ChatViewModelTest : ChatViewModelTestBase() {
                 "the prompt must never become the title",
                 viewModel.state.value.title == null,
             )
-            assertTrue(sessionRepository.updateTitleCalls.isEmpty())
         }
 
     @Test
     fun `retries the session list until the agent names the session`() =
         runTest {
-            val sessionRepository = FakeSessionRepository()
+            val sessionRepository = FakeChatCatalog()
             val facade =
                 TestFacade().apply {
                     // First attempt still sees the synthesised prompt; the agent names it later.
@@ -492,7 +479,6 @@ class ChatViewModelTest : ChatViewModelTestBase() {
 
             assertEquals(2, facade.fetchSessionTitleCalls)
             assertEquals("Add retry logic", viewModel.state.value.title)
-            assertEquals("Add retry logic", sessionRepository.updateTitleCalls.single().third)
         }
 
     @Test
@@ -534,7 +520,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     @Test
     fun `adopts a title the session list reports after the chat has opened`() =
         runTest {
-            val sessionRepository = FakeSessionRepository()
+            val sessionRepository = FakeChatCatalog()
             val viewModel =
                 createViewModel(
                     savedStateHandle =
@@ -564,7 +550,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
     fun `never shows the prompt as the title even when the session store holds one`() =
         runTest {
             val sessionRepository =
-                FakeSessionRepository().apply {
+                FakeChatCatalog().apply {
                     setSessions(
                         "server_1",
                         listOf(SessionSummary(id = "session_1", title = "do the thing")),
@@ -595,7 +581,6 @@ class ChatViewModelTest : ChatViewModelTestBase() {
             advanceUntilIdle()
 
             assertNull(viewModel.state.value.title)
-            assertTrue(sessionRepository.updateTitleCalls.isEmpty())
         }
 
     private fun assistantMessage(

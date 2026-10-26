@@ -5,7 +5,6 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
 import com.tamimarafat.ferngeist.core.model.repository.ServerRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
@@ -14,7 +13,6 @@ import com.tamimarafat.ferngeist.data.database.repository.GatewaySourceRepositor
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.LaunchableTargetSessionSettingsRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.ServerRepositoryImpl
-import com.tamimarafat.ferngeist.data.database.repository.SessionRepositoryImpl
 import com.tamimarafat.ferngeist.data.database.repository.TurnTimingRepositoryImpl
 import dagger.Module
 import dagger.Provides
@@ -32,7 +30,7 @@ object RepositoryModule {
     fun provideServerRepository(
         database: FerngeistDatabase,
         credentialEncryptor: CredentialEncryptor,
-    ): ServerRepository = ServerRepositoryImpl(database.serverDao(), credentialEncryptor, database.sessionDao())
+    ): ServerRepository = ServerRepositoryImpl(database.serverDao(), credentialEncryptor)
 
     /** Binds the gateway source repository backed by Room. */
     @Provides
@@ -44,15 +42,13 @@ object RepositoryModule {
         GatewaySourceRepositoryImpl(
             database.gatewaySourceDao(),
             credentialEncryptor,
-            database.sessionDao(),
-            database.gatewayAgentBindingDao(),
         )
 
     /** Binds gateway agent bindings stored in the database. */
     @Provides
     @Singleton
     fun provideGatewayAgentBindingRepository(database: FerngeistDatabase): GatewayAgentBindingRepository =
-        GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao(), database.sessionDao())
+        GatewayAgentBindingRepositoryImpl(database.gatewayAgentBindingDao())
 
     /** Combines server + gateway repositories into a launchable target registry. */
     @Provides
@@ -67,11 +63,6 @@ object RepositoryModule {
             gatewaySourceRepository = gatewaySourceRepository,
             gatewayAgentBindingRepository = gatewayAgentBindingRepository,
         )
-
-    /** Binds the session repository backed by Room. */
-    @Provides
-    @Singleton
-    fun provideSessionRepository(database: FerngeistDatabase): SessionRepository = SessionRepositoryImpl(database)
 
     @Provides
     @Singleton

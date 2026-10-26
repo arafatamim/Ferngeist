@@ -1,8 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.catalog.project
 
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
@@ -30,7 +32,7 @@ class ProjectSnapshotStore(
     ) {
         dir.mkdirs()
         val temp = File(dir, "$gatewaySourceId$SUFFIX.tmp")
-        temp.writeText(json.encodeToString(ProjectSnapshot.serializer(), snapshot))
+        temp.writeText(json.encodeToString(snapshot))
         Files.move(temp.toPath(), fileFor(gatewaySourceId).toPath(), StandardCopyOption.ATOMIC_MOVE)
     }
 
@@ -43,8 +45,10 @@ class ProjectSnapshotStore(
     // An unreadable snapshot is only a stale cache; the next fetch rewrites it.
     private fun decode(file: File): ProjectSnapshot? =
         try {
-            json.decodeFromString(ProjectSnapshot.serializer(), file.readText())
+            json.decodeFromString<ProjectSnapshot>(file.readText())
         } catch (_: SerializationException) {
+            null
+        } catch (_: IOException) {
             null
         }
 }

@@ -7,8 +7,11 @@ import com.tamimarafat.ferngeist.data.database.entity.TurnTimingEntity
 
 @Dao
 interface TurnTimingDao {
-    @Query("SELECT * FROM turn_timings WHERE sessionId = :sessionId")
-    suspend fun getForSession(sessionId: String): List<TurnTimingEntity>
+    @Query("SELECT * FROM turn_timings WHERE serverId = :serverId AND sessionId = :sessionId")
+    suspend fun getForSession(
+        serverId: String,
+        sessionId: String,
+    ): List<TurnTimingEntity>
 
     @Upsert
     suspend fun upsert(timing: TurnTimingEntity)
