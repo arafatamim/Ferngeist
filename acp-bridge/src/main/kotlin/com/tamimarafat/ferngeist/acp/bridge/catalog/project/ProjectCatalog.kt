@@ -36,8 +36,9 @@ private const val MAX_KNOWN_REPOS_PER_REQUEST = 256
 /**
  * Projects across paired gateways, drawn from the last `/v1/projects` response of each.
  *
- * Owns the per-gateway snapshots: hydrates them from disk, refreshes them on the triggers the
- * app wires (no timer or socket), and projects them onto this phone's bindings. A gateway without a snapshot, including one that answered 404, contributes no projects.
+ * Owns the per-gateway snapshots: hydrates them from disk, refreshes them on local turn
+ * completion and the triggers the app wires (no timer or socket), and projects them onto this
+ * phone's bindings. A gateway without a snapshot, including one that answered 404, contributes no projects.
  *
  * As [ChatCatalog] it answers for every agent: from its gateway's snapshot when that lists the
  * agent, else from its per-agent listing snapshot.
@@ -123,6 +124,31 @@ class ProjectCatalog(
             ->
             activityTimestamps(cache.orEmpty(), targets) - tracked - running
         }.stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    init {
+        var previous = hub.streamingChatIds.value
+        scope.launch(ioDispatcher) {
+            hub.streamingChatIds.collect { streaming ->
+                val ended = previous - streaming
+                previous = streaming
+                if (ended.isEmpty()) return@collect
+                launchableTargetRepository
+                    .getTargets()
+                    .first()
+                    .filterIsInstance<LaunchableTarget.GatewayAgent>()
+                    .filter { target -> ended.any { it.startsWith("${target.id}/") } }
+                    .map { it.gatewaySource.id }
+                    .distinct()
+                    .forEach { gatewayId ->
+                        launch {
+                            // A fetch started before completion can still return the old timestamp.
+                            synchronized(inFlight) { inFlight[gatewayId] }?.join()
+                            refresh(gatewayId, force = true).join()
+                        }
+                    }
+            }
+        }
+    }
 
     /** Shows [summary], just created on [serverId], in its project before the agent next lists it. */
     override fun chatCreated(
