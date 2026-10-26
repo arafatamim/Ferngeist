@@ -6,6 +6,10 @@
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(projects)* Replace the activity spinner with green active-chat text and a wider, softer white shimmer on a slower sweep.
+- *(projects)* Keep the activity shimmer green and crossfade complete subtitle changes, including idle counts, with a slower theme transition.
+- *(agents)* Reuse the active-chat shimmer subtitle on agent cards, crossfade back to gateway/host details when idle, and remove the separate spinner.
+- *(projects)* Match the agent-card tint and color transition only for projects containing an exact live agent/chat connection, without lighting other projects on the same agent.
 - *(projects)* Animate refreshed home project rows into their new positions in both list views.
 - *(gateway)* Keep protocol compatibility v2-only; reject unverified newer protocol versions.
 - *(projects)* Refresh gateway project timestamps when a local turn stops streaming, after any older fetch finishes.

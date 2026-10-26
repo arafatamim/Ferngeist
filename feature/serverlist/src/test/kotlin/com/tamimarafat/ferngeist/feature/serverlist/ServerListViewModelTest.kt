@@ -72,6 +72,7 @@ class ServerListViewModelTest {
         every { projectCatalog.getRecentSessions(any()) } returns flowOf(emptyList())
         every { agentLauncher.session(any()) } returns launchSession
         every { agentLauncher.liveServerIds } returns MutableStateFlow(emptySet())
+        every { agentLauncher.connectedChatIds } returns MutableStateFlow(emptySet())
         every { projectCatalog.inProgressChatKeys } returns MutableStateFlow(emptySet())
         every { projectCatalog.activityUpdatedAt } returns MutableStateFlow(emptyMap())
         every { projectCatalog.refreshing } returns MutableStateFlow(emptySet())

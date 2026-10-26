@@ -7,6 +7,8 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProjectChoicesTest {
@@ -53,6 +55,29 @@ class ProjectChoicesTest {
             listOf("/idle", "/live", "/unknown"),
             projectsByActivity(projects, emptySet()).map { it.repo },
         )
+    }
+
+    @Test
+    fun `active count matches target and chat together and returns to zero when streaming stops`() {
+        val first = project("/repo", 1).chats.single()
+        val second = first.copy(summary = first.summary.copy(id = "second"))
+        val project = project("/repo", 1).copy(chats = listOf(first, second))
+
+        assertEquals(1, project.activeChatCount(setOf("other//repo", "agent/second", "agent/unrelated")))
+        assertEquals(2, project.activeChatCount(setOf("agent//repo", "agent/second")))
+        assertEquals(0, project.activeChatCount(emptySet()))
+    }
+
+    @Test
+    fun `live chat membership does not leak to another project on the same agent`() {
+        val first = project("/first", 1)
+        val second = project("/second", 1)
+        val connected = setOf("agent//first")
+
+        assertTrue(first.hasLiveChat(connected))
+        assertFalse(second.hasLiveChat(connected))
+        assertFalse(first.hasLiveChat(setOf("other//first")))
+        assertFalse(first.hasLiveChat(emptySet()))
     }
 
     private fun project(

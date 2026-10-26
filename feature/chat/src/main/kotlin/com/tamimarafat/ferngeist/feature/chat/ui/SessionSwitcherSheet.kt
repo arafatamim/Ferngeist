@@ -88,13 +88,13 @@ import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
+import com.tamimarafat.ferngeist.core.common.ui.status.rememberShimmerTextBrush
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
 import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
-import com.tamimarafat.ferngeist.feature.chat.ui.message.rememberShimmerTextBrush
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date

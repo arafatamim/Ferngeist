@@ -66,6 +66,7 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.status.rememberShimmerTextBrush
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -75,7 +76,6 @@ import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.landed
-import com.tamimarafat.ferngeist.feature.chat.ui.message.rememberShimmerTextBrush
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.RailRowFrame
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ThoughtRowContent
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ToolRowContent

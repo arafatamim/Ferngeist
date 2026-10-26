@@ -72,6 +72,8 @@ class AgentLauncher(
 
     val liveServerIds: StateFlow<Set<String>> get() = hub.warmServers
 
+    val connectedChatIds: StateFlow<Set<String>> get() = hub.connectedChatIds
+
     /**
      * True when a hub-tracked chat already owns this server's transport. A fresh
      * start+connect would steal the gateway's single-attach slot and evict it.

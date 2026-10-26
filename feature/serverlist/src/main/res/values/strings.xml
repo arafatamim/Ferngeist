@@ -261,6 +261,10 @@
         <item quantity="one">%d chat</item>
         <item quantity="other">%d chats</item>
     </plurals>
+    <plurals name="serverlist_active_chats">
+        <item quantity="one">%d chat active</item>
+        <item quantity="other">%d chats active</item>
+    </plurals>
     <plurals name="serverlist_project_worktrees">
         <item quantity="one">%d worktree</item>
         <item quantity="other">%d worktrees</item>

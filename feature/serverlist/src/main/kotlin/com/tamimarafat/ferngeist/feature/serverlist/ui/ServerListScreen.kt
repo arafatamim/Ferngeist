@@ -92,6 +92,7 @@ private data class ServerListScreenState(
     val pendingAuthentication: PendingAuthentication?,
     val pendingLaunchConsent: PendingLaunchConsent?,
     val liveServerIds: Set<String>,
+    val connectedChatKeys: Set<String>,
     val streamingChatKeys: Set<String>,
 )
 
@@ -104,6 +105,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
     val liveServerIds by viewModel.liveServerIds.collectAsStateWithLifecycle()
+    val connectedChatKeys by viewModel.connectedChatKeys.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val streamingChatKeys by viewModel.streamingChatKeys.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -118,6 +120,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
         pendingAuthentication = uiState.pendingAuthentication,
         pendingLaunchConsent = uiState.pendingLaunchConsent,
         liveServerIds = liveServerIds,
+        connectedChatKeys = connectedChatKeys,
         streamingChatKeys = streamingChatKeys,
     )
 }
@@ -205,6 +208,7 @@ fun ServerListScreen(
         onOpenProject = onOpenProject,
         uiState = uiState,
         liveServerIds = screenState.liveServerIds,
+        connectedChatKeys = screenState.connectedChatKeys,
         streamingChatKeys = screenState.streamingChatKeys,
         onResumeSession = onResumeSession,
         onConnect = { viewModel.connectAndOpenServer(it) },
@@ -252,6 +256,7 @@ private fun ServerListScaffold(
     onOpenProject: (ProjectSummary) -> Unit = {},
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
+    connectedChatKeys: Set<String>,
     streamingChatKeys: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
@@ -315,6 +320,7 @@ private fun ServerListScaffold(
             onOpenProject = onOpenProject,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            connectedChatKeys = connectedChatKeys,
             streamingChatKeys = streamingChatKeys,
             onResumeSession = onResumeSession,
             onConnect = onConnect,
@@ -473,6 +479,7 @@ private fun ServerListContent(
     onOpenProject: (ProjectSummary) -> Unit = {},
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
+    connectedChatKeys: Set<String>,
     streamingChatKeys: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
@@ -515,6 +522,7 @@ private fun ServerListContent(
                     onOpenProject = onOpenProject,
                     uiState = uiState,
                     liveServerIds = liveServerIds,
+                    connectedChatKeys = connectedChatKeys,
                     streamingChatKeys = streamingChatKeys,
                     onResumeSession = onResumeSession,
                     onConnect = onConnect,
