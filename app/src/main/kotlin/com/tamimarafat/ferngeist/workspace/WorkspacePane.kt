@@ -24,12 +24,13 @@ enum class WorkspacePane {
  * The scaffold does **not** clamp against `maxHorizontalPartitions` — it scales every
  * expanded pane down to fit. Clamping is therefore this function's job.
  *
+ * [placeId] names what the middle pane shows, an agent or a project; null when nothing is picked.
  * [agentsInLeft] is meaningful at 2 panes only: it is the pinned-chat back state where the
  * left pane steps up to the agent list while the chat stays on the right.
  */
 fun desirablePanes(
     maxPartitions: Int,
-    serverId: String?,
+    placeId: String?,
     sessionId: String?,
     agentsInLeft: Boolean,
 ): List<WorkspacePane> =
@@ -43,14 +44,14 @@ fun desirablePanes(
         maxPartitions == 2 && sessionId != null ->
             listOf(WorkspacePane.SESSIONS, WorkspacePane.CHAT)
 
-        maxPartitions == 2 && serverId != null ->
+        maxPartitions == 2 && placeId != null ->
             listOf(WorkspacePane.AGENTS, WorkspacePane.SESSIONS)
 
         maxPartitions == 2 -> listOf(WorkspacePane.AGENTS)
 
         // 1 pane — matches today's back stack exactly.
         sessionId != null -> listOf(WorkspacePane.CHAT)
-        serverId != null -> listOf(WorkspacePane.SESSIONS)
+        placeId != null -> listOf(WorkspacePane.SESSIONS)
         else -> listOf(WorkspacePane.AGENTS)
     }
 
@@ -83,11 +84,11 @@ fun isWorkspaceBackEnabled(
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 fun workspacePaneValue(
     maxPartitions: Int,
-    serverId: String?,
+    placeId: String?,
     sessionId: String?,
     agentsInLeft: Boolean,
 ): ThreePaneScaffoldValue {
-    val visible = desirablePanes(maxPartitions, serverId, sessionId, agentsInLeft).map { it.role() }
+    val visible = desirablePanes(maxPartitions, placeId, sessionId, agentsInLeft).map { it.role() }
 
     fun valueOf(role: ThreePaneScaffoldRole) =
         if (role in visible) PaneAdaptedValue.Expanded else PaneAdaptedValue.Hidden

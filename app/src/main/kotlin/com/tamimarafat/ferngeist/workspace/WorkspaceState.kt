@@ -12,17 +12,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.Saver as ComposeSaver
 
 /**
- * The session a pane hosts: its two ids plus the two fields a pane-built `ChatViewModel` cannot
+ * The session a pane hosts: its identity and metadata a pane-built `ChatViewModel` cannot
  * obtain anywhere else.
  *
  * A pane is not a nav destination, so it has no route arguments to read the cwd and title from —
- * these four always travel together and are only meaningful together.
+ * the listed activity time travels with them so both layouts can guard recent external activity.
  */
 data class WorkspaceSelection(
     val serverId: String,
     val sessionId: String,
     val cwd: String,
     val title: String,
+    val updatedAt: Long? = null,
+)
+
+/** A project the middle pane shows instead of an agent's sessions: one repo on one gateway. */
+data class WorkspaceProject(
+    val gatewaySourceId: String,
+    val repo: String,
 )
 
 /**
@@ -37,9 +44,9 @@ class WorkspaceState(
     selectedServerId: String?,
     selectedSessionId: String?,
     agentsInLeft: Boolean,
-    mintedSessionId: String? = null,
     cwd: String = "",
     title: String = "",
+    updatedAt: Long? = null,
 ) {
     var selectedServerId by mutableStateOf(selectedServerId)
         private set
@@ -51,11 +58,22 @@ class WorkspaceState(
         private set
 
     /**
+     * The project the middle pane shows, or null for [selectedServerId]'s sessions. A chat opened
+     * from it keeps it, so the pane stays on the project the chat was picked from.
+     */
+    var selectedProject by mutableStateOf<WorkspaceProject?>(null)
+        private set
+
+    /** What the middle pane shows, or null when it shows nothing yet. */
+    val placeId: String?
+        get() = selectedProject?.let { "${it.gatewaySourceId}:${it.repo}" } ?: selectedServerId
+
+    /**
      * The real session id a create-on-arrival chat minted, carried so it survives process
      * death. `ChatViewModel` writes this into its `SavedStateHandle`, but a pane builds that
      * handle by hand (panes are not nav destinations), so nothing else would persist it.
      */
-    var mintedSessionId by mutableStateOf(mintedSessionId)
+    var mintedSessionId by mutableStateOf<String?>(null)
 
     /**
      * Working directory and title of [selectedSessionId]. The pane-built `ChatViewModel`
@@ -68,9 +86,23 @@ class WorkspaceState(
     var title by mutableStateOf(title)
         private set
 
+    var updatedAt by mutableStateOf(updatedAt)
+        private set
+
     fun selectAgent(serverId: String) {
+        updatedAt = null
+        selectedProject = null
         selectedServerId = serverId
         selectedSessionId = null
+        agentsInLeft = false
+    }
+
+    fun selectProject(project: WorkspaceProject) {
+        updatedAt = null
+        selectedProject = project
+        selectedServerId = null
+        selectedSessionId = null
+        mintedSessionId = null
         agentsInLeft = false
     }
 
@@ -80,6 +112,7 @@ class WorkspaceState(
 
     /** Restores into `[agents][chat]` — the cold-start and pinned-back target. */
     fun resumeSession(selection: WorkspaceSelection) {
+        selectedProject = null
         apply(selection, agentsInLeft = true)
     }
 
@@ -91,6 +124,7 @@ class WorkspaceState(
         selectedSessionId = selection.sessionId
         cwd = selection.cwd
         title = selection.title
+        updatedAt = selection.updatedAt
         this.agentsInLeft = agentsInLeft
     }
 
@@ -107,17 +141,19 @@ class WorkspaceState(
      * route carries the same identity, and widening converts it back — see `WorkspaceRouting`.
      */
     fun clearSelection() {
+        selectedProject = null
         selectedServerId = null
         selectedSessionId = null
         mintedSessionId = null
         cwd = ""
         title = ""
+        updatedAt = null
         agentsInLeft = false
     }
 
     @OptIn(ExperimentalMaterial3AdaptiveApi::class)
     fun paneValue(maxPartitions: Int): ThreePaneScaffoldValue =
-        workspacePaneValue(maxPartitions, selectedServerId, selectedSessionId, agentsInLeft)
+        workspacePaneValue(maxPartitions, placeId, selectedSessionId, agentsInLeft)
 
     companion object {
         val saver: ComposeSaver<WorkspaceState, Any> =
@@ -130,6 +166,9 @@ class WorkspaceState(
                         it.mintedSessionId,
                         it.cwd,
                         it.title,
+                        it.selectedProject?.gatewaySourceId,
+                        it.selectedProject?.repo,
+                        it.updatedAt,
                     )
                 },
                 restore = {
@@ -137,10 +176,16 @@ class WorkspaceState(
                         selectedServerId = it[0] as String?,
                         selectedSessionId = it[1] as String?,
                         agentsInLeft = it[2] as Boolean,
-                        mintedSessionId = it[3] as String?,
                         cwd = it[4] as String,
                         title = it[5] as String,
-                    )
+                        updatedAt = it.getOrNull(8) as Long?,
+                    ).apply {
+                        mintedSessionId = it[3] as String?
+                        selectedProject =
+                            (it[6] as String?)?.let { gatewaySourceId ->
+                                WorkspaceProject(gatewaySourceId, it[7] as String)
+                            }
+                    }
                 },
             )
     }

@@ -265,4 +265,7 @@
         <item quantity="one">%d worktree</item>
         <item quantity="other">%d worktrees</item>
     </plurals>
+    <string name="serverlist_show_more">Show more</string>
+    <string name="serverlist_show_less">Show less</string>
+    <string name="serverlist_quick_chat">Quick chat</string>
 </resources>

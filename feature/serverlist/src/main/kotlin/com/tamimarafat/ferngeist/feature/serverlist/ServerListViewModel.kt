@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -61,6 +62,7 @@ data class RecentSession(
     val target: LaunchableTarget,
     val cwd: String?,
     val updatedAt: Long?,
+    val activityUpdatedAt: Long? = null,
 )
 
 data class PendingAuthentication(
@@ -121,27 +123,29 @@ class ServerListViewModel
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         val recentSessions: StateFlow<List<RecentSession>> =
-            repos.sessionRepository
-                .getRecentSessions(RECENT_SESSIONS_LIMIT)
-                .map { summaries ->
-                    summaries
-                        .filter { summary ->
-                            summary.serverId.isNotBlank().also { valid ->
-                                if (!valid) Log.w(LOG_TAG, "Skipping session ${summary.id}: blank serverId")
-                            }
-                        }.mapNotNull { summary ->
-                            val target =
-                                repos.launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
-                            RecentSession(
-                                sessionId = summary.id,
-                                title = summary.title,
-                                serverId = summary.serverId,
-                                target = target,
-                                cwd = summary.cwd,
-                                updatedAt = summary.updatedAt,
-                            )
+            combine(
+                projectCatalog.getRecentSessions(RECENT_SESSIONS_LIMIT),
+                projectCatalog.activityUpdatedAt,
+            ) { summaries, activity ->
+                summaries
+                    .filter { summary ->
+                        summary.serverId.isNotBlank().also { valid ->
+                            if (!valid) Log.w(LOG_TAG, "Skipping session ${summary.id}: blank serverId")
                         }
-                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+                    }.mapNotNull { summary ->
+                        val target =
+                            repos.launchableTargetRepository.getTarget(summary.serverId) ?: return@mapNotNull null
+                        RecentSession(
+                            sessionId = summary.id,
+                            title = summary.title,
+                            serverId = summary.serverId,
+                            target = target,
+                            cwd = summary.cwd,
+                            updatedAt = summary.updatedAt,
+                            activityUpdatedAt = activity["${summary.serverId}/${summary.id}"],
+                        )
+                    }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         private val _uiState = MutableStateFlow(ServerListUiState())
         val uiState: StateFlow<ServerListUiState> = _uiState.asStateFlow()
@@ -176,15 +180,39 @@ class ServerListViewModel
             // stateIn ones.
             viewModelScope.launch {
                 repos.launchableTargetRepository.getTargets().first()
-                repos.sessionRepository.getRecentSessions(RECENT_SESSIONS_LIMIT).first()
+                projectCatalog.getRecentSessions(RECENT_SESSIONS_LIMIT).first()
                 projectCatalog.state.first { it.isReady }
                 _isLoading.value = false
             }
         }
 
+        val agentStatuses =
+            projectCatalog.state
+                .map { it.agentStatuses }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+        val streamingChatKeys = projectCatalog.inProgressChatKeys
+        val refreshing = projectCatalog.refreshing
+        private var pendingQuickChat: RecentSession? = null
+
+        fun startQuickChat(
+            target: LaunchableTarget.GatewayAgent,
+            cwd: String,
+        ) {
+            pendingQuickChat =
+                RecentSession(
+                    sessionId = com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG,
+                    title = null,
+                    serverId = target.id,
+                    target = target,
+                    cwd = cwd,
+                    updatedAt = null,
+                )
+            connectAndOpenServer(target, resumePendingLaunch = true)
+        }
+
         /** The home appearing is a fetch trigger; the catalog throttles repeats. */
-        fun refreshProjects() {
-            projectCatalog.refresh()
+        fun refreshProjects(force: Boolean = false) {
+            projectCatalog.refresh(force = force)
         }
 
         /**
@@ -217,23 +245,22 @@ class ServerListViewModel
             return false
         }
 
-        fun connectAndOpenServer(server: LaunchableTarget) {
+        fun connectAndOpenServer(
+            server: LaunchableTarget,
+            resumePendingLaunch: Boolean = false,
+        ) {
+            if (!resumePendingLaunch) pendingQuickChat = null
             viewModelScope.launch {
                 // REUSE GUARD: If already connected to this server (and no pending auth), skip re-connection
-                if (_uiState.value.connectedServerState?.serverId == server.id &&
-                    session.isConnected &&
-                    _uiState.value.pendingAuthentication == null
-                ) {
-                    _uiState.update { it.copy(connectingServerId = null) }
-                    openConnectedServer(server.id, server.name)
-                    return@launch
-                }
+                val connected = _uiState.value.connectedServerState?.serverId == server.id && session.isConnected
                 // A hub-tracked chat owns this agent's gateway slot: its transport
                 // is already connected+initialized, so skip the tap handshake —
                 // a fresh start+connect would steal the single-attach slot and
                 // evict the live chat socket (gateway logs the intentional
                 // CloseNow as "use of closed network connection").
-                if (agentLauncher.hasWarmChat(server.id) && _uiState.value.pendingAuthentication == null) {
+                if ((connected || agentLauncher.hasWarmChat(server.id)) &&
+                    _uiState.value.pendingAuthentication == null
+                ) {
                     _uiState.update { it.copy(connectingServerId = null) }
                     openConnectedServer(server.id, server.name)
                     return@launch
@@ -271,7 +298,10 @@ class ServerListViewModel
                     is AgentLaunchOutcome.AuthenticationRequired ->
                         _uiState.update { it.withAuthenticationPrompt(server, outcome) }
 
-                    is AgentLaunchOutcome.Failed -> _uiState.update { it.withLaunchFailure(outcome) }
+                    is AgentLaunchOutcome.Failed -> {
+                        pendingQuickChat = null
+                        _uiState.update { it.withLaunchFailure(outcome) }
+                    }
                 }
             }
         }
@@ -359,15 +389,17 @@ class ServerListViewModel
                 withContext(ioDispatcher) {
                     session.disconnect()
                 }
-                connectAndOpenServer(server)
+                connectAndOpenServer(server, resumePendingLaunch = true)
             }
         }
 
         fun dismissAuthenticationPrompt() {
+            pendingQuickChat = null
             _uiState.update { it.copy(pendingAuthentication = null, connectingServerId = null) }
         }
 
         fun dismissLaunchConsent() {
+            pendingQuickChat = null
             _uiState.update { it.copy(pendingLaunchConsent = null) }
         }
 
@@ -391,7 +423,7 @@ class ServerListViewModel
                     stores.agentLaunchConsentStore.setConsent(consentKey, true)
                 }
                 _uiState.update { it.copy(pendingLaunchConsent = null) }
-                connectAndOpenServer(gatewayTarget)
+                connectAndOpenServer(gatewayTarget, resumePendingLaunch = true)
             }
         }
 
@@ -438,6 +470,7 @@ class ServerListViewModel
         }
 
         fun dismissError() {
+            pendingQuickChat = null
             _uiState.update { it.copy(showConnectionError = null) }
         }
 
@@ -470,6 +503,12 @@ class ServerListViewModel
                 agentLauncher.prewarmSessions(serverId)
             }
             _uiState.update { it.copy(connectingServerId = null) }
+            val quick = pendingQuickChat?.takeIf { it.serverId == serverId }
+            if (quick != null) {
+                pendingQuickChat = null
+                _events.emit(ServerListEvent.StartChat(quick))
+                return
+            }
             _events.emit(
                 ServerListEvent.NavigateToSessions(
                     serverId = serverId,
@@ -486,6 +525,10 @@ private fun buildLaunchConsentKey(
 ): String = "$gatewaySourceId:$agentId"
 
 sealed interface ServerListEvent {
+    data class StartChat(
+        val session: RecentSession,
+    ) : ServerListEvent
+
     data class NavigateToSessions(
         val serverId: String,
         val serverName: String,

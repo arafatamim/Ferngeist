@@ -63,6 +63,16 @@ import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
+import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectLine
+
+/** Quick chat's sheet: projects, agents, their listing statuses, start (agent, cwd), dismiss. */
+typealias QuickChatSheetSlot = @Composable (
+    List<ProjectSummary>,
+    List<LaunchableTarget.GatewayAgent>,
+    Map<String, GatewayProjectLine.Agent>,
+    (LaunchableTarget.GatewayAgent, String) -> Unit,
+    () -> Unit,
+) -> Unit
 
 private data class ServerListScreenState(
     val servers: List<LaunchableTarget>,
@@ -75,6 +85,7 @@ private data class ServerListScreenState(
     val pendingAuthentication: PendingAuthentication?,
     val pendingLaunchConsent: PendingLaunchConsent?,
     val liveServerIds: Set<String>,
+    val streamingChatKeys: Set<String>,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +98,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
     val liveServerIds by viewModel.liveServerIds.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
+    val streamingChatKeys by viewModel.streamingChatKeys.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     return ServerListScreenState(
         servers = servers,
@@ -99,6 +111,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
         pendingAuthentication = uiState.pendingAuthentication,
         pendingLaunchConsent = uiState.pendingLaunchConsent,
         liveServerIds = liveServerIds,
+        streamingChatKeys = streamingChatKeys,
     )
 }
 
@@ -115,6 +128,9 @@ fun ServerListScreen(
     onNavigateToEditServer: (LaunchableTarget) -> Unit,
     onNavigateToSessions: (String, String, List<SessionSummary>, Boolean) -> Unit,
     onResumeSession: (RecentSession) -> Unit,
+    onOpenProject: (ProjectSummary) -> Unit,
+    // The project, worktree and agent sheets live with the project screen; the app hands them in.
+    quickChatSheet: QuickChatSheetSlot,
     viewModel: ServerListViewModel,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -129,6 +145,9 @@ fun ServerListScreen(
     val snackbarHostState = screenState.snackbarHostState
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
+    var showQuickChat by rememberSaveable { mutableStateOf(false) }
+    val refreshingGateways by viewModel.refreshing.collectAsStateWithLifecycle()
+    val agentStatuses by viewModel.agentStatuses.collectAsStateWithLifecycle()
 
     // Hold the launch splash until the agent list has data and has drawn it. Waiting
     // a frame after the load flag clears means the frame the splash hands over to is
@@ -150,6 +169,7 @@ fun ServerListScreen(
         showAboutDialog = showAboutDialog,
         onDismissAbout = { showAboutDialog = false },
         onNavigateToSessions = onNavigateToSessions,
+        onQuickChat = onResumeSession,
     )
 
     BackHandler(showAddMenu) {
@@ -162,6 +182,12 @@ fun ServerListScreen(
         onShowAddMenuChange = { showAddMenu = it },
         hasGateways = hasGateways,
         onAboutClick = { showAboutDialog = true },
+        onQuickChat = {
+            showAddMenu = false
+            showQuickChat = true
+        },
+        refreshing = refreshingGateways.isNotEmpty(),
+        onRefresh = { viewModel.refreshProjects(force = true) },
         onNavigateToGateways = onNavigateToGateways,
         onNavigateToPairGateway = onNavigateToPairGateway,
         onNavigateToAddServer = onNavigateToAddServer,
@@ -169,8 +195,10 @@ fun ServerListScreen(
         servers = servers,
         recentSessions = recentSessions,
         projects = screenState.projects,
+        onOpenProject = onOpenProject,
         uiState = uiState,
         liveServerIds = screenState.liveServerIds,
+        streamingChatKeys = screenState.streamingChatKeys,
         onResumeSession = onResumeSession,
         onConnect = { viewModel.connectAndOpenServer(it) },
         onEdit = onNavigateToEditServer,
@@ -178,6 +206,18 @@ fun ServerListScreen(
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
     )
+    if (showQuickChat) {
+        quickChatSheet(
+            screenState.projects,
+            servers.filterIsInstance<LaunchableTarget.GatewayAgent>(),
+            agentStatuses,
+            { target, cwd ->
+                showQuickChat = false
+                viewModel.startQuickChat(target, cwd)
+            },
+            { showQuickChat = false },
+        )
+    }
 }
 
 @OptIn(
@@ -191,6 +231,7 @@ private fun ServerListScaffold(
     showAddMenu: Boolean,
     onShowAddMenuChange: (Boolean) -> Unit,
     onAboutClick: () -> Unit,
+    onQuickChat: () -> Unit,
     hasGateways: Boolean,
     onNavigateToGateways: () -> Unit,
     onNavigateToPairGateway: () -> Unit,
@@ -199,8 +240,12 @@ private fun ServerListScaffold(
     servers: List<LaunchableTarget>,
     recentSessions: List<RecentSession>,
     projects: List<ProjectSummary>,
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
+    onOpenProject: (ProjectSummary) -> Unit = {},
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
+    streamingChatKeys: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -219,6 +264,7 @@ private fun ServerListScaffold(
         },
         floatingActionButton = {
             AddFabMenu(
+                onQuickChat = onQuickChat,
                 expanded = showAddMenu,
                 onExpandedChange = onShowAddMenuChange,
                 hasGateways = hasGateways,
@@ -248,8 +294,12 @@ private fun ServerListScaffold(
             heroSession = heroSession,
             olderSessions = olderSessions,
             projects = projects,
+            refreshing = refreshing,
+            onRefresh = onRefresh,
+            onOpenProject = onOpenProject,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            streamingChatKeys = streamingChatKeys,
             onResumeSession = onResumeSession,
             onConnect = onConnect,
             onEdit = onEdit,
@@ -269,6 +319,7 @@ private fun ServerListDialogsAndEffects(
     showAboutDialog: Boolean,
     onDismissAbout: () -> Unit,
     onNavigateToSessions: (String, String, List<SessionSummary>, Boolean) -> Unit,
+    onQuickChat: (RecentSession) -> Unit,
 ) {
     val pendingAuthentication = uiState.pendingAuthentication
     val pendingLaunchConsent = uiState.pendingLaunchConsent
@@ -289,6 +340,7 @@ private fun ServerListDialogsAndEffects(
         pendingAuthentication = pendingAuthentication,
         envValues = envValues,
         onNavigateToSessions = onNavigateToSessions,
+        onQuickChat = onQuickChat,
     )
 
     ServerListDialogsHost(
@@ -317,6 +369,7 @@ private fun ServerListEventEffects(
     pendingAuthentication: PendingAuthentication?,
     envValues: MutableMap<String, String>,
     onNavigateToSessions: (String, String, List<SessionSummary>, Boolean) -> Unit,
+    onQuickChat: (RecentSession) -> Unit,
 ) {
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -329,6 +382,7 @@ private fun ServerListEventEffects(
                         event.openCreateSessionDialog,
                     )
 
+                is ServerListEvent.StartChat -> onQuickChat(event.session)
                 is ServerListEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
             }
         }
@@ -398,8 +452,12 @@ private fun ServerListContent(
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     projects: List<ProjectSummary>,
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
+    onOpenProject: (ProjectSummary) -> Unit = {},
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
+    streamingChatKeys: Set<String>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -422,6 +480,7 @@ private fun ServerListContent(
             isLoading -> ServerListLoadingContent()
             servers.isEmpty() ->
                 EmptyServerContent(
+                    inProgressChatKeys = streamingChatKeys,
                     heroSession = heroSession,
                     olderSessions = olderSessions,
                     onResumeSession = onResumeSession,
@@ -435,8 +494,12 @@ private fun ServerListContent(
                     olderSessions = olderSessions,
                     servers = servers,
                     projects = projects,
+                    refreshing = refreshing,
+                    onRefresh = onRefresh,
+                    onOpenProject = onOpenProject,
                     uiState = uiState,
                     liveServerIds = liveServerIds,
+                    streamingChatKeys = streamingChatKeys,
                     onResumeSession = onResumeSession,
                     onConnect = onConnect,
                     onEdit = onEdit,
@@ -463,6 +526,7 @@ private fun ServerListLoadingContent() {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EmptyServerContent(
+    inProgressChatKeys: Set<String>,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     onResumeSession: (RecentSession) -> Unit,
@@ -481,6 +545,7 @@ private fun EmptyServerContent(
         heroSession?.let { hero ->
             ContinueSessionCard(
                 session = hero,
+                working = "${hero.serverId}/${hero.sessionId}" in inProgressChatKeys,
                 onClick = { onResumeSession(hero) },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -490,6 +555,7 @@ private fun EmptyServerContent(
         olderSessions.forEach { session ->
             RecentSessionCard(
                 session = session,
+                working = "${session.serverId}/${session.sessionId}" in inProgressChatKeys,
                 onClick = { onResumeSession(session) },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -512,6 +578,7 @@ private fun AddFabMenu(
     hasGateways: Boolean,
     onNavigateToGateways: () -> Unit,
     onNavigateToAddServer: () -> Unit,
+    onQuickChat: () -> Unit,
 ) {
     FloatingActionButtonMenu(
         expanded = expanded,
@@ -522,6 +589,12 @@ private fun AddFabMenu(
             )
         },
     ) {
+        FloatingActionButtonMenuItem(
+            onClick = onQuickChat,
+            modifier = Modifier.handCursor(),
+            icon = { Icon(Icons.Default.SmartToy, contentDescription = null) },
+            text = { Text(stringResource(R.string.serverlist_quick_chat)) },
+        )
         FloatingActionButtonMenuItem(
             onClick = onNavigateToGateways,
             modifier = Modifier.handCursor(),

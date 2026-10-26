@@ -7,7 +7,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -23,11 +22,18 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -56,11 +62,12 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
+import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
-import com.tamimarafat.ferngeist.feature.serverlist.ui.projects.ProjectsSection
+import com.tamimarafat.ferngeist.feature.serverlist.ui.projects.ProjectsGroup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -76,7 +83,11 @@ internal fun AgentsBackdrop(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    streamingChatKeys: Set<String> = emptySet(),
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
+    onOpenProject: (ProjectSummary) -> Unit = {},
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -123,7 +134,7 @@ internal fun AgentsBackdrop(
                 if (recentsPx > 0) (sheetOffset.value / recentsPx).coerceIn(0f, 1f) else 0f
         }
     }
-    val agentsScrollState = rememberScrollState()
+    val agentsLazyListState = rememberLazyListState()
 
     // Position the sheet once, as soon as the block has a height. The single-server
     // rule applies on this first pass and wins over any saved position: it decides the
@@ -155,7 +166,7 @@ internal fun AgentsBackdrop(
         rememberSheetConnection(
             scope = scope,
             sheetOffset = sheetOffset,
-            scrollState = agentsScrollState,
+            scrollState = agentsLazyListState,
             recentsPx = recentsPx,
             overscrollRefPx = overscrollRefPx,
             maxTopOverscrollPx = maxTopOverscrollPx,
@@ -168,7 +179,11 @@ internal fun AgentsBackdrop(
         servers = servers,
         uiState = uiState,
         liveServerIds = liveServerIds,
+        streamingChatKeys = streamingChatKeys,
+        refreshing = refreshing,
+        onRefresh = onRefresh,
         projects = projects,
+        onOpenProject = onOpenProject,
         onResumeSession = onResumeSession,
         onConnect = onConnect,
         onEdit = onEdit,
@@ -188,7 +203,7 @@ internal fun AgentsBackdrop(
         topZonePx = topZonePx,
         onTopZonePx = { topZonePx = it },
         onRecentsPx = { recentsPx = it },
-        scrollState = agentsScrollState,
+        scrollState = agentsLazyListState,
     )
 }
 
@@ -199,7 +214,11 @@ private fun BackdropLayers(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    streamingChatKeys: Set<String> = emptySet(),
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
+    onOpenProject: (ProjectSummary) -> Unit = {},
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -219,7 +238,7 @@ private fun BackdropLayers(
     topZonePx: Int,
     onTopZonePx: (Int) -> Unit,
     onRecentsPx: (Int) -> Unit,
-    scrollState: ScrollState,
+    scrollState: LazyListState,
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().then(if (canReveal) Modifier.nestedScroll(sheetConnection) else Modifier),
@@ -227,6 +246,7 @@ private fun BackdropLayers(
         val sheetHeight = maxHeight + sheetOverhang
         val viewportHeightPx = with(density) { maxHeight.toPx() } - topZonePx.toFloat()
         BackLayerContent(
+            inProgressChatKeys = streamingChatKeys,
             heroSession = heroSession,
             olderSessions = olderSessions,
             onResumeSession = onResumeSession,
@@ -250,7 +270,11 @@ private fun BackdropLayers(
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            streamingChatKeys = streamingChatKeys,
+            refreshing = refreshing,
+            onRefresh = onRefresh,
             projects = projects,
+            onOpenProject = onOpenProject,
             onConnect = onConnect,
             onEdit = onEdit,
             onDelete = onDelete,
@@ -272,11 +296,15 @@ private fun FrontSheetLayer(
     sheetHeight: Dp,
     topZonePx: Int,
     viewportHeightPx: Float,
-    scrollState: ScrollState,
+    scrollState: LazyListState,
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    streamingChatKeys: Set<String> = emptySet(),
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
+    onOpenProject: (ProjectSummary) -> Unit = {},
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
@@ -291,6 +319,7 @@ private fun FrontSheetLayer(
         contentAlignment = Alignment.TopCenter,
     ) {
         AgentsBackdropSheet(
+            canRefresh = !canReveal || sheetRevealed.value,
             modifier =
                 Modifier
                     // Cap must be outside `fillMaxWidth`, which otherwise passes fixed
@@ -315,7 +344,11 @@ private fun FrontSheetLayer(
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            streamingChatKeys = streamingChatKeys,
+            refreshing = refreshing,
+            onRefresh = onRefresh,
             projects = projects,
+            onOpenProject = onOpenProject,
             onConnect = onConnect,
             onEdit = onEdit,
             onDelete = onDelete,
@@ -375,7 +408,7 @@ private class SheetGestureState {
 private fun rememberSheetConnection(
     scope: CoroutineScope,
     sheetOffset: Animatable<Float, AnimationVector1D>,
-    scrollState: ScrollState,
+    scrollState: LazyListState,
     recentsPx: Int,
     overscrollRefPx: Float,
     maxTopOverscrollPx: Float,
@@ -390,7 +423,12 @@ private fun rememberSheetConnection(
         ): Offset {
             if (source == NestedScrollSource.UserInput && !gesture.active) {
                 gesture.active = true
-                gesture.startScrollValue = scrollState.value
+                gesture.startScrollValue =
+                    when {
+                        !scrollState.canScrollBackward -> 0
+                        !scrollState.canScrollForward -> 2
+                        else -> 1
+                    }
                 gesture.sheetDragged = false
             }
             if (source != NestedScrollSource.UserInput) return Offset.Zero
@@ -424,7 +462,7 @@ private fun rememberSheetConnection(
                 return Offset.Zero
             }
             val startedAtTop = gesture.startScrollValue == 0
-            val startedAtBottom = gesture.startScrollValue == scrollState.maxValue
+            val startedAtBottom = gesture.startScrollValue == 2 || !scrollState.canScrollForward
             val wrongDirection = (delta > 0f && !startedAtTop) || (delta < 0f && !startedAtBottom)
             if (wrongDirection) {
                 return Offset.Zero
@@ -555,13 +593,18 @@ private fun AgentsBackdropSheet(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    streamingChatKeys: Set<String> = emptySet(),
+    refreshing: Boolean = false,
+    canRefresh: Boolean,
+    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
+    onOpenProject: (ProjectSummary) -> Unit = {},
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    scrollState: ScrollState,
+    scrollState: LazyListState,
     viewportHeightPx: Float,
 ) {
     val viewportDp = with(LocalDensity.current) { viewportHeightPx.toDp() }
@@ -574,10 +617,15 @@ private fun AgentsBackdropSheet(
         shadowElevation = 0.dp,
     ) {
         FrontLayerContent(
+            canRefresh = canRefresh,
             servers = servers,
             uiState = uiState,
             liveServerIds = liveServerIds,
+            streamingChatKeys = streamingChatKeys,
+            refreshing = refreshing,
+            onRefresh = onRefresh,
             projects = projects,
+            onOpenProject = onOpenProject,
             onConnect = onConnect,
             onEdit = onEdit,
             onDelete = onDelete,
@@ -592,6 +640,7 @@ private fun AgentsBackdropSheet(
 
 @Composable
 private fun BackLayerContent(
+    inProgressChatKeys: Set<String>,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     onResumeSession: (RecentSession) -> Unit,
@@ -605,6 +654,7 @@ private fun BackLayerContent(
             heroSession?.let { hero ->
                 ContinueSessionCard(
                     session = hero,
+                    working = "${hero.serverId}/${hero.sessionId}" in inProgressChatKeys,
                     onClick = { onResumeSession(hero) },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -622,6 +672,7 @@ private fun BackLayerContent(
             olderSessions.forEach { session ->
                 RecentSessionCard(
                     session = session,
+                    working = "${session.serverId}/${session.sessionId}" in inProgressChatKeys,
                     onClick = { onResumeSession(session) },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -634,18 +685,28 @@ private fun BackLayerContent(
 }
 
 @Suppress("ModifierParameter")
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalSharedTransitionApi::class,
+)
 @Composable
 private fun FrontLayerContent(
     servers: List<LaunchableTarget>,
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
+    streamingChatKeys: Set<String> = emptySet(),
+    refreshing: Boolean = false,
+    canRefresh: Boolean,
+    onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
+    onOpenProject: (ProjectSummary) -> Unit = {},
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
     onDelete: (String) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    scrollState: ScrollState,
+    scrollState: LazyListState,
     viewportDp: Dp,
     headerDragModifier: Modifier,
 ) {
@@ -675,39 +736,67 @@ private fun FrontLayerContent(
             )
         }
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            val now = rememberPresentationTime(refreshing)
+            val motion = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
+            val refreshState = rememberPullToRefreshState()
+            Box(
+                Modifier.pullToRefresh(
+                    isRefreshing = refreshing,
+                    state = refreshState,
+                    enabled = canRefresh,
+                    onRefresh = onRefresh,
+                ),
             ) {
-                if (projects.isNotEmpty()) {
-                    ProjectsSection(
-                        projects = projects,
-                        liveServerIds = liveServerIds,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    SectionHeader(
-                        title = stringResource(R.string.serverlist_section_agents),
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
-                    )
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = scrollState,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (projects.isNotEmpty()) {
+                        item(key = "projects") {
+                            ProjectsGroup(
+                                projects = projects,
+                                streamingChatKeys = streamingChatKeys,
+                                now = now,
+                                onOpenProject = onOpenProject,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                modifier = Modifier.padding(horizontal = 16.dp).animateItem(placementSpec = motion),
+                            )
+                        }
+                    }
+                    if (projects.isNotEmpty()) {
+                        item(key = "agents-header") {
+                            SectionHeader(
+                                title = stringResource(R.string.serverlist_section_agents),
+                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                            )
+                        }
+                    }
+                    items(servers, key = { "agent:${it.id}" }) { server ->
+                        ServerCard(
+                            server = server,
+                            working = streamingChatKeys.any { it.startsWith("${server.id}/") },
+                            uiState = uiState,
+                            liveServerIds = liveServerIds,
+                            onClick = { onConnect(server) },
+                            onEdit = { onEdit(server) },
+                            onDelete = { onDelete(server.id) },
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedContentScope = animatedContentScope,
+                            modifier = Modifier.padding(horizontal = 16.dp).animateItem(placementSpec = motion),
+                        )
+                    }
+                    // ponytail: clearance lets the final card scroll above the bottom controls.
+                    item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
                 }
-                servers.forEach { server ->
-                    ServerCard(
-                        server = server,
-                        uiState = uiState,
-                        liveServerIds = liveServerIds,
-                        onClick = { onConnect(server) },
-                        onEdit = { onEdit(server) },
-                        onDelete = { onDelete(server.id) },
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
-                // ponytail: bottom clearance so the last card scrolls clear of the screen
-                // bottom; sheet viewport extends below the visible sheet via the overhang.
-                Spacer(modifier = Modifier.height(160.dp))
+                PullToRefreshDefaults.Indicator(
+                    state = refreshState,
+                    isRefreshing = refreshing,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
-            EdgeFade(scrollState = scrollState, fadeColor = MaterialTheme.colorScheme.surfaceContainerLowest)
+            EdgeFade(listState = scrollState, fadeColor = MaterialTheme.colorScheme.surfaceContainerLowest)
         }
     }
 }

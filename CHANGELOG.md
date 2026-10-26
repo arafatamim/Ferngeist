@@ -7,6 +7,7 @@
 ### Fixes
 
 - *(gateway)* Keep protocol compatibility v2-only; reject unverified newer protocol versions.
+- *(build)* Clear static-analysis findings while preserving gateway, workspace and worktree behavior.
 
 ## [1.5.1] - 2026-10-19
 

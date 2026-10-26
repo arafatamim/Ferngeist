@@ -63,6 +63,7 @@ import kotlin.math.roundToInt
  *
  * @param agentsPane the agent list (left, `Secondary`).
  * @param sessionsPane the session list for the given agent (middle, `Primary`).
+ * @param projectPane the project picked from the agent list, in place of [sessionsPane].
  */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -75,6 +76,7 @@ fun WorkspaceScreen(
     animatedContentScope: AnimatedContentScope,
     agentsPane: @Composable () -> Unit,
     sessionsPane: @Composable (serverId: String, showBackButton: Boolean) -> Unit,
+    projectPane: @Composable (project: WorkspaceProject, showBackButton: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val adaptiveInfo = currentWindowAdaptiveInfoV2()
@@ -92,7 +94,7 @@ fun WorkspaceScreen(
     val panes =
         desirablePanes(
             maxPartitions,
-            workspace.selectedServerId,
+            workspace.placeId,
             workspace.selectedSessionId,
             workspace.agentsInLeft,
         )
@@ -125,12 +127,13 @@ fun WorkspaceScreen(
                 modifier = Modifier.preferredWidth(widths.getValue(ThreePaneScaffoldRole.Primary)),
             ) {
                 val serverId = workspace.selectedServerId
-                if (serverId == null) {
-                    EmptyPanePlaceholder()
-                } else {
-                    // Same condition as the chat pane: the button only exists when the agent
-                    // list is not already on screen to go back to.
-                    sessionsPane(serverId, backEnabled)
+                val project = workspace.selectedProject
+                // Same condition as the chat pane: the button only exists when the agent
+                // list is not already on screen to go back to.
+                when {
+                    project != null -> projectPane(project, backEnabled)
+                    serverId != null -> sessionsPane(serverId, backEnabled)
+                    else -> EmptyPanePlaceholder()
                 }
             }
         },
@@ -169,6 +172,7 @@ private fun WorkspaceChatPane(
                     sessionId = sessionId,
                     cwd = workspace.cwd,
                     title = workspace.title,
+                    updatedAt = workspace.updatedAt,
                 ),
             mintedSessionId = workspace.mintedSessionId,
             chatViewModelFactory = chatViewModelFactory,
@@ -199,7 +203,7 @@ private fun SeedWorkspaceEffect(
     // `Unit`-keyed effect would read that first empty value and never retry.
     var seeded by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(recentSessions) {
-        if (seeded || workspace.selectedServerId != null) return@LaunchedEffect
+        if (seeded || workspace.placeId != null) return@LaunchedEffect
         val recent = recentSessions.firstOrNull() ?: return@LaunchedEffect
         seeded = true
         // The hub keys a chat as `"<serverId>/<sessionId>"`. `chatIdFor` owns that format but
@@ -212,6 +216,7 @@ private fun SeedWorkspaceEffect(
                     sessionId = recent.sessionId,
                     cwd = recent.cwd ?: "/",
                     title = recent.title.orEmpty(),
+                    updatedAt = recent.updatedAt,
                 ),
             )
         } else {
@@ -272,6 +277,7 @@ private fun SwitchingChatPane(
                         sessionId = session.sessionId,
                         cwd = session.cwd.orEmpty(),
                         title = session.title.orEmpty(),
+                        updatedAt = session.updatedAt,
                     )
                 swipe = slide?.let { next.chatKey() to it }
                 onSelectSession(next)
