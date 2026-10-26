@@ -321,5 +321,8 @@
         <item quantity="one">%1$dটি টুল ব্যবহার করছে</item>
         <item quantity="other">%1$dটি টুল ব্যবহার করছে</item>
     </plurals>
+    <string name="chat_active_elsewhere_title">অন্য কোথাও সক্রিয়?</string>
+    <string name="chat_active_elsewhere_body">এই চ্যাটটি সম্প্রতি অন্য কোথাও সক্রিয় ছিল। এখন পাঠালে একই চ্যাটে আরেকটি এজেন্ট প্রক্রিয়া শুরু হতে পারে।</string>
+    <string name="chat_send_anyway">তবুও পাঠান</string>
 </resources>
 

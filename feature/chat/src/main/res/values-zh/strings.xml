@@ -301,5 +301,8 @@
     <plurals name="chat_tool_summary_other_running">
         <item quantity="other">正在使用 %1$d 个工具</item>
     </plurals>
+    <string name="chat_active_elsewhere_title">正在其他位置使用？</string>
+    <string name="chat_active_elsewhere_body">此聊天最近在其他位置处于活跃状态。现在发送可能会为同一聊天启动另一个代理进程。</string>
+    <string name="chat_send_anyway">仍然发送</string>
 </resources>
 

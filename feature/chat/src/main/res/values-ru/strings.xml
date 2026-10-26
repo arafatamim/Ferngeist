@@ -369,5 +369,8 @@
         <item quantity="many">использует %1$d инструментов</item>
         <item quantity="other">использует %1$d инструмента</item>
     </plurals>
+    <string name="chat_active_elsewhere_title">Активен на другом устройстве?</string>
+    <string name="chat_active_elsewhere_body">Этот чат недавно был активен в другом месте. Отправка может запустить ещё один процесс агента в том же чате.</string>
+    <string name="chat_send_anyway">Всё равно отправить</string>
 </resources>
 

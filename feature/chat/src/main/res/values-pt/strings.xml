@@ -347,5 +347,8 @@
         <item quantity="many">usando %1$d ferramentas</item>
         <item quantity="other">usando %1$d ferramentas</item>
     </plurals>
+    <string name="chat_active_elsewhere_title">Ativo em outro lugar?</string>
+    <string name="chat_active_elsewhere_body">Este chat esteve ativo recentemente em outro lugar. Enviar agora pode iniciar outro processo de agente no mesmo chat.</string>
+    <string name="chat_send_anyway">Enviar mesmo assim</string>
 </resources>
 
