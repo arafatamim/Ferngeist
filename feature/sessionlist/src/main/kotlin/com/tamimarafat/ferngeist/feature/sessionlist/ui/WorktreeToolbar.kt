@@ -62,15 +62,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
+import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.pathSegments
@@ -101,12 +106,13 @@ internal fun scopeLabel(
                 ?: pathSegments(scope.path).lastOrNull().orEmpty()
     }
 
-private val selectorMaxWidth = 104.dp
+internal val selectorMaxWidth = 104.dp
 
 /** A label's cap when it has the toolbar to itself. */
 private val selectorWideMaxWidth = 200.dp
 
 private const val MAX_RECENT_PROJECTS = 5
+private const val DISABLED_ACTION_ALPHA = 0.38f
 
 /**
  * Where New chat starts: a project and, inside a repo on a gateway, a worktree of it.
@@ -128,24 +134,28 @@ internal fun WorktreeToolbar(
     scope: WorktreeScope,
     options: List<ScopeOption>,
     onSelectRepo: (String) -> Unit,
-    onOtherProject: () -> Unit,
+    onOtherProject: (() -> Unit)?,
     onSelectScope: (WorktreeScope) -> Unit,
     onNewChat: () -> Unit,
     onNewWorktree: () -> Unit,
     onRemoveWorktree: (worktreeId: String) -> Unit,
+    newChatLabel: String? = null,
+    newChatEnabled: Boolean = true,
+    leadingSelector: (@Composable () -> Unit)? = null,
 ) {
     val scopeName = scopeLabel(scope, options)
     val narrowed = worktreesEnabled && scope != WorktreeScope.All
     val newChat =
-        if (worktreesEnabled && scope is WorktreeScope.Worktree) {
-            stringResource(R.string.sessionlist_new_chat_in, scopeName)
-        } else {
-            stringResource(R.string.sessionlist_new_session_desc)
+        when {
+            newChatLabel != null -> newChatLabel
+            worktreesEnabled && scope is WorktreeScope.Worktree ->
+                stringResource(R.string.sessionlist_new_chat_in, scopeName)
+            else -> stringResource(R.string.sessionlist_new_session_desc)
         }
     HorizontalFloatingToolbar(
         expanded = expanded,
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
-        floatingActionButton = { NewChatButton(newChat = newChat, onNewChat = onNewChat) },
+        floatingActionButton = { NewChatButton(newChat = newChat, onNewChat = onNewChat, enabled = newChatEnabled) },
         content = {
             // One non-bouncy width animation for the whole row: several springs resizing their own
             // labels at once fought each other, and the bounce shook the toolbar's leading edge.
@@ -153,15 +163,19 @@ internal fun WorktreeToolbar(
                 modifier = Modifier.animateContentSize(MotionScheme.standard().defaultSpatialSpec()),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ProjectSelector(
-                    expanded = expanded,
-                    repo = repo,
-                    projects = projects,
-                    worktreesEnabled = worktreesEnabled,
-                    narrowed = narrowed,
-                    onSelectRepo = onSelectRepo,
-                    onOtherProject = onOtherProject,
-                )
+                if (leadingSelector != null) {
+                    leadingSelector()
+                } else {
+                    ProjectSelector(
+                        expanded = expanded,
+                        repo = repo,
+                        projects = projects,
+                        worktreesEnabled = worktreesEnabled,
+                        narrowed = narrowed,
+                        onSelectRepo = onSelectRepo,
+                        onOtherProject = onOtherProject,
+                    )
+                }
                 if (worktreesEnabled) {
                     ScopeSelector(
                         expanded = expanded,
@@ -185,6 +199,7 @@ internal fun WorktreeToolbar(
 private fun NewChatButton(
     newChat: String,
     onNewChat: () -> Unit,
+    enabled: Boolean,
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
@@ -192,8 +207,12 @@ private fun NewChatButton(
         state = rememberTooltipState(),
     ) {
         FloatingToolbarDefaults.VibrantFloatingActionButton(
-            onClick = onNewChat,
-            modifier = Modifier.handCursor(),
+            onClick = { if (enabled) onNewChat() },
+            modifier =
+                Modifier
+                    .handCursor()
+                    .alpha(if (enabled) 1f else DISABLED_ACTION_ALPHA)
+                    .semantics { if (!enabled) disabled() },
         ) {
             Icon(Icons.Filled.Add, contentDescription = newChat)
         }
@@ -209,7 +228,7 @@ private fun ProjectSelector(
     worktreesEnabled: Boolean,
     narrowed: Boolean,
     onSelectRepo: (String) -> Unit,
-    onOtherProject: () -> Unit,
+    onOtherProject: (() -> Unit)?,
 ) {
     var projectSheet by remember { mutableStateOf(false) }
     SelectorButton(
@@ -233,10 +252,13 @@ private fun ProjectSelector(
                 projectSheet = false
                 onSelectRepo(it)
             },
-            onOtherProject = {
-                projectSheet = false
-                onOtherProject()
-            },
+            onOtherProject =
+                onOtherProject?.let { other ->
+                    {
+                        projectSheet = false
+                        other()
+                    }
+                },
         )
     }
 }
@@ -355,6 +377,7 @@ private fun SelectorLabel(
 /**
  * Every project, the five most recent first, then a way to type another.
  * A sheet to match the worktree selector beside it, and so long paths get the full width.
+ * Without [onOtherProject] the list is fixed: every one of [projects], and no "all" or "other" row.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -363,7 +386,7 @@ private fun ProjectSheet(
     projects: List<String>,
     onDismiss: () -> Unit,
     onSelectProject: (String) -> Unit,
-    onOtherProject: () -> Unit,
+    onOtherProject: (() -> Unit)?,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val coroutineScope = rememberCoroutineScope()
@@ -373,8 +396,12 @@ private fun ProjectSheet(
     }
     // The picked project stays listed even when it has fallen out of the recent ones.
     val listed =
-        (projects.take(MAX_RECENT_PROJECTS) + listOfNotNull(repo?.takeIf { it.isNotBlank() }))
-            .distinctBy(::cwdKey)
+        if (onOtherProject == null) {
+            projects
+        } else {
+            (projects.take(MAX_RECENT_PROJECTS) + listOfNotNull(repo?.takeIf { it.isNotBlank() }))
+                .distinctBy(::cwdKey)
+        }
     // Names alone, unless two projects share one; then the path tells them apart.
     val sharedNames =
         listed
@@ -396,33 +423,38 @@ private fun ProjectSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 8.dp, bottom = 12.dp),
             )
-            val count = listed.size + 1
-            ScopeRow(
-                selected = repo.isNullOrBlank(),
-                label = stringResource(R.string.sessionlist_scope_all_projects),
-                supporting = null,
-                icon = Icons.Outlined.Forum,
-                shapes = ListItemDefaults.segmentedShapes(0, count),
-                onClick = { thenClose { onSelectProject("") } },
-            )
+            val offset = if (onOtherProject == null) 0 else 1
+            val count = listed.size + offset
+            if (onOtherProject != null) {
+                ScopeRow(
+                    selected = repo.isNullOrBlank(),
+                    label = stringResource(R.string.sessionlist_scope_all_projects),
+                    supporting = null,
+                    icon = Icons.Outlined.Forum,
+                    shapes = ListItemDefaults.segmentedShapes(0, count),
+                    onClick = { thenClose { onSelectProject("") } },
+                )
+            }
             listed.forEachIndexed { index, path ->
                 ScopeRow(
                     selected = repo != null && isSameCwd(repo, path),
                     label = projectName(path),
                     supporting = path.takeIf { projectName(it) in sharedNames },
                     icon = Icons.Outlined.FolderOpen,
-                    shapes = ListItemDefaults.segmentedShapes(index + 1, count),
+                    shapes = ListItemDefaults.segmentedShapes(index + offset, count),
                     onClick = { thenClose { onSelectProject(path) } },
                 )
             }
-            Spacer(Modifier.height(12.dp))
-            SegmentedListItem(
-                onClick = { thenClose(onOtherProject) },
-                shapes = ListItemDefaults.segmentedShapes(0, 1),
-                modifier = Modifier.handCursor(),
-                leadingContent = { Icon(Icons.Outlined.Edit, contentDescription = null) },
-            ) {
-                Text(stringResource(R.string.sessionlist_scope_other_project))
+            onOtherProject?.let { other ->
+                Spacer(Modifier.height(12.dp))
+                SegmentedListItem(
+                    onClick = { thenClose(other) },
+                    shapes = ListItemDefaults.segmentedShapes(0, 1),
+                    modifier = Modifier.handCursor(),
+                    leadingContent = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                ) {
+                    Text(stringResource(R.string.sessionlist_scope_other_project))
+                }
             }
         }
     }
@@ -520,7 +552,7 @@ private fun WorktreeSheet(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ScopeRow(
+internal fun ScopeRow(
     selected: Boolean,
     label: String,
     supporting: String?,
@@ -545,16 +577,20 @@ private fun ScopeRow(
 
 /** `↑2 · uncommitted · 3 sessions · 2 days ago`. */
 @Composable
-private fun scopeSupportingText(option: ScopeOption): String? {
+internal fun scopeSupportingText(option: ScopeOption): String? {
     val worktree = option.worktree
     // Worktrees the gateway did not make may carry no or a zero time; those show no age.
     val locale = LocalConfiguration.current.locales[0]
+    val now = rememberPresentationTime()
     val createdMillis = runCatching { Instant.parse(worktree.createdAt).toEpochMilli() }.getOrNull()?.takeIf { it > 0 }
     return buildList {
         worktree.ahead?.takeIf { it > 0 }?.let { add(stringResource(CommonR.string.common_worktree_ahead, it)) }
         if (worktree.dirty == true) add(stringResource(CommonR.string.common_worktree_dirty))
         if (option.chats > 0) add(pluralStringResource(R.plurals.sessionlist_session_count, option.chats, option.chats))
-        createdMillis?.let { add(narrowAge(Duration.ofMillis(System.currentTimeMillis() - it), locale)) }
+        createdMillis?.let {
+            val age = Duration.ofMillis(now - it)
+            add(if (age.toMinutes() < 1) relativeTime(it, now) else narrowAge(age, locale))
+        }
     }.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
 

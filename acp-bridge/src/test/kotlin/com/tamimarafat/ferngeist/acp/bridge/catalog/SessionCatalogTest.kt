@@ -13,7 +13,7 @@ import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
@@ -46,10 +46,10 @@ class SessionCatalogTest {
      */
     private fun newCatalog(
         repo: GatewayRepository = FakeGatewayRepo(),
-        sessionRepository: SessionRepository = FakeSessionRepo(),
+        sessionRepository: ChatCatalog = FakeSessionRepo(),
         targets: FakeLaunchableTargets = FakeLaunchableTargets(),
         authEnvValueStore: AuthEnvValueStore = FakeAuthEnvValueStore(),
-        hub: ChatConnectionHub = newHub(repo = repo, sessionRepository = sessionRepository),
+        hub: ChatConnectionHub = newHub(repo = repo),
     ): SessionCatalog {
         val dispatcher = UnconfinedTestDispatcher()
         return SessionCatalog(
@@ -97,7 +97,7 @@ class SessionCatalogTest {
     fun `adoptListing on a transport that cannot list records nothing for reuse`() =
         runTest {
             val sessions = FakeSessionRepo()
-            val hub = newHub(sessionRepository = sessions)
+            val hub = newHub()
             val transport = hub.createBrowserManager(CoroutineScope(UnconfinedTestDispatcher()))
             val catalog = newCatalog(sessionRepository = sessions, hub = hub)
 
@@ -120,85 +120,82 @@ class SessionCatalogTest {
         }
 
     @Test
-    fun `closeSession closes the gateway session recorded on the target's endpoint`() =
+    fun `closeSession closes the gateway session running the chat on the target's endpoint`() =
         runTest {
             val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
             val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
-            val catalog = newCatalog(repo = repo, sessionRepository = sessions, targets = targets)
-            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "gw-dead"))
+            val catalog = newCatalog(repo = repo, targets = targets)
+            repo.sessions =
+                listOf(GatewaySessionSummary("gw-1", "r-1", "agent-1", "disconnected", acpSessionIds = listOf("s1")))
 
             val closed = catalog.closeSession("srv", "s1")
 
             assertTrue(closed)
-            assertEquals(listOf("gw-dead"), repo.closed)
-            assertNull(sessions.getSession("srv", "s1")?.gatewaySessionId)
+            assertEquals(listOf("gw-1"), repo.closed)
         }
 
     @Test
     fun `closeSession returns false when the target has no gateway leg`() =
         runTest {
             val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
-            val catalog = newCatalog(repo = repo, sessionRepository = sessions)
-            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "gw-1"))
+            val catalog = newCatalog(repo = repo)
+            repo.sessions =
+                listOf(GatewaySessionSummary("gw-1", "r-1", "agent-1", "disconnected", acpSessionIds = listOf("s1")))
 
             assertFalse(catalog.closeSession("srv", "s1"))
             assertTrue(repo.closed.isEmpty())
-            assertEquals("gw-1", sessions.getSession("srv", "s1")?.gatewaySessionId)
         }
 
     @Test
-    fun `deleteSession removes local row and reports known for a cold session`() =
+    fun `deleteSession keeps the chat when its agent is no longer available`() =
         runTest {
             val sessions = FakeSessionRepo()
             val catalog = newCatalog(sessionRepository = sessions)
-            sessions.upsertSession("srv", SessionSummary(id = "s1"))
+            sessions.chatCreated("srv", SessionSummary(id = "s1"))
 
-            val deleted = catalog.deleteSession("srv", "s1")
+            val result = runCatching { catalog.deleteSession("srv", "s1") }
 
-            assertTrue(deleted)
-            assertNull(sessions.getSession("srv", "s1"))
+            assertTrue(result.isFailure)
+            assertEquals("s1", sessions.getSession("srv", "s1")?.id)
         }
 
     @Test
-    fun `deleteSession closes the gateway session then drops row and tracking`() =
+    fun `deleteSession keeps row and tracking when gateway launch fails`() =
         runTest {
             val repo = FakeGatewayRepo()
-            // The best-effort ACP leg needs no gateway launch here: a
-            // mismatched protocol keeps it skipped and the delete still succeeds.
+            // An incompatible gateway cannot confirm deletion; retain both row and presence.
             repo.protocolVersion = "v1"
             val sessions = FakeSessionRepo()
-            val hub = newHub(repo = repo, sessionRepository = sessions)
+            val hub = newHub(repo = repo)
             val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
             val catalog = newCatalog(hub = hub, repo = repo, sessionRepository = sessions, targets = targets)
-            sessions.upsertSession("srv", SessionSummary(id = "s1"))
+            sessions.chatCreated("srv", SessionSummary(id = "s1"))
             hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
 
-            val deleted = catalog.deleteSession("srv", "s1")
+            val result = runCatching { catalog.deleteSession("srv", "s1") }
 
-            assertTrue(deleted)
-            assertEquals(listOf("g1"), repo.closed)
-            assertNull(sessions.getSession("srv", "s1"))
-            assertFalse(hub.isTracked("srv", "s1"))
+            assertTrue(result.isFailure)
+            assertTrue(repo.closed.isEmpty())
+            assertEquals("s1", sessions.getSession("srv", "s1")?.id)
+            assertTrue(hub.isTracked("srv", "s1"))
         }
 
     @Test
-    fun `deleteSession without a gateway leg tears down a tracked chat with no REST call`() =
+    fun `deleteSession retains tracked direct chat when deletion cannot reach its agent`() =
         runTest {
             val repo = FakeGatewayRepo()
             val sessions = FakeSessionRepo()
-            val hub = newHub(repo = repo, sessionRepository = sessions)
+            val hub = newHub(repo = repo)
             val catalog = newCatalog(hub = hub, repo = repo, sessionRepository = sessions)
-            sessions.upsertSession("srv", SessionSummary(id = "s1"))
+            sessions.chatCreated("srv", SessionSummary(id = "s1"))
             hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
 
-            val deleted = catalog.deleteSession("srv", "s1")
+            val result = runCatching { catalog.deleteSession("srv", "s1") }
 
-            assertTrue(deleted)
+            assertTrue(result.isFailure)
             assertTrue(repo.closed.isEmpty())
-            assertNull(sessions.getSession("srv", "s1"))
-            assertFalse(hub.isTracked("srv", "s1"))
+            assertEquals("s1", sessions.getSession("srv", "s1")?.id)
+            assertTrue(hub.isTracked("srv", "s1"))
         }
 
     @Test
@@ -210,53 +207,29 @@ class SessionCatalogTest {
         }
 
     @Test
-    fun `reconcileGatewayLeases clears stale pointers and keeps live ones`() =
+    fun `runningSessionIds lists the chats the gateway runs for this agent only`() =
         runTest {
             val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
             val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
-            val catalog = newCatalog(repo = repo, sessionRepository = sessions, targets = targets)
-            sessions.upsertSession("srv", SessionSummary(id = "alive", gatewaySessionId = "g-live"))
-            sessions.upsertSession("srv", SessionSummary(id = "dead", gatewaySessionId = "g-dead"))
-            sessions.upsertSession("srv", SessionSummary(id = "plain"))
+            val catalog = newCatalog(repo = repo, targets = targets)
             repo.sessions =
-                listOf(GatewaySessionSummary("g-live", "r-live", "agent-1", "active", "2026-09-22T00:00:00Z"))
+                listOf(
+                    GatewaySessionSummary("g-1", "r-1", "agent-1", "active", acpSessionIds = listOf("s1", "s2")),
+                    GatewaySessionSummary("g-2", "r-2", "agent-other", "active", acpSessionIds = listOf("s3")),
+                )
 
-            catalog.reconcileGatewayLeases("srv")
-
-            assertEquals("g-live", sessions.getSession("srv", "alive")?.gatewaySessionId)
-            assertNull(sessions.getSession("srv", "dead")?.gatewaySessionId)
-            assertNull(sessions.getSession("srv", "plain")?.gatewaySessionId)
+            assertEquals(setOf("s1", "s2"), catalog.runningSessionIds("srv"))
         }
 
     @Test
-    fun `reconcileGatewayLeases keeps pointers when the gateway list fails`() =
+    fun `runningSessionIds is unknown when the gateway list fails`() =
         runTest {
             val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
             val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
-            val catalog = newCatalog(repo = repo, sessionRepository = sessions, targets = targets)
-            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "g-1"))
+            val catalog = newCatalog(repo = repo, targets = targets)
             repo.listFailure = GatewayRequestException(500, "boom", null)
 
-            catalog.reconcileGatewayLeases("srv")
-
-            assertEquals("g-1", sessions.getSession("srv", "s1")?.gatewaySessionId)
-        }
-
-    @Test
-    fun `reconcileGatewayLeases leaves pointers alone without a gateway target`() =
-        runTest {
-            val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
-            val catalog = newCatalog(repo = repo, sessionRepository = sessions)
-            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "g-1"))
-            // An empty live list would clear the pointer if the reconcile ran at all.
-            repo.sessions = emptyList()
-
-            catalog.reconcileGatewayLeases("srv")
-
-            assertEquals("g-1", sessions.getSession("srv", "s1")?.gatewaySessionId)
+            assertNull(catalog.runningSessionIds("srv"))
         }
 
     @Test

@@ -598,6 +598,7 @@ class AcpChatSessionFacade(
                                 ?.isStreaming == true
                         },
                         manager = connectionManager,
+                        snapshot = connectionManager.sessions.getSession(sessionId)?.snapshot,
                     ),
             )
     }

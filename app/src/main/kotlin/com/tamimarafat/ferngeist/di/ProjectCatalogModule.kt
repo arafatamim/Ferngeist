@@ -4,6 +4,9 @@ import android.content.Context
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSnapshotStore
 import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
+import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjects
 import dagger.Module
 import dagger.Provides
@@ -33,5 +36,13 @@ object ProjectCatalogModule {
         repositories: LaunchRepositories,
         store: ProjectSnapshotStore,
         applicationScope: CoroutineScope,
-    ): ProjectCatalog = ProjectCatalog(gatewayProjects, repositories, store, applicationScope)
+        hub: ChatConnectionHub,
+    ): ProjectCatalog = ProjectCatalog(gatewayProjects, repositories, store, applicationScope, hub)
+
+    @Provides
+    fun provideChatCatalog(catalog: ProjectCatalog): ChatCatalog = catalog
+
+    /** The hero, recents and chat switcher read chats through the catalog. */
+    @Provides
+    fun provideChatListings(catalog: ProjectCatalog): ChatListings = catalog
 }

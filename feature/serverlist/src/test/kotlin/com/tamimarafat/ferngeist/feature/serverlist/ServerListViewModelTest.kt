@@ -10,10 +10,10 @@ import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLauncher
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.core.model.store.RecentCwdStore
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
@@ -44,7 +44,7 @@ class ServerListViewModelTest {
 
     private val gatewaySourceRepository = mockk<GatewaySourceRepository>(relaxed = true)
     private val launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true)
-    private val sessionRepository = mockk<SessionRepository>(relaxed = true)
+    private val sessionRepository = mockk<ChatCatalog>(relaxed = true)
     private val agentLauncher = mockk<AgentLauncher>()
     private val projectCatalog =
         mockk<ProjectCatalog> { every { state } returns MutableStateFlow(ProjectCatalogState(isReady = true)) }

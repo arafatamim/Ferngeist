@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.data.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -24,4 +25,5 @@ data class GatewayAgentBindingEntity(
     val agentId: String,
     val preferredAuthMethodId: String?,
     val icon: String?,
+    @ColumnInfo(defaultValue = "0") val createdAt: Long = System.currentTimeMillis(),
 )

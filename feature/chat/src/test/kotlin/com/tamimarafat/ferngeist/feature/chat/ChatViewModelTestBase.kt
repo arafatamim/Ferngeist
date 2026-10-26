@@ -13,8 +13,9 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnKey
 import com.tamimarafat.ferngeist.core.model.TurnTiming
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
+import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
@@ -82,9 +83,20 @@ open class ChatViewModelTestBase {
 
 /** In-memory repositories for a view model; each override replaces one collaborator. */
 internal fun testRepositories(
-    sessionRepository: SessionRepository = FakeSessionRepository(),
+    sessionRepository: ChatCatalog = FakeChatCatalog(),
     launchableTargetRepository: LaunchableTargetRepository = FakeLaunchableTargetRepository(),
-): ChatRepositories = ChatRepositories(sessionRepository, launchableTargetRepository, InMemoryTurnTimingRepository())
+): ChatRepositories =
+    ChatRepositories(
+        sessionRepository,
+        launchableTargetRepository,
+        InMemoryTurnTimingRepository(),
+        // The stored rows stand in for the catalog's listings.
+        object : ChatListings {
+            override fun getSessions(serverId: String) = sessionRepository.getSessions(serverId)
+
+            override fun getRecentSessions(limit: Int) = sessionRepository.getRecentSessions(limit)
+        },
+    )
 
 /** In-memory local stores for a view model; each override replaces one store. */
 internal fun testStores(
@@ -95,16 +107,20 @@ internal fun testStores(
     ChatLocalStores(chatScrollStateStore, pendingPromptStore, switcherHintStore, FakeRecentSelectionStore())
 
 internal class InMemoryTurnTimingRepository : TurnTimingRepository {
-    val timings = HashMap<String, MutableMap<TurnKey, TurnTiming>>()
+    val timings = HashMap<Pair<String, String>, MutableMap<TurnKey, TurnTiming>>()
 
-    override suspend fun getTimings(sessionId: String): Map<TurnKey, TurnTiming> = timings[sessionId].orEmpty()
+    override suspend fun getTimings(
+        serverId: String,
+        sessionId: String,
+    ): Map<TurnKey, TurnTiming> = timings[serverId to sessionId].orEmpty()
 
     override suspend fun record(
+        serverId: String,
         sessionId: String,
         key: TurnKey,
         timing: TurnTiming,
     ) {
-        timings.getOrPut(sessionId) { HashMap() }[key] = timing
+        timings.getOrPut(serverId to sessionId) { HashMap() }[key] = timing
     }
 }
 
@@ -118,7 +134,6 @@ internal fun newTestHub(gatewayRepository: GatewayRepository = FakeGatewayReposi
         gatewayRepository = gatewayRepository,
         scope = CoroutineScope(UnconfinedTestDispatcher()),
         connectivityObserver = FakeConnectivityObserver(),
-        sessionRepository = FakeSessionRepository(),
     )
 
 /** JUnit rule that swaps the main dispatcher for tests. */

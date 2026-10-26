@@ -13,6 +13,7 @@ data class GatewayAgentBinding(
      * Older gateways may not provide a logo.
      */
     val icon: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
 )
 
 sealed interface LaunchableTarget {

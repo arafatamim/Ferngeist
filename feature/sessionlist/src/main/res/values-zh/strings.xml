@@ -49,6 +49,9 @@
     <string name="sessionlist_scope_main">主检出</string>
     <string name="sessionlist_scope_new_worktree">新建 worktree…</string>
     <string name="sessionlist_new_chat_in">在 %1$s 中新建聊天</string>
+    <string name="sessionlist_project_new_chat_with">与 %1$s 新建聊天</string>
+    <string name="sessionlist_project_pick_agent">开始聊天，使用</string>
+    <string name="sessionlist_project_last_used">上次在此使用</string>
     <string name="sessionlist_scope_empty">%1$s 中还没有聊天</string>
     <string name="sessionlist_worktree_branch">分支</string>
     <string name="sessionlist_worktree_optional">可选</string>
@@ -88,4 +91,10 @@
     <string name="sessionlist_error_init_gateway">初始化 %1$s 失败</string>
     <string name="sessionlist_missing_folders">已删除的文件夹（%d）</string>
     <string name="sessionlist_missing_folder_message">此聊天的文件夹已不存在，因此无法打开。</string>
+    <string name="sessionlist_all_agents">所有代理</string>
+    <string name="sessionlist_action_busy">此聊天仍在回复。请先在聊天中取消。</string>
+    <string name="sessionlist_action_failed">无法更新聊天，请重试。</string>
+    <string name="sessionlist_agent_listing_unsupported">无法列出聊天。新聊天会保留在此手机上，直到退出应用。</string>
+    <string name="sessionlist_agent_auth_required">需要身份验证</string>
+    <string name="sessionlist_agent_listing_failed">无法刷新聊天。您仍可以开始聊天。</string>
 </resources>

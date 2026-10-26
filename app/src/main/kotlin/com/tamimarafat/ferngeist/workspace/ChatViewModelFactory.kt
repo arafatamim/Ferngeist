@@ -4,8 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
+import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
@@ -23,10 +24,11 @@ data class ChatSessionServices
     @Inject
     constructor(
         val sessionFacadeFactory: ChatSessionFacadeFactory,
-        val sessionRepository: SessionRepository,
+        val sessionRepository: ChatCatalog,
         val presence: ChatSessionPresence,
         val launchableTargetRepository: LaunchableTargetRepository,
         val turnTimingRepository: TurnTimingRepository,
+        val chatListings: ChatListings,
     )
 
 /**
@@ -69,6 +71,7 @@ class ChatViewModelFactory
                         sessionRepository = services.sessionRepository,
                         launchableTargetRepository = services.launchableTargetRepository,
                         turnTimingRepository = services.turnTimingRepository,
+                        chatListings = services.chatListings,
                     ),
                 stores =
                     ChatLocalStores(

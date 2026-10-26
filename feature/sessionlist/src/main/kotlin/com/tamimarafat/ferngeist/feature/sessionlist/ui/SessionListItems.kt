@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -60,6 +61,8 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
+import com.tamimarafat.ferngeist.core.common.ui.status.InProgressIndicator
+import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.cwdKey
@@ -68,14 +71,13 @@ import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.displayName
+import com.tamimarafat.ferngeist.feature.sessionlist.ui.date.datedSessions
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
+import java.text.DateFormat
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Date
-import kotlin.math.max
 
 private const val REMOVING_CARD_ALPHA = 0.5f
 private const val MISSING_HEADER_KEY = "missing-folders"
@@ -191,12 +193,14 @@ private fun SessionListContentFor(
             val snackbarScope = rememberCoroutineScope()
             val goneMessage = stringResource(R.string.sessionlist_missing_folder_message)
             SessionListLazyColumn(
-                groupedSessions = groupSessionsByDate(present),
+                groupedSessions = groupSessionsByDate(present, state.screen.isRefreshing),
                 missingSessions = missing,
                 onOpenMissing = { snackbarScope.launch { state.screen.snackbarHostState.showSnackbar(goneMessage) } },
                 sessionCount = state.rows.sessions.size,
                 padding = padding,
-                liveSessionIds = state.rows.liveSessionIds,
+                liveSessionIds = state.rows.presence.live,
+                workingSessionIds = state.rows.presence.working,
+                closableSessionIds = state.rows.presence.closable,
                 onCloseSession = onCloseSession,
                 onDeleteSession = onDeleteSession,
                 canDeleteSession = state.rows.supportsSessionDelete,
@@ -216,66 +220,28 @@ private fun SessionListContentFor(
 }
 
 @Composable
-private fun groupSessionsByDate(sessions: List<SessionSummary>): Map<String, List<SessionSummary>> {
+internal fun groupSessionsByDate(
+    sessions: List<SessionSummary>,
+    refreshing: Boolean,
+): Map<String, List<SessionSummary>> {
     val zoneId = ZoneId.systemDefault()
-    val today = LocalDate.now(zoneId)
+    val today = Instant.ofEpochMilli(rememberPresentationTime(refreshing)).atZone(zoneId).toLocalDate()
     val locale = LocalLocale.current
     val dateFormatter =
         remember(locale) {
-            SimpleDateFormat("MMMM d, yyyy", locale.platformLocale)
+            DateFormat.getDateInstance(DateFormat.LONG, locale.platformLocale)
         }
-    val sortedSessions =
-        sessions.sortedWith(
-            compareByDescending<SessionSummary> { it.updatedAt ?: Long.MIN_VALUE }
-                .thenByDescending { it.id },
-        )
-    val groupedSessions = linkedMapOf<String, List<SessionSummary>>()
-    // Group sessions by calendar date, sorted newest-first.
-    // Sessions with updatedAt are bucketed by local date; those without
-    // go into a final "Unknown" bucket.
-    val withDate =
-        sortedSessions.filter { it.updatedAt != null }.groupBy { session ->
-            val updatedAt = session.updatedAt ?: 0L
-            Instant.ofEpochMilli(updatedAt).atZone(zoneId).toLocalDate()
+    val groups = datedSessions(sessions, zoneId)
+    // Group by local calendar date, newest first, with unknown dates last.
+    return groups.mapKeys { (date, group) ->
+        // Recent dates use relative labels; older ones follow the user's locale.
+        when (date) {
+            today -> stringResource(R.string.sessionlist_today)
+            today.minusDays(1) -> stringResource(R.string.sessionlist_yesterday)
+            null -> stringResource(R.string.sessionlist_unknown_date)
+            else -> dateFormatter.format(Date(group.first().updatedAt ?: 0L))
         }
-    withDate.entries
-        .sortedByDescending { it.key }
-        .forEach { (sessionDate, groupSessions) ->
-            // Show "Today" / "Yesterday" for recent dates, formatted date otherwise.
-            val label =
-                when (sessionDate) {
-                    today ->
-                        stringResource(
-                            R.string.sessionlist_today,
-                        )
-                    today.minusDays(
-                        1,
-                    ),
-                    ->
-                        stringResource(
-                            R.string.sessionlist_yesterday,
-                        )
-                    else -> {
-                        val epoch =
-                            max(
-                                groupSessions.firstOrNull()?.updatedAt ?: 0L,
-                                0L,
-                            )
-                        dateFormatter.format(Date(epoch))
-                    }
-                }
-            groupedSessions[label] = groupSessions
-        }
-    val unknownSessions = sortedSessions.filter { it.updatedAt == null }
-    if (unknownSessions.isNotEmpty()) {
-        groupedSessions[
-            stringResource(
-                R.string.sessionlist_unknown_date,
-            ),
-        ] =
-            unknownSessions
     }
-    return groupedSessions
 }
 
 @OptIn(
@@ -290,6 +256,8 @@ private fun SessionListLazyColumn(
     sessionCount: Int,
     padding: PaddingValues,
     liveSessionIds: Set<String>,
+    workingSessionIds: Set<String>,
+    closableSessionIds: Set<String>,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     canDeleteSession: Boolean,
@@ -314,6 +282,7 @@ private fun SessionListLazyColumn(
         SessionCard(
             session = session,
             isLive = session.id in liveSessionIds,
+            working = session.id in workingSessionIds,
             worktree = worktree,
             worktreeBranch = worktree?.displayName,
             worktreeRepo = worktree?.repo,
@@ -322,7 +291,8 @@ private fun SessionListLazyColumn(
             gone = gone,
             removing = worktree?.id in removingWorktreeIds,
             onRemoveWorktree = worktree?.let { { onRemoveWorktree(session.id, it.id) } },
-            onDisconnect = disconnectAction(session, live = session.id in liveSessionIds, onClose = onCloseSession),
+            // Close is offered for a live chat, or one the gateway still runs a process for.
+            onDisconnect = if (session.id in closableSessionIds) ({ onCloseSession(session.id) }) else null,
             onDelete = deleteAction(session, enabled = canDeleteSession, onDelete = onDeleteSession),
             onClick = {
                 if (gone) return@SessionCard onOpenMissing()
@@ -413,6 +383,7 @@ private fun RowScope.SessionCardText(
     worktreeBranch: String?,
     worktreeRepo: String?,
     showCwd: Boolean,
+    gone: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
@@ -425,30 +396,21 @@ private fun RowScope.SessionCardText(
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
                 modifier =
-                    if (sharedBoundsEnabled) {
-                        with(sharedTransitionScope) {
-                            Modifier.sharedBounds(
-                                sharedContentState =
-                                    rememberSharedContentState(
-                                        key = SessionTitleSharedBoundsKey(session.id),
-                                    ),
-                                animatedVisibilityScope = animatedContentScope,
-                                enter = fadeIn(),
-                                exit = fadeOut(),
-                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                            )
-                        }
-                    } else {
-                        Modifier
-                    },
+                    Modifier.sessionTitleBounds(
+                        session.id,
+                        sharedTransitionScope,
+                        animatedContentScope,
+                        sharedBoundsEnabled,
+                    ),
             )
-            // With a directory picked the badge alone says where; otherwise a worktree chat names its
-            // project rather than the worktree's own path.
+            // With a directory picked the badge alone says where; otherwise every chat names its
+            // project, a worktree's by its repo. A gone folder keeps its full path: the only clue left.
             val place =
                 when {
                     !showCwd -> null
+                    gone -> session.cwd
                     worktreeBranch != null -> worktreeRepo?.let(::projectName)
-                    else -> session.cwd
+                    else -> session.cwd?.let(::projectName)
                 }
             place?.let {
                 Text(
@@ -471,13 +433,6 @@ private fun RowScope.SessionCardText(
     }
 }
 
-/** Close is offered for a live chat, or one the gateway still runs a process for. */
-private fun disconnectAction(
-    session: SessionSummary,
-    live: Boolean,
-    onClose: (String) -> Unit,
-): (() -> Unit)? = if (live || session.gatewaySessionId != null) ({ onClose(session.id) }) else null
-
 private fun deleteAction(
     session: SessionSummary,
     enabled: Boolean,
@@ -498,7 +453,7 @@ private fun menuAvailable(
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun Modifier.sessionSharedBounds(
+internal fun Modifier.sessionSharedBounds(
     sessionId: String,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -521,6 +476,29 @@ private fun Modifier.sessionSharedBounds(
         this
     }
 
+/** The card title's claim on the chat screen's title, gated like [sessionSharedBounds]. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+internal fun Modifier.sessionTitleBounds(
+    sessionId: String,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
+    enabled: Boolean,
+): Modifier =
+    if (enabled) {
+        with(sharedTransitionScope) {
+            this@sessionTitleBounds.sharedBounds(
+                sharedContentState = rememberSharedContentState(key = SessionTitleSharedBoundsKey(sessionId)),
+                animatedVisibilityScope = animatedContentScope,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+            )
+        }
+    } else {
+        this
+    }
+
 @OptIn(
     ExperimentalSharedTransitionApi::class,
     ExperimentalFoundationApi::class,
@@ -530,6 +508,7 @@ private fun Modifier.sessionSharedBounds(
 private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
+    working: Boolean,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -547,72 +526,39 @@ private fun SessionCard(
     val haptics = LocalHapticFeedback.current
     var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
     val hasMenuActions = menuAvailable(removing, onDisconnect, onDelete, onRemoveWorktree)
-    // Right-click is the mouse equivalent of a long press: same menu, same gate.
     val openActionsMenu = {
         if (hasMenuActions) {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             showActionsMenu = true
         }
     }
-    // Live sessions tint the card container exactly like active server cards;
-    // the card itself is the status indicator, no trailing dot.
-    val containerColor by animateColorAsState(
-        targetValue =
-            if (isLive) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-        label = "sessionCardContainer",
-    )
     Box {
-        with(sharedTransitionScope) {
-            Card(
-                modifier =
-                    Modifier
-                        .sessionSharedBounds(
-                            sessionId = session.id,
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedContentScope = animatedContentScope,
-                            enabled = sharedBoundsEnabled,
-                        ).fillMaxWidth()
-                        .clip(CardDefaults.shape)
-                        .alpha(if (removing || gone) REMOVING_CARD_ALPHA else 1f)
-                        .handCursor()
-                        .onSecondaryClick(onClick = openActionsMenu)
-                        .combinedClickable(
-                            enabled = !removing,
-                            onClick = onClick,
-                            onLongClick = openActionsMenu,
-                        ),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = containerColor,
-                    ),
-            ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SessionCardText(
-                        session = session,
-                        worktree = worktree,
-                        worktreeBranch = worktreeBranch,
-                        worktreeRepo = worktreeRepo,
-                        showCwd = showCwd,
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedContentScope = animatedContentScope,
-                        sharedBoundsEnabled = sharedBoundsEnabled,
-                    )
-                    if (removing) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                }
-            }
+        ChatCard(
+            live = isLive,
+            showActivity = working,
+            removing = removing,
+            dimmed = removing || gone,
+            onClick = onClick,
+            onOpenMenu = openActionsMenu,
+            modifier =
+                Modifier.sessionSharedBounds(
+                    sessionId = session.id,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    enabled = sharedBoundsEnabled,
+                ),
+        ) {
+            SessionCardText(
+                session = session,
+                worktree = worktree,
+                worktreeBranch = worktreeBranch,
+                worktreeRepo = worktreeRepo,
+                showCwd = showCwd,
+                gone = gone,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+                sharedBoundsEnabled = sharedBoundsEnabled,
+            )
         }
 
         SessionActionsMenu(
@@ -622,6 +568,63 @@ private fun SessionCard(
             onRemoveWorktree = onRemoveWorktree,
             onDelete = onDelete,
         )
+    }
+}
+
+/**
+ * The chat card both the agent's and the project's lists use. A live chat tints the container
+ * exactly like an active server card; lists without an avatar use its trailing activity slot.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun ChatCard(
+    live: Boolean,
+    showActivity: Boolean,
+    removing: Boolean,
+    onClick: () -> Unit,
+    onOpenMenu: () -> Unit,
+    modifier: Modifier = Modifier,
+    dimmed: Boolean = removing,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val containerColor by animateColorAsState(
+        targetValue =
+            if (live) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "chatCardContainer",
+    )
+    Card(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.large)
+                .alpha(if (dimmed) REMOVING_CARD_ALPHA else 1f)
+                .handCursor()
+                // Right-click is the mouse equivalent of a long press: same menu, same gate.
+                .onSecondaryClick(onClick = onOpenMenu)
+                .combinedClickable(enabled = !removing, onClick = onClick, onLongClick = onOpenMenu),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            content()
+            AnimatedVisibility(
+                visible = showActivity,
+                enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()),
+                exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+            ) { InProgressIndicator() }
+            if (removing) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+        }
     }
 }
 

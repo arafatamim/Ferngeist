@@ -50,6 +50,9 @@
     <string name="sessionlist_scope_main">Checkout principal</string>
     <string name="sessionlist_scope_new_worktree">Novo worktree…</string>
     <string name="sessionlist_new_chat_in">Novo chat em %1$s</string>
+    <string name="sessionlist_project_new_chat_with">Novo chat com %1$s</string>
+    <string name="sessionlist_project_pick_agent">Iniciar um chat com</string>
+    <string name="sessionlist_project_last_used">Usado aqui por último</string>
     <string name="sessionlist_scope_empty">Ainda não há chats em %1$s</string>
     <string name="sessionlist_worktree_branch">Branch</string>
     <string name="sessionlist_worktree_optional">Opcional</string>
@@ -90,4 +93,10 @@
     <string name="sessionlist_error_init_gateway">Falha ao inicializar %1$s</string>
     <string name="sessionlist_missing_folders">Pastas excluídas (%d)</string>
     <string name="sessionlist_missing_folder_message">A pasta deste chat não existe mais, então ele não pode ser aberto.</string>
+    <string name="sessionlist_all_agents">Todos os agentes</string>
+    <string name="sessionlist_action_busy">Esta conversa ainda está respondendo. Cancele primeiro dentro da conversa.</string>
+    <string name="sessionlist_action_failed">Não foi possível atualizar a conversa. Tente novamente.</string>
+    <string name="sessionlist_agent_listing_unsupported">Não pode listar conversas. Novas conversas ficam neste telefone até você sair do aplicativo.</string>
+    <string name="sessionlist_agent_auth_required">Autenticação necessária</string>
+    <string name="sessionlist_agent_listing_failed">Não foi possível atualizar as conversas. Você ainda pode iniciar uma conversa.</string>
 </resources>

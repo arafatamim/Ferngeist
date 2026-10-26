@@ -50,8 +50,8 @@ internal fun SessionListTopBar(
                 SessionListTopBarTitle(
                     expanded = false,
                     collapsedFraction = 1f,
-                    serverId = serverId,
-                    serverName = state.screen.serverName,
+                    sharedKey = ServerNameSharedBoundsKey(serverId),
+                    title = state.screen.serverName,
                     titleStyle = MaterialTheme.typography.titleLarge,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -88,8 +88,8 @@ internal fun SessionListTopBar(
                 collapsedFraction =
                     state.screen.scrollBehavior.state.collapsedFraction
                         .coerceIn(0f, 1f),
-                serverId = serverId,
-                serverName = state.screen.serverName,
+                sharedKey = ServerNameSharedBoundsKey(serverId),
+                title = state.screen.serverName,
                 titleStyle = titleStyle,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -134,15 +134,15 @@ private fun SessionListTopBarActions(
 }
 
 /**
- * Renders the session list top-bar title with shared-element transition ownership.
+ * Renders a list screen's top-bar title (agent or project) with shared-element transition ownership.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun SessionListTopBarTitle(
+internal fun SessionListTopBarTitle(
     expanded: Boolean,
     collapsedFraction: Float,
-    serverId: String,
-    serverName: String,
+    sharedKey: Any,
+    title: String,
     titleStyle: TextStyle,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -150,7 +150,7 @@ private fun SessionListTopBarTitle(
 ) {
     val sharedContentState =
         with(sharedTransitionScope) {
-            rememberSharedContentState(key = ServerNameSharedBoundsKey(serverId))
+            rememberSharedContentState(key = sharedKey)
         }
     // Suppressed while the workspace shows this list beside the agent list. The agent card
     // registers this same key for the same server, and two live claimants make the title scale
@@ -179,7 +179,7 @@ private fun SessionListTopBarTitle(
         }
 
     Text(
-        text = serverName,
+        text = title,
         style = titleStyle,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

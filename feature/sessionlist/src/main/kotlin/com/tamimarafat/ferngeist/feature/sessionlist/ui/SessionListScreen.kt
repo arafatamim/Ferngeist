@@ -78,6 +78,7 @@ fun SessionListScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(lifecycle, viewModel) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.onAppear()
             while (true) {
                 // The server list's launch just listed; the first pass after it must not launch again.
                 viewModel.refreshSessions(reuseRecent = true)

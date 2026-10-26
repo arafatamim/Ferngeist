@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
@@ -22,6 +23,7 @@ class HubChatPresence(
     private val hub: ChatConnectionHub,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val gatewayRepository: GatewayRepository,
+    private val onChatCreated: (serverId: String, summary: SessionSummary) -> Unit = { _, _ -> },
 ) : ChatSessionPresence {
     override val warmServers: StateFlow<Set<String>> = hub.warmServers
 
@@ -66,14 +68,17 @@ class HubChatPresence(
         hub.chatScreenOpened(serverId, sessionId, cwd)
     }
 
+    override fun chatCreated(
+        serverId: String,
+        summary: SessionSummary,
+    ) = onChatCreated(serverId, summary)
+
     override fun screenClosed(
         serverId: String,
         sessionId: String,
     ) {
         hub.chatScreenClosed(serverId, sessionId)
     }
-
-    override fun gatewaySessionIdFor(chatId: String): String? = hub.gatewaySessionIdFor(chatId)
 
     override suspend fun isGatewayBacked(serverId: String): Boolean = gatewayEndpoint(serverId) != null
 

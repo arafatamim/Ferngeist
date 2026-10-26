@@ -3,7 +3,7 @@ package com.tamimarafat.ferngeist.di
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog
 import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import dagger.Module
 import dagger.Provides
@@ -27,7 +27,7 @@ object SessionCatalogModule {
     fun provideSessionCatalog(
         hub: ChatConnectionHub,
         repositories: LaunchRepositories,
-        sessionRepository: SessionRepository,
+        sessionRepository: ChatCatalog,
         authEnvValueStore: AuthEnvValueStore,
         applicationScope: CoroutineScope,
     ): SessionCatalog =

@@ -9,9 +9,9 @@ import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.push.PushPayloadKeys
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.service.FerngeistForegroundService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicInteger
@@ -39,7 +39,7 @@ class PushNotifier
         @ApplicationContext private val context: Context,
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
-        private val sessionRepository: SessionRepository,
+        private val sessionRepository: ChatCatalog,
         private val chatConnectionHub: ChatConnectionHub,
         private val appForegroundState: AppForegroundState,
     ) {

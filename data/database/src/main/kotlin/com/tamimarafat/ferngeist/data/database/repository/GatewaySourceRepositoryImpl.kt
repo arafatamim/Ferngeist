@@ -3,9 +3,7 @@ package com.tamimarafat.ferngeist.data.database.repository
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
-import com.tamimarafat.ferngeist.data.database.dao.GatewayAgentBindingDao
 import com.tamimarafat.ferngeist.data.database.dao.GatewaySourceDao
-import com.tamimarafat.ferngeist.data.database.dao.SessionDao
 import com.tamimarafat.ferngeist.data.database.entity.GatewaySourceEntity
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -19,8 +17,6 @@ import kotlinx.coroutines.withContext
 class GatewaySourceRepositoryImpl(
     private val gatewayDao: GatewaySourceDao,
     private val credentialEncryptor: CredentialEncryptor,
-    private val sessionDao: SessionDao,
-    private val bindingDao: GatewayAgentBindingDao,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : GatewaySourceRepository {
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
@@ -48,12 +44,7 @@ class GatewaySourceRepositoryImpl(
 
     override suspend fun deleteGateway(id: String) {
         withContext(ioDispatcher) {
-            // The gateway's bindings cascade away with its row, and each binding's id keys
-            // its own chat history — so collect them before the delete leaves nothing to
-            // enumerate. Without this the sessions outlive every way of reaching them.
-            bindingDao.getBindingsForGateway(id).forEach { binding ->
-                sessionDao.deleteSessionsByServerId(binding.id)
-            }
+            // Bindings cascade away; snapshot projections hide chats without a bound target.
             gatewayDao.deleteGatewayById(id)
             credentialEncryptor.delete(CredentialEncryptor.gatewayCredentialKey(id))
         }

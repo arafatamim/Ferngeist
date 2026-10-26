@@ -12,12 +12,12 @@ import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
 import com.tamimarafat.ferngeist.data.database.crypto.CredentialEncryptor
 import com.tamimarafat.ferngeist.data.database.migration14To15
 import com.tamimarafat.ferngeist.data.database.migration15To16
 import com.tamimarafat.ferngeist.data.database.migration16To17
+import com.tamimarafat.ferngeist.data.database.migration17To18
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
 import com.tamimarafat.ferngeist.push.PushRegistrar
@@ -76,6 +76,7 @@ object AppModule {
                 migration14To15,
                 migration15To16,
                 migration16To17,
+                migration17To18,
             ).fallbackToDestructiveMigration(false)
             .build()
 
@@ -104,14 +105,12 @@ object AppModule {
     fun provideChatConnectionHub(
         connectivityObserver: ConnectivityObserver,
         gatewayRepository: GatewayRepository,
-        sessionRepository: SessionRepository,
         applicationScope: CoroutineScope,
     ): ChatConnectionHub =
         ChatConnectionHub(
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
             connectivityObserver = connectivityObserver,
-            sessionRepository = sessionRepository,
         )
 
     /** Supplies the chat-session facade factory backed by ACP. */

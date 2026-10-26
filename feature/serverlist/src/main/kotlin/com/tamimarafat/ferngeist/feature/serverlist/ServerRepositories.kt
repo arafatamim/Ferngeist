@@ -1,9 +1,9 @@
 package com.tamimarafat.ferngeist.feature.serverlist
 
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetSessionSettingsRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import javax.inject.Inject
 
 /**
@@ -15,6 +15,6 @@ data class ServerRepositories
     constructor(
         val launchableTargetRepository: LaunchableTargetRepository,
         val gatewaySourceRepository: GatewaySourceRepository,
-        val sessionRepository: SessionRepository,
+        val sessionRepository: ChatCatalog,
         val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
     )

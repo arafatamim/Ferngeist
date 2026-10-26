@@ -1,22 +1,27 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import app.cash.turbine.test
+import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
-import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -30,23 +35,19 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatConnectionHubTest {
     @Test
-    fun `resolveSessionTitle is read-only and null while no transport is warm`() =
+    fun `resolveSessionTitle is null while no transport is warm`() =
         runTest {
-            val sessionRepo = FakeSessionRepo()
-            val hub = newHub(sessionRepository = sessionRepo)
+            val hub = newHub()
 
             val title = hub.resolveSessionTitle(serverId = "srv", sessionId = "s1", cwd = "/w")
 
             assertNull(title)
-            assertEquals(0, sessionRepo.replaceCount)
-            assertEquals(0, sessionRepo.titleWrites)
         }
 
     @Test
     fun `resolveSessionTitle swallows a listing failure instead of raising it into the chat`() =
         runTest {
-            val sessionRepo = FakeSessionRepo()
-            val hub = newHub(sessionRepository = sessionRepo)
+            val hub = newHub()
             // Warm transport that is registered as connected but holds no SDK client,
             // so the listing call fails the way a half-open socket does.
             val manager = hub.acquireChatManager()
@@ -56,8 +57,6 @@ class ChatConnectionHubTest {
             val title = hub.resolveSessionTitle(serverId = "srv", sessionId = "s1", cwd = "/w")
 
             assertNull(title)
-            assertEquals(0, sessionRepo.replaceCount)
-            assertEquals(0, sessionRepo.titleWrites)
         }
 
     @Test
@@ -230,28 +229,39 @@ class ChatConnectionHubTest {
         }
 
     @Test
-    fun `closeSession clears stale pointer when gateway reports 404`() =
+    fun `cold closeSession deletes the gateway session running the chat, even one already gone`() =
         runTest {
             val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
-            val hub = newHub(repo, sessionRepository = sessions)
-            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "gw-dead"))
+            val hub = newHub(repo)
+            repo.sessions =
+                listOf(GatewaySessionSummary("gw-dead", "r", "a", "disconnected", acpSessionIds = listOf("s1")))
             repo.closeFailure = GatewayRequestException(404, "gone", null)
 
             val closed = hub.closeSession("srv", "s1", GatewayEndpoint("http", "gw", "cred"))
 
             assertTrue(closed)
             assertEquals(listOf("gw-dead"), repo.closed)
-            assertNull(sessions.getSession("srv", "s1")?.gatewaySessionId)
         }
 
     @Test
-    fun `closeSession keeps pointer and propagates non-404 gateway failures`() =
+    fun `cold closeSession returns false when no gateway session runs the chat`() =
         runTest {
             val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
-            val hub = newHub(repo, sessionRepository = sessions)
-            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "gw-1"))
+            val hub = newHub(repo)
+            repo.sessions =
+                listOf(GatewaySessionSummary("gw-1", "r", "a", "disconnected", acpSessionIds = listOf("other")))
+
+            assertFalse(hub.closeSession("srv", "s1", GatewayEndpoint("http", "gw", "cred")))
+            assertTrue(repo.closed.isEmpty())
+        }
+
+    @Test
+    fun `closeSession propagates non-404 gateway failures`() =
+        runTest {
+            val repo = FakeGatewayRepo()
+            val hub = newHub(repo)
+            repo.sessions =
+                listOf(GatewaySessionSummary("gw-1", "r", "a", "disconnected", acpSessionIds = listOf("s1")))
             repo.closeFailure = GatewayRequestException(500, "boom", null)
 
             try {
@@ -260,16 +270,13 @@ class ChatConnectionHubTest {
             } catch (error: GatewayRequestException) {
                 assertEquals(500, error.statusCode)
             }
-            assertEquals("gw-1", sessions.getSession("srv", "s1")?.gatewaySessionId)
         }
 
     @Test
-    fun `closeSession on tracked chat clears pointer when gateway reports 404`() =
+    fun `closeSession on tracked chat succeeds when gateway reports 404`() =
         runTest {
             val repo = FakeGatewayRepo()
-            val sessions = FakeSessionRepo()
-            val hub = newHub(repo, sessionRepository = sessions)
-            sessions.upsertSession("srv", SessionSummary(id = "s1", gatewaySessionId = "g1"))
+            val hub = newHub(repo)
             hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
             repo.closeFailure = GatewayRequestException(404, "gone", null)
 
@@ -277,7 +284,6 @@ class ChatConnectionHubTest {
 
             assertTrue(closed)
             assertFalse(hub.isTracked("srv", "s1"))
-            assertNull(sessions.getSession("srv", "s1")?.gatewaySessionId)
         }
 
     @Test
@@ -581,6 +587,99 @@ class ChatConnectionHubTest {
 
             advanceUntilIdle()
             assertEquals(setOf("srvA"), hub.warmServers.value)
+        }
+
+    @Test
+    fun `queued disconnect observation keeps a newly registered connected chat streaming`() =
+        runTest {
+            val hub =
+                ChatConnectionHub(
+                    gatewayRepository = FakeGatewayRepo(),
+                    scope = backgroundScope,
+                    connectivityObserver = ConnectivityObserverStub(initialState = true),
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
+                )
+            val first = hub.acquireChatManager()
+            first.forceConnectionState(AcpConnectionState.Connected)
+            hub.registerChat(sessionId = "first", manager = first)
+            runCurrent()
+            first.forceConnectionState(AcpConnectionState.Disconnected)
+            backgroundScope.launch {
+                val second = hub.acquireChatManager()
+                second.forceConnectionState(AcpConnectionState.Connected)
+                val key = hub.registerChat(sessionId = "second", manager = second)
+                hub.storeSnapshot(key, fakeSnapshot().copy(isStreaming = true))
+            }
+            runCurrent()
+            assertEquals(setOf("srv/second"), hub.streamingChatIds.value)
+        }
+
+    @Test
+    fun `forced hot eviction clears streaming presence`() =
+        runTest {
+            val hub = newHub(maxHot = 1, maxGateway = 1)
+            val first = hub.registerChat(sessionId = "first", streaming = true)
+            hub.storeSnapshot(first, fakeSnapshot().copy(isStreaming = true))
+            hub.registerChat(sessionId = "second")
+            assertFalse(hub.isTracked("srv", "first"))
+            assertFalse(first in hub.streamingChatIds.value)
+        }
+
+    @Test
+    fun `snapshot cache eviction clears streaming presence`() =
+        runTest {
+            val hub = newHub()
+            hub.storeSnapshot("srv/old", fakeSnapshot().copy(isStreaming = true))
+            repeat(20) { hub.storeSnapshot("srv/$it", fakeSnapshot()) }
+            assertNull(hub.snapshotFor("srv/old"))
+            assertFalse("srv/old" in hub.streamingChatIds.value)
+        }
+
+    @Test
+    fun `connection dropped mid turn clears streaming presence`() =
+        runTest {
+            val hub = newHub()
+            val manager = hub.acquireChatManager()
+            manager.forceConnectionState(AcpConnectionState.Connected)
+            val key = hub.registerChat(sessionId = "s1", manager = manager)
+            hub.storeSnapshot(key, fakeSnapshot().copy(isStreaming = true))
+            assertTrue(key in hub.streamingChatIds.value)
+            manager.forceConnectionState(AcpConnectionState.Disconnected)
+            advanceUntilIdle()
+            assertFalse(key in hub.streamingChatIds.value)
+        }
+
+    @Test
+    fun `reconnecting a streaming bridge restores presence without a screen snapshot`() =
+        runTest {
+            val hub = newHub()
+            val manager = hub.acquireChatManager()
+            manager.forceConnectionState(AcpConnectionState.Connected)
+            val bridge = SessionBridge("s1", null)
+            bridge.runtime.beginHydration()
+            bridge.runtime.completeHydration()
+            bridge.sendPrompt("go", emptyList(), emptyList())
+            val key =
+                hub.register(
+                    "srv",
+                    "s1",
+                    ChatRegistration(
+                        gatewaySessionId = null,
+                        gatewaySourceId = "",
+                        agentId = "",
+                        isConnected = { manager.isConnected },
+                        isStreaming = { bridge.snapshot.value.isStreaming },
+                        manager = manager,
+                        snapshot = bridge.snapshot,
+                    ),
+                )
+            assertTrue(key in hub.streamingChatIds.value)
+            manager.forceConnectionState(AcpConnectionState.Disconnected)
+            assertFalse(key in hub.streamingChatIds.value)
+            manager.forceConnectionState(AcpConnectionState.Connected)
+            assertTrue(key in hub.streamingChatIds.value)
+            hub.close(key)
+            bridge.close()
         }
 
     /**

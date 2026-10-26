@@ -2,8 +2,8 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
+import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.stateIn
 internal class ChatSwitcherController(
     private val scope: CoroutineScope,
     private val presence: ChatSessionPresence,
-    private val sessionRepository: SessionRepository,
+    private val chatListings: ChatListings,
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val serverId: String,
     private val currentSessionId: () -> String,
@@ -59,7 +59,7 @@ internal class ChatSwitcherController(
             combine(
                 serverIds.map { sid ->
                     combine(
-                        sessionRepository.getSessions(sid),
+                        chatListings.getSessions(sid),
                         presence.connectedSessionIds(sid),
                     ) { sessions, liveIds ->
                         Triple(sid, sessions, liveIds)

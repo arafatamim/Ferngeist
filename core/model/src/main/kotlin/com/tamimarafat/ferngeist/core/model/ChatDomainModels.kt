@@ -426,7 +426,7 @@ interface ChatSessionLifecycle {
      * The fallback for agents that generate a session title server-side but
      * never push it over `session_info_update`: the chat asks once the first
      * response finishes and it still has no title. Read-only — it never writes
-     * to the session store, which is the caller's job ([SessionRepository.updateSessionTitle]).
+     * to a local chat record; other screens use the next authoritative listing.
      */
     suspend fun fetchSessionTitle(): String? = null
 
@@ -608,14 +608,17 @@ interface ChatSessionPresence {
         cwd: String,
     )
 
+    /** Records a chat this phone just created, so lists show it before the agent next reports it. */
+    fun chatCreated(
+        serverId: String,
+        summary: SessionSummary,
+    )
+
     /** Records that [sessionId]'s chat screen closed. */
     fun screenClosed(
         serverId: String,
         sessionId: String,
     )
-
-    /** The gateway session recorded for [chatId] (`"$serverId/$sessionId"`), or null. */
-    fun gatewaySessionIdFor(chatId: String): String?
 
     /**
      * True when [serverId] targets a paired gateway, whose sessions hold a gateway lease

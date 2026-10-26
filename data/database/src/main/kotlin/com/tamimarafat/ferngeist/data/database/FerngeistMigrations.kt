@@ -42,3 +42,31 @@ val migration16To17: Migration =
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_turn_timings_finishedAt` ON `turn_timings` (`finishedAt`)")
         }
     }
+
+/** Listing snapshots replace chat records; timings keep only a uniquely identifiable owner. */
+val migration17To18: Migration =
+    object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE `turn_timings_new` (`serverId` TEXT NOT NULL, `sessionId` TEXT NOT NULL, " +
+                    "`turnIndex` INTEGER NOT NULL, `promptHash` INTEGER NOT NULL, " +
+                    "`startedAt` INTEGER NOT NULL, `finishedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`serverId`, `sessionId`, `turnIndex`))",
+            )
+            db.execSQL(
+                "INSERT INTO turn_timings_new " +
+                    "SELECT owners.serverId, timing.sessionId, timing.turnIndex, timing.promptHash, " +
+                    "timing.startedAt, timing.finishedAt FROM turn_timings AS timing JOIN " +
+                    "(SELECT sessionId, MIN(serverId) AS serverId FROM sessions " +
+                    "GROUP BY sessionId HAVING COUNT(DISTINCT serverId) = 1) AS owners " +
+                    "ON timing.sessionId = owners.sessionId",
+            )
+            db.execSQL("DROP TABLE turn_timings")
+            db.execSQL("ALTER TABLE turn_timings_new RENAME TO turn_timings")
+            db.execSQL("CREATE INDEX `index_turn_timings_finishedAt` ON `turn_timings` (`finishedAt`)")
+            db.execSQL("DROP TABLE sessions")
+            db.execSQL("ALTER TABLE gateway_agent_bindings ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+            // Synthetic times preserve insertion order for bindings whose real creation time was never stored.
+            db.execSQL("UPDATE gateway_agent_bindings SET createdAt = rowid")
+        }
+    }

@@ -23,9 +23,11 @@ import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -36,10 +38,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
 /** Bounds the lease-reconciliation list call so a slow gateway cannot stall a refresh. */
-private const val RECONCILE_TIMEOUT_MS = 10_000L
+private const val RUNNING_SESSIONS_TIMEOUT_MS = 10_000L
 
 /**
  * How long a finished listing still answers a [SessionCatalog.listSessions] that asks for reuse:
@@ -53,13 +56,13 @@ private const val NANOS_PER_MS = 1_000_000L
  * Session listing for one server, and the listing transport that carries it.
  *
  * Owns the transient browser (listing) transport per server, plus the transport that
- * raised an outstanding listing auth challenge, and the Room session-table writes a
+ * raised an outstanding listing auth challenge, and the snapshot writes a
  * listing produces. Sessions are listed over a warm chat transport when one holds the
  * gateway slot, else over the browser transport (connect → list → hang up, so an idle
  * socket never steals the gateway's single-attach slot).
  *
- * Also the feature-facing entry point for the session list: close, delete, gateway-lease
- * reconcile, capability/diagnostic snapshots and the auth helpers. It reaches the hub
+ * Also the feature-facing entry point for the session list: close, delete, the gateway's
+ * running sessions, capability/diagnostic snapshots and the auth helpers. It reaches the hub
  * only for what the hub owns — pooling, presence, tracked-chat teardown — so a feature
  * never touches a transport.
  *
@@ -70,7 +73,7 @@ private const val NANOS_PER_MS = 1_000_000L
 class SessionCatalog(
     private val hub: ChatConnectionHub,
     private val repositories: LaunchRepositories,
-    private val sessionRepository: SessionRepository,
+    private val sessionRepository: ChatCatalog,
     private val authEnvValueStore: AuthEnvValueStore,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -79,7 +82,7 @@ class SessionCatalog(
     sealed interface ListSessionsResult {
         /**
          * Listing succeeded through a warm chat transport ([viaWarmChat]) or the
-         * catalog's own browser transport; Room has been replaced.
+         * catalog's own browser transport; the listing snapshot has been replaced.
          */
         data class Listed(
             val sessions: List<SessionSummary>,
@@ -154,7 +157,7 @@ class SessionCatalog(
     ): Boolean = hub.isStreaming(serverId, sessionId)
 
     /**
-     * Lists sessions for [serverId], replacing the Room session table on
+     * Lists sessions for [serverId], replacing its listing snapshot on
      * success. Borrows a warm chat transport when one holds the gateway slot;
      * otherwise runs a transient browser transport (connect → list → hang up).
      * Auth challenges surface as [ListSessionsResult.AuthRequired] with the
@@ -209,7 +212,7 @@ class SessionCatalog(
             } else {
                 try {
                     val sessions = transport.listSessions(cwd = null)
-                    sessionRepository.replaceSessions(serverId, sessions)
+                    sessionRepository.recordListing(serverId, sessions)
                     ListSessionsResult.Listed(sessions = sessions, agentCapabilities = caps, viaWarmChat = false)
                 } catch (error: Throwable) {
                     if (error is CancellationException) throw error
@@ -313,13 +316,13 @@ class SessionCatalog(
 
     /**
      * Closes [sessionId] on [serverId]: hub-tracked chats go through the
-     * tracked close (REST DELETE + transport teardown); cold Room-known
+     * tracked close (REST DELETE + transport teardown); cold snapshot-known
      * sessions close the gateway session directly. Clears the recorded
      * gateway session id in both cases.
      *
      * Returns true when a tracked chat was closed or a known gateway session
      * was deleted, false when nothing was left to close (untracked session the
-     * local store does not know, an already-cleared gateway session id, or a
+     * catalog does not know, an already-cleared gateway session id, or a
      * non-gateway target, which has no remote leg) so the caller can surface
      * that instead of failing silently.
      */
@@ -332,12 +335,11 @@ class SessionCatalog(
     }
 
     /**
-     * Best-effort delete: ask the agent to forget the session via ACP
+     * Delete: ask the agent to forget the session via ACP
      * `session/delete` (only when it advertises `sessionCapabilities.delete`),
      * then run the [closeSession] path so a live gateway process stops, then
-     * drop the local row. The ACP leg swallows its own failures — an agent
-     * that rejects the call must not keep the row the user just deleted — but
-     * the gateway DELETE still propagates, exactly as [closeSession] does, so
+     * suppress the chat in the catalog. Every failed transport leg propagates so
+     * a rejected deletion leaves the chat visible. Gateway DELETE propagates too, so
      * a leaked process slot stays visible. Returns false only when nothing in
      * the app knew the session.
      */
@@ -348,8 +350,9 @@ class SessionCatalog(
         val known =
             hub.isTracked(serverId, sessionId) ||
                 sessionRepository.getSession(serverId, sessionId) != null
+        if (!known) return false
         recentListings.remove(serverId)
-        deleteOnAgentBestEffort(serverId, sessionId)
+        deleteOnAgent(serverId, sessionId)
         val endpoint = gatewayEndpoint(serverId)
         when {
             endpoint != null -> hub.closeSession(serverId, sessionId, endpoint)
@@ -360,34 +363,31 @@ class SessionCatalog(
     }
 
     /**
-     * Reconciles recorded gateway leases against the gateway's live session
-     * list, dropping pointers the gateway forgot while the app was away
-     * (restart/reap) so the session list stops offering disconnects that can
-     * only fail. Best-effort: any failure keeps the pointers — fail-safe
-     * toward preserving the disconnect kill-switch over hiding a phantom
-     * option. Cancellation propagates. No-op for a target with no gateway leg.
+     * ACP session ids a gateway process still runs for [serverId]'s agent, so the session list
+     * can offer Close for chats this phone holds no connection for. Null for a direct agent or
+     * when the gateway cannot be asked; empty from a gateway that predates `acpSessionIds`.
      */
-    @Suppress("TooGenericExceptionCaught")
-    suspend fun reconcileGatewayLeases(serverId: String) {
-        val endpoint = gatewayEndpoint(serverId) ?: return
-        try {
-            val live =
-                withTimeout(RECONCILE_TIMEOUT_MS) {
-                    repositories.gatewayRepository
-                        .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
-                        .map { it.sessionId }
-                        .toSet()
-                }
-            sessionRepository.clearStaleGatewaySessions(serverId, live)
+    suspend fun runningSessionIds(serverId: String): Set<String>? {
+        val target = repositories.launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent
+        val endpoint = gatewayEndpoint(serverId)
+        if (target == null || endpoint == null) return null
+        return try {
+            withTimeout(RUNNING_SESSIONS_TIMEOUT_MS) {
+                repositories.gatewayRepository
+                    .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
+                    .filter { it.agentId == target.binding.agentId }
+                    .flatMap { it.acpSessionIds }
+                    .toSet()
+            }
         } catch (_: TimeoutCancellationException) {
-            // A timeout degrades to "keep the pointers" so a slow gateway
-            // cannot cancel the refresh this runs inside; anything else
-            // cancels normally.
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Throwable) {
-            // Best-effort by contract: stale pointers are harmless (a tap
-            // self-heals through the 404 path in closeSession).
+            // A slow gateway must not cancel the refresh this runs inside.
+            null
+        } catch (_: GatewayRequestException) {
+            null
+        } catch (_: GatewayCredentialExpiredException) {
+            null
+        } catch (_: IOException) {
+            null
         }
     }
 
@@ -458,7 +458,7 @@ class SessionCatalog(
         }
         return try {
             val sessions = warm.listSessions(cwd = cwd)
-            sessionRepository.replaceSessions(serverId, sessions)
+            sessionRepository.recordListing(serverId, sessions)
             ListSessionsResult.Listed(sessions = sessions, agentCapabilities = caps, viaWarmChat = true)
         } catch (error: AcpAuthenticationRequiredException) {
             listing.authTransport = warm
@@ -533,7 +533,7 @@ class SessionCatalog(
         val transport = listing.browserTransport
         return try {
             val sessions = transport.listSessions(cwd = cwd)
-            sessionRepository.replaceSessions(serverId, sessions)
+            sessionRepository.recordListing(serverId, sessions)
             timer.mark("list")
             ListSessionsResult.Listed(
                 sessions = sessions,
@@ -595,56 +595,46 @@ class SessionCatalog(
     /**
      * Sends `session/delete` over any usable transport for [serverId]: the
      * warm chat transport when one is connected, else the browser transport,
-     * connected on demand and hung up afterwards. Quietly skips
-     * when capabilities are unknown or `sessionCapabilities.delete` is not
-     * advertised, and swallows rejections — this leg is best-effort by
-     * contract. Cancellation always propagates.
+     * connected on demand and hung up afterwards. Unsupported calls and rejections
+     * propagate before the catalog changes. Cancellation always propagates.
      */
-    @Suppress("TooGenericExceptionCaught")
     @OptIn(UnstableApi::class)
-    private suspend fun deleteOnAgentBestEffort(
+    private suspend fun deleteOnAgent(
         serverId: String,
         sessionId: String,
     ) {
+        val warm = hub.warmManagerFor(serverId)
+        if (warm != null) {
+            checkNotNull(
+                warm.agentCapabilities.value
+                    ?.sessionCapabilities
+                    ?.delete,
+            ) { "Session deletion is unsupported." }
+            check(warm.deleteSession(sessionId)) { "Failed to delete session." }
+            return
+        }
+        val target =
+            repositories.launchableTargetRepository.getTarget(serverId)
+                ?: error("This agent is no longer available.")
+        val listing = listingSession(serverId)
+        val transport = listing.browserTransport
         try {
-            val warm = hub.warmManagerFor(serverId)
-            if (warm != null) {
-                if (warm.agentCapabilities.value
-                        ?.sessionCapabilities
-                        ?.delete != null
-                ) {
-                    warm.deleteSession(sessionId)
+            if (!transport.isConnected) {
+                val config = buildListingConfig(target).getOrThrow()
+                checkNotNull(withContext(ioDispatcher) { transport.connectAndInitializeWithoutReconnect(config) }) {
+                    "Failed to connect to delete session."
                 }
-                return
             }
-            val target = repositories.launchableTargetRepository.getTarget(serverId) ?: return
-            val listing = listingSession(serverId)
-            val transport = listing.browserTransport
-            try {
-                val connected =
-                    transport.isConnected ||
-                        run {
-                            val config = buildListingConfig(target).getOrNull()
-                            config != null &&
-                                withContext(ioDispatcher) {
-                                    transport.connectAndInitializeWithoutReconnect(config)
-                                } != null
-                        }
-                if (
-                    connected &&
-                    transport.agentCapabilities.value
-                        ?.sessionCapabilities
-                        ?.delete != null
-                ) {
-                    transport.deleteSession(sessionId)
-                }
-            } finally {
-                hangUpListing(listing)
+            checkNotNull(
+                transport.agentCapabilities.value
+                    ?.sessionCapabilities
+                    ?.delete,
+            ) {
+                "Session deletion is unsupported."
             }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Throwable) {
-            // Best-effort by contract: the caller still removes the local row.
+            check(transport.deleteSession(sessionId)) { "Failed to delete session." }
+        } finally {
+            hangUpListing(listing)
         }
     }
 

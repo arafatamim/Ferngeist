@@ -1,7 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat.deps
 
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
+import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
@@ -13,9 +14,10 @@ import javax.inject.Inject
 data class ChatRepositories
     @Inject
     constructor(
-        val sessionRepository: SessionRepository,
+        val sessionRepository: ChatCatalog,
         val launchableTargetRepository: LaunchableTargetRepository,
         val turnTimingRepository: TurnTimingRepository,
+        val chatListings: ChatListings,
     )
 
 /** The stores that keep a chat's local state: its scroll position, queued prompts and switcher hints. */

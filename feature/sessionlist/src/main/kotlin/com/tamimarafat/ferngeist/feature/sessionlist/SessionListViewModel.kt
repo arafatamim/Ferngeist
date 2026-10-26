@@ -8,6 +8,7 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.catalog.CatalogAuthMethod
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog.ListSessionsResult
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
@@ -93,6 +94,7 @@ class SessionListViewModel
         @ApplicationContext private val context: Context,
         savedStateHandle: SavedStateHandle,
         private val sessionCatalog: SessionCatalog,
+        private val projectCatalog: ProjectCatalog,
         private val repos: SessionListRepositories,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
@@ -143,6 +145,22 @@ class SessionListViewModel
         val liveSessionIds: StateFlow<Set<String>> =
             sessionCatalog
                 .connectedSessionIds(serverId)
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+        val workingSessionIds: StateFlow<Set<String>> =
+            projectCatalog.inProgressChatKeys
+                .map { keys ->
+                    keys.filter { it.startsWith("$serverId/") }.map { it.removePrefix("$serverId/") }.toSet()
+                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+        val activityUpdatedAt = projectCatalog.activityUpdatedAt
+
+        /** Sessions a gateway process still runs for this agent, from the last refresh. */
+        private val runningSessionIds = MutableStateFlow<Set<String>>(emptySet())
+
+        /** Sessions Close can act on: live here, or still running on the gateway. */
+        val closableSessionIds: StateFlow<Set<String>> =
+            combine(liveSessionIds, runningSessionIds) { live, running -> live + running }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         private val outputs = SessionListOutputs()
@@ -284,6 +302,7 @@ class SessionListViewModel
         private var lastListingFailed = false
 
         init {
+            onAppear()
             // The server list's launch has usually just listed over its own connection.
             refreshSessions(reuseRecent = true)
             viewModelScope.launch {
@@ -320,17 +339,18 @@ class SessionListViewModel
             }
         }
 
+        fun onAppear() {
+            projectCatalog.refresh()
+        }
+
         /**
-         * Drops gateway leases the gateway forgot while the app was away, so
-         * the list stops offering disconnects that can only fail. Only when
-         * the transport worked — a failed listing means the gateway is likely
-         * unreachable too, so a second call could only fail. Skipped for
-         * non-gateway targets and on auth challenges (which return before
-         * reaching here).
+         * Asks the gateway which sessions it still runs, so the list offers Close only where it
+         * can act. Only when the transport worked — a failed listing means the gateway is likely
+         * unreachable too, so a second call could only fail. A failed ask keeps the last answer.
          */
-        private suspend fun reconcileGatewayLeases(result: ListSessionsResult) {
+        private suspend fun refreshRunningSessions(result: ListSessionsResult) {
             if (result !is ListSessionsResult.Listed && result !is ListSessionsResult.Unsupported) return
-            sessionCatalog.reconcileGatewayLeases(serverId)
+            sessionCatalog.runningSessionIds(serverId)?.let { runningSessionIds.value = it }
         }
 
         /**
@@ -348,6 +368,7 @@ class SessionListViewModel
             isUserInitiated: Boolean = false,
             reuseRecent: Boolean = false,
         ) {
+            if (isUserInitiated) projectCatalog.refresh()
             if (refreshJob?.isActive == true && !isUserInitiated) return // coalesce overlapping cold listings
             refreshJob?.cancel()
             val generation = ++refreshGeneration
@@ -373,8 +394,8 @@ class SessionListViewModel
                             is ListSessionsResult.Failed -> reportListingFailure(result, isUserInitiated)
                         }
                         // Paint first, then reconcile leases in the background
-                        // (details in publishListingAndReconcile).
-                        publishListingAndReconcile(result, generation)
+                        // (details in publishListingAndRefresh).
+                        publishListingAndRefresh(result, generation)
                     } finally {
                         if (generation == refreshGeneration) {
                             outputs.loading.value = false
@@ -406,11 +427,10 @@ class SessionListViewModel
 
         /**
          * Publishes catalog snapshots and clears the loading flags for first
-         * paint, then reconciles stale gateway leases in the background: the
-         * reconcile's up-to-10s REST window must never extend the spinner. It
-         * only prunes Room rows, which re-emit when they land.
+         * paint, then asks the gateway for its running sessions in the
+         * background: that up-to-10s REST window must never extend the spinner.
          */
-        private fun publishListingAndReconcile(
+        private fun publishListingAndRefresh(
             result: ListSessionsResult,
             generation: Int,
         ) {
@@ -420,7 +440,7 @@ class SessionListViewModel
                 _refreshing.value = false
             }
             viewModelScope.launch {
-                reconcileGatewayLeases(result)
+                refreshRunningSessions(result)
                 sessionWorktrees.refresh(sessionSettings.value.cwd, chatDirs())
                 refreshMissingCwds()
                 if (generation == refreshGeneration) syncCatalogObservables()

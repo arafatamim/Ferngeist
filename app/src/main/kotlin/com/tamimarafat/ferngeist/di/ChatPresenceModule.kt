@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.di
 
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.acp.bridge.facade.HubChatPresence
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
@@ -26,10 +27,12 @@ object ChatPresenceModule {
         hub: ChatConnectionHub,
         launchableTargetRepository: LaunchableTargetRepository,
         gatewayRepository: GatewayRepository,
+        projectCatalog: ProjectCatalog,
     ): ChatSessionPresence =
         HubChatPresence(
             hub = hub,
             launchableTargetRepository = launchableTargetRepository,
             gatewayRepository = gatewayRepository,
+            onChatCreated = projectCatalog::chatCreated,
         )
 }

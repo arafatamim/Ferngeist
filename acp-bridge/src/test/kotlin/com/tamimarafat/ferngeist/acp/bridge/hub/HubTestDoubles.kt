@@ -6,9 +6,9 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.core.model.repository.SessionRepository
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
@@ -45,7 +45,6 @@ internal fun newHub(
     repo: GatewayRepository = FakeGatewayRepo(),
     maxHot: Int = 3,
     maxGateway: Int = 5,
-    sessionRepository: SessionRepository = FakeSessionRepo(),
     clock: () -> Long = tickingClock(),
 ): ChatConnectionHub {
     val dispatcher = UnconfinedTestDispatcher()
@@ -53,7 +52,6 @@ internal fun newHub(
         gatewayRepository = repo,
         scope = CoroutineScope(dispatcher),
         connectivityObserver = ConnectivityObserverStub(initialState = true),
-        sessionRepository = sessionRepository,
         limits =
             HubLimits(
                 maxHotConnections = maxHot,
@@ -312,7 +310,7 @@ internal class FakeGatewayRepo : GatewayRepository {
     ) = TODO("unused in these tests")
 }
 
-internal class FakeSessionRepo : SessionRepository {
+internal class FakeSessionRepo : ChatCatalog {
     private val rows = linkedMapOf<String, SessionSummary>()
 
     /** Title writes, so read-only paths can assert they wrote nothing. */
@@ -339,38 +337,11 @@ internal class FakeSessionRepo : SessionRepository {
         sessionId: String,
     ): SessionSummary? = rows[key(serverId, sessionId)]
 
-    override suspend fun upsertSession(
+    override fun chatCreated(
         serverId: String,
         summary: SessionSummary,
     ) {
         rows[key(serverId, summary.id)] = summary.copy(serverId = serverId)
-    }
-
-    override suspend fun updateSessionTitle(
-        serverId: String,
-        sessionId: String,
-        title: String,
-    ) {
-        titleWrites++
-        rows[key(serverId, sessionId)]?.let { rows[key(serverId, sessionId)] = it.copy(title = title) }
-    }
-
-    override suspend fun touchSession(
-        serverId: String,
-        sessionId: String,
-        updatedAt: Long,
-    ) {
-        rows[key(serverId, sessionId)]?.let { rows[key(serverId, sessionId)] = it.copy(updatedAt = updatedAt) }
-    }
-
-    override suspend fun setGatewaySessionId(
-        serverId: String,
-        sessionId: String,
-        gatewaySessionId: String?,
-    ) {
-        rows[key(serverId, sessionId)]?.let {
-            rows[key(serverId, sessionId)] = it.copy(gatewaySessionId = gatewaySessionId)
-        }
     }
 
     override suspend fun deleteSession(
@@ -380,30 +351,17 @@ internal class FakeSessionRepo : SessionRepository {
         rows.remove(key(serverId, sessionId))
     }
 
-    override suspend fun clearStaleGatewaySessions(
-        serverId: String,
-        liveGatewaySessionIds: Set<String>,
-    ): Int {
-        val stale =
-            rows.keys.filter { key ->
-                key.startsWith("$serverId/") &&
-                    rows[key]?.gatewaySessionId.let { id -> id != null && id !in liveGatewaySessionIds }
-            }
-        stale.forEach { rows[it] = rows.getValue(it).copy(gatewaySessionId = null) }
-        return stale.size
-    }
-
     override suspend fun clearSessions(serverId: String) {
         rows.keys.removeAll { it.startsWith("$serverId/") }
     }
 
-    override suspend fun replaceSessions(
+    override suspend fun recordListing(
         serverId: String,
         sessions: List<SessionSummary>,
     ) {
         replaceCount++
         clearSessions(serverId)
-        sessions.forEach { upsertSession(serverId, it) }
+        sessions.forEach { chatCreated(serverId, it) }
     }
 }
 

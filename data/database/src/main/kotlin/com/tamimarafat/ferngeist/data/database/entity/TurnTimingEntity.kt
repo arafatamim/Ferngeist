@@ -5,10 +5,11 @@ import androidx.room.Index
 
 @Entity(
     tableName = "turn_timings",
-    primaryKeys = ["sessionId", "turnIndex"],
+    primaryKeys = ["serverId", "sessionId", "turnIndex"],
     indices = [Index(value = ["finishedAt"])],
 )
 data class TurnTimingEntity(
+    val serverId: String,
     val sessionId: String,
     val turnIndex: Int,
     val promptHash: Int,
