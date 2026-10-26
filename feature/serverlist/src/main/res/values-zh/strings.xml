@@ -211,4 +211,7 @@
     <plurals name="serverlist_project_worktrees">
         <item quantity="other">%d 个工作树</item>
     </plurals>
+    <string name="serverlist_show_more">显示更多</string>
+    <string name="serverlist_show_less">收起</string>
+    <string name="serverlist_quick_chat">快速聊天</string>
 </resources>

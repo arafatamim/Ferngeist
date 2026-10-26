@@ -5,6 +5,7 @@ const val SERVER_LIST_ROUTE: String = "server_list"
 
 private const val SESSIONS_ROUTE_PREFIX = "sessions/"
 private const val CHAT_ROUTE_PREFIX = "chat/"
+private const val PROJECT_ROUTE_PREFIX = "project/"
 
 /**
  * What the nav host must do to keep the back stack and the workspace in agreement.
@@ -26,6 +27,13 @@ sealed interface WorkspaceRouteAction {
         val serverId: String,
         val sessionId: String?,
     ) : WorkspaceRouteAction
+
+    /** A compact window still holds a wide project: reopen it, and the chat picked from it, as routes. */
+    data class RestoreCompactProject(
+        val project: WorkspaceProject,
+        val serverId: String?,
+        val sessionId: String?,
+    ) : WorkspaceRouteAction
 }
 
 /**
@@ -40,9 +48,13 @@ fun workspaceRouteAction(
     route: String?,
     selectedServerId: String?,
     selectedSessionId: String?,
+    selectedProject: WorkspaceProject? = null,
 ): WorkspaceRouteAction =
     when {
         !compact && isWorkspaceMirroredRoute(route) -> WorkspaceRouteAction.AbsorbIntoWorkspace
+
+        compact && route == SERVER_LIST_ROUTE && selectedProject != null ->
+            WorkspaceRouteAction.RestoreCompactProject(selectedProject, selectedServerId, selectedSessionId)
 
         compact && route == SERVER_LIST_ROUTE && selectedServerId != null ->
             WorkspaceRouteAction.RestoreCompact(selectedServerId, selectedSessionId)
@@ -53,7 +65,11 @@ fun workspaceRouteAction(
 /** True for the routes the wide workspace replaces with its own panes. */
 fun isWorkspaceMirroredRoute(route: String?): Boolean =
     route != null &&
-        (route.startsWith(SESSIONS_ROUTE_PREFIX) || route.startsWith(CHAT_ROUTE_PREFIX))
+        (
+            route.startsWith(SESSIONS_ROUTE_PREFIX) ||
+                route.startsWith(CHAT_ROUTE_PREFIX) ||
+                route.startsWith(PROJECT_ROUTE_PREFIX)
+        )
 
 /**
  * The compact chat route for [serverId], matching `ChatDestination`. Both the cwd and the title
@@ -65,7 +81,14 @@ fun compactChatRoute(
     sessionId: String,
     encodedCwd: String,
     encodedTitle: String,
-): String = "chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=-1&title=$encodedTitle"
+    updatedAt: Long? = null,
+): String = "chat/$serverId/$sessionId?cwd=$encodedCwd&updatedAt=${updatedAt ?: -1L}&title=$encodedTitle"
 
 /** The compact session-list route for [serverId]; its name is resolved from the server. */
 fun sessionsRouteFor(serverId: String): String = "sessions/$serverId"
+
+/** The compact project route, matching `ProjectDestination`; the repo must arrive encoded. */
+fun projectRoute(
+    gatewaySourceId: String,
+    encodedRepo: String,
+): String = "$PROJECT_ROUTE_PREFIX$gatewaySourceId?repo=$encodedRepo"

@@ -164,32 +164,32 @@ internal class SessionWorktrees(
      *
      * Creation runs `git worktree add` on the gateway and can take seconds on a large repo, so
      * nothing navigates until the directory exists.
+     *
+     * @param rememberCwd false for project-wide creation, which must not overwrite an agent's saved cwd.
      */
     suspend fun create(
         repo: String,
         base: String?,
         branch: String?,
+        rememberCwd: Boolean = true,
     ) {
         val normalizedRepo = repo.trim()
         if (normalizedRepo.isBlank() || _creating.value) return
         _error.value = null
         _creating.value = true
         try {
-            repos.sessionSettingsRepository.updateCwd(serverId, normalizedRepo)
-            repos.recentCwdStore.addCwd(serverId, normalizedRepo)
-            val target = withContext(ioDispatcher) { repos.launchableTargetRepository.getTarget(serverId) }
-            val gatewayTarget = target as? LaunchableTarget.GatewayAgent
-            if (gatewayTarget == null) {
+            if (rememberCwd) {
+                repos.sessionSettingsRepository.updateCwd(serverId, normalizedRepo)
+                repos.recentCwdStore.addCwd(serverId, normalizedRepo)
+            }
+            val source = gatewaySource()
+            if (source == null) {
                 _error.value = text(R.string.sessionlist_worktree_error_gateway_only)
                 return
             }
             val gateway =
                 withContext(ioDispatcher) {
-                    refreshGatewaySourceIfNeeded(
-                        gatewayTarget.gatewaySource,
-                        repos.gatewayRepository,
-                        repos.gatewaySourceRepository,
-                    )
+                    refreshGatewaySourceIfNeeded(source, repos.gatewayRepository, repos.gatewaySourceRepository)
                 }
             val worktree =
                 withContext(ioDispatcher) {

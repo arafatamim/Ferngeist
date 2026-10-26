@@ -36,14 +36,23 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.AddGatewayScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.AddServerScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayAgentsScreen
 import com.tamimarafat.ferngeist.feature.serverlist.ui.GatewayListScreen
+import com.tamimarafat.ferngeist.feature.serverlist.ui.QuickChatSheetSlot
 import com.tamimarafat.ferngeist.feature.serverlist.ui.ServerListScreen
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
+import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_GATEWAY_ARG
+import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_REPO_ARG
+import com.tamimarafat.ferngeist.feature.sessionlist.project.ProjectScreen
+import com.tamimarafat.ferngeist.feature.sessionlist.project.ProjectViewModel
+import com.tamimarafat.ferngeist.feature.sessionlist.project.QuickChatSheet
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListScreen
 import com.tamimarafat.ferngeist.workspace.ChatViewModelFactory
+import com.tamimarafat.ferngeist.workspace.WorkspaceProject
+import com.tamimarafat.ferngeist.workspace.WorkspaceProjectPane
 import com.tamimarafat.ferngeist.workspace.WorkspaceScreen
 import com.tamimarafat.ferngeist.workspace.WorkspaceSelection
 import com.tamimarafat.ferngeist.workspace.WorkspaceSessionsPane
 import com.tamimarafat.ferngeist.workspace.WorkspaceState
+import com.tamimarafat.ferngeist.workspace.projectRoute
 
 private const val SERVER_ID_ARG = "serverId"
 private const val ADD_GATEWAY_ROUTE = "add_gateway"
@@ -78,6 +87,7 @@ internal fun NavGraphBuilder.ferngeistDestinations(
     addCustomAgentDestination(navController)
     editServerDestination(navController)
     sessionsDestination(navController, sharedTransitionLayout)
+    projectDestination(navController, sharedTransitionLayout)
     chatDestination(navController, sharedTransitionLayout)
 }
 
@@ -154,11 +164,19 @@ private fun CompactServerList(
                 "chat/${session.serverId}/${session.sessionId}?cwd=$encodedCwd&title=$encodedTitle",
             )
         },
+        onOpenProject = { project ->
+            navController.navigate(projectRoute(project.gateway.id, Uri.encode(project.repo)))
+        },
+        quickChatSheet = quickChatSheet,
         viewModel = viewModel,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
         onHomeScreenReady = onHomeScreenReady,
     )
+}
+
+private val quickChatSheet: QuickChatSheetSlot = { projects, agents, statuses, onStart, onDismiss ->
+    QuickChatSheet(projects, agents, statuses, onStart, onDismiss)
 }
 
 /** The wide presentation: the same list as the workspace's left pane, chat pinned right. */
@@ -207,9 +225,14 @@ private fun WorkspaceServerList(
                             sessionId = session.sessionId,
                             cwd = session.cwd ?: "/",
                             title = session.title.orEmpty(),
+                            updatedAt = session.updatedAt,
                         ),
                     )
                 },
+                onOpenProject = { project ->
+                    workspace.selectProject(WorkspaceProject(project.gateway.id, project.repo))
+                },
+                quickChatSheet = quickChatSheet,
                 viewModel = viewModel,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -219,6 +242,15 @@ private fun WorkspaceServerList(
         sessionsPane = { serverId, showBackButton ->
             WorkspaceSessionsPane(
                 serverId = serverId,
+                workspace = workspace,
+                showBackButton = showBackButton,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope,
+            )
+        },
+        projectPane = { project, showBackButton ->
+            WorkspaceProjectPane(
+                project = project,
                 workspace = workspace,
                 showBackButton = showBackButton,
                 sharedTransitionScope = sharedTransitionScope,
@@ -409,6 +441,39 @@ private fun NavGraphBuilder.sessionsDestination(
             viewModel = viewModel,
             sharedTransitionScope = sharedTransitionLayout,
             animatedContentScope = this,
+        )
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+private fun NavGraphBuilder.projectDestination(
+    navController: NavHostController,
+    sharedTransitionLayout: SharedTransitionScope,
+) {
+    composable(
+        route = "project/{$PROJECT_GATEWAY_ARG}?$PROJECT_REPO_ARG={$PROJECT_REPO_ARG}",
+        arguments =
+            listOf(
+                navArgument(PROJECT_GATEWAY_ARG) { type = NavType.StringType },
+                navArgument(PROJECT_REPO_ARG) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+            ),
+    ) {
+        val viewModel: ProjectViewModel = hiltViewModel()
+        ProjectScreen(
+            viewModel = viewModel,
+            showBackButton = true,
+            sharedTransitionScope = sharedTransitionLayout,
+            animatedContentScope = this,
+            onNavigateBack = { navController.popBackStack() },
+            onNavigateToChat = { serverId, sessionId, cwd, updatedAt, title ->
+                navController.navigate(
+                    "chat/$serverId/$sessionId?cwd=${Uri.encode(cwd)}&updatedAt=${updatedAt ?: -1L}" +
+                        "&title=${Uri.encode(title.orEmpty())}",
+                )
+            },
         )
     }
 }

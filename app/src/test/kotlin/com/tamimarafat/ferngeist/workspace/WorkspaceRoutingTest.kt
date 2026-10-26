@@ -69,10 +69,27 @@ class WorkspaceRoutingTest {
     }
 
     @Test
+    fun compactRoute_preservesListedActivityForExternalActivityConfirmation() {
+        assertEquals(
+            "chat/srv/sess?cwd=%2Frepo&updatedAt=123456&title=Hello",
+            compactChatRoute("srv", "sess", "%2Frepo", "Hello", updatedAt = 123456L),
+        )
+    }
+
+    @Test
     fun restoredRoutes_areTheOnesTheWideWindowAbsorbs() {
         // What a narrow window restores must be what a wide one takes back over, or a fold
         // would ping-pong between the two presentations.
         assertTrue(isWorkspaceMirroredRoute(compactChatRoute("srv", "sess", "/tmp/a%20b", "Hello")))
         assertTrue(isWorkspaceMirroredRoute(sessionsRouteFor("srv")))
+    }
+
+    @Test
+    fun compactWindow_reopensTheProjectAndTheChatPickedFromIt() {
+        val project = WorkspaceProject("gw", "/h/Ferngeist")
+        assertEquals(
+            WorkspaceRouteAction.RestoreCompactProject(project, "srv", "sess"),
+            workspaceRouteAction(true, "server_list", "srv", "sess", project),
+        )
     }
 }

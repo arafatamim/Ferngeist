@@ -4,13 +4,7 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.LocalIndication
@@ -44,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,12 +49,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
+import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
@@ -87,6 +86,7 @@ internal fun SectionHeader(
 @Composable
 internal fun ContinueSessionCard(
     session: RecentSession,
+    working: Boolean,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -102,8 +102,8 @@ internal fun ContinueSessionCard(
         label = "continueCorner",
     )
 
-    // Accent pops in with a bouncy spring on first composition.
-    val pop = remember { Animatable(0f) }
+    // Accent settles in with the theme spring on first composition.
+    val pop = remember { Animatable(0.9f) }
     val spatialSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     LaunchedEffect(Unit) {
         pop.animateTo(
@@ -111,20 +111,16 @@ internal fun ContinueSessionCard(
             animationSpec = spatialSpec,
         )
     }
-    // ...then rotates slowly and continuously to keep drawing the eye to it.
-    val infinite = rememberInfiniteTransition(label = "cloverSpin")
-    val rotation by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(15000, easing = LinearEasing), RepeatMode.Restart),
-        label = "cloverRotation",
-    )
+    // Idle retains the hero's slow turn; working accelerates without resetting its angle.
+    val rotation = rememberActivityRotation(periodMillis = if (working) 4_000 else 15_000)
 
+    val workingDescription = stringResource(com.tamimarafat.ferngeist.core.common.R.string.common_in_progress)
     val shape = RoundedCornerShape(corner)
     Card(
         modifier =
             modifier
                 .fillMaxWidth()
+                .semantics { if (working) stateDescription = workingDescription }
                 // clip() before clickable so the ripple is bounded by the morphing
                 // shape instead of spilling into a full-width rectangle. Same wiring
                 // as ServerCard: Card(onClick=) gives no control over the indication,
@@ -158,7 +154,7 @@ internal fun ContinueSessionCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 private fun ContinueSessionCardContent(
     session: RecentSession,
-    rotation: Float,
+    rotation: State<Float>,
     pop: Float,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -305,7 +301,7 @@ private fun FolderNamePrefix(
 @Composable
 private fun RotatingCloverBadge(
     session: RecentSession,
-    rotation: Float,
+    rotation: State<Float>,
     pop: Float,
     contentDescription: String,
 ) {
@@ -316,7 +312,7 @@ private fun RotatingCloverBadge(
                 Modifier
                     .size(48.dp)
                     .graphicsLayer {
-                        rotationZ = rotation
+                        rotationZ = rotation.value
                         scaleX = pop
                         scaleY = pop
                     }.clip(MaterialShapes.Clover4Leaf.toShape())
@@ -372,6 +368,7 @@ private fun SharedSessionTitle(
 @Composable
 private fun RecentSessionCardRow(
     session: RecentSession,
+    working: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -382,13 +379,14 @@ private fun RecentSessionCardRow(
                 .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AgentIconBadge(
-            target = session.target,
-            fallback = Icons.Default.History,
-            size = 18.dp,
-            containerSize = 28.dp,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        ActivityIconContainer(working = working, size = 28.dp) {
+            AgentIconBadge(
+                target = session.target,
+                fallback = Icons.Default.History,
+                size = 18.dp,
+                containerSize = null,
+            )
+        }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             with(sharedTransitionScope) {
@@ -430,6 +428,7 @@ private fun RecentSessionCardRow(
 @Composable
 internal fun RecentSessionCard(
     session: RecentSession,
+    working: Boolean,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -445,6 +444,7 @@ internal fun RecentSessionCard(
     ) {
         RecentSessionCardRow(
             session = session,
+            working = working,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
         )

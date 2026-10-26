@@ -8,7 +8,10 @@ import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchOutcome
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLaunchSession
 import com.tamimarafat.ferngeist.acp.bridge.launcher.AgentLauncher
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
+import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -33,6 +36,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -65,9 +69,12 @@ class ServerListViewModelTest {
         // so both repository flows must actually emit. A relaxed mock returns a flow
         // that never does, and the loading flag would never clear.
         every { launchableTargetRepository.getTargets() } returns flowOf(emptyList())
-        every { sessionRepository.getRecentSessions(any()) } returns flowOf(emptyList())
+        every { projectCatalog.getRecentSessions(any()) } returns flowOf(emptyList())
         every { agentLauncher.session(any()) } returns launchSession
         every { agentLauncher.liveServerIds } returns MutableStateFlow(emptySet())
+        every { projectCatalog.inProgressChatKeys } returns MutableStateFlow(emptySet())
+        every { projectCatalog.activityUpdatedAt } returns MutableStateFlow(emptyMap())
+        every { projectCatalog.refreshing } returns MutableStateFlow(emptySet())
         every { agentLauncher.hasWarmChat(any()) } returns false
         coEvery { agentLauncher.prewarmSessions(any()) } returns Unit
         every { launchSession.connectionState } returns connectionStateFlow
@@ -231,6 +238,66 @@ class ServerListViewModelTest {
                 coVerify(exactly = 1) { agentLauncher.prewarmSessions(serverId) }
 
                 cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `quick chat preserves checkout through launch consent and emits a new chat destination`() =
+        runTest(testDispatcher) {
+            val gateway = GatewaySource(id = "gw", name = "PC", host = "pc", gatewayCredential = "token")
+            val target =
+                LaunchableTarget.GatewayAgent(
+                    GatewayAgentBinding(id = "bound", name = "Agent", gatewaySourceId = "gw", agentId = "agent"),
+                    gateway,
+                )
+            val checkout = "/repo/.worktrees/feature"
+            var consent = false
+            coEvery { agentLaunchConsentStore.hasConsent(any()) } answers { consent }
+            coEvery { agentLaunchConsentStore.setConsent(any(), true) } answers { consent = true }
+            coEvery { launchableTargetRepository.getTarget(target.id) } returns target
+            coEvery { launchSession.launch(any()) } returns AgentLaunchOutcome.Ready("Agent", emptyList())
+            val viewModel = createViewModel()
+            viewModel.events.test {
+                viewModel.startQuickChat(target, checkout)
+                advanceUntilIdle()
+                assertEquals(
+                    target.id,
+                    viewModel.uiState.value.pendingLaunchConsent
+                        ?.serverId,
+                )
+                expectNoEvents()
+                viewModel.confirmLaunchConsent(target.id)
+                val event = awaitItem() as ServerListEvent.StartChat
+                assertEquals(checkout, event.session.cwd)
+                assertEquals(target.id, event.session.serverId)
+                assertEquals(NEW_SESSION_ARG, event.session.sessionId)
+            }
+        }
+
+    @Test
+    fun `a failed quick launch never hijacks a later ordinary agent tap`() =
+        runTest(testDispatcher) {
+            val gateway = GatewaySource(id = "gw", name = "PC", host = "pc", gatewayCredential = "token")
+            val target =
+                LaunchableTarget.GatewayAgent(
+                    GatewayAgentBinding(id = "bound", name = "Agent", gatewaySourceId = "gw", agentId = "agent"),
+                    gateway,
+                )
+            coEvery { agentLaunchConsentStore.hasConsent(any()) } returns true
+            coEvery { launchSession.launch(any()) } returnsMany
+                listOf(
+                    AgentLaunchOutcome.Failed("offline"),
+                    AgentLaunchOutcome.Ready("Agent", emptyList()),
+                )
+            val viewModel = createViewModel()
+            viewModel.events.test {
+                viewModel.startQuickChat(target, "/repo/.worktrees/feature")
+                advanceUntilIdle()
+                expectNoEvents()
+                viewModel.dismissError()
+                viewModel.connectAndOpenServer(target)
+                val event = awaitItem()
+                assertTrue(event is ServerListEvent.NavigateToSessions)
             }
         }
 

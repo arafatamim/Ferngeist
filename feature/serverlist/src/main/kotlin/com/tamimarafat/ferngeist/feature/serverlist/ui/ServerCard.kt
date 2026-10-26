@@ -64,6 +64,7 @@ import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
+import com.tamimarafat.ferngeist.core.common.ui.status.InProgressIndicator
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -85,6 +86,7 @@ internal fun ServerCard(
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
     liveServerIds: Set<String> = emptySet(),
+    working: Boolean = false,
 ) {
     val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
@@ -116,6 +118,7 @@ internal fun ServerCard(
         ServerCardSurface(
             server = server,
             connectionState = connectionState,
+            working = working,
             containerColor = containerColor,
             cardInteractionSource = cardInteractionSource,
             cardShape = cardShape,
@@ -147,6 +150,7 @@ internal fun ServerCard(
 private fun ServerCardSurface(
     server: LaunchableTarget,
     connectionState: ServerConnectionUiState,
+    working: Boolean,
     containerColor: Color,
     cardShape: RoundedCornerShape,
     cardInteractionSource: MutableInteractionSource,
@@ -194,6 +198,7 @@ private fun ServerCardSurface(
                 server = server,
                 containerColor = containerColor,
                 isConnecting = connectionState.isConnecting,
+                working = working,
                 hasSavedAuthMethod = hasSavedAuthMethod,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -207,6 +212,7 @@ private fun ServerCardTitleRow(
     server: LaunchableTarget,
     containerColor: Color,
     isConnecting: Boolean,
+    working: Boolean,
     hasSavedAuthMethod: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -256,6 +262,7 @@ private fun ServerCardTitleRow(
                 hasSavedAuthMethod = hasSavedAuthMethod,
             )
         }
+        if (working) InProgressIndicator()
     }
 }
 

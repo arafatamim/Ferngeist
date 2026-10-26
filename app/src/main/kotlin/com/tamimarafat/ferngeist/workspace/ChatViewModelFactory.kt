@@ -90,6 +90,7 @@ class ChatViewModelFactory
                             put("sessionId", sessionId)
                             put("cwd", selection.cwd)
                             put("title", selection.title)
+                            put("updatedAt", selection.updatedAt ?: -1L)
                             mintedSessionId?.let { put("mintedSessionId", it) }
                         },
                     ),

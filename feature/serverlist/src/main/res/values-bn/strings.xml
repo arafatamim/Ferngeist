@@ -195,4 +195,7 @@
         <item quantity="one">%d টি ওয়ার্কট্রি</item>
         <item quantity="other">%d টি ওয়ার্কট্রি</item>
     </plurals>
+    <string name="serverlist_show_more">আরও দেখুন</string>
+    <string name="serverlist_show_less">কম দেখুন</string>
+    <string name="serverlist_quick_chat">দ্রুত চ্যাট</string>
 </resources>

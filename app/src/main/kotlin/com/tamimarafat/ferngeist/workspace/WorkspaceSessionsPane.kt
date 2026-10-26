@@ -70,13 +70,14 @@ fun WorkspaceSessionsPane(
             // agent card's bounds. Panes never share bounds; only the compact flow morphs.
             sharedBoundsEnabled = false,
             onNavigateBack = { workspace.backToAgents() },
-            onNavigateToChat = { sessionId, cwd, _, title ->
+            onNavigateToChat = { sessionId, cwd, updatedAt, title ->
                 workspace.selectSession(
                     WorkspaceSelection(
                         serverId = serverId,
                         sessionId = sessionId,
                         cwd = cwd,
                         title = title.orEmpty(),
+                        updatedAt = updatedAt,
                     ),
                 )
             },

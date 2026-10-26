@@ -24,19 +24,26 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.common.ui.isWindowCompact
+import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_GATEWAY_ARG
+import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_REPO_ARG
 import com.tamimarafat.ferngeist.push.PushRegistrar
 import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
 import com.tamimarafat.ferngeist.workspace.ChatViewModelFactory
 import com.tamimarafat.ferngeist.workspace.SERVER_LIST_ROUTE
+import com.tamimarafat.ferngeist.workspace.WorkspaceProject
 import com.tamimarafat.ferngeist.workspace.WorkspaceRouteAction
 import com.tamimarafat.ferngeist.workspace.WorkspaceSelection
+import com.tamimarafat.ferngeist.workspace.WorkspaceState
 import com.tamimarafat.ferngeist.workspace.compactChatRoute
+import com.tamimarafat.ferngeist.workspace.projectRoute
 import com.tamimarafat.ferngeist.workspace.rememberWorkspaceState
 import com.tamimarafat.ferngeist.workspace.sessionsRouteFor
 import com.tamimarafat.ferngeist.workspace.workspaceRouteAction
@@ -195,50 +202,27 @@ fun FerngeistNavHost(
                 route = entry.destination.route,
                 selectedServerId = workspace.selectedServerId,
                 selectedSessionId = workspace.selectedSessionId,
+                selectedProject = workspace.selectedProject,
             )
         when (action) {
             WorkspaceRouteAction.None -> Unit
-
-            WorkspaceRouteAction.AbsorbIntoWorkspace -> {
-                val args = entry.arguments ?: return@LaunchedEffect
-                val serverId = args.getString("serverId") ?: return@LaunchedEffect
-                val sessionId = args.getString("sessionId")
-                if (sessionId == null) {
-                    workspace.selectAgent(serverId)
-                } else {
-                    workspace.selectSession(
-                        WorkspaceSelection(
-                            serverId = serverId,
-                            sessionId = sessionId,
-                            cwd = Uri.decode(args.getString("cwd").orEmpty()).orEmpty().ifEmpty { "/" },
-                            title = Uri.decode(args.getString("title").orEmpty()).orEmpty(),
-                        ),
-                    )
-                }
-                navController.popBackStack(SERVER_LIST_ROUTE, inclusive = false)
-            }
-
-            is WorkspaceRouteAction.RestoreCompact -> {
-                val cwd = workspace.cwd
-                val title = workspace.title
-                // A create-on-arrival chat's selection still holds the placeholder id; the real
-                // one it minted is the only id the compact route can reopen.
-                val sessionId = workspace.mintedSessionId ?: action.sessionId
-                workspace.clearSelection()
-                // The compact flow's own stack, so back from the chat reaches the session list
-                // exactly as it would had the user navigated there themselves.
-                navController.navigate(sessionsRouteFor(action.serverId))
-                if (sessionId != null) {
-                    navController.navigate(
-                        compactChatRoute(
-                            serverId = action.serverId,
-                            sessionId = sessionId,
-                            encodedCwd = Uri.encode(cwd),
-                            encodedTitle = Uri.encode(title),
-                        ),
-                    )
-                }
-            }
+            WorkspaceRouteAction.AbsorbIntoWorkspace -> absorbIntoWorkspace(navController, entry, workspace)
+            is WorkspaceRouteAction.RestoreCompact ->
+                restoreCompact(
+                    navController,
+                    workspace,
+                    sessionsRouteFor(action.serverId),
+                    action.serverId,
+                    action.sessionId,
+                )
+            is WorkspaceRouteAction.RestoreCompactProject ->
+                restoreCompact(
+                    navController = navController,
+                    workspace = workspace,
+                    placeRoute = projectRoute(action.project.gatewaySourceId, Uri.encode(action.project.repo)),
+                    serverId = action.serverId,
+                    sessionId = action.sessionId,
+                )
         }
     }
 
@@ -263,5 +247,71 @@ fun FerngeistNavHost(
                 onHomeScreenReady = onHomeScreenReady,
             )
         }
+    }
+}
+
+/** The wide workspace takes over a compact-only route: the route's place and chat become its selection. */
+private fun absorbIntoWorkspace(
+    navController: NavHostController,
+    entry: NavBackStackEntry,
+    workspace: WorkspaceState,
+) {
+    val args = entry.arguments ?: return
+    // A chat opened from a project keeps that project in the middle pane.
+    val projectArgs =
+        if (args.containsKey(PROJECT_GATEWAY_ARG)) args else navController.previousBackStackEntry?.arguments
+    val gatewaySourceId = projectArgs?.getString(PROJECT_GATEWAY_ARG)
+    gatewaySourceId?.let {
+        workspace.selectProject(WorkspaceProject(it, projectArgs.getString(PROJECT_REPO_ARG).orEmpty()))
+    }
+    val serverId = args.getString("serverId")
+    val sessionId = args.getString("sessionId")
+    when {
+        serverId == null -> Unit
+        sessionId == null -> workspace.selectAgent(serverId)
+        else ->
+            workspace.selectSession(
+                WorkspaceSelection(
+                    serverId = serverId,
+                    sessionId = sessionId,
+                    cwd = Uri.decode(args.getString("cwd").orEmpty()).orEmpty().ifEmpty { "/" },
+                    title = Uri.decode(args.getString("title").orEmpty()).orEmpty(),
+                    updatedAt = args.getLong("updatedAt", -1L).takeIf { it >= 0 },
+                ),
+            )
+    }
+    navController.popBackStack(SERVER_LIST_ROUTE, inclusive = false)
+}
+
+/**
+ * A compact window still holds a wide selection: reopen [placeRoute] and the chat as the compact
+ * flow's own stack, so back from the chat reaches the place exactly as it would had the user
+ * navigated there themselves.
+ */
+private fun restoreCompact(
+    navController: NavHostController,
+    workspace: WorkspaceState,
+    placeRoute: String,
+    serverId: String?,
+    sessionId: String?,
+) {
+    val cwd = workspace.cwd
+    val title = workspace.title
+    val updatedAt = workspace.updatedAt
+    // A create-on-arrival chat's selection still holds the placeholder id; the real
+    // one it minted is the only id the compact route can reopen.
+    val chatId = workspace.mintedSessionId ?: sessionId
+    workspace.clearSelection()
+    navController.navigate(placeRoute)
+    if (serverId != null && chatId != null) {
+        navController.navigate(
+            compactChatRoute(
+                serverId = serverId,
+                sessionId = chatId,
+                encodedCwd = Uri.encode(cwd),
+                encodedTitle = Uri.encode(title),
+                updatedAt = updatedAt,
+            ),
+        )
     }
 }
