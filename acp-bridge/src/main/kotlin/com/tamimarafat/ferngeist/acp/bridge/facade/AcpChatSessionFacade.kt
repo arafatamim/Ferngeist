@@ -659,8 +659,13 @@ class AcpChatSessionFacade(
             _loadFailed.emit("Gateway is not paired for ${target.name}.")
             return null
         }
+        // A chat whose agent survived the app reattaches to the gateway session still running it.
         val context =
-            buildGatewayLaunchContext(repositories.runtimeLauncher, target)
+            buildGatewayLaunchContext(
+                repositories.runtimeLauncher,
+                target,
+                acpSessionId = initialSessionId.takeUnless { it == NEW_SESSION_ARG },
+            )
         openTimer?.mark("launch")
         return context.fold(
             onSuccess = { launch ->
