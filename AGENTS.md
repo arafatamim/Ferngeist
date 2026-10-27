@@ -17,13 +17,25 @@ Kotlin + Jetpack Compose Android client for the Agent Client Protocol (ACP).
 ### Our way of thinking
 
 - **The index comes first.** `codebase-memory` is the first tool, not an optional one: `search_graph` the concept before any grep/glob/read sweep — see [Codebase intelligence](#codebase-intelligence). A grep-first sweep is how you miss the helper that already exists.
-- **Do the task in the prompt.** It is the whole scope. No tangents, no unsolicited refactors, no "while I'm here" cleanups, no exploring code the task doesn't touch. Investigate only what the task needs to be done correctly.
+- **Do the task in the prompt.** It is the whole scope. No tangents, no unsolicited refactors, no "while I'm here" cleanups, no exploring code the task doesn't touch. Investigate only what the task needs to be done correctly; for a new feature that includes the broad picture ([Challenge the plan](#challenge-the-plan)).
 - Think in atomic steps, then execute them.
 - Read the existing code for full context before editing.
 - Surface assumptions. Name competing interpretations instead of silently picking one.
 - Simplicity first: the minimum code that solves the task, no speculative features.
 - Surgical changes: touch only what the task requires, match the surrounding style, remove only the orphans your change created.
 - Turn the task into verifiable criteria, then execute.
+
+### Challenge the plan
+
+- **A new feature gets a design pass before code.** Map the seam it lands in: which modules and layers it crosses, who else owns that data, what already exists nearby. Scope bounds the *change*; the investigation covers the whole picture the change lands in.
+- **Name architectural smells in the plan** before writing a line: a layer reaching upward, a second source of truth, logic in the wrong module, a seam with one caller, more files on `feature/chat`'s flat pile.
+- **Push back on the maintainer's decisions** when you are confident one is a bad architectural choice. Say it plainly, cite the evidence (the code, the constraint, the failure mode), and recommend the better path. A sound codebase beats agreement. The maintainer makes the call, with the full picture in hand.
+
+### Clean cutovers
+
+- **Replace, then delete.** When a behaviour, format, or API changes, cut the old path in the same change: no compat shims, dual-read paths, deprecated aliases, or flags kept "just in case".
+- **The exception is an *already shipped* client.** Keep compatibility only where removing it breaks something already released: a shipped APK's persisted data (Room schema → `FerngeistMigrations`, DataStore keys) or a wire contract a released app or gateway still speaks. Unreleased code on `master` is not shipped; cut it freely.
+- When compatibility stays, name the shipped client that needs it and when it can go.
 
 ### The smallest complete change
 
