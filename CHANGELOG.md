@@ -6,6 +6,7 @@
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(chat)* Account for a phone-origin turn finishing after leaving the chat when checking recent activity.
 - *(build)* Keep gateway icon selection compatible with data-class conventions.
 - *(projects)* Hide projects without visible chats from the home list.
 - *(chat)* Show theme-primary shimmering spinner-verb subtitles on in-progress chat cards, replacing standalone activity shapes while preserving neutral-gray spinning backgrounds behind agent icons.

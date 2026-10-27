@@ -501,9 +501,10 @@ class ChatViewModel
             // ends: a screen closed mid-turn would otherwise restore and re-send it.
             // Only a phone-origin echo advances this clock; completion can arrive after the screen closes.
             if (echoKeys.isNotEmpty()) {
-                durableSessionId?.let { PhoneTurnClock.record(serverId, it, System.currentTimeMillis()) }
+                durableSessionId?.let { PhoneTurnClock.record(serverId, it, System.currentTimeMillis(), echoKeys.keys) }
                 offlineQueue.persistQueue()
             }
+            durableSessionId?.let { PhoneTurnClock.observe(serverId, it, snapshot.messages) }
             val messages =
                 durableSessionId?.let { turnTimings.withTurnTimings(it, snapshot.messages) } ?: snapshot.messages
             updateState {
