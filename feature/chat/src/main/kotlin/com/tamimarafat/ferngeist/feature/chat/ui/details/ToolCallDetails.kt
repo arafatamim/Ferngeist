@@ -142,7 +142,7 @@ internal fun ToolCallDetailsHeader(toolCall: ToolCallDisplay) {
             Text(
                 text = toolKindLabel(kind),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         toolCall.status?.let { status ->

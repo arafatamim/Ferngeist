@@ -75,7 +75,9 @@ internal fun PlanEntryItem(entry: PlanEntry) {
         if (isInProgress) {
             MaterialTheme.colorScheme.primary
         } else {
-            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+            // Full-strength quiet text: the strike-through marks done steps, so fading them only
+            // cost contrast (and this role was never paired with the card's surface).
+            MaterialTheme.colorScheme.onSurfaceVariant
         }
     val textColor by animateColorAsState(targetValue = activeColor, label = "planTextColor")
 

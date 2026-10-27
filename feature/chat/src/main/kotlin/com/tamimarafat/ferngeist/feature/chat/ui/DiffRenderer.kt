@@ -88,7 +88,6 @@ internal const val DIFF_BLOCK_COUNT = 5
  * instead of the 5-bar rounding asymmetry (round(2.5)=3 green, 2 red).
  */
 internal const val DIFF_EQUAL_BLOCK_COUNT = 2
-private val diffInsertColor = Color(0xFF43A047)
 internal const val DIFF_CONTEXT_LINES = 5
 
 /**
@@ -220,15 +219,13 @@ private fun DiffRowItem(
                 Triple(
                     "- ",
                     MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                    MaterialTheme.colorScheme.error,
+                    localGitSemanticColors.current.deleted,
                 )
             is LineDiffRow.Insert ->
                 Triple(
                     "+ ",
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                    // MaterialTheme lacks this particular green; hardcode instead of adding
-                    // a theme color for a single use.
-                    diffInsertColor,
+                    localGitSemanticColors.current.added,
                 )
             is LineDiffRow.Equal ->
                 Triple(

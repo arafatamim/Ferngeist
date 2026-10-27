@@ -625,8 +625,8 @@ private fun SwitcherRowContent(
     Surface(
         color =
             if (session.isCurrent) {
-                // Same treatment as a connected server's card: tinted, not dimmed.
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                // Same treatment as a connected server's card: the activated role, not dimmed.
+                MaterialTheme.colorScheme.secondaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceContainer
             },

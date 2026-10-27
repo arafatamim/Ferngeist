@@ -143,7 +143,7 @@ private fun ResourceLinkContentBlock(block: ContentBlock.ResourceLink) {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -173,7 +173,7 @@ private fun ResourceContentBlock(resource: EmbeddedResourceResource) {
                     Text(
                         text = resource.uri,
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
