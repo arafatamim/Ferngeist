@@ -4,13 +4,7 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.LocalIndication
@@ -102,8 +96,9 @@ internal fun ContinueSessionCard(
         label = "continueCorner",
     )
 
-    // Accent pops in with a bouncy spring on first composition.
-    val pop = remember { Animatable(0f) }
+    // Accent pops in with a bouncy spring on first composition, from a visible size: a
+    // badge growing out of nothing reads as an elevation change, not an arrival.
+    val pop = remember { Animatable(BADGE_ENTRY_SCALE) }
     val spatialSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     LaunchedEffect(Unit) {
         pop.animateTo(
@@ -111,14 +106,9 @@ internal fun ContinueSessionCard(
             animationSpec = spatialSpec,
         )
     }
-    // ...then rotates slowly and continuously to keep drawing the eye to it.
-    val infinite = rememberInfiniteTransition(label = "cloverSpin")
-    val rotation by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(15000, easing = LinearEasing), RepeatMode.Restart),
-        label = "cloverRotation",
-    )
+    // ...turning a quarter as it settles. One turn on entry, not a loop: this is the most
+    // visited screen, and motion that never stops competes with reading and cannot be paused.
+    val rotation = (1f - pop.value) / (1f - BADGE_ENTRY_SCALE) * BADGE_ENTRY_TURN
 
     val shape = RoundedCornerShape(corner)
     Card(
@@ -215,6 +205,11 @@ private fun ContinueSessionCardContent(
         }
     }
 }
+
+private const val BADGE_ENTRY_SCALE = 0.6f
+
+/** Degrees the clover turns while it settles from [BADGE_ENTRY_SCALE]. */
+private const val BADGE_ENTRY_TURN = -90f
 
 @Composable
 private fun targetDeviceLabel(target: LaunchableTarget): String =
@@ -440,7 +435,8 @@ internal fun RecentSessionCard(
         modifier = modifier.fillMaxWidth().handCursor(),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                // One tonal step above the Low backdrop, opaque so onSurface stays its pair.
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
     ) {
         RecentSessionCardRow(

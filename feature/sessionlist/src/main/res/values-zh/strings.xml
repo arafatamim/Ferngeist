@@ -32,6 +32,7 @@
     <string name="sessionlist_cwd_title">项目</string>
     <string name="sessionlist_cwd_body">设置此代理的会话所在的项目。留空则显示所有会话。</string>
     <string name="sessionlist_cwd_placeholder">留空以取消过滤</string>
+    <string name="sessionlist_cwd_remove_recent">从最近使用中移除</string>
     <string name="sessionlist_cwd_clear">清除</string>
     <string name="sessionlist_cwd_cancel">取消</string>
     <string name="sessionlist_cwd_save">保存</string>

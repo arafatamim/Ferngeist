@@ -1,7 +1,5 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,19 +9,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,8 +35,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -55,7 +54,7 @@ private const val CWD_SUGGESTION_MAX_HEIGHT_DP = 200
  * the user types — tap to fill the text field, long-press to permanently remove
  * a recent entry.
  */
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CwdDialog(
     recentCwds: List<String>,
@@ -100,6 +99,7 @@ fun CwdDialog(
             Text(
                 text = stringResource(R.string.sessionlist_cwd_body),
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
                 value = cwdDialogValue,
@@ -147,12 +147,13 @@ private fun CwdSuggestionList(
             Modifier
                 .fillMaxWidth()
                 .heightIn(max = CWD_SUGGESTION_MAX_HEIGHT_DP.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
     ) {
-        items(suggestions, key = { it.cwd }) { suggestion ->
+        itemsIndexed(suggestions, key = { _, suggestion -> suggestion.cwd }) { index, suggestion ->
             Box(Modifier.animateItem()) {
                 CwdSuggestionRow(
                     suggestion = suggestion,
+                    shapes = ListItemDefaults.segmentedShapes(index, suggestions.size),
                     onCwdSelected = onCwdSelected,
                     onRemoveRecentCwd = onRemoveRecentCwd,
                 )
@@ -161,46 +162,37 @@ private fun CwdSuggestionList(
     }
 }
 
+/** The same grouped rows as the project sheet that opens this one, at full touch height. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CwdSuggestionRow(
     suggestion: CwdSuggestion,
+    shapes: ListItemShapes,
     onCwdSelected: (String) -> Unit,
     onRemoveRecentCwd: (String) -> Unit,
 ) {
     val isRecent = suggestion.source == CwdSuggestionSource.RECENT
-    Row(
+    val removeRecent = { onRemoveRecentCwd(suggestion.cwd) }
+    SegmentedListItem(
+        onClick = { onCwdSelected(suggestion.cwd) },
+        shapes = shapes,
         modifier =
             Modifier
-                .fillMaxWidth()
                 .handCursor()
-                .onSecondaryClick(enabled = isRecent) { onRemoveRecentCwd(suggestion.cwd) }
-                .combinedClickable(
-                    onClick = { onCwdSelected(suggestion.cwd) },
-                    onLongClick =
-                        if (isRecent) {
-                            { onRemoveRecentCwd(suggestion.cwd) }
-                        } else {
-                            null
-                        },
-                ).semantics {
-                    contentDescription = suggestion.cwd
-                }.padding(vertical = 6.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .onSecondaryClick(enabled = isRecent, onClick = removeRecent),
+        leadingContent = {
+            Icon(
+                imageVector = if (isRecent) Icons.Filled.History else Icons.Filled.FolderOpen,
+                contentDescription = null,
+            )
+        },
+        onLongClick = removeRecent.takeIf { isRecent },
+        onLongClickLabel = stringResource(R.string.sessionlist_cwd_remove_recent).takeIf { isRecent },
     ) {
-        Icon(
-            imageVector = if (isRecent) Icons.Filled.History else Icons.Filled.FolderOpen,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         Text(
             text = suggestion.cwd,
             overflow = TextOverflow.MiddleEllipsis,
-            softWrap = true,
             maxLines = 1,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }

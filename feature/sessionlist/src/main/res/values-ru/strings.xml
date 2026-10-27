@@ -35,6 +35,7 @@
     <string name="sessionlist_cwd_title">Проект</string>
     <string name="sessionlist_cwd_body">Укажите проект, в котором выполняются сессии этого агента. Оставьте пустым, чтобы показать все сессии.</string>
     <string name="sessionlist_cwd_placeholder">Оставьте пустым для отображения всех</string>
+    <string name="sessionlist_cwd_remove_recent">Удалить из недавних</string>
     <string name="sessionlist_cwd_clear">Очистить</string>
     <string name="sessionlist_cwd_cancel">Отмена</string>
     <string name="sessionlist_cwd_save">Сохранить</string>

@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -356,7 +357,8 @@ private fun SessionListLazyColumn(
                 Text(
                     text = group,
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    // Headers are wayfinding, not actions: primary belongs to the New chat button.
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp),
                 )
             }
@@ -554,18 +556,7 @@ private fun SessionCard(
             showActionsMenu = true
         }
     }
-    // Live sessions tint the card container exactly like active server cards;
-    // the card itself is the status indicator, no trailing dot.
-    val containerColor by animateColorAsState(
-        targetValue =
-            if (isLive) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-        label = "sessionCardContainer",
-    )
+    val colors = sessionCardColors(isLive)
     Box {
         with(sharedTransitionScope) {
             Card(
@@ -586,10 +577,7 @@ private fun SessionCard(
                             onClick = onClick,
                             onLongClick = openActionsMenu,
                         ),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = containerColor,
-                    ),
+                colors = colors,
             ) {
                 Row(
                     modifier =
@@ -623,6 +611,25 @@ private fun SessionCard(
             onDelete = onDelete,
         )
     }
+}
+
+/**
+ * Live sessions tint the card container exactly like active server cards; the card itself is
+ * the status indicator, no trailing dot. The container animates through tones no role matches,
+ * so the content color follows the target state.
+ */
+@Composable
+private fun sessionCardColors(isLive: Boolean): CardColors {
+    val scheme = MaterialTheme.colorScheme
+    val container by animateColorAsState(
+        targetValue = if (isLive) scheme.secondaryContainer else scheme.surfaceContainerHighest,
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "sessionCardContainer",
+    )
+    return CardDefaults.cardColors(
+        containerColor = container,
+        contentColor = if (isLive) scheme.onSecondaryContainer else scheme.onSurface,
+    )
 }
 
 /** Toggle for the chats whose folder is gone, collapsed by default so they stay out of the way. */

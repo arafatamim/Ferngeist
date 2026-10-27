@@ -33,6 +33,7 @@
     <string name="sessionlist_cwd_title">Projeto</string>
     <string name="sessionlist_cwd_body">Defina o projeto em que as sessões deste agente são executadas. Deixe vazio para mostrar todas as sessões.</string>
     <string name="sessionlist_cwd_placeholder">Deixe vazio para não filtrar</string>
+    <string name="sessionlist_cwd_remove_recent">Remover dos recentes</string>
     <string name="sessionlist_cwd_clear">Limpar</string>
     <string name="sessionlist_cwd_cancel">Cancelar</string>
     <string name="sessionlist_cwd_save">Salvar</string>

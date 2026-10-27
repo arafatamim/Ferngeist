@@ -181,7 +181,13 @@ private fun ServerCardSurface(
                     contentDescription = server.name
                 },
         shape = cardShape,
-        colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
+        // The container animates through in-between tones that no role matches, so the
+        // content color comes from the target state rather than contentColorFor().
+        colors =
+            CardDefaults.elevatedCardColors(
+                containerColor = containerColor,
+                contentColor = connectionState.contentColor,
+            ),
     ) {
         Column(
             modifier =
@@ -286,9 +292,20 @@ private val ServerConnectionUiState.containerColor: Color
     @Composable
     get() =
         when {
-            isConnected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+            // Opaque roles, so each pairs with its on* color. Live is the activated state
+            // (secondary); primary stays with the hero card above.
+            isConnected -> MaterialTheme.colorScheme.secondaryContainer
+            isFailed -> MaterialTheme.colorScheme.errorContainer
             else -> MaterialTheme.colorScheme.surfaceContainer
+        }
+
+private val ServerConnectionUiState.contentColor: Color
+    @Composable
+    get() =
+        when {
+            isConnected -> MaterialTheme.colorScheme.onSecondaryContainer
+            isFailed -> MaterialTheme.colorScheme.onErrorContainer
+            else -> MaterialTheme.colorScheme.onSurface
         }
 
 @Composable
@@ -302,7 +319,7 @@ private fun ServerCardDeleteDialog(
         icon = {
             Icon(
                 Icons.Default.Delete,
-                contentDescription = stringResource(R.string.serverlist_card_delete),
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
             )
         },
@@ -324,7 +341,6 @@ private fun ServerCardDeleteDialog(
                 Text(stringResource(R.string.serverlist_cancel))
             }
         },
-        shape = RoundedCornerShape(28.dp),
     )
 }
 

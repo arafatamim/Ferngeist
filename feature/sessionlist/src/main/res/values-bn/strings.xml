@@ -32,6 +32,7 @@
     <string name="sessionlist_cwd_title">প্রকল্প</string>
     <string name="sessionlist_cwd_body">এই এজেন্টের সেশন যে প্রকল্পে চলে তা সেট করুন। সব সেশন দেখাতে খালি রাখুন।</string>
     <string name="sessionlist_cwd_placeholder">ফিল্টার না করতে খালি রাখুন</string>
+    <string name="sessionlist_cwd_remove_recent">সাম্প্রতিক থেকে সরান</string>
     <string name="sessionlist_cwd_clear">পরিষ্কার করুন</string>
     <string name="sessionlist_cwd_cancel">বাতিল করুন</string>
     <string name="sessionlist_cwd_save">সংরক্ষণ করুন</string>

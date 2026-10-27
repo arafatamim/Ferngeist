@@ -6,7 +6,6 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,15 +15,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
@@ -34,7 +30,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -52,13 +47,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -234,16 +227,7 @@ private fun ServerListScaffold(
                 },
             )
         },
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = MaterialTheme.colorScheme.inverseSurface,
-                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                    shape = MaterialTheme.shapes.medium,
-                )
-            }
-        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         val heroSession = recentSessions.firstOrNull()
         val olderSessions = if (recentSessions.size > 1) recentSessions.drop(1) else emptyList()
@@ -608,63 +592,24 @@ private fun EmptyServerList(
     onAddServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Lowest tone, like the agents sheet it stands in for: the scaffold behind is Low.
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
         modifier = modifier.fillMaxWidth(),
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 28.dp, vertical = 36.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(76.dp)
-                        .clip(MaterialShapes.Cookie9Sided.toShape())
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SmartToy,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(38.dp),
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.serverlist_empty_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.serverlist_empty_body),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            // In the empty state, adding an agent IS the hero action: a filled button
-            // whose corner morphs from round to square on press.
-            Button(
-                onClick = onAddServer,
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.handCursor(),
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(stringResource(R.string.serverlist_empty_action))
-            }
-        }
+        // In the empty state, adding an agent IS the hero action.
+        ErrorStateCard(
+            headline = stringResource(R.string.serverlist_empty_title),
+            body = stringResource(R.string.serverlist_empty_body),
+            icon = Icons.Default.SmartToy,
+            medallionContainer = MaterialTheme.colorScheme.primaryContainer,
+            medallionContent = MaterialTheme.colorScheme.onPrimaryContainer,
+            medallionShape = MaterialShapes.Cookie9Sided.toShape(),
+            ctaLabel = stringResource(R.string.serverlist_empty_action),
+            onCta = onAddServer,
+            ctaIsHero = true,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 32.dp),
+        )
     }
 }

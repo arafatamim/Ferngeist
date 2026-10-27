@@ -33,6 +33,7 @@
     <string name="sessionlist_cwd_title">Project</string>
     <string name="sessionlist_cwd_body">Set the project this agent\'s sessions run in. Leave empty to show all sessions.</string>
     <string name="sessionlist_cwd_placeholder">Leave empty for no filter</string>
+    <string name="sessionlist_cwd_remove_recent">Remove from recent</string>
     <string name="sessionlist_cwd_clear">Clear</string>
     <string name="sessionlist_cwd_cancel">Cancel</string>
     <string name="sessionlist_cwd_save">Save</string>
