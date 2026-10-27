@@ -9,8 +9,8 @@ data class GatewayAgentBinding(
     val agentId: String,
     val preferredAuthMethodId: String? = null,
     /**
-     * Logo URL reported by the gateway for a registry-sourced agent, else null.
-     * Custom and embedded agents have no registry entry, so they never have one.
+     * Registry logo URL or bundled SVG data URL reported by the gateway, else null.
+     * Older gateways may not provide a logo.
      */
     val icon: String? = null,
 )

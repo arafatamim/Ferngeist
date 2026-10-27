@@ -135,8 +135,8 @@ class GatewayAgentsViewModel
                         name = agent.displayName,
                         gatewaySourceId = gateway.id,
                         agentId = agent.id,
-                        // Only registry agents report one; embedded/custom stay null.
-                        icon = agent.registry?.icon,
+                        // Preserve the gateway's preferred logo for other screens.
+                        icon = agent.preferredIcon,
                     )
                 gatewayAgentBindingRepository.addBinding(binding)
                 _uiState.value = state.copy(addedAgentIds = state.addedAgentIds + agent.id)
@@ -162,7 +162,7 @@ class GatewayAgentsViewModel
             val byAgentId = agents.associateBy { it.id }
             bindings.forEach { binding ->
                 val agent = byAgentId[binding.agentId] ?: return@forEach
-                val icon = agent.registry?.icon
+                val icon = agent.preferredIcon
                 if (icon == binding.icon && agent.displayName == binding.name) return@forEach
                 gatewayAgentBindingRepository.updateBinding(
                     binding.copy(icon = icon, name = agent.displayName),

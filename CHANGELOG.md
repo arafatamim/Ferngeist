@@ -1,4 +1,10 @@
 
+## [Unreleased]
+
+### Features
+
+- *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
+
 ## [1.5.1] - 2026-10-19
 
 ### Features

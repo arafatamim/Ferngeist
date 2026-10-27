@@ -379,7 +379,7 @@ private fun AgentCardBody(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             AgentIconBadge(
-                iconUrl = agent.registry?.icon,
+                iconUrl = agent.preferredIcon,
                 fallback = Icons.Default.SmartToy,
                 size = 20.dp,
                 containerSize = 32.dp,

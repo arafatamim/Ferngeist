@@ -17,15 +17,9 @@ fun registryIconUrl(agentId: String): String? =
 /**
  * The logo URL for this target, or null when it cannot have one.
  *
- * Custom and embedded agents — including every agent this app adds itself — have no
- * registry entry and therefore no logo. Their id is still a plausible-looking string,
- * so it is deliberately NOT run through [registryIconUrl]: that would fabricate a URL
- * that 404s at paint time.
- *
- * Provenance lives on the gateway, not here: a binding stores only `agentId`, with no
- * record of whether the gateway sourced it from the registry. The url is therefore
- * forwarded from the gateway's own `registry.icon` field (see the gateway PRD, R2)
- * rather than reconstructed from the id.
+ * Agent IDs do not establish registry provenance, so constructing a registry URL
+ * would fabricate one that can 404. The binding instead stores the gateway's
+ * registry logo or bundled fallback.
  */
 val LaunchableTarget.iconUrl: String?
     get() =
