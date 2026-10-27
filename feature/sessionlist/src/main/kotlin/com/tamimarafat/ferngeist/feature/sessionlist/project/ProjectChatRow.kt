@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectChat
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
+import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
@@ -64,7 +65,6 @@ internal fun ProjectChatRow(
         // The chat screen grows out of this card, as it does out of the agent list's.
         ChatCard(
             live = live,
-            showActivity = false,
             removing = removing,
             onClick = onClick,
             onOpenMenu = openMenu,
@@ -91,6 +91,7 @@ internal fun ProjectChatRow(
             }
             ProjectChatText(
                 chat,
+                working,
                 worktree,
                 worktreeBranch,
                 Modifier.weight(1f),
@@ -115,6 +116,7 @@ internal fun ProjectChatRow(
 @Composable
 private fun ProjectChatText(
     chat: ProjectChat,
+    working: Boolean,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     modifier: Modifier,
@@ -128,17 +130,22 @@ private fun ProjectChatText(
             overflow = TextOverflow.MiddleEllipsis,
             modifier = titleModifier,
         )
-        // Missing logos need a textual fallback; a known logo already identifies the agent.
-        if (chat.target.binding.icon
-                .isNullOrBlank()
+        WorkingSubtitle(
+            working = working,
+            streamKey = "${chat.target.id}/${chat.summary.id}",
         ) {
-            Text(
-                text = chat.target.name,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // Missing logos need a textual fallback; a known logo already identifies the agent.
+            if (chat.target.binding.icon
+                    .isNullOrBlank()
+            ) {
+                Text(
+                    text = chat.target.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         worktreeBranch?.let {
             WorktreeBadge(

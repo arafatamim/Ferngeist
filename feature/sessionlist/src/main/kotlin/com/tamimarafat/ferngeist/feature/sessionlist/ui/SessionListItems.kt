@@ -2,7 +2,6 @@ package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -62,7 +61,7 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
-import com.tamimarafat.ferngeist.core.common.ui.status.InProgressIndicator
+import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -381,6 +380,7 @@ private fun SessionListLazyColumn(
 @Composable
 private fun RowScope.SessionCardText(
     session: SessionSummary,
+    working: Boolean,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -414,14 +414,17 @@ private fun RowScope.SessionCardText(
                     worktreeBranch != null -> worktreeRepo?.let(::projectName)
                     else -> session.cwd?.let(::projectName)
                 }
-            place?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
-                )
+            // A working chat spends the subtitle line on its verb; the place returns when idle.
+            WorkingSubtitle(working = working, streamKey = session.id) {
+                place?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.MiddleEllipsis,
+                    )
+                }
             }
             worktreeBranch?.let {
                 WorktreeBadge(
@@ -537,7 +540,6 @@ private fun SessionCard(
     Box {
         ChatCard(
             live = isLive,
-            showActivity = working,
             removing = removing,
             dimmed = removing || gone,
             onClick = onClick,
@@ -552,6 +554,7 @@ private fun SessionCard(
         ) {
             SessionCardText(
                 session = session,
+                working = working,
                 worktree = worktree,
                 worktreeBranch = worktreeBranch,
                 worktreeRepo = worktreeRepo,
@@ -575,13 +578,12 @@ private fun SessionCard(
 
 /**
  * The chat card both the agent's and the project's lists use. A live chat tints the container
- * exactly like an active server card; lists without an avatar use its trailing activity slot.
+ * exactly like an active server card.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ChatCard(
     live: Boolean,
-    showActivity: Boolean,
     removing: Boolean,
     onClick: () -> Unit,
     onOpenMenu: () -> Unit,
@@ -608,11 +610,6 @@ internal fun ChatCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             content()
-            AnimatedVisibility(
-                visible = showActivity,
-                enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()),
-                exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
-            ) { InProgressIndicator() }
             if (removing) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             }
