@@ -16,10 +16,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberShimmerTextBrush
+import com.tamimarafat.ferngeist.core.common.ui.status.rememberSpinnerVerb
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.LOADING_POLYGON_COUNT
 import com.tamimarafat.ferngeist.feature.chat.ui.loadingShapes
@@ -35,12 +35,7 @@ internal fun StreamingIndicator(
     modifier: Modifier = Modifier,
     baseColor: Color = LocalContentColor.current.copy(alpha = 0.8f),
 ) {
-    val resources = LocalResources.current
-    val spinnerVerb =
-        remember(streamKey) {
-            val verbs = resources.getStringArray(R.array.chat_spinner_verbs)
-            verbs[Random.nextInt(verbs.size)]
-        }
+    val spinnerVerb = rememberSpinnerVerb(streamKey)
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
     val textBrush =
         rememberShimmerTextBrush(

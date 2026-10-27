@@ -58,6 +58,7 @@ import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
+import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.iconUrl
@@ -142,6 +143,7 @@ internal fun ContinueSessionCard(
     ) {
         ContinueSessionCardContent(
             session = session,
+            working = working,
             rotation = rotation,
             pop = pop.value,
             sharedTransitionScope = sharedTransitionScope,
@@ -154,6 +156,7 @@ internal fun ContinueSessionCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 private fun ContinueSessionCardContent(
     session: RecentSession,
+    working: Boolean,
     rotation: State<Float>,
     pop: Float,
     sharedTransitionScope: SharedTransitionScope,
@@ -186,27 +189,32 @@ private fun ContinueSessionCardContent(
                 tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
-            // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
-            // get the icon, manual targets keep the bare host.
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            WorkingSubtitle(
+                working = working,
+                streamKey = "${session.serverId}/${session.sessionId}",
             ) {
-                if (session.target is LaunchableTarget.GatewayAgent) {
-                    Icon(
-                        imageVector = Icons.Default.Devices,
-                        contentDescription = stringResource(R.string.serverlist_card_from_gateway),
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
+                // get the icon, manual targets keep the bare host.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (session.target is LaunchableTarget.GatewayAgent) {
+                        Icon(
+                            imageVector = Icons.Default.Devices,
+                            contentDescription = stringResource(R.string.serverlist_card_from_gateway),
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                        )
+                    }
+                    Text(
+                        text = targetDeviceLabel(session.target),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    text = targetDeviceLabel(session.target),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
             }
         }
     }
@@ -416,10 +424,15 @@ private fun RecentSessionCardRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
-            ServerSubtitle(
-                server = session.target,
-                hasSavedAuthMethod = false,
-            )
+            WorkingSubtitle(
+                working = working,
+                streamKey = "${session.serverId}/${session.sessionId}",
+            ) {
+                ServerSubtitle(
+                    server = session.target,
+                    hasSavedAuthMethod = false,
+                )
+            }
         }
     }
 }
