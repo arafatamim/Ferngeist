@@ -197,7 +197,7 @@ fun ServerListScreen(
         isLoading = isLoading,
         servers = servers,
         recentSessions = recentSessions,
-        projects = screenState.projects,
+        projects = screenState.projects.filter { it.chats.isNotEmpty() },
         onOpenProject = onOpenProject,
         uiState = uiState,
         liveServerIds = screenState.liveServerIds,
