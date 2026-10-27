@@ -6,6 +6,7 @@
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(build)* Keep gateway icon selection compatible with data-class conventions.
 - *(projects)* Hide projects without visible chats from the home list.
 - *(chat)* Show theme-primary shimmering spinner-verb subtitles on in-progress chat cards, replacing standalone activity shapes while preserving neutral-gray spinning backgrounds behind agent icons.
 - *(projects)* Replace the activity spinner with theme-primary active-chat text and a wider, softer white shimmer on a slower sweep.
