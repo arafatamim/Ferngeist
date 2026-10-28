@@ -275,7 +275,7 @@ private fun ServerCardTitleRow(
             WorkingSubtitle(
                 status = status,
                 streamKey = server.id,
-                workingContent = if (activeChats > 0) ({ ActiveChatsSubtitle(activeChats) }) else null,
+                workingContent = if (activeChats > 0) ({ ActiveChatsSubtitle(activeChats, server.id) }) else null,
             ) {
                 ServerSubtitle(
                     server = server,

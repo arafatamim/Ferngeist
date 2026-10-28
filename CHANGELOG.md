@@ -11,6 +11,7 @@
 - *(sessions)* Color cards needing attention or reporting a failed turn with tertiary or error container roles.
 - *(sessions)* Keep agent logos visible on the needs-attention badge in light and dark themes.
 - *(home)* Use the tertiary color pair for the needs-attention hero clover and its agent logo.
+- *(home)* Show a streaming verb alongside active-chat counts on project and agent cards.
 - *(sessions)* Use working ellipses instead of shimmer on turn indicators and the chat streaming verb.
 - *(home)* Rotate the hero clover while its chat is working, and smoothly return it to rest when the turn stops.
 - *(chat)* Account for a phone-origin turn finishing after leaving the chat when checking recent activity.

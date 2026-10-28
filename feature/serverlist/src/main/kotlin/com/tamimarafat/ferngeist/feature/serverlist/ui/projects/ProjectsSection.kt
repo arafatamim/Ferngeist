@@ -224,7 +224,12 @@ private fun ProjectItem(
             WorkingSubtitle(
                 status = status,
                 streamKey = "${project.gateway.id}/${project.repo}",
-                workingContent = if (activeChats > 0) ({ ActiveChatsSubtitle(activeChats) }) else null,
+                workingContent =
+                    if (activeChats > 0) {
+                        { ActiveChatsSubtitle(activeChats, "${project.gateway.id}/${project.repo}") }
+                    } else {
+                        null
+                    },
             ) {
                 Text(idleSubtitle)
             }
