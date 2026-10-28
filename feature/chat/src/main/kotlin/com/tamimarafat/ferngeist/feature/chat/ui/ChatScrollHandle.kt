@@ -14,6 +14,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,7 +117,7 @@ internal class ChatScrollHandle(
 
     /** A reply streaming, or text still revealing: its new rows are not followed either. */
     internal var live by mutableStateOf(false)
-    internal var relatchPx by mutableStateOf(0f)
+    internal var relatchPx by mutableFloatStateOf(0f)
 
     /** At or past the last index; the measure clamps it onto the bottom spacer. */
     private var endIndexHint = 0

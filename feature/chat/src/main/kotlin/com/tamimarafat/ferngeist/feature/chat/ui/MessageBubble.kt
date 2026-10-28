@@ -495,7 +495,7 @@ private fun AssistantMessageContent(
         blocks.forEach { block ->
             if (!gateOpen) return@forEach
             key(block.key) {
-                AssistantBlock(
+                assistantBlock(
                     block = block,
                     isTail = block === blocks.last(),
                     message = message,
@@ -553,7 +553,7 @@ private fun AssistantToolGroup(
  * leaves the gate as it found it.
  */
 @Composable
-private fun AssistantBlock(
+private fun assistantBlock(
     block: SegmentBlock,
     isTail: Boolean,
     message: ChatMessage,
@@ -583,7 +583,7 @@ private fun AssistantBlock(
                     null
                 }
                 block.text.isNotBlank() ->
-                    AssistantProseRun(
+                    assistantProseRun(
                         block = block,
                         document = markdownDocuments[block.key],
                         isStreaming = message.isStreaming,
@@ -621,7 +621,7 @@ private fun AssistantBlock(
  * blocks after it open.
  */
 @Composable
-private fun AssistantProseRun(
+private fun assistantProseRun(
     block: SegmentBlock.Run,
     document: MarkdownRenderedDocument?,
     isStreaming: Boolean,

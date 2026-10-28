@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.preferredIcon
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException

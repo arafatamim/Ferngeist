@@ -74,6 +74,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsUiState
 import com.tamimarafat.ferngeist.feature.serverlist.GatewayAgentsViewModel
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
+import com.tamimarafat.ferngeist.gateway.preferredIcon
 
 private const val CUSTOM_AGENT_SOURCE = "custom"
 

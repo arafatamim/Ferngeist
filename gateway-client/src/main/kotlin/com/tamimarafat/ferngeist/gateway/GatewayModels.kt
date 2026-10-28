@@ -77,10 +77,10 @@ data class GatewayAgent(
     // Older gateways omit both the registry logo and the bundled fallback.
     val registry: GatewayAgentRegistry? = null,
     val icon: String? = null,
-) {
-    val preferredIcon: String?
-        get() = registry?.icon ?: icon
-}
+)
+
+val GatewayAgent.preferredIcon: String?
+    get() = registry?.icon ?: icon
 
 @Serializable
 data class GatewayAgentRegistry(
