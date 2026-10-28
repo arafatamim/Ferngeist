@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejec
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CancellationException
@@ -182,6 +183,9 @@ class ChatConnectionHub(
     /** Most recently focused screen-open chat, or null when no chat screen is open. */
     val onScreenChat: StateFlow<ChatPresence?> = _onScreenChat.asStateFlow()
 
+    private val screenChatIds = MutableStateFlow<Set<String>>(emptySet())
+    internal val openChatIds: StateFlow<Set<String>> = screenChatIds.asStateFlow()
+
     /**
      * Server ids holding at least one tracked entry whose manager is connected.
      * Combines each entry manager's live [AcpConnectionState] flow, so warm
@@ -198,10 +202,21 @@ class ChatConnectionHub(
     private val _trackedChatIds = MutableStateFlow<Set<String>>(emptySet())
     val trackedChatIds: StateFlow<Set<String>> = _trackedChatIds.asStateFlow()
 
-    private val streamingObservers = HashMap<String, Job>()
+    private val turnObservers = HashMap<String, Job>()
 
     private val _streamingChatIds = MutableStateFlow<Set<String>>(emptySet())
     val streamingChatIds: StateFlow<Set<String>> = _streamingChatIds.asStateFlow()
+
+    private val _turnStatuses = MutableStateFlow<Map<String, TurnStatus>>(emptyMap())
+
+    /**
+     * Reliable turn status of every tracked chat, keyed by the canonical [chatIdFor]
+     * composite (`"<serverId>/<sessionId>"`). A chat absent from the map has no local
+     * status: its screen or transport is gone, so a consumer falls back to whatever other
+     * source it has instead of reading a stale [TurnStatus.FINISHED]. [TurnStatus.UNKNOWN]
+     * is present and authoritative - the chat is tracked but no outcome is known.
+     */
+    val turnStatuses: StateFlow<Map<String, TurnStatus>> = _turnStatuses.asStateFlow()
 
     init {
         scope.launch {
@@ -214,6 +229,7 @@ class ChatConnectionHub(
                         }.map { it.chatId }
                         .toSet()
                 _streamingChatIds.update { it - disconnected }
+                _turnStatuses.update { it - disconnected }
             }
         }
     }
@@ -373,27 +389,69 @@ class ChatConnectionHub(
                     cwd = "",
                 )
         }
-        observeStreaming(chatId, registration)
+        observeTurn(chatId, registration)
         republish()
         return chatId
     }
 
-    /** The turn outlives its screen, so the hub observes its streaming state independently. */
-    private fun observeStreaming(
+    /** One live sample of an entry's turn, published from the bridge's own snapshot. */
+    private data class TurnPresence(
+        val isStreaming: Boolean,
+        val turnStatus: TurnStatus?,
+    )
+
+    /**
+     * The turn outlives its screen, so the hub observes it independently of any publisher.
+     * A connection that is not up has no reliable turn state, so the chat's status is
+     * withdrawn until fresh bridge state arrives after reattachment. Only the bridge's live
+     * snapshot is read - never the rendered-snapshot cache - so eviction cannot replay an outcome.
+     */
+    private fun observeTurn(
         chatId: String,
         registration: ChatRegistration,
     ) {
-        streamingObservers.remove(chatId)?.cancel()
-        val snapshot = registration.snapshot ?: return
-        streamingObservers[chatId] =
+        turnObservers.remove(chatId)?.cancel()
+        val snapshot =
+            registration.snapshot ?: run {
+                _turnStatuses.update { it - chatId }
+                return
+            }
+        turnObservers[chatId] =
             scope.launch {
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
-                combine(snapshot, connection) { state, connectionState ->
-                    state.isStreaming && connectionState is AcpConnectionState.Connected
-                }.distinctUntilChanged().collect { streaming ->
-                    _streamingChatIds.update { if (streaming) it + chatId else it - chatId }
-                }
+                var awaitingFreshState = false
+                var acknowledgedCompletion: Long? = null
+                combine(snapshot, connection, openChatIds) { state, connectionState, open ->
+                    val connected = connectionState is AcpConnectionState.Connected
+                    val terminal = state.turnStatus == TurnStatus.FINISHED || state.turnStatus == TurnStatus.ERROR
+                    if (!connected) awaitingFreshState = true
+                    if (connected && !terminal) awaitingFreshState = false
+                    val finished = state.turnStatus == TurnStatus.FINISHED
+                    if (finished && chatId in open) acknowledgedCompletion = state.turnCompletionSequence
+                    val status =
+                        if (finished && acknowledgedCompletion == state.turnCompletionSequence) {
+                            TurnStatus.UNKNOWN
+                        } else {
+                            state.turnStatus
+                        }
+                    // A retained terminal snapshot is not new evidence merely because transport recovered.
+                    TurnPresence(
+                        isStreaming = state.isStreaming && connected,
+                        turnStatus = status.takeIf { connected && !awaitingFreshState },
+                    )
+                }.distinctUntilChanged().collect { presence -> publishTurnPresence(chatId, presence) }
             }
+    }
+
+    private fun publishTurnPresence(
+        chatId: String,
+        presence: TurnPresence,
+    ) {
+        _streamingChatIds.update { if (presence.isStreaming) it + chatId else it - chatId }
+        _turnStatuses.update { statuses ->
+            val status = presence.turnStatus
+            if (status == null) statuses - chatId else statuses + (chatId to status)
+        }
     }
 
     /** Evicts entries until one more fits under the hot cap; see [register] for the over-cap policy. */
@@ -498,7 +556,9 @@ class ChatConnectionHub(
         entries[chatId]?.let { existing ->
             val openScreens = (existing.openScreens - 1).coerceAtLeast(0)
             if (existing.manager == null && openScreens == 0) {
-                streamingObservers.remove(chatId)?.cancel()
+                turnObservers.remove(chatId)?.cancel()
+                _streamingChatIds.update { it - chatId }
+                _turnStatuses.update { it - chatId }
                 entries.remove(chatId)
             } else {
                 entries[chatId] = existing.copy(openScreens = openScreens)
@@ -595,9 +655,10 @@ class ChatConnectionHub(
         chatId: String,
         endpoint: GatewayEndpoint? = null,
     ) {
-        streamingObservers.remove(chatId)?.cancel()
+        turnObservers.remove(chatId)?.cancel()
         snapshots.remove(chatId)
         _streamingChatIds.update { it - chatId }
+        _turnStatuses.update { it - chatId }
         val entry = entries.remove(chatId) ?: return
         try {
             val gatewaySessionId = entry.gatewaySessionId
@@ -614,8 +675,9 @@ class ChatConnectionHub(
         entries.values.mapNotNullTo(mutableListOf()) { it.manager } + pendingManagers + browserManagers
 
     private fun removeAndEvict(chatId: String) {
-        streamingObservers.remove(chatId)?.cancel()
+        turnObservers.remove(chatId)?.cancel()
         _streamingChatIds.update { it - chatId }
+        _turnStatuses.update { it - chatId }
         val entry = entries.remove(chatId)
         if (entry != null) {
             entry.manager?.let { it.release() }
@@ -751,6 +813,7 @@ class ChatConnectionHub(
     private fun republish() {
         _trackedChatIds.value = entries.keys.toSet()
         val ordered = entries.values.sortedByDescending { it.lastFocusedMs }
+        screenChatIds.value = ordered.filter { it.screenOpen }.map { it.chatId }.toSet()
         val onScreen = ordered.firstOrNull { it.screenOpen }
         _onScreenChat.value = onScreen?.toPresence()
         _tapTarget.value = (onScreen ?: ordered.firstOrNull())?.toPresence()

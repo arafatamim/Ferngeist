@@ -34,5 +34,6 @@ object ChatPresenceModule {
             launchableTargetRepository = launchableTargetRepository,
             gatewayRepository = gatewayRepository,
             onChatCreated = projectCatalog::chatCreated,
+            turnStatuses = projectCatalog.turnStatuses,
         )
 }

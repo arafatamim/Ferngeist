@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,7 +25,7 @@ class SessionSwitcherTest {
                 servers = listOf(serverA),
                 sessionsByServer = mapOf("srvA" to listOf(summary("s1", 30L), summary("s2", 10L))),
                 liveIdsByServer = mapOf("srvA" to setOf("s1", "s2")),
-                isGenerating = { _, _ -> false },
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "s1"),
             )
         assertEquals(1, groups.size)
@@ -38,7 +39,7 @@ class SessionSwitcherTest {
                 servers = listOf(serverA),
                 sessionsByServer = mapOf("srvA" to listOf(summary("s1", 1L))),
                 liveIdsByServer = mapOf("srvA" to setOf("s1")),
-                isGenerating = { _, _ -> false },
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "s1"),
             )
         assertEquals(listOf("s1"), solo.single().sessions.map { it.sessionId })
@@ -71,7 +72,7 @@ class SessionSwitcherTest {
                     ),
                 sessionsByServer = mapOf("srvA" to listOf(summary("wt", 10L, worktreePath))),
                 liveIdsByServer = mapOf("srvA" to setOf("wt")),
-                isGenerating = { _, _ -> false },
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "other"),
             )
 
@@ -93,7 +94,7 @@ class SessionSwitcherTest {
                     "srvB" to listOf(summary("b1", 50L), summary("bcur", 1L)),
                 ),
             liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1", "bcur")),
-            isGenerating = { _, _ -> false },
+            turnStatus = { _, _ -> TurnStatus.UNKNOWN },
             current = SwitcherCurrent(currentServer, currentSession),
         )
         // Display order re-anchors per screen ([bcur, b1, a1] here), but the
@@ -108,8 +109,8 @@ class SessionSwitcherTest {
 
     @Test
     fun `resolveSwipeTarget commits on distance or fling velocity`() {
-        val prev = SwitcherSession("srvA", "p", null, null, null, false, false)
-        val next = SwitcherSession("srvA", "n", null, null, null, false, false)
+        val prev = SwitcherSession("srvA", "p", null, null, null, TurnStatus.UNKNOWN, false)
+        val next = SwitcherSession("srvA", "n", null, null, null, TurnStatus.UNKNOWN, false)
         // Slow drag past the distance threshold follows travel direction.
         assertEquals("n", resolveSwipeTarget(-60f, 0f, SwipeThresholds(48f, 1000f), prev, next)?.sessionId)
         assertEquals("p", resolveSwipeTarget(60f, 0f, SwipeThresholds(48f, 1000f), prev, next)?.sessionId)
@@ -134,7 +135,7 @@ class SessionSwitcherTest {
                 servers = listOf(serverA),
                 sessionsByServer = mapOf("srvA" to listOf(summary("s1", 1L))),
                 liveIdsByServer = mapOf("srvA" to setOf("s1")),
-                isGenerating = { _, _ -> false },
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "s1"),
             )
         assertEquals(null to null, switcherNeighbors(solo))
@@ -145,8 +146,8 @@ class SessionSwitcherTest {
                     serverName = "Alpha",
                     sessions =
                         listOf(
-                            SwitcherSession("srvA", "s1", null, null, null, false, false),
-                            SwitcherSession("srvA", "s2", null, null, null, false, false),
+                            SwitcherSession("srvA", "s1", null, null, null, TurnStatus.UNKNOWN, false),
+                            SwitcherSession("srvA", "s2", null, null, null, TurnStatus.UNKNOWN, false),
                         ),
                 ),
             )
@@ -164,7 +165,7 @@ class SessionSwitcherTest {
                         "srvB" to listOf(summary("b1", 50L)),
                     ),
                 liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1")),
-                isGenerating = { _, _ -> false },
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "zzz"),
             )
         assertEquals(listOf("srvB", "srvA"), groups.map { it.serverId })
@@ -181,7 +182,7 @@ class SessionSwitcherTest {
                         "srvB" to listOf(summary("b1", 50L), summary("bcur", 1L)),
                     ),
                 liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1", "bcur")),
-                isGenerating = { _, _ -> false },
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvB", "bcur"),
             )
         assertEquals(listOf("srvB", "srvA"), groups.map { it.serverId })
@@ -198,7 +199,7 @@ class SessionSwitcherTest {
                         "srvA" to listOf(summary("old", null), summary("new", 9L)),
                     ),
                 liveIdsByServer = mapOf("srvA" to setOf("old", "new"), "ghost" to setOf("g1")),
-                isGenerating = { _, _ -> false },
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "zzz"),
             )
         assertEquals(listOf("new", "old"), groups[0].sessions.map { it.sessionId })

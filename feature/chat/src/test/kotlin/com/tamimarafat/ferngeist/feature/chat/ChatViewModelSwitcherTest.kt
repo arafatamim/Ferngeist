@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat
 import androidx.lifecycle.SavedStateHandle
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
+import com.tamimarafat.ferngeist.acp.bridge.facade.HubChatPresence
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
@@ -10,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -160,6 +163,45 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             assertTrue(gateway.closedSessions.isEmpty())
             assertEquals(2, viewModel.switcherUiState.first { it.liveTotalCount == 2 }.liveTotalCount)
             viewModel.clearForTest()
+        }
+
+    @Test
+    fun `switcher updates turn state without a connection or listing change`() =
+        runTest {
+            val hub = newTestHub()
+            val targets = FakeLaunchableTargetRepository(listOf(gatewayTarget()))
+            val sessions = FakeChatCatalog()
+            sessions.setSessions("srvA", listOf(SessionSummary(id = "mine"), SessionSummary(id = "other")))
+            connectSession(hub, "srvA", "mine")
+            connectSession(hub, "srvA", "other")
+            val statuses = MutableStateFlow(mapOf("srvA/other" to TurnStatus.WORKING))
+            val controller =
+                ChatSwitcherController(
+                    scope = backgroundScope,
+                    presence = HubChatPresence(hub, targets, FakeGatewayRepository(), turnStatuses = statuses),
+                    chatListings = sessions,
+                    launchableTargetRepository = targets,
+                    serverId = "srvA",
+                    currentSessionId = { "mine" },
+                )
+            val observed = mutableListOf<SwitcherUiState>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.state.toList(observed) }
+            runCurrent()
+            val working = observed.last().groups.single()
+            assertEquals(TurnStatus.WORKING, working.sessions.last().turnStatus)
+
+            statuses.value = mapOf("srvA/other" to TurnStatus.NEEDS_ATTENTION, "different/other" to TurnStatus.ERROR)
+            runCurrent()
+            val attentionGroup = observed.last().groups.single()
+            val attention = attentionGroup.sessions
+            assertEquals(TurnStatus.NEEDS_ATTENTION, attention.last().turnStatus)
+            assertEquals(TurnStatus.UNKNOWN, attention.first().turnStatus)
+            assertTrue(attention.first().isCurrent)
+
+            statuses.value = mapOf("srvA/other" to TurnStatus.FINISHED)
+            runCurrent()
+            val finished = observed.last().groups.single()
+            assertEquals(TurnStatus.FINISHED, finished.sessions.last().turnStatus)
         }
 
     private fun sessionHandle(): SavedStateHandle =

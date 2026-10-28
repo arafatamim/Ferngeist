@@ -88,8 +88,9 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.motion.WorkingEllipsis
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
-import com.tamimarafat.ferngeist.core.common.ui.status.rememberShimmerTextBrush
+import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
@@ -617,25 +618,17 @@ private fun SwitcherRow(
     }
 }
 
-/**
- * A live session trails its title with the working ellipsis rather than showing a "Generating" chip
- * beside it: the row has exactly one text slot, and a second label reads as a status field bolted on.
- */
 @Composable
-private fun SwitcherRowTitle(
-    session: SwitcherSession,
-    generating: Boolean,
-) {
+private fun SwitcherRowTitle(session: SwitcherSession) {
     Row {
         Text(
             text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
             style = MaterialTheme.typography.titleMedium,
             maxLines = 1,
             overflow = TextOverflow.MiddleEllipsis,
-            // Shrinks before the dots do, so a long title still ends in them.
             modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
         )
-        if (generating) {
+        if (session.turnStatus == TurnStatus.WORKING && !session.isCurrent) {
             WorkingEllipsis(
                 fontSize = MaterialTheme.typography.titleMedium.fontSize,
                 modifier = Modifier.alignByBaseline(),
@@ -666,19 +659,24 @@ private fun SwitcherRowContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                // The current session is skipped — you can already see it streaming.
-                SwitcherRowTitle(session = session, generating = session.isGenerating && !session.isCurrent)
+                // A shared subtitle keeps turn state separate from the readable session title.
+                SwitcherRowTitle(session)
                 val place = session.project
                 val time = session.updatedAt?.let { formatSwitcherTime(it, LocalContext.current) }
-                if (place != null || time != null) {
-                    Text(
-                        text = listOfNotNull(place, time).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.MiddleEllipsis,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                WorkingSubtitle(
+                    status = session.turnStatus,
+                    streamKey = "${session.serverId}/${session.sessionId}",
+                ) {
+                    if (place != null || time != null) {
+                        Text(
+                            text = listOfNotNull(place, time).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.MiddleEllipsis,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
                 // The branch gets its own line, as on the session list: sharing one with the
                 // project let a long branch squeeze the project down to a few characters.

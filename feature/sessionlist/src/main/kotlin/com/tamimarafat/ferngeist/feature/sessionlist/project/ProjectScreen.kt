@@ -48,6 +48,7 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.pathSegments
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -358,7 +359,7 @@ private fun ProjectChatList(
     sharedBoundsEnabled: Boolean,
 ) {
     val live by viewModel.liveChatKeys.collectAsState()
-    val working by viewModel.inProgressChatKeys.collectAsState()
+    val turnStatuses by viewModel.turnStatuses.collectAsState()
     val running by viewModel.runningChatKeys.collectAsState()
     val chatsBySummary = rows.associateBy { it.summary }
     val refreshing by viewModel.refreshing.collectAsState()
@@ -392,7 +393,7 @@ private fun ProjectChatList(
                     worktree = worktree,
                     worktreeBranch = worktree?.displayName ?: chat.worktree?.let { pathSegments(it).lastOrNull() },
                     live = isLive,
-                    working = chat.key in working,
+                    status = turnStatuses[chat.key] ?: TurnStatus.UNKNOWN,
                     removing = worktree?.id in removing,
                     actions =
                         ProjectChatActions(

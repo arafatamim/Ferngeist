@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.TurnTiming
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -58,6 +59,21 @@ class SessionRuntime(
          * send no turn end after it, which would leave the chat looking busy for good.
          */
         val stoppedAt: String? = null,
+        /**
+         * The most recent turn's terminal outcome, and nothing else: only [TurnStatus.FINISHED]
+         * and [TurnStatus.ERROR] are ever written. A new turn clears it, so a stale result is
+         * never read as the current one.
+         */
+        val turnOutcome: TurnStatus = TurnStatus.UNKNOWN,
+        /** Permission requests still awaiting the user, so a live turn can be blocked on them. */
+        val pendingPermissions: Set<String> = emptySet(),
+        /**
+         * True once a terminal event settled the current turn. A later rollback of the
+         * prompt awaiter must not overwrite that outcome (a cancellation stays cancelled),
+         * while a send that failed without any terminal event still becomes an error.
+         */
+        val turnSettled: Boolean = false,
+        val turnCompletionSequence: Long = 0,
     )
 
     private val mutex = Mutex()
@@ -96,6 +112,9 @@ class SessionRuntime(
                     availableCommands = emptyList(),
                     commandsAdvertised = false,
                     error = null,
+                    // A load replay carries no outcome; claiming the previous one would
+                    // paint a finished turn over a transcript that is being replaced.
+                    turnStatus = TurnStatus.UNKNOWN,
                 )
         }
     }
@@ -135,6 +154,7 @@ class SessionRuntime(
                     loadState = SessionLoadState.FAILED,
                     error = error,
                     isStreaming = false,
+                    turnStatus = TurnStatus.UNKNOWN,
                 )
         }
     }
@@ -146,6 +166,10 @@ class SessionRuntime(
                 return@withLock
             }
             debug { "markReady: publishing READY with liveMessages=${live.messages.size}" }
+            // A (re)registered session re-establishes the connection, not the last turn's
+            // outcome: the transport that carried it is gone, so a retained FINISHED/ERROR is
+            // no longer current evidence and must not be republished as one.
+            live = live.copy(turnOutcome = TurnStatus.UNKNOWN)
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -196,6 +220,11 @@ class SessionRuntime(
                     messages = withAssistantPlaceholder,
                     isStreaming = true,
                     stoppedAt = null,
+                    // The new turn has no outcome yet, and the previous turn's unanswered
+                    // requests cannot still be pending on it.
+                    turnOutcome = TurnStatus.UNKNOWN,
+                    pendingPermissions = emptySet(),
+                    turnSettled = false,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -224,6 +253,10 @@ class SessionRuntime(
                 live.copy(
                     messages = if (injected) SessionMessageReducer.startStreaming(withUser) else withUser,
                     stoppedAt = null,
+                    // A steered prompt starts or continues a turn, so any earlier outcome no
+                    // longer describes what this session is doing.
+                    turnOutcome = TurnStatus.UNKNOWN,
+                    turnSettled = false,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -239,6 +272,13 @@ class SessionRuntime(
                             SessionMessageReducer.finishStreaming(live.messages),
                         ),
                     isStreaming = false,
+                    // A terminal event that already settled this turn owns the outcome (a
+                    // cancelled turn stays cancelled); only a send that failed with no
+                    // outcome of its own is an error.
+                    turnOutcome = if (live.turnSettled) live.turnOutcome else TurnStatus.ERROR,
+                    pendingPermissions = emptySet(),
+                    pendingElicitations = emptyList(),
+                    turnSettled = true,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -255,6 +295,11 @@ class SessionRuntime(
                         ),
                     isStreaming = false,
                     stoppedAt = live.messages.lastOrNull()?.id,
+                    // A cancelled turn is not a completed one; it proves no outcome.
+                    turnOutcome = TurnStatus.UNKNOWN,
+                    pendingPermissions = emptySet(),
+                    pendingElicitations = emptyList(),
+                    turnSettled = true,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -297,7 +342,27 @@ class SessionRuntime(
             legacyModes = fields.legacyModes,
             legacyModel = fields.legacyModel,
             title = fields.title,
-            pendingElicitations = applyElicitationUpdate(current.pendingElicitations, event),
+            // A turn that has ended cannot still be waiting on the user: a request it left
+            // behind is unanswerable, so it must not keep the session in attention across a
+            // reconnect (the agent may never send its resolve event after a drop). Clearing on
+            // a turn end only - not on a load replay's close - keeps a request the agent
+            // raises while a load runs answerable.
+            pendingElicitations =
+                if (event is AppSessionEvent.TurnComplete) {
+                    emptyList()
+                } else {
+                    applyElicitationUpdate(current.pendingElicitations, event)
+                },
+            pendingPermissions =
+                if (event is AppSessionEvent.TurnComplete) {
+                    emptySet()
+                } else {
+                    pendingPermissionsAfter(current.pendingPermissions, event)
+                },
+            turnOutcome = turnOutcomeAfter(current.turnOutcome, event),
+            turnSettled = current.turnSettled || event is AppSessionEvent.TurnComplete,
+            turnCompletionSequence =
+                if (event is AppSessionEvent.TurnComplete) eventSeq else current.turnCompletionSequence,
         )
     }
 
@@ -393,6 +458,23 @@ class SessionRuntime(
     )
 
     /**
+     * What the session is doing right now: a request awaiting the user outranks the running
+     * turn it belongs to, a running turn outranks the last outcome, and with no turn in
+     * flight the last outcome stands (or unknown, which claims nothing).
+     */
+    private val RuntimeData.turnStatus: TurnStatus
+        get() =
+            when {
+                awaitsAttention -> TurnStatus.NEEDS_ATTENTION
+                isStreaming -> TurnStatus.WORKING
+                else -> turnOutcome
+            }
+
+    /** A permission prompt or a session-scoped elicitation is blocking the agent on the user. */
+    private val RuntimeData.awaitsAttention: Boolean
+        get() = pendingElicitations.isNotEmpty() || pendingPermissions.isNotEmpty()
+
+    /**
      * Publishes the [live] state to the [_snapshot] StateFlow after resolving the effective
      * config options list.
      *
@@ -431,6 +513,8 @@ class SessionRuntime(
                 title = live.title,
                 error = error,
                 pendingElicitations = live.pendingElicitations,
+                turnStatus = live.turnStatus,
+                turnCompletionSequence = live.turnCompletionSequence,
             )
         debug {
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +

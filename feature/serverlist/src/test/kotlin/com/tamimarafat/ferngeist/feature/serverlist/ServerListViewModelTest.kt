@@ -73,7 +73,7 @@ class ServerListViewModelTest {
         every { agentLauncher.session(any()) } returns launchSession
         every { agentLauncher.liveServerIds } returns MutableStateFlow(emptySet())
         every { agentLauncher.connectedChatIds } returns MutableStateFlow(emptySet())
-        every { projectCatalog.inProgressChatKeys } returns MutableStateFlow(emptySet())
+        every { projectCatalog.turnStatuses } returns MutableStateFlow(emptyMap())
         every { projectCatalog.activityUpdatedAt } returns MutableStateFlow(emptyMap())
         every { projectCatalog.refreshing } returns MutableStateFlow(emptySet())
         every { agentLauncher.hasWarmChat(any()) } returns false

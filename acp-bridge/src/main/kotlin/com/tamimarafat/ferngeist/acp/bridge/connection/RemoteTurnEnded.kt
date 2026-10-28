@@ -22,7 +22,11 @@ import kotlin.coroutines.EmptyCoroutineContext
 @Serializable
 internal data class RemoteTurnEnded(
     val sessionId: String,
-    val stopReason: String = "end_turn",
+    /**
+     * No reason means the gateway stated only that the turn ended: an unknown outcome, never
+     * the success `end_turn` a missing field would otherwise imply.
+     */
+    val stopReason: String = "unknown",
     @Suppress("ConstructorParameterNaming", "ktlint:standard:property-naming")
     @SerialName("_meta")
     override val _meta: JsonElement? = null,
@@ -46,6 +50,6 @@ internal fun Protocol.onRemoteTurnEnded(onTurnEnded: suspend (sessionId: String,
     setNotificationHandlerRaw(remoteTurnEndedMethod, EmptyCoroutineContext) { notification ->
         val params = notification.params as? JsonObject ?: return@setNotificationHandlerRaw
         val sessionId = params["sessionId"]?.jsonPrimitive?.contentOrNull ?: return@setNotificationHandlerRaw
-        onTurnEnded(sessionId, params["stopReason"]?.jsonPrimitive?.contentOrNull ?: "end_turn")
+        onTurnEnded(sessionId, params["stopReason"]?.jsonPrimitive?.contentOrNull ?: "unknown")
     }
 }

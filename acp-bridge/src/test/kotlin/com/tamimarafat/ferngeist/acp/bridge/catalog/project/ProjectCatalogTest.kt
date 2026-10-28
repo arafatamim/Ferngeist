@@ -1,24 +1,13 @@
 package com.tamimarafat.ferngeist.acp.bridge.catalog.project
 
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
-import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.newHub
-import com.tamimarafat.ferngeist.acp.bridge.hub.registerChat
-import com.tamimarafat.ferngeist.core.model.ChatLoadState
-import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
-import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
-import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
-import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
-import com.tamimarafat.ferngeist.gateway.GatewayRepositoryImpl
-import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectChat
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectRepo
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectWorktree
-import com.tamimarafat.ferngeist.gateway.projects.GatewayProjects
-import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
@@ -27,37 +16,17 @@ import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
 import io.ktor.utils.io.writeStringUtf8
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ProjectCatalogTest {
-    @get:Rule
-    val folder = TemporaryFolder()
-
-    private val json = Json { ignoreUnknownKeys = true }
-    private val gateway = GatewaySource(id = "gw", name = "PC", host = "pc:5788", gatewayCredential = "token")
-    private val claude = agent("b-claude", "Claude", "claude")
-    private val codex = agent("b-codex", "Codex", "codex")
-    private val repo = "/h/Ferngeist"
-    private val previous =
-        ProjectSnapshot(
-            agents = mapOf("claude" to listOf(chat("old-claude")), "codex" to listOf(chat("old-codex"))),
-            checkouts = listOf(GatewayProjectRepo(repo = repo, branch = "main")),
-        )
-
+class ProjectCatalogTest : ProjectCatalogFixture() {
     @Test
     fun `stream cut before checkouts keeps received lines, failed agents' cache and old checkouts`() =
         runTest {
@@ -333,84 +302,6 @@ class ProjectCatalogTest {
         }
 
     @Test
-    fun `gateway running includes unlisted chats on unsuccessful agent lines`() =
-        runTest {
-            val body = """{"type":"agent","agentId":"claude","status":"unsupported","running":["unlisted"]}""" + "\n"
-            val catalog = catalog(MockEngine { respond(body, HttpStatusCode.OK) })
-            runCurrent()
-            catalog.refresh().join()
-            runCurrent()
-            assertEquals(setOf("b-claude/unlisted"), catalog.inProgressChatKeys.first())
-        }
-
-    @Test
-    fun `hub idle overrides gateway running and untracking restores gateway answer`() =
-        runTest {
-            val hub = newHub()
-            val body = """{"type":"agent","agentId":"claude","status":"ok","running":["same"]}""" + "\n"
-            val catalog = catalog(MockEngine { respond(body, HttpStatusCode.OK) }, hub = hub)
-            runCurrent()
-            catalog.refresh().join()
-            runCurrent()
-            assertEquals(setOf("b-claude/same"), catalog.inProgressChatKeys.first())
-            val key = hub.registerChat(serverId = claude.id, sessionId = "same")
-            runCurrent()
-            assertTrue(catalog.inProgressChatKeys.first().isEmpty())
-            hub.close(key)
-            runCurrent()
-            assertEquals(setOf("b-claude/same"), catalog.inProgressChatKeys.first())
-        }
-
-    @Test
-    fun `hydration never restores gateway running`() =
-        runTest {
-            val body = """{"type":"agent","agentId":"claude","status":"ok","running":["same"]}""" + "\n"
-            val catalog = catalog(MockEngine { respond(body, HttpStatusCode.OK) })
-            runCurrent()
-            catalog.refresh().join()
-            runCurrent()
-            assertEquals(setOf("b-claude/same"), catalog.inProgressChatKeys.first())
-            val restored = catalog(MockEngine { respond("", HttpStatusCode.OK) })
-            runCurrent()
-            assertTrue(restored.inProgressChatKeys.first().isEmpty())
-        }
-
-    @Test
-    fun `older gateway omitting running clears previous running`() =
-        runTest {
-            var body = """{"type":"agent","agentId":"claude","status":"ok","running":["same"]}""" + "\n"
-            val catalog = catalog(MockEngine { respond(body, HttpStatusCode.OK) })
-            runCurrent()
-            catalog.refresh().join()
-            runCurrent()
-            assertEquals(setOf("b-claude/same"), catalog.inProgressChatKeys.first())
-            body = agentLine("claude", "ok", "same")
-            catalog.refresh(force = true).join()
-            runCurrent()
-            assertTrue(catalog.inProgressChatKeys.first().isEmpty())
-        }
-
-    @Test
-    fun `activity timestamps exclude tracked and running chats without inferring running state`() =
-        runTest {
-            store().write(gateway.id, previous)
-            val hub = newHub()
-            val body = """{"type":"agent","agentId":"claude","status":"unsupported","running":["old-claude"]}""" + "\n"
-            val catalog = catalog(MockEngine { respond(body, HttpStatusCode.OK) }, hub = hub)
-            runCurrent()
-            catalog.refresh().join()
-            runCurrent()
-            assertEquals(setOf("b-codex/old-codex"), catalog.activityUpdatedAt.value.keys)
-            val key = hub.registerChat(serverId = codex.id, sessionId = "old-codex")
-            runCurrent()
-            assertTrue(catalog.activityUpdatedAt.value.isEmpty())
-            assertEquals(setOf("b-claude/old-claude"), catalog.inProgressChatKeys.value)
-            hub.close(key)
-            runCurrent()
-            assertEquals(setOf("b-codex/old-codex"), catalog.activityUpdatedAt.value.keys)
-        }
-
-    @Test
     fun `activity uses refreshed gateway timestamps and ignores missing or malformed values`() =
         runTest {
             var timestamp = "2026-10-25T00:00:00Z"
@@ -456,8 +347,7 @@ class ProjectCatalogTest {
             runCurrent()
             catalog.refresh().join()
             runCurrent()
-            val key = hub.registerChat(serverId = claude.id, sessionId = "same")
-            hub.storeSnapshot(key, snapshot(streaming = true))
+            val (key, live) = hub.registerLiveChat(serverId = claude.id, sessionId = "same")
             runCurrent()
             assertEquals(setOf(key), catalog.inProgressChatKeys.value)
             timestamp = "2026-10-25T00:00:30Z"
@@ -468,7 +358,7 @@ class ProjectCatalogTest {
                     .updatedAt,
             )
 
-            hub.storeSnapshot(key, snapshot(streaming = false))
+            live.value = SessionSnapshot(sessionId = "same", turnStatus = TurnStatus.FINISHED)
             runCurrent()
 
             assertEquals(
@@ -503,15 +393,16 @@ class ProjectCatalogTest {
                     hub = hub,
                 )
             runCurrent()
-            val keys = listOf(claude, codex).map { hub.registerChat(serverId = it.id, sessionId = "same") }
-            keys.forEach { hub.storeSnapshot(it, snapshot(streaming = true)) }
+            val chats = listOf(claude, codex).map { hub.registerLiveChat(serverId = it.id, sessionId = "same") }
             runCurrent()
-            assertEquals(keys.toSet(), catalog.inProgressChatKeys.value)
+            assertEquals(chats.map { it.first }.toSet(), catalog.inProgressChatKeys.value)
             catalog.refresh()
             runCurrent()
             body.writeStringUtf8(timestampLine("2026-10-25T00:00:00Z"))
             runCurrent()
-            keys.forEach { hub.storeSnapshot(it, snapshot(streaming = false)) }
+            chats.forEach { (_, live) ->
+                live.value = SessionSnapshot(sessionId = "same", turnStatus = TurnStatus.FINISHED)
+            }
             runCurrent()
             assertEquals(
                 1_792_886_400_000L,
@@ -531,94 +422,4 @@ class ProjectCatalogTest {
             )
             assertEquals(2, requests)
         }
-
-    private fun timestampLine(timestamp: String): String =
-        """{"type":"agent","agentId":"claude","status":"ok","chats":[""" +
-            """{"sessionId":"same","cwd":"$repo","repo":"$repo","updatedAt":"$timestamp"}]}""" + "\n"
-
-    private fun snapshot(streaming: Boolean) =
-        ChatSessionSnapshot(
-            loadState = ChatLoadState.READY,
-            messages = emptyList(),
-            isStreaming = streaming,
-            configOptions = emptyList(),
-            availableCommands = emptyList(),
-            commandsAdvertised = false,
-            error = null,
-            usage = null,
-        )
-
-    private fun TestScope.catalog(
-        engine: MockEngine,
-        targets: List<LaunchableTarget> = listOf(claude, codex),
-        hub: ChatConnectionHub = newHub(),
-    ) = ProjectCatalog(
-        gatewayProjects = GatewayProjects(HttpClient(engine), json),
-        repositories =
-            LaunchRepositories(
-                gatewayRepository = GatewayRepositoryImpl(HttpClient(engine), json),
-                gatewaySourceRepository = Gateways(listOf(gateway)),
-                launchableTargetRepository = Targets(targets),
-                ioDispatcher = StandardTestDispatcher(testScheduler),
-            ),
-        store = store(),
-        scope = backgroundScope,
-        hub = hub,
-    )
-
-    private fun store() = ProjectSnapshotStore(folder.root, json)
-
-    private fun ProjectCatalogState.chatIds() = projects.flatMap { it.chats }.map { it.summary.id }.toSet()
-
-    private fun agent(
-        id: String,
-        name: String,
-        agentId: String,
-    ) = LaunchableTarget.GatewayAgent(
-        GatewayAgentBinding(id = id, name = name, gatewaySourceId = gateway.id, agentId = agentId),
-        gateway,
-    )
-
-    private fun chat(sessionId: String) =
-        GatewayProjectChat(sessionId = sessionId, cwd = repo, repo = repo, updatedAt = "2026-10-24T10:00:00Z")
-
-    private fun agentLine(
-        agentId: String,
-        status: String,
-        sessionId: String?,
-    ): String {
-        val chats = sessionId?.let { """{"sessionId":"$it","cwd":"$repo","repo":"$repo"}""" }.orEmpty()
-        return """{"type":"agent","agentId":"$agentId","status":"$status","chats":[$chats]}""" + "\n"
-    }
-
-    private class Gateways(
-        private val gateways: List<GatewaySource>,
-    ) : GatewaySourceRepository {
-        override fun getGateways(): Flow<List<GatewaySource>> = flowOf(gateways)
-
-        override suspend fun addGateway(gateway: GatewaySource) = Unit
-
-        override suspend fun updateGateway(gateway: GatewaySource) = Unit
-
-        override suspend fun deleteGateway(id: String) = Unit
-
-        override suspend fun getGateway(id: String) = gateways.firstOrNull { it.id == id }
-
-        override suspend fun getGatewayByGatewayId(gatewayId: String): GatewaySource? = null
-    }
-
-    private class Targets(
-        private val targets: List<LaunchableTarget>,
-    ) : LaunchableTargetRepository {
-        override fun getTargets(): Flow<List<LaunchableTarget>> = flowOf(targets)
-
-        override suspend fun getTarget(id: String) = getTargets().first().firstOrNull { it.id == id }
-
-        override suspend fun updatePreferredAuthMethod(
-            targetId: String,
-            methodId: String,
-        ) = Unit
-
-        override suspend fun deleteTarget(id: String) = Unit
-    }
 }

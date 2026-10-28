@@ -1,7 +1,6 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.animation.AnimatedContentScope
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
@@ -65,8 +64,10 @@ import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
+import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitle
@@ -87,6 +88,7 @@ internal fun ServerCard(
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
     liveServerIds: Set<String> = emptySet(),
+    status: TurnStatus = TurnStatus.UNKNOWN,
     activeChats: Int = 0,
 ) {
     val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
@@ -119,6 +121,7 @@ internal fun ServerCard(
         ServerCardSurface(
             server = server,
             connectionState = connectionState,
+            status = status,
             activeChats = activeChats,
             containerColor = containerColor,
             cardInteractionSource = cardInteractionSource,
@@ -151,6 +154,7 @@ internal fun ServerCard(
 private fun ServerCardSurface(
     server: LaunchableTarget,
     connectionState: ServerConnectionUiState,
+    status: TurnStatus,
     activeChats: Int,
     containerColor: Color,
     cardShape: RoundedCornerShape,
@@ -205,6 +209,7 @@ private fun ServerCardSurface(
                 server = server,
                 containerColor = containerColor,
                 isConnecting = connectionState.isConnecting,
+                status = status,
                 activeChats = activeChats,
                 hasSavedAuthMethod = hasSavedAuthMethod,
                 sharedTransitionScope = sharedTransitionScope,
@@ -219,6 +224,7 @@ private fun ServerCardTitleRow(
     server: LaunchableTarget,
     containerColor: Color,
     isConnecting: Boolean,
+    status: TurnStatus,
     activeChats: Int,
     hasSavedAuthMethod: Boolean,
     sharedTransitionScope: SharedTransitionScope,
@@ -264,19 +270,15 @@ private fun ServerCardTitleRow(
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
-            Crossfade(
-                targetState = activeChats,
-                animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
-                label = "agentSubtitle",
-            ) { subtitleCount ->
-                if (subtitleCount > 0) {
-                    ActiveChatsSubtitle(subtitleCount)
-                } else {
-                    ServerSubtitle(
-                        server = server,
-                        hasSavedAuthMethod = hasSavedAuthMethod,
-                    )
-                }
+            WorkingSubtitle(
+                status = status,
+                streamKey = server.id,
+                workingContent = if (activeChats > 0) ({ ActiveChatsSubtitle(activeChats) }) else null,
+            ) {
+                ServerSubtitle(
+                    server = server,
+                    hasSavedAuthMethod = hasSavedAuthMethod,
+                )
             }
         }
     }

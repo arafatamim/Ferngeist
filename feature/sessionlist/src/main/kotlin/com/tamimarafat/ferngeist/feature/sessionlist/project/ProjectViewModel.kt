@@ -154,7 +154,7 @@ class ProjectViewModel
                 agent != null && current?.chats.orEmpty().any { it.target.id == agent.id }
             }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-        val inProgressChatKeys = projectCatalog.inProgressChatKeys
+        val turnStatuses = projectCatalog.turnStatuses
         val activityUpdatedAt = projectCatalog.activityUpdatedAt
 
         /** [ProjectChat.key]s of chats holding a live connection, across this gateway's agents. */

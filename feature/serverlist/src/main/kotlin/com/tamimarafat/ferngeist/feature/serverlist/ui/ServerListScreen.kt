@@ -56,6 +56,7 @@ import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.feature.serverlist.PendingAuthentication
 import com.tamimarafat.ferngeist.feature.serverlist.PendingLaunchConsent
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -86,7 +87,7 @@ private data class ServerListScreenState(
     val pendingLaunchConsent: PendingLaunchConsent?,
     val liveServerIds: Set<String>,
     val connectedChatKeys: Set<String>,
-    val streamingChatKeys: Set<String>,
+    val turnStatuses: Map<String, TurnStatus>,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,7 +101,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
     val liveServerIds by viewModel.liveServerIds.collectAsStateWithLifecycle()
     val connectedChatKeys by viewModel.connectedChatKeys.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
-    val streamingChatKeys by viewModel.streamingChatKeys.collectAsStateWithLifecycle()
+    val turnStatuses by viewModel.turnStatuses.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     return ServerListScreenState(
         servers = servers,
@@ -114,7 +115,7 @@ private fun rememberServerListState(viewModel: ServerListViewModel): ServerListS
         pendingLaunchConsent = uiState.pendingLaunchConsent,
         liveServerIds = liveServerIds,
         connectedChatKeys = connectedChatKeys,
-        streamingChatKeys = streamingChatKeys,
+        turnStatuses = turnStatuses,
     )
 }
 
@@ -202,7 +203,7 @@ fun ServerListScreen(
         uiState = uiState,
         liveServerIds = screenState.liveServerIds,
         connectedChatKeys = screenState.connectedChatKeys,
-        streamingChatKeys = screenState.streamingChatKeys,
+        turnStatuses = screenState.turnStatuses,
         onResumeSession = onResumeSession,
         onConnect = { viewModel.connectAndOpenServer(it) },
         onEdit = onNavigateToEditServer,
@@ -250,7 +251,7 @@ private fun ServerListScaffold(
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
     connectedChatKeys: Set<String>,
-    streamingChatKeys: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -305,7 +306,7 @@ private fun ServerListScaffold(
             uiState = uiState,
             liveServerIds = liveServerIds,
             connectedChatKeys = connectedChatKeys,
-            streamingChatKeys = streamingChatKeys,
+            turnStatuses = turnStatuses,
             onResumeSession = onResumeSession,
             onConnect = onConnect,
             onEdit = onEdit,
@@ -464,7 +465,7 @@ private fun ServerListContent(
     uiState: ServerListUiState,
     liveServerIds: Set<String>,
     connectedChatKeys: Set<String>,
-    streamingChatKeys: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
     onResumeSession: (RecentSession) -> Unit,
     onConnect: (LaunchableTarget) -> Unit,
     onEdit: (LaunchableTarget) -> Unit,
@@ -487,7 +488,7 @@ private fun ServerListContent(
             isLoading -> ServerListLoadingContent()
             servers.isEmpty() ->
                 EmptyServerContent(
-                    inProgressChatKeys = streamingChatKeys,
+                    turnStatuses = turnStatuses,
                     heroSession = heroSession,
                     olderSessions = olderSessions,
                     onResumeSession = onResumeSession,
@@ -507,7 +508,7 @@ private fun ServerListContent(
                     uiState = uiState,
                     liveServerIds = liveServerIds,
                     connectedChatKeys = connectedChatKeys,
-                    streamingChatKeys = streamingChatKeys,
+                    turnStatuses = turnStatuses,
                     onResumeSession = onResumeSession,
                     onConnect = onConnect,
                     onEdit = onEdit,
@@ -534,7 +535,7 @@ private fun ServerListLoadingContent() {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EmptyServerContent(
-    inProgressChatKeys: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     onResumeSession: (RecentSession) -> Unit,
@@ -553,7 +554,7 @@ private fun EmptyServerContent(
         heroSession?.let { hero ->
             ContinueSessionCard(
                 session = hero,
-                working = "${hero.serverId}/${hero.sessionId}" in inProgressChatKeys,
+                status = turnStatuses["${hero.serverId}/${hero.sessionId}"] ?: TurnStatus.UNKNOWN,
                 onClick = { onResumeSession(hero) },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -563,7 +564,7 @@ private fun EmptyServerContent(
         olderSessions.forEach { session ->
             RecentSessionCard(
                 session = session,
-                working = "${session.serverId}/${session.sessionId}" in inProgressChatKeys,
+                status = turnStatuses["${session.serverId}/${session.sessionId}"] ?: TurnStatus.UNKNOWN,
                 onClick = { onResumeSession(session) },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,

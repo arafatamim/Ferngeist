@@ -3,9 +3,11 @@
 
 ### Features
 
+- *(sessions)* Show working, needs-attention, finished and error status across chat cards, hero/recents, project and agent cards, and the session switcher, using live local state or the gateway's `/v1/turns` snapshot.
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(sessions)* Dismiss Finished across turn indicators when its chat is opened, including turns that finish while open, without hiding later off-screen completions.
 - *(chat)* Account for a phone-origin turn finishing after leaving the chat when checking recent activity.
 - *(build)* Keep gateway icon selection compatible with data-class conventions.
 - *(projects)* Hide projects without visible chats from the home list.

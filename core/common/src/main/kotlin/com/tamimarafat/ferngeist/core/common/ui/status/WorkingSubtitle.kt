@@ -19,30 +19,69 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import com.tamimarafat.ferngeist.core.common.R
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 
+/**
+ * The one presentation of a session's turn status: a working verb while the turn runs,
+ * a plain label for attention, failure and completion, and [idleContent] when unknown.
+ * [workingContent] overrides the verb where a caller has something more specific to say.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WorkingSubtitle(
-    working: Boolean,
+    status: TurnStatus,
     streamKey: String,
+    workingContent: (@Composable () -> Unit)? = null,
     idleContent: @Composable () -> Unit,
 ) {
-    val description = stringResource(R.string.common_in_progress)
+    val description = turnStatusLabel(status)
     Crossfade(
-        targetState = working,
-        modifier = Modifier.semantics { if (working) stateDescription = description },
+        targetState = status,
+        modifier = Modifier.semantics { description?.let { stateDescription = it } },
         animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
         label = "workingSubtitle",
     ) { active ->
-        if (active) {
-            ShimmerStatusText(
-                text = stringResource(R.string.common_working_verb, rememberSpinnerVerb(streamKey)),
-                style = MaterialTheme.typography.bodySmall,
-            )
-        } else {
-            idleContent()
+        when (active) {
+            TurnStatus.UNKNOWN -> idleContent()
+            TurnStatus.WORKING ->
+                if (workingContent != null) {
+                    workingContent()
+                } else {
+                    ShimmerStatusText(
+                        text = stringResource(R.string.common_working_verb, rememberSpinnerVerb(streamKey)),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            TurnStatus.NEEDS_ATTENTION -> TurnStatusLabel(active, MaterialTheme.colorScheme.tertiary)
+            TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.error)
+            TurnStatus.FINISHED -> TurnStatusLabel(active, MaterialTheme.colorScheme.primary)
         }
     }
+}
+
+/** Stable text for every state a label can honestly claim; null makes no claim at all. */
+@Composable
+fun turnStatusLabel(status: TurnStatus): String? =
+    when (status) {
+        TurnStatus.NEEDS_ATTENTION -> stringResource(R.string.common_status_needs_attention)
+        TurnStatus.ERROR -> stringResource(R.string.common_status_error)
+        TurnStatus.WORKING -> stringResource(R.string.common_in_progress)
+        TurnStatus.FINISHED -> stringResource(R.string.common_status_finished)
+        TurnStatus.UNKNOWN -> null
+    }
+
+@Composable
+private fun TurnStatusLabel(
+    status: TurnStatus,
+    color: Color,
+) {
+    Text(
+        text = turnStatusLabel(status).orEmpty(),
+        style = MaterialTheme.typography.bodySmall,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable

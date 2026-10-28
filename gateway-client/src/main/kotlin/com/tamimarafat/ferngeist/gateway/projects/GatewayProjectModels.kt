@@ -16,7 +16,6 @@ sealed interface GatewayProjectLine {
         /** The agent's own initialize answer, passed through by the gateway; null unless the listing succeeded. */
         val sessionCapabilities: SessionCapabilities? = null,
         val chats: List<GatewayProjectChat> = emptyList(),
-        val running: List<String> = emptyList(),
     ) : GatewayProjectLine
 
     @Serializable

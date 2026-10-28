@@ -7,7 +7,6 @@ import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectChat
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectLine
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectRepo
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 
 /** What the home and project screens read: the projects every snapshot yields, once hydrated. */
 data class ProjectCatalogState(
@@ -40,7 +39,6 @@ internal data class ProjectSnapshot(
     val suppressed: Map<String, Set<String>> = emptyMap(),
     val statuses: Map<String, GatewayProjectLine.Agent> = emptyMap(),
     val missingPaths: Map<String, List<String>> = emptyMap(),
-    @Transient val running: Map<String, List<String>> = emptyMap(),
 )
 
 /** Only successful authoritative responses can retire deletion suppression. */
@@ -49,8 +47,7 @@ internal fun ProjectSnapshot.merge(line: GatewayProjectLine): ProjectSnapshot =
         is GatewayProjectLine.Agent -> {
             val next =
                 copy(
-                    statuses = statuses + (line.agentId to line.copy(chats = emptyList(), running = emptyList())),
-                    running = running + (line.agentId to line.running),
+                    statuses = statuses + (line.agentId to line.copy(chats = emptyList())),
                 )
             if (line.status != "ok") {
                 next

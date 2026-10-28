@@ -102,5 +102,9 @@ internal fun applyElicitationUpdate(
             (current.filterNot { it.key == event.request.key } + event.request)
         is AppSessionEvent.ElicitationResolved ->
             current.filterNot { it.key == event.key }
+        // A URL elicitation the agent marks complete is no longer awaiting the user; it is
+        // matched by the agent's own id, which the request carries in place of its key.
+        is AppSessionEvent.ElicitationCompleted ->
+            current.filterNot { (it as? ChatElicitationRequest.Url)?.elicitationId == event.elicitationId }
         else -> current
     }

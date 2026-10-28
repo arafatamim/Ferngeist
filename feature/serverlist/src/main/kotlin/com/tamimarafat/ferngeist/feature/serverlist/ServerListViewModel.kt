@@ -194,7 +194,7 @@ class ServerListViewModel
             projectCatalog.state
                 .map { it.agentStatuses }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-        val streamingChatKeys = projectCatalog.inProgressChatKeys
+        val turnStatuses = projectCatalog.turnStatuses
         val refreshing = projectCatalog.refreshing
         private var pendingQuickChat: RecentSession? = null
 

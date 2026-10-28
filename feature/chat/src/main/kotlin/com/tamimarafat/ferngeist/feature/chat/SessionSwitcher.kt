@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.core.model.projectRootOf
@@ -22,7 +23,7 @@ data class SwitcherSession(
     val title: String?,
     val cwd: String?,
     val updatedAt: Long?,
-    val isGenerating: Boolean,
+    val turnStatus: TurnStatus,
     /** True for the session the sheet was opened from: tinted, never clickable. */
     val isCurrent: Boolean,
     /** The project the chat runs in: a worktree's repo, else its folder's leaf. Null without a cwd. */
@@ -154,7 +155,7 @@ fun deriveSwitcherGroups(
     servers: List<SwitcherServer>,
     sessionsByServer: Map<String, List<SessionSummary>>,
     liveIdsByServer: Map<String, Set<String>>,
-    isGenerating: (serverId: String, sessionId: String) -> Boolean,
+    turnStatus: (serverId: String, sessionId: String) -> TurnStatus,
     current: SwitcherCurrent,
 ): List<SwitcherGroup> {
     val unsorted =
@@ -173,7 +174,7 @@ fun deriveSwitcherGroups(
                         title = summary.title,
                         cwd = summary.cwd,
                         updatedAt = summary.updatedAt,
-                        isGenerating = isGenerating(server.id, summary.id),
+                        turnStatus = turnStatus(server.id, summary.id),
                         isCurrent = server.id == current.serverId && summary.id == current.sessionId,
                         project = cwd?.let { projectName(projectRootOf(it, server.worktrees)) },
                         worktree = cwd?.let { worktreeOf(it, server.worktrees) },

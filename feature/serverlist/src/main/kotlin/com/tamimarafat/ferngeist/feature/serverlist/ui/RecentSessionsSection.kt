@@ -39,6 +39,7 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,8 +60,9 @@ import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKe
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
-import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.serverlist.R
@@ -87,7 +89,7 @@ internal fun SectionHeader(
 @Composable
 internal fun ContinueSessionCard(
     session: RecentSession,
-    working: Boolean,
+    status: TurnStatus,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -115,15 +117,18 @@ internal fun ContinueSessionCard(
     }
     // ...turning a quarter as it settles. One turn on entry, not a loop: this is the most
     // visited screen, and motion that never stops competes with reading and cannot be paused.
-    val rotation = (1f - pop.value) / (1f - BADGE_ENTRY_SCALE) * BADGE_ENTRY_TURN
+    val rotation =
+        remember {
+            derivedStateOf { (1f - pop.value) / (1f - BADGE_ENTRY_SCALE) * BADGE_ENTRY_TURN }
+        }
 
-    val workingDescription = stringResource(com.tamimarafat.ferngeist.core.common.R.string.common_in_progress)
+    val description = turnStatusLabel(status)
     val shape = RoundedCornerShape(corner)
     Card(
         modifier =
             modifier
                 .fillMaxWidth()
-                .semantics { if (working) stateDescription = workingDescription }
+                .semantics { description?.let { stateDescription = it } }
                 // clip() before clickable so the ripple is bounded by the morphing
                 // shape instead of spilling into a full-width rectangle. Same wiring
                 // as ServerCard: Card(onClick=) gives no control over the indication,
@@ -145,7 +150,7 @@ internal fun ContinueSessionCard(
     ) {
         ContinueSessionCardContent(
             session = session,
-            working = working,
+            status = status,
             rotation = rotation,
             pop = pop.value,
             sharedTransitionScope = sharedTransitionScope,
@@ -158,7 +163,7 @@ internal fun ContinueSessionCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 private fun ContinueSessionCardContent(
     session: RecentSession,
-    working: Boolean,
+    status: TurnStatus,
     rotation: State<Float>,
     pop: Float,
     sharedTransitionScope: SharedTransitionScope,
@@ -192,7 +197,7 @@ private fun ContinueSessionCardContent(
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
             WorkingSubtitle(
-                working = working,
+                status = status,
                 streamKey = "${session.serverId}/${session.sessionId}",
             ) {
                 // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
@@ -383,7 +388,7 @@ private fun SharedSessionTitle(
 @Composable
 private fun RecentSessionCardRow(
     session: RecentSession,
-    working: Boolean,
+    status: TurnStatus,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -394,7 +399,7 @@ private fun RecentSessionCardRow(
                 .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActivityIconContainer(working = working, size = 28.dp) {
+        ActivityIconContainer(status = status, size = 28.dp) {
             AgentIconBadge(
                 target = session.target,
                 fallback = Icons.Default.History,
@@ -432,7 +437,7 @@ private fun RecentSessionCardRow(
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
             WorkingSubtitle(
-                working = working,
+                status = status,
                 streamKey = "${session.serverId}/${session.sessionId}",
             ) {
                 ServerSubtitle(
@@ -448,7 +453,7 @@ private fun RecentSessionCardRow(
 @Composable
 internal fun RecentSessionCard(
     session: RecentSession,
-    working: Boolean,
+    status: TurnStatus,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -465,7 +470,7 @@ internal fun RecentSessionCard(
     ) {
         RecentSessionCardRow(
             session = session,
-            working = working,
+            status = status,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
         )

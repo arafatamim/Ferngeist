@@ -62,8 +62,11 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
+import com.tamimarafat.ferngeist.core.common.ui.status.statusesFor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.aggregateTurnStatus
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
@@ -84,7 +87,7 @@ internal fun AgentsBackdrop(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    streamingChatKeys: Set<String> = emptySet(),
+    turnStatuses: Map<String, TurnStatus> = emptyMap(),
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
@@ -181,7 +184,7 @@ internal fun AgentsBackdrop(
         uiState = uiState,
         liveServerIds = liveServerIds,
         connectedChatKeys = connectedChatKeys,
-        streamingChatKeys = streamingChatKeys,
+        turnStatuses = turnStatuses,
         refreshing = refreshing,
         onRefresh = onRefresh,
         projects = projects,
@@ -217,7 +220,7 @@ private fun BackdropLayers(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    streamingChatKeys: Set<String> = emptySet(),
+    turnStatuses: Map<String, TurnStatus> = emptyMap(),
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
@@ -249,7 +252,7 @@ private fun BackdropLayers(
         val sheetHeight = maxHeight + sheetOverhang
         val viewportHeightPx = with(density) { maxHeight.toPx() } - topZonePx.toFloat()
         BackLayerContent(
-            inProgressChatKeys = streamingChatKeys,
+            turnStatuses = turnStatuses,
             heroSession = heroSession,
             olderSessions = olderSessions,
             onResumeSession = onResumeSession,
@@ -274,7 +277,7 @@ private fun BackdropLayers(
             uiState = uiState,
             liveServerIds = liveServerIds,
             connectedChatKeys = connectedChatKeys,
-            streamingChatKeys = streamingChatKeys,
+            turnStatuses = turnStatuses,
             refreshing = refreshing,
             onRefresh = onRefresh,
             projects = projects,
@@ -305,7 +308,7 @@ private fun FrontSheetLayer(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    streamingChatKeys: Set<String> = emptySet(),
+    turnStatuses: Map<String, TurnStatus> = emptyMap(),
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
@@ -350,7 +353,7 @@ private fun FrontSheetLayer(
             uiState = uiState,
             liveServerIds = liveServerIds,
             connectedChatKeys = connectedChatKeys,
-            streamingChatKeys = streamingChatKeys,
+            turnStatuses = turnStatuses,
             refreshing = refreshing,
             onRefresh = onRefresh,
             projects = projects,
@@ -600,7 +603,7 @@ private fun AgentsBackdropSheet(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    streamingChatKeys: Set<String> = emptySet(),
+    turnStatuses: Map<String, TurnStatus> = emptyMap(),
     refreshing: Boolean = false,
     canRefresh: Boolean,
     onRefresh: () -> Unit = {},
@@ -629,7 +632,7 @@ private fun AgentsBackdropSheet(
             uiState = uiState,
             liveServerIds = liveServerIds,
             connectedChatKeys = connectedChatKeys,
-            streamingChatKeys = streamingChatKeys,
+            turnStatuses = turnStatuses,
             refreshing = refreshing,
             onRefresh = onRefresh,
             projects = projects,
@@ -648,7 +651,7 @@ private fun AgentsBackdropSheet(
 
 @Composable
 private fun BackLayerContent(
-    inProgressChatKeys: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     onResumeSession: (RecentSession) -> Unit,
@@ -662,7 +665,7 @@ private fun BackLayerContent(
             heroSession?.let { hero ->
                 ContinueSessionCard(
                     session = hero,
-                    working = "${hero.serverId}/${hero.sessionId}" in inProgressChatKeys,
+                    status = turnStatuses["${hero.serverId}/${hero.sessionId}"] ?: TurnStatus.UNKNOWN,
                     onClick = { onResumeSession(hero) },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -680,7 +683,7 @@ private fun BackLayerContent(
             olderSessions.forEach { session ->
                 RecentSessionCard(
                     session = session,
-                    working = "${session.serverId}/${session.sessionId}" in inProgressChatKeys,
+                    status = turnStatuses["${session.serverId}/${session.sessionId}"] ?: TurnStatus.UNKNOWN,
                     onClick = { onResumeSession(session) },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -704,7 +707,7 @@ private fun FrontLayerContent(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    streamingChatKeys: Set<String> = emptySet(),
+    turnStatuses: Map<String, TurnStatus> = emptyMap(),
     refreshing: Boolean = false,
     canRefresh: Boolean,
     onRefresh: () -> Unit = {},
@@ -765,7 +768,7 @@ private fun FrontLayerContent(
                         item(key = "projects") {
                             ProjectsGroup(
                                 projects = projects,
-                                streamingChatKeys = streamingChatKeys,
+                                turnStatuses = turnStatuses,
                                 connectedChatKeys = connectedChatKeys,
                                 now = now,
                                 onOpenProject = onOpenProject,
@@ -784,10 +787,11 @@ private fun FrontLayerContent(
                         }
                     }
                     items(servers, key = { "agent:${it.id}" }) { server ->
-                        val streamingPrefix = "${server.id}/"
+                        val chatStatuses = turnStatuses.statusesFor(server.id)
                         ServerCard(
                             server = server,
-                            activeChats = streamingChatKeys.count { it.startsWith(streamingPrefix) },
+                            status = chatStatuses.values.aggregateTurnStatus(),
+                            activeChats = chatStatuses.count { it.value == TurnStatus.WORKING },
                             uiState = uiState,
                             liveServerIds = liveServerIds,
                             onClick = { onConnect(server) },

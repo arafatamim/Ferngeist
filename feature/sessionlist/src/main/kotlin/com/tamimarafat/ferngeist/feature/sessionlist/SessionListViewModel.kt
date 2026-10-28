@@ -10,12 +10,14 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog.ListSessionsResult
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
+import com.tamimarafat.ferngeist.core.common.ui.status.statusesFor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.auth.AuthCompletion
 import com.tamimarafat.ferngeist.feature.sessionlist.auth.SessionListAuth
@@ -147,11 +149,11 @@ class SessionListViewModel
                 .connectedSessionIds(serverId)
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-        val workingSessionIds: StateFlow<Set<String>> =
-            projectCatalog.inProgressChatKeys
-                .map { keys ->
-                    keys.filter { it.startsWith("$serverId/") }.map { it.removePrefix("$serverId/") }.toSet()
-                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+        /** Live turn status per session of this agent, from the catalog. */
+        val turnStatuses: StateFlow<Map<String, TurnStatus>> =
+            projectCatalog.turnStatuses
+                .map { it.statusesFor(serverId) }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
         val activityUpdatedAt = projectCatalog.activityUpdatedAt
 

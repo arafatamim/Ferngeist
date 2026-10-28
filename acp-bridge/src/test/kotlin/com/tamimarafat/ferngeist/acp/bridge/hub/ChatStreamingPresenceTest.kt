@@ -66,6 +66,7 @@ class ChatStreamingPresenceTest {
             bridge.sendPrompt("late", emptyList(), emptyList())
             assertTrue(bridge.snapshot.value.isStreaming)
             assertFalse(key in hub.streamingChatIds.value)
+            assertFalse(key in hub.turnStatuses.value)
             bridge.close()
         }
 }

@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -67,7 +68,8 @@ internal class ChatSwitcherController(
                 },
             ) { triples -> triples },
             worktreesFlow(serverIds),
-        ) { triples, worktreesByServer ->
+            presence.turnStatuses,
+        ) { triples, worktreesByServer, statuses ->
             val sessionsByServer = triples.associate { it.first to it.second }
             val liveByServer = triples.associate { it.first to it.third }
             val servers =
@@ -83,7 +85,7 @@ internal class ChatSwitcherController(
                     servers = servers,
                     sessionsByServer = sessionsByServer,
                     liveIdsByServer = liveByServer,
-                    isGenerating = { sid, sess -> presence.isStreaming(sid, sess) },
+                    turnStatus = { sid, sess -> statuses["$sid/$sess"] ?: TurnStatus.UNKNOWN },
                     current = SwitcherCurrent(serverId, currentSessionId()),
                 )
             SwitcherUiState(

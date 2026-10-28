@@ -371,8 +371,9 @@ internal class SessionGateway(
      * [AppSessionEvent.TurnComplete] of its own, because no awaiter may be left to run
      * the rollback.
      *
-     * The stop reason is `"cancelled"` when a cancel was requested for this session and
-     * `"end_turn"` otherwise. The cancel mark is consumed here so the next turn starts
+     * A synthetic end reports `"cancelled"` (the stream died under the turn) or
+     * `"error"` (its stream failed) - never `"end_turn"`, which would claim a success no
+     * reply established. The cancel mark is consumed either way so the next turn starts
      * clean.
      */
     @Suppress("TooGenericExceptionCaught")
@@ -390,9 +391,11 @@ internal class SessionGateway(
         } catch (error: CancellationException) {
             // Interrupted (transport reset) or torn down with the session. Either way the
             // turn is over: without a terminal event the bridge would read as streaming
-            // forever, and the hub would never evict it or let it be closed.
+            // forever, and the hub would never evict it or let it be closed. No reply
+            // settled it, so the status must not claim the success `end_turn` would.
             withContext(NonCancellable) {
-                bridge.emitEvent(AppSessionEvent.TurnComplete(consumeTurnEndReason(sessionId)))
+                cancelsRequested.remove(sessionId)
+                bridge.emitEvent(AppSessionEvent.TurnComplete(AppSessionEvent.STOP_REASON_CANCELLED))
             }
             throw error
         } catch (error: Exception) {
@@ -402,7 +405,15 @@ internal class SessionGateway(
             // failure after navigation leaves the optimistic bubble streaming
             // forever. Still rethrown so a live awaiter can surface the error.
             connection.diagnosticsStore.appendError("session/prompt", formatAcpErrorMessage(error, "Prompt failed"))
-            bridge.emitEvent(AppSessionEvent.TurnComplete(consumeTurnEndReason(sessionId)))
+            // A cancel the user already asked for still owns the outcome; otherwise the
+            // stream failed, which is an error rather than a completion.
+            val reason =
+                if (cancelsRequested.remove(sessionId)) {
+                    AppSessionEvent.STOP_REASON_CANCELLED
+                } else {
+                    AppSessionEvent.STOP_REASON_FAILED
+                }
+            bridge.emitEvent(AppSessionEvent.TurnComplete(reason))
             throw error
         }
     }
@@ -433,14 +444,6 @@ internal class SessionGateway(
     }
 
     /**
-     * Consumes this session's cancel mark (set by [cancelSession]) and maps it to a stop
-     * reason: `"cancelled"` when the turn was explicitly cancelled, `"end_turn"` when the
-     * stream simply ended without reporting one.
-     */
-    private fun consumeTurnEndReason(sessionId: String): String =
-        if (cancelsRequested.remove(sessionId)) "cancelled" else "end_turn"
-
-    /**
      * Cancels the current streaming turn via `session/cancel` RPC.
      *
      * On success the diagnostics flag is set to indicate the server supports
@@ -458,7 +461,7 @@ internal class SessionGateway(
         val session = sessionRegistry.getSdkSession(sessionId) ?: return
         // Mark before the RPC: the prompt stream can finish while cancel() is still
         // in flight, and it consumes this mark to report "cancelled". Marking after
-        // the call would let that turn end as "end_turn" and leave the mark behind.
+        // the call would let that turn report itself failed and leave the mark behind.
         cancelsRequested += sessionId
         val outcome =
             runCatching {

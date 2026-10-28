@@ -22,6 +22,7 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
@@ -34,7 +35,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 /** Which rows hold a live connection here, and which Close can act on. */
 internal class RowPresence(
     val live: Set<String>,
-    val working: Set<String>,
+    val turnStatuses: Map<String, TurnStatus>,
     val activityUpdatedAt: Map<String, Long>,
     /** Live here, or still running on the gateway. */
     val closable: Set<String>,
@@ -150,7 +151,7 @@ internal fun rememberSessionListState(
                 .orEmpty()
         }
     val liveSessionIds = viewModel.liveSessionIds.collectAsState().value
-    val workingSessionIds = viewModel.workingSessionIds.collectAsState().value
+    val turnStatuses = viewModel.turnStatuses.collectAsState().value
     val activityUpdatedAt = viewModel.activityUpdatedAt.collectAsState().value
     val closableSessionIds = viewModel.closableSessionIds.collectAsState().value
     val connectionState = viewModel.connectionState.collectAsState().value
@@ -194,7 +195,7 @@ internal fun rememberSessionListState(
                 presence =
                     RowPresence(
                         live = liveSessionIds,
-                        working = workingSessionIds,
+                        turnStatuses = turnStatuses,
                         activityUpdatedAt = activityUpdatedAt,
                         closable = closableSessionIds,
                     ),

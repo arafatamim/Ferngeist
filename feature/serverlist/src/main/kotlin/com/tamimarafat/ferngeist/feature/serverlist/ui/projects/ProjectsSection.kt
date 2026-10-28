@@ -2,7 +2,6 @@ package com.tamimarafat.ferngeist.feature.serverlist.ui.projects
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.BoundsTransform
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateBounds
@@ -35,11 +34,16 @@ import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectChat
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
+import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
+import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.aggregateTurnStatus
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitle
@@ -47,33 +51,42 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitl
 /** Live projects lead in both views; each group keeps newest known activity first. */
 internal fun projectsByActivity(
     projects: List<ProjectSummary>,
-    streamingChatKeys: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
 ): List<ProjectSummary> {
-    val (live, idle) = projects.partition { it.hasLiveChat(streamingChatKeys) }
+    val (live, idle) = projects.partition { it.hasActiveTurn(turnStatuses) }
     return live.sortedByDescending { it.updatedAt } + idle.sortedByDescending { it.updatedAt }
 }
 
 /**
  * The home's Projects rows, each opening its project; quiet by design so the hero stays the
- * screen's single emphasized element. From activity-ordered projects, keep live ones or known
+ * screen's single emphasized element. From activity-ordered projects, keep in-flight ones or known
  * activity strictly within 48 hours, capped at five.
  */
 internal fun collapsedProjects(
     projects: List<ProjectSummary>,
     now: Long,
-    streamingChatKeys: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
 ): List<ProjectSummary> =
     projects
         .filter {
-            it.hasLiveChat(streamingChatKeys) ||
+            it.hasActiveTurn(turnStatuses) ||
                 it.updatedAt?.let { updated -> now - updated < RECENT_PROJECT_WINDOW_MS } == true
         }.take(MAX_VISIBLE_PROJECTS)
 
-internal fun ProjectSummary.hasLiveChat(chatKeys: Set<String>): Boolean =
-    chats.any { "${it.target.id}/${it.summary.id}" in chatKeys }
+internal fun ProjectSummary.hasLiveChat(chatKeys: Set<String>): Boolean = chats.any { it.chatKey in chatKeys }
 
-internal fun ProjectSummary.activeChatCount(streamingChatKeys: Set<String>): Int =
-    chats.count { "${it.target.id}/${it.summary.id}" in streamingChatKeys }
+/** The highest-priority status among this project's chats, matched by full chat identity. */
+internal fun ProjectSummary.turnStatus(turnStatuses: Map<String, TurnStatus>): TurnStatus =
+    chats.map { turnStatuses[it.chatKey] ?: TurnStatus.UNKNOWN }.aggregateTurnStatus()
+
+/** In flight means working or awaiting attention, never a terminal outcome. */
+internal fun ProjectSummary.hasActiveTurn(turnStatuses: Map<String, TurnStatus>): Boolean =
+    chats.any { turnStatuses[it.chatKey]?.isActive == true }
+
+internal fun ProjectSummary.activeChatCount(turnStatuses: Map<String, TurnStatus>): Int =
+    chats.count { turnStatuses[it.chatKey] == TurnStatus.WORKING }
+
+private val ProjectChat.chatKey: String get() = "${target.id}/${summary.id}"
 
 private const val RECENT_PROJECT_WINDOW_MS = 48L * 60 * 60 * 1000
 private const val MAX_VISIBLE_PROJECTS = 5
@@ -85,7 +98,7 @@ private const val MAX_VISIBLE_PROJECTS = 5
 @Composable
 internal fun ProjectsGroup(
     projects: List<ProjectSummary>,
-    streamingChatKeys: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
     connectedChatKeys: Set<String>,
     now: Long,
     onOpenProject: (ProjectSummary) -> Unit,
@@ -94,8 +107,8 @@ internal fun ProjectsGroup(
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val ordered = remember(projects, streamingChatKeys) { projectsByActivity(projects, streamingChatKeys) }
-    val collapsed = collapsedProjects(ordered, now, streamingChatKeys)
+    val ordered = remember(projects, turnStatuses) { projectsByActivity(projects, turnStatuses) }
+    val collapsed = collapsedProjects(ordered, now, turnStatuses)
     val shown = if (expanded) ordered else collapsed
     val hidden = projects.size - collapsed.size
     val count = shown.size + if (hidden > 0) 1 else 0
@@ -114,7 +127,8 @@ internal fun ProjectsGroup(
                         index = index,
                         count = count,
                         showGateway = showGateway,
-                        activeChats = project.activeChatCount(streamingChatKeys),
+                        status = project.turnStatus(turnStatuses),
+                        activeChats = project.activeChatCount(turnStatuses),
                         isConnected = project.hasLiveChat(connectedChatKeys),
                         now = now,
                         onOpenProject = onOpenProject,
@@ -142,6 +156,7 @@ private fun ProjectItem(
     index: Int,
     count: Int,
     showGateway: Boolean,
+    status: TurnStatus,
     activeChats: Int,
     isConnected: Boolean,
     now: Long,
@@ -151,7 +166,6 @@ private fun ProjectItem(
     modifier: Modifier = Modifier,
 ) {
     val idleSubtitle = if (activeChats == 0) projectCounts(project) else ""
-    val subtitleState = remember(activeChats, idleSubtitle) { activeChats to idleSubtitle }
     val containerColor by animateColorAsState(
         targetValue =
             if (isConnected) {
@@ -180,16 +194,12 @@ private fun ProjectItem(
         colors = ListItemDefaults.segmentedColors(containerColor = containerColor),
         overlineContent = if (showGateway) ({ Text(project.gateway.name) }) else null,
         supportingContent = {
-            Crossfade(
-                targetState = subtitleState,
-                animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
-                label = "projectSubtitle",
-            ) { (subtitleCount, subtitleText) ->
-                if (subtitleCount > 0) {
-                    ActiveChatsSubtitle(subtitleCount)
-                } else {
-                    Text(subtitleText)
-                }
+            WorkingSubtitle(
+                status = status,
+                streamKey = "${project.gateway.id}/${project.repo}",
+                workingContent = if (activeChats > 0) ({ ActiveChatsSubtitle(activeChats) }) else null,
+            ) {
+                Text(idleSubtitle)
             }
         },
         trailingContent = {

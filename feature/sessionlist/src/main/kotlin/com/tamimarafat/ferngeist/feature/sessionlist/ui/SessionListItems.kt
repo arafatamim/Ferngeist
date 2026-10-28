@@ -65,6 +65,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
@@ -199,7 +200,7 @@ private fun SessionListContentFor(
                 sessionCount = state.rows.sessions.size,
                 padding = padding,
                 liveSessionIds = state.rows.presence.live,
-                workingSessionIds = state.rows.presence.working,
+                turnStatuses = state.rows.presence.turnStatuses,
                 closableSessionIds = state.rows.presence.closable,
                 onCloseSession = onCloseSession,
                 onDeleteSession = onDeleteSession,
@@ -256,7 +257,7 @@ private fun SessionListLazyColumn(
     sessionCount: Int,
     padding: PaddingValues,
     liveSessionIds: Set<String>,
-    workingSessionIds: Set<String>,
+    turnStatuses: Map<String, TurnStatus>,
     closableSessionIds: Set<String>,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
@@ -282,7 +283,7 @@ private fun SessionListLazyColumn(
         SessionCard(
             session = session,
             isLive = session.id in liveSessionIds,
-            working = session.id in workingSessionIds,
+            status = turnStatuses[session.id] ?: TurnStatus.UNKNOWN,
             worktree = worktree,
             worktreeBranch = worktree?.displayName,
             worktreeRepo = worktree?.repo,
@@ -380,7 +381,7 @@ private fun SessionListLazyColumn(
 @Composable
 private fun RowScope.SessionCardText(
     session: SessionSummary,
-    working: Boolean,
+    status: TurnStatus,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -414,8 +415,8 @@ private fun RowScope.SessionCardText(
                     worktreeBranch != null -> worktreeRepo?.let(::projectName)
                     else -> session.cwd?.let(::projectName)
                 }
-            // A working chat spends the subtitle line on its verb; the place returns when idle.
-            WorkingSubtitle(working = working, streamKey = session.id) {
+            // A turn in flight spends the subtitle line on its state; the place returns when unknown.
+            WorkingSubtitle(status = status, streamKey = session.id) {
                 place?.let {
                     Text(
                         text = it,
@@ -513,7 +514,7 @@ internal fun Modifier.sessionTitleBounds(
 private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
-    working: Boolean,
+    status: TurnStatus,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -554,7 +555,7 @@ private fun SessionCard(
         ) {
             SessionCardText(
                 session = session,
-                working = working,
+                status = status,
                 worktree = worktree,
                 worktreeBranch = worktreeBranch,
                 worktreeRepo = worktreeRepo,

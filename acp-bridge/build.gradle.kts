@@ -32,6 +32,7 @@ dependencies {
     api(libs.acp)
     api(libs.acp.model)
     implementation(libs.acp.ktor)
+    implementation(libs.javax.inject)
 
     // === Ktor ===
     implementation(libs.ktor.client.core)

@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 
 enum class SessionLoadState {
     IDLE,
@@ -32,4 +33,8 @@ data class SessionSnapshot(
     val error: String? = null,
     val title: String? = null,
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+    /** Derived from the live turn and its explicit outcome; see [TurnStatus]. */
+    val turnStatus: TurnStatus = TurnStatus.UNKNOWN,
+    /** Identity of the terminal event within this runtime, independent of conflated streaming updates. */
+    val turnCompletionSequence: Long = 0,
 )

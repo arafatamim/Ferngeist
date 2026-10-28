@@ -486,7 +486,11 @@ class SessionGatewayTest {
 
             // A CancellationException here would silently end the caller's coroutine.
             assertTrue(send.await().exceptionOrNull() is AcpDisconnectedException)
-            assertEquals("the turn must end, or the bridge streams forever", listOf("end_turn"), turnReasons(bridge))
+            assertEquals(
+                "the turn must end without claiming the success no reply established",
+                listOf("cancelled"),
+                turnReasons(bridge),
+            )
         }
 
     @Test
@@ -578,7 +582,7 @@ class SessionGatewayTest {
             endTurn.complete(Unit)
             assertTrue(send.await().isFailure)
 
-            assertEquals(listOf("end_turn"), turnReasons(bridge))
+            assertEquals(listOf("error"), turnReasons(bridge))
         }
 
     @Test
@@ -598,7 +602,7 @@ class SessionGatewayTest {
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             // The turn runs on the bridge scope, so its starter may already be gone and
             // no rollback would run: the turn must end here or the bubble streams forever.
-            assertEquals(listOf("end_turn"), turnReasons(bridge))
+            assertEquals(listOf("error"), turnReasons(bridge))
         }
 
     @Test
@@ -651,7 +655,7 @@ class SessionGatewayTest {
             // Turn 2 must not inherit that stale mark.
             runCatching { gateway.sendSessionMessage("s1", "second") }
 
-            assertEquals(listOf("end_turn", "end_turn"), turnReasons(bridge))
+            assertEquals(listOf("end_turn", "error"), turnReasons(bridge))
         }
 
     @Test

@@ -2,7 +2,6 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
@@ -14,7 +13,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -705,18 +703,4 @@ class ChatConnectionHubTest {
             hub.close(key)
             bridge.close()
         }
-
-    /**
-     * Drives a connection's live connection state the way a successful transport
-     * connect would. Unit tests cannot run a real ACP server, so this flips the
-     * same private StateFlow the transport updates — observers watching
-     * [AcpConnection.connectionState] cannot tell the difference.
-     */
-    private fun AcpConnection.forceConnectionState(state: AcpConnectionState) {
-        val stateField = AcpConnection::class.java.getDeclaredField("_connectionState")
-        stateField.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        val stateFlow = stateField.get(this) as MutableStateFlow<AcpConnectionState>
-        stateFlow.value = state
-    }
 }
