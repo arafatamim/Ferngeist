@@ -56,7 +56,6 @@
     <string name="chat_tool_status_failed">失败</string>
     <string name="chat_image_label">图片 (%1$s)</string>
     <string name="chat_image_desc">图片</string>
-    <string name="chat_streaming_indicator">%1$s…</string>
     <string name="chat_permission_request">权限请求</string>
     <string name="chat_permission_kind_allow_once">允许一次</string>
     <string name="chat_permission_kind_allow_always">总是允许</string>

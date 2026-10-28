@@ -229,7 +229,6 @@ internal fun TurnChanges(
             separator = separator,
             stats = total,
             open = open,
-            active = false,
             onClick = { open = !open },
             chevronAtEnd = true,
         )

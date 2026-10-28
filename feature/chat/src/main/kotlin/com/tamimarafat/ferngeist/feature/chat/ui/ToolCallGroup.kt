@@ -75,7 +75,6 @@ import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.landed
-import com.tamimarafat.ferngeist.feature.chat.ui.message.rememberShimmerTextBrush
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.RailRowFrame
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ThoughtRowContent
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ToolRowContent
@@ -228,7 +227,6 @@ internal fun ToolCallGroup(
             elapsedDescription = elapsed?.description,
             stats = rememberDiffStats(rows.flatMap { it.landedDiffs() }),
             open = open,
-            active = isStreaming && running,
             onClick = { expanded = !open },
         )
         FoldBody(open = open, foldsInFlight = foldsInFlight) {
@@ -361,7 +359,6 @@ internal fun ToolGroupHeader(
     summary: String,
     stats: DiffStats?,
     open: Boolean,
-    active: Boolean,
     onClick: () -> Unit,
     elapsed: String? = null,
     elapsedDescription: String? = null,
@@ -374,7 +371,6 @@ internal fun ToolGroupHeader(
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "toolGroupChevron",
     )
-    val brush = rememberShimmerTextBrush(isActive = active, baseColor = baseColor, labelPrefix = "toolGroup")
     Row(
         modifier = Modifier.fillMaxWidth().handCursor().clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
@@ -406,7 +402,7 @@ internal fun ToolGroupHeader(
             label = "toolGroupSummary",
             modifier = Modifier.weight(1f),
         ) { text ->
-            val style = MaterialTheme.typography.bodySmall.copy(brush = brush)
+            val style = MaterialTheme.typography.bodySmall.copy(color = baseColor)
             if (separator == null) {
                 Text(text = text, style = style, modifier = Modifier.padding(vertical = 4.dp))
             } else {

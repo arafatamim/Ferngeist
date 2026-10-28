@@ -53,7 +53,6 @@
     <string name="chat_tool_status_failed">Falhou</string>
     <string name="chat_image_label">Imagem (%1$s)</string>
     <string name="chat_image_desc">Imagem</string>
-    <string name="chat_streaming_indicator">%1$s…</string>
     <string name="chat_permission_request">Solicitação de permissão</string>
     <string name="chat_permission_kind_allow_once">Permitir uma vez</string>
     <string name="chat_permission_kind_allow_always">Permitir sempre</string>

@@ -56,7 +56,6 @@
     <string name="chat_tool_status_failed">Ошибка</string>
     <string name="chat_image_label">Изображение (%1$s)</string>
     <string name="chat_image_desc">Изображение</string>
-    <string name="chat_streaming_indicator">%1$s…</string>
     <string name="chat_permission_request">Запрос разрешения</string>
     <string name="chat_permission_kind_allow_once">Разрешить один раз</string>
     <string name="chat_permission_kind_allow_always">Разрешить всегда</string>

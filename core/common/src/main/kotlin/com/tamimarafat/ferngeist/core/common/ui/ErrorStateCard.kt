@@ -40,12 +40,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.tamimarafat.ferngeist.core.common.ui.motion.rememberReduceMotion
 
 private const val BODY_MAX_WIDTH_FRACTION = 0.85f
 
@@ -128,20 +127,7 @@ fun ErrorStateCard(
 private fun rememberMedallionScale(): State<Float> {
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
-    val context = LocalContext.current
-    val isPreview = LocalInspectionMode.current
-    val reduceMotion =
-        remember(context) {
-            if (isPreview) {
-                false
-            } else {
-                android.provider.Settings.Global.getFloat(
-                    context.contentResolver,
-                    android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
-                    1f,
-                ) == 0f
-            }
-        }
+    val reduceMotion = rememberReduceMotion()
     val springSpec =
         spring<Float>(
             dampingRatio = if (reduceMotion) Spring.DampingRatioNoBouncy else Spring.DampingRatioMediumBouncy,

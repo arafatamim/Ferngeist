@@ -35,7 +35,6 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PlainTooltip
@@ -86,6 +85,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.motion.WorkingEllipsis
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
@@ -94,7 +94,6 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
 import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
-import com.tamimarafat.ferngeist.feature.chat.ui.message.rememberShimmerTextBrush
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -617,6 +616,33 @@ private fun SwitcherRow(
     }
 }
 
+/**
+ * A live session trails its title with the working ellipsis rather than showing a "Generating" chip
+ * beside it: the row has exactly one text slot, and a second label reads as a status field bolted on.
+ */
+@Composable
+private fun SwitcherRowTitle(
+    session: SwitcherSession,
+    generating: Boolean,
+) {
+    Row {
+        Text(
+            text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+            // Shrinks before the dots do, so a long title still ends in them.
+            modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
+        )
+        if (generating) {
+            WorkingEllipsis(
+                fontSize = MaterialTheme.typography.titleMedium.fontSize,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
+    }
+}
+
 @Composable
 private fun SwitcherRowContent(
     session: SwitcherSession,
@@ -639,23 +665,8 @@ private fun SwitcherRowContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                // A live session shimmers its own title rather than showing a
-                // "Generating" chip beside it: the row has exactly one text slot,
-                // and a second label reads as a status field bolted on. The
-                // current session is skipped — you can already see it streaming.
-                val generating = session.isGenerating && !session.isCurrent
-                val titleBrush =
-                    rememberShimmerTextBrush(
-                        isActive = generating,
-                        baseColor = LocalContentColor.current,
-                        labelPrefix = "switcherTitle",
-                    )
-                Text(
-                    text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
-                    style = MaterialTheme.typography.titleMedium.copy(brush = titleBrush),
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
-                )
+                // The current session is skipped — you can already see it streaming.
+                SwitcherRowTitle(session = session, generating = session.isGenerating && !session.isCurrent)
                 val place = session.project
                 val time = session.updatedAt?.let { formatSwitcherTime(it, LocalContext.current) }
                 if (place != null || time != null) {
