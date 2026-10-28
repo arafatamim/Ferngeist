@@ -8,13 +8,15 @@
 ### Fixes
 
 - *(sessions)* Dismiss Finished across turn indicators when its chat is opened, including turns that finish while open, without hiding later off-screen completions.
+- *(sessions)* Use working ellipses instead of shimmer on turn indicators and the chat streaming verb.
+- *(home)* Rotate the hero clover while its chat is working, and smoothly return it to rest when the turn stops.
 - *(chat)* Account for a phone-origin turn finishing after leaving the chat when checking recent activity.
 - *(build)* Keep gateway icon selection compatible with data-class conventions.
 - *(projects)* Hide projects without visible chats from the home list.
-- *(chat)* Show theme-primary shimmering spinner-verb subtitles on in-progress chat cards, replacing standalone activity shapes while preserving neutral-gray spinning backgrounds behind agent icons.
-- *(projects)* Replace the activity spinner with theme-primary active-chat text and a wider, softer white shimmer on a slower sweep.
+- *(chat)* Show theme-primary working subtitles with animated ellipses on in-progress chat cards, replacing standalone activity shapes while preserving neutral-gray spinning backgrounds behind agent icons.
+- *(projects)* Replace the activity spinner with theme-primary active-chat text and an animated ellipsis.
 - *(projects)* Crossfade complete subtitle changes, including idle counts, with a slower theme transition.
-- *(agents)* Reuse the active-chat shimmer subtitle on agent cards, crossfade back to gateway/host details when idle, and remove the separate spinner.
+- *(agents)* Reuse the active-chat subtitle on agent cards, crossfade back to gateway/host details when idle, and remove the separate spinner.
 - *(projects)* Match the agent-card tint and color transition only for projects containing an exact live agent/chat connection, without lighting other projects on the same agent.
 - *(projects)* Animate refreshed home project rows into their new positions in both list views.
 - *(gateway)* Keep protocol compatibility v2-only; reject unverified newer protocol versions.

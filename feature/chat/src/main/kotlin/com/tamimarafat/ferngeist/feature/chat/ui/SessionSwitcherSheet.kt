@@ -85,12 +85,10 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.common.ui.motion.WorkingEllipsis
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
-import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
@@ -619,25 +617,6 @@ private fun SwitcherRow(
 }
 
 @Composable
-private fun SwitcherRowTitle(session: SwitcherSession) {
-    Row {
-        Text(
-            text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
-            modifier = Modifier.weight(1f, fill = false).alignByBaseline(),
-        )
-        if (session.turnStatus == TurnStatus.WORKING && !session.isCurrent) {
-            WorkingEllipsis(
-                fontSize = MaterialTheme.typography.titleMedium.fontSize,
-                modifier = Modifier.alignByBaseline(),
-            )
-        }
-    }
-}
-
-@Composable
 private fun SwitcherRowContent(
     session: SwitcherSession,
     modifier: Modifier,
@@ -660,7 +639,12 @@ private fun SwitcherRowContent(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 // A shared subtitle keeps turn state separate from the readable session title.
-                SwitcherRowTitle(session)
+                Text(
+                    text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
                 val place = session.project
                 val time = session.updatedAt?.let { formatSwitcherTime(it, LocalContext.current) }
                 WorkingSubtitle(

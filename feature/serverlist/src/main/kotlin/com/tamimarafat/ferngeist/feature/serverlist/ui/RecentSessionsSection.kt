@@ -60,6 +60,7 @@ import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKe
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
+import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -115,11 +116,11 @@ internal fun ContinueSessionCard(
             animationSpec = spatialSpec,
         )
     }
-    // ...turning a quarter as it settles. One turn on entry, not a loop: this is the most
-    // visited screen, and motion that never stops competes with reading and cannot be paused.
+    // The quarter turn settles on entry; activity rotation returns to rest when idle.
+    val activityRotation = rememberActivityRotation(periodMillis = 4_000, active = status == TurnStatus.WORKING)
     val rotation =
         remember {
-            derivedStateOf { (1f - pop.value) / (1f - BADGE_ENTRY_SCALE) * BADGE_ENTRY_TURN }
+            derivedStateOf { activityRotation.value + (1f - pop.value) / (1f - BADGE_ENTRY_SCALE) * BADGE_ENTRY_TURN }
         }
 
     val description = turnStatusLabel(status)

@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.motion.WorkingEllipsis
-import com.tamimarafat.ferngeist.core.common.ui.status.rememberShimmerTextBrush
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberSpinnerVerb
 import com.tamimarafat.ferngeist.feature.chat.ui.LOADING_POLYGON_COUNT
 import com.tamimarafat.ferngeist.feature.chat.ui.loadingShapes
@@ -40,7 +39,6 @@ internal fun StreamingIndicator(
 ) {
     val spinnerVerb = rememberSpinnerVerb(streamKey)
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
-    val textBrush = rememberShimmerTextBrush(isActive = true, baseColor = baseColor, labelPrefix = "spinnerVerb")
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -54,10 +52,8 @@ internal fun StreamingIndicator(
         Row {
             Text(
                 text = spinnerVerb,
-                style =
-                    MaterialTheme.typography.bodySmall.copy(
-                        brush = textBrush,
-                    ),
+                style = MaterialTheme.typography.bodySmall,
+                color = baseColor,
                 modifier = Modifier.alignByBaseline(),
             )
             WorkingEllipsis(

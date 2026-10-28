@@ -8,7 +8,6 @@
     <string name="common_close">Close</string>
     <string name="common_ok">OK</string>
     <string name="common_edit">Edit</string>
-    <string name="common_working_verb" translatable="false">%1$s…</string>
 
     <!-- Connection status labels -->
     <string name="common_connecting">Connecting</string>

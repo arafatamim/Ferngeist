@@ -1,9 +1,12 @@
 package com.tamimarafat.ferngeist.core.common.ui.status
 
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -20,18 +23,26 @@ private const val FULL_ROTATION_DEGREES = 360f
 private const val MILLIS_PER_SECOND = 1_000f
 private const val NANOS_PER_SECOND = 1_000_000_000f
 
-/** Retains the angle through speed changes; disabled system motion suspends the frame loop. */
+/** Eases back to rest when inactive; disabled system motion suspends the frame loop. */
 @Composable
-fun rememberActivityRotation(periodMillis: Int): State<Float> {
+fun rememberActivityRotation(
+    periodMillis: Int,
+    active: Boolean = true,
+): State<Float> {
     val owner = LocalLifecycleOwner.current
     val rotation = remember { mutableFloatStateOf(0f) }
     val speed =
         animateFloatAsState(
-            targetValue = FULL_ROTATION_DEGREES * MILLIS_PER_SECOND / periodMillis,
+            targetValue = if (active) FULL_ROTATION_DEGREES * MILLIS_PER_SECOND / periodMillis else 0f,
             animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
             label = "activitySpeed",
         )
-    LaunchedEffect(owner) {
+    val settleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    LaunchedEffect(owner, active) {
+        if (!active) {
+            settleRotation(rotation, speed.value, settleSpec)
+            return@LaunchedEffect
+        }
         val durationScale = currentCoroutineContext()[MotionDurationScale]
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             snapshotFlow { durationScale?.scaleFactor ?: 1f }.collectLatest { scale ->
@@ -50,4 +61,21 @@ fun rememberActivityRotation(periodMillis: Int): State<Float> {
         }
     }
     return rotation
+}
+
+private suspend fun settleRotation(
+    rotation: MutableFloatState,
+    speed: Float,
+    spec: AnimationSpec<Float>,
+) {
+    val target = if (rotation.floatValue < FULL_ROTATION_DEGREES / 2f) 0f else FULL_ROTATION_DEGREES
+    animate(
+        initialValue = rotation.floatValue,
+        targetValue = target,
+        initialVelocity = speed,
+        animationSpec = spec,
+    ) { value, _ ->
+        rotation.floatValue = value
+    }
+    rotation.floatValue = 0f
 }
