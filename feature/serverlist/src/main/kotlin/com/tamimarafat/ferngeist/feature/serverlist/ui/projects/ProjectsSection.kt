@@ -41,6 +41,8 @@ import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.aggregateTurnStatus
@@ -168,11 +170,14 @@ private fun ProjectItem(
     val idleSubtitle = if (activeChats == 0) projectCounts(project) else ""
     val containerColor by animateColorAsState(
         targetValue =
-            if (isConnected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            } else {
-                MaterialTheme.colorScheme.surfaceContainer
-            },
+            MaterialTheme.colorScheme.turnStatusContainerColor(
+                status,
+                if (isConnected) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
+            ),
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "projectContainerColor",
     )
@@ -191,8 +196,30 @@ private fun ProjectItem(
                     resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                 )
             }.handCursor(),
-        colors = ListItemDefaults.segmentedColors(containerColor = containerColor),
-        overlineContent = if (showGateway) ({ Text(project.gateway.name) }) else null,
+        colors =
+            ListItemDefaults.segmentedColors(
+                containerColor = containerColor,
+                contentColor =
+                    MaterialTheme.colorScheme.turnStatusContentColor(
+                        status,
+                        MaterialTheme.colorScheme.onSurface,
+                    ),
+            ),
+        overlineContent =
+            if (showGateway) {
+                {
+                    Text(
+                        text = project.gateway.name,
+                        color =
+                            MaterialTheme.colorScheme.turnStatusContentColor(
+                                status,
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                    )
+                }
+            } else {
+                null
+            },
         supportingContent = {
             WorkingSubtitle(
                 status = status,
@@ -204,7 +231,15 @@ private fun ProjectItem(
         },
         trailingContent = {
             project.updatedAt?.let { updatedAt ->
-                Text(text = relativeTime(updatedAt, now), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = relativeTime(updatedAt, now),
+                    style = MaterialTheme.typography.labelMedium,
+                    color =
+                        MaterialTheme.colorScheme.turnStatusContentColor(
+                            status,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
             }
         },
     ) {

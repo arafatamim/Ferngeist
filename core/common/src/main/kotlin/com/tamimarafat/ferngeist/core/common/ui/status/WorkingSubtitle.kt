@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.core.common.ui.status
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,8 +51,8 @@ fun WorkingSubtitle(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-            TurnStatus.NEEDS_ATTENTION -> TurnStatusLabel(active, MaterialTheme.colorScheme.tertiary)
-            TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.error)
+            TurnStatus.NEEDS_ATTENTION -> TurnStatusLabel(active, MaterialTheme.colorScheme.onTertiaryContainer)
+            TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.onErrorContainer)
             TurnStatus.FINISHED -> TurnStatusLabel(active, MaterialTheme.colorScheme.primary)
         }
     }
@@ -66,6 +67,26 @@ fun turnStatusLabel(status: TurnStatus): String? =
         TurnStatus.WORKING -> stringResource(R.string.common_in_progress)
         TurnStatus.FINISHED -> stringResource(R.string.common_status_finished)
         TurnStatus.UNKNOWN -> null
+    }
+
+fun ColorScheme.turnStatusContainerColor(
+    status: TurnStatus,
+    fallback: Color,
+): Color =
+    when (status) {
+        TurnStatus.NEEDS_ATTENTION -> tertiaryContainer
+        TurnStatus.ERROR -> errorContainer
+        else -> fallback
+    }
+
+fun ColorScheme.turnStatusContentColor(
+    status: TurnStatus,
+    fallback: Color,
+): Color =
+    when (status) {
+        TurnStatus.NEEDS_ATTENTION -> onTertiaryContainer
+        TurnStatus.ERROR -> onErrorContainer
+        else -> fallback
     }
 
 @Composable

@@ -65,6 +65,8 @@ import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -110,7 +112,7 @@ internal fun ServerCard(
     }
 
     val containerColor by animateColorAsState(
-        targetValue = connectionState.containerColor,
+        targetValue = MaterialTheme.colorScheme.turnStatusContainerColor(status, connectionState.containerColor),
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "containerColor",
     )
@@ -195,7 +197,7 @@ private fun ServerCardSurface(
         colors =
             CardDefaults.elevatedCardColors(
                 containerColor = containerColor,
-                contentColor = connectionState.contentColor,
+                contentColor = MaterialTheme.colorScheme.turnStatusContentColor(status, connectionState.contentColor),
             ),
     ) {
         Column(
@@ -243,7 +245,7 @@ private fun ServerCardTitleRow(
             // connected or failed card reads as one surface instead of a neutral
             // chip sitting on a colored one.
             containerColor = containerColor.darken(BADGE_FRAME_DARKEN),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.turnStatusContentColor(status, MaterialTheme.colorScheme.onSurfaceVariant),
             loading = isConnecting,
         )
         Spacer(modifier = Modifier.width(14.dp))

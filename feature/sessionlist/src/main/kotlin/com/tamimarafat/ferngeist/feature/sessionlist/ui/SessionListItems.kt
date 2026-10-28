@@ -62,6 +62,8 @@ import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
@@ -541,6 +543,7 @@ private fun SessionCard(
     Box {
         ChatCard(
             live = isLive,
+            status = status,
             removing = removing,
             dimmed = removing || gone,
             onClick = onClick,
@@ -585,6 +588,7 @@ private fun SessionCard(
 @Composable
 internal fun ChatCard(
     live: Boolean,
+    status: TurnStatus,
     removing: Boolean,
     onClick: () -> Unit,
     onOpenMenu: () -> Unit,
@@ -592,7 +596,7 @@ internal fun ChatCard(
     dimmed: Boolean = removing,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val colors = sessionCardColors(live)
+    val colors = sessionCardColors(live, status)
     Card(
         modifier =
             modifier
@@ -622,16 +626,27 @@ internal fun ChatCard(
  * The container animates through tones no role matches, so the content color follows the target state.
  */
 @Composable
-private fun sessionCardColors(isLive: Boolean): CardColors {
+private fun sessionCardColors(
+    isLive: Boolean,
+    status: TurnStatus,
+): CardColors {
     val scheme = MaterialTheme.colorScheme
     val container by animateColorAsState(
-        targetValue = if (isLive) scheme.secondaryContainer else scheme.surfaceContainerHighest,
+        targetValue =
+            scheme.turnStatusContainerColor(
+                status,
+                if (isLive) scheme.secondaryContainer else scheme.surfaceContainerHighest,
+            ),
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "sessionCardContainer",
     )
     return CardDefaults.cardColors(
         containerColor = container,
-        contentColor = if (isLive) scheme.onSecondaryContainer else scheme.onSurface,
+        contentColor =
+            scheme.turnStatusContentColor(
+                status,
+                if (isLive) scheme.onSecondaryContainer else scheme.onSurface,
+            ),
     )
 }
 

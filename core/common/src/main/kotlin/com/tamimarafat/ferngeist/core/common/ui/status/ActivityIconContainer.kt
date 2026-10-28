@@ -62,7 +62,12 @@ fun ActivityIconContainer(
         }
         Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
             CompositionLocalProvider(
-                LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant,
+                LocalContentColor provides
+                    if (status == TurnStatus.NEEDS_ATTENTION) {
+                        MaterialTheme.colorScheme.onTertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 content = content,
             )
         }

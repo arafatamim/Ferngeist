@@ -88,6 +88,8 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
@@ -623,12 +625,24 @@ private fun SwitcherRowContent(
 ) {
     Surface(
         color =
-            if (session.isCurrent) {
-                // Same treatment as a connected server's card: the activated role, not dimmed.
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainer
-            },
+            MaterialTheme.colorScheme.turnStatusContainerColor(
+                session.turnStatus,
+                if (session.isCurrent) {
+                    // Same treatment as a connected server's card: the activated role, not dimmed.
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
+            ),
+        contentColor =
+            MaterialTheme.colorScheme.turnStatusContentColor(
+                session.turnStatus,
+                if (session.isCurrent) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            ),
         shape = MaterialTheme.shapes.medium,
         modifier = modifier,
     ) {
@@ -679,7 +693,11 @@ private fun SwitcherRowContent(
                 Icon(
                     imageVector = Icons.Rounded.Check,
                     contentDescription = stringResource(R.string.switcher_current_desc),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint =
+                        MaterialTheme.colorScheme.turnStatusContentColor(
+                            session.turnStatus,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
                 )
             }
         }

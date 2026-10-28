@@ -61,6 +61,8 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -145,8 +147,16 @@ internal fun ContinueSessionCard(
         shape = shape,
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                containerColor =
+                    MaterialTheme.colorScheme.turnStatusContainerColor(
+                        status,
+                        MaterialTheme.colorScheme.primaryContainer,
+                    ),
+                contentColor =
+                    MaterialTheme.colorScheme.turnStatusContentColor(
+                        status,
+                        MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
             ),
     ) {
         ContinueSessionCardContent(
@@ -180,6 +190,7 @@ private fun ContinueSessionCardContent(
     ) {
         RotatingCloverBadge(
             session = session,
+            status = status,
             rotation = rotation,
             pop = pop,
             contentDescription = stringResource(R.string.serverlist_continue_resume_desc),
@@ -194,7 +205,11 @@ private fun ContinueSessionCardContent(
             // on the fallback glyph gets its name here, where it carries information.
             FolderNamePrefix(
                 cwd = session.cwd,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                tint =
+                    MaterialTheme.colorScheme.turnStatusContentColor(
+                        status,
+                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                    ),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
             WorkingSubtitle(
@@ -322,6 +337,7 @@ private fun FolderNamePrefix(
 @Composable
 private fun RotatingCloverBadge(
     session: RecentSession,
+    status: TurnStatus,
     rotation: State<Float>,
     pop: Float,
     contentDescription: String,
@@ -337,7 +353,13 @@ private fun RotatingCloverBadge(
                         scaleX = pop
                         scaleY = pop
                     }.clip(MaterialShapes.Clover4Leaf.toShape())
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(
+                        if (status == TurnStatus.NEEDS_ATTENTION) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    ),
         )
         // The agent's logo riding the clover: the clover is the hero's animated
         // accent, so the mark sits in its shape rather than being framed again.
@@ -346,7 +368,12 @@ private fun RotatingCloverBadge(
             fallback = Icons.Rounded.History,
             size = 22.dp,
             containerSize = null,
-            tint = MaterialTheme.colorScheme.onPrimary,
+            tint =
+                if (status == TurnStatus.NEEDS_ATTENTION) {
+                    MaterialTheme.colorScheme.onTertiary
+                } else {
+                    MaterialTheme.colorScheme.onPrimary
+                },
             contentDescription = contentDescription,
             modifier =
                 Modifier.graphicsLayer {
@@ -434,7 +461,11 @@ private fun RecentSessionCardRow(
             // so the name goes on the folder line instead.
             FolderNamePrefix(
                 cwd = session.cwd,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint =
+                    MaterialTheme.colorScheme.turnStatusContentColor(
+                        status,
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
             WorkingSubtitle(
@@ -466,7 +497,16 @@ internal fun RecentSessionCard(
         colors =
             CardDefaults.cardColors(
                 // One tonal step above the Low backdrop, opaque so onSurface stays its pair.
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                containerColor =
+                    MaterialTheme.colorScheme.turnStatusContainerColor(
+                        status,
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                contentColor =
+                    MaterialTheme.colorScheme.turnStatusContentColor(
+                        status,
+                        MaterialTheme.colorScheme.onSurface,
+                    ),
             ),
     ) {
         RecentSessionCardRow(
