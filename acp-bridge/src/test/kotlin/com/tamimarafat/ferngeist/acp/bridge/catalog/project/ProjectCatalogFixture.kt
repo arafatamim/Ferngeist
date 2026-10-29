@@ -91,9 +91,13 @@ open class ProjectCatalogFixture {
         targets: List<LaunchableTarget> = listOf(claude, codex),
         hub: ChatConnectionHub = newHub(),
         turns: MockEngine = turnsEngine(EMPTY_TURNS),
+        consent: Flow<Boolean> = flowOf(true),
     ) = ProjectCatalog(
-        gatewayProjects = GatewayProjects(HttpClient(engine), json),
-        gatewayTurns = GatewayTurns(HttpClient(turns), json),
+        gateway =
+            ProjectCatalogGateway(
+                GatewayProjects(HttpClient(engine), json),
+                GatewayTurns(HttpClient(turns), json),
+            ),
         repositories =
             LaunchRepositories(
                 gatewayRepository = GatewayRepositoryImpl(HttpClient(engine), json),
@@ -104,6 +108,7 @@ open class ProjectCatalogFixture {
         store = store(),
         scope = backgroundScope,
         hub = hub,
+        consent = consent,
     )
 
     /** Answers `/v1/turns` with [bodies] in order, repeating the last, all with [status]. */

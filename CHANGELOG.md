@@ -11,6 +11,7 @@
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(home)* Wait for gateway launch consent before loading or showing projects.
 - *(home)* Hide the refresh indicator over the projects list while keeping pull-to-refresh available.
 - *(chat)* Make the session switcher button closer in height to the composer.
 - *(sessions)* Dismiss Finished across turn indicators when its chat is opened, including turns that finish while open, without hiding later off-screen completions.

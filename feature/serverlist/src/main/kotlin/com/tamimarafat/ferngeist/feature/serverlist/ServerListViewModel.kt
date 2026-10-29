@@ -110,10 +110,11 @@ class ServerListViewModel
                 .getGateways()
                 .map { gateways -> gateways.isNotEmpty() }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        val projectDiscoveryAllowed = projectCatalog.discoveryAllowed
         val projects: StateFlow<List<ProjectSummary>> =
-            projectCatalog.state
-                .map { it.projects }
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), projectCatalog.state.value.projects)
+            combine(projectCatalog.state, projectDiscoveryAllowed) { state, allowed ->
+                if (allowed) state.projects else emptyList()
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         private val _isLoading = MutableStateFlow(true)
         val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 

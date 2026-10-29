@@ -76,6 +76,7 @@ class ServerListViewModelTest {
         every { projectCatalog.turnStatuses } returns MutableStateFlow(emptyMap())
         every { projectCatalog.activityUpdatedAt } returns MutableStateFlow(emptyMap())
         every { projectCatalog.refreshing } returns MutableStateFlow(emptySet())
+        every { projectCatalog.discoveryAllowed } returns MutableStateFlow(true)
         every { agentLauncher.hasWarmChat(any()) } returns false
         coEvery { agentLauncher.prewarmSessions(any()) } returns Unit
         every { launchSession.connectionState } returns connectionStateFlow

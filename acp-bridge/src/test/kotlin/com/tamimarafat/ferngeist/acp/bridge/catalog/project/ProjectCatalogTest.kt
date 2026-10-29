@@ -16,6 +16,7 @@ import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
 import io.ktor.utils.io.writeStringUtf8
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
@@ -27,6 +28,27 @@ import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProjectCatalogTest : ProjectCatalogFixture() {
+    @Test
+    fun `project refresh waits for consent before requesting projects`() =
+        runTest {
+            var requests = 0
+            val consent = MutableStateFlow(false)
+            val engine =
+                MockEngine {
+                    requests++
+                    respond("", HttpStatusCode.OK)
+                }
+            val catalog = catalog(engine, consent = consent)
+            runCurrent()
+
+            catalog.refresh(force = true).join()
+            assertEquals(0, requests)
+
+            consent.value = true
+            catalog.refresh(force = true).join()
+            assertEquals(1, requests)
+        }
+
     @Test
     fun `stream cut before checkouts keeps received lines, failed agents' cache and old checkouts`() =
         runTest {

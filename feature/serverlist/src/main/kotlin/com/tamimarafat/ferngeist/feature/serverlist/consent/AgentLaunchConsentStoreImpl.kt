@@ -24,6 +24,11 @@ class AgentLaunchConsentStoreImpl
     ) : AgentLaunchConsentStore {
         private val dataStore get() = context.consentDataStore
 
+        override val anyConsent =
+            dataStore.data.map { prefs ->
+                prefs.asMap().any { (key, value) -> key.name.startsWith("consent.") && value == true }
+            }
+
         override suspend fun hasConsent(key: String): Boolean =
             withContext(ioDispatcher) {
                 dataStore.data

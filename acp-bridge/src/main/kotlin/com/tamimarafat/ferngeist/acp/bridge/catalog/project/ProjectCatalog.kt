@@ -31,12 +31,24 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
 import java.io.IOException
 import javax.inject.Inject
+import javax.inject.Qualifier
 import javax.inject.Singleton
 
 /** Triggers within this long of a gateway's last fetch are skipped, except a forced refresh. */
 private const val FETCH_THROTTLE_MS = 5_000L
 private const val HTTP_NOT_FOUND = 404
 private const val MAX_KNOWN_REPOS_PER_REQUEST = 256
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ProjectDiscoveryConsent
+
+class ProjectCatalogGateway
+    @Inject
+    constructor(
+        val projects: GatewayProjects,
+        val turns: GatewayTurns,
+    )
 
 /**
  * Projects across paired gateways, drawn from the last `/v1/projects` response of each.
@@ -55,13 +67,14 @@ private const val MAX_KNOWN_REPOS_PER_REQUEST = 256
 class ProjectCatalog
     @Inject
     constructor(
-        private val gatewayProjects: GatewayProjects,
-        gatewayTurns: GatewayTurns,
+        gateway: ProjectCatalogGateway,
         repositories: LaunchRepositories,
         store: ProjectSnapshotStore,
         private val scope: CoroutineScope,
         hub: ChatConnectionHub,
+        @param:ProjectDiscoveryConsent private val consent: Flow<Boolean>,
     ) : ChatCatalog {
+        private val gatewayProjects = gateway.projects
         private val gatewaySourceRepository = repositories.gatewaySourceRepository
         private val launchableTargetRepository = repositories.launchableTargetRepository
         private val ioDispatcher = repositories.ioDispatcher
@@ -69,6 +82,7 @@ class ProjectCatalog
         private val cache = ProjectSnapshotCache(store, scope, ioDispatcher)
         private val _refreshing = MutableStateFlow<Set<String>>(emptySet())
         val refreshing: StateFlow<Set<String>> = _refreshing
+        val discoveryAllowed = consent.stateIn(scope, SharingStarted.Eagerly, false)
 
         private val snapshots = cache.state
         private val inFlight = HashMap<String, Job>()
@@ -114,7 +128,7 @@ class ProjectCatalog
 
         /** Per gateway, the last `/v1/turns` answer with the hub's live status on top. */
         private val turnStatusCatalog =
-            TurnStatusCatalog(gatewayTurns, launchableTargetRepository.getTargets(), scope, hub)
+            TurnStatusCatalog(gateway.turns, launchableTargetRepository.getTargets(), scope, hub)
 
         val turnStatuses: StateFlow<Map<String, TurnStatus>> = turnStatusCatalog.statuses
 
@@ -314,6 +328,7 @@ class ProjectCatalog
             force: Boolean = false,
         ): Job =
             scope.launch(ioDispatcher) {
+                if (!consent.first()) return@launch
                 // A fetch merges into the hydrated snapshot; starting from nothing would drop the cache.
                 val hydrated = snapshots.filterNotNull().first()
                 val gateways = gatewaySourceRepository.getGateways().first()

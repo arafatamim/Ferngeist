@@ -156,6 +156,7 @@ fun ServerListScreen(
     var showQuickChat by rememberSaveable { mutableStateOf(false) }
     val refreshingGateways by viewModel.refreshing.collectAsStateWithLifecycle()
     val agentStatuses by viewModel.agentStatuses.collectAsStateWithLifecycle()
+    val projectDiscoveryAllowed by viewModel.projectDiscoveryAllowed.collectAsStateWithLifecycle()
     val quickChatAvailable =
         screenState.projects.isNotEmpty() && servers.any { it is LaunchableTarget.GatewayAgent }
 
@@ -163,7 +164,9 @@ fun ServerListScreen(
     // a frame after the load flag clears means the frame the splash hands over to is
     // already the populated list, not a blank scaffold that fills in a beat later.
     // Entering home, including back from a chat, is a projects fetch trigger.
-    LaunchedEffect(Unit) { viewModel.refreshProjects() }
+    LaunchedEffect(projectDiscoveryAllowed) {
+        if (projectDiscoveryAllowed) viewModel.refreshProjects()
+    }
 
     LaunchedEffect(isLoading) {
         if (!isLoading) {
