@@ -49,6 +49,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
@@ -65,6 +67,8 @@ import com.tamimarafat.ferngeist.feature.serverlist.ServerListEvent
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListViewModel
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectLine
+
+private const val DISABLED_MENU_ALPHA = 0.38f
 
 /** Quick chat's sheet: projects, agents, their listing statuses, start (agent, cwd), dismiss. */
 typealias QuickChatSheetSlot = @Composable (
@@ -152,6 +156,8 @@ fun ServerListScreen(
     var showQuickChat by rememberSaveable { mutableStateOf(false) }
     val refreshingGateways by viewModel.refreshing.collectAsStateWithLifecycle()
     val agentStatuses by viewModel.agentStatuses.collectAsStateWithLifecycle()
+    val quickChatAvailable =
+        screenState.projects.isNotEmpty() && servers.any { it is LaunchableTarget.GatewayAgent }
 
     // Hold the launch splash until the agent list has data and has drawn it. Waiting
     // a frame after the load flag clears means the frame the splash hands over to is
@@ -185,6 +191,7 @@ fun ServerListScreen(
         showAddMenu = showAddMenu,
         onShowAddMenuChange = { showAddMenu = it },
         hasGateways = hasGateways,
+        quickChatAvailable = quickChatAvailable,
         onAboutClick = { showAboutDialog = true },
         onQuickChat = {
             showAddMenu = false
@@ -211,7 +218,7 @@ fun ServerListScreen(
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
     )
-    if (showQuickChat) {
+    if (showQuickChat && quickChatAvailable) {
         quickChatSheet(
             screenState.projects,
             servers.filterIsInstance<LaunchableTarget.GatewayAgent>(),
@@ -238,6 +245,7 @@ private fun ServerListScaffold(
     onAboutClick: () -> Unit,
     onQuickChat: () -> Unit,
     hasGateways: Boolean,
+    quickChatAvailable: Boolean,
     onNavigateToGateways: () -> Unit,
     onNavigateToPairGateway: () -> Unit,
     onNavigateToAddServer: () -> Unit,
@@ -274,6 +282,7 @@ private fun ServerListScaffold(
                 expanded = showAddMenu,
                 onExpandedChange = onShowAddMenuChange,
                 hasGateways = hasGateways,
+                quickChatAvailable = quickChatAvailable,
                 onNavigateToGateways = {
                     onShowAddMenuChange(false)
                     if (hasGateways) {
@@ -585,6 +594,7 @@ private fun AddFabMenu(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     hasGateways: Boolean,
+    quickChatAvailable: Boolean,
     onNavigateToGateways: () -> Unit,
     onNavigateToAddServer: () -> Unit,
     onQuickChat: () -> Unit,
@@ -599,8 +609,13 @@ private fun AddFabMenu(
         },
     ) {
         FloatingActionButtonMenuItem(
-            onClick = onQuickChat,
-            modifier = Modifier.handCursor(),
+            onClick = { if (quickChatAvailable) onQuickChat() },
+            modifier =
+                if (quickChatAvailable) {
+                    Modifier.handCursor()
+                } else {
+                    Modifier.graphicsLayer { alpha = DISABLED_MENU_ALPHA }.semantics { disabled() }
+                },
             icon = { Icon(Icons.Default.SmartToy, contentDescription = null) },
             text = { Text(stringResource(R.string.serverlist_quick_chat)) },
         )
