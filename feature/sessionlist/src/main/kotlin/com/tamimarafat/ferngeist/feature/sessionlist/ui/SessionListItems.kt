@@ -15,6 +15,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -532,6 +533,7 @@ private fun SessionCard(
     sharedBoundsEnabled: Boolean,
 ) {
     val haptics = LocalHapticFeedback.current
+    val menuInteractionSource = remember { MutableInteractionSource() }
     var showActionsMenu by rememberSaveable(session.id) { mutableStateOf(false) }
     val hasMenuActions = menuAvailable(removing, onDisconnect, onDelete, onRemoveWorktree)
     val openActionsMenu = {
@@ -573,6 +575,7 @@ private fun SessionCard(
         SessionActionsMenu(
             expanded = showActionsMenu,
             onDismiss = { showActionsMenu = false },
+            interactionSource = menuInteractionSource,
             onDisconnect = onDisconnect,
             onRemoveWorktree = onRemoveWorktree,
             onDelete = onDelete,

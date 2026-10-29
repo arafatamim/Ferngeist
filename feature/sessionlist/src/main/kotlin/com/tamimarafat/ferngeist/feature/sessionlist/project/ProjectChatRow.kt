@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.sessionlist.project
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -13,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -54,6 +56,7 @@ internal fun ProjectChatRow(
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
+    val menuInteractionSource = remember { MutableInteractionSource() }
     var showMenu by rememberSaveable(chat.target.id, chat.summary.id) { mutableStateOf(false) }
     val hasMenu = !removing && listOfNotNull(actions.onClose, actions.onRemoveWorktree, actions.onDelete).isNotEmpty()
     val openMenu = {
@@ -108,6 +111,7 @@ internal fun ProjectChatRow(
         SessionActionsMenu(
             expanded = showMenu,
             onDismiss = { showMenu = false },
+            interactionSource = menuInteractionSource,
             onDisconnect = actions.onClose,
             onRemoveWorktree = actions.onRemoveWorktree,
             onDelete = actions.onDelete,
