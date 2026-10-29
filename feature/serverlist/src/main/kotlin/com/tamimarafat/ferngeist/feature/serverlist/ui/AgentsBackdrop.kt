@@ -805,13 +805,27 @@ private fun FrontLayerContent(
                     // ponytail: clearance lets the final card scroll above the bottom controls.
                     item(key = "bottom-clearance") { Spacer(modifier = Modifier.height(160.dp)) }
                 }
-                PullToRefreshDefaults.Indicator(
+                AgentsRefreshIndicator(
+                    show = projects.isEmpty(),
+                    refreshing = refreshing,
                     state = refreshState,
-                    isRefreshing = refreshing,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             }
             EdgeFade(listState = scrollState, fadeColor = MaterialTheme.colorScheme.surfaceContainerLowest)
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AgentsRefreshIndicator(
+    show: Boolean,
+    refreshing: Boolean,
+    state: androidx.compose.material3.pulltorefresh.PullToRefreshState,
+    modifier: Modifier = Modifier,
+) {
+    if (show) {
+        PullToRefreshDefaults.Indicator(state = state, isRefreshing = refreshing, modifier = modifier)
     }
 }
