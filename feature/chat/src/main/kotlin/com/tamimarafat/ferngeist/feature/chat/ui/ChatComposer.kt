@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.KeyboardActionHandler
@@ -366,7 +367,7 @@ private fun ComposerPanel(
 ) {
     Surface(
         // Transition between a capsule shape when collapsed and a rounded rectangle when expanded
-        shape = if (composerExpanded) MaterialTheme.shapes.medium else MaterialTheme.shapes.extraExtraLarge,
+        shape = if (composerExpanded) MaterialTheme.shapes.large else CircleShape,
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         shadowElevation = 6.dp,
