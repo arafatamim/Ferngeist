@@ -11,36 +11,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.materialkolor.material3.dynamicColorScheme
 import com.tamimarafat.ferngeist.core.common.ui.darkGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.lightGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.localGitSemanticColors
 import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
 import com.tamimarafat.ferngeist.core.common.ui.syntaxColorsFor
-import androidx.compose.material3.darkColorScheme as materialDarkColorScheme
-import androidx.compose.material3.lightColorScheme as materialLightColorScheme
 
-private val darkColorScheme =
-    materialDarkColorScheme(
-        primary = purple80,
-        secondary = purpleGrey80,
-        tertiary = pink80,
-    )
-
-private val lightColorScheme =
-    materialLightColorScheme(
-        primary = purple40,
-        secondary = purpleGrey40,
-        tertiary = pink40,
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-     */
-    )
+internal fun fernColorScheme(dark: Boolean) = dynamicColorScheme(seedColor = fernSeed, isDark = dark)
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -51,14 +29,11 @@ fun FerngeistTheme(
     content: @Composable () -> Unit,
 ) {
     val colorScheme =
-        when {
-            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                val context = LocalContext.current
-                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-            }
-
-            darkTheme -> darkColorScheme
-            else -> lightColorScheme
+        if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        } else {
+            remember(darkTheme) { fernColorScheme(darkTheme) }
         }
     val gitSemanticColors = if (darkTheme) darkGitSemanticColors else lightGitSemanticColors
     val syntaxColors = remember(colorScheme) { syntaxColorsFor(colorScheme) }
