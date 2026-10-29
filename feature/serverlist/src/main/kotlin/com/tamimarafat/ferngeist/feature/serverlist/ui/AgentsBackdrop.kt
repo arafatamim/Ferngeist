@@ -1,12 +1,21 @@
 package com.tamimarafat.ferngeist.feature.serverlist.ui
 
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -23,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -38,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -77,6 +88,7 @@ import kotlin.math.roundToInt
 
 /** A single agent cannot fill the sheet, so the recents start on show. */
 private const val SINGLE_SERVER_COUNT = 1
+private const val PROJECT_SLIDE_DIVISOR = 4
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -722,6 +734,13 @@ private fun FrontLayerContent(
     viewportDp: Dp,
     headerDragModifier: Modifier,
 ) {
+    val showProjects = projects.isNotEmpty()
+    val projectVisibility = remember { MutableTransitionState(false) }.apply { targetState = showProjects }
+    val agentHeaderVisibility = remember { MutableTransitionState(false) }.apply { targetState = showProjects }
+    var lastProjects by remember { mutableStateOf(projects) }
+    SideEffect { if (showProjects) lastProjects = projects }
+    val displayedProjects = if (showProjects) projects else lastProjects
+    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     // Header pinned; only cards scroll. Outer is capped to viewport so
     // inner actually overflows (maxValue > 0); scroll to the very end first,
     // then a further up-swipe collapses the sheet back toward 0.
@@ -737,15 +756,23 @@ private fun FrontLayerContent(
         Box(
             modifier = Modifier.fillMaxWidth().then(headerDragModifier),
         ) {
-            SectionHeader(
-                title =
-                    if (projects.isEmpty()) {
-                        stringResource(R.string.serverlist_section_agents)
-                    } else {
-                        stringResource(R.string.serverlist_section_projects)
-                    },
-                modifier = Modifier.padding(horizontal = 20.dp),
-            )
+            Crossfade(
+                targetState = showProjects,
+                animationSpec = effects,
+                label = "home section title",
+            ) { hasProjects ->
+                SectionHeader(
+                    title =
+                        stringResource(
+                            if (hasProjects) {
+                                R.string.serverlist_section_projects
+                            } else {
+                                R.string.serverlist_section_agents
+                            },
+                        ),
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+            }
         }
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             val now = rememberPresentationTime(refreshing)
@@ -764,27 +791,23 @@ private fun FrontLayerContent(
                     state = scrollState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (projects.isNotEmpty()) {
-                        item(key = "projects") {
-                            ProjectsGroup(
-                                projects = projects,
-                                turnStatuses = turnStatuses,
-                                connectedChatKeys = connectedChatKeys,
-                                now = now,
-                                onOpenProject = onOpenProject,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedContentScope = animatedContentScope,
-                                modifier = Modifier.padding(horizontal = 16.dp).animateItem(placementSpec = motion),
-                            )
-                        }
+                    animatedProjectSection("projects", projectVisibility, scrollState) {
+                        ProjectsGroup(
+                            projects = displayedProjects,
+                            turnStatuses = turnStatuses,
+                            connectedChatKeys = connectedChatKeys,
+                            now = now,
+                            onOpenProject = onOpenProject,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedContentScope = animatedContentScope,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
                     }
-                    if (projects.isNotEmpty()) {
-                        item(key = "agents-header") {
-                            SectionHeader(
-                                title = stringResource(R.string.serverlist_section_agents),
-                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
-                            )
-                        }
+                    animatedProjectSection("agents-header", agentHeaderVisibility, scrollState) {
+                        SectionHeader(
+                            title = stringResource(R.string.serverlist_section_agents),
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                        )
                     }
                     items(servers, key = { "agent:${it.id}" }) { server ->
                         val chatStatuses = turnStatuses.statusesFor(server.id)
@@ -814,6 +837,35 @@ private fun FrontLayerContent(
             }
             EdgeFade(listState = scrollState, fadeColor = MaterialTheme.colorScheme.surfaceContainerLowest)
         }
+    }
+}
+
+private fun LazyListScope.animatedProjectSection(
+    key: String,
+    state: MutableTransitionState<Boolean>,
+    scrollState: LazyListState,
+    content: @Composable () -> Unit,
+) {
+    if (state.targetState || state.currentState && scrollState.layoutInfo.visibleItemsInfo.any { it.key == key }) {
+        item(key = key) { ProjectSectionVisibility(state, content) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ProjectSectionVisibility(
+    state: MutableTransitionState<Boolean>,
+    content: @Composable () -> Unit,
+) {
+    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntSize>()
+    val slide = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
+    AnimatedVisibility(
+        visibleState = state,
+        enter = fadeIn(effects) + expandVertically(spatial) + slideInVertically(slide) { -it / PROJECT_SLIDE_DIVISOR },
+        exit = fadeOut(effects) + shrinkVertically(spatial) + slideOutVertically(slide) { -it / PROJECT_SLIDE_DIVISOR },
+    ) {
+        content()
     }
 }
 
