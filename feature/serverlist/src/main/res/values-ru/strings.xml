@@ -219,5 +219,5 @@
     </plurals>
     <string name="serverlist_show_more">Показать больше</string>
     <string name="serverlist_show_less">Показать меньше</string>
-    <string name="serverlist_quick_chat">Быстрый чат</string>
+    <string name="serverlist_quick_chat">Новый быстрый чат</string>
 </resources>

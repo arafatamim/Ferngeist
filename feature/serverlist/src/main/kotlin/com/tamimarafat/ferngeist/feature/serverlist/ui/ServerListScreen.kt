@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.SmartToy
@@ -619,7 +620,7 @@ private fun AddFabMenu(
                 } else {
                     Modifier.graphicsLayer { alpha = DISABLED_MENU_ALPHA }.semantics { disabled() }
                 },
-            icon = { Icon(Icons.Default.SmartToy, contentDescription = null) },
+            icon = { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null) },
             text = { Text(stringResource(R.string.serverlist_quick_chat)) },
         )
         FloatingActionButtonMenuItem(

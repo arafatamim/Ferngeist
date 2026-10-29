@@ -271,5 +271,5 @@
     </plurals>
     <string name="serverlist_show_more">Show more</string>
     <string name="serverlist_show_less">Show less</string>
-    <string name="serverlist_quick_chat">Quick chat</string>
+    <string name="serverlist_quick_chat">New quick chat</string>
 </resources>

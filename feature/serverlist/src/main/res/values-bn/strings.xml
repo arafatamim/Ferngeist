@@ -197,5 +197,5 @@
     </plurals>
     <string name="serverlist_show_more">আরও দেখুন</string>
     <string name="serverlist_show_less">কম দেখুন</string>
-    <string name="serverlist_quick_chat">দ্রুত চ্যাট</string>
+    <string name="serverlist_quick_chat">নতুন দ্রুত চ্যাট</string>
 </resources>

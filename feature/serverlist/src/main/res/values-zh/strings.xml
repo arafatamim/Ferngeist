@@ -213,5 +213,5 @@
     </plurals>
     <string name="serverlist_show_more">显示更多</string>
     <string name="serverlist_show_less">收起</string>
-    <string name="serverlist_quick_chat">快速聊天</string>
+    <string name="serverlist_quick_chat">新建快速聊天</string>
 </resources>
