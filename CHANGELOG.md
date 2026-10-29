@@ -14,6 +14,7 @@
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(home)* Keep the pinned section title in sync while scrolling between projects and agents.
 - *(home)* Wait for gateway launch consent before loading or showing projects.
 - *(home)* Hide the refresh indicator over the projects list while keeping pull-to-refresh available.
 - *(chat)* Make the session switcher button closer in height to the composer.

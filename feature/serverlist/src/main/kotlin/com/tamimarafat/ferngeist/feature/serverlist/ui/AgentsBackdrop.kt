@@ -49,6 +49,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -741,6 +742,13 @@ private fun FrontLayerContent(
     SideEffect { if (showProjects) lastProjects = projects }
     val displayedProjects = if (showProjects) projects else lastProjects
     val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val projectsAtTop by remember(scrollState, showProjects) {
+        derivedStateOf {
+            val first =
+                scrollState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == scrollState.firstVisibleItemIndex }
+            showProjects && (first?.key == "projects" || first == null && scrollState.firstVisibleItemIndex == 0)
+        }
+    }
     // Header pinned; only cards scroll. Outer is capped to viewport so
     // inner actually overflows (maxValue > 0); scroll to the very end first,
     // then a further up-swipe collapses the sheet back toward 0.
@@ -757,7 +765,7 @@ private fun FrontLayerContent(
             modifier = Modifier.fillMaxWidth().then(headerDragModifier),
         ) {
             Crossfade(
-                targetState = showProjects,
+                targetState = projectsAtTop,
                 animationSpec = effects,
                 label = "home section title",
             ) { hasProjects ->
