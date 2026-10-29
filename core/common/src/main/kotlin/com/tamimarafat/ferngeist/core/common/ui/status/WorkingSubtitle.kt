@@ -24,12 +24,15 @@ import com.tamimarafat.ferngeist.core.model.TurnStatus
  * The one presentation of a session's turn status: a working verb while the turn runs,
  * a plain label for attention, failure and completion, and [idleContent] when unknown.
  * [workingContent] overrides the verb where a caller has something more specific to say.
+ * [style] must match the idle content's: the crossfade overlaps both, and mismatched baselines
+ * read as multi-line to a list item, which then keeps a three-line height.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WorkingSubtitle(
     status: TurnStatus,
     streamKey: String,
+    style: TextStyle = MaterialTheme.typography.bodySmall,
     workingContent: (@Composable () -> Unit)? = null,
     idleContent: @Composable () -> Unit,
 ) {
@@ -48,12 +51,12 @@ fun WorkingSubtitle(
                 } else {
                     WorkingStatusText(
                         text = rememberSpinnerVerb(streamKey),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = style,
                     )
                 }
-            TurnStatus.NEEDS_ATTENTION -> TurnStatusLabel(active, MaterialTheme.colorScheme.onTertiaryContainer)
-            TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.onErrorContainer)
-            TurnStatus.FINISHED -> TurnStatusLabel(active, MaterialTheme.colorScheme.primary)
+            TurnStatus.NEEDS_ATTENTION -> TurnStatusLabel(active, MaterialTheme.colorScheme.onTertiaryContainer, style)
+            TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.onErrorContainer, style)
+            TurnStatus.FINISHED -> TurnStatusLabel(active, MaterialTheme.colorScheme.primary, style)
         }
     }
 }
@@ -93,10 +96,11 @@ fun ColorScheme.turnStatusContentColor(
 private fun TurnStatusLabel(
     status: TurnStatus,
     color: Color,
+    style: TextStyle,
 ) {
     Text(
         text = turnStatusLabel(status).orEmpty(),
-        style = MaterialTheme.typography.bodySmall,
+        style = style,
         color = color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
@@ -224,6 +225,7 @@ private fun ProjectItem(
             WorkingSubtitle(
                 status = status,
                 streamKey = "${project.gateway.id}/${project.repo}",
+                style = LocalTextStyle.current,
                 workingContent =
                     if (activeChats > 0) {
                         { ActiveChatsSubtitle(activeChats, "${project.gateway.id}/${project.repo}") }
