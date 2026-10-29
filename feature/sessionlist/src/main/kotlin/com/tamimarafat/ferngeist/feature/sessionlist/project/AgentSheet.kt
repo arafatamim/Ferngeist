@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -14,15 +15,17 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuGroup
+import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -130,6 +133,7 @@ internal fun AgentRows(
 }
 
 /** The project toolbar's agent filter: each agent by its icon, "All agents" by the chats glyph. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun AgentFilter(
     agents: List<LaunchableTarget.GatewayAgent>,
@@ -161,24 +165,33 @@ internal fun AgentFilter(
             )
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.sessionlist_all_agents)) },
-                leadingIcon = { Icon(Icons.Outlined.Forum, contentDescription = null) },
-                onClick = {
-                    expanded = false
-                    onSelect(null)
-                },
-            )
-            agents.forEach { agent ->
-                DropdownMenuItem(
-                    text = { Text(agent.name) },
-                    leadingIcon = { AgentIconBadge(agent, fallback = Icons.Rounded.SmartToy) },
+        DropdownMenuPopup(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuGroup(
+                shapes = MenuDefaults.groupShape(index = 0, count = 1),
+                modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+            ) {
+                SelectableDropdownMenuItem(
+                    selected = selected == null,
+                    shapes = MenuDefaults.itemShape(index = 0, count = agents.size + 1),
+                    text = { Text(stringResource(R.string.sessionlist_all_agents)) },
+                    leadingIcon = { Icon(Icons.Outlined.Forum, contentDescription = null) },
                     onClick = {
                         expanded = false
-                        onSelect(agent.id)
+                        onSelect(null)
                     },
                 )
+                agents.forEachIndexed { index, agent ->
+                    SelectableDropdownMenuItem(
+                        selected = agent.id == selectedId,
+                        shapes = MenuDefaults.itemShape(index = index + 1, count = agents.size + 1),
+                        text = { Text(agent.name) },
+                        leadingIcon = { AgentIconBadge(agent, fallback = Icons.Rounded.SmartToy) },
+                        onClick = {
+                            expanded = false
+                            onSelect(agent.id)
+                        },
+                    )
+                }
             }
         }
     }
