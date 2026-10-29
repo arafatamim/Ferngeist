@@ -27,6 +27,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -77,6 +78,7 @@ class ServerListViewModelTest {
         every { projectCatalog.activityUpdatedAt } returns MutableStateFlow(emptyMap())
         every { projectCatalog.refreshing } returns MutableStateFlow(emptySet())
         every { projectCatalog.discoveryAllowed } returns MutableStateFlow(true)
+        every { projectCatalog.refresh(any(), any()) } returns Job().apply { complete() }
         every { agentLauncher.hasWarmChat(any()) } returns false
         coEvery { agentLauncher.prewarmSessions(any()) } returns Unit
         every { launchSession.connectionState } returns connectionStateFlow

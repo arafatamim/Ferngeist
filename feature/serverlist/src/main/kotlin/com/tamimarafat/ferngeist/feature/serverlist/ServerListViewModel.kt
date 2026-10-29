@@ -427,6 +427,7 @@ class ServerListViewModel
                 withContext(ioDispatcher) {
                     stores.agentLaunchConsentStore.setConsent(consentKey, true)
                 }
+                projectCatalog.refresh()
                 _uiState.update { it.copy(pendingLaunchConsent = null) }
                 connectAndOpenServer(gatewayTarget, resumePendingLaunch = true)
             }
