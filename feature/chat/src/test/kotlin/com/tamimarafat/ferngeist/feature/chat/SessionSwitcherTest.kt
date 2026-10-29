@@ -19,6 +19,35 @@ class SessionSwitcherTest {
     ) = SessionSummary(id = id, title = "T-$id", cwd = cwd, updatedAt = updatedAt)
 
     @Test
+    fun `bubble shows highest priority outcome from other sessions`() {
+        fun state(vararg statuses: Pair<TurnStatus, Boolean>): SwitcherUiState =
+            SwitcherUiState(
+                groups =
+                    listOf(
+                        SwitcherGroup(
+                            "srvA",
+                            "Alpha",
+                            statuses.mapIndexed { index, (status, current) ->
+                                SwitcherSession("srvA", "$index", null, null, null, status, current)
+                            },
+                        ),
+                    ),
+            )
+
+        assertEquals(
+            TurnStatus.NEEDS_ATTENTION,
+            state(TurnStatus.ERROR to false, TurnStatus.NEEDS_ATTENTION to false).badgeStatus,
+        )
+        assertEquals(TurnStatus.ERROR, state(TurnStatus.FINISHED to false, TurnStatus.ERROR to false).badgeStatus)
+        assertEquals(TurnStatus.FINISHED, state(TurnStatus.WORKING to false, TurnStatus.FINISHED to false).badgeStatus)
+        assertEquals(
+            TurnStatus.FINISHED,
+            state(TurnStatus.NEEDS_ATTENTION to true, TurnStatus.FINISHED to false).badgeStatus,
+        )
+        assertEquals(null, state(TurnStatus.ERROR to true, TurnStatus.WORKING to false).badgeStatus)
+    }
+
+    @Test
     fun `includes current session flagged and keeps rows newest first`() {
         val groups =
             deriveSwitcherGroups(

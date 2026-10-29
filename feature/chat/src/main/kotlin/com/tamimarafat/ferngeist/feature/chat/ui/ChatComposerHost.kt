@@ -213,6 +213,8 @@ private fun ChatComposerRow(
         if (!screenState.mutations.composerExpanded.value) {
             SessionSwitcherBubble(
                 count = switcherState.liveTotalCount,
+                status = switcherState.badgeStatus,
+                groups = switcherState.groups,
                 visible = switcherState.hasOthers && switcherEntranceReady,
                 hintSeen = switcherHintSeen,
                 onHintSeen = { viewModel.dispatch(ChatIntent.MarkSwitcherHintSeen) },

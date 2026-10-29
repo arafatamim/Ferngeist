@@ -2,18 +2,22 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.content.Context
 import android.text.format.DateFormat
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.animateBounds
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,10 +32,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -62,18 +69,24 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -90,7 +103,9 @@ import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
+import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
@@ -122,6 +137,9 @@ private fun <T> switcherShiftSpring() =
 private val switcherCountBoxMinWidth = 24.dp
 private val switcherCountBoxMinHeight = 20.dp
 private val switcherCountBoxCorner = 5.dp
+private const val SWITCHER_FIRST_HOP_DP = -12f
+private const val SWITCHER_SECOND_HOP_DP = -7f
+private const val SWITCHER_HOP_PHASE_MS = 120
 
 /** First-run hint waits out the entrance wipe so the bubble pops onto a settled button. */
 private const val SWITCHER_HINT_DELAY_MS = 600L
@@ -197,7 +215,7 @@ private class SwitcherHintPositionProvider(
 /**
  * Round live-session count button riding immediately to the right of the
  * composer pill: same primary color and elevation, and a near-pill-height
- * circle, so the two read as one control. Content is the plain live count.
+ * circle, so the two read as one control. Attention and errors replace the count.
  * Tap opens the sheet; a horizontal drag moves the whole chat with the
  * finger (Chrome-style) and release commits the switch or springs back.
  * Hidden while the composer is expanded or the session is solo. Before
@@ -208,6 +226,8 @@ private class SwitcherHintPositionProvider(
 @Composable
 internal fun SessionSwitcherBubble(
     count: Int,
+    status: TurnStatus?,
+    groups: List<SwitcherGroup>,
     visible: Boolean,
     hintSeen: Boolean,
     onHintSeen: () -> Unit,
@@ -241,6 +261,7 @@ internal fun SessionSwitcherBubble(
         modifier = modifier,
     ) {
         val tooltipState = rememberTooltipState()
+        val attentionHop = rememberOutcomeHop(groups)
         // One-shot Chrome-style coach mark: auto-shows once the entrance wipe
         // settles, then hides at the timeout and marks itself seen. Any earlier
         // tap/drag hides it instantly via consumeHint and marks it seen; the
@@ -278,6 +299,8 @@ internal fun SessionSwitcherBubble(
             }
         }
         val density = LocalDensity.current
+        val switcherDescription = stringResource(R.string.switcher_content_desc)
+        val statusDescription = status?.let { turnStatusLabel(it) }
         val hintPositionProvider =
             remember(density) {
                 SwitcherHintPositionProvider(
@@ -289,7 +312,7 @@ internal fun SessionSwitcherBubble(
             tooltip = {
                 PlainTooltip {
                     Text(
-                        text = stringResource(R.string.switcher_content_desc),
+                        text = switcherDescription,
                     )
                 }
             },
@@ -307,7 +330,11 @@ internal fun SessionSwitcherBubble(
                 modifier =
                     Modifier
                         .size(collapsedComposerHeight - switcherBubbleOpticalInset)
-                        .switcherDrag(
+                        .graphicsLayer { translationY = attentionHop * density.density }
+                        .semantics {
+                            contentDescription = switcherDescription
+                            statusDescription?.let { stateDescription = it }
+                        }.switcherDrag(
                             onDragStart = {
                                 consumeHint()
                                 onDragStart()
@@ -321,28 +348,7 @@ internal fun SessionSwitcherBubble(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // Chrome tab-switcher look: the count inside a rounded-square
-                    // outline. Width floors at the height so one digit is square
-                    // and two digits widen the box instead of squeezing.
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier =
-                            Modifier
-                                .sizeIn(
-                                    minWidth = switcherCountBoxMinWidth,
-                                    minHeight = switcherCountBoxMinHeight,
-                                ).border(
-                                    width = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    shape = RoundedCornerShape(switcherCountBoxCorner),
-                                ).padding(horizontal = 6.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = count.toString(),
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                        )
-                    }
+                    SwitcherCountContent(count, status)
                     // The overlay anchors to this Box (the button bounds) and
                     // floats free of the row layout, so the wide bubble never
                     // shoves the composer pill aside.
@@ -370,6 +376,70 @@ internal fun SessionSwitcherBubble(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberOutcomeHop(groups: List<SwitcherGroup>): Float {
+    val offset = remember { Animatable(0f) }
+    val haptics = LocalHapticFeedback.current
+    val sessions = remember(groups) { groups.flatMap { it.sessions } }
+    var previous by remember { mutableStateOf(sessions.associate { (it.serverId to it.sessionId) to it.turnStatus }) }
+    LaunchedEffect(sessions) {
+        val changed =
+            sessions.any {
+                !it.isCurrent &&
+                    it.turnStatus in setOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED) &&
+                    previous[it.serverId to it.sessionId] != it.turnStatus
+            }
+        previous = sessions.associate { (it.serverId to it.sessionId) to it.turnStatus }
+        offset.snapTo(0f)
+        if (changed) {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            for (height in listOf(SWITCHER_FIRST_HOP_DP, SWITCHER_SECOND_HOP_DP)) {
+                offset.animateTo(height, tween(durationMillis = SWITCHER_HOP_PHASE_MS))
+                offset.animateTo(0f, tween(durationMillis = SWITCHER_HOP_PHASE_MS))
+            }
+        }
+    }
+    return offset.value
+}
+
+@Composable
+private fun SwitcherCountContent(
+    count: Int,
+    status: TurnStatus?,
+) {
+    AnimatedContent(
+        targetState = status.takeUnless { it == TurnStatus.FINISHED },
+        transitionSpec = {
+            slideInVertically { it } togetherWith slideOutVertically { -it }
+        },
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxSize().clipToBounds(),
+        label = "Switcher status",
+    ) { displayedStatus ->
+        if (displayedStatus != null) {
+            val icon =
+                when (displayedStatus) {
+                    TurnStatus.NEEDS_ATTENTION -> Icons.Rounded.Warning
+                    else -> Icons.Rounded.Error
+                }
+            Icon(icon, contentDescription = null, modifier = Modifier.wrapContentSize().size(28.dp))
+        } else {
+            // Chrome tab-switcher outline expands for wider counts.
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier =
+                    Modifier
+                        .wrapContentSize()
+                        .sizeIn(minWidth = switcherCountBoxMinWidth, minHeight = switcherCountBoxMinHeight)
+                        .border(2.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(switcherCountBoxCorner))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(text = count.toString(), style = MaterialTheme.typography.titleMedium, maxLines = 1)
             }
         }
     }

@@ -58,7 +58,20 @@ data class SwitcherUiState(
     val liveTotalCount: Int = 0,
     /** True when at least one switchable (non-current) row exists: gates bubble visibility. */
     val hasOthers: Boolean = false,
-)
+) {
+    val badgeStatus: TurnStatus?
+        get() {
+            val statuses =
+                groups
+                    .asSequence()
+                    .flatMap { it.sessions.asSequence() }
+                    .filterNot { it.isCurrent }
+                    .map { it.turnStatus }
+                    .toSet()
+            return listOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED)
+                .firstOrNull { it in statuses }
+        }
+}
 
 /**
  * Finger direction a drag commit continues through navigation, carried as the
