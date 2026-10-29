@@ -76,7 +76,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             val state = viewModel.switcherUiState.first { it.liveTotalCount == 3 }
             assertEquals(3, state.liveTotalCount)
             assertTrue(state.hasOthers)
-            assertEquals(listOf("srvA", "srvB"), state.groups.map { it.serverId })
+            assertEquals(listOf("a", "b"), state.groups.map { it.projectName })
             val currentRows = state.groups.flatMap { it.sessions }.filter { it.isCurrent }
             assertEquals(listOf("mine"), currentRows.map { it.sessionId })
             viewModel.clearForTest()

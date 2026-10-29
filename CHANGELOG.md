@@ -5,6 +5,7 @@
 
 - *(sessions)* Show working, needs-attention, finished and error status across chat cards, hero/recents, project and agent cards, and the session switcher, using live local state or the gateway's `/v1/turns` snapshot.
 - *(chat)* Replace the session switcher count with an attention or error icon, with a brief hop and haptic when another session needs attention, fails, or finishes.
+- *(chat)* Group the session switcher by project and show each chat's agent logo and activity shape.
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 

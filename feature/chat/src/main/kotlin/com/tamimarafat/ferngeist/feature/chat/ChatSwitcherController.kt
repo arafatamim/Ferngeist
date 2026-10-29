@@ -1,8 +1,10 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
+import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import kotlinx.coroutines.CoroutineScope
@@ -74,10 +76,14 @@ internal class ChatSwitcherController(
             val liveByServer = triples.associate { it.first to it.third }
             val servers =
                 triples.map { it.first }.distinct().map { sid ->
+                    val target = launchableTargetRepository.getTarget(sid)
                     SwitcherServer(
                         id = sid,
-                        name = launchableTargetRepository.getTarget(sid)?.name ?: sid,
+                        name = target?.name ?: sid,
                         worktrees = worktreesByServer[sid].orEmpty(),
+                        // One paired gateway shares its projects across all its agents.
+                        sourceId = (target as? LaunchableTarget.GatewayAgent)?.gatewaySource?.id ?: sid,
+                        iconUrl = target?.iconUrl,
                     )
                 }
             val groups =

@@ -5,17 +5,18 @@ import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionSwitcherTest {
-    private val serverA = SwitcherServer(id = "srvA", name = "Alpha")
-    private val serverB = SwitcherServer(id = "srvB", name = "Beta")
+    private val serverA = SwitcherServer(id = "srvA", name = "Alpha", iconUrl = "alpha.svg")
+    private val serverB = SwitcherServer(id = "srvB", name = "Beta", iconUrl = "beta.svg")
 
     private fun summary(
         id: String,
         updatedAt: Long?,
-        cwd: String = "/w",
+        cwd: String? = "/w",
     ) = SessionSummary(id = id, title = "T-$id", cwd = cwd, updatedAt = updatedAt)
 
     @Test
@@ -25,8 +26,8 @@ class SessionSwitcherTest {
                 groups =
                     listOf(
                         SwitcherGroup(
-                            "srvA",
-                            "Alpha",
+                            "project:srvA|/w",
+                            "w",
                             statuses.mapIndexed { index, (status, current) ->
                                 SwitcherSession("srvA", "$index", null, null, null, status, current)
                             },
@@ -57,10 +58,12 @@ class SessionSwitcherTest {
                 turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "s1"),
             )
-        assertEquals(1, groups.size)
-        assertEquals(listOf("s1", "s2"), groups[0].sessions.map { it.sessionId })
-        assertTrue(groups[0].sessions[0].isCurrent)
-        assertFalse(groups[0].sessions[1].isCurrent)
+        val group = groups.single()
+        assertEquals("w", group.projectName)
+        assertEquals(listOf("s1", "s2"), group.sessions.map { it.sessionId })
+        assertEquals(listOf("Alpha", "Alpha"), group.sessions.map { it.agentName })
+        assertTrue(group.sessions[0].isCurrent)
+        assertFalse(group.sessions[1].isCurrent)
 
         // A solo live session still yields its group with only the current row.
         val solo =
@@ -82,8 +85,10 @@ class SessionSwitcherTest {
     }
 
     @Test
-    fun `a worktree row names its repo from the gateway listing, not the worktree folder`() {
-        val worktreePath = "/orca/workspaces/Ferngeist/feat-x"
+    fun `worktrees of one repo share its group while worktrees keep their branches`() {
+        val repo = "/orca/workspaces/Ferngeist"
+        val branchX = "$repo/.worktrees/feat-x"
+        val branchY = "$repo/.worktrees/feat-y"
         val groups =
             deriveSwitcherGroups(
                 servers =
@@ -91,23 +96,117 @@ class SessionSwitcherTest {
                         serverA.copy(
                             worktrees =
                                 listOf(
-                                    WorktreeRef(
-                                        repo = "/orca/workspaces/Ferngeist",
-                                        path = worktreePath,
-                                        branch = "feat-x",
-                                    ),
+                                    WorktreeRef(repo = repo, path = branchX, branch = "feat-x"),
+                                    WorktreeRef(repo = repo, path = branchY, branch = "feat-y"),
                                 ),
                         ),
                     ),
-                sessionsByServer = mapOf("srvA" to listOf(summary("wt", 10L, worktreePath))),
-                liveIdsByServer = mapOf("srvA" to setOf("wt")),
+                sessionsByServer =
+                    mapOf(
+                        "srvA" to listOf(summary("wt-x", 10L, branchX), summary("wt-y", 20L, branchY)),
+                    ),
+                liveIdsByServer = mapOf("srvA" to setOf("wt-x", "wt-y")),
                 turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "other"),
             )
 
-        val row = groups.single().sessions.single()
-        assertEquals("Ferngeist", row.project)
-        assertEquals("feat-x", row.worktree?.branch)
+        val group = groups.single()
+        assertEquals("Ferngeist", group.projectName)
+        assertEquals(listOf("wt-y", "wt-x"), group.sessions.map { it.sessionId })
+        assertEquals(listOf("feat-y", "feat-x"), group.sessions.map { it.worktree?.branch })
+    }
+
+    @Test
+    fun `agents on one gateway share a project group`() {
+        val gateway = "gateway-1"
+        val groups =
+            deriveSwitcherGroups(
+                servers = listOf(serverA.copy(sourceId = gateway), serverB.copy(sourceId = gateway)),
+                sessionsByServer =
+                    mapOf(
+                        "srvA" to listOf(summary("a1", 5L, "/repo")),
+                        "srvB" to listOf(summary("b1", 50L, "/repo")),
+                    ),
+                liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1")),
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
+                current = SwitcherCurrent("srvA", "a1"),
+            )
+
+        val group = groups.single()
+        assertEquals("repo", group.projectName)
+        // The current row pins first, then recency: one group across both agents.
+        assertEquals(listOf("a1", "b1"), group.sessions.map { it.sessionId })
+        assertEquals(listOf("Alpha", "Beta"), group.sessions.map { it.agentName })
+        assertEquals(listOf("alpha.svg", "beta.svg"), group.sessions.map { it.agentIconUrl })
+    }
+
+    @Test
+    fun `distinct gateways with the same project name stay separate`() {
+        val groups =
+            deriveSwitcherGroups(
+                servers = listOf(serverA.copy(sourceId = "gateway-1"), serverB.copy(sourceId = "gateway-2")),
+                sessionsByServer =
+                    mapOf(
+                        "srvA" to listOf(summary("a1", 5L, "/work/one/Ferngeist")),
+                        "srvB" to listOf(summary("b1", 50L, "/work/two/Ferngeist")),
+                    ),
+                liveIdsByServer = mapOf("srvA" to setOf("a1"), "srvB" to setOf("b1")),
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
+                current = SwitcherCurrent("srvA", "zzz"),
+            )
+
+        assertEquals(2, groups.size)
+        assertEquals(listOf("Ferngeist", "Ferngeist"), groups.map { it.projectName })
+        assertNotEquals(groups[0].projectKey, groups[1].projectKey)
+        assertEquals(listOf("b1"), groups[0].sessions.map { it.sessionId })
+        assertEquals(listOf("a1"), groups[1].sessions.map { it.sessionId })
+    }
+
+    @Test
+    fun `sessions without a cwd group as one unknown project per server`() {
+        val gateway = "gateway-1"
+        val groups =
+            deriveSwitcherGroups(
+                servers = listOf(serverA.copy(sourceId = gateway), serverB.copy(sourceId = gateway)),
+                sessionsByServer =
+                    mapOf(
+                        "srvA" to listOf(summary("a1", 10L, null), summary("a2", 30L, "")),
+                        "srvB" to listOf(summary("b1", 50L, null)),
+                    ),
+                liveIdsByServer =
+                    mapOf(
+                        "srvA" to setOf("a1", "a2"),
+                        "srvB" to setOf("b1"),
+                    ),
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
+                current = SwitcherCurrent("srvA", "zzz"),
+            )
+
+        assertEquals(2, groups.size)
+        assertTrue(groups.all { it.projectName == null })
+        assertNotEquals(groups[0].projectKey, groups[1].projectKey)
+        assertEquals(listOf("b1"), groups[0].sessions.map { it.sessionId })
+        assertEquals(listOf("a2", "a1"), groups[1].sessions.map { it.sessionId })
+        assertEquals(listOf("srvB"), groups[0].sessions.map { it.serverId }.distinct())
+        assertEquals(listOf("srvA"), groups[1].sessions.map { it.serverId }.distinct())
+    }
+
+    @Test
+    fun `one server splits different repo roots into separate projects`() {
+        val groups =
+            deriveSwitcherGroups(
+                servers = listOf(serverA),
+                sessionsByServer =
+                    mapOf(
+                        "srvA" to listOf(summary("a1", 10L, "/one/alpha"), summary("a2", 20L, "/two/beta")),
+                    ),
+                liveIdsByServer = mapOf("srvA" to setOf("a1", "a2")),
+                turnStatus = { _, _ -> TurnStatus.UNKNOWN },
+                current = SwitcherCurrent("srvA", "zzz"),
+            )
+
+        assertEquals(listOf("beta", "alpha"), groups.map { it.projectName })
+        assertNotEquals(groups[0].projectKey, groups[1].projectKey)
     }
 
     @Test
@@ -171,8 +270,8 @@ class SessionSwitcherTest {
         val noCurrent =
             listOf(
                 SwitcherGroup(
-                    serverId = "srvA",
-                    serverName = "Alpha",
+                    projectKey = "project:srvA|/w",
+                    projectName = "w",
                     sessions =
                         listOf(
                             SwitcherSession("srvA", "s1", null, null, null, TurnStatus.UNKNOWN, false),
@@ -184,7 +283,7 @@ class SessionSwitcherTest {
     }
 
     @Test
-    fun `groups span servers ordered by newest row`() {
+    fun `separate servers stay separate groups ordered by newest row`() {
         val groups =
             deriveSwitcherGroups(
                 servers = listOf(serverA, serverB),
@@ -197,7 +296,10 @@ class SessionSwitcherTest {
                 turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "zzz"),
             )
-        assertEquals(listOf("srvB", "srvA"), groups.map { it.serverId })
+        assertEquals(
+            listOf(listOf("b1"), listOf("a1")),
+            groups.map { group -> group.sessions.map { it.sessionId } },
+        )
     }
 
     @Test
@@ -214,8 +316,10 @@ class SessionSwitcherTest {
                 turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvB", "bcur"),
             )
-        assertEquals(listOf("srvB", "srvA"), groups.map { it.serverId })
-        assertEquals(listOf("bcur", "b1"), groups[0].sessions.map { it.sessionId })
+        assertEquals(
+            listOf(listOf("bcur", "b1"), listOf("a1")),
+            groups.map { group -> group.sessions.map { it.sessionId } },
+        )
     }
 
     @Test
@@ -231,6 +335,6 @@ class SessionSwitcherTest {
                 turnStatus = { _, _ -> TurnStatus.UNKNOWN },
                 current = SwitcherCurrent("srvA", "zzz"),
             )
-        assertEquals(listOf("new", "old"), groups[0].sessions.map { it.sessionId })
+        assertEquals(listOf("new", "old"), groups.single().sessions.map { it.sessionId })
     }
 }

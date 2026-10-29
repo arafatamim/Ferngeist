@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
+import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.core.model.projectRootOf
 import com.tamimarafat.ferngeist.core.model.worktreeOf
@@ -14,6 +15,13 @@ data class SwitcherServer(
     val name: String,
     /** The gateway's worktrees, which name a worktree row's project; empty off a gateway. */
     val worktrees: List<WorktreeRef> = emptyList(),
+    /**
+     * Identity its sessions group projects under: the paired gateway for gateway agents, so
+     * every agent on one gateway shares a project group; the server itself for manual agents.
+     */
+    val sourceId: String = id,
+    /** The agent's logo; null when it has none. */
+    val iconUrl: String? = null,
 )
 
 /** One live session row in the switcher sheet. Null title renders as "Untitled" in UI. */
@@ -26,16 +34,20 @@ data class SwitcherSession(
     val turnStatus: TurnStatus,
     /** True for the session the sheet was opened from: tinted, never clickable. */
     val isCurrent: Boolean,
-    /** The project the chat runs in: a worktree's repo, else its folder's leaf. Null without a cwd. */
-    val project: String? = null,
     /** The gateway worktree the chat runs in, when the gateway or the path convention names one. */
     val worktree: WorktreeRef? = null,
+    /** The agent the session belongs to, shown on its row. */
+    val agentName: String = serverId,
+    /** The agent's logo, when its gateway published one. */
+    val agentIconUrl: String? = null,
 )
 
-/** Live sessions of one server, newest first. */
+/** Live sessions of one project, newest first. */
 data class SwitcherGroup(
-    val serverId: String,
-    val serverName: String,
+    /** Stable project identity: the owning gateway (or manual server) plus the repo root. */
+    val projectKey: String,
+    /** The project's folder name; null when its sessions carry no cwd. */
+    val projectName: String?,
     val sessions: List<SwitcherSession>,
 )
 
@@ -160,9 +172,14 @@ fun resolveSwipeTarget(
  * Derives the switcher model from cached data. Pure: no flows, no hub.
  *
  * Keeps every live session including the current one (flagged
- * [SwitcherSession.isCurrent]), orders rows by `updatedAt` descending (nulls
- * last, id tiebreak), orders groups by their newest row descending, drops
- * empty groups and unknown servers.
+ * [SwitcherSession.isCurrent]) and groups rows by project: the owning
+ * gateway's [SwitcherServer.sourceId] plus the normalized repo root, so agents
+ * sharing a gateway and repo share a group while separate gateways (and manual
+ * servers) never merge. Sessions without a cwd fall into one unknown project
+ * per server. Rows order by `updatedAt` descending (nulls last, server and id
+ * tiebreaks) with the current row pinned first; the current row's group is
+ * pinned first and the rest follow by newest row. Empty groups and unknown
+ * servers are dropped.
  */
 fun deriveSwitcherGroups(
     servers: List<SwitcherServer>,
@@ -171,33 +188,51 @@ fun deriveSwitcherGroups(
     turnStatus: (serverId: String, sessionId: String) -> TurnStatus,
     current: SwitcherCurrent,
 ): List<SwitcherGroup> {
-    val unsorted =
-        servers.mapNotNull { server ->
-            val live = liveIdsByServer[server.id].orEmpty()
-            if (live.isEmpty()) return@mapNotNull null
-            val candidates = sessionsByServer[server.id].orEmpty()
-            val liveRows = candidates.filter { it.id in live }
-            val orderedRows = liveRows.sortedByUpdatedAtDesc()
-            val mapped =
-                orderedRows.map { summary ->
-                    val cwd = summary.cwd?.takeIf { it.isNotBlank() }
-                    SwitcherSession(
-                        serverId = server.id,
-                        sessionId = summary.id,
-                        title = summary.title,
-                        cwd = summary.cwd,
-                        updatedAt = summary.updatedAt,
-                        turnStatus = turnStatus(server.id, summary.id),
-                        isCurrent = server.id == current.serverId && summary.id == current.sessionId,
-                        project = cwd?.let { projectName(projectRootOf(it, server.worktrees)) },
-                        worktree = cwd?.let { worktreeOf(it, server.worktrees) },
-                    )
+    val rowsByProject = linkedMapOf<String, MutableList<SwitcherSession>>()
+    val namesByProject = linkedMapOf<String, String?>()
+    for (server in servers) {
+        val live = liveIdsByServer[server.id].orEmpty()
+        if (live.isEmpty()) continue
+        for (summary in sessionsByServer[server.id].orEmpty()) {
+            if (summary.id !in live) continue
+            val cwd = summary.cwd?.takeIf { it.isNotBlank() }
+            val root = cwd?.let { projectRootOf(it, server.worktrees) }
+            val key =
+                if (root == null) {
+                    "owner:${server.id}"
+                } else {
+                    "project:${server.sourceId}|${cwdKey(root)}"
                 }
-            val rows = mapped.sortedByCurrentFirst()
-            if (rows.isEmpty()) null else SwitcherGroup(server.id, server.name, rows)
+            namesByProject[key] = root?.let(::projectName)
+            rowsByProject.getOrPut(key) { mutableListOf() } +=
+                SwitcherSession(
+                    serverId = server.id,
+                    sessionId = summary.id,
+                    title = summary.title,
+                    cwd = summary.cwd,
+                    updatedAt = summary.updatedAt,
+                    turnStatus = turnStatus(server.id, summary.id),
+                    isCurrent = server.id == current.serverId && summary.id == current.sessionId,
+                    worktree = cwd?.let { worktreeOf(it, server.worktrees) },
+                    agentName = server.name,
+                    agentIconUrl = server.iconUrl,
+                )
         }
-    return unsorted.sortedByCurrentGroupFirst()
+    }
+    return rowsByProject
+        .map { (key, rows) ->
+            SwitcherGroup(
+                projectKey = key,
+                projectName = namesByProject[key],
+                sessions = rows.sortedWith(RECENCY_ORDER).sortedByCurrentFirst(),
+            )
+        }.sortedByCurrentGroupFirst()
 }
+
+private val RECENCY_ORDER =
+    compareByDescending<SwitcherSession> { it.updatedAt ?: Long.MIN_VALUE }
+        .thenBy { it.serverId }
+        .thenBy { it.sessionId }
 
 /** Current row anchors its group: pinned first, remaining rows keep recency order. */
 private fun List<SwitcherSession>.sortedByCurrentFirst(): List<SwitcherSession> =
@@ -208,12 +243,6 @@ private fun List<SwitcherGroup>.sortedByCurrentGroupFirst(): List<SwitcherGroup>
     val (current, rest) = partition { group -> group.sessions.any { it.isCurrent } }
     return current + rest.sortedByDescendingActivity()
 }
-
-private fun List<SessionSummary>.sortedByUpdatedAtDesc(): List<SessionSummary> =
-    sortedWith(
-        compareByDescending<SessionSummary> { it.updatedAt ?: Long.MIN_VALUE }
-            .thenBy { it.id },
-    )
 
 private fun List<SwitcherGroup>.sortedByDescendingActivity(): List<SwitcherGroup> =
     sortedByDescending { group ->

@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -96,10 +97,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
+import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
@@ -492,7 +495,7 @@ private fun SwitcherHintBubble(modifier: Modifier = Modifier) {
     }
 }
 
-/** Switcher bottom sheet: live sessions grouped by server, newest first. */
+/** Switcher bottom sheet: live sessions grouped by project, newest first. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SessionSwitcherSheet(
@@ -541,8 +544,8 @@ internal fun SessionSwitcherSheet(
                             .animateContentSize(animationSpec = switcherShiftSpring()),
                 ) {
                     uiState.groups.forEach { group ->
-                        key(group.serverId) {
-                            SwitcherServerGroup(
+                        key(group.projectKey) {
+                            SwitcherProjectGroup(
                                 group = group,
                                 lookaheadScope = this@LookaheadScope,
                                 onSwitch = onSwitch,
@@ -558,7 +561,7 @@ internal fun SessionSwitcherSheet(
 }
 
 @Composable
-private fun SwitcherServerGroup(
+private fun SwitcherProjectGroup(
     group: SwitcherGroup,
     lookaheadScope: LookaheadScope,
     onSwitch: (SwitcherSession) -> Unit,
@@ -572,7 +575,7 @@ private fun SwitcherServerGroup(
                 .animateContentSize(animationSpec = switcherShiftSpring()),
     ) {
         Text(
-            text = group.serverName,
+            text = group.projectName ?: stringResource(R.string.switcher_other_chats),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
@@ -580,8 +583,9 @@ private fun SwitcherServerGroup(
         group.sessions.forEach { session ->
             // Keys matter: without one, the row that slides into this slot inherits
             // the removed row's remembered dismiss state, renders off-screen, and
-            // its settle effect closes that session too.
-            key(session.sessionId) {
+            // its settle effect closes that session too. Server ids keep sessions of
+            // different agents from colliding on the same session id.
+            key(session.serverId, session.sessionId) {
                 SwitcherRow(
                     session = session,
                     lookaheadScope = lookaheadScope,
@@ -718,9 +722,22 @@ private fun SwitcherRowContent(
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Every agent shares its state treatment; the upright logo tells them apart.
+            ActivityIconContainer(
+                status = session.turnStatus,
+                size = 40.dp,
+                idleShape = CircleShape,
+                modifier = Modifier.semantics { contentDescription = session.agentName },
+            ) {
+                AgentIconBadge(
+                    iconUrl = session.agentIconUrl,
+                    fallback = Icons.Rounded.SmartToy,
+                    containerSize = null,
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
                 // A shared subtitle keeps turn state separate from the readable session title.
                 Text(
@@ -729,15 +746,15 @@ private fun SwitcherRowContent(
                     maxLines = 1,
                     overflow = TextOverflow.MiddleEllipsis,
                 )
-                val place = session.project
+                // The group heading already names the project, so the row only stamps the time.
                 val time = session.updatedAt?.let { formatSwitcherTime(it, LocalContext.current) }
                 WorkingSubtitle(
                     status = session.turnStatus,
                     streamKey = "${session.serverId}/${session.sessionId}",
                 ) {
-                    if (place != null || time != null) {
+                    if (time != null) {
                         Text(
-                            text = listOfNotNull(place, time).joinToString(" · "),
+                            text = time,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
