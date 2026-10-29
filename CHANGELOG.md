@@ -8,6 +8,7 @@
 - *(gateway)* Show bundled agent logos when the gateway provides no registry logo.
 ### Fixes
 
+- *(chat)* Make the session switcher button closer in height to the composer.
 - *(sessions)* Dismiss Finished across turn indicators when its chat is opened, including turns that finish while open, without hiding later off-screen completions.
 - *(sessions)* Color cards needing attention or reporting a failed turn with tertiary or error container roles.
 - *(sessions)* Keep agent logos visible on the needs-attention badge in light and dark themes.

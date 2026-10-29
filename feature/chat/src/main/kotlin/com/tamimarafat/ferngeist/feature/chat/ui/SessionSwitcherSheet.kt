@@ -121,7 +121,7 @@ import kotlin.math.abs
  * geometric size looks heavier next to a long capsule, so the circle sits
  * slightly under the pill height (centered by the host row).
  */
-private val switcherBubbleOpticalInset = 4.dp
+private val switcherBubbleOpticalInset = 2.dp
 
 /** How long a dismissed row waits for the model to drop it before springing back. */
 private const val DISMISS_REMOVE_GRACE_MS = 600L
