@@ -5,6 +5,7 @@
 
 - *(home)* Animate the Projects section and its pinned title as projects appear or disappear.
 - *(home)* Label the quick-chat action “New quick chat” with a chat icon.
+- *(home)* Show the six most recently updated projects in quick chat.
 - *(projects)* Use the Material 3 expressive selection menu for the agent filter.
 - *(theme)* Use the complete wallpaper-derived dynamic color scheme where available, with a fern palette as fallback.
 - *(sessions)* Show working, needs-attention, finished and error status across chat cards, hero/recents, project and agent cards, and the session switcher, using live local state or the gateway's `/v1/turns` snapshot.

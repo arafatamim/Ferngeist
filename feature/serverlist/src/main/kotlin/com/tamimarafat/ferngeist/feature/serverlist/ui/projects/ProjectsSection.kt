@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectChat
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.projectRecencyOrder
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -57,7 +58,7 @@ internal fun projectsByActivity(
     turnStatuses: Map<String, TurnStatus>,
 ): List<ProjectSummary> {
     val (live, idle) = projects.partition { it.hasActiveTurn(turnStatuses) }
-    return live.sortedByDescending { it.updatedAt } + idle.sortedByDescending { it.updatedAt }
+    return live.sortedWith(projectRecencyOrder) + idle.sortedWith(projectRecencyOrder)
 }
 
 /**

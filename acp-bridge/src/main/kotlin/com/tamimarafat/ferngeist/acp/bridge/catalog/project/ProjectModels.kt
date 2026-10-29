@@ -24,6 +24,8 @@ data class ProjectSummary(
     val updatedAt: Long?,
 )
 
+val projectRecencyOrder: Comparator<ProjectSummary> = compareByDescending { it.updatedAt }
+
 data class ProjectChat(
     val summary: SessionSummary,
     val target: LaunchableTarget.GatewayAgent,

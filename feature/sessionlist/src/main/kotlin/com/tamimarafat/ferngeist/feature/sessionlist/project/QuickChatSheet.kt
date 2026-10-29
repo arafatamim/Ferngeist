@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
+import com.tamimarafat.ferngeist.acp.bridge.catalog.project.projectRecencyOrder
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -39,6 +40,11 @@ import com.tamimarafat.ferngeist.feature.sessionlist.ui.ScopeRow
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.scopeSupportingText
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectLine
 import kotlinx.coroutines.launch
+
+private const val MAX_QUICK_CHAT_PROJECTS = 6
+
+internal fun quickChatProjects(projects: List<ProjectSummary>): List<ProjectSummary> =
+    projects.sortedWith(projectRecencyOrder).take(MAX_QUICK_CHAT_PROJECTS)
 
 /**
  * The home's quick chat: the project sheet, the worktree sheet and the agent sheet stacked in one.
@@ -55,10 +61,11 @@ fun QuickChatSheet(
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val coroutineScope = rememberCoroutineScope()
+    val choices = remember(projects) { quickChatProjects(projects) }
     var projectKey by remember {
-        mutableStateOf(projects.maxByOrNull { it.updatedAt ?: Long.MIN_VALUE }?.let { it.gateway.id to it.repo })
+        mutableStateOf(choices.firstOrNull()?.let { it.gateway.id to it.repo })
     }
-    val project = projects.firstOrNull { (it.gateway.id to it.repo) == projectKey }
+    val project = choices.firstOrNull { (it.gateway.id to it.repo) == projectKey }
     var scope by remember(projectKey) { mutableStateOf<WorktreeScope>(WorktreeScope.Main) }
     // An agent can only start a chat on its own gateway's disk.
     val bound = agents.filter { it.gatewaySource.id == project?.gateway?.id }
@@ -73,7 +80,7 @@ fun QuickChatSheet(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
         ) {
             SheetTitle(stringResource(R.string.sessionlist_scope_projects))
-            ProjectChoices(projects, project) { projectKey = it.gateway.id to it.repo }
+            ProjectChoices(choices, project) { projectKey = it.gateway.id to it.repo }
             project?.takeIf { it.checkout != null }?.let { shown ->
                 Spacer(Modifier.height(12.dp))
                 SheetTitle(projectName(shown.repo))
