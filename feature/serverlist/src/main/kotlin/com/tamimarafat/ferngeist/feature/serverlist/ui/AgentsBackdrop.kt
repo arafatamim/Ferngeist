@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -87,8 +86,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/** A single agent cannot fill the sheet, so the recents start on show. */
-private const val SINGLE_SERVER_COUNT = 1
 private const val PROJECT_SLIDE_DIVISOR = 4
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -125,14 +122,6 @@ internal fun AgentsBackdrop(
     var recentsPx by rememberSaveable { mutableIntStateOf(0) } // hidden recents block height
     val canReveal = olderSessions.isNotEmpty()
     val sheetRevealed = rememberSaveable { mutableStateOf(false) }
-    // A lone server leaves the front sheet too short to cover the recents block, so
-    // open revealed and show the session list without a drag. This cannot be a
-    // rememberSaveable seed: the first composition usually still sees the empty
-    // StateFlow defaults for `servers`/`recentSessions`, and a seed evaluated then
-    // would lock in the wrong branch depending on which flow emitted first. Seeding
-    // happens in the restore pass below instead, which is the first frame that knows
-    // both the condition and how far "revealed" actually is.
-    val shouldStartRevealed = servers.size == SINGLE_SERVER_COUNT && canReveal
     // Stored as a fraction of the recents block (0f..1f) rather than raw pixels, so
     // a fold or rotate restores the same proportional position instead of a stale
     // pixel offset from the previous viewport.
@@ -153,20 +142,10 @@ internal fun AgentsBackdrop(
     }
     val agentsLazyListState = rememberLazyListState()
 
-    // Position the sheet once, as soon as the block has a height. The single-server
-    // rule applies on this first pass and wins over any saved position: it decides the
-    // initial state, and gating it on `savedSheetFraction == 0f` was wrong because that
-    // is ambiguous — a user who closed the sheet and a screen that was never positioned
-    // both read as 0f, and the seed silently lost. Saved fractions exist for returning
-    // from navigation mid-session, where the user's own drag is the intent.
+    // Restore the user's sheet position once the recents block has a height.
     LaunchedEffect(recentsPx, sheetFractionRestored) {
         if (!sheetFractionRestored && recentsPx > 0) {
-            if (shouldStartRevealed) {
-                sheetRevealed.value = true
-                sheetOffset.snapTo(recentsPx.toFloat())
-            } else {
-                sheetOffset.snapTo((savedSheetFraction * recentsPx).coerceIn(0f, recentsPx.toFloat()))
-            }
+            sheetOffset.snapTo((savedSheetFraction * recentsPx).coerceIn(0f, recentsPx.toFloat()))
             sheetFractionRestored = true
         }
     }

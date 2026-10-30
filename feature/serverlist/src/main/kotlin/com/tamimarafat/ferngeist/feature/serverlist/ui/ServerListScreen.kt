@@ -493,11 +493,7 @@ private fun ServerListContent(
                 .fillMaxSize(),
     ) {
         when {
-            // The backdrop is not composed until BOTH queries have landed. It seeds its
-            // sheet position on a one-shot flag the first time the recents block has a
-            // height, and that block has height even while empty (it ends in a spacer).
-            // Composing early with no sessions would spend that flag before any session
-            // exists, so the single-server expand would never happen.
+            // Wait for both queries before showing the backdrop.
             isLoading -> ServerListLoadingContent()
             servers.isEmpty() ->
                 EmptyServerContent(
