@@ -83,7 +83,7 @@ fun ChatScreen(
     val screenState = rememberChatScreenState(viewModel, sessionId)
 
     // --- ViewModel effects ---
-    CollectChatEffects(viewModel, screenState.mutations.snackbarHostState, onNavigateBack)
+    CollectChatEffects(viewModel, screenState.mutations.snackbarHostState, onNavigateBack, onSwitchSession)
 
     // Auto-focus the text field when the composer expands
     LaunchedEffect(screenState.mutations.composerExpanded.value, screenState.mutations.imageFocusTrigger.value) {

@@ -89,6 +89,7 @@ internal fun CollectChatEffects(
     viewModel: com.tamimarafat.ferngeist.feature.chat.ChatViewModel,
     snackbarHostState: SnackbarHostState,
     onNavigateBack: () -> Unit,
+    onSwitchSession: com.tamimarafat.ferngeist.feature.chat.OnSwitchSession,
 ) {
     val context = LocalContext.current
     LaunchedEffect(viewModel) {
@@ -102,6 +103,9 @@ internal fun CollectChatEffects(
                 is com.tamimarafat.ferngeist.feature.chat.ChatEffect.ShowMessage -> {
                     snackbarHostState.showSnackbar(localizeChatError(context, effect.message))
                 }
+
+                is com.tamimarafat.ferngeist.feature.chat.ChatEffect.SwitchSession ->
+                    onSwitchSession(effect.session, null)
 
                 is com.tamimarafat.ferngeist.feature.chat.ChatEffect.NavigateBack ->
                     onNavigateBack()

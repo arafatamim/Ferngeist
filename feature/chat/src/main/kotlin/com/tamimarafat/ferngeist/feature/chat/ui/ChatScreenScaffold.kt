@@ -367,8 +367,8 @@ private fun BoxScope.ChatScreenContentOverlays(
                 onSwitchSession(session, null)
             },
             onClose = { session ->
-                // Sheet stays open: the row disappears when the hub drops the
-                // session, and a refusal lands in the snackbar behind it.
+                // The row disappears when the hub drops the session; a refusal lands
+                // in the snackbar behind the sheet.
                 viewModel.dispatch(ChatIntent.CloseSession(session.serverId, session.sessionId))
             },
             onDismiss = { screenState.mutations.showSwitcherSheet.value = false },

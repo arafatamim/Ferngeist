@@ -663,15 +663,27 @@ class ChatViewModel
                 is ChatIntent.SelectCompareRef,
                 -> handleGitSheetIntent(intent)
                 is ChatIntent.MarkSwitcherHintSeen -> stores.switcherHints.markSeen()
-                is ChatIntent.CloseSession ->
-                    switcherController.close(intent.serverId, intent.sessionId)?.let { message ->
-                        emitEffect(ChatEffect.ShowError(message))
-                    }
+                is ChatIntent.CloseSession -> closeSwitcherSession(intent)
                 is ChatIntent.SubmitElicitation,
                 is ChatIntent.DeclineElicitation,
                 is ChatIntent.CancelElicitation,
                 -> handleElicitationIntent(intent)
                 else -> Unit
+            }
+        }
+
+        private suspend fun closeSwitcherSession(intent: ChatIntent.CloseSession) {
+            val rows = switcherUiState.value.groups.flatMap { it.sessions }
+            val closingCurrent =
+                rows.any {
+                    it.isCurrent && it.serverId == intent.serverId && it.sessionId == intent.sessionId
+                }
+            val next = rows.filterNot { it.isCurrent }.maxByOrNull { it.updatedAt ?: Long.MIN_VALUE }
+            val message = switcherController.close(intent.serverId, intent.sessionId)
+            if (message != null) {
+                emitEffect(ChatEffect.ShowError(message))
+            } else if (closingCurrent) {
+                emitEffect(next?.let { ChatEffect.SwitchSession(it) } ?: ChatEffect.NavigateBack)
             }
         }
 

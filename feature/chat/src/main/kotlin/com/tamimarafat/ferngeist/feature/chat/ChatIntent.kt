@@ -123,7 +123,7 @@ sealed interface ChatIntent {
     data object MarkSwitcherHintSeen : ChatIntent
 
     /**
-     * Releases another live session the switcher listed, the way the session
+     * Releases a live session the switcher listed, the way the session
      * list's Disconnect does. Carries the row's own ids: the sheet lists every
      * warm server, so the target is not always this chat's server.
      */

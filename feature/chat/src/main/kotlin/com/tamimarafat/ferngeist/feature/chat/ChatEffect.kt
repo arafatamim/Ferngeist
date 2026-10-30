@@ -10,5 +10,9 @@ sealed interface ChatEffect {
         val message: String,
     ) : ChatEffect
 
+    data class SwitchSession(
+        val session: SwitcherSession,
+    ) : ChatEffect
+
     data object NavigateBack : ChatEffect
 }

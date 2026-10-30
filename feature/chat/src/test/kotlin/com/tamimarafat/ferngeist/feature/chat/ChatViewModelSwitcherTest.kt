@@ -121,6 +121,47 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `closing current session switches to most recent remaining session`() =
+        runTest {
+            val gateway = FakeGatewayRepository()
+            val hub = newHub(gateway)
+            val sessions = FakeChatCatalog()
+            sessions.setSessions(
+                "srvA",
+                listOf(
+                    SessionSummary(id = "mine", updatedAt = 100L),
+                    SessionSummary(id = "older", updatedAt = 20L),
+                    SessionSummary(id = "newer", updatedAt = 50L),
+                ),
+            )
+            listOf("mine", "older", "newer").forEach { connectSession(hub, "srvA", it) }
+            val viewModel =
+                createViewModel(
+                    chatConnectionHub = hub,
+                    savedStateHandle = sessionHandle(),
+                    repositories =
+                        testRepositories(
+                            sessionRepository = sessions,
+                            launchableTargetRepository = FakeLaunchableTargetRepository(listOf(gatewayTarget())),
+                        ),
+                )
+            val effects = mutableListOf<ChatEffect>()
+            val collector = launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.effects.toList(effects) }
+            viewModel.switcherUiState.first { it.liveTotalCount == 3 }
+            viewModel.dispatch(ChatIntent.CloseSession("srvA", "mine"))
+            advanceUntilIdle()
+            assertEquals(
+                "newer",
+                effects
+                    .filterIsInstance<ChatEffect.SwitchSession>()
+                    .single()
+                    .session.sessionId,
+            )
+            collector.cancel()
+            viewModel.clearForTest()
+        }
+
+    @Test
     fun `closing a streaming session is refused and leaves it live`() =
         runTest {
             val gateway = FakeGatewayRepository()

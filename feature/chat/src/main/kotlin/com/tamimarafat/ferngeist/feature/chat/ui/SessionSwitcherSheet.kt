@@ -607,19 +607,6 @@ private fun SwitcherRow(
     onCurrentClick: () -> Unit,
 ) {
     val rowPadding = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-    if (session.isCurrent) {
-        // Tapping the session you are already reading only dismisses the sheet; closing
-        // it happens from inside the chat.
-        SwitcherRowContent(
-            session = session,
-            modifier =
-                rowPadding
-                    .clip(MaterialTheme.shapes.medium)
-                    .handCursor()
-                    .clickable(onClick = onCurrentClick),
-        )
-        return
-    }
     // Swipe either way to release the session. Material3 leaves a dismissed row
     // off-screen (and gesture-disabled) until it is reset, so put it back here: the
     // list is driven by live hub state, and the row must disappear through the model
@@ -674,7 +661,7 @@ private fun SwitcherRow(
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.medium)
                     .handCursor()
-                    .clickable(onClick = onSwitch)
+                    .clickable(onClick = if (session.isCurrent) onCurrentClick else onSwitch)
                     .onGloballyPositioned { rowWidth.intValue = it.size.width }
                     .graphicsLayer {
                         // requireOffset throws during semantics collection before
