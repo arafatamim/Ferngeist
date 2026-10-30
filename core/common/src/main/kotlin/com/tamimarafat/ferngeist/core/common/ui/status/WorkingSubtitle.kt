@@ -26,6 +26,8 @@ import com.tamimarafat.ferngeist.core.model.TurnStatus
  * [workingContent] overrides the verb where a caller has something more specific to say.
  * [style] must match the idle content's: the crossfade overlaps both, and mismatched baselines
  * read as multi-line to a list item, which then keeps a three-line height.
+ * [accent] colours the working verb and finished label; pass the container's content colour where
+ * primary would not contrast with it.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -33,6 +35,7 @@ fun WorkingSubtitle(
     status: TurnStatus,
     streamKey: String,
     style: TextStyle = MaterialTheme.typography.bodySmall,
+    accent: Color = MaterialTheme.colorScheme.primary,
     workingContent: (@Composable () -> Unit)? = null,
     idleContent: @Composable () -> Unit,
 ) {
@@ -52,11 +55,12 @@ fun WorkingSubtitle(
                     WorkingStatusText(
                         text = rememberSpinnerVerb(streamKey),
                         style = style,
+                        color = accent,
                     )
                 }
             TurnStatus.NEEDS_ATTENTION -> TurnStatusLabel(active, MaterialTheme.colorScheme.onTertiaryContainer, style)
             TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.onErrorContainer, style)
-            TurnStatus.FINISHED -> TurnStatusLabel(active, MaterialTheme.colorScheme.primary, style)
+            TurnStatus.FINISHED -> TurnStatusLabel(active, accent, style)
         }
     }
 }
@@ -117,8 +121,8 @@ fun rememberSpinnerVerb(streamKey: String): String {
 fun WorkingStatusText(
     text: String,
     style: TextStyle = MaterialTheme.typography.bodyMedium,
+    color: Color = MaterialTheme.colorScheme.primary,
 ) {
-    val color = MaterialTheme.colorScheme.primary
     Row {
         Text(
             text = text,

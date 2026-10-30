@@ -215,6 +215,7 @@ private fun ContinueSessionCardContent(
             WorkingSubtitle(
                 status = status,
                 streamKey = "${session.serverId}/${session.sessionId}",
+                accent = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
                 // get the icon, manual targets keep the bare host.
