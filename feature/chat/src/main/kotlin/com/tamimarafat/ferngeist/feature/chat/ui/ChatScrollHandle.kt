@@ -76,7 +76,9 @@ private const val FRAMES_PER_SECOND = 60f
  * the end in view while the keyboard or composer moves (if the reader is at the end), for the jump
  * buttons, and for a live tool rail: while one is open the end is followed, and once the last one
  * closes the list springs back to where the follow began. A reader's scroll ends that follow
- * without the spring back. "Following" just means sitting at the end.
+ * without the spring back. "Following" just means sitting at the end. The jump-to-bottom button
+ * also pins the end for the rest of the live turn, streaming text included, as does the reader scrolling
+ * down to the end mid-turn; scrolling away unpins.
  *
  * The runway: a sent prompt glides to the top of the viewport, and the rest of the viewport below
  * it is reserved, so the reply streams into still space. The reserve is a minimum height on the
@@ -105,6 +107,9 @@ internal class ChatScrollHandle(
 
     /** The runway prompt's list key, set from composition; see [rememberRunway]. */
     internal var runwayPromptKey: Any? = null
+
+    /** Jump-to-bottom was pressed mid-turn: the end is followed until the turn ends or the reader scrolls. */
+    private var pinnedToEnd by mutableStateOf(false)
 
     /** A jump button's ease owns the list; nothing else scrolls meanwhile. */
     private var easing by mutableStateOf(false)
@@ -189,6 +194,7 @@ internal class ChatScrollHandle(
         userIdAtSend = lastUserId
         awaitingTurn = true
         readerScrolled = false
+        pinnedToEnd = false
         following = true
         gliding = true
     }
@@ -201,6 +207,7 @@ internal class ChatScrollHandle(
     suspend fun jumpToBottom() {
         ease { listState.easeScrollToBottom() }
         following = true
+        pinnedToEnd = live
     }
 
     suspend fun jumpToItem(index: Int) {
@@ -211,7 +218,7 @@ internal class ChatScrollHandle(
     /** Runs the glide after each send, and follows live tool rails. */
     suspend fun follow() {
         while (true) {
-            snapshotFlow { inCharge && gliding || followsRail }.first { it }
+            snapshotFlow { inCharge && gliding || followsRail || followsEnd }.first { it }
             if (gliding) glideUp() else followRail()
         }
     }
@@ -219,12 +226,20 @@ internal class ChatScrollHandle(
     private val followsRail: Boolean
         get() = activeRails.intValue > 0 && !readerScrolled && !easing && !restorePending
 
-    /** Follows the end while a rail runs, then springs back to where it started once the last one closes. */
+    private val springsBack: Boolean get() = !readerScrolled && !pinnedToEnd
+
+    private val followsEnd: Boolean
+        get() = pinnedToEnd && live && !easing && !restorePending && !gliding
+
+    /**
+     * Follows the end while a rail runs or the end is pinned, then springs back to where it started
+     * once the last rail closes, unless the end was pinned.
+     */
     private suspend fun followRail() {
         val startIndex = listState.firstVisibleItemIndex
         val startOffset = listState.firstVisibleItemScrollOffset
         var last = withFrameNanos { it }
-        while (followsRail && !gliding) {
+        while ((followsRail || followsEnd) && !gliding) {
             val now = withFrameNanos { it }
             val dt = ((now - last) / NANOS_PER_SECOND).coerceAtMost(MAX_FRAME_SECONDS)
             last = now
@@ -235,21 +250,26 @@ internal class ChatScrollHandle(
                 distance > PIN_EPSILON_PX -> pin()
             }
         }
-        if (activeRails.intValue == 0 && !readerScrolled && !gliding) {
+        if (activeRails.intValue == 0 && springsBack && !gliding) {
             ease { listState.animateScrollToItem(startIndex, startOffset) }
         }
+        if (!live) pinnedToEnd = false
     }
 
     /** Keeps [following] true exactly while the reader rests at the end, so content growing away ends it. */
     suspend fun relatch() {
         snapshotFlow {
-            val ours = gliding || easing || restorePending || followsRail
+            val ours = gliding || easing || restorePending || followsRail || followsEnd
             if (ours || listState.isScrollInProgress) {
                 null
             } else {
                 listState.distanceToBottom() <= relatchPx
             }
-        }.filterNotNull().collect { following = it }
+        }.filterNotNull().collect {
+            following = it
+            // Only a reader's scroll pins: a sent prompt's runway also ends at the end, and must stay still.
+            if (it && live && readerScrolled) pinnedToEnd = true
+        }
     }
 
     private suspend fun glideUp() {
@@ -284,6 +304,7 @@ internal class ChatScrollHandle(
 
     private fun release() {
         readerScrolled = true
+        pinnedToEnd = false
         following = false
         gliding = false
     }
