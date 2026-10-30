@@ -8,7 +8,7 @@
 - *(home)* Show the six most recently updated projects in quick chat.
 - *(chat)* Give the composer a rounder expanded panel and a capsule-shaped collapsed bar.
 - *(sessions)* Use grouped expressive action menus with icons and a separate delete action on chat cards.
-- *(projects)* Use the Material 3 expressive selection menu for the agent filter.
+- *(sessions)* Combine project, agent, and worktree filters in sheets so floating toolbars fit narrow screens.
 - *(theme)* Use the complete wallpaper-derived dynamic color scheme where available, with a fern palette as fallback.
 - *(sessions)* Show working, needs-attention, finished and error status across chat cards, hero/recents, project and agent cards, and the session switcher, using live local state or the gateway's `/v1/turns` snapshot.
 - *(chat)* Replace the session switcher count with an attention or error icon, with a brief hop and haptic when another session needs attention, fails, or finishes.

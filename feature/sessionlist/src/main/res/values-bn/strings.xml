@@ -93,6 +93,13 @@
     <string name="sessionlist_missing_folders">মুছে ফেলা ফোল্ডার (%d)</string>
     <string name="sessionlist_missing_folder_message">এই চ্যাটের ফোল্ডারটি আর নেই, তাই এটি খোলা যাবে না।</string>
     <string name="sessionlist_all_agents">সব এজেন্ট</string>
+    <string name="sessionlist_filters">ফিল্টার</string>
+    <plurals name="sessionlist_filters_applied">
+        <item quantity="one">%dটি ফিল্টার প্রয়োগ করা হয়েছে</item>
+        <item quantity="other">%dটি ফিল্টার প্রয়োগ করা হয়েছে</item>
+    </plurals>
+    <string name="sessionlist_filter_agent">এজেন্ট</string>
+    <string name="sessionlist_filter_worktree">ওয়ার্কট্রি</string>
     <string name="sessionlist_action_busy">এই চ্যাটে এখনও উত্তর আসছে। আগে চ্যাটের ভেতর থেকে বাতিল করুন।</string>
     <string name="sessionlist_action_failed">চ্যাট আপডেট করা যায়নি। আবার চেষ্টা করুন।</string>
     <string name="sessionlist_agent_listing_unsupported">চ্যাটের তালিকা দেখাতে পারে না। নতুন চ্যাট অ্যাপ ছেড়ে যাওয়া পর্যন্ত এই ফোনেই থাকে।</string>

@@ -95,6 +95,13 @@
     <string name="sessionlist_missing_folders">Pastas excluídas (%d)</string>
     <string name="sessionlist_missing_folder_message">A pasta deste chat não existe mais, então ele não pode ser aberto.</string>
     <string name="sessionlist_all_agents">Todos os agentes</string>
+    <string name="sessionlist_filters">Filtros</string>
+    <plurals name="sessionlist_filters_applied">
+        <item quantity="one">%d filtro aplicado</item>
+        <item quantity="other">%d filtros aplicados</item>
+    </plurals>
+    <string name="sessionlist_filter_agent">Agente</string>
+    <string name="sessionlist_filter_worktree">Árvore de trabalho</string>
     <string name="sessionlist_action_busy">Esta conversa ainda está respondendo. Cancele primeiro dentro da conversa.</string>
     <string name="sessionlist_action_failed">Não foi possível atualizar a conversa. Tente novamente.</string>
     <string name="sessionlist_agent_listing_unsupported">Não pode listar conversas. Novas conversas ficam neste telefone até você sair do aplicativo.</string>

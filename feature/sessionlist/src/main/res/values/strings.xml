@@ -95,6 +95,13 @@
     <string name="sessionlist_missing_folders">Deleted folders (%d)</string>
     <string name="sessionlist_missing_folder_message">This chat\'s folder no longer exists, so it can\'t be opened.</string>
     <string name="sessionlist_all_agents">All agents</string>
+    <string name="sessionlist_filters">Filters</string>
+    <plurals name="sessionlist_filters_applied">
+        <item quantity="one">%d filter applied</item>
+        <item quantity="other">%d filters applied</item>
+    </plurals>
+    <string name="sessionlist_filter_agent">Agent</string>
+    <string name="sessionlist_filter_worktree">Worktree</string>
     <string name="sessionlist_action_busy">This chat is still responding. Cancel it from inside the chat first.</string>
     <string name="sessionlist_action_failed">Couldn\'t update the chat. Try again.</string>
     <string name="sessionlist_agent_listing_unsupported">Can\'t list chats. New chats stay on this phone until you leave the app.</string>

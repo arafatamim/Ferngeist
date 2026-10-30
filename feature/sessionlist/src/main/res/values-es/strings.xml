@@ -95,6 +95,13 @@
     <string name="sessionlist_missing_folders">Carpetas eliminadas (%d)</string>
     <string name="sessionlist_missing_folder_message">La carpeta de este chat ya no existe, así que no se puede abrir.</string>
     <string name="sessionlist_all_agents">Todos los agentes</string>
+    <string name="sessionlist_filters">Filtros</string>
+    <plurals name="sessionlist_filters_applied">
+        <item quantity="one">%d filtro aplicado</item>
+        <item quantity="other">%d filtros aplicados</item>
+    </plurals>
+    <string name="sessionlist_filter_agent">Agente</string>
+    <string name="sessionlist_filter_worktree">Árbol de trabajo</string>
     <string name="sessionlist_action_busy">Este chat sigue respondiendo. Cancélalo primero desde el chat.</string>
     <string name="sessionlist_action_failed">No se pudo actualizar el chat. Inténtalo de nuevo.</string>
     <string name="sessionlist_agent_listing_unsupported">No puede listar chats. Los nuevos chats permanecen en este teléfono hasta que salgas de la aplicación.</string>

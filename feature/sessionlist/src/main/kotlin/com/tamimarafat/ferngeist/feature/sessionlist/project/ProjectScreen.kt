@@ -57,6 +57,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.displayName
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.worktreeScopeOptions
+import com.tamimarafat.ferngeist.feature.sessionlist.ui.FiltersButton
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.NewWorktreeSheet
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.RemoveWorktreeDialog
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListEmptyContent
@@ -98,6 +99,7 @@ fun ProjectScreen(
     var pendingRemoval by remember { mutableStateOf<SessionListEvent.ConfirmRemoveWorktree?>(null) }
     var showWorktreeSheet by rememberSaveable { mutableStateOf(false) }
     var showAgentSheet by rememberSaveable { mutableStateOf(false) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
     val agents by viewModel.agents.collectAsState()
     // A usable single agent starts directly; unavailable agents keep their explanatory sheet.
     val selectedAgentId by viewModel.selectedAgentId.collectAsState()
@@ -175,7 +177,13 @@ fun ProjectScreen(
                     onRemoveWorktree = { viewModel.requestRemoveWorktree(null, it) },
                     newChatEnabled = agents.isNotEmpty(),
                     newChatLabel = agent?.let { stringResource(R.string.sessionlist_project_new_chat_with, it.name) },
-                    leadingSelector = { AgentFilter(agents, selectedAgentId, viewModel::selectAgent) },
+                    leadingSelector = {
+                        FiltersButton(
+                            expanded = toolbarExpanded,
+                            count = projectFilterCount(selectedAgentId, scope),
+                            onClick = { showFilters = true },
+                        )
+                    },
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -208,6 +216,23 @@ fun ProjectScreen(
             }
         }
     }
+
+    ProjectFiltersSheet(
+        show = showFilters,
+        agents = agents,
+        selectedAgentId = selectedAgentId,
+        scope = scope,
+        options = options,
+        worktreesEnabled = project?.checkout != null,
+        onSelectAgent = viewModel::selectAgent,
+        onSelectScope = viewModel::selectScope,
+        onNewWorktree = {
+            viewModel.clearWorktreeError()
+            showWorktreeSheet = true
+        },
+        onRemoveWorktree = { viewModel.requestRemoveWorktree(null, it) },
+        onDismiss = { showFilters = false },
+    )
 
     if (showWorktreeSheet && repo != null) {
         val creating by viewModel.creatingWorktree.collectAsState()
@@ -252,6 +277,11 @@ fun ProjectScreen(
         )
     }
 }
+
+private fun projectFilterCount(
+    agentId: String?,
+    scope: WorktreeScope,
+): Int = (if (agentId != null) 1 else 0) + (if (scope != WorktreeScope.All) 1 else 0)
 
 @Composable
 private fun ProjectEvents(

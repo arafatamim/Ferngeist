@@ -3,33 +3,21 @@ package com.tamimarafat.ferngeist.feature.sessionlist.ui
 import android.icu.text.MeasureFormat
 import android.icu.util.Measure
 import android.icu.util.MeasureUnit
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material3.ButtonDefaults
@@ -43,7 +31,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.SheetValue
@@ -60,7 +47,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
@@ -71,7 +57,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
@@ -106,21 +91,41 @@ internal fun scopeLabel(
                 ?: pathSegments(scope.path).lastOrNull().orEmpty()
     }
 
-internal val selectorMaxWidth = 104.dp
-
-/** A label's cap when it has the toolbar to itself. */
-private val selectorWideMaxWidth = 200.dp
-
 private const val MAX_RECENT_PROJECTS = 5
 private const val DISABLED_ACTION_ALPHA = 0.38f
+
+@Composable
+internal fun FiltersButton(
+    expanded: Boolean,
+    count: Int,
+    onClick: () -> Unit,
+) {
+    val label =
+        if (count == 0) {
+            stringResource(R.string.sessionlist_filters)
+        } else {
+            pluralStringResource(R.plurals.sessionlist_filters_applied, count, count)
+        }
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.handCursor().focusProperties { canFocus = expanded },
+        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
+    ) {
+        Icon(Icons.Outlined.FilterList, contentDescription = null)
+        Text(
+            label,
+            modifier = Modifier.padding(start = 8.dp).widthIn(max = 200.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
 /**
  * Where New chat starts: a project and, inside a repo on a gateway, a worktree of it.
  *
- * The FAB is the hero, so the toolbar is vibrant like it; the selectors beside it name the place
- * the FAB applies to. The worktree selector only exists once the project names a repo on a
- * gateway with worktrees, and picking another project re-lists it. Scrolling down collapses the
- * toolbar to just the FAB, which stays reachable, and scrolling up brings the selectors back.
+ * The FAB is the hero; the filter sheet chooses where the new chat starts.
+ * Scrolling down collapses the toolbar to the FAB, and scrolling up restores the filter button.
  *
  * @param worktreesEnabled true when the filter names a repo on a gateway with worktrees.
  */
@@ -144,7 +149,7 @@ internal fun WorktreeToolbar(
     leadingSelector: (@Composable () -> Unit)? = null,
 ) {
     val scopeName = scopeLabel(scope, options)
-    val narrowed = worktreesEnabled && scope != WorktreeScope.All
+    var showFilters by remember { mutableStateOf(false) }
     val newChat =
         when {
             newChatLabel != null -> newChatLabel
@@ -157,41 +162,32 @@ internal fun WorktreeToolbar(
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
         floatingActionButton = { NewChatButton(newChat = newChat, onNewChat = onNewChat, enabled = newChatEnabled) },
         content = {
-            // One non-bouncy width animation for the whole row: several springs resizing their own
-            // labels at once fought each other, and the bounce shook the toolbar's leading edge.
-            Row(
-                modifier = Modifier.animateContentSize(MotionScheme.standard().defaultSpatialSpec()),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (leadingSelector != null) {
-                    leadingSelector()
-                } else {
-                    ProjectSelector(
-                        expanded = expanded,
-                        repo = repo,
-                        projects = projects,
-                        worktreesEnabled = worktreesEnabled,
-                        narrowed = narrowed,
-                        onSelectRepo = onSelectRepo,
-                        onOtherProject = onOtherProject,
-                    )
-                }
-                if (worktreesEnabled) {
-                    ScopeSelector(
-                        expanded = expanded,
-                        repo = repo,
-                        scope = scope,
-                        scopeName = scopeName,
-                        options = options,
-                        narrowed = narrowed,
-                        onSelectScope = onSelectScope,
-                        onNewWorktree = onNewWorktree,
-                        onRemoveWorktree = onRemoveWorktree,
-                    )
-                }
+            if (leadingSelector != null) {
+                leadingSelector()
+            } else {
+                FiltersButton(
+                    expanded = expanded,
+                    count = (if (!repo.isNullOrBlank()) 1 else 0) + (if (scope != WorktreeScope.All) 1 else 0),
+                    onClick = { showFilters = true },
+                )
             }
         },
     )
+    if (showFilters) {
+        AgentFiltersSheet(
+            repo = repo,
+            projects = projects,
+            worktreesEnabled = worktreesEnabled,
+            scope = scope,
+            options = options,
+            onDismiss = { showFilters = false },
+            onSelectProject = onSelectRepo,
+            onOtherProject = onOtherProject,
+            onSelectScope = onSelectScope,
+            onNewWorktree = onNewWorktree,
+            onRemoveWorktree = onRemoveWorktree,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -219,180 +215,30 @@ private fun NewChatButton(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Project and worktree filters; keep the selected project alongside the most recent ones. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ProjectSelector(
-    expanded: Boolean,
+private fun AgentFiltersSheet(
     repo: String?,
     projects: List<String>,
     worktreesEnabled: Boolean,
-    narrowed: Boolean,
-    onSelectRepo: (String) -> Unit,
-    onOtherProject: (() -> Unit)?,
-) {
-    var projectSheet by remember { mutableStateOf(false) }
-    SelectorButton(
-        icon = Icons.Outlined.FolderOpen,
-        label =
-            repo?.takeIf { it.isNotBlank() }?.let(::projectName)
-                ?: stringResource(R.string.sessionlist_scope_all_projects),
-        // Two names do not fit beside the FAB; once a worktree is picked it is the one that matters.
-        showLabel = !narrowed,
-        // Alone in the toolbar, it can take the room the worktree selector would use.
-        maxWidth = if (worktreesEnabled) selectorMaxWidth else selectorWideMaxWidth,
-        focusable = expanded,
-        onClick = { projectSheet = true },
-    )
-    if (projectSheet) {
-        ProjectSheet(
-            repo = repo,
-            projects = projects,
-            onDismiss = { projectSheet = false },
-            onSelectProject = {
-                projectSheet = false
-                onSelectRepo(it)
-            },
-            onOtherProject =
-                onOtherProject?.let { other ->
-                    {
-                        projectSheet = false
-                        other()
-                    }
-                },
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ScopeSelector(
-    expanded: Boolean,
-    repo: String?,
     scope: WorktreeScope,
-    scopeName: String,
     options: List<ScopeOption>,
-    narrowed: Boolean,
-    onSelectScope: (WorktreeScope) -> Unit,
-    onNewWorktree: () -> Unit,
-    onRemoveWorktree: (worktreeId: String) -> Unit,
-) {
-    var scopeMenu by remember { mutableStateOf(false) }
-    SelectorButton(
-        icon = Icons.Outlined.AccountTree,
-        label = scopeName,
-        maxWidth = if (narrowed) selectorWideMaxWidth else selectorMaxWidth,
-        focusable = expanded,
-        onClick = { scopeMenu = true },
-        showArrow = false,
-        labelOverflow = TextOverflow.StartEllipsis,
-    )
-    if (scopeMenu) {
-        WorktreeSheet(
-            repo = repo.orEmpty(),
-            scope = scope,
-            options = options,
-            onDismiss = { scopeMenu = false },
-            onSelectScope = {
-                scopeMenu = false
-                onSelectScope(it)
-            },
-            onNewWorktree = {
-                scopeMenu = false
-                onNewWorktree()
-            },
-            onRemoveWorktree = {
-                scopeMenu = false
-                onRemoveWorktree(it)
-            },
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SelectorButton(
-    icon: ImageVector,
-    label: String,
-    focusable: Boolean,
-    onClick: () -> Unit,
-    showLabel: Boolean = true,
-    showArrow: Boolean = true,
-    maxWidth: Dp = selectorMaxWidth,
-    labelOverflow: TextOverflow = TextOverflow.MiddleEllipsis,
-) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text(label) } },
-        state = rememberTooltipState(),
-    ) {
-        TextButton(
-            onClick = onClick,
-            // Keyboard focus must not land on a selector the collapsed toolbar has hidden.
-            modifier = Modifier.handCursor().focusProperties { canFocus = focusable },
-            // The vibrant toolbar's container is primaryContainer; primary is not a guaranteed pair.
-            colors =
-                ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-            contentPadding = PaddingValues(start = 8.dp, end = 4.dp),
-        ) {
-            Icon(
-                icon,
-                contentDescription = label.takeUnless { showLabel },
-                modifier = Modifier.size(18.dp),
-            )
-            if (showLabel) SelectorLabel(label, maxWidth, labelOverflow)
-            if (showArrow) Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-        }
-    }
-}
-
-@Composable
-private fun SelectorLabel(
-    label: String,
-    maxWidth: Dp,
-    overflow: TextOverflow,
-) {
-    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-    AnimatedContent(
-        targetState = label,
-        transitionSpec = {
-            (fadeIn(effects) + slideInVertically { it / 2 })
-                .togetherWith(fadeOut(effects) + slideOutVertically { -it / 2 })
-                // The row around the selectors animates the width; resizing here too would fight it.
-                .using(SizeTransform { _, _ -> snap() })
-        },
-        label = "SelectorLabel",
-    ) { text ->
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            maxLines = 1,
-            overflow = overflow,
-            modifier = Modifier.widthIn(max = maxWidth).padding(start = 6.dp),
-        )
-    }
-}
-
-/**
- * Every project, the five most recent first, then a way to type another.
- * A sheet to match the worktree selector beside it, and so long paths get the full width.
- * Without [onOtherProject] the list is fixed: every one of [projects], and no "all" or "other" row.
- */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ProjectSheet(
-    repo: String?,
-    projects: List<String>,
     onDismiss: () -> Unit,
     onSelectProject: (String) -> Unit,
     onOtherProject: (() -> Unit)?,
+    onSelectScope: (WorktreeScope) -> Unit,
+    onNewWorktree: () -> Unit,
+    onRemoveWorktree: (String) -> Unit,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val coroutineScope = rememberCoroutineScope()
     // Slide the sheet away first; the action then runs on a settled screen.
     val thenClose: (() -> Unit) -> Unit = { action ->
-        coroutineScope.launch { sheetState.hide() }.invokeOnCompletion { action() }
+        coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+            onDismiss()
+            action()
+        }
     }
     // The picked project stays listed even when it has fallen out of the recent ones.
     val listed =
@@ -419,10 +265,11 @@ private fun ProjectSheet(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
         ) {
             Text(
-                text = stringResource(R.string.sessionlist_scope_projects),
+                text = stringResource(R.string.sessionlist_filters),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 8.dp, bottom = 12.dp),
             )
+            Text(stringResource(R.string.sessionlist_scope_projects), style = MaterialTheme.typography.titleSmall)
             val offset = if (onOtherProject == null) 0 else 1
             val count = listed.size + offset
             if (onOtherProject != null) {
@@ -432,7 +279,7 @@ private fun ProjectSheet(
                     supporting = null,
                     icon = Icons.Outlined.Forum,
                     shapes = ListItemDefaults.segmentedShapes(0, count),
-                    onClick = { thenClose { onSelectProject("") } },
+                    onClick = { onSelectProject("") },
                 )
             }
             listed.forEachIndexed { index, path ->
@@ -442,7 +289,7 @@ private fun ProjectSheet(
                     supporting = path.takeIf { projectName(it) in sharedNames },
                     icon = Icons.Outlined.FolderOpen,
                     shapes = ListItemDefaults.segmentedShapes(index + offset, count),
-                    onClick = { thenClose { onSelectProject(path) } },
+                    onClick = { onSelectProject(path) },
                 )
             }
             onOtherProject?.let { other ->
@@ -456,97 +303,77 @@ private fun ProjectSheet(
                     Text(stringResource(R.string.sessionlist_scope_other_project))
                 }
             }
+            if (worktreesEnabled) {
+                Spacer(Modifier.height(16.dp))
+                Text(stringResource(R.string.sessionlist_filter_worktree), style = MaterialTheme.typography.titleSmall)
+                WorktreeRows(
+                    scope = scope,
+                    options = options,
+                    onSelectScope = onSelectScope,
+                    onNewWorktree = { thenClose(onNewWorktree) },
+                    onRemoveWorktree = { id -> thenClose { onRemoveWorktree(id) } },
+                )
+            }
         }
     }
 }
 
-/**
- * The repo's chats, its main checkout and each worktree with a remove button, then `New worktree…`.
- * A sheet rather than a menu: worktree rows carry a status line and a button, which a menu's
- * 280dp cap squeezed out.
- */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun WorktreeSheet(
-    repo: String,
+internal fun WorktreeRows(
     scope: WorktreeScope,
     options: List<ScopeOption>,
-    onDismiss: () -> Unit,
     onSelectScope: (WorktreeScope) -> Unit,
     onNewWorktree: () -> Unit,
-    onRemoveWorktree: (worktreeId: String) -> Unit,
+    onRemoveWorktree: (String) -> Unit,
 ) {
-    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
-    val coroutineScope = rememberCoroutineScope()
-    // Slide the sheet away first; the action then runs on a settled screen.
-    val thenClose: (() -> Unit) -> Unit = { action ->
-        coroutineScope.launch { sheetState.hide() }.invokeOnCompletion { action() }
+    val count = 2 + options.size
+    ScopeRow(
+        selected = scope == WorktreeScope.All,
+        label = stringResource(R.string.sessionlist_scope_all),
+        supporting = null,
+        icon = Icons.Outlined.Forum,
+        shapes = ListItemDefaults.segmentedShapes(0, count),
+        onClick = { onSelectScope(WorktreeScope.All) },
+    )
+    ScopeRow(
+        selected = scope == WorktreeScope.Main,
+        label = stringResource(R.string.sessionlist_scope_main),
+        supporting = null,
+        icon = Icons.Outlined.FolderOpen,
+        shapes = ListItemDefaults.segmentedShapes(1, count),
+        onClick = { onSelectScope(WorktreeScope.Main) },
+    )
+    options.forEachIndexed { index, option ->
+        ScopeRow(
+            selected = scope is WorktreeScope.Worktree && isSameCwd(scope.path, option.path),
+            label = option.branch,
+            supporting = scopeSupportingText(option),
+            icon = Icons.Outlined.AccountTree,
+            shapes = ListItemDefaults.segmentedShapes(index + 2, count),
+            onClick = { onSelectScope(WorktreeScope.Worktree(option.path)) },
+            labelOverflow = TextOverflow.StartEllipsis,
+            trailing = {
+                IconButton(
+                    onClick = { onRemoveWorktree(option.worktree.id) },
+                    modifier = Modifier.handCursor(),
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = stringResource(R.string.sessionlist_action_remove_worktree),
+                    )
+                }
+            },
+        )
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(
-            modifier =
-                Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
-        ) {
-            Text(
-                text = projectName(repo),
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
-                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp),
-            )
-            val count = 2 + options.size
-            ScopeRow(
-                selected = scope == WorktreeScope.All,
-                label = stringResource(R.string.sessionlist_scope_all),
-                supporting = null,
-                icon = Icons.Outlined.Forum,
-                shapes = ListItemDefaults.segmentedShapes(0, count),
-                onClick = { thenClose { onSelectScope(WorktreeScope.All) } },
-            )
-            ScopeRow(
-                selected = scope == WorktreeScope.Main,
-                label = stringResource(R.string.sessionlist_scope_main),
-                supporting = null,
-                icon = Icons.Outlined.FolderOpen,
-                shapes = ListItemDefaults.segmentedShapes(1, count),
-                onClick = { thenClose { onSelectScope(WorktreeScope.Main) } },
-            )
-            options.forEachIndexed { index, option ->
-                ScopeRow(
-                    selected = scope is WorktreeScope.Worktree && isSameCwd(scope.path, option.path),
-                    label = option.branch,
-                    supporting = scopeSupportingText(option),
-                    icon = Icons.Outlined.AccountTree,
-                    shapes = ListItemDefaults.segmentedShapes(index + 2, count),
-                    onClick = { thenClose { onSelectScope(WorktreeScope.Worktree(option.path)) } },
-                    labelOverflow = TextOverflow.StartEllipsis,
-                    trailing = {
-                        IconButton(
-                            onClick = { thenClose { onRemoveWorktree(option.worktree.id) } },
-                            modifier = Modifier.handCursor(),
-                        ) {
-                            Icon(
-                                Icons.Outlined.Delete,
-                                contentDescription = stringResource(R.string.sessionlist_action_remove_worktree),
-                            )
-                        }
-                    },
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            SegmentedListItem(
-                onClick = { thenClose(onNewWorktree) },
-                shapes = ListItemDefaults.segmentedShapes(0, 1),
-                modifier = Modifier.handCursor(),
-                leadingContent = { Icon(Icons.Filled.Add, contentDescription = null) },
-            ) {
-                Text(stringResource(R.string.sessionlist_scope_new_worktree))
-            }
-        }
+    Spacer(Modifier.height(12.dp))
+    SegmentedListItem(
+        onClick = onNewWorktree,
+        shapes = ListItemDefaults.segmentedShapes(0, 1),
+        modifier = Modifier.handCursor(),
+        leadingContent = { Icon(Icons.Filled.Add, contentDescription = null) },
+    ) {
+        Text(stringResource(R.string.sessionlist_scope_new_worktree))
     }
 }
 

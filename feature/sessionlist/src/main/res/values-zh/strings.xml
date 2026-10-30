@@ -93,6 +93,12 @@
     <string name="sessionlist_missing_folders">已删除的文件夹（%d）</string>
     <string name="sessionlist_missing_folder_message">此聊天的文件夹已不存在，因此无法打开。</string>
     <string name="sessionlist_all_agents">所有代理</string>
+    <string name="sessionlist_filters">筛选</string>
+    <plurals name="sessionlist_filters_applied">
+        <item quantity="other">已应用 %d 个筛选条件</item>
+    </plurals>
+    <string name="sessionlist_filter_agent">代理</string>
+    <string name="sessionlist_filter_worktree">工作树</string>
     <string name="sessionlist_action_busy">此聊天仍在回复。请先在聊天中取消。</string>
     <string name="sessionlist_action_failed">无法更新聊天，请重试。</string>
     <string name="sessionlist_agent_listing_unsupported">无法列出聊天。新聊天会保留在此手机上，直到退出应用。</string>

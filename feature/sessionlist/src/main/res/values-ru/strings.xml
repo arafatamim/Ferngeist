@@ -99,6 +99,15 @@
     <string name="sessionlist_missing_folders">Удалённые папки (%d)</string>
     <string name="sessionlist_missing_folder_message">Папка этого чата больше не существует, поэтому его нельзя открыть.</string>
     <string name="sessionlist_all_agents">Все агенты</string>
+    <string name="sessionlist_filters">Фильтры</string>
+    <plurals name="sessionlist_filters_applied">
+        <item quantity="one">Применён %d фильтр</item>
+        <item quantity="few">Применено %d фильтра</item>
+        <item quantity="many">Применено %d фильтров</item>
+        <item quantity="other">Применено %d фильтра</item>
+    </plurals>
+    <string name="sessionlist_filter_agent">Агент</string>
+    <string name="sessionlist_filter_worktree">Рабочее дерево</string>
     <string name="sessionlist_action_busy">В этом чате ещё формируется ответ. Сначала отмените его внутри чата.</string>
     <string name="sessionlist_action_failed">Не удалось обновить чат. Повторите попытку.</string>
     <string name="sessionlist_agent_listing_unsupported">Список чатов недоступен. Новые чаты остаются на этом телефоне до выхода из приложения.</string>
