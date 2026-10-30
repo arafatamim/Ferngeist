@@ -123,8 +123,9 @@ open class ProjectCatalogFixture {
     internal fun turns(
         vararg turns: String,
         gatewayStartedAt: String = "2026-10-27T09:00:00Z",
+        observedAt: String = "2026-10-27T09:30:00Z",
     ): String =
-        """{"gatewayStartedAt":"$gatewayStartedAt","observedAt":"2026-10-27T10:00:00Z",""" +
+        """{"gatewayStartedAt":"$gatewayStartedAt","observedAt":"$observedAt",""" +
             """"turns":[${turns.joinToString(",")}]}"""
 
     internal fun turnLine(
@@ -132,12 +133,12 @@ open class ProjectCatalogFixture {
         sessionId: String,
         state: String,
         attention: List<String> = emptyList(),
-        startedAt: String = "2026-10-27T09:30:00Z",
+        changedAt: String = "2026-10-27T09:30:00Z",
     ): String {
         val attentionJson = attention.joinToString(",", "[", "]") { "\"$it\"" }
         return """{"agentId":"$agentId","sessionId":"$sessionId","gatewaySessionId":"gs",""" +
             """"runtimeId":"rt","state":"$state","attention":$attentionJson,""" +
-            """"startedAt":"$startedAt","changedAt":"$startedAt"}"""
+            """"startedAt":"2026-10-27T09:30:00Z","changedAt":"$changedAt"}"""
     }
 
     internal fun store() = ProjectSnapshotStore(folder.root, json)

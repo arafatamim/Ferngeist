@@ -7,7 +7,10 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -70,6 +73,58 @@ class ChatTurnPresenceTest {
             assertEquals(TurnStatus.NEEDS_ATTENTION, hub.turnStatuses.value[key])
             bridge.emitEvent(AppSessionEvent.TurnComplete("error"))
             assertEquals(TurnStatus.ERROR, hub.turnStatuses.value[key])
+            hub.close(key)
+            bridge.close()
+        }
+
+    @Test
+    fun `finished status expires ten minutes after the latest completion`() =
+        runTest {
+            val hub = newHub(dispatcher = UnconfinedTestDispatcher(testScheduler))
+            val manager = hub.acquireChatManager()
+            manager.forceConnectionState(AcpConnectionState.Connected)
+            val bridge = SessionBridge("s1", null)
+            bridge.runtime.beginHydration()
+            bridge.runtime.completeHydration()
+            val key =
+                hub.register(
+                    "srv",
+                    "s1",
+                    ChatRegistration(
+                        gatewaySessionId = null,
+                        gatewaySourceId = "",
+                        agentId = "",
+                        isConnected = { manager.isConnected },
+                        isStreaming = { bridge.snapshot.value.isStreaming },
+                        manager = manager,
+                        snapshot = bridge.snapshot,
+                    ),
+                )
+            bridge.sendPrompt("first", emptyList(), emptyList())
+            bridge.emitEvent(AppSessionEvent.TurnComplete("end_turn"))
+            runCurrent()
+
+            advanceTimeBy(599_999)
+            runCurrent()
+            assertEquals(TurnStatus.FINISHED, hub.turnStatuses.value[key])
+            hub.chatScreenOpened("srv", "other", "")
+            runCurrent()
+            hub.chatScreenClosed("srv", "other")
+            runCurrent()
+            advanceTimeBy(1)
+            runCurrent()
+            assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key])
+
+            bridge.sendPrompt("second", emptyList(), emptyList())
+            bridge.emitEvent(AppSessionEvent.TurnComplete("end_turn"))
+            runCurrent()
+            advanceTimeBy(599_999)
+            runCurrent()
+            assertEquals(TurnStatus.FINISHED, hub.turnStatuses.value[key])
+            advanceTimeBy(1)
+            runCurrent()
+            assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key])
+
             hub.close(key)
             bridge.close()
         }

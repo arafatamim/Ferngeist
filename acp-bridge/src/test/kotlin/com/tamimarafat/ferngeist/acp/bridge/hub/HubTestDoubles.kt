@@ -28,6 +28,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayStatus
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -46,9 +47,9 @@ internal fun newHub(
     maxHot: Int = 3,
     maxGateway: Int = 5,
     clock: () -> Long = tickingClock(),
-): ChatConnectionHub {
-    val dispatcher = UnconfinedTestDispatcher()
-    return ChatConnectionHub(
+    dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
+): ChatConnectionHub =
+    ChatConnectionHub(
         gatewayRepository = repo,
         scope = CoroutineScope(dispatcher),
         connectivityObserver = ConnectivityObserverStub(initialState = true),
@@ -60,7 +61,6 @@ internal fun newHub(
             ),
         ioDispatcher = dispatcher,
     )
-}
 
 /** A connected chat registration; the hub is always handed a live transport probe. */
 internal fun ChatConnectionHub.registerChat(
