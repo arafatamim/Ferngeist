@@ -5,6 +5,7 @@ import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
@@ -426,7 +427,7 @@ internal suspend fun LazyListState.easeScrollToTop() {
     // it has scrolled out of view is the distance an estimate, and then the start jumps anyway.
     val landed = layoutInfo.visibleItemsInfo.firstOrNull { it.index == anchor.index }
     val distance = landed?.let { (it.offset - anchor.offset).toFloat() } ?: min(estimate, maxEasePx())
-    glideOnto(-distance, exact = landed != null)
+    glideOnto(-scrollBy(distance), exact = landed != null)
 }
 
 /**
@@ -434,12 +435,9 @@ internal suspend fun LazyListState.easeScrollToTop() {
  */
 internal suspend fun LazyListState.easeScrollToBottom() {
     val anchor = layoutInfo.visibleItemsInfo.lastOrNull() ?: return
-    val estimate = distanceToBottom()
     scrollToItem(layoutInfo.totalItemsCount - 1)
-    val landed = layoutInfo.visibleItemsInfo.firstOrNull { it.index == anchor.index }
-    val distance =
-        landed?.let { (anchor.offset + anchor.size - (it.offset + it.size)).toFloat() } ?: min(estimate, maxEasePx())
-    glideOnto(distance, exact = landed != null)
+    val travel = walkBackTo(anchor)
+    glideOnto(travel, exact = layoutInfo.visibleItemsInfo.any { it.index == anchor.index })
     // A reply still streaming grows during the ease, past the distance it set out to cover. Chase
     // the new end in short eases; snapping onto it hopped by every line that streamed meanwhile.
     repeat(CHASE_PASSES) {
@@ -450,8 +448,7 @@ internal suspend fun LazyListState.easeScrollToBottom() {
 }
 
 /**
- * Called with the list already resting on its target: steps back [travel] pixels and eases
- * forward onto the target again.
+ * Called with the list stepped back [travel] pixels from its target: eases forward onto it.
  *
  * The step back happens in the same frame as the snap to the target, so when the distance was
  * measured [exact]ly the list visibly never moves before the ease starts — it simply glides from
@@ -467,16 +464,34 @@ private suspend fun LazyListState.glideOnto(
     exact: Boolean,
 ) {
     if (travel == 0f) return
-    val stepped = -scrollBy(-travel)
-    val fraction = (abs(stepped) / maxEasePx()).coerceAtMost(1f)
+    val fraction = (abs(travel) / maxEasePx()).coerceAtMost(1f)
     animateScrollBy(
-        value = stepped,
+        value = travel,
         animationSpec =
             tween(
                 durationMillis = EASE_MIN_MS + ((EASE_MAX_MS - EASE_MIN_MS) * fraction).toInt(),
                 easing = if (exact) EaseInOutCubic else EaseOutCubic,
             ),
     )
+}
+
+/**
+ * From the end, steps back a viewport at a time until [anchor] is laid out again, then puts it
+ * where it was, all in one frame; the pixels stepped are then exact. An average-row estimate of a
+ * target one or two viewports up was off by whole rows, and the ease started with that jump. Gives
+ * up [EASE_MAX_VIEWPORTS] back. Returns the pixels back from the end.
+ */
+private suspend fun LazyListState.walkBackTo(anchor: LazyListItemInfo): Float {
+    val viewport = layoutInfo.let { it.viewportEndOffset - it.viewportStartOffset }.toFloat()
+    var travelled = 0f
+    while (true) {
+        val landed = layoutInfo.visibleItemsInfo.firstOrNull { it.index == anchor.index }
+        if (landed != null) return travelled - scrollBy((landed.offset - anchor.offset).toFloat())
+        val step = min(viewport, maxEasePx() - travelled)
+        val stepped = if (step > 0f) -scrollBy(-step) else 0f
+        if (stepped == 0f) return travelled
+        travelled += stepped
+    }
 }
 
 private fun LazyListState.maxEasePx(): Float =
