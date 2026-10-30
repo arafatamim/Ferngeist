@@ -191,6 +191,16 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
         }
 
     @Test
+    fun `deleting one gateway chat keeps its siblings when the agent has no fallback listing`() =
+        runTest {
+            store().write(gateway.id, previous.copy(agents = mapOf("claude" to listOf(chat("keep"), chat("gone")))))
+            val catalog = catalog(MockEngine { respond("", HttpStatusCode.OK) })
+            runCurrent()
+            catalog.deleteSession(claude.id, "gone")
+            assertEquals(listOf("keep"), catalog.getSessions(claude.id).first().map { it.id })
+        }
+
+    @Test
     fun `direct listing hydrates after restart but a newly created chat does not`() =
         runTest {
             val direct = LaunchableTarget.Manual(ServerConfig(id = "direct", name = "Local", scheme = "ws", host = "h"))

@@ -296,10 +296,8 @@ class ProjectCatalog
             cache.publish(
                 key,
                 previous.copy(
-                    listings =
-                        mapOf(
-                            serverId to previous.listings[serverId].orEmpty().filterNot { it.id == sessionId },
-                        ),
+                    // An empty listing would shadow the gateway snapshot's chats, so never create one here.
+                    listings = previous.listings.mapValues { (_, chats) -> chats.filterNot { it.id == sessionId } },
                     suppressed =
                         previous.suppressed + (serverId to (previous.suppressed[serverId].orEmpty() + sessionId)),
                 ),
