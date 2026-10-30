@@ -63,14 +63,14 @@ class ProjectChoicesTest {
     }
 
     @Test
-    fun `active count matches target and chat together and returns to zero when streaming stops`() {
-        val first = project("/repo", 1).chats.single()
-        val second = first.copy(summary = first.summary.copy(id = "second"))
+    fun `working chats match target and chat together, newest first, and empty when streaming stops`() {
+        val first = project("/repo", 1).chats.single().let { it.copy(summary = it.summary.copy(updatedAt = 1)) }
+        val second = first.copy(summary = first.summary.copy(id = "second", updatedAt = 2))
         val project = project("/repo", 1).copy(chats = listOf(first, second))
 
         assertEquals(
-            1,
-            project.activeChatCount(
+            listOf("second"),
+            project.workingChatIds(
                 mapOf(
                     "other//repo" to TurnStatus.WORKING,
                     "agent/second" to TurnStatus.WORKING,
@@ -79,12 +79,12 @@ class ProjectChoicesTest {
             ),
         )
         assertEquals(
-            2,
-            project.activeChatCount(
+            listOf("second", "/repo"),
+            project.workingChatIds(
                 mapOf("agent//repo" to TurnStatus.WORKING, "agent/second" to TurnStatus.WORKING),
             ),
         )
-        assertEquals(0, project.activeChatCount(emptyMap()))
+        assertEquals(emptyList<String>(), project.workingChatIds(emptyMap()))
     }
 
     @Test

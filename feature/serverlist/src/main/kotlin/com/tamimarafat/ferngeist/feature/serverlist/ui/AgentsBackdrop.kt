@@ -822,7 +822,10 @@ private fun FrontLayerContent(
                         ServerCard(
                             server = server,
                             status = chatStatuses.values.aggregateTurnStatus(),
-                            activeChats = chatStatuses.count { it.value == TurnStatus.WORKING },
+                            // shortcut: no recency here, so the lead chat is the lowest id; order by
+                            // updatedAt if the agent row should match the hero's verb.
+                            workingChatIds =
+                                chatStatuses.filterValues { it == TurnStatus.WORKING }.keys.sorted(),
                             uiState = uiState,
                             liveServerIds = liveServerIds,
                             onClick = { onConnect(server) },

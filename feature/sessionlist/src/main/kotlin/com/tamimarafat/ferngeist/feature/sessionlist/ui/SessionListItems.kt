@@ -419,7 +419,7 @@ private fun RowScope.SessionCardText(
                     else -> session.cwd?.let(::projectName)
                 }
             // A turn in flight spends the subtitle line on its state; the place returns when unknown.
-            WorkingSubtitle(status = status, streamKey = session.id) {
+            WorkingSubtitle(status = status, chatId = session.id) {
                 place?.let {
                     Text(
                         text = it,

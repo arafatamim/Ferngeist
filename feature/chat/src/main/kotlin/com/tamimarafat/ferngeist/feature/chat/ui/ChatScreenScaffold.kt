@@ -55,6 +55,7 @@ import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.ui.git.GitCompareUi
 import com.tamimarafat.ferngeist.feature.chat.ui.git.GitStatusSheet
+import com.tamimarafat.ferngeist.feature.chat.ui.message.localChatId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -107,73 +108,76 @@ internal fun ChatScreenScaffold(
             Modifier
         }
 
-    Box(
-        modifier =
-            transitionModifier
-                .fillMaxSize()
-                .then(modifier)
-                .background(MaterialTheme.colorScheme.surface)
-                // The pane, not the composer: a drag anywhere over the conversation is a drop
-                // onto the composer's attachments, and the field below still finds this
-                // receiver on its ancestors for paste.
-                .composerContentReceiver(
-                    canSendImages = screenState.state.canSendImages,
-                    canSendFiles = screenState.state.supportsEmbeddedContext,
-                    onUris = screenState.actions.attachUris,
-                    onDragHoverChange = { dropTargetActive = it },
-                    onNothingToAttach = {
-                        coroutineScope.launch {
-                            screenState.mutations.snackbarHostState.showSnackbar(nothingToAttachMessage)
-                        }
-                    },
-                ),
-    ) {
-        val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-        // Chrome-style switch: the whole chat rides the bubble drag 1:1 in the
-        // layout phase (no recomposition per frame), springs back or flies off
-        // on release. The surface behind is the plain background.
-        val chatOffset = remember { Animatable(0f) }
-
-        Scaffold(
+    // The transcript's working verb is the chat's, matching its rows elsewhere.
+    CompositionLocalProvider(localChatId provides sessionId) {
+        Box(
             modifier =
-                Modifier
+                transitionModifier
                     .fillMaxSize()
-                    .offset {
-                        IntOffset(chatOffset.value.roundToInt(), 0)
-                    },
-            containerColor = Color.Transparent,
-            topBar = {
-                ChatScreenTopBar(
-                    screenState = screenState,
-                    sessionId = sessionId,
-                    fallbackTitle = fallbackTitle,
-                    scrollBehavior = scrollBehavior,
-                    coroutineScope = coroutineScope,
-                    viewModel = viewModel,
-                    onNavigateBack = onNavigateBack,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    showBackButton = showBackButton,
-                    sharedBoundsEnabled = sharedBoundsEnabled,
-                )
-            },
-        ) { innerPadding ->
-            Box(
+                    .then(modifier)
+                    .background(MaterialTheme.colorScheme.surface)
+                    // The pane, not the composer: a drag anywhere over the conversation is a drop
+                    // onto the composer's attachments, and the field below still finds this
+                    // receiver on its ancestors for paste.
+                    .composerContentReceiver(
+                        canSendImages = screenState.state.canSendImages,
+                        canSendFiles = screenState.state.supportsEmbeddedContext,
+                        onUris = screenState.actions.attachUris,
+                        onDragHoverChange = { dropTargetActive = it },
+                        onNothingToAttach = {
+                            coroutineScope.launch {
+                                screenState.mutations.snackbarHostState.showSnackbar(nothingToAttachMessage)
+                            }
+                        },
+                    ),
+        ) {
+            val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+            // Chrome-style switch: the whole chat rides the bubble drag 1:1 in the
+            // layout phase (no recomposition per frame), springs back or flies off
+            // on release. The surface behind is the plain background.
+            val chatOffset = remember { Animatable(0f) }
+
+            Scaffold(
                 modifier =
                     Modifier
-                        .fillMaxSize(),
-            ) {
-                ChatScreenOverlays(
-                    screenState = screenState,
-                    innerPadding = innerPadding,
-                    coroutineScope = coroutineScope,
-                    focusManager = focusManager,
-                    viewModel = viewModel,
-                    chatOffset = chatOffset,
-                    onSwitchSession = onSwitchSession,
-                    appBarScrollConnection = scrollBehavior.nestedScrollConnection,
-                    dropTargetActive = dropTargetActive,
-                )
+                        .fillMaxSize()
+                        .offset {
+                            IntOffset(chatOffset.value.roundToInt(), 0)
+                        },
+                containerColor = Color.Transparent,
+                topBar = {
+                    ChatScreenTopBar(
+                        screenState = screenState,
+                        sessionId = sessionId,
+                        fallbackTitle = fallbackTitle,
+                        scrollBehavior = scrollBehavior,
+                        coroutineScope = coroutineScope,
+                        viewModel = viewModel,
+                        onNavigateBack = onNavigateBack,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        showBackButton = showBackButton,
+                        sharedBoundsEnabled = sharedBoundsEnabled,
+                    )
+                },
+            ) { innerPadding ->
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize(),
+                ) {
+                    ChatScreenOverlays(
+                        screenState = screenState,
+                        innerPadding = innerPadding,
+                        coroutineScope = coroutineScope,
+                        focusManager = focusManager,
+                        viewModel = viewModel,
+                        chatOffset = chatOffset,
+                        onSwitchSession = onSwitchSession,
+                        appBarScrollConnection = scrollBehavior.nestedScrollConnection,
+                        dropTargetActive = dropTargetActive,
+                    )
+                }
             }
         }
     }

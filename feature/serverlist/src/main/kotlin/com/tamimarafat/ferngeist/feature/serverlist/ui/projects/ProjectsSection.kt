@@ -87,8 +87,12 @@ internal fun ProjectSummary.turnStatus(turnStatuses: Map<String, TurnStatus>): T
 internal fun ProjectSummary.hasActiveTurn(turnStatuses: Map<String, TurnStatus>): Boolean =
     chats.any { turnStatuses[it.chatKey]?.isActive == true }
 
-internal fun ProjectSummary.activeChatCount(turnStatuses: Map<String, TurnStatus>): Int =
-    chats.count { turnStatuses[it.chatKey] == TurnStatus.WORKING }
+/** Most recent first: the lead chat lends the row its verb, and the hero shows the most recent chat. */
+internal fun ProjectSummary.workingChatIds(turnStatuses: Map<String, TurnStatus>): List<String> =
+    chats
+        .filter { turnStatuses[it.chatKey] == TurnStatus.WORKING }
+        .sortedByDescending { it.summary.updatedAt }
+        .map { it.summary.id }
 
 private val ProjectChat.chatKey: String get() = "${target.id}/${summary.id}"
 
@@ -132,7 +136,7 @@ internal fun ProjectsGroup(
                         count = count,
                         showGateway = showGateway,
                         status = project.turnStatus(turnStatuses),
-                        activeChats = project.activeChatCount(turnStatuses),
+                        workingChatIds = project.workingChatIds(turnStatuses),
                         isConnected = project.hasLiveChat(connectedChatKeys),
                         now = now,
                         onOpenProject = onOpenProject,
@@ -161,7 +165,7 @@ private fun ProjectItem(
     count: Int,
     showGateway: Boolean,
     status: TurnStatus,
-    activeChats: Int,
+    workingChatIds: List<String>,
     isConnected: Boolean,
     now: Long,
     onOpenProject: (ProjectSummary) -> Unit,
@@ -224,11 +228,11 @@ private fun ProjectItem(
         supportingContent = {
             WorkingSubtitle(
                 status = status,
-                streamKey = "${project.gateway.id}/${project.repo}",
+                chatId = workingChatIds.firstOrNull().orEmpty(),
                 style = LocalTextStyle.current,
                 workingContent =
-                    if (activeChats > 0) {
-                        { ActiveChatsSubtitle(activeChats, "${project.gateway.id}/${project.repo}") }
+                    if (workingChatIds.isNotEmpty()) {
+                        { ActiveChatsSubtitle(workingChatIds) }
                     } else {
                         null
                     },

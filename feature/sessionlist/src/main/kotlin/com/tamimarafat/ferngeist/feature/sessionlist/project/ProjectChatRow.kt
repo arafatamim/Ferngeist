@@ -138,7 +138,7 @@ private fun ProjectChatText(
         )
         WorkingSubtitle(
             status = status,
-            streamKey = "${chat.target.id}/${chat.summary.id}",
+            chatId = chat.summary.id,
         ) {
             // Missing logos need a textual fallback; a known logo already identifies the agent.
             if (chat.target.binding.icon

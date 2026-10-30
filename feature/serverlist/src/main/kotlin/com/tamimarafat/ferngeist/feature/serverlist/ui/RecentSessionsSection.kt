@@ -214,7 +214,7 @@ private fun ContinueSessionCardContent(
             )
             WorkingSubtitle(
                 status = status,
-                streamKey = "${session.serverId}/${session.sessionId}",
+                chatId = session.sessionId,
                 accent = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
@@ -471,7 +471,7 @@ private fun RecentSessionCardRow(
             )
             WorkingSubtitle(
                 status = status,
-                streamKey = "${session.serverId}/${session.sessionId}",
+                chatId = session.sessionId,
             ) {
                 ServerSubtitle(
                     server = session.target,

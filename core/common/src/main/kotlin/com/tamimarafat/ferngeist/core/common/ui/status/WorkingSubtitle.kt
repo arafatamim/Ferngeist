@@ -24,6 +24,7 @@ import com.tamimarafat.ferngeist.core.model.TurnStatus
  * The one presentation of a session's turn status: a working verb while the turn runs,
  * a plain label for attention, failure and completion, and [idleContent] when unknown.
  * [workingContent] overrides the verb where a caller has something more specific to say.
+ * [chatId] picks the verb, so a chat reads the same wherever it shows.
  * [style] must match the idle content's: the crossfade overlaps both, and mismatched baselines
  * read as multi-line to a list item, which then keeps a three-line height.
  * [accent] colours the working verb and finished label; pass the container's content colour where
@@ -33,7 +34,7 @@ import com.tamimarafat.ferngeist.core.model.TurnStatus
 @Composable
 fun WorkingSubtitle(
     status: TurnStatus,
-    streamKey: String,
+    chatId: String,
     style: TextStyle = MaterialTheme.typography.bodySmall,
     accent: Color = MaterialTheme.colorScheme.primary,
     workingContent: (@Composable () -> Unit)? = null,
@@ -53,7 +54,7 @@ fun WorkingSubtitle(
                     workingContent()
                 } else {
                     WorkingStatusText(
-                        text = rememberSpinnerVerb(streamKey),
+                        text = rememberSpinnerVerb(chatId),
                         style = style,
                         color = accent,
                     )
@@ -111,10 +112,14 @@ private fun TurnStatusLabel(
     )
 }
 
+/** Derived from the chat, not rolled per call site: every row showing a chat must agree on its verb. */
 @Composable
-fun rememberSpinnerVerb(streamKey: String): String {
+fun rememberSpinnerVerb(chatId: String): String {
     val resources = LocalResources.current
-    return remember(streamKey, resources) { resources.getStringArray(R.array.chat_spinner_verbs).random() }
+    return remember(chatId, resources) {
+        val verbs = resources.getStringArray(R.array.chat_spinner_verbs)
+        verbs[Math.floorMod(chatId.hashCode(), verbs.size)]
+    }
 }
 
 @Composable

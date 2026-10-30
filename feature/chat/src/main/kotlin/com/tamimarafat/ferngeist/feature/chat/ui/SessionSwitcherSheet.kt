@@ -750,7 +750,7 @@ private fun SwitcherRowContent(
                 val time = session.updatedAt?.let { formatSwitcherTime(it, LocalContext.current) }
                 WorkingSubtitle(
                     status = session.turnStatus,
-                    streamKey = "${session.serverId}/${session.sessionId}",
+                    chatId = session.sessionId,
                 ) {
                     if (time != null) {
                         Text(

@@ -91,7 +91,7 @@ internal fun ServerCard(
     modifier: Modifier = Modifier,
     liveServerIds: Set<String> = emptySet(),
     status: TurnStatus = TurnStatus.UNKNOWN,
-    activeChats: Int = 0,
+    workingChatIds: List<String> = emptyList(),
 ) {
     val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
@@ -124,7 +124,7 @@ internal fun ServerCard(
             server = server,
             connectionState = connectionState,
             status = status,
-            activeChats = activeChats,
+            workingChatIds = workingChatIds,
             containerColor = containerColor,
             cardInteractionSource = cardInteractionSource,
             cardShape = cardShape,
@@ -157,7 +157,7 @@ private fun ServerCardSurface(
     server: LaunchableTarget,
     connectionState: ServerConnectionUiState,
     status: TurnStatus,
-    activeChats: Int,
+    workingChatIds: List<String>,
     containerColor: Color,
     cardShape: RoundedCornerShape,
     cardInteractionSource: MutableInteractionSource,
@@ -212,7 +212,7 @@ private fun ServerCardSurface(
                 containerColor = containerColor,
                 isConnecting = connectionState.isConnecting,
                 status = status,
-                activeChats = activeChats,
+                workingChatIds = workingChatIds,
                 hasSavedAuthMethod = hasSavedAuthMethod,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -227,7 +227,7 @@ private fun ServerCardTitleRow(
     containerColor: Color,
     isConnecting: Boolean,
     status: TurnStatus,
-    activeChats: Int,
+    workingChatIds: List<String>,
     hasSavedAuthMethod: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -274,8 +274,9 @@ private fun ServerCardTitleRow(
             Spacer(modifier = Modifier.height(2.dp))
             WorkingSubtitle(
                 status = status,
-                streamKey = server.id,
-                workingContent = if (activeChats > 0) ({ ActiveChatsSubtitle(activeChats, server.id) }) else null,
+                chatId = workingChatIds.firstOrNull().orEmpty(),
+                workingContent =
+                    if (workingChatIds.isNotEmpty()) ({ ActiveChatsSubtitle(workingChatIds) }) else null,
             ) {
                 ServerSubtitle(
                     server = server,
