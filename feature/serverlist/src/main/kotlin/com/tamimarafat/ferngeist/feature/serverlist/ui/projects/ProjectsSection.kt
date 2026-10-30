@@ -169,7 +169,6 @@ private fun ProjectItem(
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
-    val idleSubtitle = if (activeChats == 0) projectCounts(project) else ""
     val containerColor by animateColorAsState(
         targetValue =
             MaterialTheme.colorScheme.turnStatusContainerColor(
@@ -234,7 +233,9 @@ private fun ProjectItem(
                         null
                     },
             ) {
-                Text(idleSubtitle)
+                // Never empty: an empty Text's baseline differs from the working line's, and the
+                // crossfade overlap then locks the row into its three-line height.
+                Text(projectCounts(project))
             }
         },
         trailingContent = {
