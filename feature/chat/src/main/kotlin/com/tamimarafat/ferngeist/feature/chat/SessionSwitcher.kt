@@ -70,20 +70,20 @@ data class SwitcherUiState(
     val liveTotalCount: Int = 0,
     /** True when at least one switchable (non-current) row exists: gates bubble visibility. */
     val hasOthers: Boolean = false,
-) {
-    val badgeStatus: TurnStatus?
-        get() {
-            val statuses =
-                groups
-                    .asSequence()
-                    .flatMap { it.sessions.asSequence() }
-                    .filterNot { it.isCurrent }
-                    .map { it.turnStatus }
-                    .toSet()
-            return listOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED)
-                .firstOrNull { it in statuses }
-        }
-}
+)
+
+val SwitcherUiState.badgeStatus: TurnStatus?
+    get() {
+        val statuses =
+            groups
+                .asSequence()
+                .flatMap { it.sessions.asSequence() }
+                .filterNot { it.isCurrent }
+                .map { it.turnStatus }
+                .toSet()
+        return listOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED)
+            .firstOrNull { it in statuses }
+    }
 
 /**
  * Finger direction a drag commit continues through navigation, carried as the
@@ -224,12 +224,12 @@ fun deriveSwitcherGroups(
             SwitcherGroup(
                 projectKey = key,
                 projectName = namesByProject[key],
-                sessions = rows.sortedWith(RECENCY_ORDER).sortedByCurrentFirst(),
+                sessions = rows.sortedWith(recencyOrder).sortedByCurrentFirst(),
             )
         }.sortedByCurrentGroupFirst()
 }
 
-private val RECENCY_ORDER =
+private val recencyOrder =
     compareByDescending<SwitcherSession> { it.updatedAt ?: Long.MIN_VALUE }
         .thenBy { it.serverId }
         .thenBy { it.sessionId }

@@ -32,6 +32,7 @@ import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
+import com.tamimarafat.ferngeist.feature.chat.badgeStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
