@@ -9,7 +9,7 @@ class ActivityConfirmationTest {
 
     @Test
     fun recentListedActivityNewerThanPhoneTurn_needsConfirmation() {
-        assertTrue(ActivityConfirmation(now - 1).needsConfirmation(now - 2, now))
+        assertTrue(ActivityConfirmation(now - 1).needsConfirmation(now - 30_002, now))
         assertTrue(ActivityConfirmation(now - 119_999).needsConfirmation(null, now))
     }
 
@@ -21,6 +21,11 @@ class ActivityConfirmationTest {
         assertFalse(ActivityConfirmation(now + 1).needsConfirmation(null, now))
         assertFalse(ActivityConfirmation(now - 1).needsConfirmation(now - 1, now))
         assertFalse(ActivityConfirmation(now - 1).needsConfirmation(now, now))
+    }
+
+    @Test
+    fun ownTurnListedSecondsAfterThePhoneSawItEnd_doesNotNeedConfirmation() {
+        assertFalse(ActivityConfirmation(now - 1).needsConfirmation(now - 5_000, now))
     }
 
     @Test

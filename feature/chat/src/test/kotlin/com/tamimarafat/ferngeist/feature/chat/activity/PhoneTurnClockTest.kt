@@ -31,7 +31,7 @@ class PhoneTurnClockTest {
 
         val lastTurn = PhoneTurnClock.lastTurn("clock-return", "chat")
         assertEquals(false, ActivityConfirmation(190).needsConfirmation(lastTurn, 210))
-        assertEquals(true, ActivityConfirmation(205).needsConfirmation(lastTurn, 210))
+        assertEquals(true, ActivityConfirmation(30_201).needsConfirmation(lastTurn, 30_210))
     }
 
     @Test
