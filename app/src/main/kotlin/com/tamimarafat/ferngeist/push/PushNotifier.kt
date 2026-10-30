@@ -7,7 +7,6 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
-import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.push.PushPayloadKeys
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewayAgentBindingRepository
@@ -25,9 +24,8 @@ import javax.inject.Singleton
  * [MainActivity].
  *
  * The push's `serverId` is the **gateway-owned** id; it's resolved to the agent binding on
- * that gateway holding the session, because navigation routes on the agent's id. A redundant push — one
- * for the session the user is already watching in the foreground — is suppressed via
- * [PushNotificationPolicy].
+ * that gateway holding the session, because navigation routes on the agent's id. Pushes are
+ * suppressed while the app is in the foreground.
  *
  * Payload keys (all optional): see [PushPayloadKeys]. A push that names `serverId` +
  * `sessionId` deep-links to that chat; otherwise the tap just opens the app.
@@ -40,7 +38,6 @@ class PushNotifier
         private val gatewaySourceRepository: GatewaySourceRepository,
         private val gatewayAgentBindingRepository: GatewayAgentBindingRepository,
         private val sessionRepository: ChatCatalog,
-        private val chatConnectionHub: ChatConnectionHub,
         private val appForegroundState: AppForegroundState,
     ) {
         suspend fun show(data: Map<String, String>) {
@@ -49,11 +46,8 @@ class PushNotifier
 
             cancelStaleProgress(category, sessionId)
 
-            // Skip pushes the user is already watching live in the foreground. Suppression
-            // matches on the gateway-owned id, not a local id, so it survives the local-id churn
-            // (and duplicate records) a re-pair can introduce. The presence carries the local
-            // GatewaySource id, so it is translated first: compared raw, it never matched the push.
-            if (isWatchedLive(data, sessionId)) return
+            // The app on screen already shows every chat's turn live, so a push only adds noise.
+            if (appForegroundState.isForeground.value) return
 
             // Null when unknown → no deep-link.
             val target = chatTarget(data, sessionId)
@@ -74,21 +68,6 @@ class PushNotifier
                     .getSystemService(NotificationManager::class.java)
                     .cancel(notificationIdFor(PUSH_CATEGORY_PROGRESS, sessionId) { 0 })
             }
-        }
-
-        private suspend fun isWatchedLive(
-            data: Map<String, String>,
-            sessionId: String?,
-        ): Boolean {
-            val onScreen = chatConnectionHub.onScreenChat.value
-            val onScreenGatewayId =
-                onScreen?.gatewaySourceId?.let { gatewaySourceRepository.getGateway(it)?.gatewayId }
-            return PushNotificationPolicy.shouldSuppress(
-                isAppForeground = appForegroundState.isForeground.value,
-                foregroundChat = onScreen?.copy(gatewaySourceId = onScreenGatewayId),
-                targetGatewayId = data[PushPayloadKeys.SERVER_ID],
-                targetSessionId = sessionId,
-            )
         }
 
         private fun postNotification(
