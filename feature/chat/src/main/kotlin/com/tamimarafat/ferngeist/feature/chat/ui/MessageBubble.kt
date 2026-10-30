@@ -113,7 +113,10 @@ fun MessageBubble(
     onRetryMessage: ((String) -> Unit)? = null,
 ) {
     val isUser = message.role == ChatMessage.Role.USER
-    val reveals = remember(message.id) { BubbleReveals() }
+    val reveals =
+        remember(message.id) {
+            BubbleReveals(markdownDocuments.mapValues { (_, document) -> document.blocks.sumOf { it.revealLength() } })
+        }
     // Re-derived per message change so runs added by the latest chunk are tracked. Text can still
     // be revealing after the stream ends, and the bubble keeps growing until it settles.
     val revealing by remember(message) { derivedStateOf { reveals.isRevealing } }
@@ -706,18 +709,30 @@ private fun rememberTurnWaiting(
 
 /**
  * The reveal cursors of one bubble's MESSAGE runs, keyed by run key. Plain map: it lives exactly
- * as long as the list item is composed, and a run first seen while its message is not streaming
- * starts fully shown, so history and scroll-back never animate.
+ * as long as the list item is composed. Text present when it mounts starts fully shown, including
+ * an active stream reopened from another chat; later chunks and runs still reveal normally.
+ * A run first seen while its message is not streaming stays fully shown, so history never animates.
  */
 @Stable
-internal class BubbleReveals {
+internal class BubbleReveals(
+    private val initialTargets: Map<String, Int>,
+) {
     private val runs = HashMap<String, RunReveal>()
 
     fun forRun(
         key: String,
         startHidden: Boolean,
         target: Int,
-    ): RunReveal = runs.getOrPut(key) { RunReveal(startHidden).also { it.target = target } }
+    ): RunReveal =
+        runs.getOrPut(key) {
+            RunReveal(startHidden).also { reveal ->
+                if (startHidden && key in initialTargets) {
+                    reveal.target = initialTargets.getValue(key)
+                    reveal.snapToTarget()
+                }
+                reveal.target = target
+            }
+        }
 
     val isRevealing: Boolean
         get() = runs.values.any { !it.isSettled }
