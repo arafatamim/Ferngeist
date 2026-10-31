@@ -58,7 +58,4 @@
     <string name="common_status_finished">Finished</string>
     <string name="common_recently_active">Recently active</string>
     <string name="chat_git_date_now">now</string>
-    <string name="chat_git_date_minutes">%1$dm</string>
-    <string name="chat_git_date_hours">%1$dh</string>
-    <string name="chat_git_date_days">%1$dd</string>
 </resources>

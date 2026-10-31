@@ -52,7 +52,4 @@
     <string name="common_in_progress">进行中</string>
     <string name="common_recently_active">最近活跃</string>
     <string name="chat_git_date_now">刚刚</string>
-    <string name="chat_git_date_minutes">%1$d分钟</string>
-    <string name="chat_git_date_hours">%1$d小时</string>
-    <string name="chat_git_date_days">%1$d天</string>
 </resources>

@@ -1,10 +1,12 @@
 package com.tamimarafat.ferngeist.feature.chat.ui.git
 
+import android.icu.util.MeasureUnit
 import android.text.format.DateUtils
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.tamimarafat.ferngeist.core.common.ui.time.RelativeAge
+import com.tamimarafat.ferngeist.core.common.ui.time.compactDuration
 import com.tamimarafat.ferngeist.core.common.ui.time.relativeAge
 import java.time.Instant
 import java.time.LocalDate
@@ -42,8 +44,8 @@ internal fun compactCommitDate(
     val context = LocalContext.current
     return when (val age = relativeAge(nowMillis, thenMillis)) {
         RelativeAge.Now -> stringResource(CommonR.string.chat_git_date_now)
-        is RelativeAge.Minutes -> stringResource(CommonR.string.chat_git_date_minutes, age.count)
-        is RelativeAge.Hours -> stringResource(CommonR.string.chat_git_date_hours, age.count)
+        is RelativeAge.Minutes -> compactDuration(age.count, MeasureUnit.MINUTE)
+        is RelativeAge.Hours -> compactDuration(age.count, MeasureUnit.HOUR)
         // The date column is narrow, so a weekday out-reads "3d" here.
         is RelativeAge.Days ->
             DateUtils.formatDateTime(
