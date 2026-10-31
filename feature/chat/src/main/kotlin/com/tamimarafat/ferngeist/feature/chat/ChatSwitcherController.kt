@@ -2,7 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
@@ -91,7 +91,7 @@ internal class ChatSwitcherController(
                     servers = servers,
                     sessionsByServer = sessionsByServer,
                     liveIdsByServer = liveByServer,
-                    turnStatus = { sid, sess -> statuses["$sid/$sess"] ?: TurnStatus.UNKNOWN },
+                    turnStatus = { sid, sess -> statuses["$sid/$sess"] ?: TurnActivity() },
                     current = SwitcherCurrent(serverId, currentSessionId()),
                 )
             SwitcherUiState(

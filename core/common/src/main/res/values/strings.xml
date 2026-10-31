@@ -56,6 +56,9 @@
     <string name="common_status_needs_attention">Needs attention</string>
     <string name="common_status_error">Turn failed</string>
     <string name="common_status_finished">Finished</string>
+    <string name="common_status_finished_now">Finished just now</string>
+    <string name="common_status_finished_ago">Finished %1$s ago</string>
+    <string name="common_status_working_for">%1$s for %2$s</string>
     <string name="common_recently_active">Recently active</string>
     <string name="chat_git_date_now">now</string>
 </resources>

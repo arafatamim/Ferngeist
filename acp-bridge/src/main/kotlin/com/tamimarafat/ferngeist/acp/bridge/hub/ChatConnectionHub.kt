@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
@@ -208,7 +209,7 @@ class ChatConnectionHub(
     private val _streamingChatIds = MutableStateFlow<Set<String>>(emptySet())
     val streamingChatIds: StateFlow<Set<String>> = _streamingChatIds.asStateFlow()
 
-    private val _turnStatuses = MutableStateFlow<Map<String, TurnStatus>>(emptyMap())
+    private val _turnStatuses = MutableStateFlow<Map<String, TurnActivity>>(emptyMap())
 
     /**
      * Reliable turn status of every tracked chat, keyed by the canonical [chatIdFor]
@@ -217,7 +218,7 @@ class ChatConnectionHub(
      * source it has instead of reading a stale [TurnStatus.FINISHED]. [TurnStatus.UNKNOWN]
      * is present and authoritative - the chat is tracked but no outcome is known.
      */
-    val turnStatuses: StateFlow<Map<String, TurnStatus>> = _turnStatuses.asStateFlow()
+    val turnStatuses: StateFlow<Map<String, TurnActivity>> = _turnStatuses.asStateFlow()
 
     init {
         scope.launch {
@@ -400,7 +401,7 @@ class ChatConnectionHub(
 
     private data class TurnPresence(
         val isStreaming: Boolean,
-        val turnStatus: TurnStatus?,
+        val turnStatus: TurnActivity?,
         val turnCompletionSequence: Long,
     )
 
@@ -454,9 +455,12 @@ class ChatConnectionHub(
                 } else {
                     state.turnStatus
                 }
+            // A retained terminal snapshot is not new evidence merely because transport recovered.
             TurnPresence(
                 isStreaming = state.isStreaming && connected,
-                turnStatus = status.takeIf { connected && !awaitingFreshState },
+                turnStatus =
+                    TurnActivity(status, state.turnStatusSince.takeIf { status == state.turnStatus })
+                        .takeIf { connected && !awaitingFreshState },
                 turnCompletionSequence = state.turnCompletionSequence,
             )
         }.distinctUntilChanged()
@@ -471,7 +475,7 @@ class ChatConnectionHub(
         private var job: Job? = null
 
         fun apply(presence: TurnPresence): TurnPresence {
-            if (presence.turnStatus.isOutcome()) {
+            if (presence.turnStatus?.status.isOutcome()) {
                 if (latestCompletionSequence != presence.turnCompletionSequence) {
                     job?.cancel()
                     latestCompletionSequence = presence.turnCompletionSequence
@@ -479,13 +483,13 @@ class ChatConnectionHub(
                     val completionSequence = presence.turnCompletionSequence
                     job =
                         scope.launch {
-                            kotlinx.coroutines.delay(expiryDuration(presence.turnStatus))
+                            kotlinx.coroutines.delay(expiryDuration(presence.turnStatus?.status))
                             _turnStatuses.update { statuses ->
                                 if (latestCompletionSequence == completionSequence &&
-                                    statuses[chatId].isOutcome()
+                                    statuses[chatId]?.status.isOutcome()
                                 ) {
                                     expiredCompletionSequence = completionSequence
-                                    statuses + (chatId to TurnStatus.UNKNOWN)
+                                    statuses + (chatId to TurnActivity())
                                 } else {
                                     statuses
                                 }
@@ -498,10 +502,10 @@ class ChatConnectionHub(
                 latestCompletionSequence = null
                 expiredCompletionSequence = null
             }
-            return if ((presence.turnStatus.isOutcome()) &&
+            return if (presence.turnStatus?.status.isOutcome() &&
                 expiredCompletionSequence == presence.turnCompletionSequence
             ) {
-                presence.copy(turnStatus = TurnStatus.UNKNOWN)
+                presence.copy(turnStatus = TurnActivity())
             } else {
                 presence
             }

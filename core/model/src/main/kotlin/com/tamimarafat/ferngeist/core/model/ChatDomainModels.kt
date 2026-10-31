@@ -590,7 +590,7 @@ interface ChatSessionPresence {
     val warmServers: StateFlow<Set<String>>
 
     /** Live local or last fetched gateway turn status, keyed by target/session identity. */
-    val turnStatuses: StateFlow<Map<String, TurnStatus>>
+    val turnStatuses: StateFlow<Map<String, TurnActivity>>
 
     /** Connected session ids tracked on [serverId], re-emitting as connections come and go. */
     fun connectedSessionIds(serverId: String): Flow<Set<String>>

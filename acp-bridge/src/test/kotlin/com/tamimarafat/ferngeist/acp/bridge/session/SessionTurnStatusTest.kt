@@ -4,9 +4,35 @@ import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.time.TimeSource
 
 class SessionTurnStatusTest {
+    @Test
+    fun `a prompt retains its start through attention and completion gets a new origin`() =
+        runTest {
+            val runtime = runtime()
+            val beforeStart = TimeSource.Monotonic.markNow()
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
+            val start = runtime.snapshot.value.turnStatusSince
+            assertNotNull(start)
+            assertTrue(start!! >= beforeStart)
+            runtime.permissionRequested()
+            runtime.onEvent(AppSessionEvent.ToolPermissionResolved("call-1"))
+            assertEquals(start, runtime.snapshot.value.turnStatusSince)
+
+            val beforeCompletion = TimeSource.Monotonic.markNow()
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
+            val finished = runtime.snapshot.value.turnStatusSince
+            assertNotNull(finished)
+            assertTrue(finished!! >= beforeCompletion)
+            runtime.markReady()
+            assertNull(runtime.snapshot.value.turnStatusSince)
+        }
+
     private fun runtime() = SessionRuntime(sessionId = "ses_status")
 
     private suspend fun SessionRuntime.permissionRequested(toolCallId: String = "call-1") =

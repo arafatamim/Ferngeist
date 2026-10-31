@@ -1,9 +1,10 @@
 package com.tamimarafat.ferngeist.core.common.ui.status
 
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 
 /** Catalog status entries belonging to [targetId], keyed by session id ("targetId/sessionId"). */
-fun Map<String, TurnStatus>.statusesFor(targetId: String): Map<String, TurnStatus> {
+fun Map<String, TurnActivity>.statusesFor(targetId: String): Map<String, TurnActivity> {
     val prefix = "$targetId/"
     return entries
         .filter { it.key.startsWith(prefix) }

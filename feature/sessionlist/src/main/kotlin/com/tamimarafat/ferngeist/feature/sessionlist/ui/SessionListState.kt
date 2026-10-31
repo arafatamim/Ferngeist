@@ -22,7 +22,7 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
@@ -35,7 +35,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 /** Which rows hold a live connection here, and which Close can act on. */
 internal class RowPresence(
     val live: Set<String>,
-    val turnStatuses: Map<String, TurnStatus>,
+    val turnStatuses: Map<String, TurnActivity>,
     val activityUpdatedAt: Map<String, Long>,
     /** Live here, or still running on the gateway. */
     val closable: Set<String>,

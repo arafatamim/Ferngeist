@@ -69,7 +69,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
 import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitle
@@ -90,7 +90,7 @@ internal fun ServerCard(
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
     liveServerIds: Set<String> = emptySet(),
-    status: TurnStatus = TurnStatus.UNKNOWN,
+    status: TurnActivity = TurnActivity(),
     workingChatIds: List<String> = emptyList(),
 ) {
     val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
@@ -112,7 +112,7 @@ internal fun ServerCard(
     }
 
     val containerColor by animateColorAsState(
-        targetValue = MaterialTheme.colorScheme.turnStatusContainerColor(status, connectionState.containerColor),
+        targetValue = MaterialTheme.colorScheme.turnStatusContainerColor(status.status, connectionState.containerColor),
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "containerColor",
     )
@@ -156,7 +156,7 @@ internal fun ServerCard(
 private fun ServerCardSurface(
     server: LaunchableTarget,
     connectionState: ServerConnectionUiState,
-    status: TurnStatus,
+    status: TurnActivity,
     workingChatIds: List<String>,
     containerColor: Color,
     cardShape: RoundedCornerShape,
@@ -197,7 +197,11 @@ private fun ServerCardSurface(
         colors =
             CardDefaults.elevatedCardColors(
                 containerColor = containerColor,
-                contentColor = MaterialTheme.colorScheme.turnStatusContentColor(status, connectionState.contentColor),
+                contentColor =
+                    MaterialTheme.colorScheme.turnStatusContentColor(
+                        status.status,
+                        connectionState.contentColor,
+                    ),
             ),
     ) {
         Column(
@@ -226,7 +230,7 @@ private fun ServerCardTitleRow(
     server: LaunchableTarget,
     containerColor: Color,
     isConnecting: Boolean,
-    status: TurnStatus,
+    status: TurnActivity,
     workingChatIds: List<String>,
     hasSavedAuthMethod: Boolean,
     sharedTransitionScope: SharedTransitionScope,
@@ -245,7 +249,11 @@ private fun ServerCardTitleRow(
             // connected or failed card reads as one surface instead of a neutral
             // chip sitting on a colored one.
             containerColor = containerColor.darken(BADGE_FRAME_DARKEN),
-            tint = MaterialTheme.colorScheme.turnStatusContentColor(status, MaterialTheme.colorScheme.onSurfaceVariant),
+            tint =
+                MaterialTheme.colorScheme.turnStatusContentColor(
+                    status.status,
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
             loading = isConnecting,
         )
         Spacer(modifier = Modifier.width(14.dp))
@@ -276,7 +284,15 @@ private fun ServerCardTitleRow(
                 status = status,
                 chatId = workingChatIds.firstOrNull().orEmpty(),
                 workingContent =
-                    if (workingChatIds.isNotEmpty()) ({ ActiveChatsSubtitle(workingChatIds) }) else null,
+                    if (workingChatIds.isNotEmpty()) {
+                        (
+                            { elapsed ->
+                                ActiveChatsSubtitle(workingChatIds, elapsed)
+                            }
+                        )
+                    } else {
+                        null
+                    },
             ) {
                 ServerSubtitle(
                     server = server,

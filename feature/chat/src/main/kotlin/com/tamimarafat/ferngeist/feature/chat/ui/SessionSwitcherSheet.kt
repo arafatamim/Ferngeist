@@ -383,15 +383,17 @@ private fun rememberOutcomeHop(groups: List<SwitcherGroup>): Float {
     val offset = remember { Animatable(0f) }
     val haptics = LocalHapticFeedback.current
     val sessions = remember(groups) { groups.flatMap { it.sessions } }
-    var previous by remember { mutableStateOf(sessions.associate { (it.serverId to it.sessionId) to it.turnStatus }) }
+    var previous by remember {
+        mutableStateOf(sessions.associate { (it.serverId to it.sessionId) to it.turnStatus.status })
+    }
     LaunchedEffect(sessions) {
         val changed =
             sessions.any {
                 !it.isCurrent &&
-                    it.turnStatus in setOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED) &&
-                    previous[it.serverId to it.sessionId] != it.turnStatus
+                    it.turnStatus.status in setOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED) &&
+                    previous[it.serverId to it.sessionId] != it.turnStatus.status
             }
-        previous = sessions.associate { (it.serverId to it.sessionId) to it.turnStatus }
+        previous = sessions.associate { (it.serverId to it.sessionId) to it.turnStatus.status }
         offset.snapTo(0f)
         if (changed) {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -682,7 +684,7 @@ private fun SwitcherRowContent(
         updatedAt = session.updatedAt,
         containerColor =
             MaterialTheme.colorScheme.turnStatusContainerColor(
-                session.turnStatus,
+                session.turnStatus.status,
                 if (session.isCurrent) {
                     // Same treatment as a connected server's card: the activated role, not dimmed.
                     MaterialTheme.colorScheme.secondaryContainer
@@ -692,7 +694,7 @@ private fun SwitcherRowContent(
             ),
         contentColor =
             MaterialTheme.colorScheme.turnStatusContentColor(
-                session.turnStatus,
+                session.turnStatus.status,
                 if (session.isCurrent) {
                     MaterialTheme.colorScheme.onSecondaryContainer
                 } else {
@@ -703,7 +705,7 @@ private fun SwitcherRowContent(
     ) {
         // Every agent shares its state treatment; the upright logo tells them apart.
         ActivityIconContainer(
-            status = session.turnStatus,
+            status = session.turnStatus.status,
             size = 40.dp,
             idleShape = CircleShape,
             modifier = Modifier.semantics { contentDescription = session.agentName },
@@ -742,7 +744,7 @@ private fun SwitcherRowContent(
                 contentDescription = stringResource(R.string.switcher_current_desc),
                 tint =
                     MaterialTheme.colorScheme.turnStatusContentColor(
-                        session.turnStatus,
+                        session.turnStatus.status,
                         MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
             )

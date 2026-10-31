@@ -67,6 +67,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -260,7 +261,7 @@ private fun SessionListLazyColumn(
     sessionCount: Int,
     padding: PaddingValues,
     liveSessionIds: Set<String>,
-    turnStatuses: Map<String, TurnStatus>,
+    turnStatuses: Map<String, TurnActivity>,
     closableSessionIds: Set<String>,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
@@ -286,7 +287,7 @@ private fun SessionListLazyColumn(
         SessionCard(
             session = session,
             isLive = session.id in liveSessionIds,
-            status = turnStatuses[session.id] ?: TurnStatus.UNKNOWN,
+            status = turnStatuses[session.id] ?: TurnActivity(),
             worktree = worktree,
             worktreeBranch = worktree?.displayName,
             worktreeRepo = worktree?.repo,
@@ -384,7 +385,7 @@ private fun SessionListLazyColumn(
 @Composable
 private fun RowScope.SessionCardText(
     session: SessionSummary,
-    status: TurnStatus,
+    status: TurnActivity,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -517,7 +518,7 @@ internal fun Modifier.sessionTitleBounds(
 private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
-    status: TurnStatus,
+    status: TurnActivity,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -546,7 +547,7 @@ private fun SessionCard(
         ChatCard(
             live = isLive,
             updatedAt = session.updatedAt,
-            status = status,
+            status = status.status,
             removing = removing,
             dimmed = removing || gone,
             onClick = onClick,
