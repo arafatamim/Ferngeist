@@ -21,4 +21,5 @@ data class SessionListRepositories
         val recentCwdStore: RecentCwdStore,
         val gatewayRepository: GatewayRepository,
         val gatewaySourceRepository: GatewaySourceRepository,
+        val providerQuotas: com.tamimarafat.ferngeist.core.model.repository.ProviderQuotas,
     )

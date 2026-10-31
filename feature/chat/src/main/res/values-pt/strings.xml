@@ -25,6 +25,7 @@
     <string name="chat_completed_desc">Concluído</string>
     <string name="chat_error_desc">Erro</string>
     <string name="chat_file_binary">Arquivo binário, não exibido</string>
+    <string name="chat_image_unavailable">Imagem indisponível</string>
     <string name="chat_file_empty">Arquivo vazio</string>
     <string name="chat_file_deleted">Excluído nesta revisão</string>
     <string name="chat_file_origin_working_tree">Árvore de trabalho</string>

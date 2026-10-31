@@ -285,7 +285,7 @@ data class GatewayGitCommitFiles(
 
 /**
  * `GET /files`: ACP's `TextResourceContents` or `BlobResourceContents` in one shape, [text] set for
- * a text file and [blob] for a binary one. [truncated] (past 1 MiB) is a gateway extension.
+ * a text file and [blob] for a binary one. [truncated] (past 8 MiB) is a gateway extension.
  */
 @Serializable
 data class GatewayFileContents(

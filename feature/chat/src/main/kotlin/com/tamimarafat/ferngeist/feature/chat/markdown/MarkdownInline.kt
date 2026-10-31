@@ -61,6 +61,24 @@ internal fun MarkdownInlineText(
     )
 }
 
+/** Body text that reveals with [reveal], [localInlineChips]' matches drawn once it settles. */
+@Composable
+internal fun RevealInlines(
+    inlines: List<InlineNode>,
+    styles: MarkdownBlockStyles,
+    modifier: Modifier,
+    reveal: BlockReveal?,
+) {
+    val (text, inlineContent) = inlines.toChipText(styles.inline, settledChips(reveal))
+    RevealText(
+        text = text,
+        style = MarkdownTheme.typography.bodyLarge,
+        reveal = reveal,
+        inlineContent = inlineContent,
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
 private fun AnnotatedString.Builder.appendInlineNodes(
     nodes: List<InlineNode>,
     styles: MarkdownInlineStyles,
@@ -112,3 +130,45 @@ private fun AnnotatedString.Builder.appendInlineNodes(
         }
     }
 }
+
+/** A paragraph's inlines split around its top-level images, so each image lays out on its own. */
+internal sealed interface InlineSegment {
+    data class Text(
+        val nodes: List<InlineNode>,
+    ) : InlineSegment
+
+    data class Image(
+        val node: InlineNode.Image,
+    ) : InlineSegment
+}
+
+/**
+ * [this] split at its top-level images, in source order. Line breaks next to an image and runs of
+ * nothing but whitespace are dropped: the image's own line already separates them.
+ *
+ * shortcut: an image nested in a link or emphasis stays alt text; split those too if agents send badges.
+ */
+internal fun List<InlineNode>.imageSegments(): List<InlineSegment> {
+    val segments = mutableListOf<InlineSegment>()
+    val text = mutableListOf<InlineNode>()
+
+    fun flush() {
+        val trimmed = text.dropWhile { it.isBreak() }.dropLastWhile { it.isBreak() }
+        if (trimmed.any { !it.isBreak() && !(it is InlineNode.Text && it.literal.isBlank()) }) {
+            segments += InlineSegment.Text(trimmed)
+        }
+        text.clear()
+    }
+    forEach { node ->
+        if (node is InlineNode.Image) {
+            flush()
+            segments += InlineSegment.Image(node)
+        } else {
+            text += node
+        }
+    }
+    flush()
+    return segments
+}
+
+private fun InlineNode.isBreak(): Boolean = this is InlineNode.SoftBreak || this is InlineNode.HardBreak

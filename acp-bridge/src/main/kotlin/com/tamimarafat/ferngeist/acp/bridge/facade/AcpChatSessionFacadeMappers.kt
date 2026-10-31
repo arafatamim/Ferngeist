@@ -24,6 +24,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
+import com.tamimarafat.ferngeist.core.model.ChatDiagnosticError
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.UsageState
@@ -49,7 +50,7 @@ internal fun mapDiagnostics(diag: ConnectionDiagnostics): ChatConnectionDiagnost
         serverUrl = diag.serverUrl,
         pendingRequestCount = diag.pendingRequestCount,
         reconnectAttempts = diag.reconnectAttempts,
-        recentErrors = diag.recentErrors.map { it.message },
+        recentErrors = diag.recentErrors.map { ChatDiagnosticError(it.timestampMs, it.source, it.message) },
         lastUpdatedAtMs = diag.lastUpdatedAtMs,
     )
 

@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.catalog.project
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
@@ -25,9 +26,12 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import java.io.IOException
 import java.time.Instant
+import kotlin.time.ComparableTimeMark
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /** Status per ACP session id, by agent id: one gateway's answer, ready to join onto its bindings. */
-internal typealias AgentTurnStatuses = Map<String, Map<String, TurnStatus>>
+internal typealias AgentTurnStatuses = Map<String, Map<String, TurnActivity>>
 
 private const val RUNNING = "running"
 private const val SUCCEEDED = "succeeded"
@@ -55,6 +59,7 @@ internal class TurnStatusCatalog(
     private data class RemoteSnapshot(
         val snapshot: GatewayTurnsSnapshot,
         val expiredOutcomes: Set<GatewayTurn>,
+        val receivedAt: ComparableTimeMark = TimeSource.Monotonic.markNow(),
         val generation: Any = Any(),
     )
 
@@ -71,8 +76,7 @@ internal class TurnStatusCatalog(
                     .groupBy { it.gatewaySource.id }
                     .forEach { (gatewayId, bindings) ->
                         val state = snapshots[gatewayId] ?: return@forEach
-                        val snapshot = state.snapshot
-                        val statuses = acknowledge(gatewayId, snapshot, bindings, open, state.expiredOutcomes)
+                        val statuses = acknowledge(gatewayId, state, bindings, open)
                         bindings.forEach { target ->
                             statuses[target.binding.agentId]?.forEach { (sessionId, status) ->
                                 put("${target.id}/$sessionId", status)
@@ -88,7 +92,7 @@ internal class TurnStatusCatalog(
      * unknown, not a stale remote attention or finished claim. Untracked chats take the gateway's
      * status, and only an untracked chat can be absent from this map.
      */
-    val statuses: StateFlow<Map<String, TurnStatus>> =
+    val statuses: StateFlow<Map<String, TurnActivity>> =
         combine(remoteStatuses, hub.trackedChatIds, hub.turnStatuses) { remote, tracked, local ->
             remote.filterKeys { it !in tracked } + local
         }.stateIn(scope, SharingStarted.Eagerly, emptyMap())
@@ -97,7 +101,7 @@ internal class TurnStatusCatalog(
     val activeChatKeys: StateFlow<Set<String>> =
         statuses
             .map { all ->
-                all.filterValues { it == TurnStatus.WORKING || it == TurnStatus.NEEDS_ATTENTION }.keys
+                all.filterValues { it.status == TurnStatus.WORKING || it.status == TurnStatus.NEEDS_ATTENTION }.keys
             }.stateIn(scope, SharingStarted.Eagerly, emptySet())
 
     /**
@@ -126,7 +130,7 @@ internal class TurnStatusCatalog(
         val expired = HashSet<GatewayTurn>()
         val scheduledExpirations = ArrayList<Pair<GatewayTurn, Long>>()
         answer.turns.forEach { turn ->
-            if ((turn.state == SUCCEEDED || turn.state == FAILED)) {
+            if (turn.state == SUCCEEDED || turn.state == FAILED) {
                 val remaining = turn.expiryDelay(answer.observedAt)
                 if (remaining == 0L) expired += turn else scheduledExpirations += turn to remaining
             }
@@ -180,11 +184,11 @@ internal class TurnStatusCatalog(
     /** Remember exact outcomes, even while a local connection masks the gateway's answer. */
     private fun acknowledge(
         gatewayId: String,
-        snapshot: GatewayTurnsSnapshot,
+        state: RemoteSnapshot,
         bindings: List<LaunchableTarget.GatewayAgent>,
         open: Set<String>,
-        expiredOutcomes: Set<GatewayTurn>,
     ): AgentTurnStatuses {
+        val snapshot = state.snapshot
         val previous =
             acknowledged[gatewayId]?.takeIf { it.gatewayStartedAt == snapshot.gatewayStartedAt }?.turns.orEmpty()
         val seen =
@@ -196,7 +200,7 @@ internal class TurnStatusCatalog(
                     )
             }
         acknowledged[gatewayId] = SeenTurns(snapshot.gatewayStartedAt, seen)
-        return snapshot.turnStatuses(seen, expiredOutcomes)
+        return snapshot.turnStatuses(seen, state.expiredOutcomes, state.receivedAt)
     }
 }
 
@@ -204,12 +208,13 @@ internal class TurnStatusCatalog(
 internal fun GatewayTurnsSnapshot.turnStatuses(
     acknowledged: Set<GatewayTurn> = emptySet(),
     expiredOutcomes: Set<GatewayTurn> = emptySet(),
+    receivedAt: ComparableTimeMark = TimeSource.Monotonic.markNow(),
 ): AgentTurnStatuses =
     turns
         .groupBy { it.agentId }
         .mapValues { (_, agentTurns) ->
             agentTurns.groupBy { it.sessionId }.mapValues { (_, entries) ->
-                entries.chatStatus(acknowledged, expiredOutcomes)
+                entries.chatStatus(acknowledged, expiredOutcomes, observedAt, receivedAt)
             }
         }
 
@@ -244,10 +249,14 @@ private fun GatewayTurn.expiryDelay(observedAt: String): Long {
 private fun List<GatewayTurn>.chatStatus(
     acknowledged: Set<GatewayTurn>,
     expiredOutcomes: Set<GatewayTurn>,
-): TurnStatus {
+    observedAt: String,
+    receivedAt: ComparableTimeMark,
+): TurnActivity {
     val running = filter { it.state == RUNNING }
     if (running.isNotEmpty()) {
-        return if (running.any { it.attention.isNotEmpty() }) TurnStatus.NEEDS_ATTENTION else TurnStatus.WORKING
+        val status = if (running.any { it.attention.isNotEmpty() }) TurnStatus.NEEDS_ATTENTION else TurnStatus.WORKING
+        val starts = running.map { it.startedAt.ageAt(observedAt)?.let { age -> receivedAt - age.milliseconds } }
+        return TurnActivity(status, if (starts.any { it == null }) null else starts.filterNotNull().minOrNull())
     }
     val latest =
         maxWithOrNull(
@@ -256,10 +265,34 @@ private fun List<GatewayTurn>.chatStatus(
                 { it.changedAt.instant() ?: Instant.MIN },
                 { it.gatewaySessionId },
             ),
-        ) ?: return TurnStatus.UNKNOWN
+        ) ?: return TurnActivity()
     // Unable to order this outcome against the others, the gateway session id means nothing.
-    if (latest.startedAt.instant() == null || latest in acknowledged) return TurnStatus.UNKNOWN
-    return if (latest in expiredOutcomes) TurnStatus.UNKNOWN else latest.status()
+    if (latest.startedAt.instant() == null ||
+        latest in acknowledged ||
+        latest in expiredOutcomes
+    ) {
+        return TurnActivity()
+    }
+    val status = latest.status()
+    val since =
+        if (status == TurnStatus.FINISHED) {
+            latest.changedAt.ageAt(observedAt)?.let { receivedAt - it.milliseconds }
+        } else {
+            null
+        }
+    return TurnActivity(status, since)
+}
+
+/** The gateway supplies both instants; only elapsed local time advances the result after receipt. */
+private fun String?.ageAt(observedAt: String): Long? {
+    val time = instant() ?: return null
+    val observed = observedAt.instant() ?: return null
+    return runCatching {
+        java.time.Duration
+            .between(time, observed)
+            .toMillis()
+            .coerceAtLeast(0)
+    }.getOrNull()
 }
 
 /** Cancelled, unknown and anything a newer gateway adds carry no success claim. */

@@ -28,6 +28,7 @@
     <string name="chat_completed_desc">Завершено</string>
     <string name="chat_error_desc">Ошибка</string>
     <string name="chat_file_binary">Двоичный файл не показан</string>
+    <string name="chat_image_unavailable">Изображение недоступно</string>
     <string name="chat_file_empty">Пустой файл</string>
     <string name="chat_file_deleted">Удалён в этой версии</string>
     <string name="chat_file_origin_working_tree">Рабочее дерево</string>

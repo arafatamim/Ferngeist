@@ -5,7 +5,6 @@
     <string name="common_retry">Повторить</string>
     <string name="common_delete">Удалить</string>
     <string name="common_save">Сохранить</string>
-    <string name="common_close">Закрыть</string>
     <string name="common_ok">ОК</string>
     <string name="common_edit">Изменить</string>
 
@@ -14,29 +13,30 @@
     <string name="common_connected">Подключено</string>
     <string name="common_disconnected">Отключено</string>
     <string name="common_failed">Ошибка</string>
-    <string name="common_na">Н/Д</string>
-    <string name="common_unknown">Неизвестно</string>
-    <string name="common_unsupported">Не поддерживается</string>
     <string name="common_supported">Поддерживается</string>
 
     <!-- Connection diagnostics -->
     <string name="common_connection_status">Статус подключения: %1$s</string>
-    <string name="common_connection_diagnostics">Диагностика подключения</string>
-    <string name="common_connection">Подключение: %1$s</string>
     <string name="common_websocket">WebSocket: %1$s</string>
     <string name="common_server">Сервер: %1$s</string>
     <string name="common_server_info">Информация о сервере: %1$s (%2$s)</string>
     <string name="common_pending_rpc">Ожидающие RPC запросы: %1$d</string>
     <string name="common_cancel_support">Поддержка отмены: %1$s</string>
-    <string name="common_total_tokens">Всего токенов: %1$s</string>
-    <string name="common_usage_percentage">Процент использования: %1$s</string>
-    <string name="common_cost_spent">Затрачено: %1$s</string>
     <string name="common_recent_rpc">Недавние RPC</string>
     <string name="common_no_recent_rpc">Нет недавних RPC</string>
     <string name="common_reconnect_attempts">Попытки переподключения: %1$d</string>
     <string name="common_recent_errors">Недавние ошибки</string>
     <string name="common_no_recent_errors">Нет недавних ошибок</string>
     <string name="common_connection_status_desc">Статус подключения</string>
+    <string name="common_diagnostics_this_chat">Этот чат</string>
+    <string name="common_diagnostics_context">Контекст</string>
+    <string name="common_diagnostics_context_value">%1$s · %2$s из %3$s</string>
+    <string name="common_diagnostics_cost">Стоимость</string>
+    <string name="common_diagnostics_quota_placeholder">Здесь появятся лимиты плана из CodexBar.</string>
+    <string name="common_quota_install_codexbar">Установите CodexBar CLI на шлюзе, чтобы видеть квоты.</string>
+    <string name="common_diagnostics_details">Подробности</string>
+    <string name="common_expanded">Развёрнуто</string>
+    <string name="common_collapsed">Свёрнуто</string>
 
     <!-- Context usage tooltip -->
     <string name="common_context_used">%1$s использовано из %2$s</string>
@@ -51,5 +51,14 @@
     <string name="common_just_now">Только что</string>
     <string name="common_in_progress">В процессе</string>
     <string name="common_recently_active">Недавняя активность</string>
+    <string name="common_status_needs_attention">Требует внимания</string>
+    <string name="common_status_error">Ход завершился с ошибкой</string>
+    <string name="common_status_finished">Завершено</string>
+    <string name="common_quota_updated">Обновлено %1$s</string>
+    <string name="common_quota_used">Использовано: %1$s</string>
+    <string name="common_quota_in_reserve">Запас: %1$s</string>
+    <string name="common_quota_over_pace">Сверх темпа: %1$s</string>
+    <string name="common_quota_resets_in">Сброс через %1$s</string>
+    <string name="common_quota_cost_value">%1$s · %2$s токенов</string>
     <string name="chat_git_date_now">сейчас</string>
 </resources>

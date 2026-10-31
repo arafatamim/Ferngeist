@@ -1,11 +1,12 @@
 /*
  * Vendored from com.adamglin.compose.markdown:markdown-compose 0.1.5 (MIT, (c) 2026 Adam Glin).
  *
- * Modified from upstream in three functional ways: every block takes an optional [BlockReveal], so
+ * Modified from upstream in four functional ways: every block takes an optional [BlockReveal], so
  * a streaming run shows only what its reveal cursor has reached and fades the leading edge in (see
  * MarkdownReveal.kt and docs/adr/0001); paragraphs and headings draw [localInlineChips]' matches as
- * inline content once their reveal settles (see InlineChips.kt); and [MarkdownBlocksLazy] renders a
- * whole document for a screen that owns the scroll. Upstream keeps every
+ * inline content once their reveal settles (see InlineChips.kt); paragraphs lay their top-level
+ * images out between their text when [localTranscriptImages] can load them; and [MarkdownBlocksLazy]
+ * renders a whole document for a screen that owns the scroll. Upstream keeps every
  * block renderer private and offers no per-block hook, so there was no way to do that without copying.
  */
 
@@ -55,8 +56,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adamglin.compose.markdown.core.model.BlockNode
+import com.adamglin.compose.markdown.core.model.InlineNode
 import com.adamglin.compose.markdown.core.model.TaskState
 import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.MarkdownImage
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.localTranscriptImages
+import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
 import com.tamimarafat.ferngeist.feature.chat.syntax.rememberHighlightedCode
 import com.tamimarafat.ferngeist.feature.chat.syntax.styledCode
@@ -75,7 +80,7 @@ internal fun MarkdownBlocks(
 ) {
     ProvideMarkdownTheme(typography) {
         val styles = rememberMarkdownBlockStyles()
-        SelectionContainer {
+        QuoteSelectionContainer {
             Column(
                 modifier = modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -263,16 +268,7 @@ private fun MarkdownLeafBlock(
                 modifier = modifier,
             )
 
-        is BlockNode.Paragraph -> {
-            val (text, inlineContent) = block.children.toChipText(styles.inline, settledChips(reveal))
-            RevealText(
-                text = text,
-                style = MarkdownTheme.typography.bodyLarge,
-                reveal = reveal,
-                inlineContent = inlineContent,
-                modifier = modifier.fillMaxWidth(),
-            )
-        }
+        is BlockNode.Paragraph -> ParagraphBlock(block, styles, modifier, reveal)
 
         is BlockNode.RawTextBlock ->
             RevealText(
@@ -324,6 +320,52 @@ private fun MarkdownLeafBlock(
                 modifier = modifier.fillMaxWidth(),
             )
         else -> error("${block::class.simpleName} is not a leaf block")
+    }
+}
+
+@Composable
+private fun ParagraphBlock(
+    block: BlockNode.Paragraph,
+    styles: MarkdownBlockStyles,
+    modifier: Modifier,
+    reveal: BlockReveal?,
+) {
+    val images = localTranscriptImages.current
+    if (images == null || block.children.none { it is InlineNode.Image }) {
+        RevealInlines(block.children, styles, modifier, reveal)
+        return
+    }
+    val segments = remember(block.children) { block.children.imageSegments() }
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        var offset = reveal?.offset ?: 0
+        segments.forEach { segment ->
+            val segmentReveal = reveal?.copy(offset = offset)
+            if (reveal != null) offset += segment.revealLength()
+            RevealGate(segmentReveal) {
+                when (segment) {
+                    is InlineSegment.Text -> RevealInlines(segment.nodes, styles, Modifier, segmentReveal)
+                    is InlineSegment.Image -> {
+                        val alpha = rememberAtomicRevealAlpha(segmentReveal)
+                        MarkdownImage(
+                            destination = segment.node.destination,
+                            alt =
+                                segment.node.alt
+                                    .toAnnotatedString(styles.inline)
+                                    .text,
+                            loader = images,
+                            fallbackStyle =
+                                MarkdownTheme.typography.bodyLarge.copy(
+                                    color = MarkdownTheme.colors.textSecondary,
+                                ),
+                            modifier = Modifier.graphicsLayer { this.alpha = alpha.value },
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

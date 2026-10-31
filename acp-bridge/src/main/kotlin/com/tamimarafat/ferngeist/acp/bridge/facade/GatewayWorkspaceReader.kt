@@ -125,7 +125,7 @@ internal class GatewayWorkspaceReader(
         val connection = workspaceConnection() ?: return null
         val file =
             gatewayRepository.fetchFile(connection = connection, path = path, acpSessionId = liveSessionId())
-        return ChatFileContents(text = file.text, truncated = file.truncated)
+        return ChatFileContents(text = file.text, truncated = file.truncated, blob = file.blob)
     }
 
     suspend fun fetchFileList(): List<String>? {

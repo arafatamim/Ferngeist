@@ -53,6 +53,7 @@ import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import com.tamimarafat.ferngeist.feature.chat.localizeChatError
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.localTranscriptImages
 import com.tamimarafat.ferngeist.feature.chat.ui.git.GitCompareUi
 import com.tamimarafat.ferngeist.feature.chat.ui.git.GitStatusSheet
 import com.tamimarafat.ferngeist.feature.chat.ui.message.localChatId
@@ -309,6 +310,7 @@ private fun BoxScope.ChatScreenContentOverlays(
         // The tool call sheet's open-full-file button wants the same opener the transcript chips use.
         localFileOpener provides openFile,
         localWorkspaceFiles provides screenState.state.workspaceFiles,
+        localTranscriptImages provides viewModel.transcriptImages,
     ) {
         ChatScreenDialogsHost(screenState, viewModel)
     }
@@ -390,6 +392,7 @@ private fun BoxScope.ChatScreenContentOverlays(
     CompositionLocalProvider(
         localFileOpener provides openFile,
         localWorkspaceFiles provides screenState.state.workspaceFiles,
+        localTranscriptImages provides viewModel.transcriptImages,
     ) {
         ChatScreenBody(
             state = screenState.state,

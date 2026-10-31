@@ -143,8 +143,14 @@ data class ChatConnectionDiagnostics(
     val serverUrl: String? = null,
     val pendingRequestCount: Int = 0,
     val reconnectAttempts: Int = 0,
-    val recentErrors: List<String> = emptyList(),
+    val recentErrors: List<ChatDiagnosticError> = emptyList(),
     val lastUpdatedAtMs: Long = 0L,
+)
+
+data class ChatDiagnosticError(
+    val timestampMs: Long,
+    val source: String,
+    val message: String,
 )
 
 data class ChatAgentCapabilities(
@@ -336,6 +342,53 @@ data class ChatSessionSnapshot(
     val usage: UsageState?,
     val title: String? = null,
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+)
+
+/**
+ * One plan-quota window (e.g. 5-hour, weekly). [paceFraction] is the share of the window already
+ * elapsed: usage below it is reserve, above it is deficit.
+ */
+data class QuotaWindow(
+    val label: String,
+    val usedFraction: Float,
+    val paceFraction: Float? = null,
+    val resetsAtMs: Long? = null,
+)
+
+data class QuotaCost(
+    val label: String,
+    val amount: Double,
+    val tokens: Int? = null,
+)
+
+data class QuotaBillingRow(
+    val label: String,
+    val value: String,
+)
+
+data class QuotaBillingSection(
+    val title: String,
+    val rows: List<QuotaBillingRow>,
+)
+
+data class QuotaBalance(
+    val amount: Double,
+    val currency: String,
+)
+
+/** Plan quota and spend of one agent provider's account, as relayed by the gateway. */
+data class AgentQuota(
+    val provider: String,
+    val account: String? = null,
+    val updatedAtMs: Long?,
+    val windows: List<QuotaWindow>,
+    val costs: List<QuotaCost> = emptyList(),
+    val costCurrency: String? = null,
+    val displayName: String = provider,
+    val icon: String? = null,
+    val balance: String? = null,
+    val billing: List<QuotaBillingSection> = emptyList(),
+    val providerBalance: QuotaBalance? = null,
 )
 
 data class UsageState(
@@ -565,10 +618,14 @@ interface ChatWorkspaceReader {
     suspend fun fetchFileList(): List<String>?
 }
 
-/** A workspace file as the gateway read it: [text] is null for a binary file, cut at 1 MiB when [truncated]. */
+/**
+ * A workspace file as the gateway read it, cut at 8 MiB when [truncated]: [text] for a text file,
+ * [blob] (base64) for a binary one or an image.
+ */
 data class ChatFileContents(
     val text: String?,
     val truncated: Boolean,
+    val blob: String? = null,
 )
 
 /**
@@ -586,7 +643,7 @@ interface ChatSessionPresence {
     val warmServers: StateFlow<Set<String>>
 
     /** Live local or last fetched gateway turn status, keyed by target/session identity. */
-    val turnStatuses: StateFlow<Map<String, TurnStatus>>
+    val turnStatuses: StateFlow<Map<String, TurnActivity>>
 
     /** Connected session ids tracked on [serverId], re-emitting as connections come and go. */
     fun connectedSessionIds(serverId: String): Flow<Set<String>>

@@ -29,6 +29,7 @@ data class ChatSessionServices
         val launchableTargetRepository: LaunchableTargetRepository,
         val turnTimingRepository: TurnTimingRepository,
         val chatListings: ChatListings,
+        val providerQuotas: com.tamimarafat.ferngeist.core.model.repository.ProviderQuotas,
     )
 
 /**
@@ -72,6 +73,7 @@ class ChatViewModelFactory
                         launchableTargetRepository = services.launchableTargetRepository,
                         turnTimingRepository = services.turnTimingRepository,
                         chatListings = services.chatListings,
+                        providerQuotas = services.providerQuotas,
                     ),
                 stores =
                     ChatLocalStores(

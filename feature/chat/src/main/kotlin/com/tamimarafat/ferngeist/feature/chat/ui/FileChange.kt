@@ -30,6 +30,9 @@ import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.common.ui.time.Elapsed
+import com.tamimarafat.ferngeist.core.common.ui.time.elapsedOf
+import com.tamimarafat.ferngeist.core.common.ui.time.formatElapsed
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatMessage

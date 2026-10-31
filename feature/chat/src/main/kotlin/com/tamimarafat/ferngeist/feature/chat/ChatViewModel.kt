@@ -26,6 +26,7 @@ import com.tamimarafat.ferngeist.feature.chat.git.ChatGitFileDiffLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitHistoryLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitStatusLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitTurnDiffLoader
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.TranscriptImageLoader
 import com.tamimarafat.ferngeist.feature.chat.pending.reconcileEchoes
 import com.tamimarafat.ferngeist.feature.chat.timing.ChatTurnTimings
 import com.tamimarafat.ferngeist.feature.chat.title.ChatTitleController
@@ -70,6 +71,9 @@ class ChatViewModel
         }
 
         private val serverId: String = savedStateHandle["serverId"] ?: error("serverId is required")
+
+        suspend fun fetchProviderQuotas() = repositories.providerQuotas.fetch(serverId)
+
         private val sessionId: String = savedStateHandle["sessionId"] ?: error("sessionId is required")
 
         /**
@@ -295,6 +299,9 @@ class ChatViewModel
                 },
             )
 
+        /** The transcript's Markdown images, read through this chat's session. */
+        internal val transcriptImages = TranscriptImageLoader(workspace = sessionFacade, cwd = cwd)
+
         /** Commit history and a commit's files for the git sheet's History tab. */
         private val gitHistoryLoader =
             ChatGitHistoryLoader(
@@ -514,20 +521,10 @@ class ChatViewModel
             updateState {
                 withSnapshot(snapshot, messages, reconciledPending, echoKeys, markdownProjection)
             }
-            onTurnBoundary(wasStreaming, snapshot.isStreaming)
+            // A new turn retires inline diffs from the previous working tree.
+            if (!wasStreaming && snapshot.isStreaming) gitTurnDiffLoader.clearTurnDiffs()
             refreshGitStatusOnceReady(wasReady)
             titleController.onSnapshot(snapshot)
-        }
-
-        /**
-         * A starting turn retires the previous turn's inline git diffs: they
-         * describe the tree as it is now, so the next turn must not borrow them.
-         */
-        private fun onTurnBoundary(
-            wasStreaming: Boolean,
-            isStreaming: Boolean,
-        ) {
-            if (!wasStreaming && isStreaming) gitTurnDiffLoader.clearTurnDiffs()
         }
 
         override fun onCleared() {

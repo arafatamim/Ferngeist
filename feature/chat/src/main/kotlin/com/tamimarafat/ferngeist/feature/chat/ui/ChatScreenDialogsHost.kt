@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -66,6 +67,7 @@ internal fun ChatScreenDialogsHost(
         showConnectionStatusDialog = screenState.mutations.showConnectionStatusDialog.value,
         connectionState = screenState.state.connectionState,
         diagnostics = screenState.state.connectionDiagnostics,
+        fetchQuota = remember(viewModel) { viewModel::fetchProviderQuotas },
         usage = screenState.state.usage,
         onDismissConnectionStatus = { screenState.mutations.showConnectionStatusDialog.value = false },
         showCommandsDialog = screenState.mutations.showCommandsDialog.value,

@@ -16,6 +16,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.loadPersistedEnvValues
 import com.tamimarafat.ferngeist.acp.bridge.connection.persistEnvValues
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.facade.OpenStepTimer
+import com.tamimarafat.ferngeist.acp.bridge.facade.mapDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.GatewayEndpoint
 import com.tamimarafat.ferngeist.acp.bridge.hub.chatIdFor
@@ -430,15 +431,12 @@ class SessionCatalog(
             ?: hub.trackedManagerFor(serverId)?.agentCapabilities?.value
 
     /** Live diagnostics of the listing transport for [serverId]; null while it holds no transport. */
-    fun listingDiagnostics(serverId: String): ChatConnectionDiagnostics? {
-        val diagnostics = listingSessions[serverId]?.browserTransport?.diagnostics?.value ?: return null
-        return ChatConnectionDiagnostics(
-            serverUrl = diagnostics.serverUrl,
-            pendingRequestCount = diagnostics.pendingRequestCount,
-            recentErrors = diagnostics.recentErrors.map { it.message },
-            lastUpdatedAtMs = diagnostics.lastUpdatedAtMs,
-        )
-    }
+    fun listingDiagnostics(serverId: String): ChatConnectionDiagnostics? =
+        listingSessions[serverId]
+            ?.browserTransport
+            ?.diagnostics
+            ?.value
+            ?.let(::mapDiagnostics)
 
     /**
      * Lists through [warm], a hub-tracked chat transport owning the gateway

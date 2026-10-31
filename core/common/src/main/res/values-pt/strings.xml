@@ -4,7 +4,6 @@
     <string name="common_retry">Tentar novamente</string>
     <string name="common_delete">Excluir</string>
     <string name="common_save">Salvar</string>
-    <string name="common_close">Fechar</string>
     <string name="common_ok">OK</string>
     <string name="common_edit">Editar</string>
 
@@ -12,28 +11,29 @@
     <string name="common_connected">Conectado</string>
     <string name="common_disconnected">Desconectado</string>
     <string name="common_failed">Falhou</string>
-    <string name="common_na">N/D</string>
-    <string name="common_unknown">Desconhecido</string>
-    <string name="common_unsupported">Sem suporte</string>
     <string name="common_supported">Com suporte</string>
 
     <string name="common_connection_status">Status da conexão: %1$s</string>
-    <string name="common_connection_diagnostics">Diagnóstico da conexão</string>
-    <string name="common_connection">Conexão: %1$s</string>
     <string name="common_websocket">WebSocket: %1$s</string>
     <string name="common_server">Servidor: %1$s</string>
     <string name="common_server_info">Informações do servidor: %1$s (%2$s)</string>
     <string name="common_pending_rpc">Solicitações RPC pendentes: %1$d</string>
     <string name="common_cancel_support">Suporte a cancelamento: %1$s</string>
-    <string name="common_total_tokens">Total de tokens usados: %1$s</string>
-    <string name="common_usage_percentage">Percentual de uso: %1$s</string>
-    <string name="common_cost_spent">Custo gasto: %1$s</string>
     <string name="common_recent_rpc">Atividade RPC recente</string>
     <string name="common_no_recent_rpc">Sem atividade RPC recente</string>
     <string name="common_reconnect_attempts">Tentativas de reconexão: %1$d</string>
     <string name="common_recent_errors">Erros recentes</string>
     <string name="common_no_recent_errors">Sem erros recentes</string>
     <string name="common_connection_status_desc">Status da conexão</string>
+    <string name="common_diagnostics_this_chat">Este chat</string>
+    <string name="common_diagnostics_context">Contexto</string>
+    <string name="common_diagnostics_context_value">%1$s · %2$s de %3$s</string>
+    <string name="common_diagnostics_cost">Custo</string>
+    <string name="common_diagnostics_quota_placeholder">Os limites do plano do CodexBar aparecerão aqui.</string>
+    <string name="common_quota_install_codexbar">Instale o CodexBar CLI no gateway para ver as cotas.</string>
+    <string name="common_diagnostics_details">Detalhes</string>
+    <string name="common_expanded">Expandido</string>
+    <string name="common_collapsed">Recolhido</string>
 
     <string name="common_context_used">%1$s usados de %2$s de contexto</string>
     <string name="common_cost_amount">%1$s gastos</string>
@@ -46,5 +46,14 @@
     <string name="common_just_now">Agora mesmo</string>
     <string name="common_in_progress">Em andamento</string>
     <string name="common_recently_active">Atividade recente</string>
+    <string name="common_status_needs_attention">Precisa de atenção</string>
+    <string name="common_status_error">Turno falhou</string>
+    <string name="common_status_finished">Concluído</string>
+    <string name="common_quota_updated">Atualizado %1$s</string>
+    <string name="common_quota_used">%1$s usado</string>
+    <string name="common_quota_in_reserve">%1$s de reserva</string>
+    <string name="common_quota_over_pace">%1$s acima do ritmo</string>
+    <string name="common_quota_resets_in">Reinicia em %1$s</string>
+    <string name="common_quota_cost_value">%1$s · %2$s tokens</string>
     <string name="chat_git_date_now">agora</string>
 </resources>

@@ -13,6 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -39,6 +40,8 @@ import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.activity.ActiveElsewhereDialog
+import com.tamimarafat.ferngeist.feature.chat.selection.localQuoteSelection
+import com.tamimarafat.ferngeist.feature.chat.selection.quoteDraft
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentSupport
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.HeldAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.processPickedUris
@@ -125,19 +128,27 @@ fun ChatScreen(
         viewModel.dispatch(ChatIntent.RefreshGitStatus)
     }
 
-    ChatScreenScaffold(
-        screenState = screenState,
-        sessionId = sessionId,
-        fallbackTitle = fallbackTitle,
-        viewModel = viewModel,
-        onNavigateBack = onNavigateBack,
-        onSwitchSession = onSwitchSession,
-        sharedTransitionScope = sharedTransitionScope,
-        animatedContentScope = animatedContentScope,
-        modifier = modifier,
-        showBackButton = showBackButton,
-        sharedBoundsEnabled = sharedBoundsEnabled,
-    )
+    CompositionLocalProvider(
+        localQuoteSelection provides { selected ->
+            val draft = screenState.mutations.messageText
+            draft.edit { replace(0, length, quoteDraft(toString(), selected)) }
+            screenState.mutations.composerExpanded.value = true
+        },
+    ) {
+        ChatScreenScaffold(
+            screenState = screenState,
+            sessionId = sessionId,
+            fallbackTitle = fallbackTitle,
+            viewModel = viewModel,
+            onNavigateBack = onNavigateBack,
+            onSwitchSession = onSwitchSession,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
+            modifier = modifier,
+            showBackButton = showBackButton,
+            sharedBoundsEnabled = sharedBoundsEnabled,
+        )
+    }
     screenState.mutations.pendingSend.value?.let { send ->
         ActiveElsewhereDialog(
             onConfirm = {
