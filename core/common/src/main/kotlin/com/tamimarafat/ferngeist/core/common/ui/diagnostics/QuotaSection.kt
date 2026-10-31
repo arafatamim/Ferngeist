@@ -105,7 +105,7 @@ private fun ProviderCard(
                 Text(
                     quota.balance
                         ?: quota.providerBalance?.let { currencyFormat(locale, it.currency).format(it.amount) }
-                        ?: tightest?.let { windowSummary(it, now, locale) }
+                        ?: tightest?.label
                         ?: stringResource(R.string.common_quota_unavailable),
                     maxLines = 1,
                 )
@@ -139,17 +139,6 @@ private fun ProviderTrailing(
         }
         Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.rotate(chevronRotation))
     }
-}
-
-@Composable
-private fun windowSummary(
-    window: QuotaWindow,
-    now: Long,
-    locale: Locale,
-): String {
-    val resetsAt = window.resetsAtMs ?: return window.label
-    return "${window.label} · " +
-        stringResource(R.string.common_quota_resets_in, formatResetsIn(resetsAt - now, locale))
 }
 
 @Composable

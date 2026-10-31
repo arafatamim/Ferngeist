@@ -182,7 +182,10 @@ internal fun currencyFormat(
 ): NumberFormat =
     NumberFormat.getCurrencyInstance(locale).apply {
         code?.let { runCatching { currency = Currency.getInstance(it) } }
-        maximumFractionDigits = 2
+        currency?.defaultFractionDigits?.takeIf { it >= 0 }?.let { digits ->
+            maximumFractionDigits = digits
+            minimumFractionDigits = digits
+        }
     }
 
 @Composable
