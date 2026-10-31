@@ -60,6 +60,7 @@ class ChatViewModelFactoryTest {
                     launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true),
                     turnTimingRepository = mockk<TurnTimingRepository>(relaxed = true),
                     chatListings = mockk<ChatListings>(relaxed = true),
+                    providerQuotas = mockk(relaxed = true),
                 ),
             chatScrollStateStore = mockk<ChatScrollStateStore>(relaxed = true),
             pendingPromptStore = mockk<PendingPromptStore>(relaxed = true),

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.R
 import com.tamimarafat.ferngeist.core.common.ui.formatCompactTokens
@@ -42,7 +42,7 @@ private const val MAX_RECENT_ERRORS = 8
 /** Matches the pill's donut ring, which turns red at the same point. */
 private const val METER_NEARLY_FULL = 0.95f
 private val meterHeight = 12.dp
-private val meterMarkerWidth = 2.dp
+private val meterMarkerWidth = 3.dp
 
 /** Context and cost for the open chat; rows the agent doesn't report are left out. */
 @Composable
@@ -123,14 +123,16 @@ private fun DetailText(text: String) {
 }
 
 @Composable
-private fun MeterRow(
+internal fun MeterRow(
     label: String,
     value: String,
     ratio: Float,
+    markerFraction: Float? = null,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        LabelValueRow(label, value)
-        MeterBar(ratio)
+        LabelValueRow(label, value, style)
+        MeterBar(ratio, markerFraction)
     }
 }
 
@@ -158,13 +160,16 @@ internal fun MeterBar(
                 .background(color),
         )
         markerFraction?.let { marker ->
+            // Inside the fill the tick is a gap in the quota card's tone, so it reads on any fill colour.
+            val colors = MaterialTheme.colorScheme
+            val markerColor = if (marker < ratio) colors.surfaceContainer else colors.onSurfaceVariant
             Box(Modifier.fillMaxHeight().fillMaxWidth(marker)) {
                 Box(
                     Modifier
                         .align(Alignment.CenterEnd)
                         .width(meterMarkerWidth)
                         .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.tertiary),
+                        .background(markerColor),
                 )
             }
         }
@@ -184,10 +189,11 @@ internal fun currencyFormat(
 internal fun LabelValueRow(
     label: String,
     value: String,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
-    Row {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // The label takes the slack and wraps, so on narrow screens the value is never pushed off.
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(label, style = style, modifier = Modifier.weight(1f))
+        Text(value, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

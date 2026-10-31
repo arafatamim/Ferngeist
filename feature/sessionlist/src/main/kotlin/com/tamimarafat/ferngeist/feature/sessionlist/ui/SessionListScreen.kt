@@ -144,6 +144,7 @@ fun SessionListScreen(
         showConnectionStatusDialog = state.connection.showConnectionStatusDialog.value,
         connectionState = state.connection.connectionState,
         connectionDiagnostics = state.connection.connectionDiagnostics,
+        fetchQuota = androidx.compose.runtime.remember(viewModel) { viewModel::fetchProviderQuotas },
         onDismissConnectionStatusDialog = { state.connection.showConnectionStatusDialog.value = false },
         pendingAuthentication = state.connection.pendingAuthentication,
         selectedAuthMethodId = state.connection.selectedAuthMethodId.value,

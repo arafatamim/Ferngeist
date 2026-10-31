@@ -133,6 +133,7 @@ internal fun ChatScreenDialogs(
     showConnectionStatusDialog: Boolean,
     connectionState: ChatConnectionState,
     diagnostics: ChatConnectionDiagnostics,
+    fetchQuota: suspend () -> List<com.tamimarafat.ferngeist.core.model.AgentQuota>?,
     usage: UsageState?,
     onDismissConnectionStatus: () -> Unit,
     showCommandsDialog: Boolean,
@@ -191,6 +192,7 @@ internal fun ChatScreenDialogs(
             connectionState = connectionState,
             diagnostics = diagnostics,
             usage = usage,
+            fetchQuota = fetchQuota,
             onDismiss = onDismissConnectionStatus,
         )
     }

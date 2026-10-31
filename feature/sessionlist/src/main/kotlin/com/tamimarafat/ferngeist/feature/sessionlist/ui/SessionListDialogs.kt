@@ -46,6 +46,7 @@ internal fun SessionListOverlays(
     showConnectionStatusDialog: Boolean,
     connectionState: ChatConnectionState,
     connectionDiagnostics: ChatConnectionDiagnostics,
+    fetchQuota: suspend () -> List<com.tamimarafat.ferngeist.core.model.AgentQuota>?,
     onDismissConnectionStatusDialog: () -> Unit,
     pendingAuthentication: SessionListPendingAuthentication?,
     selectedAuthMethodId: String?,
@@ -95,6 +96,7 @@ internal fun SessionListOverlays(
         SessionConnectionStatusDialog(
             connectionState = connectionState,
             diagnostics = connectionDiagnostics,
+            fetchQuota = fetchQuota,
             onDismiss = onDismissConnectionStatusDialog,
         )
     }
@@ -152,11 +154,13 @@ private fun SessionCwdDialog(
 private fun SessionConnectionStatusDialog(
     connectionState: ChatConnectionState,
     diagnostics: ChatConnectionDiagnostics,
+    fetchQuota: suspend () -> List<com.tamimarafat.ferngeist.core.model.AgentQuota>?,
     onDismiss: () -> Unit,
 ) {
     ConnectionDiagnosticsSheet(
         connectionState = connectionState,
         diagnostics = diagnostics,
+        fetchQuota = fetchQuota,
         onDismiss = onDismiss,
     )
 }

@@ -18,6 +18,7 @@ data class ChatRepositories
         val launchableTargetRepository: LaunchableTargetRepository,
         val turnTimingRepository: TurnTimingRepository,
         val chatListings: ChatListings,
+        val providerQuotas: com.tamimarafat.ferngeist.core.model.repository.ProviderQuotas,
     )
 
 /** The stores that keep a chat's local state: its scroll position, queued prompts and switcher hints. */

@@ -59,6 +59,5 @@
     <string name="common_quota_in_reserve">余量 %1$s</string>
     <string name="common_quota_over_pace">超出进度 %1$s</string>
     <string name="common_quota_resets_in">%1$s后重置</string>
-    <string name="common_quota_lasts_until_reset">可用至重置</string>
     <string name="common_quota_cost_value">%1$s · %2$s 个令牌</string>
 </resources>

@@ -10,6 +10,9 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 interface GatewayModule {
     @Binds
+    fun bindProviderQuotas(impl: GatewayProviderQuotas): com.tamimarafat.ferngeist.core.model.repository.ProviderQuotas
+
+    @Binds
     @Singleton
     fun bindGatewayRepository(impl: GatewayRepositoryImpl): GatewayRepository
 }

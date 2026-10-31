@@ -35,6 +35,13 @@ class GatewayRepositoryImpl
         /** Every JSON call, along with its signed send and retry recovery, in one pipeline. */
         private val http = GatewayHttpPipeline(httpClient, json, gatewayClock)
 
+        suspend fun fetchQuotas(
+            scheme: String,
+            host: String,
+            credential: String,
+        ): List<com.tamimarafat.ferngeist.core.model.AgentQuota> =
+            http.getJson<GatewayQuotaResponse>(scheme, host, credential, "v1", "quotas").toQuotas()
+
         override suspend fun fetchStatus(
             scheme: String,
             host: String,

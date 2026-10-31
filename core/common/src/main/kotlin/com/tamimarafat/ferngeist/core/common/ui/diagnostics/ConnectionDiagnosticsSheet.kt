@@ -27,6 +27,7 @@ import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import com.tamimarafat.ferngeist.core.model.AgentQuota
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.UsageState
+import kotlinx.coroutines.CancellationException
 import java.net.URI
 
 /**
@@ -61,12 +63,29 @@ fun ConnectionDiagnosticsSheet(
     onDismiss: () -> Unit,
     usage: UsageState? = null,
     quota: List<AgentQuota>? = null,
+    fetchQuota: (suspend () -> List<AgentQuota>?)? = null,
 ) {
+    val loadedQuota by produceState(initialValue = quota, fetchQuota) {
+        if (fetchQuota != null) {
+            value =
+                try {
+                    fetchQuota()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+        }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden),
+        sheetState =
+            rememberBottomSheetState(
+                initialValue = SheetValue.Hidden,
+                enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+            ),
     ) {
-        DiagnosticsSheetContent(connectionState, diagnostics, usage, quota)
+        DiagnosticsSheetContent(connectionState, diagnostics, usage, loadedQuota)
     }
 }
 

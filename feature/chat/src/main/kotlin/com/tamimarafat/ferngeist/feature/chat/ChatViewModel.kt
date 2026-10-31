@@ -70,6 +70,9 @@ class ChatViewModel
         }
 
         private val serverId: String = savedStateHandle["serverId"] ?: error("serverId is required")
+
+        suspend fun fetchProviderQuotas() = repositories.providerQuotas.fetch(serverId)
+
         private val sessionId: String = savedStateHandle["sessionId"] ?: error("sessionId is required")
 
         /**

@@ -365,10 +365,13 @@ data class QuotaCost(
 data class AgentQuota(
     val provider: String,
     val account: String? = null,
-    val updatedAtMs: Long,
+    val updatedAtMs: Long?,
     val windows: List<QuotaWindow>,
     val costs: List<QuotaCost> = emptyList(),
     val costCurrency: String? = null,
+    val displayName: String = provider,
+    val icon: String? = null,
+    val balance: String? = null,
 )
 
 data class UsageState(

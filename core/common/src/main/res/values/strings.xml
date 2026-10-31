@@ -57,11 +57,11 @@
     <string name="common_status_error">Turn failed</string>
     <string name="common_status_finished">Finished</string>
     <string name="common_recently_active">Recently active</string>
+    <string name="common_quota_unavailable">Quota unavailable</string>
     <string name="common_quota_updated">Updated %1$s</string>
     <string name="common_quota_used">%1$s used</string>
     <string name="common_quota_in_reserve">%1$s in reserve</string>
     <string name="common_quota_over_pace">%1$s over pace</string>
     <string name="common_quota_resets_in">Resets in %1$s</string>
-    <string name="common_quota_lasts_until_reset">Lasts until reset</string>
     <string name="common_quota_cost_value">%1$s · %2$s tokens</string>
 </resources>

@@ -102,6 +102,8 @@ class SessionListViewModel
     ) : ViewModel() {
         val serverId: String = savedStateHandle.get<String>("serverId").orEmpty()
 
+        suspend fun fetchProviderQuotas() = repos.providerQuotas.fetch(serverId)
+
         val server: StateFlow<LaunchableTarget?> =
             repos.launchableTargetRepository
                 .getTargets()

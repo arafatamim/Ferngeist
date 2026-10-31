@@ -96,6 +96,9 @@ internal fun testRepositories(
 
             override fun getRecentSessions(limit: Int) = sessionRepository.getRecentSessions(limit)
         },
+        object : com.tamimarafat.ferngeist.core.model.repository.ProviderQuotas {
+            override suspend fun fetch(serverId: String) = null
+        },
     )
 
 /** In-memory local stores for a view model; each override replaces one store. */
