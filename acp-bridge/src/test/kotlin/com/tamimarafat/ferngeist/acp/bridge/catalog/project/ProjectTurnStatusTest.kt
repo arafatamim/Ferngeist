@@ -11,6 +11,7 @@ import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -34,26 +35,29 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
                                 turnLine("claude", "other", "succeeded"),
                             ),
                             turns(turnLine("claude", "same", "succeeded")),
-                            turns(turnLine("claude", "same", "succeeded", startedAt = "2026-10-27T09:45:00Z")),
+                            turns(
+                                turnLine("claude", "same", "succeeded", changedAt = "2026-10-27T09:45:00Z"),
+                                observedAt = "2026-10-27T09:45:00Z",
+                            ),
                         ),
                 )
             runCurrent()
             catalog.refresh().join()
             runCurrent()
-            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"]?.status)
 
             hub.chatScreenOpened(claude.id, "same", "")
             runCurrent()
-            assertTrue(catalog.turnStatuses.value["b-claude/same"] != TurnStatus.FINISHED)
-            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/other"])
+            assertTrue(catalog.turnStatuses.value["b-claude/same"]?.status != TurnStatus.FINISHED)
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/other"]?.status)
             hub.chatScreenClosed(claude.id, "same")
             catalog.refresh(force = true).join()
             runCurrent()
-            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"]?.status)
 
             catalog.refresh(force = true).join()
             runCurrent()
-            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"]?.status)
         }
 
     @Test
@@ -73,7 +77,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             hub.chatScreenClosed(claude.id, "same")
             runCurrent()
-            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"]?.status)
         }
 
     @Test
@@ -104,17 +108,99 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             hub.chatScreenClosed(claude.id, "same")
             runCurrent()
-            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"]?.status)
 
             catalog.refresh(force = true).join()
             runCurrent()
             assertTrue(catalog.turnStatuses.value.isEmpty())
             catalog.refresh(force = true).join()
             runCurrent()
-            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"]?.status)
             catalog.refresh(force = true).join()
             runCurrent()
-            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"]?.status)
+        }
+
+    @Test
+    fun `success expires ten minutes after gateway completion without another refresh`() =
+        runTest {
+            val catalog =
+                catalog(
+                    MockEngine { respond("", HttpStatusCode.OK) },
+                    turns =
+                        turnsEngine(
+                            turns(
+                                turnLine("claude", "same", "succeeded", changedAt = "2026-10-27T09:30:00Z"),
+                                turnLine("claude", "working", "running", changedAt = "2026-10-27T09:30:00Z"),
+                                turnLine("claude", "failed", "failed", changedAt = "2026-10-27T09:30:00Z"),
+                                observedAt = "2026-10-27T09:30:00Z",
+                            ),
+                        ),
+                )
+            runCurrent()
+            catalog.refresh().join()
+            runCurrent()
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"]?.status)
+
+            advanceTimeBy(599_999)
+            runCurrent()
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"]?.status)
+
+            advanceTimeBy(1)
+            runCurrent()
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"]?.status)
+            assertEquals(TurnStatus.WORKING, catalog.turnStatuses.value["b-claude/working"]?.status)
+            assertEquals(TurnStatus.ERROR, catalog.turnStatuses.value["b-claude/failed"]?.status)
+        }
+
+    @Test
+    fun `stale or unreadable success after fetching cannot claim finish`() =
+        runTest {
+            val catalog =
+                catalog(
+                    MockEngine { respond("", HttpStatusCode.OK) },
+                    turns =
+                        turnsEngine(
+                            turns(
+                                turnLine(
+                                    "claude",
+                                    "stale",
+                                    "succeeded",
+                                    changedAt = "2026-10-27T09:49:59Z",
+                                ),
+                                turnLine("claude", "malformed", "succeeded", changedAt = "not-a-time"),
+                                turnLine("claude", "future", "succeeded", changedAt = "2026-10-27T10:02:00Z"),
+                                turnLine("claude", "running", "running", changedAt = "not-a-time"),
+                                turnLine("claude", "failed", "failed", changedAt = "not-a-time"),
+                                observedAt = "2026-10-27T10:00:00Z",
+                            ),
+                            turns(
+                                turnLine(
+                                    "claude",
+                                    "stale",
+                                    "succeeded",
+                                    changedAt = "2026-10-27T09:49:59Z",
+                                ),
+                                turnLine("claude", "malformed", "succeeded", changedAt = "not-a-time"),
+                                turnLine("claude", "future", "succeeded", changedAt = "2026-10-27T10:02:00Z"),
+                                turnLine("claude", "running", "running", changedAt = "not-a-time"),
+                                turnLine("claude", "failed", "failed", changedAt = "not-a-time"),
+                                observedAt = "2026-10-27T10:01:00Z",
+                            ),
+                        ),
+                )
+            runCurrent()
+            catalog.refresh().join()
+            runCurrent()
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/stale"]?.status)
+
+            catalog.refresh(force = true).join()
+            runCurrent()
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/stale"]?.status)
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/malformed"]?.status)
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/future"]?.status)
+            assertEquals(TurnStatus.WORKING, catalog.turnStatuses.value["b-claude/running"]?.status)
+            assertEquals(TurnStatus.ERROR, catalog.turnStatuses.value["b-claude/failed"]?.status)
         }
 
     @Test
@@ -134,14 +220,14 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             hub.chatScreenClosed(claude.id, "same")
             runCurrent()
-            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"]?.status)
 
             catalog.refresh(force = true).join()
             runCurrent()
             assertTrue(catalog.turnStatuses.value.isEmpty())
             catalog.refresh(force = true).join()
             runCurrent()
-            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"])
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"]?.status)
         }
 
     @Test
@@ -157,7 +243,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             catalog.refresh().join()
             runCurrent()
             assertEquals(setOf("b-claude/unlisted"), catalog.inProgressChatKeys.first())
-            assertEquals(TurnStatus.WORKING, catalog.turnStatuses.first()["b-claude/unlisted"])
+            assertEquals(TurnStatus.WORKING, catalog.turnStatuses.first()["b-claude/unlisted"]?.status)
         }
 
     @Test
@@ -177,7 +263,10 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             catalog.refresh().join()
             runCurrent()
-            assertEquals(mapOf("b-claude/same" to TurnStatus.WORKING), catalog.turnStatuses.first())
+            assertEquals(
+                mapOf("b-claude/same" to TurnStatus.WORKING),
+                catalog.turnStatuses.first().mapValues { it.value.status },
+            )
         }
 
     @Test
@@ -193,7 +282,10 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             catalog.refresh().join()
             runCurrent()
-            assertEquals(mapOf("b-claude/same" to TurnStatus.FINISHED), catalog.turnStatuses.first())
+            assertEquals(
+                mapOf("b-claude/same" to TurnStatus.FINISHED),
+                catalog.turnStatuses.first().mapValues { it.value.status },
+            )
 
             val (key, live) =
                 hub.registerLiveChat(
@@ -205,17 +297,17 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             assertEquals(
                 "a tracked chat with no outcome is unknown, not the gateway's finished",
                 TurnStatus.UNKNOWN,
-                catalog.turnStatuses.first()["b-claude/same"],
+                catalog.turnStatuses.first()["b-claude/same"]?.status,
             )
             assertTrue(catalog.inProgressChatKeys.first().isEmpty())
 
             live.value = SessionSnapshot(sessionId = "same", isStreaming = true, turnStatus = TurnStatus.WORKING)
             runCurrent()
-            assertEquals(TurnStatus.WORKING, catalog.turnStatuses.first()["b-claude/same"])
+            assertEquals(TurnStatus.WORKING, catalog.turnStatuses.first()["b-claude/same"]?.status)
 
             hub.close(key)
             runCurrent()
-            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.first()["b-claude/same"])
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.first()["b-claude/same"]?.status)
         }
 
     @Test
@@ -234,7 +326,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             catalog.refresh().join()
             runCurrent()
-            assertEquals(TurnStatus.NEEDS_ATTENTION, catalog.turnStatuses.first()["b-claude/same"])
+            assertEquals(TurnStatus.NEEDS_ATTENTION, catalog.turnStatuses.first()["b-claude/same"]?.status)
 
             // A tracked chat with no live snapshot: its connection is gone, so nothing reliable
             // is known and the gateway's status must not stand in for it.
@@ -248,7 +340,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
 
             hub.close(key)
             runCurrent()
-            assertEquals(TurnStatus.NEEDS_ATTENTION, catalog.turnStatuses.first()["b-claude/same"])
+            assertEquals(TurnStatus.NEEDS_ATTENTION, catalog.turnStatuses.first()["b-claude/same"]?.status)
         }
 
     @Test
@@ -290,7 +382,10 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
 
             catalog.refresh(force = true).join()
             runCurrent()
-            assertEquals(mapOf("b-claude/same" to TurnStatus.FINISHED), catalog.turnStatuses.first())
+            assertEquals(
+                mapOf("b-claude/same" to TurnStatus.FINISHED),
+                catalog.turnStatuses.first().mapValues { it.value.status },
+            )
             assertTrue(catalog.inProgressChatKeys.first().isEmpty())
 
             catalog.refresh(force = true).join()

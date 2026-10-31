@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,8 +38,8 @@ class ProjectChoicesTest {
                 listOf(project("/live-old", 1), project("/live-undated", null))
         val statuses =
             mapOf(
-                "agent//live-old" to TurnStatus.WORKING,
-                "agent//live-undated" to TurnStatus.NEEDS_ATTENTION,
+                "agent//live-old" to TurnActivity(TurnStatus.WORKING),
+                "agent//live-undated" to TurnActivity(TurnStatus.NEEDS_ATTENTION),
             )
         val ordered = projectsByActivity(projects, statuses)
 
@@ -54,7 +55,7 @@ class ProjectChoicesTest {
 
         assertEquals(
             listOf("/live", "/idle", "/unknown"),
-            projectsByActivity(projects, mapOf("agent//live" to TurnStatus.WORKING)).map { it.repo },
+            projectsByActivity(projects, mapOf("agent//live" to TurnActivity(TurnStatus.WORKING))).map { it.repo },
         )
         assertEquals(
             listOf("/idle", "/live", "/unknown"),
@@ -63,28 +64,31 @@ class ProjectChoicesTest {
     }
 
     @Test
-    fun `active count matches target and chat together and returns to zero when streaming stops`() {
-        val first = project("/repo", 1).chats.single()
-        val second = first.copy(summary = first.summary.copy(id = "second"))
+    fun `working chats match target and chat together, newest first, and empty when streaming stops`() {
+        val first = project("/repo", 1).chats.single().let { it.copy(summary = it.summary.copy(updatedAt = 1)) }
+        val second = first.copy(summary = first.summary.copy(id = "second", updatedAt = 2))
         val project = project("/repo", 1).copy(chats = listOf(first, second))
 
         assertEquals(
-            1,
-            project.activeChatCount(
+            listOf("second"),
+            project.workingChatIds(
                 mapOf(
-                    "other//repo" to TurnStatus.WORKING,
-                    "agent/second" to TurnStatus.WORKING,
-                    "agent/unrelated" to TurnStatus.WORKING,
+                    "other//repo" to TurnActivity(TurnStatus.WORKING),
+                    "agent/second" to TurnActivity(TurnStatus.WORKING),
+                    "agent/unrelated" to TurnActivity(TurnStatus.WORKING),
                 ),
             ),
         )
         assertEquals(
-            2,
-            project.activeChatCount(
-                mapOf("agent//repo" to TurnStatus.WORKING, "agent/second" to TurnStatus.WORKING),
+            listOf("second", "/repo"),
+            project.workingChatIds(
+                mapOf(
+                    "agent//repo" to TurnActivity(TurnStatus.WORKING),
+                    "agent/second" to TurnActivity(TurnStatus.WORKING),
+                ),
             ),
         )
-        assertEquals(0, project.activeChatCount(emptyMap()))
+        assertEquals(emptyList<String>(), project.workingChatIds(emptyMap()))
     }
 
     @Test
@@ -94,28 +98,33 @@ class ProjectChoicesTest {
         val project = project("/repo", 1).copy(chats = listOf(first, second))
 
         assertEquals(
-            TurnStatus.ERROR,
+            TurnActivity(TurnStatus.ERROR),
             project.turnStatus(
                 mapOf(
-                    "agent//repo" to TurnStatus.FINISHED,
-                    "agent/second" to TurnStatus.ERROR,
-                    "other//repo" to TurnStatus.NEEDS_ATTENTION,
+                    "agent//repo" to TurnActivity(TurnStatus.FINISHED),
+                    "agent/second" to TurnActivity(TurnStatus.ERROR),
+                    "other//repo" to TurnActivity(TurnStatus.NEEDS_ATTENTION),
                 ),
             ),
         )
         assertEquals(
-            TurnStatus.UNKNOWN,
-            project.turnStatus(mapOf("other//repo" to TurnStatus.FINISHED, "other/second" to TurnStatus.WORKING)),
+            TurnActivity(TurnStatus.UNKNOWN),
+            project.turnStatus(
+                mapOf(
+                    "other//repo" to TurnActivity(TurnStatus.FINISHED),
+                    "other/second" to TurnActivity(TurnStatus.WORKING),
+                ),
+            ),
         )
     }
 
     @Test
     fun `finished never counts as in flight and attention does`() {
         val project = project("/repo", 1)
-        assertFalse(project.hasActiveTurn(mapOf("agent//repo" to TurnStatus.FINISHED)))
-        assertTrue(project.hasActiveTurn(mapOf("agent//repo" to TurnStatus.NEEDS_ATTENTION)))
-        assertTrue(project.hasActiveTurn(mapOf("agent//repo" to TurnStatus.WORKING)))
-        assertFalse(project.hasActiveTurn(mapOf("agent//repo" to TurnStatus.ERROR)))
+        assertFalse(project.hasActiveTurn(mapOf("agent//repo" to TurnActivity(TurnStatus.FINISHED))))
+        assertTrue(project.hasActiveTurn(mapOf("agent//repo" to TurnActivity(TurnStatus.NEEDS_ATTENTION))))
+        assertTrue(project.hasActiveTurn(mapOf("agent//repo" to TurnActivity(TurnStatus.WORKING))))
+        assertFalse(project.hasActiveTurn(mapOf("agent//repo" to TurnActivity(TurnStatus.ERROR))))
     }
 
     @Test
@@ -123,10 +132,14 @@ class ProjectChoicesTest {
         val old = project("/old", null)
         val running = old.chats.single().copy(summary = SessionSummary(id = "running"))
         val mixed = old.copy(chats = old.chats + running)
-        val statuses = mapOf("agent//old" to TurnStatus.ERROR, "agent/running" to TurnStatus.WORKING)
+        val statuses =
+            mapOf(
+                "agent//old" to TurnActivity(TurnStatus.ERROR),
+                "agent/running" to TurnActivity(TurnStatus.WORKING),
+            )
         val ordered = projectsByActivity(listOf(project("/recent", 199_999_999L), mixed), statuses)
 
-        assertEquals(TurnStatus.ERROR, mixed.turnStatus(statuses))
+        assertEquals(TurnActivity(TurnStatus.ERROR), mixed.turnStatus(statuses))
         assertEquals(listOf("/old", "/recent"), ordered.map { it.repo })
         assertEquals(listOf("/old", "/recent"), collapsedProjects(ordered, 200_000_000L, statuses).map { it.repo })
     }

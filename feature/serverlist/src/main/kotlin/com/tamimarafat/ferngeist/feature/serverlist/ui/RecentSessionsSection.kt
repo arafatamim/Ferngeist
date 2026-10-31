@@ -50,8 +50,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,8 +61,8 @@ import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
-import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
@@ -92,7 +90,7 @@ internal fun SectionHeader(
 @Composable
 internal fun ContinueSessionCard(
     session: RecentSession,
-    status: TurnStatus,
+    status: TurnActivity,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -119,19 +117,17 @@ internal fun ContinueSessionCard(
         )
     }
     // The quarter turn settles on entry; activity rotation returns to rest when idle.
-    val activityRotation = rememberActivityRotation(periodMillis = 4_000, active = status == TurnStatus.WORKING)
+    val activityRotation = rememberActivityRotation(periodMillis = 4_000, active = status.status == TurnStatus.WORKING)
     val rotation =
         remember {
             derivedStateOf { activityRotation.value + (1f - pop.value) / (1f - BADGE_ENTRY_SCALE) * BADGE_ENTRY_TURN }
         }
 
-    val description = turnStatusLabel(status)
     val shape = RoundedCornerShape(corner)
     Card(
         modifier =
             modifier
                 .fillMaxWidth()
-                .semantics { description?.let { stateDescription = it } }
                 // clip() before clickable so the ripple is bounded by the morphing
                 // shape instead of spilling into a full-width rectangle. Same wiring
                 // as ServerCard: Card(onClick=) gives no control over the indication,
@@ -149,12 +145,12 @@ internal fun ContinueSessionCard(
             CardDefaults.cardColors(
                 containerColor =
                     MaterialTheme.colorScheme.turnStatusContainerColor(
-                        status,
+                        status.status,
                         MaterialTheme.colorScheme.primaryContainer,
                     ),
                 contentColor =
                     MaterialTheme.colorScheme.turnStatusContentColor(
-                        status,
+                        status.status,
                         MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
             ),
@@ -174,7 +170,7 @@ internal fun ContinueSessionCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 private fun ContinueSessionCardContent(
     session: RecentSession,
-    status: TurnStatus,
+    status: TurnActivity,
     rotation: State<Float>,
     pop: Float,
     sharedTransitionScope: SharedTransitionScope,
@@ -190,7 +186,7 @@ private fun ContinueSessionCardContent(
     ) {
         RotatingCloverBadge(
             session = session,
-            status = status,
+            status = status.status,
             rotation = rotation,
             pop = pop,
             contentDescription = stringResource(R.string.serverlist_continue_resume_desc),
@@ -207,14 +203,15 @@ private fun ContinueSessionCardContent(
                 cwd = session.cwd,
                 tint =
                     MaterialTheme.colorScheme.turnStatusContentColor(
-                        status,
+                        status.status,
                         MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
                     ),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
             WorkingSubtitle(
                 status = status,
-                streamKey = "${session.serverId}/${session.sessionId}",
+                chatId = session.sessionId,
+                accent = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
                 // get the icon, manual targets keep the bare host.
@@ -416,7 +413,7 @@ private fun SharedSessionTitle(
 @Composable
 private fun RecentSessionCardRow(
     session: RecentSession,
-    status: TurnStatus,
+    status: TurnActivity,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
@@ -427,7 +424,7 @@ private fun RecentSessionCardRow(
                 .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActivityIconContainer(status = status, size = 28.dp) {
+        ActivityIconContainer(status = status.status, size = 28.dp) {
             AgentIconBadge(
                 target = session.target,
                 fallback = Icons.Default.History,
@@ -463,14 +460,14 @@ private fun RecentSessionCardRow(
                 cwd = session.cwd,
                 tint =
                     MaterialTheme.colorScheme.turnStatusContentColor(
-                        status,
+                        status.status,
                         MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
             WorkingSubtitle(
                 status = status,
-                streamKey = "${session.serverId}/${session.sessionId}",
+                chatId = session.sessionId,
             ) {
                 ServerSubtitle(
                     server = session.target,
@@ -485,7 +482,7 @@ private fun RecentSessionCardRow(
 @Composable
 internal fun RecentSessionCard(
     session: RecentSession,
-    status: TurnStatus,
+    status: TurnActivity,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -499,12 +496,12 @@ internal fun RecentSessionCard(
                 // One tonal step above the Low backdrop, opaque so onSurface stays its pair.
                 containerColor =
                     MaterialTheme.colorScheme.turnStatusContainerColor(
-                        status,
+                        status.status,
                         MaterialTheme.colorScheme.surfaceContainerHigh,
                     ),
                 contentColor =
                     MaterialTheme.colorScheme.turnStatusContentColor(
-                        status,
+                        status.status,
                         MaterialTheme.colorScheme.onSurface,
                     ),
             ),

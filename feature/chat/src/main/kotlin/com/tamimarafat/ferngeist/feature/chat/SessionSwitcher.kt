@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.WorktreeRef
 import com.tamimarafat.ferngeist.core.model.cwdKey
@@ -31,7 +32,7 @@ data class SwitcherSession(
     val title: String?,
     val cwd: String?,
     val updatedAt: Long?,
-    val turnStatus: TurnStatus,
+    val turnStatus: TurnActivity,
     /** True for the session the sheet was opened from: tinted, never clickable. */
     val isCurrent: Boolean,
     /** The gateway worktree the chat runs in, when the gateway or the path convention names one. */
@@ -79,7 +80,7 @@ val SwitcherUiState.badgeStatus: TurnStatus?
                 .asSequence()
                 .flatMap { it.sessions.asSequence() }
                 .filterNot { it.isCurrent }
-                .map { it.turnStatus }
+                .map { it.turnStatus.status }
                 .toSet()
         return listOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED)
             .firstOrNull { it in statuses }
@@ -185,7 +186,7 @@ fun deriveSwitcherGroups(
     servers: List<SwitcherServer>,
     sessionsByServer: Map<String, List<SessionSummary>>,
     liveIdsByServer: Map<String, Set<String>>,
-    turnStatus: (serverId: String, sessionId: String) -> TurnStatus,
+    turnStatus: (serverId: String, sessionId: String) -> TurnActivity,
     current: SwitcherCurrent,
 ): List<SwitcherGroup> {
     val rowsByProject = linkedMapOf<String, MutableList<SwitcherSession>>()

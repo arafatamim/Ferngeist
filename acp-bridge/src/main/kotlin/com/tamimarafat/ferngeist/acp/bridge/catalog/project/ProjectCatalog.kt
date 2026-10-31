@@ -5,7 +5,7 @@ import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.isInside
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -130,7 +130,7 @@ class ProjectCatalog
         private val turnStatusCatalog =
             TurnStatusCatalog(gateway.turns, launchableTargetRepository.getTargets(), scope, hub)
 
-        val turnStatuses: StateFlow<Map<String, TurnStatus>> = turnStatusCatalog.statuses
+        val turnStatuses: StateFlow<Map<String, TurnActivity>> = turnStatusCatalog.statuses
 
         /** Chats with a turn in flight: [turnStatuses] seen through the flag readers that predate it. */
         val inProgressChatKeys: StateFlow<Set<String>> = turnStatusCatalog.activeChatKeys

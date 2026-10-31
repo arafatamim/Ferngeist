@@ -77,8 +77,9 @@ import com.tamimarafat.ferngeist.core.common.ui.EdgeFade
 import com.tamimarafat.ferngeist.core.common.ui.status.statusesFor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
-import com.tamimarafat.ferngeist.core.model.aggregateTurnStatus
+import com.tamimarafat.ferngeist.core.model.aggregateTurnActivity
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
@@ -100,7 +101,7 @@ internal fun AgentsBackdrop(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    turnStatuses: Map<String, TurnStatus> = emptyMap(),
+    turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
@@ -233,7 +234,7 @@ private fun BackdropLayers(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    turnStatuses: Map<String, TurnStatus> = emptyMap(),
+    turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
@@ -321,7 +322,7 @@ private fun FrontSheetLayer(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    turnStatuses: Map<String, TurnStatus> = emptyMap(),
+    turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     projects: List<ProjectSummary> = emptyList(),
@@ -616,7 +617,7 @@ private fun AgentsBackdropSheet(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    turnStatuses: Map<String, TurnStatus> = emptyMap(),
+    turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
     canRefresh: Boolean,
     onRefresh: () -> Unit = {},
@@ -664,7 +665,7 @@ private fun AgentsBackdropSheet(
 
 @Composable
 private fun BackLayerContent(
-    turnStatuses: Map<String, TurnStatus>,
+    turnStatuses: Map<String, TurnActivity>,
     heroSession: RecentSession?,
     olderSessions: List<RecentSession>,
     onResumeSession: (RecentSession) -> Unit,
@@ -678,7 +679,7 @@ private fun BackLayerContent(
             heroSession?.let { hero ->
                 ContinueSessionCard(
                     session = hero,
-                    status = turnStatuses["${hero.serverId}/${hero.sessionId}"] ?: TurnStatus.UNKNOWN,
+                    status = turnStatuses["${hero.serverId}/${hero.sessionId}"] ?: TurnActivity(),
                     onClick = { onResumeSession(hero) },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -696,7 +697,7 @@ private fun BackLayerContent(
             olderSessions.forEach { session ->
                 RecentSessionCard(
                     session = session,
-                    status = turnStatuses["${session.serverId}/${session.sessionId}"] ?: TurnStatus.UNKNOWN,
+                    status = turnStatuses["${session.serverId}/${session.sessionId}"] ?: TurnActivity(),
                     onClick = { onResumeSession(session) },
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
@@ -720,7 +721,7 @@ private fun FrontLayerContent(
     uiState: ServerListUiState,
     liveServerIds: Set<String> = emptySet(),
     connectedChatKeys: Set<String> = emptySet(),
-    turnStatuses: Map<String, TurnStatus> = emptyMap(),
+    turnStatuses: Map<String, TurnActivity> = emptyMap(),
     refreshing: Boolean = false,
     canRefresh: Boolean,
     onRefresh: () -> Unit = {},
@@ -821,8 +822,11 @@ private fun FrontLayerContent(
                         val chatStatuses = turnStatuses.statusesFor(server.id)
                         ServerCard(
                             server = server,
-                            status = chatStatuses.values.aggregateTurnStatus(),
-                            activeChats = chatStatuses.count { it.value == TurnStatus.WORKING },
+                            status = chatStatuses.values.aggregateTurnActivity(),
+                            // shortcut: no recency here, so the lead chat is the lowest id; order by
+                            // updatedAt if the agent row should match the hero's verb.
+                            workingChatIds =
+                                chatStatuses.filterValues { it.status == TurnStatus.WORKING }.keys.sorted(),
                             uiState = uiState,
                             liveServerIds = liveServerIds,
                             onClick = { onConnect(server) },

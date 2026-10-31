@@ -30,7 +30,7 @@ import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
 import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
-import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.sessionTitleOrNull
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.ChatCard
@@ -46,7 +46,7 @@ internal fun ProjectChatRow(
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     live: Boolean,
-    status: TurnStatus,
+    status: TurnActivity,
     removing: Boolean,
     actions: ProjectChatActions,
     onClick: () -> Unit,
@@ -69,7 +69,7 @@ internal fun ProjectChatRow(
         // The chat screen grows out of this card, as it does out of the agent list's.
         ChatCard(
             live = live,
-            status = status,
+            status = status.status,
             removing = removing,
             onClick = onClick,
             onOpenMenu = openMenu,
@@ -83,7 +83,7 @@ internal fun ProjectChatRow(
         ) {
             // Every agent shares its state treatment; the upright logo tells them apart.
             ActivityIconContainer(
-                status = status,
+                status = status.status,
                 size = 40.dp,
                 idleShape = CircleShape,
                 modifier = Modifier.semantics { contentDescription = chat.target.name },
@@ -122,7 +122,7 @@ internal fun ProjectChatRow(
 @Composable
 private fun ProjectChatText(
     chat: ProjectChat,
-    status: TurnStatus,
+    status: TurnActivity,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     modifier: Modifier,
@@ -138,7 +138,7 @@ private fun ProjectChatText(
         )
         WorkingSubtitle(
             status = status,
-            streamKey = "${chat.target.id}/${chat.summary.id}",
+            chatId = chat.summary.id,
         ) {
             // Missing logos need a textual fallback; a known logo already identifies the agent.
             if (chat.target.binding.icon

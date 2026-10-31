@@ -15,8 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 
@@ -34,9 +32,8 @@ fun ActivityIconContainer(
     idleShape: Shape = MaterialTheme.shapes.medium,
     content: @Composable () -> Unit,
 ) {
-    val description = turnStatusLabel(status)
     Box(
-        modifier.size(size).semantics { description?.let { stateDescription = it } },
+        modifier.size(size),
         contentAlignment = Alignment.Center,
     ) {
         Crossfade(

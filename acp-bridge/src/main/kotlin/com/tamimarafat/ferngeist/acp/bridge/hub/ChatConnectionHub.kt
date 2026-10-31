@@ -6,9 +6,11 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
@@ -207,7 +209,7 @@ class ChatConnectionHub(
     private val _streamingChatIds = MutableStateFlow<Set<String>>(emptySet())
     val streamingChatIds: StateFlow<Set<String>> = _streamingChatIds.asStateFlow()
 
-    private val _turnStatuses = MutableStateFlow<Map<String, TurnStatus>>(emptyMap())
+    private val _turnStatuses = MutableStateFlow<Map<String, TurnActivity>>(emptyMap())
 
     /**
      * Reliable turn status of every tracked chat, keyed by the canonical [chatIdFor]
@@ -216,7 +218,7 @@ class ChatConnectionHub(
      * source it has instead of reading a stale [TurnStatus.FINISHED]. [TurnStatus.UNKNOWN]
      * is present and authoritative - the chat is tracked but no outcome is known.
      */
-    val turnStatuses: StateFlow<Map<String, TurnStatus>> = _turnStatuses.asStateFlow()
+    val turnStatuses: StateFlow<Map<String, TurnActivity>> = _turnStatuses.asStateFlow()
 
     init {
         scope.launch {
@@ -397,8 +399,13 @@ class ChatConnectionHub(
     /** One live sample of an entry's turn, published from the bridge's own snapshot. */
     private data class TurnPresence(
         val isStreaming: Boolean,
-        val turnStatus: TurnStatus?,
+        val turnStatus: TurnActivity?,
+        val turnCompletionSequence: Long,
     )
+
+    private companion object {
+        const val FINISHED_STATUS_EXPIRY_MS = 600_000L
+    }
 
     /**
      * The turn outlives its screen, so the hub observes it independently of any publisher.
@@ -419,28 +426,88 @@ class ChatConnectionHub(
         turnObservers[chatId] =
             scope.launch {
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
-                var awaitingFreshState = false
-                var acknowledgedCompletion: Long? = null
-                combine(snapshot, connection, openChatIds) { state, connectionState, open ->
-                    val connected = connectionState is AcpConnectionState.Connected
-                    val terminal = state.turnStatus == TurnStatus.FINISHED || state.turnStatus == TurnStatus.ERROR
-                    if (!connected) awaitingFreshState = true
-                    if (connected && !terminal) awaitingFreshState = false
-                    val finished = state.turnStatus == TurnStatus.FINISHED
-                    if (finished && chatId in open) acknowledgedCompletion = state.turnCompletionSequence
-                    val status =
-                        if (finished && acknowledgedCompletion == state.turnCompletionSequence) {
-                            TurnStatus.UNKNOWN
-                        } else {
-                            state.turnStatus
-                        }
-                    // A retained terminal snapshot is not new evidence merely because transport recovered.
-                    TurnPresence(
-                        isStreaming = state.isStreaming && connected,
-                        turnStatus = status.takeIf { connected && !awaitingFreshState },
-                    )
-                }.distinctUntilChanged().collect { presence -> publishTurnPresence(chatId, presence) }
+                val expiry = FinishedStatusExpiry(chatId, this)
+                turnPresenceFlow(chatId, snapshot, connection).collect { presence ->
+                    publishTurnPresence(chatId, expiry.apply(presence))
+                }
             }
+    }
+
+    private fun turnPresenceFlow(
+        chatId: String,
+        snapshot: StateFlow<SessionSnapshot>,
+        connection: Flow<AcpConnectionState>,
+    ): Flow<TurnPresence> {
+        var awaitingFreshState = false
+        var acknowledgedCompletion: Long? = null
+        return combine(snapshot, connection, openChatIds) { state, connectionState, open ->
+            val connected = connectionState is AcpConnectionState.Connected
+            val terminal = state.turnStatus == TurnStatus.FINISHED || state.turnStatus == TurnStatus.ERROR
+            if (!connected) awaitingFreshState = true
+            if (connected && !terminal) awaitingFreshState = false
+            val finished = state.turnStatus == TurnStatus.FINISHED
+            if (finished && chatId in open) acknowledgedCompletion = state.turnCompletionSequence
+            val status =
+                if (finished && acknowledgedCompletion == state.turnCompletionSequence) {
+                    TurnStatus.UNKNOWN
+                } else {
+                    state.turnStatus
+                }
+            // A retained terminal snapshot is not new evidence merely because transport recovered.
+            TurnPresence(
+                isStreaming = state.isStreaming && connected,
+                turnStatus =
+                    TurnActivity(status, state.turnStatusSince.takeIf { status == state.turnStatus })
+                        .takeIf { connected && !awaitingFreshState },
+                turnCompletionSequence = state.turnCompletionSequence,
+            )
+        }.distinctUntilChanged()
+    }
+
+    private inner class FinishedStatusExpiry(
+        private val chatId: String,
+        private val scope: CoroutineScope,
+    ) {
+        private var latestCompletionSequence: Long? = null
+        private var expiredCompletionSequence: Long? = null
+        private var job: Job? = null
+
+        fun apply(presence: TurnPresence): TurnPresence {
+            if (presence.turnStatus?.status == TurnStatus.FINISHED) {
+                if (latestCompletionSequence != presence.turnCompletionSequence) {
+                    job?.cancel()
+                    latestCompletionSequence = presence.turnCompletionSequence
+                    expiredCompletionSequence = null
+                    val completionSequence = presence.turnCompletionSequence
+                    job =
+                        scope.launch {
+                            kotlinx.coroutines.delay(FINISHED_STATUS_EXPIRY_MS)
+                            _turnStatuses.update { statuses ->
+                                if (latestCompletionSequence == completionSequence &&
+                                    statuses[chatId]?.status == TurnStatus.FINISHED
+                                ) {
+                                    expiredCompletionSequence = completionSequence
+                                    statuses + (chatId to TurnActivity())
+                                } else {
+                                    statuses
+                                }
+                            }
+                        }
+                }
+            } else {
+                job?.cancel()
+                job = null
+                latestCompletionSequence = null
+                expiredCompletionSequence = null
+            }
+            return if (presence.turnStatus?.status == TurnStatus.FINISHED &&
+                expiredCompletionSequence == presence.turnCompletionSequence
+            ) {
+                presence.copy(turnStatus = TurnActivity())
+            } else {
+                presence
+            }
+        }
     }
 
     private fun publishTurnPresence(

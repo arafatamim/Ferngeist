@@ -2,6 +2,8 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.common.ui.time.Elapsed
+import com.tamimarafat.ferngeist.core.common.ui.time.elapsedOf
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.SummaryPart

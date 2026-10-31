@@ -48,7 +48,7 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.pathSegments
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -393,7 +393,7 @@ private fun ProjectChatList(
                     worktree = worktree,
                     worktreeBranch = worktree?.displayName ?: chat.worktree?.let { pathSegments(it).lastOrNull() },
                     live = isLive,
-                    status = turnStatuses[chat.key] ?: TurnStatus.UNKNOWN,
+                    status = turnStatuses[chat.key] ?: TurnActivity(),
                     removing = worktree?.id in removing,
                     actions =
                         ProjectChatActions(

@@ -68,6 +68,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -260,7 +261,7 @@ private fun SessionListLazyColumn(
     sessionCount: Int,
     padding: PaddingValues,
     liveSessionIds: Set<String>,
-    turnStatuses: Map<String, TurnStatus>,
+    turnStatuses: Map<String, TurnActivity>,
     closableSessionIds: Set<String>,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
@@ -286,7 +287,7 @@ private fun SessionListLazyColumn(
         SessionCard(
             session = session,
             isLive = session.id in liveSessionIds,
-            status = turnStatuses[session.id] ?: TurnStatus.UNKNOWN,
+            status = turnStatuses[session.id] ?: TurnActivity(),
             worktree = worktree,
             worktreeBranch = worktree?.displayName,
             worktreeRepo = worktree?.repo,
@@ -384,7 +385,7 @@ private fun SessionListLazyColumn(
 @Composable
 private fun RowScope.SessionCardText(
     session: SessionSummary,
-    status: TurnStatus,
+    status: TurnActivity,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -419,7 +420,7 @@ private fun RowScope.SessionCardText(
                     else -> session.cwd?.let(::projectName)
                 }
             // A turn in flight spends the subtitle line on its state; the place returns when unknown.
-            WorkingSubtitle(status = status, streamKey = session.id) {
+            WorkingSubtitle(status = status, chatId = session.id) {
                 place?.let {
                     Text(
                         text = it,
@@ -517,7 +518,7 @@ internal fun Modifier.sessionTitleBounds(
 private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
-    status: TurnStatus,
+    status: TurnActivity,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -545,7 +546,7 @@ private fun SessionCard(
     Box {
         ChatCard(
             live = isLive,
-            status = status,
+            status = status.status,
             removing = removing,
             dimmed = removing || gone,
             onClick = onClick,
