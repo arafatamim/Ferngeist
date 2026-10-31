@@ -40,7 +40,7 @@ import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.activity.ActiveElsewhereDialog
-import com.tamimarafat.ferngeist.feature.chat.selection.LocalQuoteSelection
+import com.tamimarafat.ferngeist.feature.chat.selection.localQuoteSelection
 import com.tamimarafat.ferngeist.feature.chat.selection.quoteDraft
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentSupport
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.HeldAttachments
@@ -129,7 +129,7 @@ fun ChatScreen(
     }
 
     CompositionLocalProvider(
-        LocalQuoteSelection provides { selected ->
+        localQuoteSelection provides { selected ->
             val draft = screenState.mutations.messageText
             draft.edit { replace(0, length, quoteDraft(toString(), selected)) }
             screenState.mutations.composerExpanded.value = true

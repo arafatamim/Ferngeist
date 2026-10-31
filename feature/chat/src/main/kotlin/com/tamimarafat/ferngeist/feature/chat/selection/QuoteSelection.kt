@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.tamimarafat.ferngeist.feature.chat.R
 
-internal val LocalQuoteSelection = staticCompositionLocalOf<((String) -> Unit)?> { null }
+internal val localQuoteSelection = staticCompositionLocalOf<((String) -> Unit)?> { null }
 
 internal fun quoteDraft(
     draft: String,
@@ -22,7 +22,7 @@ internal fun quoteDraft(
 
 @Composable
 internal fun QuoteSelectionContainer(content: @Composable () -> Unit) {
-    val onQuote = LocalQuoteSelection.current
+    val onQuote = localQuoteSelection.current
     val state = rememberSelectionState()
     val label = stringResource(R.string.quote_selection)
     val modifier =
