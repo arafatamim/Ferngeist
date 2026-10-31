@@ -41,6 +41,10 @@ Thumbs.db
 
 .superpowers/
 
+## Per-tool local config
+.commandcode/
+.superset/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
