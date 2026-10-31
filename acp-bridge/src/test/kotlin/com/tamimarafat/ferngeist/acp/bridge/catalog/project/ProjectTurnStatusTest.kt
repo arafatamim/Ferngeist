@@ -61,6 +61,40 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
         }
 
     @Test
+    fun `opening a chat acknowledges its failed turn but not a later one`() =
+        runTest {
+            val hub = newHub()
+            val catalog =
+                catalog(
+                    MockEngine { respond("", HttpStatusCode.OK) },
+                    hub = hub,
+                    turns =
+                        turnsEngine(
+                            turns(turnLine("claude", "same", "failed")),
+                            turns(turnLine("claude", "same", "failed")),
+                            turns(
+                                turnLine("claude", "same", "failed", changedAt = "2026-10-27T09:45:00Z"),
+                                observedAt = "2026-10-27T09:45:00Z",
+                            ),
+                        ),
+                )
+            runCurrent()
+            catalog.refresh().join()
+            runCurrent()
+            assertEquals(TurnStatus.ERROR, catalog.turnStatuses.value["b-claude/same"])
+            hub.chatScreenOpened(claude.id, "same", "")
+            runCurrent()
+            assertTrue(catalog.turnStatuses.value["b-claude/same"] != TurnStatus.ERROR)
+            hub.chatScreenClosed(claude.id, "same")
+            catalog.refresh(force = true).join()
+            runCurrent()
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"])
+            catalog.refresh(force = true).join()
+            runCurrent()
+            assertEquals(TurnStatus.ERROR, catalog.turnStatuses.value["b-claude/same"])
+        }
+
+    @Test
     fun `a finish fetched while its chat is open stays seen after closing`() =
         runTest {
             val hub = newHub()
@@ -122,7 +156,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
         }
 
     @Test
-    fun `success expires ten minutes after gateway completion without another refresh`() =
+    fun `outcomes expire at their respective deadlines without another refresh`() =
         runTest {
             val catalog =
                 catalog(
@@ -142,7 +176,14 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"])
 
-            advanceTimeBy(599_999)
+            advanceTimeBy(299_999)
+            runCurrent()
+            assertEquals(TurnStatus.ERROR, catalog.turnStatuses.value["b-claude/failed"])
+            advanceTimeBy(1)
+            runCurrent()
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/failed"])
+            assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"])
+            advanceTimeBy(299_999)
             runCurrent()
             assertEquals(TurnStatus.FINISHED, catalog.turnStatuses.value["b-claude/same"])
 
@@ -150,7 +191,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/same"])
             assertEquals(TurnStatus.WORKING, catalog.turnStatuses.value["b-claude/working"])
-            assertEquals(TurnStatus.ERROR, catalog.turnStatuses.value["b-claude/failed"])
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/failed"])
         }
 
     @Test
@@ -200,7 +241,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/malformed"])
             assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/future"])
             assertEquals(TurnStatus.WORKING, catalog.turnStatuses.value["b-claude/running"])
-            assertEquals(TurnStatus.ERROR, catalog.turnStatuses.value["b-claude/failed"])
+            assertEquals(TurnStatus.UNKNOWN, catalog.turnStatuses.value["b-claude/failed"])
         }
 
     @Test

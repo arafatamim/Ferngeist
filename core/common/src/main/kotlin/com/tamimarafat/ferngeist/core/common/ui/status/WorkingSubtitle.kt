@@ -60,7 +60,7 @@ fun WorkingSubtitle(
                     )
                 }
             TurnStatus.NEEDS_ATTENTION -> TurnStatusLabel(active, MaterialTheme.colorScheme.onTertiaryContainer, style)
-            TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.onErrorContainer, style)
+            TurnStatus.ERROR -> TurnStatusLabel(active, MaterialTheme.colorScheme.error, style)
             TurnStatus.FINISHED -> TurnStatusLabel(active, accent, style)
         }
     }
@@ -83,7 +83,6 @@ fun ColorScheme.turnStatusContainerColor(
 ): Color =
     when (status) {
         TurnStatus.NEEDS_ATTENTION -> tertiaryContainer
-        TurnStatus.ERROR -> errorContainer
         else -> fallback
     }
 
@@ -93,7 +92,6 @@ fun ColorScheme.turnStatusContentColor(
 ): Color =
     when (status) {
         TurnStatus.NEEDS_ATTENTION -> onTertiaryContainer
-        TurnStatus.ERROR -> onErrorContainer
         else -> fallback
     }
 

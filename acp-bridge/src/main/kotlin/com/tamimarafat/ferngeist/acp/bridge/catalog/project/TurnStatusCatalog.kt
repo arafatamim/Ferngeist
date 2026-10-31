@@ -54,7 +54,7 @@ internal class TurnStatusCatalog(
 
     private data class RemoteSnapshot(
         val snapshot: GatewayTurnsSnapshot,
-        val expiredSuccesses: Set<GatewayTurn>,
+        val expiredOutcomes: Set<GatewayTurn>,
         val generation: Any = Any(),
     )
 
@@ -72,7 +72,7 @@ internal class TurnStatusCatalog(
                     .forEach { (gatewayId, bindings) ->
                         val state = snapshots[gatewayId] ?: return@forEach
                         val snapshot = state.snapshot
-                        val statuses = acknowledge(gatewayId, snapshot, bindings, open, state.expiredSuccesses)
+                        val statuses = acknowledge(gatewayId, snapshot, bindings, open, state.expiredOutcomes)
                         bindings.forEach { target ->
                             statuses[target.binding.agentId]?.forEach { (sessionId, status) ->
                                 put("${target.id}/$sessionId", status)
@@ -126,7 +126,7 @@ internal class TurnStatusCatalog(
         val expired = HashSet<GatewayTurn>()
         val scheduledExpirations = ArrayList<Pair<GatewayTurn, Long>>()
         answer.turns.forEach { turn ->
-            if (turn.state == SUCCEEDED) {
+            if ((turn.state == SUCCEEDED || turn.state == FAILED)) {
                 val remaining = turn.expiryDelay(answer.observedAt)
                 if (remaining == 0L) expired += turn else scheduledExpirations += turn to remaining
             }
@@ -165,8 +165,8 @@ internal class TurnStatusCatalog(
                         remote.update { all ->
                             val current = all[gatewayId]
                             if (current?.generation == snapshot.generation) {
-                                val expired = current.expiredSuccesses + due.map { it.first }
-                                all + (gatewayId to current.copy(expiredSuccesses = expired))
+                                val expired = current.expiredOutcomes + due.map { it.first }
+                                all + (gatewayId to current.copy(expiredOutcomes = expired))
                             } else {
                                 all
                             }
@@ -183,7 +183,7 @@ internal class TurnStatusCatalog(
         snapshot: GatewayTurnsSnapshot,
         bindings: List<LaunchableTarget.GatewayAgent>,
         open: Set<String>,
-        expiredSuccesses: Set<GatewayTurn>,
+        expiredOutcomes: Set<GatewayTurn>,
     ): AgentTurnStatuses {
         val previous =
             acknowledged[gatewayId]?.takeIf { it.gatewayStartedAt == snapshot.gatewayStartedAt }?.turns.orEmpty()
@@ -191,29 +191,30 @@ internal class TurnStatusCatalog(
             snapshot.turns.filterTo(HashSet()) { turn ->
                 turn in previous ||
                     (
-                        turn.state == SUCCEEDED &&
+                        (turn.state == SUCCEEDED || turn.state == FAILED) &&
                             bindings.any { it.binding.agentId == turn.agentId && "${it.id}/${turn.sessionId}" in open }
                     )
             }
         acknowledged[gatewayId] = SeenTurns(snapshot.gatewayStartedAt, seen)
-        return snapshot.turnStatuses(seen, expiredSuccesses)
+        return snapshot.turnStatuses(seen, expiredOutcomes)
     }
 }
 
 /** One status per ACP chat, however many gateway sessions ran a turn for it. */
 internal fun GatewayTurnsSnapshot.turnStatuses(
     acknowledged: Set<GatewayTurn> = emptySet(),
-    expiredSuccesses: Set<GatewayTurn> = emptySet(),
+    expiredOutcomes: Set<GatewayTurn> = emptySet(),
 ): AgentTurnStatuses =
     turns
         .groupBy { it.agentId }
         .mapValues { (_, agentTurns) ->
             agentTurns.groupBy { it.sessionId }.mapValues { (_, entries) ->
-                entries.chatStatus(acknowledged, expiredSuccesses)
+                entries.chatStatus(acknowledged, expiredOutcomes)
             }
         }
 
 private const val FINISHED_WINDOW_MILLIS = 600_000L
+private const val FAILED_WINDOW_MILLIS = 300_000L
 
 /** Snapshot-relative age avoids trusting the device wall clock for a gateway's completion time. */
 private fun GatewayTurn.expiryDelay(observedAt: String): Long {
@@ -229,7 +230,8 @@ private fun GatewayTurn.expiryDelay(observedAt: String): Long {
                     .toMillis()
             }.getOrNull()
         }
-    return age?.let { (FINISHED_WINDOW_MILLIS - it).coerceAtLeast(0) } ?: 0L
+    val window = if (state == FAILED) FAILED_WINDOW_MILLIS else FINISHED_WINDOW_MILLIS
+    return age?.let { (window - it).coerceAtLeast(0) } ?: 0L
 }
 
 /**
@@ -241,7 +243,7 @@ private fun GatewayTurn.expiryDelay(observedAt: String): Long {
  */
 private fun List<GatewayTurn>.chatStatus(
     acknowledged: Set<GatewayTurn>,
-    expiredSuccesses: Set<GatewayTurn>,
+    expiredOutcomes: Set<GatewayTurn>,
 ): TurnStatus {
     val running = filter { it.state == RUNNING }
     if (running.isNotEmpty()) {
@@ -257,7 +259,7 @@ private fun List<GatewayTurn>.chatStatus(
         ) ?: return TurnStatus.UNKNOWN
     // Unable to order this outcome against the others, the gateway session id means nothing.
     if (latest.startedAt.instant() == null || latest in acknowledged) return TurnStatus.UNKNOWN
-    return if (latest in expiredSuccesses) TurnStatus.UNKNOWN else latest.status()
+    return if (latest in expiredOutcomes) TurnStatus.UNKNOWN else latest.status()
 }
 
 /** Cancelled, unknown and anything a newer gateway adds carry no success claim. */

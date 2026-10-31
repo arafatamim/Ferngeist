@@ -276,6 +276,7 @@ class SessionRuntime(
                     // cancelled turn stays cancelled); only a send that failed with no
                     // outcome of its own is an error.
                     turnOutcome = if (live.turnSettled) live.turnOutcome else TurnStatus.ERROR,
+                    turnCompletionSequence = if (live.turnSettled) live.turnCompletionSequence else ++eventSeq,
                     pendingPermissions = emptySet(),
                     pendingElicitations = emptyList(),
                     turnSettled = true,

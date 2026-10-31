@@ -59,6 +59,33 @@ class ChatTurnPresenceTest {
             bridge.sendPrompt("off screen", emptyList(), emptyList())
             bridge.emitEvent(AppSessionEvent.TurnComplete("end_turn"))
             assertEquals(TurnStatus.FINISHED, hub.turnStatuses.value[key])
+            hub.close(key)
+            bridge.close()
+        }
+
+    @Test
+    fun `viewing failed turns clears them but later failures remain visible`() =
+        runTest {
+            val hub = newHub()
+            val manager = hub.acquireChatManager()
+            manager.forceConnectionState(AcpConnectionState.Connected)
+            val bridge = SessionBridge("s1", null)
+            bridge.runtime.beginHydration()
+            bridge.runtime.completeHydration()
+            val key =
+                hub.register(
+                    "srv",
+                    "s1",
+                    ChatRegistration(
+                        gatewaySessionId = null,
+                        gatewaySourceId = "",
+                        agentId = "",
+                        isConnected = { manager.isConnected },
+                        isStreaming = { bridge.snapshot.value.isStreaming },
+                        manager = manager,
+                        snapshot = bridge.snapshot,
+                    ),
+                )
             hub.chatScreenOpened("srv", "s1", "")
             advanceUntilIdle()
             bridge.sendPrompt("failure while open", emptyList(), emptyList())
@@ -72,13 +99,27 @@ class ChatTurnPresenceTest {
             )
             assertEquals(TurnStatus.NEEDS_ATTENTION, hub.turnStatuses.value[key])
             bridge.emitEvent(AppSessionEvent.TurnComplete("error"))
+            assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key])
+            hub.chatScreenClosed("srv", "s1")
+            bridge.sendPrompt("failure off screen", emptyList(), emptyList())
+            bridge.emitEvent(AppSessionEvent.TurnComplete("error"))
             assertEquals(TurnStatus.ERROR, hub.turnStatuses.value[key])
+            hub.chatScreenOpened("srv", "s1", "")
+            advanceUntilIdle()
+            assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key])
+            hub.chatScreenClosed("srv", "s1")
+            bridge.sendPrompt("send failure", emptyList(), emptyList())
+            bridge.runtime.onPromptSendFailed()
+            assertEquals(TurnStatus.ERROR, hub.turnStatuses.value[key])
+            hub.chatScreenOpened("srv", "s1", "")
+            advanceUntilIdle()
+            assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key])
             hub.close(key)
             bridge.close()
         }
 
     @Test
-    fun `finished status expires ten minutes after the latest completion`() =
+    fun `finished and failed statuses expire at their respective deadlines`() =
         runTest {
             val hub = newHub(dispatcher = UnconfinedTestDispatcher(testScheduler))
             val manager = hub.acquireChatManager()
@@ -116,11 +157,11 @@ class ChatTurnPresenceTest {
             assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key])
 
             bridge.sendPrompt("second", emptyList(), emptyList())
-            bridge.emitEvent(AppSessionEvent.TurnComplete("end_turn"))
+            bridge.emitEvent(AppSessionEvent.TurnComplete("error"))
             runCurrent()
-            advanceTimeBy(599_999)
+            advanceTimeBy(299_999)
             runCurrent()
-            assertEquals(TurnStatus.FINISHED, hub.turnStatuses.value[key])
+            assertEquals(TurnStatus.ERROR, hub.turnStatuses.value[key])
             advanceTimeBy(1)
             runCurrent()
             assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key])
