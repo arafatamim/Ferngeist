@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.adamglin.compose.markdown.core.model.BlockNode
 import com.adamglin.compose.markdown.core.model.TaskState
 import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
+import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
 import com.tamimarafat.ferngeist.feature.chat.syntax.rememberHighlightedCode
 import com.tamimarafat.ferngeist.feature.chat.syntax.styledCode
@@ -75,7 +76,7 @@ internal fun MarkdownBlocks(
 ) {
     ProvideMarkdownTheme(typography) {
         val styles = rememberMarkdownBlockStyles()
-        SelectionContainer {
+        QuoteSelectionContainer {
             Column(
                 modifier = modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

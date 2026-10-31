@@ -95,6 +95,7 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.documentMarkdownTypograph
 import com.tamimarafat.ferngeist.feature.chat.markdown.localInlineChips
 import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
+import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
 import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
@@ -332,13 +333,15 @@ private fun UserMessageContent(
     Row(modifier = modifier, verticalAlignment = Alignment.Bottom) {
         Column(modifier = Modifier.weight(1f, fill = false)) {
             if (message.content.isNotBlank()) {
-                Text(
-                    text = message.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = textColor,
-                    maxLines = maxLines,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                QuoteSelectionContainer {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = textColor,
+                        maxLines = maxLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (message.images.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -778,11 +781,13 @@ internal fun RenderedMarkdown(
         // real height now; when the parse arrives the formatting swaps in without the
         // surrounding list having to re-measure. A streaming run renders nothing instead:
         // raw text there would show everything at once, then collapse to the reveal.
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = modifier.fillMaxWidth(),
-        )
+        QuoteSelectionContainer {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

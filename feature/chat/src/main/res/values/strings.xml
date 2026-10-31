@@ -392,5 +392,6 @@
     <string name="chat_active_elsewhere_title">Active elsewhere?</string>
     <string name="chat_active_elsewhere_body">This chat was recently active elsewhere. Sending now may start another agent process on the same chat.</string>
     <string name="chat_send_anyway">Send anyway</string>
+    <string name="quote_selection">Quote</string>
 </resources>
 
