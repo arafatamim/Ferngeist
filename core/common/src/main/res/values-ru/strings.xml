@@ -32,8 +32,8 @@
     <string name="common_diagnostics_context">Контекст</string>
     <string name="common_diagnostics_context_value">%1$s · %2$s из %3$s</string>
     <string name="common_diagnostics_cost">Стоимость</string>
-    <string name="common_diagnostics_quota">Квота плана</string>
     <string name="common_diagnostics_quota_placeholder">Здесь появятся лимиты плана из CodexBar.</string>
+    <string name="common_quota_install_codexbar">Установите CodexBar CLI на шлюзе, чтобы видеть квоты.</string>
     <string name="common_diagnostics_details">Подробности</string>
     <string name="common_expanded">Развёрнуто</string>
     <string name="common_collapsed">Свёрнуто</string>

@@ -32,7 +32,6 @@
     <string name="common_diagnostics_context">Context</string>
     <string name="common_diagnostics_context_value">%1$s · %2$s of %3$s</string>
     <string name="common_diagnostics_cost">Cost</string>
-    <string name="common_diagnostics_quota">Plan quota</string>
     <string name="common_diagnostics_quota_placeholder">Plan limits from CodexBar will show here.</string>
     <string name="common_diagnostics_details">Details</string>
     <string name="common_expanded">Expanded</string>
@@ -58,6 +57,7 @@
     <string name="common_status_finished">Finished</string>
     <string name="common_recently_active">Recently active</string>
     <string name="common_quota_unavailable">Quota unavailable</string>
+    <string name="common_quota_install_codexbar">Install the CodexBar CLI on the gateway to see quotas.</string>
     <string name="common_quota_updated">Updated %1$s</string>
     <string name="common_quota_used">%1$s used</string>
     <string name="common_quota_in_reserve">%1$s in reserve</string>

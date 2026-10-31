@@ -29,8 +29,8 @@
     <string name="common_diagnostics_context">কনটেক্সট</string>
     <string name="common_diagnostics_context_value">%1$s · %3$s এর মধ্যে %2$s</string>
     <string name="common_diagnostics_cost">খরচ</string>
-    <string name="common_diagnostics_quota">প্ল্যান কোটা</string>
     <string name="common_diagnostics_quota_placeholder">CodexBar থেকে প্ল্যানের সীমা এখানে দেখানো হবে।</string>
+    <string name="common_quota_install_codexbar">কোটা দেখতে গেটওয়েতে CodexBar CLI ইনস্টল করুন।</string>
     <string name="common_diagnostics_details">বিস্তারিত</string>
     <string name="common_expanded">প্রসারিত</string>
     <string name="common_collapsed">সংকুচিত</string>

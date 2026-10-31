@@ -47,8 +47,14 @@ import com.tamimarafat.ferngeist.core.model.AgentQuota
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.core.model.repository.CodexBarNotFoundException
 import kotlinx.coroutines.CancellationException
 import java.net.URI
+
+private data class QuotaDisplayState(
+    val quota: List<AgentQuota>?,
+    val codexBarMissing: Boolean = false,
+)
 
 /**
  * Bottom sheet showing connection health, this chat's usage, plan quota and, collapsed,
@@ -65,15 +71,17 @@ fun ConnectionDiagnosticsSheet(
     quota: List<AgentQuota>? = null,
     fetchQuota: (suspend () -> List<AgentQuota>?)? = null,
 ) {
-    val loadedQuota by produceState(initialValue = quota, fetchQuota) {
+    val loadedQuota by produceState(initialValue = QuotaDisplayState(quota), fetchQuota) {
         if (fetchQuota != null) {
             value =
                 try {
-                    fetchQuota()
+                    QuotaDisplayState(fetchQuota())
                 } catch (e: CancellationException) {
                     throw e
+                } catch (_: CodexBarNotFoundException) {
+                    QuotaDisplayState(null, codexBarMissing = true)
                 } catch (_: Exception) {
-                    null
+                    QuotaDisplayState(null)
                 }
         }
     }
@@ -85,7 +93,7 @@ fun ConnectionDiagnosticsSheet(
                 enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
             ),
     ) {
-        DiagnosticsSheetContent(connectionState, diagnostics, usage, loadedQuota)
+        DiagnosticsSheetContent(connectionState, diagnostics, usage, loadedQuota.quota, loadedQuota.codexBarMissing)
     }
 }
 
@@ -96,6 +104,7 @@ internal fun DiagnosticsSheetContent(
     diagnostics: ChatConnectionDiagnostics,
     usage: UsageState?,
     quota: List<AgentQuota>?,
+    codexBarMissing: Boolean = false,
 ) {
     Column(
         modifier =
@@ -107,7 +116,15 @@ internal fun DiagnosticsSheetContent(
     ) {
         DiagnosticsHeader(connectionState, diagnostics.serverUrl)
         usage?.let { UsageSection(it) }
-        QuotaSection(quota)
+        if (codexBarMissing) {
+            Text(
+                stringResource(R.string.common_quota_install_codexbar),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            QuotaSection(quota)
+        }
         HorizontalDivider()
         Column {
             ProblemsSection(diagnostics.recentErrors)

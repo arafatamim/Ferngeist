@@ -361,6 +361,21 @@ data class QuotaCost(
     val tokens: Int? = null,
 )
 
+data class QuotaBillingRow(
+    val label: String,
+    val value: String,
+)
+
+data class QuotaBillingSection(
+    val title: String,
+    val rows: List<QuotaBillingRow>,
+)
+
+data class QuotaBalance(
+    val amount: Double,
+    val currency: String,
+)
+
 /** Plan quota and spend of one agent provider's account, as relayed by the gateway. */
 data class AgentQuota(
     val provider: String,
@@ -372,6 +387,8 @@ data class AgentQuota(
     val displayName: String = provider,
     val icon: String? = null,
     val balance: String? = null,
+    val billing: List<QuotaBillingSection> = emptyList(),
+    val providerBalance: QuotaBalance? = null,
 )
 
 data class UsageState(

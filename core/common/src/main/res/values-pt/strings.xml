@@ -29,8 +29,8 @@
     <string name="common_diagnostics_context">Contexto</string>
     <string name="common_diagnostics_context_value">%1$s · %2$s de %3$s</string>
     <string name="common_diagnostics_cost">Custo</string>
-    <string name="common_diagnostics_quota">Cota do plano</string>
     <string name="common_diagnostics_quota_placeholder">Os limites do plano do CodexBar aparecerão aqui.</string>
+    <string name="common_quota_install_codexbar">Instale o CodexBar CLI no gateway para ver as cotas.</string>
     <string name="common_diagnostics_details">Detalhes</string>
     <string name="common_expanded">Expandido</string>
     <string name="common_collapsed">Recolhido</string>

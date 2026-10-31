@@ -29,8 +29,8 @@
     <string name="common_diagnostics_context">Contexto</string>
     <string name="common_diagnostics_context_value">%1$s · %2$s de %3$s</string>
     <string name="common_diagnostics_cost">Coste</string>
-    <string name="common_diagnostics_quota">Cuota del plan</string>
     <string name="common_diagnostics_quota_placeholder">Aquí se mostrarán los límites del plan de CodexBar.</string>
+    <string name="common_quota_install_codexbar">Instala CodexBar CLI en la puerta de enlace para ver las cuotas.</string>
     <string name="common_diagnostics_details">Detalles</string>
     <string name="common_expanded">Expandido</string>
     <string name="common_collapsed">Contraído</string>

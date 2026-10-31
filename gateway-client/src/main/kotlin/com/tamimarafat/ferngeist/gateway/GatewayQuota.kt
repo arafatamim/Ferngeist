@@ -2,6 +2,9 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.tamimarafat.ferngeist.core.model.AgentQuota
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.QuotaBalance
+import com.tamimarafat.ferngeist.core.model.QuotaBillingRow
+import com.tamimarafat.ferngeist.core.model.QuotaBillingSection
 import com.tamimarafat.ferngeist.core.model.QuotaWindow
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -30,10 +33,20 @@ internal data class GatewayQuotaProvider(
 ) {
     fun toQuota(): AgentQuota {
         val updated = usage?.updatedAt.epochMillis()
-        val balance = usage?.primary?.resetDescription?.takeIf { provider == "deepseek" && it.isNotBlank() }
+        val deepSeekBalance = usage?.primary?.resetDescription?.takeIf { provider == "deepseek" && it.isNotBlank() }
+        val billing =
+            usage?.details.orEmpty().map { section ->
+                QuotaBillingSection(section.title, section.rows.map { QuotaBillingRow(it.label, it.value) })
+            }
+        val balanceRow =
+            billing.flatMap { it.rows }.firstOrNull {
+                it.label in setOf("Remaining", "Available balance", "Current balance", "Balance")
+            }
+        val balance = deepSeekBalance ?: balanceRow?.let { "${it.label} · ${it.value}" }
         val windows =
             listOf(
-                rateWindowLabels?.primary.orEmpty().ifBlank { "Primary" } to usage?.primary?.takeIf { balance == null },
+                rateWindowLabels?.primary.orEmpty().ifBlank { "Primary" } to
+                    usage?.primary?.takeIf { deepSeekBalance == null },
                 rateWindowLabels?.secondary.orEmpty().ifBlank { "Secondary" } to usage?.secondary,
                 rateWindowLabels?.tertiary.orEmpty().ifBlank { "Tertiary" } to usage?.tertiary,
             ) + usage?.extraRateWindows.orEmpty().map { it.title to it.window }
@@ -43,11 +56,29 @@ internal data class GatewayQuotaProvider(
             displayName = displayName?.takeIf { it.isNotBlank() } ?: provider,
             icon = icon,
             balance = balance,
+            billing = billing,
+            providerBalance = usage?.providerCost?.let { QuotaBalance(it.balance, it.currencyCode) },
             windows =
                 windows.mapNotNull { (label, window) ->
                     window?.toWindow(label, updated)
-                },
+                } + listOfNotNull(creditUsage(billing)),
         )
+    }
+
+    private fun creditUsage(billing: List<QuotaBillingSection>): QuotaWindow? {
+        val section = billing.firstOrNull { it.title == "Credits" } ?: return null
+
+        fun amount(label: String): Double? =
+            section.rows
+                .firstOrNull { it.label == label }
+                ?.value
+                ?.takeIf { it.matches(Regex("\\$[0-9,]+\\.[0-9]{2}")) }
+                ?.drop(1)
+                ?.replace(",", "")
+                ?.toDoubleOrNull()
+        val used = amount("Used") ?: return null
+        val total = amount("Total added")?.takeIf { it > 0 } ?: return null
+        return QuotaWindow(section.title, (used / total).coerceIn(0.0, 1.0).toFloat())
     }
 }
 
@@ -58,6 +89,26 @@ internal data class GatewayQuotaUsage(
     val tertiary: GatewayQuotaWindow? = null,
     val updatedAt: String? = null,
     val extraRateWindows: List<GatewayNamedWindow> = emptyList(),
+    val details: List<GatewayBillingSection> = emptyList(),
+    val providerCost: GatewayBalance? = null,
+)
+
+@Serializable
+internal data class GatewayBillingSection(
+    val title: String,
+    val rows: List<GatewayBillingRow>,
+)
+
+@Serializable
+internal data class GatewayBillingRow(
+    val label: String,
+    val value: String,
+)
+
+@Serializable
+internal data class GatewayBalance(
+    val balance: Double,
+    val currencyCode: String,
 )
 
 @Serializable

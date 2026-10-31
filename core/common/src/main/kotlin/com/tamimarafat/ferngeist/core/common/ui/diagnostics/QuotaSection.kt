@@ -62,7 +62,6 @@ private const val MS_PER_MINUTE = 60_000L
 @Composable
 internal fun QuotaSection(quota: List<AgentQuota>?) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionLabel(stringResource(R.string.common_diagnostics_quota))
         if (quota.isNullOrEmpty()) {
             SubtleText(stringResource(R.string.common_diagnostics_quota_placeholder))
             return@Column
@@ -104,7 +103,9 @@ private fun ProviderCard(
             leadingContent = { AgentIconBadge(iconUrl = quota.icon, fallback = Icons.Rounded.SmartToy) },
             supportingContent = {
                 Text(
-                    quota.balance ?: tightest?.let { windowSummary(it, now, locale) }
+                    quota.balance
+                        ?: quota.providerBalance?.let { currencyFormat(locale, it.currency).format(it.amount) }
+                        ?: tightest?.let { windowSummary(it, now, locale) }
                         ?: stringResource(R.string.common_quota_unavailable),
                     maxLines = 1,
                 )
@@ -117,7 +118,7 @@ private fun ProviderCard(
     }
 }
 
-/** Tightest window's share used, red once it runs ahead of pace, then the chevron. */
+/** Tightest window's share used, red when exhausted or ahead of pace, then the chevron. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ProviderTrailing(
@@ -131,9 +132,9 @@ private fun ProviderTrailing(
             val used = window.usedFraction.coerceIn(0f, 1f)
             val colors = MaterialTheme.colorScheme
             Text(
-                NumberFormat.getPercentInstance(locale).format(used),
+                stringResource(R.string.common_quota_used, NumberFormat.getPercentInstance(locale).format(used)),
                 style = MaterialTheme.typography.titleMediumEmphasized,
-                color = if (window.isOverPace()) colors.error else colors.onSurface,
+                color = if (used >= 1f || window.isOverPace()) colors.error else colors.onSurface,
             )
         }
         Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.rotate(chevronRotation))
@@ -165,6 +166,15 @@ private fun ProviderDetails(
         val meta = listOfNotNull(quota.account, age?.let { stringResource(R.string.common_quota_updated, it) })
         SubtleText(meta.joinToString(" · "), MaterialTheme.typography.bodySmall)
         quota.balance?.let { SubtleText(it) }
+        quota.providerBalance?.let { SubtleText(currencyFormat(locale, it.currency).format(it.amount)) }
+        quota.billing.forEach { section ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SubtleText(section.title, MaterialTheme.typography.labelMedium)
+                section.rows.forEach { row ->
+                    LabelValueRow(row.label, row.value, MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
         quota.windows.forEach { QuotaWindowRow(it, now, locale) }
         if (quota.costs.isNotEmpty()) {
             val money = currencyFormat(locale, quota.costCurrency)

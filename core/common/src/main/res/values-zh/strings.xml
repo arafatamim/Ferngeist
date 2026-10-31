@@ -32,8 +32,8 @@
     <string name="common_diagnostics_context">上下文</string>
     <string name="common_diagnostics_context_value">%1$s · %2$s / %3$s</string>
     <string name="common_diagnostics_cost">费用</string>
-    <string name="common_diagnostics_quota">套餐配额</string>
     <string name="common_diagnostics_quota_placeholder">CodexBar 的套餐限额将显示在这里。</string>
+    <string name="common_quota_install_codexbar">在网关上安装 CodexBar CLI 以查看配额。</string>
     <string name="common_diagnostics_details">详细信息</string>
     <string name="common_expanded">已展开</string>
     <string name="common_collapsed">已收起</string>

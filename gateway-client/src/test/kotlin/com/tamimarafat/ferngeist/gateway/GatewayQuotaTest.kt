@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.gateway
 
+import com.tamimarafat.ferngeist.core.model.repository.CodexBarNotFoundException
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -9,9 +10,89 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GatewayQuotaTest {
+    @Test
+    fun `missing CodexBar is distinguishable from other gateway failures`() =
+        runTest {
+            val engine =
+                MockEngine {
+                    respond(
+                        """{"error":"quotas unavailable","code":"codexbar_not_found"}""",
+                        HttpStatusCode.ServiceUnavailable,
+                        headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+            val repo = GatewayRepositoryImpl(HttpClient(engine), Json { ignoreUnknownKeys = true })
+            val error = runCatching { repo.fetchQuotas("http", "gw.local:5788", "") }.exceptionOrNull()
+            assertTrue(error is CodexBarNotFoundException)
+        }
+
+    @Test
+    fun `credit usage applies to any provider and requires a positive total`() =
+        runTest {
+            for ((used, total, expected) in listOf(
+                Triple("5.17", "5.00", 1f),
+                Triple("2.50", "5.00", 0.5f),
+                Triple("0.00", "0.00", null),
+            )) {
+                val engine =
+                    MockEngine {
+                        respond(
+                            """{"providers":[{"provider":"another-provider","usage":{"details":[{"title":"Credits","rows":[{"label":"Used","value":"\u0024$used"},{"label":"Total added","value":"\u0024$total"}]}]}}]}""",
+                            HttpStatusCode.OK,
+                            headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                val repo = GatewayRepositoryImpl(HttpClient(engine), Json { ignoreUnknownKeys = true })
+                val quota = repo.fetchQuotas("http", "gw.local:5788", "").single()
+                assertEquals(expected, quota.windows.singleOrNull()?.usedFraction)
+            }
+        }
+
+    @Test
+    fun `OpenRouter credits provide a balance summary`() =
+        runTest {
+            val engine =
+                MockEngine {
+                    respond(
+                        """{"providers":[{"provider":"openrouter","usage":{"details":[{"title":"Credits","rows":[{"label":"Remaining","value":"\u00240.00"},{"label":"Used","value":"\u00245.17"}]}]}}]}""",
+                        HttpStatusCode.OK,
+                        headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+            val repo = GatewayRepositoryImpl(HttpClient(engine), Json { ignoreUnknownKeys = true })
+            val quota = repo.fetchQuotas("http", "gw.local:5788", "").single()
+            assertEquals("Remaining · \u00240.00", quota.balance)
+            assertEquals("Credits", quota.billing.single().title)
+            assertEquals(
+                listOf("Remaining" to "\u00240.00", "Used" to "\u00245.17"),
+                quota.billing
+                    .single()
+                    .rows
+                    .map { it.label to it.value },
+            )
+        }
+
+    @Test
+    fun `provider currency balance is retained`() =
+        runTest {
+            val engine =
+                MockEngine {
+                    respond(
+                        """{"providers":[{"provider":"grok","usage":{"providerCost":{"balance":14.46,"currencyCode":"USD"}}}]}""",
+                        HttpStatusCode.OK,
+                        headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+            val repo = GatewayRepositoryImpl(HttpClient(engine), Json { ignoreUnknownKeys = true })
+            val quota = repo.fetchQuotas("http", "gw.local:5788", "").single()
+            assertEquals(14.46, quota.providerBalance!!.amount, 0.001)
+            assertEquals("USD", quota.providerBalance!!.currency)
+        }
+
     @Test
     fun `DeepSeek balance is not presented as percentage usage`() =
         runTest {

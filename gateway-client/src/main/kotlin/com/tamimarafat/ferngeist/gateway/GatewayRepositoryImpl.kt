@@ -2,9 +2,11 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.repository.CodexBarNotFoundException
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import io.ktor.client.HttpClient
+import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -40,7 +42,14 @@ class GatewayRepositoryImpl
             host: String,
             credential: String,
         ): List<com.tamimarafat.ferngeist.core.model.AgentQuota> =
-            http.getJson<GatewayQuotaResponse>(scheme, host, credential, "v1", "quotas").toQuotas()
+            try {
+                http.getJson<GatewayQuotaResponse>(scheme, host, credential, "v1", "quotas").toQuotas()
+            } catch (error: GatewayRequestException) {
+                if (error.statusCode == HttpStatusCode.ServiceUnavailable.value && error.code == "codexbar_not_found") {
+                    throw CodexBarNotFoundException()
+                }
+                throw error
+            }
 
         override suspend fun fetchStatus(
             scheme: String,
