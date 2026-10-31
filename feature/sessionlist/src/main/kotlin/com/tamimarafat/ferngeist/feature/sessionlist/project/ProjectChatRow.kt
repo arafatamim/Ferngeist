@@ -133,8 +133,8 @@ private fun ProjectChatText(
         Text(
             text = sessionTitleOrNull(chat.summary.title) ?: stringResource(R.string.sessionlist_untitled),
             style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = titleModifier,
         )
         WorkingSubtitle(

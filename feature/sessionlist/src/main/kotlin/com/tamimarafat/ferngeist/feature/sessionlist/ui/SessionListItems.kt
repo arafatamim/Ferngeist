@@ -399,8 +399,8 @@ private fun RowScope.SessionCardText(
             Text(
                 text = sessionTitleOrNull(session.title) ?: stringResource(R.string.sessionlist_untitled),
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier =
                     Modifier.sessionTitleBounds(
                         session.id,
