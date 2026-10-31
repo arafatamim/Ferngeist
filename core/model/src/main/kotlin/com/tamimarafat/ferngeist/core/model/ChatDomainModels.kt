@@ -143,8 +143,14 @@ data class ChatConnectionDiagnostics(
     val serverUrl: String? = null,
     val pendingRequestCount: Int = 0,
     val reconnectAttempts: Int = 0,
-    val recentErrors: List<String> = emptyList(),
+    val recentErrors: List<ChatDiagnosticError> = emptyList(),
     val lastUpdatedAtMs: Long = 0L,
+)
+
+data class ChatDiagnosticError(
+    val timestampMs: Long,
+    val source: String,
+    val message: String,
 )
 
 data class ChatAgentCapabilities(
@@ -336,6 +342,33 @@ data class ChatSessionSnapshot(
     val usage: UsageState?,
     val title: String? = null,
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+)
+
+/**
+ * One plan-quota window (e.g. 5-hour, weekly). [paceFraction] is the share of the window already
+ * elapsed: usage below it is reserve, above it is deficit.
+ */
+data class QuotaWindow(
+    val label: String,
+    val usedFraction: Float,
+    val paceFraction: Float? = null,
+    val resetsAtMs: Long? = null,
+)
+
+data class QuotaCost(
+    val label: String,
+    val amount: Double,
+    val tokens: Int? = null,
+)
+
+/** Plan quota and spend of one agent provider's account, as relayed by the gateway. */
+data class AgentQuota(
+    val provider: String,
+    val account: String? = null,
+    val updatedAtMs: Long,
+    val windows: List<QuotaWindow>,
+    val costs: List<QuotaCost> = emptyList(),
+    val costCurrency: String? = null,
 )
 
 data class UsageState(

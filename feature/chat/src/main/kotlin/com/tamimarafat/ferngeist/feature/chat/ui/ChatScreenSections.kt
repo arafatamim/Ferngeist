@@ -52,8 +52,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
+import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -187,13 +187,10 @@ internal fun ChatScreenDialogs(
     }
 
     if (showConnectionStatusDialog) {
-        ConnectionDiagnosticsDialog(
+        ConnectionDiagnosticsSheet(
             connectionState = connectionState,
             diagnostics = diagnostics,
-            totalTokens = usage?.totalTokens,
-            contextWindowTokens = usage?.contextWindowTokens,
-            costAmount = usage?.costAmount,
-            costCurrency = usage?.costCurrency,
+            usage = usage,
             onDismiss = onDismissConnectionStatus,
         )
     }

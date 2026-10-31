@@ -47,6 +47,7 @@ dependencies {
     implementation(libs.androidx.compose.material3.adaptive)
     implementation(libs.androidx.window)
     implementation(libs.androidx.ui.tooling.preview)
+    debugImplementation(libs.androidx.ui.tooling)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.javax.inject)
     testImplementation(libs.junit)

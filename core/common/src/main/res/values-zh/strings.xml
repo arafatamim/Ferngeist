@@ -5,7 +5,6 @@
     <string name="common_retry">重试</string>
     <string name="common_delete">删除</string>
     <string name="common_save">保存</string>
-    <string name="common_close">关闭</string>
     <string name="common_ok">确定</string>
     <string name="common_edit">编辑</string>
 
@@ -14,29 +13,30 @@
     <string name="common_connected">已连接</string>
     <string name="common_disconnected">连接已断开</string>
     <string name="common_failed">失败</string>
-    <string name="common_na">不适用</string>
-    <string name="common_unknown">未知</string>
-    <string name="common_unsupported">不支持</string>
     <string name="common_supported">支持</string>
 
     <!-- Connection diagnostics -->
     <string name="common_connection_status">连接状态：%1$s</string>
-    <string name="common_connection_diagnostics">连接诊断</string>
-    <string name="common_connection">连接：%1$s</string>
     <string name="common_websocket">WebSocket：%1$s</string>
     <string name="common_server">服务器：%1$s</string>
     <string name="common_server_info">服务器信息：%1$s (%2$s)</string>
     <string name="common_pending_rpc">待处理 RPC 请求：%1$d</string>
     <string name="common_cancel_support">取消支持：%1$s</string>
-    <string name="common_total_tokens">总消耗 Token：%1$s</string>
-    <string name="common_usage_percentage">使用百分比：%1$s</string>
-    <string name="common_cost_spent">已消耗金额：%1$s</string>
     <string name="common_recent_rpc">近期 RPC 活动</string>
     <string name="common_no_recent_rpc">无近期 RPC 活动</string>
     <string name="common_reconnect_attempts">重连尝试次数：%1$d</string>
     <string name="common_recent_errors">近期错误</string>
     <string name="common_no_recent_errors">无近期错误</string>
     <string name="common_connection_status_desc">连接状态</string>
+    <string name="common_diagnostics_this_chat">此对话</string>
+    <string name="common_diagnostics_context">上下文</string>
+    <string name="common_diagnostics_context_value">%1$s · %2$s / %3$s</string>
+    <string name="common_diagnostics_cost">费用</string>
+    <string name="common_diagnostics_quota">套餐配额</string>
+    <string name="common_diagnostics_quota_placeholder">CodexBar 的套餐限额将显示在这里。</string>
+    <string name="common_diagnostics_details">详细信息</string>
+    <string name="common_expanded">已展开</string>
+    <string name="common_collapsed">已收起</string>
 
     <!-- Context usage tooltip -->
     <string name="common_context_used">已使用 %1$s，上下文总量为 %2$s</string>
@@ -51,4 +51,14 @@
     <string name="common_just_now">刚刚</string>
     <string name="common_in_progress">进行中</string>
     <string name="common_recently_active">最近活跃</string>
+    <string name="common_status_needs_attention">需要注意</string>
+    <string name="common_status_error">本轮失败</string>
+    <string name="common_status_finished">已完成</string>
+    <string name="common_quota_updated">更新于%1$s</string>
+    <string name="common_quota_used">已用 %1$s</string>
+    <string name="common_quota_in_reserve">余量 %1$s</string>
+    <string name="common_quota_over_pace">超出进度 %1$s</string>
+    <string name="common_quota_resets_in">%1$s后重置</string>
+    <string name="common_quota_lasts_until_reset">可用至重置</string>
+    <string name="common_quota_cost_value">%1$s · %2$s 个令牌</string>
 </resources>

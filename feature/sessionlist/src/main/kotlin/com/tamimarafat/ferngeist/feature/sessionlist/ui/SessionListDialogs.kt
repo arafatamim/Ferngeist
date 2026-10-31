@@ -8,7 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import com.tamimarafat.ferngeist.core.common.ui.ConnectionDiagnosticsDialog
+import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
@@ -154,7 +154,7 @@ private fun SessionConnectionStatusDialog(
     diagnostics: ChatConnectionDiagnostics,
     onDismiss: () -> Unit,
 ) {
-    ConnectionDiagnosticsDialog(
+    ConnectionDiagnosticsSheet(
         connectionState = connectionState,
         diagnostics = diagnostics,
         onDismiss = onDismiss,
