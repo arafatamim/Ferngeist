@@ -25,6 +25,7 @@
     <string name="chat_completed_desc">সম্পন্ন</string>
     <string name="chat_error_desc">ত্রুটি</string>
     <string name="chat_file_binary">বাইনারি ফাইল, দেখানো হচ্ছে না</string>
+    <string name="chat_image_unavailable">ছবি পাওয়া যায়নি</string>
     <string name="chat_file_empty">খালি ফাইল</string>
     <string name="chat_file_deleted">এই সংশোধনীতে মুছে ফেলা হয়েছে</string>
     <string name="chat_file_origin_working_tree">ওয়ার্কিং ট্রি</string>

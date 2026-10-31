@@ -565,10 +565,14 @@ interface ChatWorkspaceReader {
     suspend fun fetchFileList(): List<String>?
 }
 
-/** A workspace file as the gateway read it: [text] is null for a binary file, cut at 1 MiB when [truncated]. */
+/**
+ * A workspace file as the gateway read it, cut at 8 MiB when [truncated]: [text] for a text file,
+ * [blob] (base64) for a binary one or an image.
+ */
 data class ChatFileContents(
     val text: String?,
     val truncated: Boolean,
+    val blob: String? = null,
 )
 
 /**

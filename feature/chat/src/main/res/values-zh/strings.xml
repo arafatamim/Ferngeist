@@ -28,6 +28,7 @@
     <string name="chat_completed_desc">已完成</string>
     <string name="chat_error_desc">错误</string>
     <string name="chat_file_binary">二进制文件，不显示</string>
+    <string name="chat_image_unavailable">图片不可用</string>
     <string name="chat_file_empty">空文件</string>
     <string name="chat_file_deleted">在此修订中已删除</string>
     <string name="chat_file_origin_working_tree">工作区</string>

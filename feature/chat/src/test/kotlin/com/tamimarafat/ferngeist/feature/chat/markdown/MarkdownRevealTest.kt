@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat.markdown
 
 import com.adamglin.compose.markdown.core.api.MarkdownEngine
 import com.adamglin.compose.markdown.core.dialect.MarkdownDialect
+import com.adamglin.compose.markdown.core.model.BlockNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -69,5 +70,39 @@ class MarkdownRevealTest {
                 .snapshot.document.blocks
 
         assertEquals("Bold and code".length + "one".length + "two".length, blocks.sumOf { it.revealLength() })
+    }
+
+    @Test
+    fun `image without alt text occupies a reveal position`() {
+        val blocks =
+            MarkdownEngine(MarkdownDialect.GfmCompat)
+                .append("before ![](https://example.com/image.png) after")
+                .snapshot.document.blocks
+
+        assertEquals("before  after".length + 1, blocks.sumOf { it.revealLength() })
+    }
+
+    @Test
+    fun `a paragraph splits around its images in source order, keeping the text's formatting`() {
+        val paragraph =
+            MarkdownEngine(MarkdownDialect.GfmCompat)
+                .append("**Bold** [link](https://example.com)\n![one](one.png)\n*mid* ![](two.png) end")
+                .snapshot.document.blocks
+                .single() as BlockNode.Paragraph
+
+        val segments = paragraph.children.imageSegments()
+
+        assertEquals(
+            listOf("Bold link", "image one.png", "mid ", "image two.png", " end"),
+            segments.map { segment ->
+                when (segment) {
+                    is InlineSegment.Text -> segment.nodes.toAnnotatedString().text
+                    is InlineSegment.Image -> "image ${segment.node.destination}"
+                }
+            },
+        )
+        val lead = (segments.first() as InlineSegment.Text).nodes.toAnnotatedString()
+        assertEquals(1, lead.getLinkAnnotations(0, lead.length).size)
+        assertEquals("Bold link".length + "one".length + "mid ".length + 1 + " end".length, paragraph.revealLength())
     }
 }

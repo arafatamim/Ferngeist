@@ -57,6 +57,7 @@
     <string name="chat_completed_desc">Completed</string>
     <string name="chat_error_desc">Error</string>
     <string name="chat_file_binary">Binary file, not shown</string>
+    <string name="chat_image_unavailable">Image unavailable</string>
     <string name="chat_file_empty">Empty file</string>
     <string name="chat_file_deleted">Deleted in this revision</string>
     <string name="chat_file_origin_working_tree">Working tree</string>

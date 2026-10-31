@@ -26,6 +26,7 @@ import com.tamimarafat.ferngeist.feature.chat.git.ChatGitFileDiffLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitHistoryLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitStatusLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitTurnDiffLoader
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.TranscriptImageLoader
 import com.tamimarafat.ferngeist.feature.chat.pending.reconcileEchoes
 import com.tamimarafat.ferngeist.feature.chat.timing.ChatTurnTimings
 import com.tamimarafat.ferngeist.feature.chat.title.ChatTitleController
@@ -294,6 +295,9 @@ class ChatViewModel
                         .orEmpty()
                 },
             )
+
+        /** The transcript's Markdown images, read through this chat's session. */
+        internal val transcriptImages = TranscriptImageLoader(workspace = sessionFacade, cwd = cwd)
 
         /** Commit history and a commit's files for the git sheet's History tab. */
         private val gitHistoryLoader =
