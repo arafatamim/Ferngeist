@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
@@ -208,7 +209,7 @@ class ChatConnectionHub(
     private val _streamingChatIds = MutableStateFlow<Set<String>>(emptySet())
     val streamingChatIds: StateFlow<Set<String>> = _streamingChatIds.asStateFlow()
 
-    private val _turnStatuses = MutableStateFlow<Map<String, TurnStatus>>(emptyMap())
+    private val _turnStatuses = MutableStateFlow<Map<String, TurnActivity>>(emptyMap())
 
     /**
      * Reliable turn status of every tracked chat, keyed by the canonical [chatIdFor]
@@ -217,7 +218,7 @@ class ChatConnectionHub(
      * source it has instead of reading a stale [TurnStatus.FINISHED]. [TurnStatus.UNKNOWN]
      * is present and authoritative - the chat is tracked but no outcome is known.
      */
-    val turnStatuses: StateFlow<Map<String, TurnStatus>> = _turnStatuses.asStateFlow()
+    val turnStatuses: StateFlow<Map<String, TurnActivity>> = _turnStatuses.asStateFlow()
 
     init {
         scope.launch {
@@ -395,14 +396,18 @@ class ChatConnectionHub(
         return chatId
     }
 
+    private fun expiryDuration(status: TurnStatus?): Long =
+        if (status == TurnStatus.ERROR) FAILED_STATUS_EXPIRY_MS else FINISHED_STATUS_EXPIRY_MS
+
     private data class TurnPresence(
         val isStreaming: Boolean,
-        val turnStatus: TurnStatus?,
+        val turnStatus: TurnActivity?,
         val turnCompletionSequence: Long,
     )
 
     private companion object {
         const val FINISHED_STATUS_EXPIRY_MS = 600_000L
+        const val FAILED_STATUS_EXPIRY_MS = 300_000L
     }
 
     /**
@@ -424,7 +429,7 @@ class ChatConnectionHub(
         turnObservers[chatId] =
             scope.launch {
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
-                val expiry = FinishedStatusExpiry(chatId, this)
+                val expiry = TurnStatusExpiry(chatId, this)
                 turnPresenceFlow(chatId, snapshot, connection).collect { presence ->
                     publishTurnPresence(chatId, expiry.apply(presence))
                 }
@@ -440,26 +445,28 @@ class ChatConnectionHub(
         var acknowledgedCompletion: Long? = null
         return combine(snapshot, connection, openChatIds) { state, connectionState, open ->
             val connected = connectionState is AcpConnectionState.Connected
-            val terminal = state.turnStatus == TurnStatus.FINISHED || state.turnStatus == TurnStatus.ERROR
+            val terminal = state.turnStatus.isOutcome()
             if (!connected) awaitingFreshState = true
             if (connected && !terminal) awaitingFreshState = false
-            val finished = state.turnStatus == TurnStatus.FINISHED
-            if (finished && chatId in open) acknowledgedCompletion = state.turnCompletionSequence
+            if (terminal && chatId in open) acknowledgedCompletion = state.turnCompletionSequence
             val status =
-                if (finished && acknowledgedCompletion == state.turnCompletionSequence) {
+                if (terminal && acknowledgedCompletion == state.turnCompletionSequence) {
                     TurnStatus.UNKNOWN
                 } else {
                     state.turnStatus
                 }
+            // A retained terminal snapshot is not new evidence merely because transport recovered.
             TurnPresence(
                 isStreaming = state.isStreaming && connected,
-                turnStatus = status.takeIf { connected && !awaitingFreshState },
+                turnStatus =
+                    TurnActivity(status, state.turnStatusSince.takeIf { status == state.turnStatus })
+                        .takeIf { connected && !awaitingFreshState },
                 turnCompletionSequence = state.turnCompletionSequence,
             )
         }.distinctUntilChanged()
     }
 
-    private inner class FinishedStatusExpiry(
+    private inner class TurnStatusExpiry(
         private val chatId: String,
         private val scope: CoroutineScope,
     ) {
@@ -468,7 +475,7 @@ class ChatConnectionHub(
         private var job: Job? = null
 
         fun apply(presence: TurnPresence): TurnPresence {
-            if (presence.turnStatus == TurnStatus.FINISHED) {
+            if (presence.turnStatus?.status.isOutcome()) {
                 if (latestCompletionSequence != presence.turnCompletionSequence) {
                     job?.cancel()
                     latestCompletionSequence = presence.turnCompletionSequence
@@ -476,13 +483,13 @@ class ChatConnectionHub(
                     val completionSequence = presence.turnCompletionSequence
                     job =
                         scope.launch {
-                            kotlinx.coroutines.delay(FINISHED_STATUS_EXPIRY_MS)
+                            kotlinx.coroutines.delay(expiryDuration(presence.turnStatus?.status))
                             _turnStatuses.update { statuses ->
                                 if (latestCompletionSequence == completionSequence &&
-                                    statuses[chatId] == TurnStatus.FINISHED
+                                    statuses[chatId]?.status.isOutcome()
                                 ) {
                                     expiredCompletionSequence = completionSequence
-                                    statuses + (chatId to TurnStatus.UNKNOWN)
+                                    statuses + (chatId to TurnActivity())
                                 } else {
                                     statuses
                                 }
@@ -495,10 +502,10 @@ class ChatConnectionHub(
                 latestCompletionSequence = null
                 expiredCompletionSequence = null
             }
-            return if (presence.turnStatus == TurnStatus.FINISHED &&
+            return if (presence.turnStatus?.status.isOutcome() &&
                 expiredCompletionSequence == presence.turnCompletionSequence
             ) {
-                presence.copy(turnStatus = TurnStatus.UNKNOWN)
+                presence.copy(turnStatus = TurnActivity())
             } else {
                 presence
             }
@@ -888,3 +895,5 @@ internal fun chatIdFor(
     serverId: String,
     sessionId: String,
 ): String = "$serverId/$sessionId"
+
+private fun TurnStatus?.isOutcome(): Boolean = this == TurnStatus.FINISHED || this == TurnStatus.ERROR

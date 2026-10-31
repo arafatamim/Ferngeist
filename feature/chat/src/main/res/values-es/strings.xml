@@ -25,6 +25,7 @@
     <string name="chat_completed_desc">Completado</string>
     <string name="chat_error_desc">Error</string>
     <string name="chat_file_binary">Archivo binario, no se muestra</string>
+    <string name="chat_image_unavailable">Imagen no disponible</string>
     <string name="chat_file_empty">Archivo vacío</string>
     <string name="chat_file_deleted">Eliminado en esta revisión</string>
     <string name="chat_file_origin_working_tree">Árbol de trabajo</string>
@@ -143,10 +144,6 @@
     <string name="chat_git_file_deleted">El archivo ya no está en el árbol de trabajo: %1$s</string>
     <string name="chat_git_tab_changes">Cambios</string>
     <string name="chat_git_tab_history">Historial</string>
-    <string name="chat_git_date_now">ahora</string>
-    <string name="chat_git_date_minutes">%1$dm</string>
-    <string name="chat_git_date_hours">%1$dh</string>
-    <string name="chat_git_date_days">%1$dd</string>
     <string name="chat_git_ref_branch">rama %1$s</string>
     <string name="chat_git_ref_remote">rama remota %1$s</string>
     <string name="chat_git_ref_tag">etiqueta %1$s</string>

@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.ComparableTimeMark
+import kotlin.time.TimeSource
 
 /**
  * Owns canonical transcript/session state for one ACP session.
@@ -74,6 +76,8 @@ class SessionRuntime(
          */
         val turnSettled: Boolean = false,
         val turnCompletionSequence: Long = 0,
+        val turnStartedAt: ComparableTimeMark? = null,
+        val turnFinishedAt: ComparableTimeMark? = null,
     )
 
     private val mutex = Mutex()
@@ -115,6 +119,7 @@ class SessionRuntime(
                     // A load replay carries no outcome; claiming the previous one would
                     // paint a finished turn over a transcript that is being replaced.
                     turnStatus = TurnStatus.UNKNOWN,
+                    turnStatusSince = null,
                 )
         }
     }
@@ -155,6 +160,7 @@ class SessionRuntime(
                     error = error,
                     isStreaming = false,
                     turnStatus = TurnStatus.UNKNOWN,
+                    turnStatusSince = null,
                 )
         }
     }
@@ -169,7 +175,7 @@ class SessionRuntime(
             // A (re)registered session re-establishes the connection, not the last turn's
             // outcome: the transport that carried it is gone, so a retained FINISHED/ERROR is
             // no longer current evidence and must not be republished as one.
-            live = live.copy(turnOutcome = TurnStatus.UNKNOWN)
+            live = live.copy(turnOutcome = TurnStatus.UNKNOWN, turnStartedAt = null, turnFinishedAt = null)
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -193,8 +199,17 @@ class SessionRuntime(
             live = reduce(live, event, clock())
             // A reply closed by a reattach ended while this client was away; stamping it now would
             // time the outage, not the turn, so it gets no time at all.
-            if (event is AppSessionEvent.SessionLoadComplete) openReplyId = null
-            if (event is AppSessionEvent.TurnComplete) turnDurationMs = event.durationMs
+            when (event) {
+                is AppSessionEvent.SessionLoadComplete -> {
+                    openReplyId = null
+                    live = live.copy(turnStartedAt = null, turnFinishedAt = null)
+                }
+                is AppSessionEvent.TurnComplete -> {
+                    turnDurationMs = event.durationMs
+                    live = live.copy(turnFinishedAt = TimeSource.Monotonic.markNow())
+                }
+                else -> Unit
+            }
             debug { "event#$seq liveApplied messages=${live.messages.size} streaming=${live.isStreaming}" }
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -225,6 +240,8 @@ class SessionRuntime(
                     turnOutcome = TurnStatus.UNKNOWN,
                     pendingPermissions = emptySet(),
                     turnSettled = false,
+                    turnStartedAt = TimeSource.Monotonic.markNow(),
+                    turnFinishedAt = null,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -257,6 +274,8 @@ class SessionRuntime(
                     // longer describes what this session is doing.
                     turnOutcome = TurnStatus.UNKNOWN,
                     turnSettled = false,
+                    turnStartedAt = if (live.isStreaming) live.turnStartedAt else TimeSource.Monotonic.markNow(),
+                    turnFinishedAt = null,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -276,6 +295,7 @@ class SessionRuntime(
                     // cancelled turn stays cancelled); only a send that failed with no
                     // outcome of its own is an error.
                     turnOutcome = if (live.turnSettled) live.turnOutcome else TurnStatus.ERROR,
+                    turnCompletionSequence = if (live.turnSettled) live.turnCompletionSequence else ++eventSeq,
                     pendingPermissions = emptySet(),
                     pendingElicitations = emptyList(),
                     turnSettled = true,
@@ -514,6 +534,12 @@ class SessionRuntime(
                 error = error,
                 pendingElicitations = live.pendingElicitations,
                 turnStatus = live.turnStatus,
+                turnStatusSince =
+                    when (live.turnStatus) {
+                        TurnStatus.WORKING, TurnStatus.NEEDS_ATTENTION -> live.turnStartedAt
+                        TurnStatus.FINISHED -> live.turnFinishedAt
+                        else -> null
+                    },
                 turnCompletionSequence = live.turnCompletionSequence,
             )
         debug {

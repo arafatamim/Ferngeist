@@ -1,5 +1,9 @@
 package com.tamimarafat.ferngeist.core.common.ui.time
 
+import android.icu.number.NumberFormatter
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
+import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -7,11 +11,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tamimarafat.ferngeist.core.common.R
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /** Age-sensitive presentation is recalculated on resume and completed refreshes, without polling. */
 @Composable
@@ -39,3 +46,31 @@ fun relativeTime(
     } else {
         DateUtils.getRelativeTimeSpanString(updatedAt, now, DateUtils.MINUTE_IN_MILLIS).toString()
     }
+
+/** Compact age for chat cards; after a week a localized date is more useful. */
+@Composable
+fun compactRelativeTime(
+    updatedAt: Long,
+    now: Long,
+): String =
+    when (val age = relativeAge(now, updatedAt)) {
+        RelativeAge.Now -> stringResource(R.string.chat_git_date_now)
+        is RelativeAge.Minutes -> compactDuration(age.count, MeasureUnit.MINUTE)
+        is RelativeAge.Hours -> compactDuration(age.count, MeasureUnit.HOUR)
+        is RelativeAge.Days -> compactDuration(age.count, MeasureUnit.DAY)
+        RelativeAge.Older -> {
+            val locale = LocalContext.current.resources.configuration.locales[0]
+            val pattern = DateFormat.getBestDateTimePattern(locale, "MMMd")
+            SimpleDateFormat(pattern, locale).format(Date(updatedAt))
+        }
+    }
+
+@Composable
+fun compactDuration(
+    count: Int,
+    unit: MeasureUnit,
+): String {
+    val locale = LocalContext.current.resources.configuration.locales[0]
+    val formatter = remember(locale) { NumberFormatter.withLocale(locale).unitWidth(NumberFormatter.UnitWidth.NARROW) }
+    return formatter.format(Measure(count, unit)).toString()
+}

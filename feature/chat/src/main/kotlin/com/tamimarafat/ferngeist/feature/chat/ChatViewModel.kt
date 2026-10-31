@@ -26,6 +26,7 @@ import com.tamimarafat.ferngeist.feature.chat.git.ChatGitFileDiffLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitHistoryLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitStatusLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitTurnDiffLoader
+import com.tamimarafat.ferngeist.feature.chat.markdown.image.TranscriptImageLoader
 import com.tamimarafat.ferngeist.feature.chat.pending.reconcileEchoes
 import com.tamimarafat.ferngeist.feature.chat.timing.ChatTurnTimings
 import com.tamimarafat.ferngeist.feature.chat.title.ChatTitleController
@@ -298,6 +299,9 @@ class ChatViewModel
                 },
             )
 
+        /** The transcript's Markdown images, read through this chat's session. */
+        internal val transcriptImages = TranscriptImageLoader(workspace = sessionFacade, cwd = cwd)
+
         /** Commit history and a commit's files for the git sheet's History tab. */
         private val gitHistoryLoader =
             ChatGitHistoryLoader(
@@ -362,10 +366,14 @@ class ChatViewModel
                 // sentinel nav arg and only become a real chat when the facade mints
                 // a session, so this second open is an idempotent screen-on merge
                 // under the real id — there is no store re-key or hub focus anymore.
+                // A rejected resume also moves the chat onto a freshly minted session;
+                // presence follows it so the notification tap target names the live id.
                 sessionFacade.liveChatId.collect { chatId ->
-                    if (chatId != null) {
-                        if (trackedSessionId == NEW_SESSION_ARG) {
-                            trackedSessionId = chatId.substringAfter('/')
+                    val liveSessionId = chatId?.substringAfter('/')
+                    if (liveSessionId != null) {
+                        if (liveSessionId != trackedSessionId) {
+                            if (trackedSessionId != NEW_SESSION_ARG) presence.screenClosed(serverId, trackedSessionId)
+                            trackedSessionId = liveSessionId
                             // Record the minted id where a rebuilt ViewModel reads it:
                             // the nav arg stays the sentinel for this route's lifetime,
                             // so without this a process death would re-enter the create
@@ -513,20 +521,10 @@ class ChatViewModel
             updateState {
                 withSnapshot(snapshot, messages, reconciledPending, echoKeys, markdownProjection)
             }
-            onTurnBoundary(wasStreaming, snapshot.isStreaming)
+            // A new turn retires inline diffs from the previous working tree.
+            if (!wasStreaming && snapshot.isStreaming) gitTurnDiffLoader.clearTurnDiffs()
             refreshGitStatusOnceReady(wasReady)
             titleController.onSnapshot(snapshot)
-        }
-
-        /**
-         * A starting turn retires the previous turn's inline git diffs: they
-         * describe the tree as it is now, so the next turn must not borrow them.
-         */
-        private fun onTurnBoundary(
-            wasStreaming: Boolean,
-            isStreaming: Boolean,
-        ) {
-            if (!wasStreaming && isStreaming) gitTurnDiffLoader.clearTurnDiffs()
         }
 
         override fun onCleared() {
@@ -666,15 +664,27 @@ class ChatViewModel
                 is ChatIntent.SelectCompareRef,
                 -> handleGitSheetIntent(intent)
                 is ChatIntent.MarkSwitcherHintSeen -> stores.switcherHints.markSeen()
-                is ChatIntent.CloseSession ->
-                    switcherController.close(intent.serverId, intent.sessionId)?.let { message ->
-                        emitEffect(ChatEffect.ShowError(message))
-                    }
+                is ChatIntent.CloseSession -> closeSwitcherSession(intent)
                 is ChatIntent.SubmitElicitation,
                 is ChatIntent.DeclineElicitation,
                 is ChatIntent.CancelElicitation,
                 -> handleElicitationIntent(intent)
                 else -> Unit
+            }
+        }
+
+        private suspend fun closeSwitcherSession(intent: ChatIntent.CloseSession) {
+            val rows = switcherUiState.value.groups.flatMap { it.sessions }
+            val closingCurrent =
+                rows.any {
+                    it.isCurrent && it.serverId == intent.serverId && it.sessionId == intent.sessionId
+                }
+            val next = rows.filterNot { it.isCurrent }.maxByOrNull { it.updatedAt ?: Long.MIN_VALUE }
+            val message = switcherController.close(intent.serverId, intent.sessionId)
+            if (message != null) {
+                emitEffect(ChatEffect.ShowError(message))
+            } else if (closingCurrent) {
+                emitEffect(next?.let { ChatEffect.SwitchSession(it) } ?: ChatEffect.NavigateBack)
             }
         }
 

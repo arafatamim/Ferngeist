@@ -21,7 +21,7 @@ data class FileView(
     val changedLines: Set<Int> = emptySet(),
     /** Lines that deleted lines sat just above; the line count for lines deleted at the end. */
     val deletedAbove: Set<Int> = emptySet(),
-    /** Cut at the gateway's 1 MiB limit. */
+    /** Cut at the gateway's 8 MiB limit. */
     val truncated: Boolean = false,
     val binary: Boolean = false,
     val error: String? = null,

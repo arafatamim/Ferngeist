@@ -291,6 +291,41 @@ class ChatViewModelPresenceTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `presence follows the session a rejected resume reconnects into`() =
+        runTest {
+            val hub = newTestHub()
+            val facadeFactory = FakeChatSessionFacadeFactory()
+            val viewModel =
+                createViewModel(
+                    chatConnectionHub = hub,
+                    facadeFactory = facadeFactory,
+                    savedStateHandle =
+                        SavedStateHandle(
+                            mapOf(
+                                "serverId" to "server_1",
+                                "sessionId" to "session_1",
+                                "cwd" to "/",
+                            ),
+                        ),
+                )
+            advanceUntilIdle()
+
+            // The gateway lost session_1, so the facade's fresh connect minted session_2;
+            // its pushes name session_2, so that is the chat the user is watching.
+            facadeFactory.lastFacade.value!!.emitLiveChatId("server_1/session_2")
+            advanceUntilIdle()
+
+            assertEquals(
+                ChatPresence(serverId = "server_1", sessionId = "session_2", cwd = "/"),
+                hub.onScreenChat.value,
+            )
+            assertFalse(hub.isTracked("server_1", "session_1"))
+
+            viewModel.clearForTest()
+            assertNull(hub.onScreenChat.value)
+        }
+
+    @Test
     fun `clearing the screen drops on screen presence but keeps a transport attached entry pooled`() =
         runTest {
             val hub = newTestHub()

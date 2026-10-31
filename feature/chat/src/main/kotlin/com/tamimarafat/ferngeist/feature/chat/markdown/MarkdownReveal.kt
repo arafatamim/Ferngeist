@@ -115,7 +115,12 @@ internal fun BlockNode.revealLength(): Int =
 /** The blocks with no child blocks: their text, or a thematic break's single mark. */
 private fun BlockNode.leafRevealLength(): Int =
     when (this) {
-        is BlockNode.Paragraph -> children.inlineLength()
+        is BlockNode.Paragraph ->
+            if (children.none { it is InlineNode.Image }) {
+                children.inlineLength()
+            } else {
+                children.imageSegments().sumOf { it.revealLength() }
+            }
         is BlockNode.Heading -> children.inlineLength()
         is BlockNode.TableCell -> children.inlineLength()
         is BlockNode.FencedCodeBlock -> literal.length
@@ -142,6 +147,13 @@ private fun List<InlineNode>.inlineLength(): Int =
             is InlineNode.UnsupportedInline -> node.literal.length
             is InlineNode.MathSpan -> node.latex.length
         }
+    }
+
+/** An image takes at least one position, so one without alt text still has its place in the order. */
+internal fun InlineSegment.revealLength(): Int =
+    when (this) {
+        is InlineSegment.Text -> nodes.inlineLength()
+        is InlineSegment.Image -> node.alt.inlineLength().coerceAtLeast(1)
     }
 
 /**

@@ -1,7 +1,5 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import android.content.Context
-import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.BoundsTransform
@@ -22,10 +20,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -81,7 +77,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -98,6 +93,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
+import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCard
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
@@ -115,8 +111,6 @@ import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
 import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
 import kotlin.math.abs
 
 /**
@@ -389,15 +383,17 @@ private fun rememberOutcomeHop(groups: List<SwitcherGroup>): Float {
     val offset = remember { Animatable(0f) }
     val haptics = LocalHapticFeedback.current
     val sessions = remember(groups) { groups.flatMap { it.sessions } }
-    var previous by remember { mutableStateOf(sessions.associate { (it.serverId to it.sessionId) to it.turnStatus }) }
+    var previous by remember {
+        mutableStateOf(sessions.associate { (it.serverId to it.sessionId) to it.turnStatus.status })
+    }
     LaunchedEffect(sessions) {
         val changed =
             sessions.any {
                 !it.isCurrent &&
-                    it.turnStatus in setOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED) &&
-                    previous[it.serverId to it.sessionId] != it.turnStatus
+                    it.turnStatus.status in setOf(TurnStatus.NEEDS_ATTENTION, TurnStatus.ERROR, TurnStatus.FINISHED) &&
+                    previous[it.serverId to it.sessionId] != it.turnStatus.status
             }
-        previous = sessions.associate { (it.serverId to it.sessionId) to it.turnStatus }
+        previous = sessions.associate { (it.serverId to it.sessionId) to it.turnStatus.status }
         offset.snapTo(0f)
         if (changed) {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -607,19 +603,6 @@ private fun SwitcherRow(
     onCurrentClick: () -> Unit,
 ) {
     val rowPadding = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-    if (session.isCurrent) {
-        // Tapping the session you are already reading only dismisses the sheet; closing
-        // it happens from inside the chat.
-        SwitcherRowContent(
-            session = session,
-            modifier =
-                rowPadding
-                    .clip(MaterialTheme.shapes.medium)
-                    .handCursor()
-                    .clickable(onClick = onCurrentClick),
-        )
-        return
-    }
     // Swipe either way to release the session. Material3 leaves a dismissed row
     // off-screen (and gesture-disabled) until it is reset, so put it back here: the
     // list is driven by live hub state, and the row must disappear through the model
@@ -674,7 +657,7 @@ private fun SwitcherRow(
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.medium)
                     .handCursor()
-                    .clickable(onClick = onSwitch)
+                    .clickable(onClick = if (session.isCurrent) onCurrentClick else onSwitch)
                     .onGloballyPositioned { rowWidth.intValue = it.size.width }
                     .graphicsLayer {
                         // requireOffset throws during semantics collection before
@@ -697,10 +680,11 @@ private fun SwitcherRowContent(
     session: SwitcherSession,
     modifier: Modifier,
 ) {
-    Surface(
-        color =
+    ChatCard(
+        updatedAt = session.updatedAt,
+        containerColor =
             MaterialTheme.colorScheme.turnStatusContainerColor(
-                session.turnStatus,
+                session.turnStatus.status,
                 if (session.isCurrent) {
                     // Same treatment as a connected server's card: the activated role, not dimmed.
                     MaterialTheme.colorScheme.secondaryContainer
@@ -710,116 +694,60 @@ private fun SwitcherRowContent(
             ),
         contentColor =
             MaterialTheme.colorScheme.turnStatusContentColor(
-                session.turnStatus,
+                session.turnStatus.status,
                 if (session.isCurrent) {
                     MaterialTheme.colorScheme.onSecondaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
             ),
-        shape = MaterialTheme.shapes.medium,
         modifier = modifier,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // Every agent shares its state treatment; the upright logo tells them apart.
+        ActivityIconContainer(
+            status = session.turnStatus.status,
+            size = 40.dp,
+            idleShape = CircleShape,
+            modifier = Modifier.semantics { contentDescription = session.agentName },
         ) {
-            // Every agent shares its state treatment; the upright logo tells them apart.
-            ActivityIconContainer(
-                status = session.turnStatus,
-                size = 40.dp,
-                idleShape = CircleShape,
-                modifier = Modifier.semantics { contentDescription = session.agentName },
-            ) {
-                AgentIconBadge(
-                    iconUrl = session.agentIconUrl,
-                    fallback = Icons.Rounded.SmartToy,
-                    containerSize = null,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                // A shared subtitle keeps turn state separate from the readable session title.
-                Text(
-                    text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
-                )
-                // The group heading already names the project, so the row only stamps the time.
-                val time = session.updatedAt?.let { formatSwitcherTime(it, LocalContext.current) }
-                WorkingSubtitle(
-                    status = session.turnStatus,
-                    chatId = session.sessionId,
-                ) {
-                    if (time != null) {
-                        Text(
-                            text = time,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.MiddleEllipsis,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-                // The branch gets its own line, as on the session list: sharing one with the
-                // project let a long branch squeeze the project down to a few characters.
-                session.worktree?.let {
-                    WorktreeBadge(
-                        branch = it.branch,
-                        modifier = Modifier.padding(top = 4.dp),
-                        ahead = it.ahead,
-                        dirty = it.dirty,
-                    )
-                }
-            }
-            // Centred against the whole card, not just the title line, so a worktree
-            // row's extra branch line cannot pull it off-centre.
-            if (session.isCurrent) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = stringResource(R.string.switcher_current_desc),
-                    tint =
-                        MaterialTheme.colorScheme.turnStatusContentColor(
-                            session.turnStatus,
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
+            AgentIconBadge(
+                iconUrl = session.agentIconUrl,
+                fallback = Icons.Rounded.SmartToy,
+                containerSize = null,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            // A shared subtitle keeps turn state separate from the readable session title.
+            Text(
+                text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+            WorkingSubtitle(status = session.turnStatus, chatId = session.sessionId) { }
+            // The branch gets its own line, as on the session list: sharing one with the
+            // project let a long branch squeeze the project down to a few characters.
+            session.worktree?.let {
+                WorktreeBadge(
+                    branch = it.branch,
+                    modifier = Modifier.padding(top = 4.dp),
+                    ahead = it.ahead,
+                    dirty = it.dirty,
                 )
             }
         }
+        // Centred against the whole card, not just the title line, so a worktree
+        // row's extra branch line cannot pull it off-centre.
+        if (session.isCurrent) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = stringResource(R.string.switcher_current_desc),
+                tint =
+                    MaterialTheme.colorScheme.turnStatusContentColor(
+                        session.turnStatus.status,
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+            )
+        }
     }
-}
-
-/**
- * Short relative stamp ("2m", "3h", "2d") — the row only needs to say how stale
- * a session is, and a full date/time costs a line of width for precision nobody
- * reads. Past a week the bucket stops being useful, so fall back to a date.
- */
-private fun formatSwitcherTime(
-    epochMs: Long,
-    context: Context,
-    nowMs: Long = System.currentTimeMillis(),
-): String =
-    when (val age = relativeAge(nowMs, epochMs)) {
-        RelativeAge.Now -> context.getString(R.string.chat_git_date_now)
-        is RelativeAge.Minutes -> context.getString(R.string.chat_git_date_minutes, age.count)
-        is RelativeAge.Hours -> context.getString(R.string.chat_git_date_hours, age.count)
-        is RelativeAge.Days -> context.getString(R.string.chat_git_date_days, age.count)
-        RelativeAge.Older -> formatSwitcherDate(epochMs, context)
-    }
-
-/**
- * Locale-aware "Sep 20" style date: field order follows the system locale via a
- * best-pattern skeleton, unlike a hardcoded `SimpleDateFormat` pattern, which
- * bakes in US order on every device.
- */
-private fun formatSwitcherDate(
-    epochMs: Long,
-    context: Context,
-): String {
-    val locales = context.resources.configuration.getLocales()
-    val locale = locales.get(0)
-    val datePattern = DateFormat.getBestDateTimePattern(locale, "MMMd")
-    return SimpleDateFormat(datePattern, locale).format(Date(epochMs))
 }

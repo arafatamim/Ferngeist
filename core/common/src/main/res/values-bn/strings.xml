@@ -55,4 +55,5 @@
     <string name="common_quota_over_pace">গতির চেয়ে %1$s বেশি</string>
     <string name="common_quota_resets_in">রিসেট হবে %1$s পরে</string>
     <string name="common_quota_cost_value">%1$s · %2$s টোকেন</string>
+    <string name="chat_git_date_now">এখন</string>
 </resources>

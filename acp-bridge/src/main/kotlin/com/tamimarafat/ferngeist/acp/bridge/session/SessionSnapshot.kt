@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.session
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import kotlin.time.ComparableTimeMark
 
 enum class SessionLoadState {
     IDLE,
@@ -35,6 +36,7 @@ data class SessionSnapshot(
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
     /** Derived from the live turn and its explicit outcome; see [TurnStatus]. */
     val turnStatus: TurnStatus = TurnStatus.UNKNOWN,
+    val turnStatusSince: ComparableTimeMark? = null,
     /** Identity of the terminal event within this runtime, independent of conflated streaming updates. */
     val turnCompletionSequence: Long = 0,
 )

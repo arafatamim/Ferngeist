@@ -12,10 +12,9 @@ import javax.inject.Singleton
 /**
  * Process-wide foreground/background signal backed by [ProcessLifecycleOwner].
  *
- * Used to suppress redundant push notifications: the gateway pushes turn-complete events
- * regardless of WebSocket attachment, so a user actively watching a session shouldn't be
- * buzzed for each turn. [isForeground] lets the messaging service tell whether the app is
- * on-screen. Single-instance ([Singleton]) so the value the messaging service reads is the
+ * Used to suppress redundant push notifications: the gateway pushes turn events regardless
+ * of WebSocket attachment, so a user with the app open shouldn't be buzzed for each turn.
+ * [isForeground] lets the messaging service tell whether the app is on-screen. Single-instance ([Singleton]) so the value the messaging service reads is the
  * same one the observer updates.
  */
 @Singleton

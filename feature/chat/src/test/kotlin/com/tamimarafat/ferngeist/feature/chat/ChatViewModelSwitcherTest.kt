@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -121,6 +122,47 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `closing current session switches to most recent remaining session`() =
+        runTest {
+            val gateway = FakeGatewayRepository()
+            val hub = newHub(gateway)
+            val sessions = FakeChatCatalog()
+            sessions.setSessions(
+                "srvA",
+                listOf(
+                    SessionSummary(id = "mine", updatedAt = 100L),
+                    SessionSummary(id = "older", updatedAt = 20L),
+                    SessionSummary(id = "newer", updatedAt = 50L),
+                ),
+            )
+            listOf("mine", "older", "newer").forEach { connectSession(hub, "srvA", it) }
+            val viewModel =
+                createViewModel(
+                    chatConnectionHub = hub,
+                    savedStateHandle = sessionHandle(),
+                    repositories =
+                        testRepositories(
+                            sessionRepository = sessions,
+                            launchableTargetRepository = FakeLaunchableTargetRepository(listOf(gatewayTarget())),
+                        ),
+                )
+            val effects = mutableListOf<ChatEffect>()
+            val collector = launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.effects.toList(effects) }
+            viewModel.switcherUiState.first { it.liveTotalCount == 3 }
+            viewModel.dispatch(ChatIntent.CloseSession("srvA", "mine"))
+            advanceUntilIdle()
+            assertEquals(
+                "newer",
+                effects
+                    .filterIsInstance<ChatEffect.SwitchSession>()
+                    .single()
+                    .session.sessionId,
+            )
+            collector.cancel()
+            viewModel.clearForTest()
+        }
+
+    @Test
     fun `closing a streaming session is refused and leaves it live`() =
         runTest {
             val gateway = FakeGatewayRepository()
@@ -174,7 +216,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             sessions.setSessions("srvA", listOf(SessionSummary(id = "mine"), SessionSummary(id = "other")))
             connectSession(hub, "srvA", "mine")
             connectSession(hub, "srvA", "other")
-            val statuses = MutableStateFlow(mapOf("srvA/other" to TurnStatus.WORKING))
+            val statuses = MutableStateFlow(mapOf("srvA/other" to TurnActivity(TurnStatus.WORKING)))
             val controller =
                 ChatSwitcherController(
                     scope = backgroundScope,
@@ -188,20 +230,34 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.state.toList(observed) }
             runCurrent()
             val working = observed.last().groups.single()
-            assertEquals(TurnStatus.WORKING, working.sessions.last().turnStatus)
+            assertEquals(
+                TurnStatus.WORKING,
+                working.sessions
+                    .last()
+                    .turnStatus.status,
+            )
 
-            statuses.value = mapOf("srvA/other" to TurnStatus.NEEDS_ATTENTION, "different/other" to TurnStatus.ERROR)
+            statuses.value =
+                mapOf(
+                    "srvA/other" to TurnActivity(TurnStatus.NEEDS_ATTENTION),
+                    "different/other" to TurnActivity(TurnStatus.ERROR),
+                )
             runCurrent()
             val attentionGroup = observed.last().groups.single()
             val attention = attentionGroup.sessions
-            assertEquals(TurnStatus.NEEDS_ATTENTION, attention.last().turnStatus)
-            assertEquals(TurnStatus.UNKNOWN, attention.first().turnStatus)
+            assertEquals(TurnStatus.NEEDS_ATTENTION, attention.last().turnStatus.status)
+            assertEquals(TurnStatus.UNKNOWN, attention.first().turnStatus.status)
             assertTrue(attention.first().isCurrent)
 
-            statuses.value = mapOf("srvA/other" to TurnStatus.FINISHED)
+            statuses.value = mapOf("srvA/other" to TurnActivity(TurnStatus.FINISHED))
             runCurrent()
             val finished = observed.last().groups.single()
-            assertEquals(TurnStatus.FINISHED, finished.sessions.last().turnStatus)
+            assertEquals(
+                TurnStatus.FINISHED,
+                finished.sessions
+                    .last()
+                    .turnStatus.status,
+            )
         }
 
     private fun sessionHandle(): SavedStateHandle =

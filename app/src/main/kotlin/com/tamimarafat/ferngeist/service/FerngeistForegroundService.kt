@@ -226,8 +226,7 @@ class FerngeistForegroundService : Service() {
      * extras current as the tracked chat changes.
      *
      * Title is intentionally omitted: it is Room-resolved on open ([MainActivity]
-     * tolerates its absence). The gateway identity travels as [EXTRA_GATEWAY_ID] so
-     * push suppression on the opened chat is gateway-exact.
+     * tolerates its absence). The gateway identity travels as [EXTRA_GATEWAY_ID].
      */
     private fun buildContentIntent(): PendingIntent {
         val intent =

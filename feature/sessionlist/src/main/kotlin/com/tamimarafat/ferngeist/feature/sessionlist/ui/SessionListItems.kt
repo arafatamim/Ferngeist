@@ -30,7 +30,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,6 +67,7 @@ import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.common.ui.worktree.WorktreeBadge
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.cwdKey
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -82,6 +82,7 @@ import java.text.DateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Date
+import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCard as SharedChatCard
 
 private const val REMOVING_CARD_ALPHA = 0.5f
 private const val MISSING_HEADER_KEY = "missing-folders"
@@ -260,7 +261,7 @@ private fun SessionListLazyColumn(
     sessionCount: Int,
     padding: PaddingValues,
     liveSessionIds: Set<String>,
-    turnStatuses: Map<String, TurnStatus>,
+    turnStatuses: Map<String, TurnActivity>,
     closableSessionIds: Set<String>,
     onCloseSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
@@ -286,7 +287,7 @@ private fun SessionListLazyColumn(
         SessionCard(
             session = session,
             isLive = session.id in liveSessionIds,
-            status = turnStatuses[session.id] ?: TurnStatus.UNKNOWN,
+            status = turnStatuses[session.id] ?: TurnActivity(),
             worktree = worktree,
             worktreeBranch = worktree?.displayName,
             worktreeRepo = worktree?.repo,
@@ -384,7 +385,7 @@ private fun SessionListLazyColumn(
 @Composable
 private fun RowScope.SessionCardText(
     session: SessionSummary,
-    status: TurnStatus,
+    status: TurnActivity,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -399,8 +400,8 @@ private fun RowScope.SessionCardText(
             Text(
                 text = sessionTitleOrNull(session.title) ?: stringResource(R.string.sessionlist_untitled),
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier =
                     Modifier.sessionTitleBounds(
                         session.id,
@@ -517,7 +518,7 @@ internal fun Modifier.sessionTitleBounds(
 private fun SessionCard(
     session: SessionSummary,
     isLive: Boolean,
-    status: TurnStatus,
+    status: TurnActivity,
     worktree: GatewayWorktree?,
     worktreeBranch: String?,
     worktreeRepo: String?,
@@ -545,7 +546,8 @@ private fun SessionCard(
     Box {
         ChatCard(
             live = isLive,
-            status = status,
+            updatedAt = session.updatedAt,
+            status = status.status,
             removing = removing,
             dimmed = removing || gone,
             onClick = onClick,
@@ -591,6 +593,7 @@ private fun SessionCard(
 @Composable
 internal fun ChatCard(
     live: Boolean,
+    updatedAt: Long?,
     status: TurnStatus,
     removing: Boolean,
     onClick: () -> Unit,
@@ -600,7 +603,10 @@ internal fun ChatCard(
     content: @Composable RowScope.() -> Unit,
 ) {
     val colors = sessionCardColors(live, status)
-    Card(
+    SharedChatCard(
+        updatedAt = updatedAt,
+        containerColor = colors.containerColor,
+        contentColor = colors.contentColor,
         modifier =
             modifier
                 .fillMaxWidth()
@@ -610,17 +616,10 @@ internal fun ChatCard(
                 // Right-click is the mouse equivalent of a long press: same menu, same gate.
                 .onSecondaryClick(onClick = onOpenMenu)
                 .combinedClickable(enabled = !removing, onClick = onClick, onLongClick = onOpenMenu),
-        colors = colors,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            content()
-            if (removing) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            }
+        content()
+        if (removing) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         }
     }
 }

@@ -11,6 +11,7 @@ import org.junit.Test
 private const val CHUNKS = 90
 private const val CHUNK_GAP_MS = 1_000
 private const val BACKGROUND_MS = 25_000L
+private const val LONG_DOZE_MS = 120_000L
 
 class MultiAgentBackgroundTest {
     private val app = FerngeistDriver()
@@ -78,7 +79,8 @@ class MultiAgentBackgroundTest {
                 found = tokens.firstOrNull { app.hasText("$it:done", timeoutMs = 500) }
             }
             val token = found ?: error("no token finished in $title\n${app.dump()}")
-            assertTrue("$token lost chunks: ${app.dump()}", app.hasText("$token#$CHUNKS "))
+            val transcript = (1..CHUNKS).joinToString("") { "$token#$it " } + "$token:done"
+            assertTrue("$token lost or reordered chunks: ${app.dump()}", app.hasText(transcript))
             finished += token
             app.tapDesc("Back")
         }
@@ -89,15 +91,18 @@ class MultiAgentBackgroundTest {
     private fun streamWhileBackgrounded(
         chats: Int,
         doze: Boolean = false,
+        forceStop: Boolean = false,
+        backgroundMs: Long = BACKGROUND_MS,
     ) {
         val tokens = ('A'..'Z').take(chats).map { it.toString() }
         startStreamingChats(tokens)
 
         app.device.pressHome()
+        if (forceStop) app.device.executeShellCommand("am force-stop $APP")
         if (doze) app.setDoze(true)
         try {
-            Thread.sleep(BACKGROUND_MS)
-            if (!doze) {
+            Thread.sleep(backgroundMs)
+            if (!doze && !forceStop) {
                 assertTrue(
                     "foreground service stopped while chats were streaming",
                     app.foregroundServiceRunning(),
@@ -119,4 +124,11 @@ class MultiAgentBackgroundTest {
 
     @Test
     fun threeChatsSurviveDozeWhileBackgrounded() = streamWhileBackgrounded(chats = 3, doze = true)
+
+    @Test
+    fun threeChatsSurviveLongDozeWhileBackgrounded() =
+        streamWhileBackgrounded(chats = 3, doze = true, backgroundMs = LONG_DOZE_MS)
+
+    @Test
+    fun threeChatsRecoverAfterForceStop() = streamWhileBackgrounded(chats = 3, forceStop = true)
 }

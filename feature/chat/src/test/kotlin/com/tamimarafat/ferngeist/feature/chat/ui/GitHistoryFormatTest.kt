@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import android.text.format.DateUtils
+import com.tamimarafat.ferngeist.core.common.ui.time.RelativeAge
+import com.tamimarafat.ferngeist.core.common.ui.time.relativeAge
 import com.tamimarafat.ferngeist.feature.chat.ui.history.avatarUrl
 import com.tamimarafat.ferngeist.feature.chat.ui.history.initialsOf
 import org.junit.Assert.assertEquals

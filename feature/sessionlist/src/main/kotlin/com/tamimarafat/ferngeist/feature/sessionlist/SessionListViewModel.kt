@@ -17,7 +17,7 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.auth.AuthCompletion
 import com.tamimarafat.ferngeist.feature.sessionlist.auth.SessionListAuth
@@ -152,7 +152,7 @@ class SessionListViewModel
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
         /** Live turn status per session of this agent, from the catalog. */
-        val turnStatuses: StateFlow<Map<String, TurnStatus>> =
+        val turnStatuses: StateFlow<Map<String, TurnActivity>> =
             projectCatalog.turnStatuses
                 .map { it.statusesFor(serverId) }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())

@@ -46,8 +46,9 @@ import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
+import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
-import com.tamimarafat.ferngeist.core.model.aggregateTurnStatus
+import com.tamimarafat.ferngeist.core.model.aggregateTurnActivity
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitle
@@ -55,7 +56,7 @@ import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitl
 /** Live projects lead in both views; each group keeps newest known activity first. */
 internal fun projectsByActivity(
     projects: List<ProjectSummary>,
-    turnStatuses: Map<String, TurnStatus>,
+    turnStatuses: Map<String, TurnActivity>,
 ): List<ProjectSummary> {
     val (live, idle) = projects.partition { it.hasActiveTurn(turnStatuses) }
     return live.sortedWith(projectRecencyOrder) + idle.sortedWith(projectRecencyOrder)
@@ -69,7 +70,7 @@ internal fun projectsByActivity(
 internal fun collapsedProjects(
     projects: List<ProjectSummary>,
     now: Long,
-    turnStatuses: Map<String, TurnStatus>,
+    turnStatuses: Map<String, TurnActivity>,
 ): List<ProjectSummary> =
     projects
         .filter {
@@ -80,17 +81,17 @@ internal fun collapsedProjects(
 internal fun ProjectSummary.hasLiveChat(chatKeys: Set<String>): Boolean = chats.any { it.chatKey in chatKeys }
 
 /** The highest-priority status among this project's chats, matched by full chat identity. */
-internal fun ProjectSummary.turnStatus(turnStatuses: Map<String, TurnStatus>): TurnStatus =
-    chats.map { turnStatuses[it.chatKey] ?: TurnStatus.UNKNOWN }.aggregateTurnStatus()
+internal fun ProjectSummary.turnStatus(turnStatuses: Map<String, TurnActivity>): TurnActivity =
+    chats.map { turnStatuses[it.chatKey] ?: TurnActivity() }.aggregateTurnActivity()
 
 /** In flight means working or awaiting attention, never a terminal outcome. */
-internal fun ProjectSummary.hasActiveTurn(turnStatuses: Map<String, TurnStatus>): Boolean =
-    chats.any { turnStatuses[it.chatKey]?.isActive == true }
+internal fun ProjectSummary.hasActiveTurn(turnStatuses: Map<String, TurnActivity>): Boolean =
+    chats.any { turnStatuses[it.chatKey]?.status?.isActive == true }
 
 /** Most recent first: the lead chat lends the row its verb, and the hero shows the most recent chat. */
-internal fun ProjectSummary.workingChatIds(turnStatuses: Map<String, TurnStatus>): List<String> =
+internal fun ProjectSummary.workingChatIds(turnStatuses: Map<String, TurnActivity>): List<String> =
     chats
-        .filter { turnStatuses[it.chatKey] == TurnStatus.WORKING }
+        .filter { turnStatuses[it.chatKey]?.status == TurnStatus.WORKING }
         .sortedByDescending { it.summary.updatedAt }
         .map { it.summary.id }
 
@@ -106,7 +107,7 @@ private const val MAX_VISIBLE_PROJECTS = 5
 @Composable
 internal fun ProjectsGroup(
     projects: List<ProjectSummary>,
-    turnStatuses: Map<String, TurnStatus>,
+    turnStatuses: Map<String, TurnActivity>,
     connectedChatKeys: Set<String>,
     now: Long,
     onOpenProject: (ProjectSummary) -> Unit,
@@ -164,7 +165,7 @@ private fun ProjectItem(
     index: Int,
     count: Int,
     showGateway: Boolean,
-    status: TurnStatus,
+    status: TurnActivity,
     workingChatIds: List<String>,
     isConnected: Boolean,
     now: Long,
@@ -176,7 +177,7 @@ private fun ProjectItem(
     val containerColor by animateColorAsState(
         targetValue =
             MaterialTheme.colorScheme.turnStatusContainerColor(
-                status,
+                status.status,
                 if (isConnected) {
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
                 } else {
@@ -206,7 +207,7 @@ private fun ProjectItem(
                 containerColor = containerColor,
                 contentColor =
                     MaterialTheme.colorScheme.turnStatusContentColor(
-                        status,
+                        status.status,
                         MaterialTheme.colorScheme.onSurface,
                     ),
             ),
@@ -217,7 +218,7 @@ private fun ProjectItem(
                         text = project.gateway.name,
                         color =
                             MaterialTheme.colorScheme.turnStatusContentColor(
-                                status,
+                                status.status,
                                 MaterialTheme.colorScheme.onSurfaceVariant,
                             ),
                     )
@@ -232,7 +233,7 @@ private fun ProjectItem(
                 style = LocalTextStyle.current,
                 workingContent =
                     if (workingChatIds.isNotEmpty()) {
-                        { ActiveChatsSubtitle(workingChatIds) }
+                        { elapsed -> ActiveChatsSubtitle(workingChatIds, elapsed) }
                     } else {
                         null
                     },
@@ -249,7 +250,7 @@ private fun ProjectItem(
                     style = MaterialTheme.typography.labelMedium,
                     color =
                         MaterialTheme.colorScheme.turnStatusContentColor(
-                            status,
+                            status.status,
                             MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                 )
