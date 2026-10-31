@@ -69,6 +69,7 @@ internal fun ProjectChatRow(
         // The chat screen grows out of this card, as it does out of the agent list's.
         ChatCard(
             live = live,
+            updatedAt = chat.summary.updatedAt,
             status = status,
             removing = removing,
             onClick = onClick,

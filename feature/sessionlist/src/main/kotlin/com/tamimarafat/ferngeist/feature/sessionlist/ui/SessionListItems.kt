@@ -30,7 +30,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -82,6 +81,7 @@ import java.text.DateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Date
+import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCard as SharedChatCard
 
 private const val REMOVING_CARD_ALPHA = 0.5f
 private const val MISSING_HEADER_KEY = "missing-folders"
@@ -545,6 +545,7 @@ private fun SessionCard(
     Box {
         ChatCard(
             live = isLive,
+            updatedAt = session.updatedAt,
             status = status,
             removing = removing,
             dimmed = removing || gone,
@@ -591,6 +592,7 @@ private fun SessionCard(
 @Composable
 internal fun ChatCard(
     live: Boolean,
+    updatedAt: Long?,
     status: TurnStatus,
     removing: Boolean,
     onClick: () -> Unit,
@@ -600,7 +602,10 @@ internal fun ChatCard(
     content: @Composable RowScope.() -> Unit,
 ) {
     val colors = sessionCardColors(live, status)
-    Card(
+    SharedChatCard(
+        updatedAt = updatedAt,
+        containerColor = colors.containerColor,
+        contentColor = colors.contentColor,
         modifier =
             modifier
                 .fillMaxWidth()
@@ -610,17 +615,10 @@ internal fun ChatCard(
                 // Right-click is the mouse equivalent of a long press: same menu, same gate.
                 .onSecondaryClick(onClick = onOpenMenu)
                 .combinedClickable(enabled = !removing, onClick = onClick, onLongClick = onOpenMenu),
-        colors = colors,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            content()
-            if (removing) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            }
+        content()
+        if (removing) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         }
     }
 }

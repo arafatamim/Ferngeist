@@ -51,4 +51,8 @@
     <string name="common_just_now">Только что</string>
     <string name="common_in_progress">В процессе</string>
     <string name="common_recently_active">Недавняя активность</string>
+    <string name="chat_git_date_now">сейчас</string>
+    <string name="chat_git_date_minutes">%1$d мин</string>
+    <string name="chat_git_date_hours">%1$d ч</string>
+    <string name="chat_git_date_days">%1$d дн</string>
 </resources>

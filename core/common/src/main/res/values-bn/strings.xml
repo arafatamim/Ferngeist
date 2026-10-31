@@ -46,4 +46,8 @@
     <string name="common_just_now">এইমাত্র</string>
     <string name="common_in_progress">চলমান</string>
     <string name="common_recently_active">সম্প্রতি সক্রিয়</string>
+    <string name="chat_git_date_now">এখন</string>
+    <string name="chat_git_date_minutes">%1$d মি</string>
+    <string name="chat_git_date_hours">%1$d ঘ</string>
+    <string name="chat_git_date_days">%1$d দিন</string>
 </resources>

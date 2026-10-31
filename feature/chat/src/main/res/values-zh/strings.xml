@@ -149,10 +149,6 @@
     <string name="chat_git_file_deleted">文件已不在工作区中：%1$s</string>
     <string name="chat_git_tab_changes">更改</string>
     <string name="chat_git_tab_history">历史</string>
-    <string name="chat_git_date_now">刚刚</string>
-    <string name="chat_git_date_minutes">%1$d分钟</string>
-    <string name="chat_git_date_hours">%1$d小时</string>
-    <string name="chat_git_date_days">%1$d天</string>
     <string name="chat_git_ref_branch">分支 %1$s</string>
     <string name="chat_git_ref_remote">远程分支 %1$s</string>
     <string name="chat_git_ref_tag">标签 %1$s</string>

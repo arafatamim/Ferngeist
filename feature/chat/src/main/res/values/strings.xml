@@ -130,10 +130,6 @@
     <string name="chat_git_file_deleted">File is no longer in the working tree: %1$s</string>
     <string name="chat_git_tab_changes">Changes</string>
     <string name="chat_git_tab_history">History</string>
-    <string name="chat_git_date_now">now</string>
-    <string name="chat_git_date_minutes">%1$dm</string>
-    <string name="chat_git_date_hours">%1$dh</string>
-    <string name="chat_git_date_days">%1$dd</string>
     <string name="chat_git_ref_branch">branch %1$s</string>
     <string name="chat_git_ref_remote">remote branch %1$s</string>
     <string name="chat_git_ref_tag">tag %1$s</string>

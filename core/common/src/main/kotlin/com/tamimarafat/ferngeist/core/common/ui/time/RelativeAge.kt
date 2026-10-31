@@ -1,13 +1,11 @@
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.core.common.ui.time
 
 import android.text.format.DateUtils
 
 /**
- * The one bucketing of a timestamp's age for compact labels: the switcher and
- * the git history both read it, and each surface renders the buckets in its own
- * copy (`chat_git_date_*`).
+ * The one bucketing of a timestamp's age for compact labels: chat cards and git history both read it, with surface-specific rendering.
  */
-internal sealed interface RelativeAge {
+sealed interface RelativeAge {
     data object Now : RelativeAge
 
     data class Minutes(
@@ -26,7 +24,7 @@ internal sealed interface RelativeAge {
     data object Older : RelativeAge
 }
 
-internal fun relativeAge(
+fun relativeAge(
     nowMillis: Long,
     thenMillis: Long,
 ): RelativeAge {

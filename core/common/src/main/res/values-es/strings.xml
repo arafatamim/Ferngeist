@@ -46,4 +46,8 @@
     <string name="common_just_now">Ahora mismo</string>
     <string name="common_in_progress">En curso</string>
     <string name="common_recently_active">Actividad reciente</string>
+    <string name="chat_git_date_now">ahora</string>
+    <string name="chat_git_date_minutes">%1$dm</string>
+    <string name="chat_git_date_hours">%1$dh</string>
+    <string name="chat_git_date_days">%1$dd</string>
 </resources>

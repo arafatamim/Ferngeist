@@ -143,10 +143,6 @@
     <string name="chat_git_file_deleted">ফাইলটি আর ওয়ার্কিং ট্রিতে নেই: %1$s</string>
     <string name="chat_git_tab_changes">পরিবর্তন</string>
     <string name="chat_git_tab_history">ইতিহাস</string>
-    <string name="chat_git_date_now">এখন</string>
-    <string name="chat_git_date_minutes">%1$d মি</string>
-    <string name="chat_git_date_hours">%1$d ঘ</string>
-    <string name="chat_git_date_days">%1$d দিন</string>
     <string name="chat_git_ref_branch">ব্রাঞ্চ %1$s</string>
     <string name="chat_git_ref_remote">রিমোট ব্রাঞ্চ %1$s</string>
     <string name="chat_git_ref_tag">ট্যাগ %1$s</string>
