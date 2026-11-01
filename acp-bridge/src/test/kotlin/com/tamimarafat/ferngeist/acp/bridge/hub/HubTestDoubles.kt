@@ -2,10 +2,13 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -33,6 +36,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
@@ -68,8 +73,8 @@ internal fun ChatConnectionHub.registerChat(
     serverId: String = "srv",
     sessionId: String,
     gatewaySessionId: String? = "gs-$sessionId",
-    streaming: Boolean = false,
-    manager: AcpConnection? = acquireChatManager(),
+    manager: AcpConnection? = acquireChatManager(serverId),
+    snapshot: StateFlow<SessionSnapshot>? = null,
 ): String =
     register(
         serverId = serverId,
@@ -80,9 +85,16 @@ internal fun ChatConnectionHub.registerChat(
                 gatewaySourceId = "src-1",
                 agentId = "agent-1",
                 isConnected = { true },
-                isStreaming = { streaming },
+                isStreaming = { snapshot?.value?.isStreaming == true },
                 manager = manager,
+                snapshot = snapshot,
             ),
+    )
+
+/** A session's live state mid-turn, as its bridge publishes it. */
+internal fun streamingSnapshot(): StateFlow<SessionSnapshot> =
+    MutableStateFlow(
+        SessionSnapshot("s", loadState = SessionLoadState.READY, isStreaming = true, turnStatus = TurnStatus.WORKING),
     )
 
 internal class FakeGatewayRepo : GatewayRepository {

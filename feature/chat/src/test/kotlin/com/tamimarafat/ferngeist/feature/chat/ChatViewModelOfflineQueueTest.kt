@@ -444,6 +444,29 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `a prompt cut off mid-turn shows once while its turn still runs after reopen`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            val reopened = TestFacade(sendResult = true)
+            val viewModel =
+                createViewModel(
+                    facadeFactory = TestFacadeFactory { reopened },
+                    stores = testStores(pendingPromptStore = store),
+                )
+            advanceUntilIdle()
+            val transcript = listOf(echoMessage(content = "once", clientId = clientId))
+            reopened.emitSnapshot(readySnapshot(messages = transcript, isStreaming = true))
+            advanceUntilIdle()
+
+            val pending = viewModel.state.value.pendingMessages
+            assertEquals("the transcript's copy is the only bubble", emptyList<ChatMessage>(), pending)
+            viewModel.clearForTest()
+            advanceUntilIdle()
+        }
+
+    @Test
     fun `a prompt cut off before its echo is resent under the same client id`() =
         runTest {
             val store = InMemoryPendingPromptStore()

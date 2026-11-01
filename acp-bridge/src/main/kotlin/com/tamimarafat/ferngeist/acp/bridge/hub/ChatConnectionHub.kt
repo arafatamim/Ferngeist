@@ -6,11 +6,11 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.OpenChat
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
 import com.tamimarafat.ferngeist.core.model.ChatPresence
-import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -57,14 +57,14 @@ private const val GATEWAY_NOT_FOUND_STATUS = 404
 
 /**
  * [ChatConnectionHub] tuning: how many chats stay hot, how many gateway sessions
- * this device may lease, the snapshot cache bound, and the clock the entry table
- * ranks focus with.
+ * this device may lease, how many chats keep their state in memory, and the clock the
+ * entry table ranks focus with.
  */
 data class HubLimits(
     val maxHotConnections: Int = 3,
     val maxGatewaySessionsPerDevice: Int = 5,
     val clock: () -> Long = System::currentTimeMillis,
-    val maxSnapshotCacheSize: Int = 20,
+    val maxRetainedChats: Int = 20,
 )
 
 /**
@@ -136,7 +136,7 @@ class ChatConnectionHub(
     private val Entry.screenOpen: Boolean get() = openScreens > 0
 
     private val entries = LinkedHashMap<String, Entry>()
-    private val snapshots = LinkedHashMap<String, ChatSessionSnapshot>()
+    private val runtimes = ChatRuntimes(stateStore, limits.maxRetainedChats, ioDispatcher) { it in entries }
     private val pendingManagers = CopyOnWriteArrayList<AcpConnection>()
     private val browserManagers = CopyOnWriteArrayList<AcpConnection>()
     private val revision = MutableStateFlow(0L)
@@ -345,8 +345,8 @@ class ChatConnectionHub(
      * promotes it into a hot entry. A spawn that fails before attach stays
      * tracked (visible in the aggregates) until [abandon] releases it.
      */
-    override fun acquireChatManager(): AcpConnection =
-        AcpConnection(connectivityObserver, resumeAttachToken, scope).also { manager ->
+    override fun acquireChatManager(serverId: String): AcpConnection =
+        AcpConnection(connectivityObserver, resumeAttachToken, scope) { runtimeFor(serverId, it) }.also { manager ->
             pendingManagers.addIfAbsent(manager)
             revision.value += 1
         }
@@ -476,8 +476,9 @@ class ChatConnectionHub(
             }
         turnObservers[chatId] =
             scope.launch {
-                val save = registration.saveState
-                if (stateStore != null && save != null) launch { stateStore.keepSaved(chatId, snapshot, save) }
+                if (stateStore != null) {
+                    launch { stateStore.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) } }
+                }
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
                 val expiry = TurnStatusExpiry(chatId, this)
                 turnPresenceFlow(chatId, snapshot, connection).collect { presence ->
@@ -604,28 +605,16 @@ class ChatConnectionHub(
     /** The live transport for a tracked chat, or null when untracked/cold. */
     override fun managerFor(chatId: String): AcpConnection? = entries[chatId]?.manager
 
-    /** Last rendered snapshot for a chat; survives evict/screen-close so reopen paints instantly. Dropped only on close. */
-    override fun snapshotFor(chatId: String): ChatSessionSnapshot? = snapshots[chatId]
+    /** The runtime every connection of [sessionId]'s chat attaches to; see [ChatRuntimes]. */
+    internal suspend fun runtimeFor(
+        serverId: String,
+        sessionId: String,
+    ): SessionRuntime = runtimes.runtimeFor(chatIdFor(serverId, sessionId), sessionId)
 
-    /** Stashes the latest rendered snapshot; eldest-evicted past the snapshot cap. Safe before any entry exists. */
-    override fun storeSnapshot(
-        chatId: String,
-        snapshot: ChatSessionSnapshot,
-    ) {
-        snapshots.remove(chatId)
-        while (snapshots.size >= limits.maxSnapshotCacheSize) {
-            val evicted = snapshots.keys.first()
-            snapshots.remove(evicted)
-            _streamingChatIds.update { it - evicted }
-        }
-        snapshots[chatId] = snapshot
-        val manager = entries[chatId]?.manager
-        val streaming =
-            snapshot.isStreaming && (manager == null || manager.connectionState.value is AcpConnectionState.Connected)
-        _streamingChatIds.update { if (streaming) it + chatId else it - chatId }
-    }
-
-    override suspend fun savedStateFor(chatId: String): String? = stateStore?.read(chatId)
+    override suspend fun lastSnapshot(
+        serverId: String,
+        sessionId: String,
+    ): SessionSnapshot? = runtimes.existing(chatIdFor(serverId, sessionId), sessionId)?.snapshot?.value
 
     /**
      * Records that the user opened [sessionId]'s chat screen, making it the
@@ -772,13 +761,12 @@ class ChatConnectionHub(
         endpoint: GatewayEndpoint? = null,
     ) {
         val saver = turnObservers.remove(chatId)?.also { it.cancel() }
-        snapshots.remove(chatId)
         _streamingChatIds.update { it - chatId }
         _turnStatuses.update { it - chatId }
         val entry = entries.remove(chatId)
         // Joined first: a save still writing would bring the deleted state back.
         saver?.join()
-        stateStore?.delete(chatId)
+        runtimes.forget(chatId)
         if (entry == null) return
         try {
             val gatewaySessionId = entry.gatewaySessionId

@@ -27,7 +27,7 @@ internal fun turnOutcomeAfter(
 ): TurnStatus =
     when (event) {
         is AppSessionEvent.TurnComplete -> turnOutcomeFor(event.stopReason)
-        is AppSessionEvent.SessionLoadComplete -> if (streaming) TurnStatus.UNKNOWN else current
+        is AppSessionEvent.TurnEndUnheard -> if (streaming) TurnStatus.UNKNOWN else current
         else -> current
     }
 

@@ -352,7 +352,7 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
         }
 
     @Test
-    fun `a tracked chat whose local status was withdrawn does not inherit the gateway answer`() =
+    fun `a tracked chat with no local status shows the gateway answer`() =
         runTest {
             val hub = newHub()
             val catalog =
@@ -369,15 +369,12 @@ class ProjectTurnStatusTest : ProjectCatalogFixture() {
             runCurrent()
             assertEquals(TurnStatus.NEEDS_ATTENTION, catalog.turnStatuses.first()["b-claude/same"]?.status)
 
-            // A tracked chat with no live snapshot: its connection is gone, so nothing reliable
-            // is known and the gateway's status must not stand in for it.
+            // A tracked chat with no live snapshot, as a chat restored cold after process death
+            // or one whose connection dropped: the gateway is the only one that knows its turn.
             val key = hub.registerChat(serverId = claude.id, sessionId = "same")
             runCurrent()
-            assertTrue(
-                "a tracked chat with no local status is unknown",
-                key !in catalog.turnStatuses.first(),
-            )
-            assertTrue(catalog.inProgressChatKeys.first().isEmpty())
+            assertEquals(TurnStatus.NEEDS_ATTENTION, catalog.turnStatuses.first()[key]?.status)
+            assertEquals(setOf(key), catalog.inProgressChatKeys.first())
 
             hub.close(key)
             runCurrent()

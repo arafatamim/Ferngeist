@@ -22,7 +22,7 @@ class ChatTurnPresenceTest {
     fun `viewing a finished turn clears it until another turn finishes off screen`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             manager.forceConnectionState(AcpConnectionState.Connected)
             val bridge = SessionBridge("s1", null)
             bridge.runtime.beginHydration()
@@ -67,7 +67,7 @@ class ChatTurnPresenceTest {
     fun `viewing failed turns clears them but later failures remain visible`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             manager.forceConnectionState(AcpConnectionState.Connected)
             val bridge = SessionBridge("s1", null)
             bridge.runtime.beginHydration()
@@ -122,7 +122,7 @@ class ChatTurnPresenceTest {
     fun `finished and failed statuses expire at their respective deadlines`() =
         runTest {
             val hub = newHub(dispatcher = UnconfinedTestDispatcher(testScheduler))
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             manager.forceConnectionState(AcpConnectionState.Connected)
             val bridge = SessionBridge("s1", null)
             bridge.runtime.beginHydration()
@@ -174,7 +174,7 @@ class ChatTurnPresenceTest {
     fun `turn status follows the live bridge and is withdrawn while disconnected`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             manager.forceConnectionState(AcpConnectionState.Connected)
             val bridge = SessionBridge("s1", null)
             bridge.runtime.beginHydration()
@@ -208,7 +208,7 @@ class ChatTurnPresenceTest {
             advanceUntilIdle()
             assertFalse(key in hub.turnStatuses.value)
             bridge.runtime.beginAttach()
-            bridge.runtime.markReady()
+            bridge.runtime.settleAttach(turnRunning = false)
             advanceUntilIdle()
             assertEquals(mapOf(key to TurnStatus.UNKNOWN), hub.turnStatuses.value.mapValues { it.value.status })
             bridge.sendPrompt("again", emptyList(), emptyList())
@@ -225,7 +225,7 @@ class ChatTurnPresenceTest {
         runTest {
             val hub = newHub(maxHot = 1, maxGateway = 1)
             val bridge = SessionBridge("s1", null)
-            val manager = hub.acquireChatManager().apply { forceConnectionState(AcpConnectionState.Connected) }
+            val manager = hub.acquireChatManager("srv").apply { forceConnectionState(AcpConnectionState.Connected) }
             bridge.runtime.beginHydration()
             bridge.runtime.completeHydration()
             val key =

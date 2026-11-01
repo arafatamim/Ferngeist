@@ -30,12 +30,12 @@ import com.tamimarafat.ferngeist.acp.bridge.session.failHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.markReady
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.clientIdMeta
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.deliveredOnce
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.restoredFrom
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.resumeCatchingUp
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.settleCatchUp
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.updateSeq
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -63,14 +63,14 @@ import java.util.concurrent.ConcurrentHashMap
  * @property connection provides the SDK client, diagnostics store, and auth helpers
  * @property permissionFlow tracks pending permission completable-futures
  * @property elicitationFlow tracks pending elicitation completable-futures
- * @property bridgeFactory creates a [SessionBridge] wired to the thin shell
+ * @property bridgeFactory creates a [SessionBridge] wired to the thin shell, over the chat's runtime
  */
 @Suppress("TooManyFunctions")
 internal class SessionGateway(
     private val connection: AcpConnection,
     private val permissionFlow: PermissionFlow,
     private val elicitationFlow: ElicitationFlow,
-    private val bridgeFactory: (String) -> SessionBridge,
+    private val bridgeFactory: suspend (String) -> SessionBridge,
     private val scope: CoroutineScope,
 ) {
     private val sessionRegistry = AcpSessionRegistry(scope, ::shouldCloseSdkSession)
@@ -86,9 +86,6 @@ internal class SessionGateway(
 
     /** Timing of each in-flight attach, keyed by session id; see [AttachTiming]. */
     private val attachTimings = ConcurrentHashMap<String, AttachTiming>()
-
-    /** A turn end the gateway sent mid-attach, held until the attach registers; see [endRemoteTurn]. */
-    private val attachTurnEnds = ConcurrentHashMap<String, AppSessionEvent.TurnComplete>()
 
     /** Working directory of each registered session, kept so a reconnect can re-attach it. */
     private val sessionCwds = ConcurrentHashMap<String, String>()
@@ -146,47 +143,42 @@ internal class SessionGateway(
      * ([SessionBridge.completeHydration]). A resume replays nothing, so its bridge
      * simply publishes its empty snapshot.
      *
-     * [savedState] seeds a bridge this process does not hold yet. A bridge following the
-     * gateway's numbering under [epoch] (any, when null) first tries a [catchUp].
+     * A bridge following the gateway's numbering under [epoch] (any, when null) first tries a
+     * [catchUp].
      */
     @OptIn(UnstableApi::class)
     suspend fun attachSession(
         rpc: SessionAttachRpc,
         sessionId: String,
         cwd: String,
-        savedState: String? = null,
         epoch: String? = null,
     ): SessionPort? {
+        // The new-chat placeholder is a route value, not a session: an agent that loads or resumes
+        // an unknown id may create one under it, and every later tap on that chat mints anew.
+        require(sessionId != NEW_SESSION_ARG) { "The new-chat placeholder is not a session id" }
         getLoadedSession(sessionId)?.let { existing -> return existing }
 
         val client =
             connection.sdkClient
                 ?: throw AcpDisconnectedException()
         connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, rpc.rpc)
+        val bridge =
+            sessionRegistry.getBridge(sessionId) ?: bridgeFactory(sessionId).also {
+                sessionRegistry.storeBridge(sessionId, it)
+            }
+        bridge.runtime.beginAttach()
         val timing = AttachTiming().also { attachTimings[sessionId] = it }
         var succeeded = false
         try {
-            val bridge =
-                sessionRegistry.getBridge(sessionId)
-                    ?: bridgeFactory(sessionId).restoredFrom(savedState) { connection.logError(it) }.also {
-                        sessionRegistry.storeBridge(sessionId, it)
-                    }
-            bridge.runtime.beginAttach()
             val caughtUp = bridge.runtime.catchUpFrom(epoch)?.let { catchUp(client, rpc, bridge, cwd, it) }
             return (caughtUp ?: attachAndHydrate(client, rpc, sessionId, cwd)).also { succeeded = it != null }
         } finally {
             attachTimings.remove(sessionId, timing)
-            // registerSession drained the ends stashed so far, unless a catch-up refill was to
-            // replace them; one left (or landing during the load's own completion) closes the turn.
-            attachTurnEnds.remove(sessionId)?.let { end ->
-                if (succeeded) sessionRegistry.getBridge(sessionId)?.emitEvent(end)
-            }
+            // A failed attach still applies a turn end the gateway reported; it closes nothing else.
+            if (!succeeded) bridge.runtime.settleAttach(turnRunning = true)
             reportAttachTiming(rpc, sessionId, timing, succeeded)
         }
     }
-
-    /** [sessionId]'s state as JSON for the hub to save, or null once its bridge is gone. */
-    suspend fun savedState(sessionId: String): String? = sessionRegistry.getBridge(sessionId)?.runtime?.savedState()
 
     /**
      * Reattaches [bridge] with a `session/resume` the gateway answers itself: it replays the
@@ -204,10 +196,7 @@ internal class SessionGateway(
         val caughtUp =
             client.resumeCatchingUp(bridge.sessionId, cwd, cursor, operationsFactory) { connection.logError(it) }
                 ?: return null
-        // A gap refill replaces the bridge's state, so a turn end stashed so far waits for the
-        // attach's own drain after it rather than landing on the state the load discards.
-        val refills = caughtUp.reply.gap && rpc == SessionAttachRpc.LOAD
-        registerSession(caughtUp.session, cwd, drainTurnEnd = !refills)
+        registerSession(caughtUp.session, cwd)
         runCatching { client.settleCatchUp(bridge, caughtUp.reply, cwd, canLoad = rpc == SessionAttachRpc.LOAD) }
             .onFailure { error ->
                 if (error is CancellationException && error !is TimeoutCancellationException) throw error
@@ -249,7 +238,7 @@ internal class SessionGateway(
                     }
                 val registeredBridge = registerSession(session, cwd)
                 if (rpc == SessionAttachRpc.LOAD) registeredBridge.completeHydration()
-                registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
+                registeredBridge.runtime.settleAttach(turnRunning = false)
                 registeredBridge
             }
         return result.getOrElse { error ->
@@ -344,7 +333,7 @@ internal class SessionGateway(
         // closed) the cancellation propagates from here while the turn keeps running on
         // the bridge scope, emitting its own terminal event when the agent finishes.
         val meta = clientId?.let(::clientIdMeta)
-        awaitTurn(bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks, meta) })
+        awaitTurn(bridge.startTurn(clientId) { collectPromptTurn(sessionId, session, bridge, blocks, meta) })
     }
 
     /**
@@ -414,7 +403,7 @@ internal class SessionGateway(
         try {
             session
                 .prompt(blocks, meta)
-                .deliveredOnce { bridge.emitEvent(AppSessionEvent.SessionLoadComplete) }
+                .deliveredOnce { bridge.emitEvent(AppSessionEvent.TurnEndUnheard) }
                 .collect { event -> forwardPromptEvent(bridge, event) }
         } catch (error: CancellationException) {
             // Interrupted (transport reset) or torn down with the session. Either way the
@@ -674,20 +663,15 @@ internal class SessionGateway(
     /**
      * Ends a turn the gateway reports finished on an earlier connection, or while no client
      * was attached. Its terminal reply answered a request this connection never made, so
-     * nothing else would close it. Mid-attach the SDK holds the replayed updates until the
-     * attach reply, so the end waits for [registerSession] to land after them.
+     * nothing else would close it. Mid-attach the runtime holds it until the attach settles;
+     * see [com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime.beginAttach].
      */
     suspend fun endRemoteTurn(
         sessionId: String,
         stopReason: String,
         durationMs: Long?,
     ) {
-        val end = AppSessionEvent.TurnComplete(stopReason, durationMs)
-        if (attachTimings.containsKey(sessionId)) {
-            attachTurnEnds[sessionId] = end
-        } else {
-            sessionRegistry.getBridge(sessionId)?.emitEvent(end)
-        }
+        sessionRegistry.getBridge(sessionId)?.emitEvent(AppSessionEvent.TurnComplete(stopReason, durationMs))
     }
 
     /**
@@ -768,14 +752,12 @@ internal class SessionGateway(
      * corresponding [AppSessionEvent] values and forwards them to the bridge.
      * After all initial state is pushed, marks the bridge as ready.
      *
-     * @param drainTurnEnd emits a turn end the gateway sent mid-attach; see [attachTurnEnds].
      * @return the concrete [SessionBridge] so callers can invoke bridge-internal
      *         methods ([emitEvent], [markReady], hydration lifecycle).
      */
     private suspend fun registerSession(
         session: ClientSession,
         cwd: String,
-        drainTurnEnd: Boolean = true,
     ): SessionBridge {
         val bridge =
             sessionRegistry.getBridge(session.sessionId.value)
@@ -787,7 +769,6 @@ internal class SessionGateway(
         session.pushInitialState { event -> emitToBridge(session.sessionId.value, event) }
 
         bridge.markReady()
-        if (drainTurnEnd) attachTurnEnds.remove(session.sessionId.value)?.let { bridge.emitEvent(it) }
         startReactiveObservers(session)
         return bridge
     }

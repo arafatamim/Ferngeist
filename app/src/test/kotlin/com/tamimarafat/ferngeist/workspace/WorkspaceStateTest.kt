@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.workspace
 
 import androidx.compose.runtime.saveable.SaverScope
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -59,13 +60,22 @@ class WorkspaceStateTest {
     }
 
     @Test
+    fun aSecondNewChatOnTheSameAgent_doesNotInheritTheFirstsMintedId() {
+        val state = WorkspaceState(null, null, false)
+        val newChat = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "")
+        state.selectSession(newChat)
+        state.recordMinted(newChat.copy(newChatPick = state.newChatPicks), "real-42")
+        assertEquals("real-42", state.mintedSessionId)
+        state.selectSession(newChat)
+        assertNull(state.mintedSessionId)
+    }
+
+    @Test
     fun selectingAnotherChat_dropsThePreviousChatsMintedId() {
         val state = WorkspaceState(null, null, false)
-        val created = WorkspaceSelection("srv", "new", "/work", "")
+        val created = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "")
         state.selectSession(created)
-        state.recordMinted(created, "real-42")
-        state.selectSession(created)
-        assertEquals("real-42", state.mintedSessionId)
+        state.recordMinted(created.copy(newChatPick = state.newChatPicks), "real-42")
         state.selectSession(WorkspaceSelection("srv", "other", "/work", ""))
         assertNull(state.mintedSessionId)
     }
@@ -73,9 +83,10 @@ class WorkspaceStateTest {
     @Test
     fun aMintFromAChatNoLongerSelected_isDropped() {
         val state = WorkspaceState(null, null, false)
-        val outgoing = WorkspaceSelection("srv", "new", "/work", "")
-        state.selectSession(outgoing)
-        state.selectSession(WorkspaceSelection("srv", "other", "/work", ""))
+        state.selectSession(WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", ""))
+        val outgoing = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "", newChatPick = state.newChatPicks)
+        // Another new chat on the same agent: the outgoing pane minting late must not claim it.
+        state.selectSession(WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", ""))
         state.recordMinted(outgoing, "real-42")
         assertNull(state.mintedSessionId)
     }

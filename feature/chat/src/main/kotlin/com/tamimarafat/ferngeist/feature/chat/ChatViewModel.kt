@@ -370,13 +370,11 @@ class ChatViewModel
                 // sentinel nav arg and only become a real chat when the facade mints
                 // a session, so this second open is an idempotent screen-on merge
                 // under the real id — there is no store re-key or hub focus anymore.
-                // A rejected resume also moves the chat onto a freshly minted session;
-                // presence follows it so the notification tap target names the live id.
+                // A chat keeps one session for life: only the sentinel is ever replaced, once.
                 sessionFacade.liveChatId.collect { chatId ->
                     val liveSessionId = chatId?.substringAfter('/')
                     if (liveSessionId != null) {
-                        if (liveSessionId != trackedSessionId) {
-                            if (trackedSessionId != NEW_SESSION_ARG) presence.screenClosed(serverId, trackedSessionId)
+                        if (trackedSessionId == NEW_SESSION_ARG) {
                             trackedSessionId = liveSessionId
                             // Record the minted id where a rebuilt ViewModel reads it:
                             // the nav arg stays the sentinel for this route's lifetime,

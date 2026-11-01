@@ -174,6 +174,7 @@ private fun WorkspaceChatPane(
                     cwd = workspace.cwd,
                     title = workspace.title,
                     updatedAt = workspace.updatedAt,
+                    newChatPick = workspace.newChatPicks,
                 ),
             mintedSessionId = workspace.mintedSessionId,
             onSessionMinted = workspace::recordMinted,
@@ -250,9 +251,9 @@ private fun SwitchingChatPane(
     var swipe by remember { mutableStateOf<Pair<String, SwitchSlide>?>(null) }
     AnimatedContent(
         targetState = selection,
-        contentKey = { it.serverId to it.sessionId },
+        contentKey = { it.chatKey() },
         transitionSpec = {
-            val slide = swipe?.takeIf { it.first == targetState.chatKey() }?.second
+            val slide = swipe?.takeIf { it.first == targetState.sessionKey() }?.second
             if (slide == null) {
                 fadeIn(spring()) togetherWith fadeOut(spring())
             } else {
@@ -284,7 +285,7 @@ private fun SwitchingChatPane(
                         title = session.title.orEmpty(),
                         updatedAt = session.updatedAt,
                     )
-                swipe = slide?.let { next.chatKey() to it }
+                swipe = slide?.let { next.sessionKey() to it }
                 onSelectSession(next)
             },
             sharedTransitionScope = sharedTransitionScope,
@@ -293,7 +294,10 @@ private fun SwitchingChatPane(
     }
 }
 
-private fun WorkspaceSelection.chatKey(): String = "$serverId/$sessionId"
+private fun WorkspaceSelection.sessionKey(): String = "$serverId/$sessionId"
+
+/** The pane's identity: [sessionKey] alone would make two new chats on one agent the same pane. */
+private fun WorkspaceSelection.chatKey(): String = "${sessionKey()}#$newChatPick"
 
 /**
  * Hosts one session's chat in the right pane.
@@ -316,12 +320,11 @@ private fun ChatPane(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    val serverId = selection.serverId
     val sessionId = selection.sessionId
     val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
     // A fresh owner per selection: replacing the remembered key forgets the old owner, and the
     // effect below clears the store it held — which is what actually runs `onCleared`.
-    val paneOwner = remember(serverId, sessionId) { SelectionViewModelStoreOwner() }
+    val paneOwner = remember(selection.chatKey()) { SelectionViewModelStoreOwner() }
     DisposableEffect(paneOwner) { onDispose { paneOwner.viewModelStore.clear() } }
 
     val viewModel: ChatViewModel =

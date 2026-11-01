@@ -11,7 +11,6 @@ import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.MethodName
-import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
@@ -19,7 +18,6 @@ import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -87,20 +85,6 @@ private fun parseCatchUpReply(meta: JsonElement?): CatchUpReply {
     )
 }
 
-/** This new bridge holding [savedState]; a state that no longer decodes costs only a load. */
-internal suspend fun SessionBridge.restoredFrom(
-    savedState: String?,
-    log: (String) -> Unit,
-): SessionBridge {
-    if (savedState == null) return this
-    try {
-        runtime.restore(savedState)
-    } catch (error: SerializationException) {
-        log("restore $sessionId: saved state unreadable: ${error.message}")
-    }
-    return this
-}
-
 /** A catch-up resume's SDK session and the gateway's report on it. */
 internal class CaughtUp(
     val session: ClientSession,
@@ -146,7 +130,7 @@ internal suspend fun Client.settleCatchUp(
 ) {
     reply.epoch?.let { bridge.runtime.catchUpFrom(it) }
     if (reply.gap && canLoad) loadInto(bridge, cwd, turnRunning = reply.turnActive)
-    if (!reply.turnActive) bridge.emitEvent(AppSessionEvent.SessionLoadComplete)
+    bridge.runtime.settleAttach(turnRunning = reply.turnActive)
 }
 
 /**

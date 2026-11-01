@@ -94,7 +94,10 @@ internal class ChatOfflineQueueController(
                     dispatched = record.dispatched,
                 )
             offlineQueue.enqueue(prompt)
-            update { copy(pendingMessages = pendingMessages + prompt.bubble(MessageDeliveryStatus.QUEUED)) }
+            // A dispatched prompt was sent, fate unknown: as SENDING the transcript's copy replaces
+            // its bubble like any echo, instead of a QUEUED twin lingering until the resend settles.
+            val status = if (prompt.dispatched) MessageDeliveryStatus.SENDING else MessageDeliveryStatus.QUEUED
+            update { copy(pendingMessages = pendingMessages + prompt.bubble(status)) }
         }
         val canSendNow =
             state.value.isSessionReady && state.value.connectionState == ChatConnectionState.Connected

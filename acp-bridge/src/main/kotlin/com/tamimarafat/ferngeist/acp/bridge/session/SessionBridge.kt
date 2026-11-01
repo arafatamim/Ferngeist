@@ -32,6 +32,10 @@ import kotlinx.serialization.json.JsonElement
  */
 private const val EVENT_REPLAY_TAIL = 8
 
+/** A runtime timed on this device's monotonic clock, as every live chat's is. */
+internal fun deviceRuntime(sessionId: String): SessionRuntime =
+    SessionRuntime(sessionId = sessionId, clock = { runCatching { SystemClock.elapsedRealtime() }.getOrNull() })
+
 /**
  * SessionBridge is the UI-facing handle to a single ACP session, implementing [SessionPort].
  *
@@ -55,10 +59,10 @@ private const val EVENT_REPLAY_TAIL = 8
 class SessionBridge(
     override val sessionId: String,
     private val connectionManager: AcpConnection?,
+    /** The chat's state, which outlives this bridge's connection when the hub owns it. */
+    internal val runtime: SessionRuntime = deviceRuntime(sessionId),
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : SessionPort {
-    internal val runtime: SessionRuntime =
-        SessionRuntime(sessionId = sessionId, clock = { runCatching { SystemClock.elapsedRealtime() }.getOrNull() })
     override val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
 
     // Raw event stream, for an observer that needs the events as they are emitted. No app
@@ -116,8 +120,15 @@ class SessionBridge(
      * the user navigates away; collecting the prompt there would make the SDK send a
      * `$/cancelRequest`, aborting the agent mid-turn and leaving the transcript with
      * no terminal event. A turn dies with its session, not with the screen.
+     * [clientId] names the prompt the turn runs, so a resend of it can join it.
      */
-    internal fun startTurn(block: suspend () -> Unit): Deferred<Unit> = eventScope.async { block() }
+    internal fun startTurn(
+        clientId: String?,
+        block: suspend () -> Unit,
+    ): Deferred<Unit> = eventScope.async { block() }.also { turn = clientId to it }
+
+    /** The latest turn [startTurn] launched and the prompt it runs. */
+    @Volatile private var turn: Pair<String?, Deferred<Unit>>? = null
 
     /** Cancels the turn in flight, if any, keeping the bridge usable for the next attach. */
     internal fun interruptTurn() {
@@ -136,6 +147,12 @@ class SessionBridge(
         files: List<ChatFileData>,
         clientId: String?,
     ) {
+        // A screen rebuilt in this process resends the prompt it saved as dispatched. The SDK
+        // refuses a second prompt mid-turn, and that failure's rollback would take the
+        // original prompt and the running turn with it, so the resend joins its turn instead.
+        turn?.takeIf { (id, job) -> clientId != null && id == clientId && job.isActive }?.let { (_, job) ->
+            return job.join()
+        }
         runtime.onLocalPromptStarted(text, images, files, clientId)
         sendWithRollback(text, images, files, clientId)
     }
@@ -391,8 +408,11 @@ sealed interface AppSessionEvent {
         val updatedAt: String?,
     ) : AppSessionEvent
 
-    /** Synthetic event emitted after session/load replay events have been forwarded. */
-    data object SessionLoadComplete : AppSessionEvent
+    /**
+     * The turn ended where this client could not hear how (a load replays no turn end, a resume
+     * or catch-up reports none): closes it with no outcome.
+     */
+    data object TurnEndUnheard : AppSessionEvent
 
     /**
      * The turn's terminal event: normally the agent's reply, whose [stopReason] is the ACP

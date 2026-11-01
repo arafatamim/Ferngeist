@@ -63,8 +63,8 @@ class SessionRuntimeTest {
             val runtime = SessionRuntime(sessionId = "ses_test", wallClock = { 9_000L })
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.AgentMessage("partial"))
-            // session/resume replays nothing and closes the open reply on SessionLoadComplete.
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            // session/resume replays nothing and closes the open reply on TurnEndUnheard.
+            runtime.onEvent(AppSessionEvent.TurnEndUnheard)
 
             val reply =
                 runtime.snapshot.value.messages
@@ -161,9 +161,9 @@ class SessionRuntimeTest {
                 }
 
             runtime.completeHydration()
-            // SessionGateway emits SessionLoadComplete right after completeHydration; that event
+            // SessionGateway emits TurnEndUnheard right after completeHydration; that event
             // is the finalize pass that derives the transcript's flat content.
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            runtime.onEvent(AppSessionEvent.TurnEndUnheard)
 
             val snapshot = runtime.snapshot.value
             assertEquals(SessionLoadState.READY, snapshot.loadState)

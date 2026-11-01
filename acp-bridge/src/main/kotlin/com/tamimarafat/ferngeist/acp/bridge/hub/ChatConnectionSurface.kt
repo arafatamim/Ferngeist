@@ -2,7 +2,6 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
-import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -17,13 +16,11 @@ data class ChatRegistration(
     val isStreaming: () -> Boolean,
     val manager: AcpConnection? = null,
     val snapshot: StateFlow<SessionSnapshot>? = null,
-    /** The session's state for the hub to save, null once it is gone; see [ChatConnectionSurface.savedStateFor]. */
-    val saveState: (suspend () -> String?)? = null,
 )
 
 /**
  * The [ChatConnectionHub] operations a chat session depends on: attendance
- * (register/abandon/refresh) and the snapshot paint cache.
+ * (register/abandon/refresh) and each chat's last state for a first paint.
  *
  * Extracted behind this seam so the facade's attendance behavior is testable
  * against a recording fake without constructing a live hub, and so
@@ -36,8 +33,11 @@ data class ChatRegistration(
  */
 
 interface ChatConnectionSurface {
-    /** Creates an app-scoped chat manager, tracked as pending until [register] promotes it. */
-    fun acquireChatManager(): AcpConnection
+    /**
+     * Creates an app-scoped chat manager for [serverId]'s chats, tracked as pending until
+     * [register] promotes it. Each session it attaches shows the hub's runtime for that chat.
+     */
+    fun acquireChatManager(serverId: String): AcpConnection
 
     /** Releases an acquired manager that never registered (failed spawn, cleared screen). */
     fun abandon(manager: AcpConnection)
@@ -45,17 +45,14 @@ interface ChatConnectionSurface {
     /** The live transport for a tracked chat, or null when untracked/cold. */
     fun managerFor(chatId: String): AcpConnection?
 
-    /** Last rendered snapshot for a chat; survives eviction/screen-close so reopen paints instantly. */
-    fun snapshotFor(chatId: String): ChatSessionSnapshot?
-
-    /** Stashes the latest rendered snapshot; eldest-evicted past the cache cap. */
-    fun storeSnapshot(
-        chatId: String,
-        snapshot: ChatSessionSnapshot,
-    )
-
-    /** The state a chat's runtime saved before the process died, or null when none survives. */
-    suspend fun savedStateFor(chatId: String): String?
+    /**
+     * The chat's last state, for its first paint: its runtime's, which outlives eviction and
+     * screen close, or the one it saved before the process died. Null when it has neither.
+     */
+    suspend fun lastSnapshot(
+        serverId: String,
+        sessionId: String,
+    ): SessionSnapshot?
 
     /**
      * Tracks (or re-attaches) a chat connection, evicting pooled idle entries

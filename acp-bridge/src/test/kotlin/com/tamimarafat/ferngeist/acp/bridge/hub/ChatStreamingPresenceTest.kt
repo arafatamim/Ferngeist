@@ -1,6 +1,5 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
-import com.tamimarafat.ferngeist.acp.bridge.facade.mapSnapshot
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,7 +31,6 @@ class ChatStreamingPresenceTest {
                     ),
                 )
             bridge.sendPrompt("go", emptyList(), emptyList())
-            hub.storeSnapshot(key, mapSnapshot(bridge.snapshot.value))
             assertTrue(key in hub.streamingChatIds.value)
 
             // The facade's screen observer is gone; only the live session hears completion.

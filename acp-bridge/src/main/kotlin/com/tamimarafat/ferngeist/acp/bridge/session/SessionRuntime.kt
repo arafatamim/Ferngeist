@@ -12,11 +12,63 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
-import kotlinx.serialization.json.Json
 import kotlin.time.ComparableTimeMark
 import kotlin.time.TimeSource
+
+/**
+ * A [SessionRuntime]'s state. All fields are immutable; the runtime's reducer produces new
+ * instances. What of it survives process death is
+ * [com.tamimarafat.ferngeist.acp.bridge.session.persist.SavedSessionState]'s decision.
+ */
+internal data class RuntimeData(
+    val messages: List<ChatMessage> = emptyList(),
+    val isStreaming: Boolean = false,
+    val toolCallIndex: Map<String, ToolCallLocation> = emptyMap(),
+    val usage: SessionUsage? = null,
+    val availableCommands: List<CommandInfo> = emptyList(),
+    val commandsAdvertised: Boolean = false,
+    val nativeConfigOptions: List<SessionConfigOption> = emptyList(),
+    val legacyModes: LegacyModeState? = null,
+    val legacyModel: LegacyModelState? = null,
+    val title: String? = null,
+    val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+    /**
+     * Id of the last message when the user stopped the turn, until the next prompt. What
+     * the agent still sends goes below it, already closed: some agents (claude-agent-acp)
+     * send no turn end after it, which would leave the chat looking busy for good.
+     */
+    val stoppedAt: String? = null,
+    /**
+     * The most recent turn's terminal outcome, and nothing else: only [TurnStatus.FINISHED]
+     * and [TurnStatus.ERROR] are ever written. A new turn clears it, so a stale result is
+     * never read as the current one.
+     */
+    val turnOutcome: TurnStatus = TurnStatus.UNKNOWN,
+    /** Permission requests still awaiting the user, so a live turn can be blocked on them. */
+    val pendingPermissions: Set<String> = emptySet(),
+    /**
+     * True once a terminal event settled the current turn. A later rollback of the
+     * prompt awaiter must not overwrite that outcome (a cancellation stays cancelled),
+     * while a send that failed without any terminal event still becomes an error.
+     */
+    val turnSettled: Boolean = false,
+    val turnCompletionSequence: Long = 0,
+    val turnStartedAt: ComparableTimeMark? = null,
+    val turnFinishedAt: ComparableTimeMark? = null,
+    /** The reply still streaming at the last publish, so its close can be stamped. */
+    val openReplyId: String? = null,
+    /** The gateway's measure of the turn that just ended, for [stampClosedReply]. */
+    val turnDurationMs: Long? = null,
+    /**
+     * The gateway's update numbering this state follows: the agent process ([epoch]) and the
+     * last update applied ([lastSeq]). Moved in the same step as the update, so a saved state
+     * and its number always agree and a catch-up resume neither repeats nor skips one.
+     */
+    val epoch: String? = null,
+    val lastSeq: Long = 0,
+) {
+    fun after(updateSeq: Long?): RuntimeData = if (updateSeq == null) this else copy(lastSeq = updateSeq)
+}
 
 /**
  * Owns canonical transcript/session state for one ACP session.
@@ -42,67 +94,16 @@ class SessionRuntime(
     /** Wall clock for when a turn finished, shown to the reader as a time of day. */
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) {
-    /**
-     * Internal state snapshot. All fields are immutable; [reduce] produces new instances.
-     * Serialized whole so a chat survives process death; pending requests are not saved
-     * because the gateway re-sends them and a restored entry has nothing behind it to answer.
-     */
-    @Serializable
-    private data class RuntimeData(
-        val messages: List<ChatMessage> = emptyList(),
-        val isStreaming: Boolean = false,
-        val toolCallIndex: Map<String, ToolCallLocation> = emptyMap(),
-        val usage: SessionUsage? = null,
-        val availableCommands: List<CommandInfo> = emptyList(),
-        val commandsAdvertised: Boolean = false,
-        val nativeConfigOptions: List<SessionConfigOption> = emptyList(),
-        val legacyModes: LegacyModeState? = null,
-        val legacyModel: LegacyModelState? = null,
-        val title: String? = null,
-        @Transient val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
-        /**
-         * Id of the last message when the user stopped the turn, until the next prompt. What
-         * the agent still sends goes below it, already closed: some agents (claude-agent-acp)
-         * send no turn end after it, which would leave the chat looking busy for good.
-         */
-        val stoppedAt: String? = null,
-        /**
-         * The most recent turn's terminal outcome, and nothing else: only [TurnStatus.FINISHED]
-         * and [TurnStatus.ERROR] are ever written. A new turn clears it, so a stale result is
-         * never read as the current one.
-         */
-        val turnOutcome: TurnStatus = TurnStatus.UNKNOWN,
-        /** Permission requests still awaiting the user, so a live turn can be blocked on them. */
-        @Transient val pendingPermissions: Set<String> = emptySet(),
-        /**
-         * True once a terminal event settled the current turn. A later rollback of the
-         * prompt awaiter must not overwrite that outcome (a cancellation stays cancelled),
-         * while a send that failed without any terminal event still becomes an error.
-         */
-        val turnSettled: Boolean = false,
-        val turnCompletionSequence: Long = 0,
-        // Monotonic marks mean nothing in another process: a restored turn starts untimed.
-        @Transient val turnStartedAt: ComparableTimeMark? = null,
-        @Transient val turnFinishedAt: ComparableTimeMark? = null,
-        /** The reply still streaming at the last publish, so its close can be stamped. */
-        val openReplyId: String? = null,
-        /** The gateway's measure of the turn that just ended, for [stampClosedReply]. */
-        val turnDurationMs: Long? = null,
-        /**
-         * The gateway's update numbering this state follows: the agent process ([epoch]) and the
-         * last update applied ([lastSeq]). Moved in the same step as the update, so a saved state
-         * and its number always agree and a catch-up resume neither repeats nor skips one.
-         */
-        val epoch: String? = null,
-        val lastSeq: Long = 0,
-    ) {
-        fun after(updateSeq: Long?): RuntimeData = if (updateSeq == null) this else copy(lastSeq = updateSeq)
-    }
-
     private val mutex = Mutex()
-    private var live = RuntimeData()
+
+    // Volatile: written under [mutex], read whole by [state] without it, being immutable.
+    @Volatile private var live = RuntimeData()
     private var buffered = RuntimeData()
     private var eventSeq = 0L
+
+    /** Between [beginAttach] and its settle; a turn end arriving then is held in [heldTurnEnd]. */
+    private var attaching = false
+    private var heldTurnEnd: AppSessionEvent.TurnComplete? = null
 
     private val _snapshot =
         MutableStateFlow(
@@ -140,10 +141,12 @@ class SessionRuntime(
     /**
      * Commits the replay. [turnRunning]: the gateway reports a turn still running behind it, so
      * the session stays busy until that turn's end arrives; the replay is folded here instead,
-     * since the [AppSessionEvent.SessionLoadComplete] that would fold it also ends the turn.
+     * since the [AppSessionEvent.TurnEndUnheard] that would fold it also ends the turn. A turn end
+     * held by the attach also keeps it open, so [settleAttach] closes (and times) its reply.
      */
     suspend fun completeHydration(turnRunning: Boolean = false) {
         mutex.withLock {
+            val running = turnRunning || heldTurnEnd != null
             debug {
                 "completeHydration: committing buffered messages=${buffered.messages.size}, " +
                     "bufferedStreaming=${buffered.isStreaming}"
@@ -153,7 +156,7 @@ class SessionRuntime(
             // so a loaded transcript can never carry a stray streaming flag — and derive the
             // snapshot flag from the messages instead of hard-coding it, keeping the two in sync.
             val finalizedMessages =
-                if (turnRunning) {
+                if (running) {
                     SessionMessageReducer.finishStreaming(buffered.messages)
                 } else {
                     buffered.messages.map { message ->
@@ -168,7 +171,7 @@ class SessionRuntime(
                 buffered.copy(
                     epoch = live.epoch,
                     messages = finalizedMessages,
-                    isStreaming = turnRunning || finalizedMessages.any { it.isStreaming },
+                    isStreaming = running || finalizedMessages.any { it.isStreaming },
                     title = buffered.title ?: live.title,
                     // A load replay carries no usage update, so keep the last known
                     // context reading instead of dropping it to null.
@@ -211,9 +214,15 @@ class SessionRuntime(
      * transport that carried it is gone, so a retained FINISHED/ERROR is no longer current
      * evidence and must not be republished as one. Cleared here rather than once attached, so an
      * outcome the gateway reports during the attach (`_ferngeist/turn_result`) stands.
+     *
+     * Until [settleAttach], a turn end is held rather than applied: the gateway sends it after the
+     * updates it ends, but the SDK runs its handler at once while it holds those updates back
+     * until the attach reply.
      */
     suspend fun beginAttach() {
         mutex.withLock {
+            attaching = true
+            heldTurnEnd = null
             live =
                 live.copy(
                     turnOutcome = TurnStatus.UNKNOWN,
@@ -223,12 +232,33 @@ class SessionRuntime(
         }
     }
 
+    /**
+     * Ends the attach: the turn end it held closes the turn now, after every update the attach
+     * replayed; without one, a turn no longer [turnRunning] closes unheard.
+     */
+    suspend fun settleAttach(turnRunning: Boolean) {
+        val end =
+            mutex.withLock {
+                attaching = false
+                heldTurnEnd.also { heldTurnEnd = null }
+            }
+        when {
+            end != null -> onEvent(end)
+            !turnRunning -> onEvent(AppSessionEvent.TurnEndUnheard)
+        }
+    }
+
     /** Applies [event]; [updateSeq] is the gateway's number for the update it came from, if any. */
     suspend fun onEvent(
         event: AppSessionEvent,
         updateSeq: Long? = null,
     ) {
         mutex.withLock {
+            if (attaching && event is AppSessionEvent.TurnComplete) {
+                debug { "onEvent: holding ${event.stopReason} until the attach settles" }
+                heldTurnEnd = event
+                return@withLock
+            }
             val seq = ++eventSeq
             val loadState = _snapshot.value.loadState
             debug {
@@ -257,7 +287,7 @@ class SessionRuntime(
             // A reply closed by a reattach ended while this client was away; stamping it now would
             // time the outage, not the turn, so it gets no time at all.
             when (event) {
-                is AppSessionEvent.SessionLoadComplete ->
+                is AppSessionEvent.TurnEndUnheard ->
                     live = live.copy(openReplyId = null, turnStartedAt = null, turnFinishedAt = null)
                 is AppSessionEvent.TurnComplete ->
                     live =
@@ -379,21 +409,15 @@ class SessionRuntime(
         }
     }
 
-    /** The live state as JSON, for saving; [restore] installs it in a later process. */
-    suspend fun savedState(): String {
-        // The state is immutable, so the encode runs outside the lock and blocks no event.
-        val data = mutex.withLock { live }
-        return stateJson.encodeToString(data)
-    }
+    /** The live state, for saving; immutable, so it is read without blocking any event. */
+    internal val state: RuntimeData get() = live
 
     /**
-     * Installs a [savedState] from an earlier process and publishes it; a streaming turn stays
-     * streaming. A saved permission prompt is dropped: its request died with the process, and
-     * the gateway re-sends the ones still open. Throws
-     * [kotlinx.serialization.SerializationException] when [saved] is not a saved state.
+     * Installs [data] from an earlier process and publishes it; a streaming turn stays streaming.
+     * A permission prompt is dropped: its request died with the process, and the gateway re-sends
+     * the ones still open.
      */
-    suspend fun restore(saved: String) {
-        val data = stateJson.decodeFromString<RuntimeData>(saved)
+    internal suspend fun install(data: RuntimeData) {
         mutex.withLock {
             live = data.copy(messages = data.messages.map { it.withoutPermissionPrompts() })
             eventSeq = data.turnCompletionSequence
@@ -415,9 +439,6 @@ class SessionRuntime(
     companion object {
         private const val TAG = "TSRuntime"
 
-        // Defaults are encoded: ids and timestamps default to fresh values on decode.
-        private val stateJson = Json { encodeDefaults = true }
-
         /**
          * Pure function that reduces an event onto the current state.
          *
@@ -437,8 +458,8 @@ class SessionRuntime(
             val transcript = reduceTranscript(current, event, nowMs)
             val fields = applySideFieldUpdates(current, event)
 
-            // TurnComplete / SessionLoadComplete end the streaming turn.
-            val endsTurn = event is AppSessionEvent.TurnComplete || event is AppSessionEvent.SessionLoadComplete
+            // TurnComplete / TurnEndUnheard end the streaming turn.
+            val endsTurn = event is AppSessionEvent.TurnComplete || event is AppSessionEvent.TurnEndUnheard
             // Only the trailing bubble can be mid-stream: finishStreaming clears the flag on
             // every message it closes, and a new streaming bubble is always appended last.
             // A full scan is O(messages) and this runs per event.
@@ -497,11 +518,11 @@ class SessionRuntime(
                     )
             val opened = if (opensReply) SessionMessageReducer.startStreaming(current.messages) else current.messages
 
-            // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
+            // TurnEndUnheard only flips isStreaming; everything else goes through the reducer,
             // which owns both the message list and the tool-call index
             val fromReducer =
                 when (event) {
-                    is AppSessionEvent.SessionLoadComplete -> null
+                    is AppSessionEvent.TurnEndUnheard -> null
                     else -> SessionMessageReducer.handleEvent(opened, current.toolCallIndex, event, nowMs)
                 }
             val reduced = fromReducer ?: ReducerResult(opened, current.toolCallIndex)
@@ -530,7 +551,7 @@ class SessionRuntime(
 
             when (event) {
                 is AppSessionEvent.TurnComplete -> Unit
-                is AppSessionEvent.SessionLoadComplete -> Unit
+                is AppSessionEvent.TurnEndUnheard -> Unit
                 is AppSessionEvent.UsageUpdated -> usage = mapUsage(event)
                 is AppSessionEvent.CommandsUpdated -> {
                     availableCommands = event.commands

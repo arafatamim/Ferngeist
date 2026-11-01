@@ -296,7 +296,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
         sessionId: String,
         streaming: Boolean = false,
     ) {
-        val manager = hub.acquireChatManager()
+        val manager = hub.acquireChatManager("srv")
         hub.register(
             serverId = serverId,
             sessionId = sessionId,

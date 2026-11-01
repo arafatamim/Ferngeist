@@ -10,6 +10,7 @@ import com.agentclientprotocol.rpc.TransportFrame
 import com.agentclientprotocol.rpc.parseTransportFrame
 import com.agentclientprotocol.transport.Transport
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -24,20 +25,24 @@ private class ConnectivityStub : ConnectivityObserver {
     override val isConnected: Flow<Boolean> = _isConnected
 }
 
+/** A connection whose own [AcpConnection.sessions] serves the bridges it makes, as in production. */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal fun newGateway(): SessionGateway {
+internal fun newConnection(scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher())): AcpConnection =
+    AcpConnection(
+        connectivityObserver = ConnectivityStub(),
+        resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
+        scope = scope,
+    )
+
+/** [runtime] stands in for the chat's runtime the hub holds; a fresh one per session when null. */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun newGateway(runtime: SessionRuntime? = null): SessionGateway {
     val scope = CoroutineScope(UnconfinedTestDispatcher())
-    val connection =
-        AcpConnection(
-            connectivityObserver = ConnectivityStub(),
-            resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
-            scope = scope,
-        )
     return SessionGateway(
-        connection = connection,
+        connection = newConnection(scope),
         permissionFlow = PermissionFlow(),
         elicitationFlow = ElicitationFlow(),
-        bridgeFactory = { sessionId -> SessionBridge(sessionId, null) },
+        bridgeFactory = { sessionId -> SessionBridge(sessionId, null, runtime ?: SessionRuntime(sessionId)) },
         scope = scope,
     )
 }

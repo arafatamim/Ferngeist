@@ -5,10 +5,12 @@ import androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import androidx.compose.runtime.saveable.Saver as ComposeSaver
 
 /**
@@ -24,6 +26,8 @@ data class WorkspaceSelection(
     val cwd: String,
     val title: String,
     val updatedAt: Long? = null,
+    /** Which new-chat pick this is: every new chat shares the [NEW_SESSION_ARG] id, yet each is its own chat. */
+    val newChatPick: Int = 0,
 )
 
 /** A project the middle pane shows instead of an agent's sessions: one repo on one gateway. */
@@ -76,6 +80,10 @@ class WorkspaceState(
     var mintedSessionId by mutableStateOf<String?>(null)
         private set
 
+    /** Counts new-chat picks, so two in a row on one agent stay two chats; see [WorkspaceSelection.newChatPick]. */
+    var newChatPicks by mutableIntStateOf(0)
+        private set
+
     /**
      * Records [mintedId] for the chat that minted it, only while [chat] is still the selection.
      * Checked here, against the selection itself: a pane sliding out can mint after a switch
@@ -85,7 +93,8 @@ class WorkspaceState(
         chat: WorkspaceSelection,
         mintedId: String,
     ) {
-        if (chat.serverId == selectedServerId && chat.sessionId == selectedSessionId) mintedSessionId = mintedId
+        val selected = chat.serverId == selectedServerId && chat.sessionId == selectedSessionId
+        if (selected && chat.newChatPick == newChatPicks) mintedSessionId = mintedId
     }
 
     /**
@@ -133,8 +142,13 @@ class WorkspaceState(
         selection: WorkspaceSelection,
         agentsInLeft: Boolean,
     ) {
-        // A minted id belongs to the chat that minted it; another chat must not reattach to it.
-        if (selection.serverId != selectedServerId || selection.sessionId != selectedSessionId) mintedSessionId = null
+        // A minted id belongs to the chat that minted it; another chat must not reattach to it, and
+        // a new-chat pick is always another chat, even on the agent whose new chat is selected.
+        val newChat = selection.sessionId == NEW_SESSION_ARG
+        if (newChat || selection.serverId != selectedServerId || selection.sessionId != selectedSessionId) {
+            mintedSessionId = null
+        }
+        if (newChat) newChatPicks++
         selectedServerId = selection.serverId
         selectedSessionId = selection.sessionId
         cwd = selection.cwd

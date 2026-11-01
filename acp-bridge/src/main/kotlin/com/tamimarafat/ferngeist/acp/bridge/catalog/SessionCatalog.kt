@@ -355,9 +355,11 @@ class SessionCatalog(
         recentListings.remove(serverId)
         deleteOnAgent(serverId, sessionId)
         val endpoint = gatewayEndpoint(serverId)
-        when {
-            endpoint != null -> hub.closeSession(serverId, sessionId, endpoint)
-            hub.isTracked(serverId, sessionId) -> hub.close(chatIdFor(serverId, sessionId), endpoint = null)
+        // An evicted chat is untracked but keeps its saved state, so a direct delete still closes it.
+        if (endpoint != null) {
+            hub.closeSession(serverId, sessionId, endpoint)
+        } else {
+            hub.close(chatIdFor(serverId, sessionId), endpoint = null)
         }
         sessionRepository.deleteSession(serverId, sessionId)
         return known

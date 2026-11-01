@@ -1,8 +1,15 @@
-package com.tamimarafat.ferngeist.acp.bridge.session
+package com.tamimarafat.ferngeist.acp.bridge.session.persist
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.collections.immutable.toPersistentList

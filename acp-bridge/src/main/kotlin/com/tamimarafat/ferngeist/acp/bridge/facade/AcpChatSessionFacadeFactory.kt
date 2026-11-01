@@ -47,18 +47,13 @@ class AcpChatSessionFacadeFactory(
     ): ChatSessionFacade {
         val chatId = chatIdFor(serverId, sessionId)
         val existing = hub.managerFor(chatId)
-        val manager = existing ?: hub.acquireChatManager()
+        val manager = existing ?: hub.acquireChatManager(serverId)
         return AcpChatSessionFacade(
             scope = scope,
             connectionManager = manager,
             repositories = repositories,
             opening =
-                ChatOpening(
-                    serverId = serverId,
-                    sessionId = sessionId,
-                    cwd = cwd,
-                    cachedSnapshot = hub.snapshotFor(chatId),
-                ),
+                ChatOpening(serverId = serverId, sessionId = sessionId, cwd = cwd),
             hub = hub,
         )
     }

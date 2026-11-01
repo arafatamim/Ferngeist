@@ -5,7 +5,10 @@ import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.restore
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.savedState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
@@ -39,13 +42,13 @@ class SessionCatchUpTest {
     ) = """{"jsonrpc":"2.0","id":${'$'}ID,"result":{$result"_meta":{"ferngeist/catchUp":""" +
         """{"epoch":"e1","headSeq":5,"turnActive":$turnActive,"gap":$gap}}}}"""
 
-    /** The state a chat saved mid-turn: the reply so far is update 4 of agent process `e1`. */
-    private suspend fun savedMidTurn(): String {
+    /** A chat restored after process death mid-turn: the reply so far is update 4 of agent process `e1`. */
+    private suspend fun restoredMidTurn(): SessionRuntime {
         val runtime = SessionRuntime(sessionId = "s1")
         runtime.catchUpFrom("e1")
         runtime.onLocalPromptStarted("go", emptyList(), emptyList())
         runtime.onEvent(AppSessionEvent.AgentMessage("hel"), updateSeq = 4)
-        return runtime.savedState()
+        return SessionRuntime(sessionId = "s1").apply { restore(runtime.savedState()) }
     }
 
     private fun SessionBridge.replyText(): String =
@@ -54,17 +57,27 @@ class SessionCatchUpTest {
             .segments
             .joinToString("") { it.text }
 
-    private fun attachOver(transport: ScriptedTransport): SessionGateway =
-        newGateway().also { installSdkClient(it, clientOver(transport).also { client -> client.protocol.start() }) }
+    private fun attachOver(
+        transport: ScriptedTransport,
+        runtime: SessionRuntime? = null,
+    ): SessionGateway =
+        newGateway(runtime).also {
+            installSdkClient(
+                it,
+                clientOver(transport).also { client ->
+                    client.protocol.start()
+                },
+            )
+        }
 
     @Test
     fun `a restored mid-turn chat catches up from its saved update and keeps streaming`() =
         runTest {
             val transport =
                 ScriptedTransport(mapOf("session/resume" to listOf(chunk("lo", 5), catchUpReply(true, false))))
-            val gateway = attachOver(transport)
+            val gateway = attachOver(transport, restoredMidTurn())
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             assertEquals("only the missed update is fetched; no load", listOf("session/resume"), transport.sentMethods)
             assertEquals("hello", bridge.replyText())
@@ -77,9 +90,9 @@ class SessionCatchUpTest {
         runTest {
             val transport =
                 ScriptedTransport(mapOf("session/resume" to listOf(chunk("lo", 5), catchUpReply(false, false))))
-            val gateway = attachOver(transport)
+            val gateway = attachOver(transport, restoredMidTurn())
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             assertEquals("hello", bridge.replyText())
             assertFalse(bridge.snapshot.value.isStreaming)
@@ -88,7 +101,7 @@ class SessionCatchUpTest {
     @Test
     fun `a turn result replayed ahead of the catch-up reply settles the turn with its outcome and duration`() =
         runTest {
-            val gateway = newGateway()
+            val gateway = newGateway(restoredMidTurn())
             val turnResult =
                 """{"jsonrpc":"2.0","method":"_ferngeist/turn_result","params":""" +
                     """{"sessionId":"s1","stopReason":"end_turn","usage":null,"durationMs":4200}}"""
@@ -100,7 +113,7 @@ class SessionCatchUpTest {
             client.protocol.onRemoteTurnEnded(gateway::endRemoteTurn)
             installSdkClient(gateway, client.also { it.protocol.start() })
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             val snapshot = bridge.snapshot.value
             assertFalse(snapshot.isStreaming)
@@ -120,9 +133,9 @@ class SessionCatchUpTest {
                         "session/load" to listOf(chunk("replayed", 1), loadReply),
                     ),
                 )
-            val gateway = attachOver(transport)
+            val gateway = attachOver(transport, restoredMidTurn())
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             assertEquals(listOf("session/resume", "session/load"), transport.sentMethods)
             assertEquals("replayed", bridge.replyText())
@@ -133,7 +146,7 @@ class SessionCatchUpTest {
     @Test
     fun `a turn that ends during a gap refill still stops streaming`() =
         runTest {
-            val gateway = newGateway()
+            val gateway = newGateway(restoredMidTurn())
             val turnResult =
                 """{"jsonrpc":"2.0","method":"_ferngeist/turn_result","params":""" +
                     """{"sessionId":"s1","stopReason":"end_turn","usage":null,"durationMs":null}}"""
@@ -149,7 +162,7 @@ class SessionCatchUpTest {
             client.protocol.onRemoteTurnEnded(gateway::endRemoteTurn)
             installSdkClient(gateway, client.also { it.protocol.start() })
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             assertFalse(bridge.snapshot.value.isStreaming)
             assertEquals(TurnStatus.FINISHED, bridge.snapshot.value.turnStatus)
@@ -158,7 +171,7 @@ class SessionCatchUpTest {
     @Test
     fun `a turn result replayed ahead of a gap refill still ends the turn`() =
         runTest {
-            val gateway = newGateway()
+            val gateway = newGateway(restoredMidTurn())
             val turnResult =
                 """{"jsonrpc":"2.0","method":"_ferngeist/turn_result","params":""" +
                     """{"sessionId":"s1","stopReason":"end_turn","usage":null,"durationMs":4200}}"""
@@ -173,7 +186,7 @@ class SessionCatchUpTest {
             client.protocol.onRemoteTurnEnded(gateway::endRemoteTurn)
             installSdkClient(gateway, client.also { it.protocol.start() })
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             assertFalse(bridge.snapshot.value.isStreaming)
             assertEquals(TurnStatus.FINISHED, bridge.snapshot.value.turnStatus)
@@ -189,9 +202,9 @@ class SessionCatchUpTest {
                         "session/load" to listOf(chunk("replayed", 1), LOADED),
                     ),
                 )
-            val gateway = attachOver(transport)
+            val gateway = attachOver(transport, restoredMidTurn())
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             assertEquals("replayed", bridge.replyText())
             assertTrue(bridge.snapshot.value.isStreaming)
@@ -209,9 +222,9 @@ class SessionCatchUpTest {
                         "session/load" to listOf(chunk("replayed", 1), LOADED),
                     ),
                 )
-            val gateway = attachOver(transport)
+            val gateway = attachOver(transport, restoredMidTurn())
 
-            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             assertTrue(
                 bridge.snapshot.value.configOptions
@@ -220,15 +233,48 @@ class SessionCatchUpTest {
         }
 
     @Test
+    fun `a turn result replayed ahead of a plain load reply ends the loaded turn`() =
+        runTest {
+            val gateway = newGateway()
+            val turnResult =
+                """{"jsonrpc":"2.0","method":"_ferngeist/turn_result","params":""" +
+                    """{"sessionId":"s1","stopReason":"refusal","usage":null,"durationMs":4200}}"""
+            val transport =
+                ScriptedTransport(mapOf("session/load" to listOf(chunk("replayed", 1), turnResult, LOADED)))
+            val client = clientOver(transport)
+            client.protocol.onRemoteTurnEnded(gateway::endRemoteTurn)
+            installSdkClient(gateway, client.also { it.protocol.start() })
+
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w") as SessionBridge
+
+            assertEquals("replayed", bridge.replyText())
+            assertFalse(bridge.snapshot.value.isStreaming)
+            assertEquals(TurnStatus.ERROR, bridge.snapshot.value.turnStatus)
+        }
+
+    @Test
     fun `a saved state from another agent process skips the catch-up`() =
+        runTest {
+            val gateway = newGateway(restoredMidTurn())
+            val transport = FailingSendTransport(IllegalStateException("transport boom"))
+            installSdkClient(gateway, clientOver(transport))
+
+            runCatching { gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e2") }
+
+            assertEquals(listOf("session/load"), transport.sentMethods)
+        }
+
+    @Test
+    fun `the new-chat placeholder never reaches the agent as a session id`() =
         runTest {
             val gateway = newGateway()
             val transport = FailingSendTransport(IllegalStateException("transport boom"))
             installSdkClient(gateway, clientOver(transport))
 
-            runCatching { gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e2") }
+            val result = runCatching { gateway.attachSession(SessionAttachRpc.LOAD, NEW_SESSION_ARG, "/w") }
 
-            assertEquals(listOf("session/load"), transport.sentMethods)
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+            assertEquals(emptyList<String>(), transport.sentMethods)
         }
 
     @Test
@@ -244,16 +290,10 @@ class SessionCatchUpTest {
                             listOf(promptEcho("go", "c1", 1), chunk("hel", 2), catchUpReply(true, false)),
                     ),
                 )
-            val gateway = attachOver(transport)
+            val gateway = attachOver(transport, runtime)
 
             val bridge =
-                gateway.attachSession(
-                    SessionAttachRpc.LOAD,
-                    "s1",
-                    "/w",
-                    runtime.savedState(),
-                    "e1",
-                ) as SessionBridge
+                gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
 
             val users =
                 bridge.snapshot.value.messages

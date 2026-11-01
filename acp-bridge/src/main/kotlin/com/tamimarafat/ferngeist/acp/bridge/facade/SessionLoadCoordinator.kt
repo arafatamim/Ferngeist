@@ -31,8 +31,7 @@ internal class SessionLoadCoordinator(
     /**
      * [sessionId] defaults to the chat's own session; a fresh connect passes the id
      * the gateway just minted. [epoch] is the update numbering of the agent process the
-     * launch attached to, when the gateway reported one; [savedState] is what the session
-     * saved before the process died, so the attach continues from it.
+     * launch attached to, when the gateway reported one.
      *
      * [announceReady] controls whether [onSessionReady] fires on the fast path so the
      * UI keeps the already-painted cached snapshot instead of flashing loading states.
@@ -42,7 +41,6 @@ internal class SessionLoadCoordinator(
         sessionId: String = opening.sessionId,
         announceReady: Boolean = true,
         epoch: String? = null,
-        savedState: String? = null,
     ): SessionLoadOutcome {
         connectionManager.sessions.getSession(sessionId)?.let { existing ->
             onAttachBridge(existing)
@@ -56,23 +54,19 @@ internal class SessionLoadCoordinator(
             currentCapabilitiesProvider().sessionAttachRpc()
                 ?: return SessionLoadOutcome.Failed("This agent does not advertise session/load support.")
 
-        return loadWithTimeout(sessionId, rpc, epoch, savedState)
+        return loadWithTimeout(sessionId, rpc, epoch)
     }
-
-    /** True when the agent can `session/load`, so a session its lost runtime held can be loaded into a fresh one. */
-    fun reloads(): Boolean = currentCapabilitiesProvider()?.loadSession == true
 
     @Suppress("TooGenericExceptionCaught")
     private suspend fun loadWithTimeout(
         sessionId: String,
         rpc: SessionAttachRpc,
         epoch: String?,
-        savedState: String?,
     ): SessionLoadOutcome {
         val bridge =
             try {
                 withTimeout(sessionLoadTimeoutMs) {
-                    connectionManager.sessions.attachSession(rpc, sessionId, opening.cwd, savedState, epoch)
+                    connectionManager.sessions.attachSession(rpc, sessionId, opening.cwd, epoch)
                 }
             } catch (_: AcpAuthenticationRequiredException) {
                 return SessionLoadOutcome.Failed(

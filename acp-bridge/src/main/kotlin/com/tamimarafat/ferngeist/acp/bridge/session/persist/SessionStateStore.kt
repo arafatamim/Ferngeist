@@ -101,7 +101,8 @@ class SessionStateStore(
             ?.forEach { it.delete() }
     }
 
-    private fun file(chatId: String) = File(dir, "v$FORMAT_VERSION-${URLEncoder.encode(chatId, "UTF-8")}$SUFFIX")
+    private fun file(chatId: String) =
+        File(dir, "v$SAVED_STATE_FORMAT_VERSION-${URLEncoder.encode(chatId, "UTF-8")}$SUFFIX")
 
     // These writes run in the hub's own coroutines, where a throw would end the chat's
     // observer; a lost save only costs a reattach refill.
@@ -114,11 +115,11 @@ class SessionStateStore(
     }
 
     // Not [SUFFIX]: pruning must never count or delete the list.
-    private fun openChatsFile() = File(dir, "open-chats-v$FORMAT_VERSION.list")
+    private fun openChatsFile() = File(dir, "open-chats-v$OPEN_CHATS_VERSION.list")
 
     private companion object {
-        /** Bump when the saved state's shape changes incompatibly. */
-        const val FORMAT_VERSION = 1
+        /** Bump when [OpenChat]'s shape changes incompatibly. */
+        const val OPEN_CHATS_VERSION = 1
         const val SUFFIX = ".json"
         const val SAVE_INTERVAL_MS = 3_000L
     }

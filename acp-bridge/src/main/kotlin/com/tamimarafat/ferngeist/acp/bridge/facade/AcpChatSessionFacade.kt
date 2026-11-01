@@ -49,18 +49,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.io.IOException
 
-/**
- * The session a chat opens with: which server and session, where it runs, and the snapshot it
- * paints before the live bridge answers.
- */
+/** The session a chat opens with: which server and session, and where it runs. */
 data class ChatOpening(
     val serverId: String,
     val sessionId: String,
     val cwd: String,
-    val cachedSnapshot: ChatSessionSnapshot?,
 )
 
 /**
@@ -109,18 +104,12 @@ class AcpChatSessionFacade(
     private val _sessionSnapshot = MutableStateFlow<ChatSessionSnapshot?>(null)
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = _sessionSnapshot.asStateFlow()
 
-    // Paint cache: the hub's in-memory snapshot (observeSessionBridge writes hub.storeSnapshot per
-    // emission), else the state the session saved before the process died. A cached paint is
-    // history, never live state: a stale streaming flag is cleared. The live bridge republishes
-    // its true snapshot on reattach, so a real in-flight turn re-arms it at once, while a turn
-    // whose owner died can never strand the UI on STOP.
+    // Paint cache: the chat's runtime in the hub, restored from what it saved before the process
+    // died. A cached paint is history, never live state: a stale streaming flag is cleared. The
+    // live bridge republishes its true snapshot on reattach, so a real in-flight turn re-arms it
+    // at once, while a turn whose owner died can never strand the UI on STOP.
     override suspend fun cachedSnapshot(): ChatSessionSnapshot? =
-        (
-            opening.cachedSnapshot
-                ?: hub.savedStateFor(snapshotChatId)?.let { saved ->
-                    withContext(repositories.ioDispatcher) { decodeSavedSnapshot(initialSessionId, saved) }
-                }
-        )?.asHistory()
+        hub.lastSnapshot(serverId, initialSessionId)?.let { mapSnapshot(it).asHistory() }
 
     private val _agentCapabilities =
         MutableStateFlow(ChatAgentCapabilities())
@@ -138,7 +127,6 @@ class AcpChatSessionFacade(
 
     /** The update numbering of the agent process the last launch attached to; see SessionGateway.attachSession. */
     private var launchEpoch: String? = null
-    private var snapshotChatId: String = "$serverId/$initialSessionId"
 
     // ---- Events (one-shot) ----
     // SharedFlow is used for one-off signals so repeated emissions are not lost.
@@ -268,8 +256,7 @@ class AcpChatSessionFacade(
             return
         }
 
-        val saved = hub.savedStateFor(snapshotChatId)
-        val outcome = sessionLoadCoordinator.run(announceReady = !quiet, epoch = launchEpoch, savedState = saved)
+        val outcome = sessionLoadCoordinator.run(announceReady = !quiet, epoch = launchEpoch)
         openTimer?.mark(if (outcome is SessionLoadOutcome.Attached) "load" else "loadFailed")
         if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
     }
@@ -597,7 +584,6 @@ class AcpChatSessionFacade(
                         },
                         manager = connectionManager,
                         snapshot = connectionManager.sessions.getSession(sessionId)?.snapshot,
-                        saveState = { connectionManager.sessions.savedState(sessionId) },
                     ),
             )
     }
@@ -665,7 +651,7 @@ class AcpChatSessionFacade(
             buildGatewayLaunchContext(
                 repositories.runtimeLauncher,
                 target,
-                acpSessionId = initialSessionId.takeUnless { it == NEW_SESSION_ARG },
+                acpSessionId = activeSessionId.takeUnless { it == NEW_SESSION_ARG },
             )
         openTimer?.mark("launch")
         return context.fold(
@@ -705,18 +691,17 @@ class AcpChatSessionFacade(
     /**
      * The connection layer's reconnect found the gateway session gone (the gateway
      * restarted, or the runtime failed): the gateway is the only recoverer, so the
-     * app's only path is a fresh connect. An agent that can `session/load` gets the same
-     * session loaded into the fresh runtime; any other gets a newly minted one, whose
-     * user is told through the existing operation-error channel.
+     * app's only path is a fresh connect for the chat's own session, attached the same
+     * way a launch does. A chat never moves onto another session: an agent that cannot
+     * attach it again fails the load instead (see [SessionLoadCoordinator]).
      */
     private suspend fun reconnectAfterRejectedResume() {
         bridgeOperationMutex.withLock {
             val target =
                 repositories.launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent ?: return
-            val reload = sessionLoadCoordinator.reloads()
-            val launchedFor = activeSessionId.takeIf { reload }
+            val chatSession = activeSessionId.takeIf { it != NEW_SESSION_ARG }
             val context =
-                buildGatewayLaunchContext(repositories.runtimeLauncher, target, launchedFor).getOrElse { error ->
+                buildGatewayLaunchContext(repositories.runtimeLauncher, target, chatSession).getOrElse { error ->
                     // The gateway's own words: a 502 carries the agent's exit error.
                     _loadFailed.emit(error.message ?: "Failed to connect to ${target.name}.")
                     return
@@ -728,19 +713,13 @@ class AcpChatSessionFacade(
                 return
             }
             publishCapabilities()
-            if (reload) {
-                // Load the chat's own session, the same way a launch does.
-                val outcome = sessionLoadCoordinator.run(sessionId = activeSessionId, epoch = context.epoch)
-                if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
-            } else if (createAndAttachSession()) {
-                // Not the handoff's session id: that names the gateway session, not an ACP one.
-                _operationError.emit(
-                    ChatOperationError(
-                        message = "The previous session could not be resumed. Opened a new session.",
-                        stopStreaming = false,
-                    ),
-                )
+            if (chatSession == null) {
+                // Still creating on arrival: the session this chat asked for was never minted.
+                createAndAttachSession()
+                return
             }
+            val outcome = sessionLoadCoordinator.run(sessionId = chatSession, epoch = context.epoch)
+            if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
         }
     }
 
@@ -758,10 +737,6 @@ class AcpChatSessionFacade(
 
     private fun attachSessionBridge(bridge: SessionPort) {
         activeSessionId = bridge.sessionId
-        // The create-on-arrival sentinel never registers with the hub (see
-        // registerConnectingWithHub); switch to the real id so snapshots store
-        // under the same key the factory seeds from.
-        snapshotChatId = "$serverId/${bridge.sessionId}"
         sessionBridge = bridge
         pendingModelSelectionId = null
         observeSessionBridge(bridge)
@@ -779,11 +754,7 @@ class AcpChatSessionFacade(
         bridgeObserverJobs =
             listOf(
                 scope.launch {
-                    bridge.snapshot.collect { snapshot ->
-                        val mapped = mapSnapshot(snapshot)
-                        _sessionSnapshot.value = mapped
-                        hub.storeSnapshot(snapshotChatId, mapped)
-                    }
+                    bridge.snapshot.collect { snapshot -> _sessionSnapshot.value = mapSnapshot(snapshot) }
                 },
                 scope.launch {
                     bridge.modelSelectionEvents.collect { event ->
@@ -808,19 +779,19 @@ class AcpChatSessionFacade(
     }
 
     /**
-     * Ensures a connected & initialised session exists, creating one if necessary.
-     * @return the active [SessionPort], or null if connection / creation fails.
+     * Ensures a connected & initialised session exists: the chat's own, or a minted one while
+     * the chat is still creating on arrival. An existing chat never sends into another session.
+     * @return the active [SessionPort], or null if connection, load or creation fails.
      */
     private suspend fun ensureSessionReadyForSend(): SessionPort? {
         sessionBridge?.let { return it }
         if (!ensureConnectedAndInitialized()) return null
 
-        connectionManager.sessions.getSession(activeSessionId)?.let { existing ->
-            attachSessionBridge(existing)
-            _sessionReady.emit(Unit)
-            return existing
+        if (activeSessionId != NEW_SESSION_ARG) {
+            val outcome = sessionLoadCoordinator.run(sessionId = activeSessionId)
+            if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
+            return sessionBridge
         }
-
         val created =
             try {
                 connectionManager.sessions.createSession(cwd)

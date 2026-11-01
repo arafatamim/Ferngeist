@@ -7,6 +7,8 @@ import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
+import com.tamimarafat.ferngeist.acp.bridge.session.deviceRuntime
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +47,8 @@ class AcpConnection(
         session: AcpConnectionConfig.ResumeInfo,
     ) -> String,
     private val scope: CoroutineScope,
+    /** The state each session attached here shows; the hub's, so it outlives this connection. */
+    runtimeFor: suspend (sessionId: String) -> SessionRuntime = { deviceRuntime(it) },
 ) {
     companion object {
         private const val LIST_SESSIONS_TIMEOUT_MS = 30_000L
@@ -90,7 +94,7 @@ class AcpConnection(
             connection = this,
             permissionFlow = PermissionFlow(),
             elicitationFlow = ElicitationFlow(),
-            bridgeFactory = { sessionId -> SessionBridge(sessionId, this) },
+            bridgeFactory = { sessionId -> SessionBridge(sessionId, this, runtimeFor(sessionId)) },
             scope = scope,
         )
 

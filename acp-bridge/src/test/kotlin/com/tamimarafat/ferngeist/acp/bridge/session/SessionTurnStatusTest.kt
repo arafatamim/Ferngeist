@@ -31,7 +31,7 @@ class SessionTurnStatusTest {
             assertNotNull(finished)
             assertTrue(finished!! >= beforeCompletion)
             runtime.beginAttach()
-            runtime.markReady()
+            runtime.settleAttach(turnRunning = false)
             assertNull(runtime.snapshot.value.turnStatusSince)
         }
 
@@ -225,21 +225,21 @@ class SessionTurnStatusTest {
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
             runtime.beginAttach()
-            runtime.markReady()
+            runtime.settleAttach(turnRunning = false)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("refusal"))
             runtime.beginAttach()
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            runtime.settleAttach(turnRunning = false)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             // `_ferngeist/turn_result` lands mid-attach, before the attach closes.
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.beginAttach()
             runtime.onEvent(AppSessionEvent.TurnComplete("refusal"))
-            runtime.markReady()
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            assertEquals("held until the attach settles", TurnStatus.WORKING, runtime.status())
+            runtime.settleAttach(turnRunning = false)
             assertEquals(TurnStatus.ERROR, runtime.status())
         }
 
@@ -256,7 +256,7 @@ class SessionTurnStatusTest {
             runtime.completeHydration()
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            runtime.onEvent(AppSessionEvent.TurnEndUnheard)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())

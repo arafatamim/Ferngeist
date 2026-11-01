@@ -551,7 +551,7 @@ object SessionMessageReducer {
      * each ([appendText]), so this is where adjacent MESSAGE segments fold back into a single
      * markdown document and where the flat `content` view is derived. Both run once per turn,
      * which is the point - doing either per chunk is the O(n^2) copy that the segment-per-chunk
-     * shape exists to avoid. [SessionRuntime.reduce] routes SessionLoadComplete through this method
+     * shape exists to avoid. [SessionRuntime.reduce] routes TurnEndUnheard through this method
      * too, which is what gives a hydrated transcript its content and its single-segment replies.
      */
 

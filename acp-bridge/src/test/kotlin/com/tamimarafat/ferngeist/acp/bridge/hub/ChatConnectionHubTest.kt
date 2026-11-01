@@ -5,7 +5,9 @@ import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
@@ -48,7 +50,7 @@ class ChatConnectionHubTest {
             val hub = newHub()
             // Warm transport that is registered as connected but holds no SDK client,
             // so the listing call fails the way a half-open socket does.
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             hub.registerChat(sessionId = "s1", manager = manager)
             manager.forceConnectionState(AcpConnectionState.Connected)
 
@@ -113,9 +115,9 @@ class ChatConnectionHubTest {
     fun `streaming entries are never evicted even over cap`() =
         runTest {
             val hub = newHub()
-            hub.registerChat(sessionId = "a", streaming = true)
-            hub.registerChat(sessionId = "b", streaming = true)
-            hub.registerChat(sessionId = "c", streaming = true)
+            hub.registerChat(sessionId = "a", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "b", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "c", snapshot = streamingSnapshot())
             hub.registerChat(sessionId = "d")
             // d itself is the only idle candidate; nothing else may be evicted
             assertTrue(hub.isTracked("srv", "a"))
@@ -130,8 +132,8 @@ class ChatConnectionHubTest {
         runTest {
             val hub = newHub()
             hub.registerChat(sessionId = "a") // idle, oldest
-            hub.registerChat(sessionId = "b", streaming = true)
-            hub.registerChat(sessionId = "c", streaming = true)
+            hub.registerChat(sessionId = "b", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "c", snapshot = streamingSnapshot())
             hub.registerChat(sessionId = "d")
             assertFalse(hub.isTracked("srv", "a"))
             assertTrue(hub.isTracked("srv", "b"))
@@ -143,10 +145,10 @@ class ChatConnectionHubTest {
     fun `all-streaming pool below the device cap tolerates the over-cap`() =
         runTest {
             val hub = newHub(maxHot = 3, maxGateway = 5)
-            hub.registerChat(sessionId = "a", streaming = true)
-            hub.registerChat(sessionId = "b", streaming = true)
-            hub.registerChat(sessionId = "c", streaming = true)
-            hub.registerChat(sessionId = "d", streaming = true)
+            hub.registerChat(sessionId = "a", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "b", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "c", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "d", snapshot = streamingSnapshot())
             // Nothing is evictable and the pool still fits the gateway lease: the
             // count grows past maxHotConnections so background turns survive.
             listOf("a", "b", "c", "d").forEach { assertTrue(hub.isTracked("srv", it)) }
@@ -157,11 +159,11 @@ class ChatConnectionHubTest {
     fun `all-streaming pool at the device cap evicts the least recently focused`() =
         runTest {
             val hub = newHub(maxHot = 3, maxGateway = 4)
-            hub.registerChat(sessionId = "a", streaming = true)
-            hub.registerChat(sessionId = "b", streaming = true)
-            hub.registerChat(sessionId = "c", streaming = true)
-            hub.registerChat(sessionId = "d", streaming = true)
-            hub.registerChat(sessionId = "e", streaming = true)
+            hub.registerChat(sessionId = "a", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "b", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "c", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "d", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "e", snapshot = streamingSnapshot())
             // a is the oldest and the pool is at the gateway lease: the over-cap
             // cannot survive, so a is evicted to keep the count bounded.
             assertFalse(hub.isTracked("srv", "a"))
@@ -216,7 +218,7 @@ class ChatConnectionHubTest {
         runTest {
             val repo = FakeGatewayRepo()
             val hub = newHub(repo)
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             manager.forceConnectionState(AcpConnectionState.Connected)
             val chatId = hub.registerChat(sessionId = "s1", gatewaySessionId = "g1", manager = manager)
             hub.close(chatId, GatewayEndpoint("http", "gw", "cred"))
@@ -318,58 +320,43 @@ class ChatConnectionHubTest {
             displayName = null,
         )
 
-    private fun fakeSnapshot() =
-        com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot(
-            loadState = com.tamimarafat.ferngeist.core.model.ChatLoadState.READY,
-            messages = emptyList(),
-            isStreaming = false,
-            configOptions = emptyList(),
-            availableCommands = emptyList(),
-            commandsAdvertised = false,
-            error = null,
-            usage = null,
-        )
-
     @Test
-    fun `snapshot survives LRU eviction`() =
+    fun `a chat's state survives LRU eviction`() =
         runTest {
             val hub = newHub(maxHot = 3)
-            val first = hub.registerChat(sessionId = "s1")
-            hub.storeSnapshot(first, fakeSnapshot())
+            hub.registerChat(sessionId = "s1")
+            hub.runtimeFor("srv", "s1").titled("kept")
             hub.registerChat(sessionId = "s2")
             hub.registerChat(sessionId = "s3")
             hub.registerChat(sessionId = "s4")
             assertFalse(hub.isTracked("srv", "s1"))
-            assertEquals(
-                com.tamimarafat.ferngeist.core.model.ChatLoadState.READY,
-                hub.snapshotFor(first)?.loadState,
-            )
+            assertEquals("kept", hub.lastSnapshot("srv", "s1")?.title)
         }
 
     @Test
-    fun `snapshot survives screen close but close drops it`() =
+    fun `a chat's state survives screen close but close drops it`() =
         runTest {
             val hub = newHub(FakeGatewayRepo())
-            val id = hub.registerChat(sessionId = "s1", gatewaySessionId = "g1", manager = hub.acquireChatManager())
-            hub.storeSnapshot(id, fakeSnapshot())
+            hub.registerChat(sessionId = "s1", gatewaySessionId = "g1")
+            hub.runtimeFor("srv", "s1").titled("kept")
             hub.chatScreenOpened("srv", "s1", "/w")
             hub.chatScreenClosed("srv", "s1")
             assertTrue(hub.isTracked("srv", "s1"))
-            assertEquals(
-                com.tamimarafat.ferngeist.core.model.ChatLoadState.READY,
-                hub.snapshotFor(id)?.loadState,
-            )
-            val id2 = hub.registerChat(sessionId = "s2", gatewaySessionId = "g2", manager = hub.acquireChatManager())
-            hub.storeSnapshot(id2, fakeSnapshot())
+            assertEquals("kept", hub.lastSnapshot("srv", "s1")?.title)
+            val id2 = hub.registerChat(sessionId = "s2", gatewaySessionId = "g2")
+            hub.runtimeFor("srv", "s2").titled("gone")
             hub.close(id2, GatewayEndpoint("http", "gw", "cred"))
-            assertNull(hub.snapshotFor(id2))
+            assertNull(hub.lastSnapshot("srv", "s2"))
         }
+
+    private suspend fun SessionRuntime.titled(title: String) =
+        onEvent(AppSessionEvent.SessionInfoUpdated(title = title, updatedAt = null))
 
     @Test
     fun `acquired manager stays tracked until abandon`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             advanceUntilIdle()
             assertEquals(1, hub.trackedCount())
             assertFalse(hub.anyConnected.value)
@@ -384,7 +371,7 @@ class ChatConnectionHubTest {
     fun `register promotes acquired manager and abandon becomes a no-op`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             hub.registerChat(sessionId = "s1", manager = manager)
             assertEquals(1, hub.trackedCount())
 
@@ -398,7 +385,8 @@ class ChatConnectionHubTest {
     fun `eviction tears down the victim transport`() =
         runTest {
             val hub = newHub(maxHot = 3)
-            val victims = listOf(hub.acquireChatManager(), hub.acquireChatManager(), hub.acquireChatManager())
+            val victims =
+                listOf(hub.acquireChatManager("srv"), hub.acquireChatManager("srv"), hub.acquireChatManager("srv"))
             // Live before eviction, so Disconnected afterwards is the teardown's doing.
             victims[0].forceConnectionState(AcpConnectionState.Connected)
             hub.registerChat(sessionId = "a", manager = victims[0])
@@ -406,7 +394,7 @@ class ChatConnectionHubTest {
             hub.registerChat(sessionId = "c", manager = victims[2])
             assertEquals(3, hub.trackedCount())
 
-            hub.registerChat(sessionId = "d", manager = hub.acquireChatManager())
+            hub.registerChat(sessionId = "d", manager = hub.acquireChatManager("srv"))
             assertFalse(hub.isTracked("srv", "a"))
             assertNull(hub.managerFor("srv/a"))
             assertEquals(3, hub.trackedCount())
@@ -432,8 +420,8 @@ class ChatConnectionHubTest {
     fun `aggregates stay false while all managers are disconnected`() =
         runTest {
             val hub = newHub()
-            hub.registerChat(sessionId = "s1", manager = hub.acquireChatManager())
-            hub.registerChat(sessionId = "s2", manager = hub.acquireChatManager())
+            hub.registerChat(sessionId = "s1", manager = hub.acquireChatManager("srv"))
+            hub.registerChat(sessionId = "s2", manager = hub.acquireChatManager("srv"))
             advanceUntilIdle()
             assertEquals(2, hub.trackedCount())
             assertFalse(hub.anyConnected.value)
@@ -444,8 +432,8 @@ class ChatConnectionHubTest {
     fun `aggregates still emit after all managers are gone`() =
         runTest {
             val hub = newHub()
-            val first = hub.acquireChatManager()
-            val second = hub.acquireChatManager()
+            val first = hub.acquireChatManager("srv")
+            val second = hub.acquireChatManager("srv")
             assertEquals(2, hub.trackedCount())
 
             hub.abandon(first)
@@ -498,7 +486,7 @@ class ChatConnectionHubTest {
     fun `closing the screen of a connected chat keeps it tracked as the tap target`() =
         runTest {
             val hub = newHub()
-            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager())
+            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager("srv"))
             hub.chatScreenOpened("srv", "a", "/w")
             assertTrue(hub.isTracked("srv", "a"))
 
@@ -512,9 +500,9 @@ class ChatConnectionHubTest {
     fun `screen-open chat beats a more recently focused pooled chat for the tap target`() =
         runTest {
             val hub = newHub()
-            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager())
+            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager("srv"))
             hub.chatScreenOpened("srv", "a", "/a")
-            hub.registerChat(sessionId = "b", manager = hub.acquireChatManager())
+            hub.registerChat(sessionId = "b", manager = hub.acquireChatManager("srv"))
             assertEquals("a", hub.tapTarget.value?.sessionId)
             assertEquals("a", hub.onScreenChat.value?.sessionId)
         }
@@ -524,10 +512,10 @@ class ChatConnectionHubTest {
         runTest {
             val hub = newHub()
             hub.chatScreenOpened("srv", "a", "/a")
-            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager())
+            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager("srv"))
             hub.chatScreenOpened("srv", "b", "/b")
             // Attaching the transport onto A again must NOT move A above B.
-            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager())
+            hub.registerChat(sessionId = "a", manager = hub.acquireChatManager("srv"))
             assertEquals("b", hub.tapTarget.value?.sessionId)
             assertEquals("b", hub.onScreenChat.value?.sessionId)
         }
@@ -555,9 +543,9 @@ class ChatConnectionHubTest {
             // The register lambdas claim connected=true but the real managers
             // are Disconnected: presence must read the manager state, not the
             // lambdas, so nothing here is warm.
-            hub.registerChat(serverId = "srvA", sessionId = "s1", manager = hub.acquireChatManager())
+            hub.registerChat(serverId = "srvA", sessionId = "s1", manager = hub.acquireChatManager("srv"))
             hub.registerChat(serverId = "srvA", sessionId = "s2", manager = null)
-            hub.registerChat(serverId = "srvB", sessionId = "s3", manager = hub.acquireChatManager())
+            hub.registerChat(serverId = "srvB", sessionId = "s3", manager = hub.acquireChatManager("srv"))
 
             assertEquals(emptySet<String>(), hub.warmServers.value)
             assertEquals(emptySet<String>(), hub.connectedSessionIds("srvA").first())
@@ -570,7 +558,7 @@ class ChatConnectionHubTest {
     fun `manager reaching connected updates warm presence without refresh`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             hub.registerChat(serverId = "srvA", sessionId = "s1", manager = manager)
             advanceUntilIdle()
             assertEquals(emptySet<String>(), hub.warmServers.value)
@@ -592,9 +580,9 @@ class ChatConnectionHubTest {
     fun `connected chat keys isolate sessions and servers and follow disconnect without refresh`() =
         runTest {
             val hub = newHub()
-            val first = hub.acquireChatManager()
-            val second = hub.acquireChatManager()
-            val other = hub.acquireChatManager()
+            val first = hub.acquireChatManager("srv")
+            val second = hub.acquireChatManager("srv")
+            val other = hub.acquireChatManager("srv")
             val disconnected = first.connectionState.value
             hub.registerChat(serverId = "srvA", sessionId = "s1", manager = first)
             hub.registerChat(serverId = "srvA", sessionId = "s2", manager = second)
@@ -622,16 +610,15 @@ class ChatConnectionHubTest {
                     connectivityObserver = ConnectivityObserverStub(initialState = true),
                     ioDispatcher = StandardTestDispatcher(testScheduler),
                 )
-            val first = hub.acquireChatManager()
+            val first = hub.acquireChatManager("srv")
             first.forceConnectionState(AcpConnectionState.Connected)
             hub.registerChat(sessionId = "first", manager = first)
             runCurrent()
             first.forceConnectionState(AcpConnectionState.Disconnected)
             backgroundScope.launch {
-                val second = hub.acquireChatManager()
+                val second = hub.acquireChatManager("srv")
                 second.forceConnectionState(AcpConnectionState.Connected)
-                val key = hub.registerChat(sessionId = "second", manager = second)
-                hub.storeSnapshot(key, fakeSnapshot().copy(isStreaming = true))
+                hub.registerChat(sessionId = "second", manager = second, snapshot = streamingSnapshot())
             }
             runCurrent()
             assertEquals(setOf("srv/second"), hub.streamingChatIds.value)
@@ -641,31 +628,19 @@ class ChatConnectionHubTest {
     fun `forced hot eviction clears streaming presence`() =
         runTest {
             val hub = newHub(maxHot = 1, maxGateway = 1)
-            val first = hub.registerChat(sessionId = "first", streaming = true)
-            hub.storeSnapshot(first, fakeSnapshot().copy(isStreaming = true))
+            val first = hub.registerChat(sessionId = "first", snapshot = streamingSnapshot())
             hub.registerChat(sessionId = "second")
             assertFalse(hub.isTracked("srv", "first"))
             assertFalse(first in hub.streamingChatIds.value)
         }
 
     @Test
-    fun `snapshot cache eviction clears streaming presence`() =
-        runTest {
-            val hub = newHub()
-            hub.storeSnapshot("srv/old", fakeSnapshot().copy(isStreaming = true))
-            repeat(20) { hub.storeSnapshot("srv/$it", fakeSnapshot()) }
-            assertNull(hub.snapshotFor("srv/old"))
-            assertFalse("srv/old" in hub.streamingChatIds.value)
-        }
-
-    @Test
     fun `connection dropped mid turn clears streaming presence`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             manager.forceConnectionState(AcpConnectionState.Connected)
-            val key = hub.registerChat(sessionId = "s1", manager = manager)
-            hub.storeSnapshot(key, fakeSnapshot().copy(isStreaming = true))
+            val key = hub.registerChat(sessionId = "s1", manager = manager, snapshot = streamingSnapshot())
             assertTrue(key in hub.streamingChatIds.value)
             manager.forceConnectionState(AcpConnectionState.Disconnected)
             advanceUntilIdle()
@@ -676,7 +651,7 @@ class ChatConnectionHubTest {
     fun `reconnecting a streaming bridge restores presence without a screen snapshot`() =
         runTest {
             val hub = newHub()
-            val manager = hub.acquireChatManager()
+            val manager = hub.acquireChatManager("srv")
             manager.forceConnectionState(AcpConnectionState.Connected)
             val bridge = SessionBridge("s1", null)
             bridge.runtime.beginHydration()
