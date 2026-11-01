@@ -401,9 +401,7 @@ class ChatConnectionHub(
         registration: ChatRegistration,
     ): String {
         val chatId = chatIdFor(serverId, sessionId)
-        if (registration.manager != null) {
-            pendingManagers.remove(registration.manager)
-        }
+        registration.manager?.let { pendingManagers.remove(it) }
         val existing = entries[chatId]
         // A cold entry taking a transport needs room as much as a new one does.
         if (existing?.manager == null) makeRoomForEntry()
