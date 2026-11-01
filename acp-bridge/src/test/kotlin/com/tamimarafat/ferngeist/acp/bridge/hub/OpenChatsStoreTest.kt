@@ -31,10 +31,11 @@ class OpenChatsStoreTest {
             val chatStates = SessionStateStore(dir, ioDispatcher = io)
             val open = listOf(OpenChat("srv", "a", "/w", 1L))
             openChats.save(open)
+            val foreground = MutableStateFlow(true)
             // Past the 32-chat cap, so every save prunes.
             repeat(33) { id ->
                 val ready = MutableStateFlow(SessionSnapshot("s$id", loadState = SessionLoadState.READY))
-                val saving = backgroundScope.launch { chatStates.keepSaved("srv/s$id", ready) { "$id" } }
+                val saving = backgroundScope.launch { chatStates.keepSaved("srv/s$id", ready, foreground) { "$id" } }
                 runCurrent()
                 saving.cancel()
             }

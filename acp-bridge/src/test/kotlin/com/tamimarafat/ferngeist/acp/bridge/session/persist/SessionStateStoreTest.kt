@@ -33,7 +33,7 @@ class SessionStateStoreTest {
         state: String,
     ) {
         val ready = MutableStateFlow(SessionSnapshot(chatId, loadState = SessionLoadState.READY))
-        val saving = backgroundScope.launch { store.keepSaved(chatId, ready) { state } }
+        val saving = backgroundScope.launch { store.keepSaved(chatId, ready, MutableStateFlow(true)) { state } }
         runCurrent()
         saving.cancel()
     }
@@ -61,5 +61,28 @@ class SessionStateStoreTest {
 
             assertNull("the oldest chat is pruned", store.read("srv/a"))
             assertEquals("c", store.read("srv/c"))
+        }
+
+    @Test
+    fun `a streaming chat is saved only when its turn ends or the app backgrounds`() =
+        runTest {
+            val snapshot =
+                MutableStateFlow(SessionSnapshot("s1", loadState = SessionLoadState.READY, isStreaming = true))
+            val foreground = MutableStateFlow(true)
+            var saves = 0
+            backgroundScope.launch { store().keepSaved("srv/s1", snapshot, foreground) { "${++saves}" } }
+            runCurrent()
+
+            snapshot.value = snapshot.value.copy(title = "chunk")
+            runCurrent()
+            assertEquals("no save while the turn streams", 0, saves)
+
+            foreground.value = false
+            runCurrent()
+            assertEquals("backgrounding saves mid-turn", 1, saves)
+
+            snapshot.value = snapshot.value.copy(isStreaming = false)
+            runCurrent()
+            assertEquals("the turn end saves", 2, saves)
         }
 }

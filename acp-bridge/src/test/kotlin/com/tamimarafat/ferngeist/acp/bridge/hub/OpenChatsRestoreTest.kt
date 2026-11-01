@@ -5,6 +5,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -157,6 +158,6 @@ class OpenChatsRestoreTest {
         gatewayRepository = repo,
         scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
         connectivityObserver = ConnectivityObserverStub(initialState = true),
-        persistence = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler)),
+        persistence = HubPersistence(dir, MutableStateFlow(true), UnconfinedTestDispatcher(testScheduler)),
     )
 }

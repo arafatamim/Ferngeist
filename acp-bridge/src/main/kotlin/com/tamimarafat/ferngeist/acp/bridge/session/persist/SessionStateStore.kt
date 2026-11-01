@@ -4,9 +4,12 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -33,19 +36,29 @@ class SessionStateStore(
     }
 
     /**
-     * Saves [chatId]'s state each time [snapshot] settles on a new ready state, at most every
-     * [SAVE_INTERVAL_MS]: a process death loses at most that much, which a reattach refills.
-     * shortcut: rewrites the whole state per save; a multi-MB chat streaming on screen pays an
-     * encode every interval (off the hub's main-thread scope), so save less often if that shows in profiles.
+     * Saves [chatId]'s state when its ready snapshot settles (a load or turn ends, or the user
+     * stops it) and when the app leaves the foreground, where Android may kill it. Not per update:
+     * each save rewrites the whole state, so a process death mid-turn loses that turn's tail,
+     * which a reattach refills.
      */
     suspend fun keepSaved(
         chatId: String,
         snapshot: StateFlow<SessionSnapshot>,
+        appInForeground: StateFlow<Boolean>,
         save: suspend () -> String?,
     ) {
-        snapshot.filter { it.loadState == SessionLoadState.READY }.collect {
+        val settled =
+            snapshot
+                .filter { it.loadState == SessionLoadState.READY }
+                .map { it.isStreaming }
+                .distinctUntilChanged()
+                .filter { streaming -> !streaming }
+        val backgrounded =
+            appInForeground.drop(1).filter { foreground ->
+                !foreground && snapshot.value.loadState == SessionLoadState.READY
+            }
+        merge(settled, backgrounded).collect {
             withContext(ioDispatcher) { ignoringIoFailure { save()?.let { state -> write(chatId, state) } } }
-            delay(SAVE_INTERVAL_MS)
         }
     }
 
@@ -82,7 +95,6 @@ class SessionStateStore(
 
     private companion object {
         const val SUFFIX = ".json"
-        const val SAVE_INTERVAL_MS = 3_000L
     }
 }
 

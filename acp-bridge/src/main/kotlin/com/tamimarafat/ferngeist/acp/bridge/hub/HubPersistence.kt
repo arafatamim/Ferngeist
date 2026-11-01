@@ -14,6 +14,7 @@ import java.io.File
  */
 class HubPersistence(
     dir: File,
+    private val appInForeground: StateFlow<Boolean>,
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     internal val chatStates = SessionStateStore(dir, ioDispatcher = ioDispatcher)
@@ -36,10 +37,10 @@ class HubPersistence(
         openChats.value = chats
     }
 
-    /** Saves [chatId]'s state, read by [state], each time [snapshot] settles; see [SessionStateStore.keepSaved]. */
+    /** Saves [chatId]'s state, read by [state], when [snapshot] settles; see [SessionStateStore.keepSaved]. */
     internal suspend fun keepSaved(
         chatId: String,
         snapshot: StateFlow<SessionSnapshot>,
         state: suspend () -> String?,
-    ) = chatStates.keepSaved(chatId, snapshot, state)
+    ) = chatStates.keepSaved(chatId, snapshot, appInForeground, state)
 }

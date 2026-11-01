@@ -21,6 +21,7 @@ import com.tamimarafat.ferngeist.data.database.migration16To17
 import com.tamimarafat.ferngeist.data.database.migration17To18
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
+import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.PushRegistrar
 import dagger.Module
 import dagger.Provides
@@ -109,12 +110,13 @@ object AppModule {
         connectivityObserver: ConnectivityObserver,
         gatewayRepository: GatewayRepository,
         applicationScope: CoroutineScope,
+        appForegroundState: AppForegroundState,
     ): ChatConnectionHub =
         ChatConnectionHub(
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
             connectivityObserver = connectivityObserver,
-            persistence = HubPersistence(File(context.filesDir, "chat-state")),
+            persistence = HubPersistence(File(context.filesDir, "chat-state"), appForegroundState.isForeground),
         )
 
     /** Supplies the chat-session facade factory backed by ACP. */
