@@ -5,12 +5,14 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toPersistentList
 
 internal fun appendUserText(
-    messages: List<ChatMessage>,
+    received: List<ChatMessage>,
     content: UserContent,
     append: Boolean,
     timestampMs: Long?,
 ): List<ChatMessage> {
-    if (content.text.isEmpty() && content.images.isEmpty() && content.files.isEmpty()) return messages
+    if (content.text.isEmpty() && content.images.isEmpty() && content.files.isEmpty()) return received
+    // Only the gateway tags an echo with its prompt's id, and only once it delivered that prompt.
+    val messages = received.confirmingDelivery(content.clientId)
     // A catch-up replays the prompts the gateway numbered, including ones this transcript already
     // holds (sent, then saved before the gateway's number reached it). Only the echo still being
     // assembled - the last message - takes more chunks.
@@ -44,10 +46,19 @@ internal fun appendUserText(
             files = content.files,
             createdAt = timestampMs ?: System.currentTimeMillis(),
             clientId = content.clientId,
+            deliveryConfirmed = content.clientId != null,
         ),
     )
     return mutableMessages.build()
 }
+
+/** Marks [clientId]'s prompt as having reached the agent; no id names no prompt. */
+internal fun List<ChatMessage>.confirmingDelivery(clientId: String?): List<ChatMessage> =
+    if (clientId == null) {
+        this
+    } else {
+        map { if (it.clientId == clientId && !it.deliveryConfirmed) it.copy(deliveryConfirmed = true) else it }
+    }
 
 /**
  * When [append] is true this handles the server echo path: exact-match dedup against a

@@ -161,6 +161,7 @@ internal fun readySnapshot(
     title: String? = null,
     messages: List<ChatMessage> = emptyList(),
     isStreaming: Boolean = false,
+    dropsRepeatPrompts: Boolean? = false,
 ): ChatSessionSnapshot =
     ChatSessionSnapshot(
         loadState = ChatLoadState.READY,
@@ -172,6 +173,7 @@ internal fun readySnapshot(
         error = null,
         usage = null,
         title = title,
+        dropsRepeatPrompts = dropsRepeatPrompts,
     )
 
 /** Convenience overload that accepts a single [ChatMessage] for the [ChatSessionSnapshot.messages] field. */

@@ -236,18 +236,29 @@ internal class ChatOfflineQueueController(
                 val midTurn = state.first { !it.isStreaming || it.supportsSteering }.isStreaming
                 val prompt = offlineQueue.dequeue() ?: break
                 when {
-                    // The transcript cannot prove delivery: the saved local bubble carries the same
-                    // clientId. Only session/prompt carries that id for the gateway to drop a repeat,
-                    // so a restored dispatched prompt is never steered.
-                    prompt.dispatched -> {
-                        state.first { !it.isStreaming }
-                        sendWhenIdle(prompt)
-                    }
+                    prompt.dispatched -> settleDispatched(prompt)
                     midTurn -> steerIntoTurn(prompt)
                     else -> startTurn(prompt)
                 }
             }
         }
+    }
+
+    /**
+     * Settles a prompt restored as dispatched once its turn (if it runs on) ends and an attach has
+     * shown what the gateway remembers. Delivered: dropped. Otherwise it is resent, under its id,
+     * only to a gateway that refuses a repeat; anywhere else a resend could run it twice, so it is
+     * left FAILED for the user to resend. Never steered: only `session/prompt` carries its id.
+     */
+    private suspend fun settleDispatched(prompt: PendingPrompt) {
+        val settled = state.first { !it.isStreaming && it.dropsRepeatPrompts != null }
+        val delivered = settled.messages.any { it.clientId == prompt.clientId && it.deliveryConfirmed }
+        when {
+            delivered -> update { copy(pendingMessages = pendingMessages.filterNot { it.clientId == prompt.clientId }) }
+            settled.dropsRepeatPrompts == true -> return sendWhenIdle(prompt)
+            else -> update { copy(pendingMessages = pendingMessages.failing(prompt)) }
+        }
+        persistQueue()
     }
 
     /**
@@ -279,8 +290,7 @@ internal class ChatOfflineQueueController(
         // Only now is the durable copy dropped, and deliberately not from a
         // finally: until the send resolves the stored snapshot still holds
         // this prompt as dispatched, so a screen teardown or process death
-        // mid-turn restores it. The restore resends it under the same clientId,
-        // and the gateway drops a repeat it already delivered, so the agent sees it once.
+        // mid-turn restores it for [settleDispatched].
         persistQueue()
     }
 

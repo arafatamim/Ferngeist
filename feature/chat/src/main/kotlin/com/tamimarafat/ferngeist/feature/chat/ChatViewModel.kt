@@ -513,9 +513,9 @@ class ChatViewModel
             val (reconciledPending, echoKeys) = reconcileEchoes(state.value.pendingMessages, snapshot.messages)
             val wasStreaming = state.value.isStreaming
             val wasReady = state.value.isSessionReady
-            // The echo is the runtime's own record of the prompt, not the gateway's: the durable
-            // copy stays (as dispatched) until the turn ends, so a process death before the
-            // prompt left can still resend it.
+            // The echo is the runtime's own record of the prompt, not proof it was delivered: the
+            // durable copy stays (as dispatched) until the turn ends, so a process death mid-turn
+            // leaves the restore to settle it (see ChatOfflineQueueController.settleDispatched).
             // Only a phone-origin echo advances this clock; completion can arrive after the screen closes.
             if (echoKeys.isNotEmpty()) {
                 durableSessionId?.let { PhoneTurnClock.record(serverId, it, System.currentTimeMillis(), echoKeys.keys) }
@@ -748,6 +748,7 @@ private fun ChatState.withSnapshot(
         commandsAdvertised = snapshot.commandsAdvertised,
         configOptions = snapshot.configOptions,
         pendingElicitations = snapshot.pendingElicitations,
+        dropsRepeatPrompts = snapshot.dropsRepeatPrompts,
         isLoading =
             !loadErrorStands &&
                 (

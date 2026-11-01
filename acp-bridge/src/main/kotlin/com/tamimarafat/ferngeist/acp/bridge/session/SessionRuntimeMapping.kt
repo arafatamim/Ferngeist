@@ -85,6 +85,7 @@ internal fun summarizeEvent(event: AppSessionEvent): String =
         is AppSessionEvent.CommandsUpdated -> "commands=${event.commands.size}"
         is AppSessionEvent.SessionInfoUpdated -> "title=${event.title} updatedAt=${event.updatedAt}"
         is AppSessionEvent.TurnEndUnheard -> "turnEndUnheard"
+        is AppSessionEvent.PromptDelivered -> "clientId=${event.clientId}"
         is AppSessionEvent.TurnComplete -> "stopReason=${event.stopReason}"
         is AppSessionEvent.Unknown -> "unknownRawLen=${event.raw.length}"
     }

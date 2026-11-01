@@ -76,6 +76,7 @@ internal fun mapSnapshot(snapshot: SessionSnapshot): ChatSessionSnapshot =
         error = snapshot.error,
         title = snapshot.title,
         pendingElicitations = snapshot.pendingElicitations,
+        dropsRepeatPrompts = snapshot.dropsRepeatPrompts,
         usage =
             snapshot.usage?.let {
                 UsageState(

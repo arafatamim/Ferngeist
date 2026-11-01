@@ -41,4 +41,6 @@ data class SessionSnapshot(
     val turnStatusSince: ComparableTimeMark? = null,
     /** Identity of the terminal event within this runtime, independent of conflated streaming updates. */
     val turnCompletionSequence: Long = 0,
+    /** See [com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot.dropsRepeatPrompts]. */
+    val dropsRepeatPrompts: Boolean? = false,
 )

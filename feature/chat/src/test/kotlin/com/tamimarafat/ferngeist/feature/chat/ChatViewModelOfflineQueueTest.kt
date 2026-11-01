@@ -430,15 +430,63 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `a prompt cut off mid-turn is resent under its id even when the transcript shows it`() =
+    fun `a prompt cut off mid-turn whose delivery the transcript proves is not resent`() =
         runTest {
             val store = InMemoryPendingPromptStore()
             val clientId = sendCutOffMidTurn(store, "once")
 
-            // The saved local bubble carries the id too, so it proves nothing about delivery;
-            // the gateway drops the repeat if it already delivered the prompt.
             val reopened = TestFacade(sendResult = true)
-            reopenOver(store, reopened, transcript = listOf(echoMessage(content = "once", clientId = clientId)))
+            val delivered = echoMessage(content = "once", clientId = clientId).copy(deliveryConfirmed = true)
+            val viewModel = reopenOver(store, reopened, transcript = listOf(delivered), dropsRepeatPrompts = false)
+
+            assertEquals(emptyList<String>(), reopened.sentClientIds)
+            assertEquals(emptyList<ChatMessage>(), viewModel.state.value.pendingMessages)
+            assertEquals(emptyList<QueuedPromptRecord>(), store.restore("server_1", "session_1"))
+        }
+
+    @Test
+    fun `an unconfirmed prompt cut off mid-turn is resent under its id to a gateway that refuses repeats`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            // The saved local bubble carries the id too, so it proves nothing about delivery.
+            val reopened = TestFacade(sendResult = true)
+            val transcript = listOf(echoMessage(content = "once", clientId = clientId))
+            reopenOver(store, reopened, transcript, dropsRepeatPrompts = true)
+
+            assertEquals(listOf(clientId), reopened.sentClientIds)
+        }
+
+    @Test
+    fun `an unconfirmed prompt cut off mid-turn is left to the user where a resend could run it twice`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            val reopened = TestFacade(sendResult = true)
+            val transcript = listOf(echoMessage(content = "once", clientId = clientId))
+            val viewModel = reopenOver(store, reopened, transcript, dropsRepeatPrompts = false)
+
+            assertEquals(emptyList<String>(), reopened.sentClientIds)
+            val pending =
+                viewModel.state.value.pendingMessages
+                    .single()
+            assertEquals(clientId to MessageDeliveryStatus.FAILED, pending.clientId to pending.status)
+        }
+
+    @Test
+    fun `an unconfirmed prompt waits for the attach to learn what the gateway remembers`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            val reopened = TestFacade(sendResult = true)
+            reopenOver(store, reopened, transcript = emptyList(), dropsRepeatPrompts = null)
+            assertEquals("restored, not yet attached", emptyList<String>(), reopened.sentClientIds)
+
+            reopened.emitSnapshot(readySnapshot(dropsRepeatPrompts = true))
+            advanceUntilIdle()
 
             assertEquals(listOf(clientId), reopened.sentClientIds)
         }
@@ -464,18 +512,6 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             assertEquals("the transcript's copy is the only bubble", emptyList<ChatMessage>(), pending)
             viewModel.clearForTest()
             advanceUntilIdle()
-        }
-
-    @Test
-    fun `a prompt cut off before its echo is resent under the same client id`() =
-        runTest {
-            val store = InMemoryPendingPromptStore()
-            val clientId = sendCutOffMidTurn(store, "once")
-
-            val reopened = TestFacade(sendResult = true)
-            reopenOver(store, reopened, transcript = emptyList())
-
-            assertEquals(listOf(clientId), reopened.sentClientIds)
         }
 
     @Test
@@ -522,24 +558,28 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         return record.clientId
     }
 
-    /** Reopens the chat over [store] with [transcript] caught up, then lets the queue flush. */
+    /**
+     * Reopens the chat over [store] with [transcript] caught up by an attach that found
+     * [dropsRepeatPrompts], then lets the queue flush. The screen stays open: a flush still
+     * waiting must not be cut short.
+     */
     private suspend fun TestScope.reopenOver(
         store: InMemoryPendingPromptStore,
         facade: TestFacade,
         transcript: List<ChatMessage>,
-    ) {
+        dropsRepeatPrompts: Boolean?,
+    ): ChatViewModel {
         val viewModel =
             createViewModel(
                 facadeFactory = TestFacadeFactory { facade },
                 stores = testStores(pendingPromptStore = store),
             )
         advanceUntilIdle()
-        facade.emitSnapshot(readySnapshot(messages = transcript))
+        facade.emitSnapshot(readySnapshot(messages = transcript, dropsRepeatPrompts = dropsRepeatPrompts))
         advanceUntilIdle()
         facade.emitSessionReady()
         advanceUntilIdle()
-        viewModel.clearForTest()
-        advanceUntilIdle()
+        return viewModel
     }
 
     @Test

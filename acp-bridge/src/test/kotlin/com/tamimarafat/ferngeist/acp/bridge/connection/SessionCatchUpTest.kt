@@ -15,6 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -120,6 +121,29 @@ class SessionCatchUpTest {
             assertEquals(TurnStatus.FINISHED, snapshot.turnStatus)
             val turn = snapshot.messages.last().turn!!
             assertEquals(4200L, turn.finishedAt - turn.startedAt)
+        }
+
+    @Test
+    fun `only a gapless catch-up shows the gateway still refuses repeat prompts`() =
+        runTest {
+            val restored = restoredMidTurn()
+            assertNull("a restored chat has yet to learn it", restored.snapshot.value.dropsRepeatPrompts)
+            val gapless = ScriptedTransport(mapOf("session/resume" to listOf(catchUpReply(false, false))))
+            val heldBridge =
+                attachOver(gapless, restored).attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1")
+                    as SessionBridge
+
+            // A gap means the runtime that ran the chat's prompts may be gone, and its ids with it.
+            val gap =
+                ScriptedTransport(
+                    mapOf("session/resume" to listOf(catchUpReply(false, true)), "session/load" to listOf(LOADED)),
+                )
+            val refilledBridge =
+                attachOver(gap, restoredMidTurn()).attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1")
+                    as SessionBridge
+
+            assertEquals(true, heldBridge.snapshot.value.dropsRepeatPrompts)
+            assertEquals(false, refilledBridge.snapshot.value.dropsRepeatPrompts)
         }
 
     @Test
@@ -299,11 +323,12 @@ class SessionCatchUpTest {
                 bridge.snapshot.value.messages
                     .filter { it.role == ChatMessage.Role.USER }
             assertEquals(listOf("go"), users.map { it.content })
+            assertTrue("the gateway's numbered echo proves delivery", users.single().deliveryConfirmed)
             assertEquals("hel", bridge.replyText())
         }
 
     @Test
-    fun `a prompt names itself on the wire and a resend the gateway already delivered counts as sent`() =
+    fun `a prompt names itself on the wire and a resend the gateway already delivered counts as delivered`() =
         runTest {
             val delivered =
                 """{"jsonrpc":"2.0","id":${'$'}ID,"error":{"code":-32050,"message":"prompt already delivered",""" +
@@ -318,11 +343,16 @@ class SessionCatchUpTest {
             val gateway = attachOver(transport)
             val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w") as SessionBridge
 
+            bridge.runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "c1")
             gateway.sendSessionMessage("s1", "go", clientId = "c1")
 
             val meta = (transport.sentParams.last() as JsonObject)["_meta"] as JsonObject
             assertEquals("c1", meta["ferngeist/clientId"]?.jsonPrimitive?.content)
             assertFalse("no failed turn", bridge.snapshot.value.isStreaming)
+            val prompt =
+                bridge.snapshot.value.messages
+                    .single { it.role == ChatMessage.Role.USER }
+            assertTrue(prompt.deliveryConfirmed)
             assertTrue(bridge.events.replayCache.none { it is AppSessionEvent.TurnComplete })
         }
 

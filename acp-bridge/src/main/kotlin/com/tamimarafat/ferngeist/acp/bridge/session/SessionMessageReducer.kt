@@ -101,6 +101,8 @@ object SessionMessageReducer {
                     messages = failUnfinishedToolCalls(finishStreaming(messages)),
                     toolCallIndex = toolCallIndex,
                 )
+            is AppSessionEvent.PromptDelivered ->
+                ReducerResult(messages = messages.confirmingDelivery(event.clientId), toolCallIndex = toolCallIndex)
             else ->
                 ReducerResult(messages = messages, toolCallIndex = toolCallIndex)
         }

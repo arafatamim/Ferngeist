@@ -11,6 +11,7 @@ import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.MethodName
+import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
@@ -57,13 +58,17 @@ internal fun promptClientId(update: SessionUpdate): String? =
 internal fun clientIdMeta(clientId: String): JsonObject = buildJsonObject { put(CLIENT_ID_KEY, clientId) }
 
 /**
- * Ends a resend of a prompt the gateway already delivered quietly: its turn runs (or ran) on, so it
- * counts as sent, and [onDelivered] closes what the resend opened locally.
+ * Ends a resend of [clientId]'s prompt the gateway already delivered quietly: its turn runs (or
+ * ran) on, so [bridge] records it delivered and closes what the resend opened locally.
  */
-internal fun Flow<Event>.deliveredOnce(onDelivered: suspend () -> Unit): Flow<Event> =
+internal fun Flow<Event>.deliveredOnce(
+    bridge: SessionBridge,
+    clientId: String?,
+): Flow<Event> =
     catch { error ->
         if ((error as? JsonRpcException)?.code != PROMPT_ALREADY_DELIVERED) throw error
-        onDelivered()
+        clientId?.let { bridge.emitEvent(AppSessionEvent.PromptDelivered(it)) }
+        bridge.emitEvent(AppSessionEvent.TurnEndUnheard)
     }
 
 /** `session/resume` params `_meta` asking the gateway for the updates after [CatchUpCursor.afterSeq]. */
@@ -130,7 +135,8 @@ internal suspend fun Client.settleCatchUp(
 ) {
     reply.epoch?.let { bridge.runtime.catchUpFrom(it) }
     if (reply.gap && canLoad) loadInto(bridge, cwd, turnRunning = reply.turnActive)
-    bridge.runtime.settleAttach(turnRunning = reply.turnActive)
+    // No gap: the runtime that ran this chat's prompts still holds it, ids it delivered included.
+    bridge.runtime.settleAttach(turnRunning = reply.turnActive, dropsRepeatPrompts = !reply.gap)
 }
 
 /**

@@ -29,6 +29,11 @@ data class ChatMessage(
     val createdAt: Long = System.currentTimeMillis(),
     val status: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
     val clientId: String? = null,
+    /**
+     * Proof this prompt reached the agent: its turn's reply, or the gateway's numbered echo of it.
+     * A local copy carries [clientId] too, so the id alone proves nothing.
+     */
+    val deliveryConfirmed: Boolean = false,
     /** When the turn this reply answers was sent and finished; on a reply once it closes. */
     val turn: TurnTiming? = null,
 ) {

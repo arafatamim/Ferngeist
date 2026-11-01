@@ -46,8 +46,10 @@ class SessionRuntimeRestoreTest {
 
             val restored = SessionRuntime(sessionId = "ses_test")
             restored.restore(original.savedState())
-            // A monotonic time mark cannot cross processes, so the restored turn is untimed.
-            assertEquals(original.snapshot.value.copy(turnStatusSince = null), restored.snapshot.value)
+            // A monotonic time mark cannot cross processes, so the restored turn is untimed; what the
+            // gateway remembers is learnt by the attach a restore precedes.
+            val expected = original.snapshot.value.copy(turnStatusSince = null, dropsRepeatPrompts = null)
+            assertEquals(expected, restored.snapshot.value)
             assertTrue(restored.snapshot.value.isStreaming)
 
             listOf(
@@ -59,7 +61,7 @@ class SessionRuntimeRestoreTest {
                 restored.onEvent(event)
             }
             // Segments the shared events created carry fresh random ids in each runtime, and the
-            // completion sequence and time marks are each runtime's own.
+            // completion sequence, time marks and attach knowledge are each runtime's own.
             assertEquals(original.snapshot.value.withoutLocalIds(), restored.snapshot.value.withoutLocalIds())
             assertEquals(
                 ToolCallStatus.COMPLETED,
@@ -106,6 +108,7 @@ class SessionRuntimeRestoreTest {
         copy(
             turnCompletionSequence = 0,
             turnStatusSince = null,
+            dropsRepeatPrompts = null,
             messages = messages.map { m -> m.copy(segments = m.segments.map { it.copy(id = "") }.toPersistentList()) },
         )
 }

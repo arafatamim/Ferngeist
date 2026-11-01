@@ -342,6 +342,11 @@ data class ChatSessionSnapshot(
     val usage: UsageState?,
     val title: String? = null,
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+    /**
+     * Whether the gateway would refuse a repeat of a prompt it already delivered, as the last
+     * attach found it; null while a restored or attaching chat has yet to learn it.
+     */
+    val dropsRepeatPrompts: Boolean? = false,
 ) {
     /** This snapshot as history, never live state: a stale streaming flag is cleared. */
     fun asHistory(): ChatSessionSnapshot =

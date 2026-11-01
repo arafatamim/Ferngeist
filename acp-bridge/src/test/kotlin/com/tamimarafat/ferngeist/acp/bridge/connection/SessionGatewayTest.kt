@@ -27,6 +27,7 @@ import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.coroutines.CancellationException
@@ -44,7 +45,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
@@ -286,39 +287,23 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `resending a prompt whose turn still runs joins that turn instead of failing it`() =
+    fun `a prompt's reply confirms its delivery before its turn ends`() =
         runTest {
             val connection = newConnection()
-            val collecting = CompletableDeferred<Unit>()
-            val finish = CompletableDeferred<Unit>()
-            val running =
-                flow {
-                    collecting.complete(Unit)
-                    finish.await()
-                    emit(Event.PromptResponseEvent(PromptResponse(stopReason = StopReason.END_TURN)))
-                }
-            // The real SDK session refuses a second prompt while one is active.
-            val refused = flow<Event> { error("There is active prompt execution") }
+            val reply = flowOf<Event>(Event.PromptResponseEvent(PromptResponse(stopReason = StopReason.END_TURN)))
             val bridge = SessionBridge("s1", connection)
             val registry = gatewayField(connection.sessions, "sessionRegistry") as AcpSessionRegistry
             registry.storeBridge("s1", bridge)
-            registry.storeSdkSession("s1", FakeClientSession(listOf(running, refused)))
+            registry.storeSdkSession("s1", FakeClientSession(listOf(reply)))
+            val seen = mutableListOf<SessionSnapshot>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { bridge.snapshot.collect { seen += it } }
 
-            val first = launch { runCatching { bridge.sendPrompt("sleep", clientId = "c1") } }
-            collecting.await()
-            // A screen rebuilt mid-turn (same process) resends the prompt it saved as dispatched.
-            val resend = async { runCatching { bridge.sendPrompt("sleep", clientId = "c1") } }
-            runCurrent()
-            finish.complete(Unit)
+            bridge.sendPrompt("go", clientId = "c1")
 
-            assertTrue("the resend counts as sent", resend.await().isSuccess)
-            first.join()
-            val users =
-                bridge.snapshot.value.messages
-                    .filter { it.role == ChatMessage.Role.USER }
-                    .map { it.clientId }
-            assertEquals("the prompt stays in the transcript once", listOf("c1"), users)
-            assertEquals("only the real turn end counts", listOf("end_turn"), turnReasons(bridge))
+            // A restored queue settles a dispatched prompt the moment its turn reads as ended.
+            val ended = seen.dropWhile { !it.isStreaming }.first { !it.isStreaming }
+            val prompt = ended.messages.single { it.role == ChatMessage.Role.USER }
+            assertTrue("delivery is proven by the time the turn reads as ended", prompt.deliveryConfirmed)
         }
 
     @Test

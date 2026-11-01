@@ -24,6 +24,7 @@
       "createdAt": 1700000000000,
       "status": "SENT",
       "clientId": "client-1",
+      "deliveryConfirmed": true,
       "turn": null
     },
     {
@@ -97,6 +98,7 @@
       "createdAt": 1700000000001,
       "status": "SENT",
       "clientId": null,
+      "deliveryConfirmed": false,
       "turn": {
         "startedAt": 1700000000000,
         "finishedAt": 1700000005000

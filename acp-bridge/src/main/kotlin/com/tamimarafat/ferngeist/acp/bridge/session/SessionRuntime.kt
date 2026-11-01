@@ -105,6 +105,9 @@ class SessionRuntime(
     private var attaching = false
     private var heldTurnEnd: AppSessionEvent.TurnComplete? = null
 
+    /** What the last attach learned about the gateway; see [SessionSnapshot.dropsRepeatPrompts]. */
+    private var dropsRepeatPrompts: Boolean? = false
+
     private val _snapshot =
         MutableStateFlow(
             SessionSnapshot(
@@ -223,6 +226,8 @@ class SessionRuntime(
         mutex.withLock {
             attaching = true
             heldTurnEnd = null
+            dropsRepeatPrompts = null
+            _snapshot.value = _snapshot.value.copy(dropsRepeatPrompts = null)
             live =
                 live.copy(
                     turnOutcome = TurnStatus.UNKNOWN,
@@ -234,12 +239,18 @@ class SessionRuntime(
 
     /**
      * Ends the attach: the turn end it held closes the turn now, after every update the attach
-     * replayed; without one, a turn no longer [turnRunning] closes unheard.
+     * replayed; without one, a turn no longer [turnRunning] closes unheard. [dropsRepeatPrompts]:
+     * the gateway answered for a session it still holds, so it remembers the prompts it delivered.
      */
-    suspend fun settleAttach(turnRunning: Boolean) {
+    suspend fun settleAttach(
+        turnRunning: Boolean,
+        dropsRepeatPrompts: Boolean = false,
+    ) {
         val end =
             mutex.withLock {
                 attaching = false
+                this.dropsRepeatPrompts = dropsRepeatPrompts
+                _snapshot.value = _snapshot.value.copy(dropsRepeatPrompts = dropsRepeatPrompts)
                 heldTurnEnd.also { heldTurnEnd = null }
             }
         when {
@@ -421,6 +432,8 @@ class SessionRuntime(
         mutex.withLock {
             live = data.copy(messages = data.messages.map { it.withoutPermissionPrompts() })
             eventSeq = data.turnCompletionSequence
+            // What the gateway remembers is learnt by the attach this restore precedes.
+            dropsRepeatPrompts = null
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
@@ -690,6 +703,7 @@ class SessionRuntime(
                         else -> null
                     },
                 turnCompletionSequence = live.turnCompletionSequence,
+                dropsRepeatPrompts = dropsRepeatPrompts,
             )
         debug {
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +

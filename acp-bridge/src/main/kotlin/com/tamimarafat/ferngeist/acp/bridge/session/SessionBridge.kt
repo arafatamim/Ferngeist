@@ -120,15 +120,8 @@ class SessionBridge(
      * the user navigates away; collecting the prompt there would make the SDK send a
      * `$/cancelRequest`, aborting the agent mid-turn and leaving the transcript with
      * no terminal event. A turn dies with its session, not with the screen.
-     * [clientId] names the prompt the turn runs, so a resend of it can join it.
      */
-    internal fun startTurn(
-        clientId: String?,
-        block: suspend () -> Unit,
-    ): Deferred<Unit> = eventScope.async { block() }.also { turn = clientId to it }
-
-    /** The latest turn [startTurn] launched and the prompt it runs. */
-    @Volatile private var turn: Pair<String?, Deferred<Unit>>? = null
+    internal fun startTurn(block: suspend () -> Unit): Deferred<Unit> = eventScope.async { block() }
 
     /** Cancels the turn in flight, if any, keeping the bridge usable for the next attach. */
     internal fun interruptTurn() {
@@ -147,12 +140,6 @@ class SessionBridge(
         files: List<ChatFileData>,
         clientId: String?,
     ) {
-        // A screen rebuilt in this process resends the prompt it saved as dispatched. The SDK
-        // refuses a second prompt mid-turn, and that failure's rollback would take the
-        // original prompt and the running turn with it, so the resend joins its turn instead.
-        turn?.takeIf { (id, job) -> clientId != null && id == clientId && job.isActive }?.let { (_, job) ->
-            return job.join()
-        }
         runtime.onLocalPromptStarted(text, images, files, clientId)
         sendWithRollback(text, images, files, clientId)
     }
@@ -413,6 +400,14 @@ sealed interface AppSessionEvent {
      * or catch-up reports none): closes it with no outcome.
      */
     data object TurnEndUnheard : AppSessionEvent
+
+    /**
+     * The prompt [clientId] names reached the agent: its reply arrived, or the gateway refused a
+     * repeat of it. Emitted before the turn end it proves, so whoever waits for that end sees it.
+     */
+    data class PromptDelivered(
+        val clientId: String,
+    ) : AppSessionEvent
 
     /**
      * The turn's terminal event: normally the agent's reply, whose [stopReason] is the ACP
