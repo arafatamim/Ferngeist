@@ -176,7 +176,11 @@ internal class SessionGateway(
             return (caughtUp ?: attachAndHydrate(client, rpc, sessionId, cwd)).also { succeeded = it != null }
         } finally {
             attachTimings.remove(sessionId, timing)
-            attachTurnEnds.remove(sessionId)
+            // registerSession drained the ends stashed so far; one that landed after it (during a
+            // catch-up refill or the load's own completion) still has to close the turn.
+            attachTurnEnds.remove(sessionId)?.let { end ->
+                if (succeeded) sessionRegistry.getBridge(sessionId)?.emitEvent(end)
+            }
             reportAttachTiming(rpc, sessionId, timing, succeeded)
         }
     }

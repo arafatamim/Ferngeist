@@ -130,6 +130,31 @@ class SessionCatchUpTest {
         }
 
     @Test
+    fun `a turn that ends during a gap refill still stops streaming`() =
+        runTest {
+            val gateway = newGateway()
+            val turnResult =
+                """{"jsonrpc":"2.0","method":"_ferngeist/turn_result","params":""" +
+                    """{"sessionId":"s1","stopReason":"end_turn","usage":null,"durationMs":null}}"""
+            val transport =
+                ScriptedTransport(
+                    mapOf(
+                        "session/resume" to listOf(catchUpReply(true, true)),
+                        "session/load" to
+                            listOf(chunk("replayed", 1), turnResult, """{"jsonrpc":"2.0","id":${'$'}ID,"result":{}}"""),
+                    ),
+                )
+            val client = clientOver(transport)
+            client.protocol.onRemoteTurnEnded(gateway::endRemoteTurn)
+            installSdkClient(gateway, client.also { it.protocol.start() })
+
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+
+            assertFalse(bridge.snapshot.value.isStreaming)
+            assertEquals(TurnStatus.FINISHED, bridge.snapshot.value.turnStatus)
+        }
+
+    @Test
     fun `a saved state from another agent process skips the catch-up`() =
         runTest {
             val gateway = newGateway()
