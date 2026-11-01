@@ -54,7 +54,7 @@ class SessionStateStore(
      * Saves [chatId]'s state each time [snapshot] settles on a new ready state, at most every
      * [SAVE_INTERVAL_MS]: a process death loses at most that much, which a reattach refills.
      * shortcut: rewrites the whole state per save; a multi-MB chat streaming on screen pays an
-     * encode every interval, so save only in the background if that shows in profiles.
+     * encode every interval (off the hub's main-thread scope), so save less often if that shows in profiles.
      */
     suspend fun keepSaved(
         chatId: String,
@@ -62,7 +62,7 @@ class SessionStateStore(
         save: suspend () -> String?,
     ) {
         snapshot.filter { it.loadState == SessionLoadState.READY }.collect {
-            save()?.let { state -> withContext(ioDispatcher) { write(chatId, state) } }
+            withContext(ioDispatcher) { save()?.let { state -> write(chatId, state) } }
             delay(SAVE_INTERVAL_MS)
         }
     }
