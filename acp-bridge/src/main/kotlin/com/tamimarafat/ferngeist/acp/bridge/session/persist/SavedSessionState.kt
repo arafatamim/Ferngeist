@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionUsage
 import com.tamimarafat.ferngeist.acp.bridge.session.ToolCallLocation
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -87,9 +88,11 @@ private fun RuntimeData.toSaved() =
         lastSeq = lastSeq,
     )
 
+// A permission prompt is dropped: its request died with the process, and the gateway re-sends
+// the ones still open.
 private fun SavedSessionState.toRuntimeData() =
     RuntimeData(
-        messages = messages,
+        messages = messages.map { it.withoutPermissionPrompts() },
         isStreaming = isStreaming,
         toolCallIndex = toolCallIndex,
         usage = usage,
@@ -108,3 +111,15 @@ private fun SavedSessionState.toRuntimeData() =
         epoch = epoch,
         lastSeq = lastSeq,
     )
+
+private fun ChatMessage.withoutPermissionPrompts(): ChatMessage {
+    if (segments.none { it.toolCall?.permissionRequestId != null }) return this
+    return copy(
+        segments =
+            segments
+                .map { segment ->
+                    val call = segment.toolCall?.takeIf { it.permissionRequestId != null } ?: return@map segment
+                    segment.copy(toolCall = call.copy(permissionOptions = null, permissionRequestId = null))
+                }.toPersistentList(),
+    )
+}

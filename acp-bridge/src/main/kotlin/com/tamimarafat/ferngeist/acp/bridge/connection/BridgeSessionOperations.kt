@@ -9,9 +9,9 @@ import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.updateSeq
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.updateSeq
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.serialization.json.JsonElement

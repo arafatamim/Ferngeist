@@ -8,17 +8,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
 import java.net.URLEncoder
 
 /**
  * One file per chat holding its runtime's saved state, so a chat draws at once after process
- * death. Files, not Room: a long chat's state outgrows what a cursor window reads back. Beside
- * them, one file lists the hub's open chats, so the switcher survives process death too.
+ * death. Files, not Room: a long chat's state outgrows what a cursor window reads back.
  *
  * The format version is part of the file name, so a state saved by an older layout is never
  * read: it only costs that chat a full load, and pruning deletes it. Only the [maxChats] most
@@ -34,27 +30,6 @@ class SessionStateStore(
 
     suspend fun delete(chatId: String) {
         withContext(ioDispatcher) { file(chatId).delete() }
-    }
-
-    /**
-     * The open chats [saveOpenChats] last saved; a corrupt list costs only the switcher's entries.
-     * Null when the file cannot be read, so the caller leaves it alone instead of overwriting it.
-     */
-    internal suspend fun readOpenChats(): List<OpenChat>? =
-        withContext(ioDispatcher) {
-            try {
-                val saved = openChatsFile().takeIf { it.exists() }?.readText() ?: return@withContext emptyList()
-                Json.decodeFromString<List<OpenChat>>(saved)
-            } catch (_: SerializationException) {
-                emptyList()
-            } catch (_: IOException) {
-                null
-            }
-        }
-
-    /** Best-effort: a failed write keeps the previous list, and the next change rewrites it. */
-    internal suspend fun saveOpenChats(chats: List<OpenChat>) {
-        withContext(ioDispatcher) { ignoringIoFailure { replace(openChatsFile(), Json.encodeToString(chats)) } }
     }
 
     /**
@@ -79,20 +54,11 @@ class SessionStateStore(
         chatId: String,
         state: String,
     ) {
-        replace(file(chatId), state)
+        file(chatId).replaceAtomically(state)
         prune()
     }
 
-    private fun replace(
-        target: File,
-        text: String,
-    ) {
-        dir.mkdirs()
-        val temp = File.createTempFile("state", ".tmp", dir)
-        temp.writeText(text)
-        if (!temp.renameTo(target)) temp.delete()
-    }
-
+    // Only state files: the hub's open-chat list shares this directory and must never be pruned.
     private fun prune() {
         dir
             .listFiles { file -> file.name.endsWith(SUFFIX) }
@@ -114,22 +80,17 @@ class SessionStateStore(
         }
     }
 
-    // Not [SUFFIX]: pruning must never count or delete the list.
-    private fun openChatsFile() = File(dir, "open-chats-v$OPEN_CHATS_VERSION.list")
-
     private companion object {
-        /** Bump when [OpenChat]'s shape changes incompatibly. */
-        const val OPEN_CHATS_VERSION = 1
         const val SUFFIX = ".json"
         const val SAVE_INTERVAL_MS = 3_000L
     }
 }
 
-/** One chat the hub tracked, as much as a cold entry needs to come back after process death. */
-@Serializable
-internal data class OpenChat(
-    val serverId: String,
-    val sessionId: String,
-    val cwd: String,
-    val lastFocusedMs: Long,
-)
+/** Replaces this file's text atomically: a reader sees the old file or the new one, never half. */
+internal fun File.replaceAtomically(text: String) {
+    // The temp file sits beside the target, so the rename stays on one filesystem.
+    val dir = checkNotNull(absoluteFile.parentFile).apply { mkdirs() }
+    val temp = File.createTempFile("state", ".tmp", dir)
+    temp.writeText(text)
+    if (!temp.renameTo(this)) temp.delete()
+}

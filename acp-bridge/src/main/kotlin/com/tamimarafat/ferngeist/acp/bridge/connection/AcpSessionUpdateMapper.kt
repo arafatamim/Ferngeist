@@ -4,13 +4,13 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.PlanVariant
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.StopReason
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.promptClientId
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoiceGroup
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.promptClientId
 import java.time.Instant
 import java.time.OffsetDateTime
 

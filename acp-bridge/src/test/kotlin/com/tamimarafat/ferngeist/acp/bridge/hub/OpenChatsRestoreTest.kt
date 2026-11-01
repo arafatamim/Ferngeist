@@ -2,7 +2,6 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,7 +23,7 @@ class OpenChatsRestoreTest {
     fun `open chats come back cold after process death and leave once closed`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
-            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val store = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
             hubOver(store).chatScreenOpened("srv", "s1", "/work")
             advanceUntilIdle()
             val key = chatIdFor("srv", "s1")
@@ -45,7 +44,7 @@ class OpenChatsRestoreTest {
     fun `restored chats hold no transport so a new chat does not evict them`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
-            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val store = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
             val before = hubOver(store)
             listOf("s1", "s2", "s3").forEach { before.chatScreenOpened("srv", it, "/work") }
             advanceUntilIdle()
@@ -64,7 +63,7 @@ class OpenChatsRestoreTest {
     fun `closing a restored chat deletes the gateway session that runs it`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
-            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val store = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
             hubOver(store).chatScreenOpened("srv", "s1", "/work")
             advanceUntilIdle()
             val running = GatewaySessionSummary("g-1", "r-1", "agent-1", "active", acpSessionIds = listOf("s1"))
@@ -84,7 +83,7 @@ class OpenChatsRestoreTest {
     fun `a restored chat stays tracked when the gateway listing fails`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
-            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val store = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
             hubOver(store).chatScreenOpened("srv", "s1", "/work")
             advanceUntilIdle()
             val repo = FakeGatewayRepo().apply { listFailure = IOException("offline") }
@@ -102,7 +101,7 @@ class OpenChatsRestoreTest {
     fun `a restored chat opened and closed offline stays in the switcher`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
-            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val store = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
             hubOver(store).chatScreenOpened("srv", "s1", "/work")
             advanceUntilIdle()
 
@@ -120,7 +119,7 @@ class OpenChatsRestoreTest {
     fun `an unreadable open-chat list is not overwritten by the chats opened after it`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
-            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val store = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
             hubOver(store).chatScreenOpened("srv", "s1", "/work")
             advanceUntilIdle()
             val list = dir.listFiles { file -> file.name.endsWith(".list") }!!.single()
@@ -141,7 +140,7 @@ class OpenChatsRestoreTest {
     fun `a chat saved before process death paints from the runtime its connection then attaches to`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
-            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val store = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
             val before = hubOver(store)
             val runtime = before.runtimeFor("srv", "s1")
             runtime.onEvent(AppSessionEvent.SessionInfoUpdated(title = "kept", updatedAt = null))
@@ -157,12 +156,12 @@ class OpenChatsRestoreTest {
         }
 
     private fun TestScope.hubOver(
-        store: SessionStateStore,
+        store: HubPersistence,
         repo: FakeGatewayRepo = FakeGatewayRepo(),
     ) = ChatConnectionHub(
         gatewayRepository = repo,
         scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
         connectivityObserver = ConnectivityObserverStub(initialState = true),
-        stateStore = store,
+        persistence = store,
     )
 }

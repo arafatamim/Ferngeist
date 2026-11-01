@@ -50,11 +50,9 @@ class SessionStateStoreTest {
         }
 
     @Test
-    fun `storage keeps only the most recently saved chats and never prunes the open chats list`() =
+    fun `storage keeps only the most recently saved chats`() =
         runTest {
             val store = store(maxChats = 2)
-            val open = listOf(OpenChat("srv", "a", "/w", 1L))
-            store.saveOpenChats(open)
             listOf("a", "b", "c").forEach { id ->
                 save(store, "srv/$id", id)
                 // File times resolve to the second on some filesystems; keep the order unambiguous.
@@ -63,6 +61,5 @@ class SessionStateStoreTest {
 
             assertNull("the oldest chat is pruned", store.read("srv/a"))
             assertEquals("c", store.read("srv/c"))
-            assertEquals(open, store.readOpenChats())
         }
 }

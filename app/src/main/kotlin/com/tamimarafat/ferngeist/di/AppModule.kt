@@ -8,7 +8,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserv
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
+import com.tamimarafat.ferngeist.acp.bridge.hub.HubPersistence
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -114,7 +114,7 @@ object AppModule {
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
             connectivityObserver = connectivityObserver,
-            stateStore = SessionStateStore(File(context.filesDir, "chat-state")),
+            persistence = HubPersistence(File(context.filesDir, "chat-state")),
         )
 
     /** Supplies the chat-session facade factory backed by ACP. */

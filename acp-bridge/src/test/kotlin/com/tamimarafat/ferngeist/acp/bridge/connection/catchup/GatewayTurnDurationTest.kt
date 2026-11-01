@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.catchup
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals

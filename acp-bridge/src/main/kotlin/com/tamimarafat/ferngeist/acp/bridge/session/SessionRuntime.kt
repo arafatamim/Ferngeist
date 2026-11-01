@@ -6,7 +6,6 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.TurnTiming
-import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -431,14 +430,10 @@ class SessionRuntime(
     /** The live state, for saving; immutable, so it is read without blocking any event. */
     internal val state: RuntimeData get() = live
 
-    /**
-     * Installs [data] from an earlier process and publishes it; a streaming turn stays streaming.
-     * A permission prompt is dropped: its request died with the process, and the gateway re-sends
-     * the ones still open.
-     */
+    /** Installs [data] from an earlier process and publishes it; a streaming turn stays streaming. */
     internal suspend fun install(data: RuntimeData) {
         mutex.withLock {
-            live = data.copy(messages = data.messages.map { it.withoutPermissionPrompts() })
+            live = data
             eventSeq = data.turnCompletionSequence
             // What the gateway remembers is learnt by the attach this restore precedes.
             dropsRepeatPrompts = null
@@ -725,21 +720,3 @@ class SessionRuntime(
         SessionDebug.d(TAG, sessionId, message)
     }
 }
-
-private fun ChatMessage.withoutPermissionPrompts(): ChatMessage {
-    if (segments.none { it.toolCall?.permissionRequestId != null }) return this
-    return copy(
-        segments =
-            segments
-                .map { segment ->
-                    val call = segment.toolCall?.takeIf { it.permissionRequestId != null } ?: return@map segment
-                    segment.copy(toolCall = call.copy(permissionOptions = null, permissionRequestId = null))
-                }.toPersistentList(),
-    )
-}
-
-/** Where a saved state left off in the gateway's update numbering for one agent process. */
-data class CatchUpCursor(
-    val epoch: String,
-    val afterSeq: Long,
-)

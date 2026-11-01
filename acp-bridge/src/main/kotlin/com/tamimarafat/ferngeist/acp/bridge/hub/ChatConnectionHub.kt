@@ -8,8 +8,6 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.OpenChat
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnActivity
@@ -111,7 +109,7 @@ class ChatConnectionHub(
     private val limits: HubLimits = HubLimits(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     /** Saves each tracked chat's state so it draws at once after process death; null keeps none. */
-    private val stateStore: SessionStateStore? = null,
+    private val persistence: HubPersistence? = null,
 ) : ChatConnectionSurface {
     private data class Entry(
         val chatId: String,
@@ -136,12 +134,13 @@ class ChatConnectionHub(
     private val Entry.screenOpen: Boolean get() = openScreens > 0
 
     private val entries = LinkedHashMap<String, Entry>()
-    private val runtimes = ChatRuntimes(stateStore, limits.maxRetainedChats, ioDispatcher) { it in entries }
+    private val runtimes =
+        ChatRuntimes(persistence?.chatStates, limits.maxRetainedChats, ioDispatcher) { it in entries }
     private val pendingManagers = CopyOnWriteArrayList<AcpConnection>()
     private val browserManagers = CopyOnWriteArrayList<AcpConnection>()
     private val revision = MutableStateFlow(0L)
 
-    /** The entry table as [stateStore] saves it; see [restoreOpenChats]. */
+    /** The entry table as [persistence] saves it; see [restoreOpenChats]. */
     private val openChats = MutableStateFlow(emptyList<OpenChat>())
 
     /**
@@ -243,7 +242,7 @@ class ChatConnectionHub(
                 _turnStatuses.update { it - disconnected }
             }
         }
-        stateStore?.let { store -> scope.launch { restoreOpenChats(store) } }
+        persistence?.let { scope.launch { restoreOpenChats(it.openChats) } }
     }
 
     /**
@@ -252,8 +251,8 @@ class ChatConnectionHub(
      * shortcut: an unreadable table is left as it is and not saved this process, rather than
      * overwritten with only the chats opened since; retry the read if that proves transient.
      */
-    private suspend fun restoreOpenChats(store: SessionStateStore) {
-        val saved = store.readOpenChats() ?: return
+    private suspend fun restoreOpenChats(store: OpenChatsStore) {
+        val saved = store.read() ?: return
         saved.forEach { chat ->
             entries.getOrPut(chatIdFor(chat.serverId, chat.sessionId)) {
                 coldEntry(chat.serverId, chat.sessionId, chat.cwd, chat.lastFocusedMs, openScreens = 0)
@@ -261,7 +260,7 @@ class ChatConnectionHub(
             }
         }
         republish()
-        openChats.collect { store.saveOpenChats(it) }
+        openChats.collect { store.save(it) }
     }
 
     private fun coldEntry(
@@ -476,8 +475,8 @@ class ChatConnectionHub(
             }
         turnObservers[chatId] =
             scope.launch {
-                if (stateStore != null) {
-                    launch { stateStore.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) } }
+                if (persistence != null) {
+                    launch { persistence.chatStates.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) } }
                 }
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
                 val expiry = TurnStatusExpiry(chatId, this)

@@ -1,5 +1,12 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.catchup
 
+import com.tamimarafat.ferngeist.acp.bridge.connection.FailingSendTransport
+import com.tamimarafat.ferngeist.acp.bridge.connection.ScriptedTransport
+import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
+import com.tamimarafat.ferngeist.acp.bridge.connection.SessionGateway
+import com.tamimarafat.ferngeist.acp.bridge.connection.clientOver
+import com.tamimarafat.ferngeist.acp.bridge.connection.installSdkClient
+import com.tamimarafat.ferngeist.acp.bridge.connection.newGateway
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge

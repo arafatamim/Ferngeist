@@ -18,6 +18,12 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.agentclientprotocol.rpc.MethodName
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.clientIdMeta
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.deliveredOnce
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.gatewayTurnDurationMs
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.resumeCatchingUp
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.settleCatchUp
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.updateSeq
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
@@ -28,11 +34,6 @@ import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.failHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.markReady
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.clientIdMeta
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.deliveredOnce
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.resumeCatchingUp
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.settleCatchUp
-import com.tamimarafat.ferngeist.acp.bridge.session.persist.updateSeq
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG

@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.session.persist
+package com.tamimarafat.ferngeist.acp.bridge.connection.catchup
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
