@@ -99,6 +99,9 @@ class ChatViewModel
          */
         private var trackedSessionId: String = mintedSessionId ?: sessionId
 
+        // The last snapshot's [ChatSessionSnapshot.historyGap], so its notice shows once.
+        private var historyGap = false
+
         /**
          * True when this screen was opened on an existing session rather than the
          * create-on-arrival sentinel. Only an existing session can be attached
@@ -530,6 +533,11 @@ class ChatViewModel
             if (!wasStreaming && snapshot.isStreaming) gitTurnDiffLoader.clearTurnDiffs()
             onSessionBecameReady(wasReady)
             titleController.onSnapshot(snapshot)
+            // Once per attach that left a hole: the agent cannot replay what the gateway no longer holds.
+            if (snapshot.historyGap && !historyGap) {
+                emitEffect(ChatEffect.ShowMessage("Some earlier updates in this chat may be missing"))
+            }
+            historyGap = snapshot.historyGap
         }
 
         override fun onCleared() {

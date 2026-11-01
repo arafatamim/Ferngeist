@@ -77,6 +77,7 @@ internal fun mapSnapshot(snapshot: SessionSnapshot): ChatSessionSnapshot =
         title = snapshot.title,
         pendingElicitations = snapshot.pendingElicitations,
         dropsRepeatPrompts = snapshot.dropsRepeatPrompts,
+        historyGap = snapshot.historyGap,
         usage =
             snapshot.usage?.let {
                 UsageState(

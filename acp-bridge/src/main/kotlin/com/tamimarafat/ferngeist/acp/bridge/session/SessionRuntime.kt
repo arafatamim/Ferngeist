@@ -108,6 +108,9 @@ class SessionRuntime(
     /** What the last attach learned about the gateway; see [SessionSnapshot.dropsRepeatPrompts]. */
     private var dropsRepeatPrompts: Boolean? = false
 
+    /** The last attach left updates it could not refill; see [SessionSnapshot.historyGap]. */
+    private var historyGap = false
+
     private val _snapshot =
         MutableStateFlow(
             SessionSnapshot(
@@ -227,7 +230,8 @@ class SessionRuntime(
             attaching = true
             heldTurnEnd = null
             dropsRepeatPrompts = null
-            _snapshot.value = _snapshot.value.copy(dropsRepeatPrompts = null)
+            historyGap = false
+            _snapshot.value = _snapshot.value.copy(dropsRepeatPrompts = null, historyGap = false)
             live =
                 live.copy(
                     turnOutcome = TurnStatus.UNKNOWN,
@@ -241,16 +245,20 @@ class SessionRuntime(
      * Ends the attach: the turn end it held closes the turn now, after every update the attach
      * replayed; without one, a turn no longer [turnRunning] closes unheard. [dropsRepeatPrompts]:
      * the gateway answered for a session it still holds, so it remembers the prompts it delivered.
+     * [historyGap]: the attach missed updates it had no way to refill.
      */
     suspend fun settleAttach(
         turnRunning: Boolean,
         dropsRepeatPrompts: Boolean = false,
+        historyGap: Boolean = false,
     ) {
         val end =
             mutex.withLock {
                 attaching = false
                 this.dropsRepeatPrompts = dropsRepeatPrompts
-                _snapshot.value = _snapshot.value.copy(dropsRepeatPrompts = dropsRepeatPrompts)
+                this.historyGap = historyGap
+                _snapshot.value =
+                    _snapshot.value.copy(dropsRepeatPrompts = dropsRepeatPrompts, historyGap = historyGap)
                 heldTurnEnd.also { heldTurnEnd = null }
             }
         when {
@@ -704,6 +712,7 @@ class SessionRuntime(
                     },
                 turnCompletionSequence = live.turnCompletionSequence,
                 dropsRepeatPrompts = dropsRepeatPrompts,
+                historyGap = historyGap,
             )
         debug {
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +

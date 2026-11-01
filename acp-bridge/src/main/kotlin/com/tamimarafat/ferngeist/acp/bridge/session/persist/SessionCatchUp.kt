@@ -124,7 +124,7 @@ internal suspend fun Client.resumeCatchingUp(
 /**
  * Settles [bridge] once the gateway has replayed what it missed: follows the reply's epoch,
  * refills a gap with a load when the agent has one ([canLoad]; without it the bridge keeps its
- * state, as a plain resume would) and closes a turn that is no longer running. A turn the
+ * state, as a plain resume would, and reports the hole) and closes a turn that is no longer running. A turn the
  * gateway still runs stays open until its own end arrives, refill or not.
  */
 internal suspend fun Client.settleCatchUp(
@@ -136,7 +136,11 @@ internal suspend fun Client.settleCatchUp(
     reply.epoch?.let { bridge.runtime.catchUpFrom(it) }
     if (reply.gap && canLoad) loadInto(bridge, cwd, turnRunning = reply.turnActive)
     // No gap: the runtime that ran this chat's prompts still holds it, ids it delivered included.
-    bridge.runtime.settleAttach(turnRunning = reply.turnActive, dropsRepeatPrompts = !reply.gap)
+    bridge.runtime.settleAttach(
+        turnRunning = reply.turnActive,
+        dropsRepeatPrompts = !reply.gap,
+        historyGap = reply.gap && !canLoad,
+    )
 }
 
 /**

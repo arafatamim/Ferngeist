@@ -147,6 +147,24 @@ class SessionCatchUpTest {
         }
 
     @Test
+    fun `only a gap the agent cannot refill reports a hole in the history`() =
+        runTest {
+            val resumeOnly = ScriptedTransport(mapOf("session/resume" to listOf(catchUpReply(false, true))))
+            val holedGateway = attachOver(resumeOnly, restoredMidTurn())
+            val holed = holedGateway.attachSession(SessionAttachRpc.RESUME, "s1", "/w", epoch = "e1") as SessionBridge
+            val refill =
+                ScriptedTransport(
+                    mapOf("session/resume" to listOf(catchUpReply(false, true)), "session/load" to listOf(LOADED)),
+                )
+            val refilled =
+                attachOver(refill, restoredMidTurn()).attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1")
+                    as SessionBridge
+
+            assertTrue(holed.snapshot.value.historyGap)
+            assertFalse(refilled.snapshot.value.historyGap)
+        }
+
+    @Test
     fun `a gap is refilled by a load over the restored chat`() =
         runTest {
             val loadReply = """{"jsonrpc":"2.0","id":${'$'}ID,"result":{}}"""

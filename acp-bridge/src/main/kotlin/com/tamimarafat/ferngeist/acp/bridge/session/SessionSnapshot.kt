@@ -43,4 +43,6 @@ data class SessionSnapshot(
     val turnCompletionSequence: Long = 0,
     /** See [com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot.dropsRepeatPrompts]. */
     val dropsRepeatPrompts: Boolean? = false,
+    /** See [com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot.historyGap]. */
+    val historyGap: Boolean = false,
 )

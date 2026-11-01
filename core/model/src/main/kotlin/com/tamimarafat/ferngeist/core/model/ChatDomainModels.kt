@@ -347,6 +347,8 @@ data class ChatSessionSnapshot(
      * attach found it; null while a restored or attaching chat has yet to learn it.
      */
     val dropsRepeatPrompts: Boolean? = false,
+    /** The last attach missed updates the agent cannot replay: the transcript may have a hole. */
+    val historyGap: Boolean = false,
 ) {
     /** This snapshot as history, never live state: a stale streaming flag is cleared. */
     fun asHistory(): ChatSessionSnapshot =
