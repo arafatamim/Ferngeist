@@ -506,6 +506,17 @@ class SessionRuntimeTest {
             assertEquals(sampleImage.mimeType, message.images[0].mimeType)
         }
 
+    @Test
+    fun resend_of_a_saved_prompt_keeps_its_single_bubble() {
+        val prompt = UserContent("once", emptyList(), emptyList(), clientId = "c-1")
+        val saved = SessionMessageReducer.appendLocalUserMessage(emptyList(), prompt)
+        val reply = saved + ChatMessage(role = ChatMessage.Role.ASSISTANT, content = "done")
+
+        val resent = SessionMessageReducer.appendLocalUserMessage(reply, prompt)
+
+        assertEquals(1, resent.count { it.role == ChatMessage.Role.USER })
+    }
+
     /** Regression: live-send image echo must not duplicate the user bubble or kill the stream. */
     @Test
     fun live_send_image_echo_dedups_and_preserves_stream() {

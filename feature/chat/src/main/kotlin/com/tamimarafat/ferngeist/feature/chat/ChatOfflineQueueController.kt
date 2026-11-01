@@ -243,17 +243,18 @@ internal class ChatOfflineQueueController(
                 val midTurn = state.first { !it.isStreaming || it.supportsSteering }.isStreaming
                 val prompt = offlineQueue.dequeue() ?: break
                 when {
-                    prompt.isDeliveredIn(state.value.messages) -> dropDelivered(prompt)
+                    // The transcript cannot prove delivery: the saved local bubble carries the same
+                    // clientId. Only session/prompt carries that id for the gateway to drop a repeat,
+                    // so a restored dispatched prompt is never steered.
+                    prompt.dispatched -> {
+                        state.first { !it.isStreaming }
+                        sendWhenIdle(prompt)
+                    }
                     midTurn -> steerIntoTurn(prompt)
                     else -> startTurn(prompt)
                 }
             }
         }
-    }
-
-    private suspend fun dropDelivered(prompt: PendingPrompt) {
-        update { copy(pendingMessages = pendingMessages.filterNot { it.clientId == prompt.clientId }) }
-        persistQueue()
     }
 
     /**
@@ -282,9 +283,8 @@ internal class ChatOfflineQueueController(
         // Only now is the durable copy dropped, and deliberately not from a
         // finally: until the send resolves the stored snapshot still holds
         // this prompt as dispatched, so a screen teardown or process death
-        // mid-turn restores it. The restore resends it under the same clientId
-        // only when the transcript lacks its echo, and the gateway drops a
-        // repeat it already delivered, so the agent sees it once.
+        // mid-turn restores it. The restore resends it under the same clientId,
+        // and the gateway drops a repeat it already delivered, so the agent sees it once.
         persistQueue()
     }
 
@@ -411,7 +411,3 @@ private fun List<ChatMessage>.foldedInto(
             else -> it
         }
     }
-
-/** A prompt restored as dispatched whose echo [messages] already holds: the agent has it. */
-private fun PendingPrompt.isDeliveredIn(messages: List<ChatMessage>): Boolean =
-    dispatched && messages.any { it.clientId == clientId }

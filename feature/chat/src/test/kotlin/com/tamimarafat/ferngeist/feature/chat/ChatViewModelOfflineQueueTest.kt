@@ -9,7 +9,6 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
-import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -395,16 +394,17 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `a prompt cut off mid-turn is not sent again once its echo is in the transcript`() =
+    fun `a prompt cut off mid-turn is resent under its id even when the transcript shows it`() =
         runTest {
             val store = InMemoryPendingPromptStore()
             val clientId = sendCutOffMidTurn(store, "once")
 
+            // The saved local bubble carries the id too, so it proves nothing about delivery;
+            // the gateway drops the repeat if it already delivered the prompt.
             val reopened = TestFacade(sendResult = true)
             reopenOver(store, reopened, transcript = listOf(echoMessage(content = "once", clientId = clientId)))
 
-            assertEquals(emptyList<String>(), reopened.sentClientIds)
-            assertEquals(emptyList<QueuedPromptRecord>(), store.restore("server_1", "session_1"))
+            assertEquals(listOf(clientId), reopened.sentClientIds)
         }
 
     @Test

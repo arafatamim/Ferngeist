@@ -135,6 +135,8 @@ object SessionMessageReducer {
     ): List<ChatMessage> {
         // Optimistic insertion: the UI gets an immediate user bubble before the server round-trip
         if (prompt.text.isBlank() && prompt.images.isEmpty() && prompt.files.isEmpty()) return messages
+        // A restored prompt is resent under its id; its saved bubble is already in the transcript.
+        if (prompt.clientId != null && messages.any { it.clientId == prompt.clientId }) return messages
         val last = messages.lastOrNull()
         val closed =
             if (steered && last?.role == ChatMessage.Role.ASSISTANT && last.isStreaming) {
