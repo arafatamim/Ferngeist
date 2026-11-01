@@ -85,26 +85,16 @@ internal class ChatOfflineQueueController(
         val records = persistence.restore()
         if (records.isEmpty()) return
         records.forEach { record ->
-            offlineQueue.enqueue(
+            val prompt =
                 PendingPrompt(
                     clientId = record.clientId,
                     text = record.text,
                     images = record.images,
                     files = record.files,
                     dispatched = record.dispatched,
-                ),
-            )
-            val message =
-                ChatMessage(
-                    id = record.clientId,
-                    role = ChatMessage.Role.USER,
-                    content = record.text,
-                    images = record.images,
-                    files = record.files,
-                    status = MessageDeliveryStatus.QUEUED,
-                    clientId = record.clientId,
                 )
-            update { copy(pendingMessages = pendingMessages + message) }
+            offlineQueue.enqueue(prompt)
+            update { copy(pendingMessages = pendingMessages + prompt.bubble(MessageDeliveryStatus.QUEUED)) }
         }
         val canSendNow =
             state.value.isSessionReady && state.value.connectionState == ChatConnectionState.Connected
@@ -278,7 +268,9 @@ internal class ChatOfflineQueueController(
         if (!dispatched) {
             // No bridge / not ready / unsupported -> mark FAILED immediately. The facade
             // has already reported the cause; a second generic error would replace it.
-            setPendingStatus(prompt.clientId, MessageDeliveryStatus.SENDING, MessageDeliveryStatus.FAILED)
+            // The runtime's local copy may already have reconciled the bubble away; the
+            // failed send rolled that copy back, so the bubble comes back FAILED.
+            update { copy(pendingMessages = pendingMessages.failing(prompt)) }
         }
         // Only now is the durable copy dropped, and deliberately not from a
         // finally: until the send resolves the stored snapshot still holds
@@ -411,3 +403,22 @@ private fun List<ChatMessage>.foldedInto(
             else -> it
         }
     }
+
+/** [prompt]'s bubble FAILED: a SENDING one flips, and one already reconciled away comes back. */
+private fun List<ChatMessage>.failing(prompt: PendingPrompt): List<ChatMessage> =
+    if (any { it.clientId == prompt.clientId }) {
+        withStatus(prompt.clientId, MessageDeliveryStatus.SENDING, MessageDeliveryStatus.FAILED)
+    } else {
+        this + prompt.bubble(MessageDeliveryStatus.FAILED)
+    }
+
+private fun PendingPrompt.bubble(status: MessageDeliveryStatus) =
+    ChatMessage(
+        id = clientId,
+        role = ChatMessage.Role.USER,
+        content = text,
+        images = images,
+        files = files,
+        status = status,
+        clientId = clientId,
+    )

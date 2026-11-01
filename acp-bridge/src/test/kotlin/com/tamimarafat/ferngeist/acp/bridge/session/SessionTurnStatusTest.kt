@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -171,10 +172,15 @@ class SessionTurnStatusTest {
     fun `a failed prompt send is an error until the next turn`() =
         runTest {
             val runtime = runtime()
-            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-            runtime.onPromptSendFailed()
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "c-1")
+            runtime.onPromptSendFailed("c-1")
 
             assertEquals(TurnStatus.ERROR, runtime.status())
+            // The queue shows the unsent prompt FAILED; the transcript must not also show it as sent.
+            assertTrue(
+                runtime.snapshot.value.messages
+                    .none { it.role == ChatMessage.Role.USER },
+            )
             runtime.onLocalPromptStarted("retry", emptyList(), emptyList())
             assertEquals(TurnStatus.WORKING, runtime.status())
         }
@@ -198,17 +204,17 @@ class SessionTurnStatusTest {
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.elicitationRequested()
             runtime.onLocalCancel()
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(null)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("retry", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("cancelled"))
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(null)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("retry", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("error"))
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(null)
             assertEquals(TurnStatus.ERROR, runtime.status())
         }
 

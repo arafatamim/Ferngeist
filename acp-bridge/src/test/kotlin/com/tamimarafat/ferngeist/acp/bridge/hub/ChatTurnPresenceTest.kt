@@ -109,7 +109,7 @@ class ChatTurnPresenceTest {
             assertEquals(TurnStatus.UNKNOWN, hub.turnStatuses.value[key]?.status)
             hub.chatScreenClosed("srv", "s1")
             bridge.sendPrompt("send failure", emptyList(), emptyList())
-            bridge.runtime.onPromptSendFailed()
+            bridge.runtime.onPromptSendFailed(null)
             assertEquals(TurnStatus.ERROR, hub.turnStatuses.value[key]?.status)
             hub.chatScreenOpened("srv", "s1", "")
             advanceUntilIdle()

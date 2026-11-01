@@ -320,15 +320,14 @@ class SessionRuntime(
         }
     }
 
-    suspend fun onPromptSendFailed() {
+    /** [clientId]'s local bubble goes too: the chat's queue shows the prompt FAILED for a retry. */
+    suspend fun onPromptSendFailed(clientId: String?) {
         mutex.withLock {
             debug { "onPromptSendFailed: finishing local streaming placeholder" }
+            val unsent = live.messages.filterNot { clientId != null && it.clientId == clientId }
             live =
                 live.copy(
-                    messages =
-                        failUnfinishedToolCalls(
-                            SessionMessageReducer.finishStreaming(live.messages),
-                        ),
+                    messages = failUnfinishedToolCalls(SessionMessageReducer.finishStreaming(unsent)),
                     isStreaming = false,
                     // A terminal event that already settled this turn owns the outcome (a
                     // cancelled turn stays cancelled); only a send that failed with no

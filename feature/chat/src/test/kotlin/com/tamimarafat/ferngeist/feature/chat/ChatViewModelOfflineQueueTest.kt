@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -282,6 +283,40 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
 
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test
+    fun `a send that fails after its local copy reconciled the bubble leaves it FAILED`() =
+        runTest {
+            val facadeFactory =
+                TestFacadeFactory {
+                    object : TestFacade(sendResult = false) {
+                        override suspend fun sendMessage(
+                            text: String,
+                            images: List<ChatImageData>,
+                            files: List<ChatFileData>,
+                            clientId: String,
+                        ): Boolean {
+                            // The runtime's local copy lands first, then the failure rolls it back.
+                            emitSnapshot(snapshotWithEcho(echoMessage(content = text, clientId = clientId)))
+                            delay(1)
+                            emitSnapshot(readySnapshot())
+                            return false
+                        }
+                    }
+                }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("lost"))
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            val pending =
+                viewModel.state.value.pendingMessages
+                    .single()
+            assertEquals(MessageDeliveryStatus.FAILED, pending.status)
+            assertEquals("lost", pending.content)
         }
 
     @Test

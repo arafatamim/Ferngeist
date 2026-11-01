@@ -162,7 +162,7 @@ class SessionBridge(
             // RuntimeException from JSON/codec, etc.) must roll back the optimistic
             // bubble and clear the streaming flag, otherwise the loading indicator
             // lingers forever on a failed turn.
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(clientId)
             throw e
         }
     }
