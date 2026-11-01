@@ -226,6 +226,12 @@ class AcpConnection(
         transportClient.connect(config, resetState = ::resetConnectionState).also { sessionsToRestore.clear() }
 
     /**
+     * Retries a chat's first open that failed before any transport existed (offline at launch)
+     * on the reconnect loop: [open] runs once online, after the backoff, and returns true to stop.
+     */
+    fun retryWhenOnline(open: suspend () -> Boolean) = transportClient.reconnect.retry(open)
+
+    /**
      * Connects the transport and runs the ACP initialize handshake.
      * Callers dispatch to [kotlinx.coroutines.Dispatchers.IO] when needed (both calls are
      * network-bound).

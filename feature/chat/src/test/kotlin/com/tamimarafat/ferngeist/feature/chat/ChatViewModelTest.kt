@@ -73,17 +73,19 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `minting a session records the id for a later rebuild`() =
+    fun `minting a session records the id for a later rebuild and for the host`() =
         runTest {
             val facadeFactory = TestFacadeFactory { TestFacade() }
             val handle = newSessionHandle()
-            createViewModel(facadeFactory = facadeFactory, savedStateHandle = handle)
+            val viewModel = createViewModel(facadeFactory = facadeFactory, savedStateHandle = handle)
             advanceUntilIdle()
 
             facadeFactory.lastFacade.value?.emitLiveChatId("server_1/session_minted")
             advanceUntilIdle()
 
             assertEquals("session_minted", handle.get<String>("mintedSessionId"))
+            // The workspace pane builds its own handle and persists the id from this flow.
+            assertEquals("session_minted", viewModel.mintedSessionIds.value)
         }
 
     private fun newSessionHandle(): SavedStateHandle =

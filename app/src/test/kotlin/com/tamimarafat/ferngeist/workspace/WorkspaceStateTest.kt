@@ -59,6 +59,17 @@ class WorkspaceStateTest {
     }
 
     @Test
+    fun selectingAnotherChat_dropsThePreviousChatsMintedId() {
+        val state = WorkspaceState(null, null, false)
+        state.selectSession(WorkspaceSelection("srv", "new", "/work", ""))
+        state.mintedSessionId = "real-42"
+        state.selectSession(WorkspaceSelection("srv", "new", "/work", ""))
+        assertEquals("real-42", state.mintedSessionId)
+        state.selectSession(WorkspaceSelection("srv", "other", "/work", ""))
+        assertNull(state.mintedSessionId)
+    }
+
+    @Test
     fun saver_roundTripsEveryField() {
         val scope = SaverScope { true }
         val state =

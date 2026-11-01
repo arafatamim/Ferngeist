@@ -45,6 +45,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -476,6 +477,33 @@ class AcpChatSessionFacadeTest {
 
             assertEquals(listOf("s1"), repo.attachedSessionIds)
             collector.cancel()
+        }
+
+    @Test
+    fun `a chat opened offline waits on the reconnect loop instead of failing`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo = FakeGatewayRepo().apply { connectFailure = java.net.ConnectException("network unreachable") }
+            val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
+            val offline =
+                AcpConnection(
+                    connectivityObserver = ConnectivityObserverStub(initialState = false),
+                    resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
+                    scope = backgroundScope,
+                )
+            val facade =
+                newFacade(RecordingSurface(), backgroundScope, manager = offline, targets = targets, repo = repo)
+            val failures = mutableListOf<String>()
+            backgroundScope.launch { facade.loadFailed.collect { failures += it } }
+
+            var loaded = false
+            backgroundScope.launch {
+                facade.loadSession()
+                loaded = true
+            }
+            awaitRealWork { loaded }
+
+            assertEquals(emptyList<String>(), failures)
+            assertTrue("the open waits for the network", offline.reconnectPending.value)
         }
 }
 

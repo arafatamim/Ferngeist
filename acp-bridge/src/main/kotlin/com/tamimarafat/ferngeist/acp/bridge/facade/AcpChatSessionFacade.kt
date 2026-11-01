@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /**
  * The session a chat opens with: which server and session, where it runs, and the snapshot it
@@ -168,6 +169,10 @@ class AcpChatSessionFacade(
     // bridgeOperationMutex, so it needs no further synchronization.
     private var openTimer: OpenStepTimer? = null
 
+    // The last open failed only because the agent was unreachable: it reopens once the device
+    // is back online (see loadSessionLocked) instead of showing a dead error.
+    private var reopenWhenOnline = false
+
     private val sessionLoadCoordinator by lazy {
         SessionLoadCoordinator(
             connectionManager = connectionManager,
@@ -200,6 +205,7 @@ class AcpChatSessionFacade(
         scope.launch {
             connectionManager.events.collect { event ->
                 if (event is AcpManagerEvent.SessionResumeRejected) reconnectAfterRejectedResume()
+                if (event is AcpManagerEvent.Connected && reopenWhenOnline) loadSessionInternal(quiet = false)
             }
         }
     }
@@ -240,8 +246,16 @@ class AcpChatSessionFacade(
     }
 
     private suspend fun loadSessionLocked(quiet: Boolean) {
+        reopenWhenOnline = false
         if (!ensureConnectedAndInitialized()) {
-            _loadFailed.emit(connectionFailure("Disconnected. Reconnect to refresh this session."))
+            if (reopenWhenOnline) {
+                connectionManager.retryWhenOnline {
+                    scope.launch { loadSessionInternal(quiet = false) }
+                    true
+                }
+            } else {
+                _loadFailed.emit(connectionFailure("Disconnected. Reconnect to refresh this session."))
+            }
             return
         }
 
@@ -631,14 +645,15 @@ class AcpChatSessionFacade(
         }
 
     /** Connects to the target's transport. Returns null when no config could be built. */
-    private suspend fun connectForTarget(server: LaunchableTarget): Boolean? =
-        when (server) {
-            is LaunchableTarget.GatewayAgent -> {
-                val config = buildGatewayConnectionConfig(server) ?: return null
-                connectionManager.connect(config)
+    private suspend fun connectForTarget(server: LaunchableTarget): Boolean? {
+        val config =
+            when (server) {
+                is LaunchableTarget.GatewayAgent -> buildGatewayConnectionConfig(server) ?: return null
+                is LaunchableTarget.Manual -> server.toConnectionConfig()
             }
-            is LaunchableTarget.Manual -> connectionManager.connect(server.toConnectionConfig())
-        }
+        // A socket that cannot open leaves the transport's own loop retrying; the chat reopens once it connects.
+        return connectionManager.connect(config).also { reopenWhenOnline = !it }
+    }
 
     /**
      * Builds a connection config for a gateway-backed agent by connecting it on
@@ -679,6 +694,9 @@ class AcpChatSessionFacade(
                             "Gateway credential expired for ${target.name}. Please pair this gateway again.",
                         )
                     }
+
+                    // Unreachable, not refused: the chat waits for the network instead of failing.
+                    is IOException -> reopenWhenOnline = true
 
                     else ->
                         // The gateway's own words: a 502 carries the agent's exit error,

@@ -50,7 +50,8 @@ internal class AcpTransportClient(
     private val diagnosticsStore: AcpDiagnosticsStore,
     private val listener: AcpTransportListener,
 ) {
-    private val reconnect =
+    /** Also armed by a chat's first open that failed offline; see [AcpConnection.retryWhenOnline]. */
+    val reconnect =
         ReconnectLoop(
             scope = scope,
             connectivityObserver = connectivityObserver,

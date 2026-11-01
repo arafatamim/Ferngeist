@@ -48,6 +48,7 @@ import com.tamimarafat.ferngeist.feature.chat.SlideDirection
 import com.tamimarafat.ferngeist.feature.chat.SwitchSlide
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
+import kotlinx.coroutines.flow.filterNotNull
 import kotlin.math.roundToInt
 
 /**
@@ -175,6 +176,7 @@ private fun WorkspaceChatPane(
                     updatedAt = workspace.updatedAt,
                 ),
             mintedSessionId = workspace.mintedSessionId,
+            onSessionMinted = { workspace.mintedSessionId = it },
             chatViewModelFactory = chatViewModelFactory,
             // The workspace never gives the chat a back button: at two panes the
             // session list owns the one back affordance (it is the pane that
@@ -235,6 +237,7 @@ private fun SeedWorkspaceEffect(
 private fun SwitchingChatPane(
     selection: WorkspaceSelection,
     mintedSessionId: String?,
+    onSessionMinted: (String) -> Unit,
     chatViewModelFactory: ChatViewModelFactory,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
@@ -267,6 +270,7 @@ private fun SwitchingChatPane(
             selection = shown,
             // The minted id belongs to the current selection, not to one sliding out.
             mintedSessionId = mintedSessionId.takeIf { shown.chatKey() == selection.chatKey() },
+            onSessionMinted = onSessionMinted,
             chatViewModelFactory = chatViewModelFactory,
             showBackButton = showBackButton,
             onNavigateBack = onNavigateBack,
@@ -303,6 +307,7 @@ private fun WorkspaceSelection.chatKey(): String = "$serverId/$sessionId"
 private fun ChatPane(
     selection: WorkspaceSelection,
     mintedSessionId: String?,
+    onSessionMinted: (String) -> Unit,
     chatViewModelFactory: ChatViewModelFactory,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
@@ -337,6 +342,9 @@ private fun ChatPane(
                     }
                 },
         )
+    // The pane builds its own handle, so nothing else would persist the minted id across
+    // process death: copy it into the workspace, whose saver does.
+    LaunchedEffect(viewModel) { viewModel.mintedSessionIds.filterNotNull().collect(onSessionMinted) }
     ChatScreen(
         sessionId = sessionId,
         // The view model resolves the title (nav arg, then the session store); this is

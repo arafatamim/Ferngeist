@@ -81,6 +81,10 @@ class ChatViewModel
          * death. Null for ordinary chats, whose nav arg is already the real id.
          */
         private val mintedSessionId: String? = savedStateHandle[KEY_MINTED_SESSION_ID]
+
+        /** The minted id as it changes, for a host that persists it itself (the workspace pane). */
+        val mintedSessionIds: StateFlow<String?> = savedStateHandle.getStateFlow(KEY_MINTED_SESSION_ID, null)
+
         val cwd: String = savedStateHandle["cwd"] ?: ""
         private val sessionTitle: String =
             savedStateHandle.get<String>("title")?.let { Uri.decode(it) }.orEmpty()

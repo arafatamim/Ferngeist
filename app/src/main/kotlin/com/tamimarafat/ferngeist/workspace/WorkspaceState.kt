@@ -120,6 +120,8 @@ class WorkspaceState(
         selection: WorkspaceSelection,
         agentsInLeft: Boolean,
     ) {
+        // A minted id belongs to the chat that minted it; another chat must not reattach to it.
+        if (selection.serverId != selectedServerId || selection.sessionId != selectedSessionId) mintedSessionId = null
         selectedServerId = selection.serverId
         selectedSessionId = selection.sessionId
         cwd = selection.cwd
