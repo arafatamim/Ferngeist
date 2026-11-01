@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.callbacks
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.AgentCapabilities

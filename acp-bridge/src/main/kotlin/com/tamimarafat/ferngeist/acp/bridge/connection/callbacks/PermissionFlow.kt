@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.callbacks
 
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import kotlinx.coroutines.CompletableDeferred

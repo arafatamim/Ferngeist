@@ -18,6 +18,13 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.agentclientprotocol.rpc.MethodName
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.BridgeSessionOperations
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationMappers
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.PermissionFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.STEERING_METHOD
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.parseSteerOutcome
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.steeringParams
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.CatchUpAttach
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.clientIdMeta
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.deliveredOnce

@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.callbacks
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.common.ClientSessionOperations
@@ -9,6 +9,9 @@ import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpDiagnosticsStore
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpSessionUpdateMapper
+import com.tamimarafat.ferngeist.acp.bridge.connection.AttachTiming
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.updateSeq
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption

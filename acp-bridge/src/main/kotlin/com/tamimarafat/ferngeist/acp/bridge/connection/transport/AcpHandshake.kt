@@ -20,8 +20,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpTransportListener
 import com.tamimarafat.ferngeist.acp.bridge.connection.AgentInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.AuthEnvVarInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.RpcDirection
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.withSteeringMeta
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.acp.bridge.connection.withSteeringMeta
 import io.ktor.client.request.url
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

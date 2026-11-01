@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.gateway
 
 /**
  * `POST /v1/sessions/{id}/resume` answered HTTP 400: the gateway no longer has that

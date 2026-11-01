@@ -1,6 +1,9 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.gateway
 
 import android.util.Log
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthMethodInfo
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget

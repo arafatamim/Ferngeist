@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.gateway
 
 import com.tamimarafat.ferngeist.acp.bridge.hub.FakeGatewayRepo
 import com.tamimarafat.ferngeist.acp.bridge.hub.FakeGatewaySources

@@ -3,7 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot

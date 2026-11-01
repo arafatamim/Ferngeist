@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.gateway
 
 import com.agentclientprotocol.model.AcpMethod
 import com.agentclientprotocol.model.AcpNotification

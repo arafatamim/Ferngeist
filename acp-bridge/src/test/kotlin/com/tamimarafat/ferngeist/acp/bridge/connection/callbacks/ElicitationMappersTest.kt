@@ -1,6 +1,6 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 
-package com.tamimarafat.ferngeist.acp.bridge.connection
+package com.tamimarafat.ferngeist.acp.bridge.connection.callbacks
 
 import com.agentclientprotocol.model.CreateElicitationRequest
 import com.agentclientprotocol.model.ElicitationContentValue

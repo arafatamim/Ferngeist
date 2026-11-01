@@ -8,11 +8,11 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildGatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.workspaceConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
-import com.tamimarafat.ferngeist.acp.bridge.connection.workspaceConnection
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory

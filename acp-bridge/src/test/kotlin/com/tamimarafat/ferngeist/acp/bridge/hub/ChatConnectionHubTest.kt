@@ -4,7 +4,7 @@ import app.cash.turbine.test
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
-import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime

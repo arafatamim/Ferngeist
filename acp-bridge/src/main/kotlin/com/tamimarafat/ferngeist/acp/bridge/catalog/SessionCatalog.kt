@@ -8,12 +8,12 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequired
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AuthEnvVarInfo
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildEnvPayload
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.acp.bridge.connection.loadPersistedEnvValues
-import com.tamimarafat.ferngeist.acp.bridge.connection.persistEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildEnvPayload
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildGatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.loadPersistedEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.persistEnvValues
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.facade.OpenStepTimer
 import com.tamimarafat.ferngeist.acp.bridge.facade.mapDiagnostics

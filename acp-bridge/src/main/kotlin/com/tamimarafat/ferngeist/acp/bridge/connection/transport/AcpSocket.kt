@@ -8,7 +8,7 @@ import com.agentclientprotocol.transport.WebSocketTransport
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpDiagnosticsStore
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpTransportListener
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.onRemoteTurnEnded
-import com.tamimarafat.ferngeist.acp.bridge.connection.onRemoteResumed
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.onRemoteResumed
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession

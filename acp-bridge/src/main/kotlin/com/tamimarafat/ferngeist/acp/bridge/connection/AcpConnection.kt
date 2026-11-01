@@ -6,6 +6,8 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.PermissionFlow
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.deviceRuntime

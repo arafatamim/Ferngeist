@@ -6,9 +6,9 @@ import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectionDiagnostics
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.supportsSteering
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
-import com.tamimarafat.ferngeist.acp.bridge.connection.supportsSteering
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption

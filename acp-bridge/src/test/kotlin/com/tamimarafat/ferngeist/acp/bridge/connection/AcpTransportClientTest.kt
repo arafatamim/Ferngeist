@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job

@@ -5,7 +5,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
-import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatPresence
