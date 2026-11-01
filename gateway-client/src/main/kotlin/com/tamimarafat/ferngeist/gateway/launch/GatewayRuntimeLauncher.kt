@@ -5,6 +5,8 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayLaunchResult
+import com.tamimarafat.ferngeist.gateway.GatewayProtocol
+import com.tamimarafat.ferngeist.gateway.GatewayProtocolMismatchException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
@@ -86,6 +88,11 @@ class GatewayRuntimeLauncher(
 
         if (acpSessionId != null) {
             attachChat(refreshedSource, agentId, acpSessionId)?.let { handoff ->
+                // The attach skips the status fetch that checks the protocol; its reply carries the version.
+                val version = handoff.protocolVersion
+                if (requireSupportedProtocol && version != null && version !in GatewayProtocol.supported) {
+                    throw GatewayProtocolMismatchException(version)
+                }
                 return Result.success(GatewayLaunchResult(gatewaySource = refreshedSource, handoff = handoff))
             }
         }

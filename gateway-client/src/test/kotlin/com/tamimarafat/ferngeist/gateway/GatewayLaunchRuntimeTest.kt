@@ -173,6 +173,24 @@ class GatewayLaunchRuntimeTest {
         }
 
     @Test
+    fun `an attach reporting an unsupported protocol fails as a protocol mismatch`() =
+        runTest {
+            val attached = CONNECT_BODY.dropLast(1) + ""","protocolVersion":"v9"}"""
+            val engine = MockEngine { respond(attached, HttpStatusCode.OK) }
+
+            val result =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(
+                        gatewaySource = SOURCE,
+                        agentId = "pi-acp",
+                        requireSupportedProtocol = true,
+                        acpSessionId = "chat-1",
+                    )
+
+            assertTrue(result.exceptionOrNull() is GatewayProtocolMismatchException)
+        }
+
+    @Test
     fun `reopening a chat on an older gateway falls back to the old launch`() =
         runTest {
             val requested = mutableListOf<String>()
