@@ -17,6 +17,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.serialization.json.JsonElement
@@ -96,9 +97,44 @@ internal class CaughtUp(
     val reply: CatchUpReply,
 )
 
-/** The catch-up `session/resume` for [cursor]; null when it fails, so the caller attaches the old way. */
+/**
+ * Reattaches a bridge with a `session/resume` the gateway answers itself: it replays the updates
+ * numbered after the bridge's cursor before its reply, so a running turn keeps streaming on the
+ * state the bridge already holds; see [settleCatchUp]. [log] records a resume that failed.
+ */
+internal class CatchUpAttach(
+    private val operationsFactory: ClientOperationsFactory,
+    private val log: (String) -> Unit,
+) {
+    /**
+     * Null when the resume fails, so the caller attaches the old way; a failure settling it
+     * (a timeout included) is returned for the caller's attach-failure handling.
+     */
+    suspend fun Client.attach(
+        bridge: SessionBridge,
+        cwd: String,
+        cursor: CatchUpCursor,
+        canLoad: Boolean,
+        register: suspend (ClientSession) -> Unit,
+    ): Result<SessionBridge>? {
+        val caughtUp = resumeCatchingUp(bridge.sessionId, cwd, cursor, operationsFactory, log) ?: return null
+        register(caughtUp.session)
+        return runCatching {
+            settleCatchUp(bridge, caughtUp.reply, cwd, canLoad)
+            bridge
+        }.onFailure { error ->
+            if (error is CancellationException &&
+                error !is TimeoutCancellationException
+            ) {
+                throw error
+            }
+        }
+    }
+}
+
+/** The catch-up `session/resume` for [cursor]; null when it fails. */
 @OptIn(UnstableApi::class)
-internal suspend fun Client.resumeCatchingUp(
+private suspend fun Client.resumeCatchingUp(
     sessionId: String,
     cwd: String,
     cursor: CatchUpCursor,
@@ -127,7 +163,7 @@ internal suspend fun Client.resumeCatchingUp(
  * state, as a plain resume would, and reports the hole) and closes a turn that is no longer running. A turn the
  * gateway still runs stays open until its own end arrives, refill or not.
  */
-internal suspend fun Client.settleCatchUp(
+private suspend fun Client.settleCatchUp(
     bridge: SessionBridge,
     reply: CatchUpReply,
     cwd: String,

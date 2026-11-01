@@ -18,11 +18,10 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.agentclientprotocol.rpc.MethodName
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.CatchUpAttach
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.clientIdMeta
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.deliveredOnce
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.gatewayTurnDurationMs
-import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.resumeCatchingUp
-import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.settleCatchUp
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.updateSeq
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
@@ -180,12 +179,7 @@ internal class SessionGateway(
         }
     }
 
-    /**
-     * Reattaches [bridge] with a `session/resume` the gateway answers itself: it replays the
-     * updates numbered after [cursor] before its reply, so a running turn keeps streaming on the
-     * state the bridge already holds; see [settleCatchUp]. Null when the resume fails, so the
-     * caller attaches the old way.
-     */
+    /** A catch-up reattach of [bridge] (see [CatchUpAttach]); null when the resume fails. */
     private suspend fun catchUp(
         client: Client,
         rpc: SessionAttachRpc,
@@ -193,16 +187,9 @@ internal class SessionGateway(
         cwd: String,
         cursor: CatchUpCursor,
     ): SessionPort? {
-        val caughtUp =
-            client.resumeCatchingUp(bridge.sessionId, cwd, cursor, operationsFactory) { connection.logError(it) }
-                ?: return null
-        registerSession(caughtUp.session, cwd)
-        runCatching { client.settleCatchUp(bridge, caughtUp.reply, cwd, canLoad = rpc == SessionAttachRpc.LOAD) }
-            .onFailure { error ->
-                if (error is CancellationException && error !is TimeoutCancellationException) throw error
-                return handleSessionAttachFailure(error, bridge.sessionId, rpc)
-            }
-        return bridge
+        val canLoad = rpc == SessionAttachRpc.LOAD
+        val attached = with(catchUpAttach) { client.attach(bridge, cwd, cursor, canLoad) { registerSession(it, cwd) } }
+        return attached?.getOrElse { error -> handleSessionAttachFailure(error, bridge.sessionId, rpc) }
     }
 
     @OptIn(UnstableApi::class)
@@ -733,6 +720,8 @@ internal class SessionGateway(
     // Bridges between the ACP SDK's ClientSessionOperations callbacks and
     // Ferngeist's AppSessionEvent stream. Each registered session gets an
     // instance of BridgeSessionOperations.
+
+    private val catchUpAttach by lazy { CatchUpAttach(operationsFactory) { connection.logError(it) } }
 
     private val operationsFactory =
         ClientOperationsFactory { sessionId, _ ->
