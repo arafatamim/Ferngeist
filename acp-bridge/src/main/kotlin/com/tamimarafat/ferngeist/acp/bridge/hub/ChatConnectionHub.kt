@@ -405,6 +405,8 @@ class ChatConnectionHub(
             pendingManagers.remove(registration.manager)
         }
         val existing = entries[chatId]
+        // A cold entry taking a transport needs room as much as a new one does.
+        if (existing?.manager == null) makeRoomForEntry()
         if (existing != null) {
             entries[chatId] =
                 existing.copy(
@@ -416,7 +418,6 @@ class ChatConnectionHub(
                     manager = registration.manager,
                 )
         } else {
-            makeRoomForEntry()
             entries[chatId] =
                 Entry(
                     chatId = chatId,
@@ -567,23 +568,32 @@ class ChatConnectionHub(
         }
     }
 
-    /** Evicts entries until one more fits under the hot cap; see [register] for the over-cap policy. */
+    /**
+     * Evicts entries until one more transport fits under the hot cap; see [register] for the
+     * over-cap policy. Cold entries hold no transport, so they neither count nor go: evicting a
+     * restored chat would drop it from the saved open-chats list for good.
+     */
     private fun makeRoomForEntry() {
-        while (entries.size >= limits.maxHotConnections) {
-            val victim =
-                entries.values
-                    .filter { !it.isStreaming() && !it.screenOpen }
-                    .minByOrNull { it.lastFocusedMs }
-                    // Every entry is streaming or on screen. Tolerate the over-cap while the pool
-                    // still fits the gateway's per-device session lease; past that point new spawns
-                    // fail and each extra entry leaks a transport, so evict the least-recently-focused
-                    // one (its turn is abandoned with it).
-                    ?: entries.values
-                        .takeIf { entries.size >= limits.maxGatewaySessionsPerDevice }
-                        ?.minByOrNull { it.lastFocusedMs }
-                    ?: break
+        while (true) {
+            val victim = evictionVictim() ?: break
             removeAndEvict(victim.chatId)
         }
+    }
+
+    /** The entry to evict for one more transport, or null when it fits (or nothing may go). */
+    private fun evictionVictim(): Entry? {
+        val hot = entries.values.filter { it.manager != null }
+        if (hot.size < limits.maxHotConnections) return null
+        return hot
+            .filter { !it.isStreaming() && !it.screenOpen }
+            .minByOrNull { it.lastFocusedMs }
+            // Every entry is streaming or on screen. Tolerate the over-cap while the pool
+            // still fits the gateway's per-device session lease; past that point new spawns
+            // fail and each extra entry leaks a transport, so evict the least-recently-focused
+            // one (its turn is abandoned with it).
+            ?: hot
+                .takeIf { it.size >= limits.maxGatewaySessionsPerDevice }
+                ?.minByOrNull { it.lastFocusedMs }
     }
 
     /** The live transport for a tracked chat, or null when untracked/cold. */
@@ -878,18 +888,22 @@ class ChatConnectionHub(
         sessionId: String,
         endpoint: GatewayEndpoint,
     ): Boolean {
-        if (isTracked(serverId, sessionId)) {
+        val chatId = chatIdFor(serverId, sessionId)
+        if (entries[chatId]?.gatewaySessionId != null) {
             // The gateway may already have forgotten the session (restart/reap): the
             // local transport is released either way, so that does not fail the close.
-            ignoringNotFound { close(chatIdFor(serverId, sessionId), endpoint) }
+            ignoringNotFound { close(chatId, endpoint) }
             return true
         }
-        stateStore?.delete(chatIdFor(serverId, sessionId))
+        // A chat restored after process death is tracked without its gateway session id:
+        // drop it here, then find the gateway session that runs it like any cold one.
+        val dropped = isTracked(serverId, sessionId)
+        close(chatId, endpoint)
         val gatewaySessionId =
             gatewayRepository
                 .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
                 .firstOrNull { sessionId in it.acpSessionIds }
-                ?.sessionId ?: return false
+                ?.sessionId ?: return dropped
         // Reaped between the listing and the DELETE: nothing runs it any more.
         ignoringNotFound {
             gatewayRepository.closeSession(

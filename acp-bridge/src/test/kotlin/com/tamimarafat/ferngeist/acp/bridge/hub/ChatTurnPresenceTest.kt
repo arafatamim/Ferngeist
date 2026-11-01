@@ -225,6 +225,7 @@ class ChatTurnPresenceTest {
         runTest {
             val hub = newHub(maxHot = 1, maxGateway = 1)
             val bridge = SessionBridge("s1", null)
+            val manager = hub.acquireChatManager().apply { forceConnectionState(AcpConnectionState.Connected) }
             bridge.runtime.beginHydration()
             bridge.runtime.completeHydration()
             val key =
@@ -238,6 +239,7 @@ class ChatTurnPresenceTest {
                         isConnected = { true },
                         isStreaming = { bridge.snapshot.value.isStreaming },
                         snapshot = bridge.snapshot,
+                        manager = manager,
                     ),
                 )
             bridge.sendPrompt("go", emptyList(), emptyList())

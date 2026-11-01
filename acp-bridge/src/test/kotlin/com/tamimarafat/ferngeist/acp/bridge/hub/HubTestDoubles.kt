@@ -63,13 +63,13 @@ internal fun newHub(
         ioDispatcher = dispatcher,
     )
 
-/** A connected chat registration; the hub is always handed a live transport probe. */
+/** A connected chat registration; like the facade, it hands the hub the chat's transport. */
 internal fun ChatConnectionHub.registerChat(
     serverId: String = "srv",
     sessionId: String,
     gatewaySessionId: String? = "gs-$sessionId",
     streaming: Boolean = false,
-    manager: AcpConnection? = null,
+    manager: AcpConnection? = acquireChatManager(),
 ): String =
     register(
         serverId = serverId,

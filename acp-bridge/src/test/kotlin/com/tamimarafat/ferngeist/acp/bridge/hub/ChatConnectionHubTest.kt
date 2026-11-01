@@ -536,6 +536,7 @@ class ChatConnectionHubTest {
     fun `eviction never removes a screen-open chat`() =
         runTest {
             val hub = newHub(maxHot = 3)
+            hub.registerChat(sessionId = "a")
             hub.chatScreenOpened("srv", "a", "/a")
             hub.registerChat(sessionId = "b")
             hub.registerChat(sessionId = "c")
