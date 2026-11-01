@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 import java.io.IOException
 import java.nio.file.Files
@@ -97,6 +98,24 @@ class OpenChatsRestoreTest {
         }
 
     @Test
+    fun `a restored chat opened and closed offline stays in the switcher`() =
+        runTest {
+            val dir = Files.createTempDirectory("chat-state").toFile()
+            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            hubOver(store).chatScreenOpened("srv", "s1", "/work")
+            advanceUntilIdle()
+
+            val restarted = hubOver(store)
+            advanceUntilIdle()
+            restarted.chatScreenOpened("srv", "s1", "/work")
+            restarted.chatScreenClosed("srv", "s1")
+            advanceUntilIdle()
+
+            assertEquals(setOf(chatIdFor("srv", "s1")), hubOver(store).trackedChatIds.value)
+            dir.deleteRecursively()
+        }
+
+    @Test
     fun `an unreadable open-chat list is not overwritten by the chats opened after it`() =
         runTest {
             val dir = Files.createTempDirectory("chat-state").toFile()
@@ -105,6 +124,8 @@ class OpenChatsRestoreTest {
             advanceUntilIdle()
             val list = dir.listFiles { file -> file.name.endsWith(".list") }!!.single()
             list.setReadable(false)
+            // A privileged runner reads through the permission; there is no unreadable file to test.
+            assumeFalse(list.canRead())
 
             hubOver(store).chatScreenOpened("srv", "s2", "/work")
             advanceUntilIdle()

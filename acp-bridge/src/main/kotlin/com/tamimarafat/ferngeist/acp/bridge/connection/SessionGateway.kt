@@ -176,8 +176,8 @@ internal class SessionGateway(
             return (caughtUp ?: attachAndHydrate(client, rpc, sessionId, cwd)).also { succeeded = it != null }
         } finally {
             attachTimings.remove(sessionId, timing)
-            // registerSession drained the ends stashed so far; one that landed after it (during a
-            // catch-up refill or the load's own completion) still has to close the turn.
+            // registerSession drained the ends stashed so far, unless a catch-up refill was to
+            // replace them; one left (or landing during the load's own completion) closes the turn.
             attachTurnEnds.remove(sessionId)?.let { end ->
                 if (succeeded) sessionRegistry.getBridge(sessionId)?.emitEvent(end)
             }
@@ -204,7 +204,10 @@ internal class SessionGateway(
         val caughtUp =
             client.resumeCatchingUp(bridge.sessionId, cwd, cursor, operationsFactory) { connection.logError(it) }
                 ?: return null
-        registerSession(caughtUp.session, cwd)
+        // A gap refill replaces the bridge's state, so a turn end stashed so far waits for the
+        // attach's own drain after it rather than landing on the state the load discards.
+        val refills = caughtUp.reply.gap && rpc == SessionAttachRpc.LOAD
+        registerSession(caughtUp.session, cwd, drainTurnEnd = !refills)
         runCatching { client.settleCatchUp(bridge, caughtUp.reply, cwd, canLoad = rpc == SessionAttachRpc.LOAD) }
             .onFailure { error ->
                 if (error is CancellationException && error !is TimeoutCancellationException) throw error
@@ -765,12 +768,14 @@ internal class SessionGateway(
      * corresponding [AppSessionEvent] values and forwards them to the bridge.
      * After all initial state is pushed, marks the bridge as ready.
      *
+     * @param drainTurnEnd emits a turn end the gateway sent mid-attach; see [attachTurnEnds].
      * @return the concrete [SessionBridge] so callers can invoke bridge-internal
      *         methods ([emitEvent], [markReady], hydration lifecycle).
      */
     private suspend fun registerSession(
         session: ClientSession,
         cwd: String,
+        drainTurnEnd: Boolean = true,
     ): SessionBridge {
         val bridge =
             sessionRegistry.getBridge(session.sessionId.value)
@@ -782,7 +787,7 @@ internal class SessionGateway(
         session.pushInitialState { event -> emitToBridge(session.sessionId.value, event) }
 
         bridge.markReady()
-        attachTurnEnds.remove(session.sessionId.value)?.let { bridge.emitEvent(it) }
+        if (drainTurnEnd) attachTurnEnds.remove(session.sessionId.value)?.let { bridge.emitEvent(it) }
         startReactiveObservers(session)
         return bridge
     }

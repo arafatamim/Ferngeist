@@ -156,6 +156,30 @@ class SessionCatchUpTest {
         }
 
     @Test
+    fun `a turn result replayed ahead of a gap refill still ends the turn`() =
+        runTest {
+            val gateway = newGateway()
+            val turnResult =
+                """{"jsonrpc":"2.0","method":"_ferngeist/turn_result","params":""" +
+                    """{"sessionId":"s1","stopReason":"end_turn","usage":null,"durationMs":4200}}"""
+            val transport =
+                ScriptedTransport(
+                    mapOf(
+                        "session/resume" to listOf(turnResult, catchUpReply(true, true)),
+                        "session/load" to listOf(chunk("replayed", 1), LOADED),
+                    ),
+                )
+            val client = clientOver(transport)
+            client.protocol.onRemoteTurnEnded(gateway::endRemoteTurn)
+            installSdkClient(gateway, client.also { it.protocol.start() })
+
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+
+            assertFalse(bridge.snapshot.value.isStreaming)
+            assertEquals(TurnStatus.FINISHED, bridge.snapshot.value.turnStatus)
+        }
+
+    @Test
     fun `a turn still running behind a gap refill keeps the session busy`() =
         runTest {
             val transport =

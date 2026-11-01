@@ -128,6 +128,9 @@ class ChatConnectionHub(
         // A screen before the old one's teardown closes it, and a flag would end up closed.
         val openScreens: Int,
         val cwd: String,
+        // Restored from the saved open-chat list: tracked like a pooled entry even with no
+        // transport, so leaving its screen (say, opened offline) does not drop it.
+        val restored: Boolean = false,
     )
 
     private val Entry.screenOpen: Boolean get() = openScreens > 0
@@ -254,6 +257,7 @@ class ChatConnectionHub(
         saved.forEach { chat ->
             entries.getOrPut(chatIdFor(chat.serverId, chat.sessionId)) {
                 coldEntry(chat.serverId, chat.sessionId, chat.cwd, chat.lastFocusedMs, openScreens = 0)
+                    .copy(restored = true)
             }
         }
         republish()
@@ -656,9 +660,9 @@ class ChatConnectionHub(
 
     /**
      * Records that [sessionId]'s chat screen closed. A pooled (transport-
-     * attached) entry survives as the tap-target fallback; an entry that only
-     * ever existed because its screen was open has no transport to pool and its
-     * tracking ends here.
+     * attached) or restored entry survives as the tap-target fallback; an entry
+     * that only ever existed because its screen was open has no transport to
+     * pool and its tracking ends here.
      */
     fun chatScreenClosed(
         serverId: String,
@@ -667,7 +671,7 @@ class ChatConnectionHub(
         val chatId = chatIdFor(serverId, sessionId)
         entries[chatId]?.let { existing ->
             val openScreens = (existing.openScreens - 1).coerceAtLeast(0)
-            if (existing.manager == null && openScreens == 0) {
+            if (existing.manager == null && !existing.restored && openScreens == 0) {
                 turnObservers.remove(chatId)?.cancel()
                 _streamingChatIds.update { it - chatId }
                 _turnStatuses.update { it - chatId }
