@@ -17,6 +17,7 @@ private val protocolVerifiedNanos = TimeUnit.MINUTES.toNanos(5)
 private const val AGENTS_SEGMENT = "agents"
 private const val RUNTIMES_SEGMENT = "runtimes"
 private const val WORKTREES_SEGMENT = "worktrees"
+private const val SESSIONS_SEGMENT = "sessions"
 
 @Suppress("TooManyFunctions") // one override per gateway endpoint
 class GatewayRepositoryImpl
@@ -275,6 +276,23 @@ class GatewayRepositoryImpl
             )
         }
 
+        override suspend fun attachSession(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
+            acpSessionId: String,
+        ): GatewayConnectResponse =
+            http.postJson(
+                scheme = scheme,
+                host = host,
+                credential = gatewayCredential,
+                "v1",
+                SESSIONS_SEGMENT,
+                "attach",
+                body = json.encodeToString(GatewaySessionAttachRequest(agentId, acpSessionId)),
+            )
+
         override suspend fun resumeSession(
             scheme: String,
             host: String,
@@ -286,7 +304,7 @@ class GatewayRepositoryImpl
                 host = host,
                 credential = gatewayCredential,
                 "v1",
-                "sessions",
+                SESSIONS_SEGMENT,
                 sessionId,
                 "resume",
             )
@@ -302,7 +320,7 @@ class GatewayRepositoryImpl
                     host = host,
                     credential = gatewayCredential,
                     "v1",
-                    "sessions",
+                    SESSIONS_SEGMENT,
                 )
             // A session this client is deleting still reads "disconnected" until the DELETE lands;
             // resuming it would attach to an agent that is about to be stopped.
@@ -325,7 +343,7 @@ class GatewayRepositoryImpl
                     host = host,
                     credential = gatewayCredential,
                     "v1",
-                    "sessions",
+                    SESSIONS_SEGMENT,
                     sessionId,
                 )
             } finally {

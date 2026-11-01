@@ -88,7 +88,16 @@ class SessionRuntime(
         val openReplyId: String? = null,
         /** The gateway's measure of the turn that just ended, for [stampClosedReply]. */
         val turnDurationMs: Long? = null,
-    )
+        /**
+         * The gateway's update numbering this state follows: the agent process ([epoch]) and the
+         * last update applied ([lastSeq]). Moved in the same step as the update, so a saved state
+         * and its number always agree and a catch-up resume neither repeats nor skips one.
+         */
+        val epoch: String? = null,
+        val lastSeq: Long = 0,
+    ) {
+        fun after(updateSeq: Long?): RuntimeData = if (updateSeq == null) this else copy(lastSeq = updateSeq)
+    }
 
     private val mutex = Mutex()
     private var live = RuntimeData()
@@ -144,6 +153,7 @@ class SessionRuntime(
                 }
             live =
                 buffered.copy(
+                    epoch = live.epoch,
                     messages = finalizedMessages,
                     isStreaming = finalizedMessages.any { it.isStreaming },
                     title = buffered.title ?: live.title,
@@ -176,15 +186,32 @@ class SessionRuntime(
                 return@withLock
             }
             debug { "markReady: publishing READY with liveMessages=${live.messages.size}" }
-            // A (re)registered session re-establishes the connection, not the last turn's
-            // outcome: the transport that carried it is gone, so a retained FINISHED/ERROR is
-            // no longer current evidence and must not be republished as one.
-            live = live.copy(turnOutcome = TurnStatus.UNKNOWN, turnStartedAt = null, turnFinishedAt = null)
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
     }
 
-    suspend fun onEvent(event: AppSessionEvent) {
+    /**
+     * Starts a (re)attach. It re-establishes the connection, not the last turn's outcome: the
+     * transport that carried it is gone, so a retained FINISHED/ERROR is no longer current
+     * evidence and must not be republished as one. Cleared here rather than once attached, so an
+     * outcome the gateway reports during the attach (`_ferngeist/turn_result`) stands.
+     */
+    suspend fun beginAttach() {
+        mutex.withLock {
+            live =
+                live.copy(
+                    turnOutcome = TurnStatus.UNKNOWN,
+                    turnStartedAt = null,
+                    turnFinishedAt = null,
+                )
+        }
+    }
+
+    /** Applies [event]; [updateSeq] is the gateway's number for the update it came from, if any. */
+    suspend fun onEvent(
+        event: AppSessionEvent,
+        updateSeq: Long? = null,
+    ) {
         mutex.withLock {
             val seq = ++eventSeq
             val loadState = _snapshot.value.loadState
@@ -193,14 +220,24 @@ class SessionRuntime(
                     "summary=${summarizeEvent(event)}"
             }
             if (_snapshot.value.loadState == SessionLoadState.HYDRATING) {
-                buffered = reduce(buffered, event, nowMs = null, eventSeq)
+                val open =
+                    buffered.messages
+                        .lastOrNull()
+                        ?.takeIf { it.isStreaming }
+                        ?.id
+                buffered = reduce(buffered, event, nowMs = null, eventSeq).after(updateSeq)
+                // The gateway reports a turn that ended while detached ahead of the load reply; keep
+                // its reply and duration so the hydrated transcript stamps the turn.
+                if (event is AppSessionEvent.TurnComplete) {
+                    buffered = buffered.copy(openReplyId = open, turnDurationMs = event.durationMs)
+                }
                 debug {
                     "event#$seq bufferedApplied messages=${buffered.messages.size} " +
                         "streaming=${buffered.isStreaming}"
                 }
                 return@withLock
             }
-            live = reduce(live, event, clock(), eventSeq)
+            live = reduce(live, event, clock(), eventSeq).after(updateSeq)
             // A reply closed by a reattach ended while this client was away; stamping it now would
             // time the outage, not the turn, so it gets no time at all.
             when (event) {
@@ -348,6 +385,17 @@ class SessionRuntime(
         }
     }
 
+    /**
+     * Where this state left off in the gateway's numbering under [epoch] (any epoch, when null), or
+     * null when it follows another or none. A new [epoch] is followed from here, restarting the count.
+     */
+    suspend fun catchUpFrom(epoch: String?): CatchUpCursor? =
+        mutex.withLock {
+            val held = live.epoch
+            if (epoch != null && held != epoch) live = live.copy(epoch = epoch, lastSeq = 0)
+            CatchUpCursor(held ?: return@withLock null, live.lastSeq).takeIf { epoch == null || held == epoch }
+        }
+
     companion object {
         private const val TAG = "TSRuntime"
 
@@ -408,7 +456,7 @@ class SessionRuntime(
                     } else {
                         pendingPermissionsAfter(current.pendingPermissions, event)
                     },
-                turnOutcome = turnOutcomeAfter(current.turnOutcome, event),
+                turnOutcome = turnOutcomeAfter(current.turnOutcome, event, current.isStreaming),
                 turnSettled = current.turnSettled || event is AppSessionEvent.TurnComplete,
                 turnCompletionSequence =
                     if (event is AppSessionEvent.TurnComplete) eventSeq else current.turnCompletionSequence,
@@ -625,3 +673,9 @@ private fun ChatMessage.withoutPermissionPrompts(): ChatMessage {
                 }.toPersistentList(),
     )
 }
+
+/** Where a saved state left off in the gateway's update numbering for one agent process. */
+data class CatchUpCursor(
+    val epoch: String,
+    val afterSeq: Long,
+)

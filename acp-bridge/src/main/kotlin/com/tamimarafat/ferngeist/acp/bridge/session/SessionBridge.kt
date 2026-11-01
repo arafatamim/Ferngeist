@@ -93,13 +93,17 @@ class SessionBridge(
     private val traceTag = "TSBridge"
 
     /**
-     * Feeds a session event into the runtime reducer and then emits it to observers.
+     * Feeds a session event into the runtime reducer and then emits it to observers;
+     * [updateSeq] is the gateway's number for the update it came from, if any.
      *
      * Ordering matters: runtime state is updated before observers see the event.
      */
-    suspend fun emitEvent(event: AppSessionEvent) {
+    suspend fun emitEvent(
+        event: AppSessionEvent,
+        updateSeq: Long? = null,
+    ) {
         debug { "emitEvent type=${event::class.simpleName}" }
-        runtime.onEvent(event)
+        runtime.onEvent(event, updateSeq)
         _events.emit(event)
         if (event is AppSessionEvent.ModelSelectionConfirmed) {
             _modelSelectionEvents.emit(event)

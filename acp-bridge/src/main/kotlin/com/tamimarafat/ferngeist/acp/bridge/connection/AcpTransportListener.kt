@@ -12,6 +12,7 @@ internal interface AcpTransportListener {
     suspend fun onRemoteTurnEnded(
         sessionId: String,
         stopReason: String,
+        durationMs: Long?,
     ) {}
 
     /** Runs when the gateway reports it restored a session itself; see [RemoteResumed]. */

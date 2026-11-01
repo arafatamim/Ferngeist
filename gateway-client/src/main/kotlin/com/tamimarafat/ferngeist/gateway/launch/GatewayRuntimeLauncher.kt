@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayLaunchResult
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CancellationException
@@ -83,12 +84,43 @@ class GatewayRuntimeLauncher(
             return Result.failure(IllegalStateException("Gateway is not paired"))
         }
 
+        if (acpSessionId != null) {
+            attachChat(refreshedSource, agentId, acpSessionId)?.let { handoff ->
+                return Result.success(GatewayLaunchResult(gatewaySource = refreshedSource, handoff = handoff))
+            }
+        }
         if (requireSupportedProtocol) {
             gatewayRepository.verifyProtocol(refreshedSource.scheme, refreshedSource.host)
         }
 
         return attemptConnect(refreshedSource, agentId, acpSessionId)
     }
+
+    /**
+     * Reattaches [acpSessionId] in the one call that replaces status, list, resume and
+     * connect: a turn still streaming would otherwise sit frozen through four round trips.
+     * Null on a gateway that predates the endpoint, which the old path then serves.
+     */
+    private suspend fun attachChat(
+        gatewaySource: GatewaySource,
+        agentId: String,
+        acpSessionId: String,
+    ): GatewayConnectResponse? =
+        try {
+            withContext(ioDispatcher) {
+                gatewayRepository.attachSession(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = gatewaySource.gatewayCredential,
+                    agentId = agentId,
+                    acpSessionId = acpSessionId,
+                )
+            }
+        } catch (error: GatewayRequestException) {
+            // An older gateway routes the path to nothing (404) or to another method (405).
+            if (error.statusCode != HTTP_NOT_FOUND && error.statusCode != HTTP_BAD_METHOD) throw error
+            null
+        }
 
     /**
      * Runs the connect call for an already-refreshed [gatewaySource] and folds the
@@ -171,6 +203,9 @@ class GatewayRuntimeLauncher(
             null
         }
 }
+
+private const val HTTP_NOT_FOUND = 404
+private const val HTTP_BAD_METHOD = 405
 
 /**
  * The gateway session a launch of [agentId] reattaches to: the one already running

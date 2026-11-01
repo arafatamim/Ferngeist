@@ -22,6 +22,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 import com.tamimarafat.ferngeist.gateway.GatewayProtocol
 import com.tamimarafat.ferngeist.gateway.GatewayRemoteStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
@@ -205,6 +206,15 @@ internal class FakeGatewayRepo : GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
     ) = TODO("unused in these tests")
+
+    // An older gateway without the one-call attach, so launches take the status/list/connect path.
+    override suspend fun attachSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+        acpSessionId: String,
+    ): GatewayConnectResponse = throw GatewayRequestException(statusCode = 404, message = "not found")
 
     override suspend fun resumeSession(
         scheme: String,

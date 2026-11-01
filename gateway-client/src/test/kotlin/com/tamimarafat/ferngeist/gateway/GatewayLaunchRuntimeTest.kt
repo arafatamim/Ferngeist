@@ -146,6 +146,59 @@ class GatewayLaunchRuntimeTest {
             assertFalse("a failed launch must not report success", result.isSuccess)
         }
 
+    @Test
+    fun `reopening a chat on a gateway with the one-call attach makes only that call`() =
+        runTest {
+            val requested = mutableListOf<String>()
+            val attached = CONNECT_BODY.dropLast(1) + ""","epoch":"e7","needsLoad":true}"""
+            val engine =
+                MockEngine { request ->
+                    requested += "${request.method.value} ${request.url.encodedPath}"
+                    respond(attached, HttpStatusCode.OK)
+                }
+
+            val handoff =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(
+                        gatewaySource = SOURCE,
+                        agentId = "pi-acp",
+                        requireSupportedProtocol = true,
+                        acpSessionId = "chat-1",
+                    ).getOrThrow()
+                    .handoff
+
+            assertEquals(listOf("POST /v1/sessions/attach"), requested)
+            assertEquals("e7", handoff.epoch)
+            assertTrue(handoff.needsLoad)
+        }
+
+    @Test
+    fun `reopening a chat on an older gateway falls back to the old launch`() =
+        runTest {
+            val requested = mutableListOf<String>()
+            val engine =
+                MockEngine { request ->
+                    requested += "${request.method.value} ${request.url.encodedPath}"
+                    if (request.url.encodedPath == "/v1/sessions/attach") {
+                        respond("not found", HttpStatusCode.NotFound)
+                    } else {
+                        respond(CONNECT_BODY, HttpStatusCode.OK)
+                    }
+                }
+
+            val handoff =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(gatewaySource = SOURCE, agentId = "pi-acp", acpSessionId = "chat-1")
+                    .getOrThrow()
+                    .handoff
+
+            assertEquals(
+                listOf("POST /v1/sessions/attach", "GET /v1/sessions", "POST /v1/agents/pi-acp/connect"),
+                requested,
+            )
+            assertEquals("sess-1", handoff.sessionId)
+        }
+
     private fun repo(requested: MutableList<String>): GatewayRepositoryImpl {
         val engine =
             MockEngine { request ->

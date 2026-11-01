@@ -29,6 +29,7 @@ class SessionTurnStatusTest {
             val finished = runtime.snapshot.value.turnStatusSince
             assertNotNull(finished)
             assertTrue(finished!! >= beforeCompletion)
+            runtime.beginAttach()
             runtime.markReady()
             assertNull(runtime.snapshot.value.turnStatusSince)
         }
@@ -212,18 +213,28 @@ class SessionTurnStatusTest {
         }
 
     @Test
-    fun `reattachment cannot reuse a retained terminal outcome`() =
+    fun `reattachment forgets a retained outcome but keeps one reported during the attach`() =
         runTest {
             val runtime = runtime()
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
+            runtime.beginAttach()
             runtime.markReady()
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("refusal"))
+            runtime.beginAttach()
             runtime.onEvent(AppSessionEvent.SessionLoadComplete)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
+
+            // `_ferngeist/turn_result` lands mid-attach, before the attach closes.
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
+            runtime.beginAttach()
+            runtime.onEvent(AppSessionEvent.TurnComplete("refusal"))
+            runtime.markReady()
+            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            assertEquals(TurnStatus.ERROR, runtime.status())
         }
 
     @Test

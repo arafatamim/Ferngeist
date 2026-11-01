@@ -23,6 +23,8 @@ data class GatewayLaunchContext(
     val gatewaySource: GatewaySource,
     val runtimeId: String,
     val sessionId: String,
+    /** The runtime's update numbering, when a one-call attach reported it; see SessionCatchUp. */
+    val epoch: String? = null,
 )
 
 /** The diff/status link to the runtime this launch attached to. */
@@ -145,6 +147,7 @@ suspend fun buildGatewayLaunchContext(
                 gatewaySource = source,
                 runtimeId = handoff.runtimeId,
                 sessionId = handoff.sessionId,
+                epoch = handoff.epoch,
             )
         }
 

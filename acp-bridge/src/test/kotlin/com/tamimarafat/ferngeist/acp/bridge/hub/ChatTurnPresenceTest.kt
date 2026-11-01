@@ -207,6 +207,7 @@ class ChatTurnPresenceTest {
             manager.forceConnectionState(AcpConnectionState.Connected)
             advanceUntilIdle()
             assertFalse(key in hub.turnStatuses.value)
+            bridge.runtime.beginAttach()
             bridge.runtime.markReady()
             advanceUntilIdle()
             assertEquals(mapOf(key to TurnStatus.UNKNOWN), hub.turnStatuses.value.mapValues { it.value.status })

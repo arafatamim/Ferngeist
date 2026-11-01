@@ -122,8 +122,9 @@ class AcpConnection(
                     override suspend fun onRemoteTurnEnded(
                         sessionId: String,
                         stopReason: String,
+                        durationMs: Long?,
                     ) {
-                        sessions.endRemoteTurn(sessionId, stopReason)
+                        sessions.endRemoteTurn(sessionId, stopReason, durationMs)
                     }
 
                     override suspend fun onRemoteResumed(

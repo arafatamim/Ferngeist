@@ -1,8 +1,12 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
+import com.agentclientprotocol.annotations.UnstableApi
+import com.agentclientprotocol.model.AgentCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
+import com.tamimarafat.ferngeist.acp.bridge.connection.AgentInfo
 import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
@@ -124,6 +128,7 @@ class AcpChatSessionFacadeTest {
         /** Connect failures, so a test can drive the facade's error surfacing. */
         var connectFailure: Exception? = null
         var connectCalls = 0
+        val attachedSessionIds = mutableListOf<String>()
 
         override suspend fun fetchStatus(
             scheme: String,
@@ -227,6 +232,18 @@ class AcpChatSessionFacadeTest {
             gatewayCredential: String,
             runtimeId: String,
         ) = TODO("unused in facade tests")
+
+        // An older gateway without the one-call attach, so launches take the status/list/connect path.
+        override suspend fun attachSession(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
+            acpSessionId: String,
+        ): GatewayConnectResponse {
+            attachedSessionIds += acpSessionId
+            throw GatewayRequestException(statusCode = 404, message = "not found")
+        }
 
         override suspend fun resumeSession(
             scheme: String,
@@ -429,7 +446,35 @@ class AcpChatSessionFacadeTest {
 
             // The gateway session is gone: the only path is POST /v1/agents/{id}/connect.
             assertEquals(1, repo.connectCalls)
+            assertEquals("an agent that cannot load gets a new session", emptyList<String>(), repo.attachedSessionIds)
             assertEquals("agent exited: boom", failures.first())
+            collector.cancel()
+        }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `a rejected resume of a loadable agent reattaches the chat's own session`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo =
+                FakeGatewayRepo().apply {
+                    connectFailure = GatewayRequestException(502, "agent exited: boom", null)
+                }
+            val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
+            val manager = newManager(backgroundScope)
+            val facade =
+                newFacade(RecordingSurface(), backgroundScope, manager = manager, targets = targets, repo = repo)
+            val failures = mutableListOf<String>()
+            val collector = backgroundScope.launch { facade.loadFailed.collect { failures += it } }
+            val loadable = AgentCapabilities(loadSession = true)
+            manager.emitEvent(
+                AcpManagerEvent.Initialized(AcpInitializeResult.Ready(AgentInfo("a", "1"), loadable, emptyList())),
+            )
+            advanceUntilIdle()
+
+            manager.emitEvent(AcpManagerEvent.SessionResumeRejected)
+            awaitRealWork { failures.isNotEmpty() }
+
+            assertEquals(listOf("s1"), repo.attachedSessionIds)
             collector.cancel()
         }
 }

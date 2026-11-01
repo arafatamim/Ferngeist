@@ -36,6 +36,13 @@ private val remoteTurnEndedMethod =
     AcpMethod.AcpNotificationMethod("_ferngeist/turn_ended", serializer<RemoteTurnEnded>())
 
 /**
+ * The same end, replayed by the gateway ahead of a load/resume reply when the turn finished while
+ * no client was attached; it adds the gateway's `durationMs`.
+ */
+private val remoteTurnResultMethod =
+    AcpMethod.AcpNotificationMethod("_ferngeist/turn_result", serializer<RemoteTurnEnded>())
+
+/**
  * The turn's length as the gateway measured it, from `_meta.ferngeist.durationMs` on a prompt
  * response. Null from an agent reached directly or from an older gateway.
  */
@@ -45,11 +52,16 @@ internal fun gatewayTurnDurationMs(meta: JsonElement?): Long? =
         ?.let { it as? JsonPrimitive }
         ?.longOrNull
 
-/** Routes [RemoteTurnEnded] notices to [onTurnEnded]. Register before [Protocol.start]. */
-internal fun Protocol.onRemoteTurnEnded(onTurnEnded: suspend (sessionId: String, stopReason: String) -> Unit) {
-    setNotificationHandlerRaw(remoteTurnEndedMethod, EmptyCoroutineContext) { notification ->
-        val params = notification.params as? JsonObject ?: return@setNotificationHandlerRaw
-        val sessionId = params["sessionId"]?.jsonPrimitive?.contentOrNull ?: return@setNotificationHandlerRaw
-        onTurnEnded(sessionId, params["stopReason"]?.jsonPrimitive?.contentOrNull ?: "unknown")
+/** Routes [RemoteTurnEnded] notices, live or replayed, to [onTurnEnded]. Register before [Protocol.start]. */
+internal fun Protocol.onRemoteTurnEnded(
+    onTurnEnded: suspend (sessionId: String, stopReason: String, durationMs: Long?) -> Unit,
+) {
+    for (method in listOf(remoteTurnEndedMethod, remoteTurnResultMethod)) {
+        setNotificationHandlerRaw(method, EmptyCoroutineContext) { notification ->
+            val params = notification.params as? JsonObject ?: return@setNotificationHandlerRaw
+            val sessionId = params["sessionId"]?.jsonPrimitive?.contentOrNull ?: return@setNotificationHandlerRaw
+            val stopReason = params["stopReason"]?.jsonPrimitive?.contentOrNull ?: "unknown"
+            onTurnEnded(sessionId, stopReason, params["durationMs"]?.jsonPrimitive?.longOrNull)
+        }
     }
 }

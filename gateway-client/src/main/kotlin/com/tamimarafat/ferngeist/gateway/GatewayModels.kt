@@ -93,10 +93,13 @@ data class GatewayAgentSecurity(
 )
 
 /**
- * Response of `POST /v1/agents/{id}/connect` and `POST /v1/runtimes/{id}/restart`
- * (protocol v2): the gateway launches a fresh agent process and binds it to a new
- * session in one call, so a restart hands back a different [runtimeId]. Auth uses
- * the device credential; [attachToken] authorises the ACP WebSocket attach.
+ * Response of `POST /v1/agents/{id}/connect`, `POST /v1/runtimes/{id}/restart` and
+ * `POST /v1/sessions/attach` (protocol v2): the session handoff and the ACP WebSocket to
+ * attach to. A restart hands back a different [runtimeId]. Auth uses the device credential;
+ * [attachToken] authorises the ACP WebSocket attach.
+ *
+ * Only an attach fills the rest: [epoch] names the runtime's update numbering for a catch-up
+ * resume, and [needsLoad] says the chat's agent process is new, so it must be loaded.
  */
 @Serializable
 data class GatewayConnectResponse(
@@ -107,6 +110,15 @@ data class GatewayConnectResponse(
     val attachToken: String,
     @SerialName("websocketUrl")
     val webSocketUrl: String,
+    val protocolVersion: String? = null,
+    val epoch: String? = null,
+    val needsLoad: Boolean = false,
+)
+
+@Serializable
+data class GatewaySessionAttachRequest(
+    val agentId: String,
+    val acpSessionId: String,
 )
 
 @Serializable
