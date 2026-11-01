@@ -263,8 +263,9 @@ internal class ChatOfflineQueueController(
         dispatchedPrompt = prompt.copy(dispatched = true)
         persistQueue()
         val dispatched = coordinator.sendMessage(prompt)
-        inFlightClientId = null
-        dispatchedPrompt = null
+        // A steering agent's next prompt may have dispatched meanwhile: its state is not ours to clear.
+        if (inFlightClientId == prompt.clientId) inFlightClientId = null
+        if (dispatchedPrompt?.clientId == prompt.clientId) dispatchedPrompt = null
         if (!dispatched) {
             // No bridge / not ready / unsupported -> mark FAILED immediately. The facade
             // has already reported the cause; a second generic error would replace it.
