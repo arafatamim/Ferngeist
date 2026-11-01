@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.IOException
 import java.net.URLEncoder
 
 /**
@@ -38,16 +39,19 @@ class SessionStateStore(
     /** The open chats [saveOpenChats] last saved; an unreadable list costs only the switcher's entries. */
     internal suspend fun readOpenChats(): List<OpenChat> =
         withContext(ioDispatcher) {
-            val saved = openChatsFile().takeIf { it.exists() }?.readText() ?: return@withContext emptyList()
             try {
+                val saved = openChatsFile().takeIf { it.exists() }?.readText() ?: return@withContext emptyList()
                 Json.decodeFromString<List<OpenChat>>(saved)
             } catch (_: SerializationException) {
+                emptyList()
+            } catch (_: IOException) {
                 emptyList()
             }
         }
 
+    /** Best-effort: a failed write keeps the previous list, and the next change rewrites it. */
     internal suspend fun saveOpenChats(chats: List<OpenChat>) {
-        withContext(ioDispatcher) { replace(openChatsFile(), Json.encodeToString(chats)) }
+        withContext(ioDispatcher) { ignoringIoFailure { replace(openChatsFile(), Json.encodeToString(chats)) } }
     }
 
     /**
@@ -62,7 +66,7 @@ class SessionStateStore(
         save: suspend () -> String?,
     ) {
         snapshot.filter { it.loadState == SessionLoadState.READY }.collect {
-            withContext(ioDispatcher) { save()?.let { state -> write(chatId, state) } }
+            withContext(ioDispatcher) { ignoringIoFailure { save()?.let { state -> write(chatId, state) } } }
             delay(SAVE_INTERVAL_MS)
         }
     }
@@ -95,6 +99,16 @@ class SessionStateStore(
     }
 
     private fun file(chatId: String) = File(dir, "v$FORMAT_VERSION-${URLEncoder.encode(chatId, "UTF-8")}$SUFFIX")
+
+    // These writes run in the hub's own coroutines, where a throw would end the chat's
+    // observer; a lost save only costs a reattach refill.
+    private inline fun ignoringIoFailure(block: () -> Unit) {
+        try {
+            block()
+        } catch (_: IOException) {
+            // Retried by the next save.
+        }
+    }
 
     // Not [SUFFIX]: pruning must never count or delete the list.
     private fun openChatsFile() = File(dir, "open-chats-v$FORMAT_VERSION.list")
