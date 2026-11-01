@@ -893,15 +893,16 @@ class ChatConnectionHub(
             ignoringNotFound { close(chatId, endpoint) }
             return true
         }
-        // A chat restored after process death is tracked without its gateway session id:
-        // drop it here, then find the gateway session that runs it like any cold one.
+        // A chat restored after process death is tracked without its gateway session id: find
+        // the gateway session that runs it first, so a failed listing leaves the chat tracked.
         val dropped = isTracked(serverId, sessionId)
-        close(chatId, endpoint)
         val gatewaySessionId =
             gatewayRepository
                 .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
                 .firstOrNull { sessionId in it.acpSessionIds }
-                ?.sessionId ?: return dropped
+                ?.sessionId
+        close(chatId, endpoint)
+        if (gatewaySessionId == null) return dropped
         // Reaped between the listing and the DELETE: nothing runs it any more.
         ignoringNotFound {
             gatewayRepository.closeSession(

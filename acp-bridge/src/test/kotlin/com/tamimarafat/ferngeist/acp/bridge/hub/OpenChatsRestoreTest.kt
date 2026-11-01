@@ -13,6 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 import java.nio.file.Files
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -74,6 +75,24 @@ class OpenChatsRestoreTest {
             assertTrue(closed)
             assertEquals(listOf("g-1"), repo.closed)
             assertEquals(emptySet<String>(), restarted.trackedChatIds.value)
+            dir.deleteRecursively()
+        }
+
+    @Test
+    fun `a restored chat stays tracked when the gateway listing fails`() =
+        runTest {
+            val dir = Files.createTempDirectory("chat-state").toFile()
+            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            hubOver(store).chatScreenOpened("srv", "s1", "/work")
+            advanceUntilIdle()
+            val repo = FakeGatewayRepo().apply { listFailure = IOException("offline") }
+
+            val restarted = hubOver(store, repo)
+            advanceUntilIdle()
+            runCatching { restarted.closeSession("srv", "s1", GatewayEndpoint("http", "gw", "cred")) }
+            advanceUntilIdle()
+
+            assertEquals(setOf(chatIdFor("srv", "s1")), hubOver(store).trackedChatIds.value)
             dir.deleteRecursively()
         }
 
