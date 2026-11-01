@@ -233,7 +233,7 @@ class AcpConnection(
      * Retries a chat's first open that failed before any transport existed (offline at launch)
      * on the reconnect loop: [open] runs once online, after the backoff, and returns true to stop.
      */
-    fun retryWhenOnline(open: suspend () -> Boolean) = transportClient.reconnect.retry(open)
+    fun retryWhenOnline(open: suspend () -> Boolean) = transportClient.reconnect.takeOver(open)
 
     /**
      * Connects the transport and runs the ACP initialize handshake.

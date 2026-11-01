@@ -71,6 +71,15 @@ internal class ReconnectLoop(
         retry { attemptOnce(config, resetState) }
     }
 
+    /**
+     * Arms the loop with [attempt] in place of any armed one: a chat's offline open must rerun the
+     * whole open, not just the socket reconnect the transport armed when its connect failed.
+     */
+    fun takeOver(attempt: suspend () -> Boolean) {
+        abandon()
+        retry(attempt)
+    }
+
     /** Arms the loop with [attempt], which returns true when the loop must stop; no-op while armed. */
     fun retry(attempt: suspend () -> Boolean) {
         if (reconnectJob != null || resumeRejected) return

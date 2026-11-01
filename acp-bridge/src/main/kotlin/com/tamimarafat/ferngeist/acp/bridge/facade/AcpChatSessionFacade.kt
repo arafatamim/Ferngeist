@@ -157,8 +157,8 @@ class AcpChatSessionFacade(
     // bridgeOperationMutex, so it needs no further synchronization.
     private var openTimer: OpenStepTimer? = null
 
-    // The last open failed only because the agent was unreachable: it reopens once the device
-    // is back online (see loadSessionLocked) instead of showing a dead error.
+    // The last connect failed only because the agent was unreachable; reset by each
+    // ensureConnectedAndInitialized, so loadSessionLocked reads it straight after its own call.
     private var reopenWhenOnline = false
 
     private val sessionLoadCoordinator by lazy {
@@ -193,7 +193,6 @@ class AcpChatSessionFacade(
         scope.launch {
             connectionManager.events.collect { event ->
                 if (event is AcpManagerEvent.SessionResumeRejected) reconnectAfterRejectedResume()
-                if (event is AcpManagerEvent.Connected && reopenWhenOnline) loadSessionInternal(quiet = false)
             }
         }
     }
@@ -234,8 +233,8 @@ class AcpChatSessionFacade(
     }
 
     private suspend fun loadSessionLocked(quiet: Boolean) {
-        reopenWhenOnline = false
         if (!ensureConnectedAndInitialized()) {
+            // The one reopen trigger: the loop reruns this open once the device is back online.
             if (reopenWhenOnline) {
                 connectionManager.retryWhenOnline {
                     scope.launch { loadSessionInternal(quiet = false) }
@@ -529,6 +528,7 @@ class AcpChatSessionFacade(
      * Returns false and emits [loadFailed] if connection or auth fails.
      */
     private suspend fun ensureConnectedAndInitialized(): Boolean {
+        reopenWhenOnline = false
         if (connectionManager.isConnected) {
             // Already connected — restore the gateway workspace connection from the live
             // config so the diff indicator works when resuming into an open session.
@@ -631,7 +631,7 @@ class AcpChatSessionFacade(
                 is LaunchableTarget.GatewayAgent -> buildGatewayConnectionConfig(server) ?: return null
                 is LaunchableTarget.Manual -> server.toConnectionConfig()
             }
-        // A socket that cannot open leaves the transport's own loop retrying; the chat reopens once it connects.
+        // A socket that cannot open is retried by the open itself; see loadSessionLocked.
         return connectionManager.connect(config).also { reopenWhenOnline = !it }
     }
 

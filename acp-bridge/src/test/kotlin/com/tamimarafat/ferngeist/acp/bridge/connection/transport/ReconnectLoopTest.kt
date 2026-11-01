@@ -46,4 +46,38 @@ class ReconnectLoopTest {
             assertFalse(loop.pending.value)
             assertEquals(1, attempts)
         }
+
+    @Test
+    fun `an offline open takes over a loop the transport armed, so only the open runs`() =
+        runTest {
+            val online = MutableStateFlow(false)
+            val observer =
+                object : ConnectivityObserver {
+                    override val isConnected = online
+                }
+            val loop =
+                ReconnectLoop(
+                    scope = this,
+                    connectivityObserver = observer,
+                    diagnosticsStore = AcpDiagnosticsStore(),
+                    isLive = { false },
+                    currentConfig = { null },
+                    attemptOnce = { _, _ -> error("no transport in this test") },
+                )
+            val ran = mutableListOf<String>()
+
+            loop.retry {
+                ran += "socket"
+                false
+            }
+            loop.takeOver {
+                ran += "open"
+                true
+            }
+            online.value = true
+            advanceUntilIdle()
+
+            assertEquals(listOf("open"), ran)
+            assertFalse(loop.pending.value)
+        }
 }
