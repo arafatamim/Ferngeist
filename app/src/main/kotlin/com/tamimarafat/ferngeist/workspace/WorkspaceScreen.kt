@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -248,6 +249,8 @@ private fun SwitchingChatPane(
     // The swipe that picked a session, kept only for that session: a later pick from the list
     // must not reuse its direction.
     var swipe by remember { mutableStateOf<Pair<String, SwitchSlide>?>(null) }
+    // The outgoing pane's mint collector keeps the callback it started with; this reads the selection as it is now.
+    val currentSelection by rememberUpdatedState(selection)
     AnimatedContent(
         targetState = selection,
         contentKey = { it.serverId to it.sessionId },
@@ -268,9 +271,10 @@ private fun SwitchingChatPane(
     ) { shown ->
         ChatPane(
             selection = shown,
-            // The minted id belongs to the current selection, not to one sliding out.
+            // The minted id belongs to the current selection, not to one sliding out: neither
+            // the id going in nor one the outgoing pane mints coming out.
             mintedSessionId = mintedSessionId.takeIf { shown.chatKey() == selection.chatKey() },
-            onSessionMinted = onSessionMinted,
+            onSessionMinted = { id -> if (shown.chatKey() == currentSelection.chatKey()) onSessionMinted(id) },
             chatViewModelFactory = chatViewModelFactory,
             showBackButton = showBackButton,
             onNavigateBack = onNavigateBack,
