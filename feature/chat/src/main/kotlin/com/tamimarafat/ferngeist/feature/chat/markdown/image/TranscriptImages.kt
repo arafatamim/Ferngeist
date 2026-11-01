@@ -97,6 +97,12 @@ internal class TranscriptImageLoader(
 
     fun cacheKey(destination: String): String = "transcript-image:$id:$destination"
 
+    /** The web host [destination] would be fetched from, or null when its bytes stay with the chat. */
+    fun remoteHost(destination: String): String? =
+        (imageOrigin(destination, cwd) as? ImageOrigin.Remote)?.let {
+            runCatching { URI(it.url).host }.getOrNull() ?: it.url
+        }
+
     suspend fun load(destination: String): ByteArray =
         when (val origin = imageOrigin(destination, cwd)) {
             is ImageOrigin.Remote -> fetchRemote(origin.url)

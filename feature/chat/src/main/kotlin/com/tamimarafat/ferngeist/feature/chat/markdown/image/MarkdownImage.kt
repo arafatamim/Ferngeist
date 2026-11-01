@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.markdown.image
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -10,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -23,7 +25,8 @@ private val maxImageHeight = 320.dp
 /**
  * A transcript image at its own size, scaled down to the transcript's width and [maxImageHeight].
  * Shows [alt] in [fallbackStyle] once the load fails; the failed request is kept, so a
- * recomposition does not retry it.
+ * recomposition does not retry it. A web image waits for a tap: an agent-written URL can carry
+ * workspace secrets in its query, and a fetch would hand them to that host.
  */
 @Composable
 internal fun MarkdownImage(
@@ -33,6 +36,16 @@ internal fun MarkdownImage(
     fallbackStyle: TextStyle,
     modifier: Modifier = Modifier,
 ) {
+    val remoteHost = remember(loader, destination) { loader.remoteHost(destination) }
+    var approved by remember(destination) { mutableStateOf(false) }
+    if (remoteHost != null && !approved) {
+        BasicText(
+            text = stringResource(R.string.chat_image_load_remote, remoteHost),
+            style = fallbackStyle,
+            modifier = modifier.clickable(role = Role.Button) { approved = true },
+        )
+        return
+    }
     val context = LocalPlatformContext.current
     val request =
         remember(context, loader, destination) {

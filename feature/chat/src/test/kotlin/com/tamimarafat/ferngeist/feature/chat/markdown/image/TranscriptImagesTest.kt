@@ -95,6 +95,17 @@ class TranscriptImagesTest {
         }
 
     @Test
+    fun `only web images wait for a tap, named by their host`() {
+        val loader = loader()
+
+        assertEquals("evil.example", loader.remoteHost("https://evil.example/p.png?d=secret"))
+        assertEquals("192.168.1.1", loader.remoteHost("http://192.168.1.1/x.png"))
+        assertEquals(null, loader.remoteHost("data:image/png;base64,AQID"))
+        assertEquals(null, loader.remoteHost("docs/a.png"))
+        assertEquals(null, loader.remoteHost("file:///home/dev/project/docs/a.png"))
+    }
+
+    @Test
     fun `two chats never share a cache key for the same path`() {
         val first = loader()
         val second = loader()
