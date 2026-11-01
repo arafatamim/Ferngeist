@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.chat
+package com.tamimarafat.ferngeist.feature.chat.queue
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit

@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.chat
+package com.tamimarafat.ferngeist.feature.chat.queue
 
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData

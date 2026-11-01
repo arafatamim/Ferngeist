@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.chat
+package com.tamimarafat.ferngeist.feature.chat.queue
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

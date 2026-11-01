@@ -12,8 +12,8 @@ import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepositor
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
-import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
 import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
+import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import io.mockk.every
 import io.mockk.mockk

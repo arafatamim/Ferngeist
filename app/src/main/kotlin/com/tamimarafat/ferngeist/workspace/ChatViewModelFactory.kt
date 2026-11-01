@@ -11,10 +11,10 @@ import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
-import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
 import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
+import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
 import kotlinx.coroutines.CoroutineDispatcher
 import javax.inject.Inject
 import javax.inject.Singleton
