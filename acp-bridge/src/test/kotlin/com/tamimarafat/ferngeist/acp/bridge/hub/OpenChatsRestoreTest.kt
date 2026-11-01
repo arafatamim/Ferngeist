@@ -96,6 +96,24 @@ class OpenChatsRestoreTest {
             dir.deleteRecursively()
         }
 
+    @Test
+    fun `an unreadable open-chat list is not overwritten by the chats opened after it`() =
+        runTest {
+            val dir = Files.createTempDirectory("chat-state").toFile()
+            val store = SessionStateStore(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            hubOver(store).chatScreenOpened("srv", "s1", "/work")
+            advanceUntilIdle()
+            val list = dir.listFiles { file -> file.name.endsWith(".list") }!!.single()
+            list.setReadable(false)
+
+            hubOver(store).chatScreenOpened("srv", "s2", "/work")
+            advanceUntilIdle()
+            list.setReadable(true)
+
+            assertEquals(setOf(chatIdFor("srv", "s1")), hubOver(store).trackedChatIds.value)
+            dir.deleteRecursively()
+        }
+
     /** A new hub over the same store is the app after a process kill. */
     private fun TestScope.hubOver(
         store: SessionStateStore,

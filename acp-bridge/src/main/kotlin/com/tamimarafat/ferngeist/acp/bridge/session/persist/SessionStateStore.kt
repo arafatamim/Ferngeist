@@ -36,8 +36,11 @@ class SessionStateStore(
         withContext(ioDispatcher) { file(chatId).delete() }
     }
 
-    /** The open chats [saveOpenChats] last saved; an unreadable list costs only the switcher's entries. */
-    internal suspend fun readOpenChats(): List<OpenChat> =
+    /**
+     * The open chats [saveOpenChats] last saved; a corrupt list costs only the switcher's entries.
+     * Null when the file cannot be read, so the caller leaves it alone instead of overwriting it.
+     */
+    internal suspend fun readOpenChats(): List<OpenChat>? =
         withContext(ioDispatcher) {
             try {
                 val saved = openChatsFile().takeIf { it.exists() }?.readText() ?: return@withContext emptyList()
@@ -45,7 +48,7 @@ class SessionStateStore(
             } catch (_: SerializationException) {
                 emptyList()
             } catch (_: IOException) {
-                emptyList()
+                null
             }
         }
 

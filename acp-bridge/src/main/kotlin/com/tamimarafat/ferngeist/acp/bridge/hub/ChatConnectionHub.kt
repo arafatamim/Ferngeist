@@ -246,9 +246,12 @@ class ChatConnectionHub(
     /**
      * Brings back the chats tracked before process death as cold entries (no transport), so the
      * switcher, tap target and active-chats count read the same; then keeps the saved table current.
+     * shortcut: an unreadable table is left as it is and not saved this process, rather than
+     * overwritten with only the chats opened since; retry the read if that proves transient.
      */
     private suspend fun restoreOpenChats(store: SessionStateStore) {
-        store.readOpenChats().forEach { chat ->
+        val saved = store.readOpenChats() ?: return
+        saved.forEach { chat ->
             entries.getOrPut(chatIdFor(chat.serverId, chat.sessionId)) {
                 coldEntry(chat.serverId, chat.sessionId, chat.cwd, chat.lastFocusedMs, openScreens = 0)
             }
