@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserv
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -34,6 +35,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
+import java.io.File
 import javax.inject.Singleton
 
 /** Bounds whole-call REST latency so network-backed spinners can never hang. */
@@ -103,6 +105,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideChatConnectionHub(
+        @ApplicationContext context: Context,
         connectivityObserver: ConnectivityObserver,
         gatewayRepository: GatewayRepository,
         applicationScope: CoroutineScope,
@@ -111,6 +114,7 @@ object AppModule {
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
             connectivityObserver = connectivityObserver,
+            stateStore = SessionStateStore(File(context.filesDir, "chat-state")),
         )
 
     /** Supplies the chat-session facade factory backed by ACP. */

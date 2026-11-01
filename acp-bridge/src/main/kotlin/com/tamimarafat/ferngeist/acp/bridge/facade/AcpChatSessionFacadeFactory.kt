@@ -57,21 +57,7 @@ class AcpChatSessionFacadeFactory(
                     serverId = serverId,
                     sessionId = sessionId,
                     cwd = cwd,
-                    // A cached paint is history, never live state: clear any stale streaming flag it
-                    // carries. The live bridge republishes its true snapshot immediately on reattach
-                    // (AcpChatSessionFacade.tryRestoreWarmSession), so a real in-flight turn re-arms the
-                    // flag at once, while a turn that ended — or one whose owner died with the screen —
-                    // can never strand the UI on STOP.
-                    cachedSnapshot =
-                        hub.snapshotFor(chatId)?.let { cached ->
-                            cached.copy(
-                                isStreaming = false,
-                                messages =
-                                    cached.messages.map { message ->
-                                        if (message.isStreaming) message.copy(isStreaming = false) else message
-                                    },
-                            )
-                        },
+                    cachedSnapshot = hub.snapshotFor(chatId),
                 ),
             hub = hub,
         )

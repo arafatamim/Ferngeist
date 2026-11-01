@@ -14,6 +14,7 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.serialization.Serializable
 import java.util.UUID
 
 /**
@@ -23,6 +24,7 @@ import java.util.UUID
  * call updates/permissions instead of the O(messages × segments) scan the
  * reducer used to do.
  */
+@Serializable
 data class ToolCallLocation(
     val messageIndex: Int,
     val segmentIndex: Int,

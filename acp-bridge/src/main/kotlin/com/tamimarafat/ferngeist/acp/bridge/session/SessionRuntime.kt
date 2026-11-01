@@ -6,11 +6,15 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.TurnTiming
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import kotlinx.serialization.json.Json
 import kotlin.time.ComparableTimeMark
 import kotlin.time.TimeSource
 
@@ -38,11 +42,12 @@ class SessionRuntime(
     /** Wall clock for when a turn finished, shown to the reader as a time of day. */
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) {
-    companion object {
-        private const val TAG = "TSRuntime"
-    }
-
-    /** Internal state snapshot. All fields are immutable; [reduce] produces new instances. */
+    /**
+     * Internal state snapshot. All fields are immutable; [reduce] produces new instances.
+     * Serialized whole so a chat survives process death; pending requests are not saved
+     * because the gateway re-sends them and a restored entry has nothing behind it to answer.
+     */
+    @Serializable
     private data class RuntimeData(
         val messages: List<ChatMessage> = emptyList(),
         val isStreaming: Boolean = false,
@@ -54,7 +59,7 @@ class SessionRuntime(
         val legacyModes: LegacyModeState? = null,
         val legacyModel: LegacyModelState? = null,
         val title: String? = null,
-        val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+        @Transient val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
         /**
          * Id of the last message when the user stopped the turn, until the next prompt. What
          * the agent still sends goes below it, already closed: some agents (claude-agent-acp)
@@ -68,7 +73,7 @@ class SessionRuntime(
          */
         val turnOutcome: TurnStatus = TurnStatus.UNKNOWN,
         /** Permission requests still awaiting the user, so a live turn can be blocked on them. */
-        val pendingPermissions: Set<String> = emptySet(),
+        @Transient val pendingPermissions: Set<String> = emptySet(),
         /**
          * True once a terminal event settled the current turn. A later rollback of the
          * prompt awaiter must not overwrite that outcome (a cancellation stays cancelled),
@@ -76,20 +81,19 @@ class SessionRuntime(
          */
         val turnSettled: Boolean = false,
         val turnCompletionSequence: Long = 0,
-        val turnStartedAt: ComparableTimeMark? = null,
-        val turnFinishedAt: ComparableTimeMark? = null,
+        // Monotonic marks mean nothing in another process: a restored turn starts untimed.
+        @Transient val turnStartedAt: ComparableTimeMark? = null,
+        @Transient val turnFinishedAt: ComparableTimeMark? = null,
+        /** The reply still streaming at the last publish, so its close can be stamped. */
+        val openReplyId: String? = null,
+        /** The gateway's measure of the turn that just ended, for [stampClosedReply]. */
+        val turnDurationMs: Long? = null,
     )
 
     private val mutex = Mutex()
     private var live = RuntimeData()
     private var buffered = RuntimeData()
     private var eventSeq = 0L
-
-    /** The reply still streaming at the last publish, so its close can be stamped. */
-    private var openReplyId: String? = null
-
-    /** The gateway's measure of the turn that just ended, for [stampClosedReply]. */
-    private var turnDurationMs: Long? = null
 
     private val _snapshot =
         MutableStateFlow(
@@ -189,25 +193,22 @@ class SessionRuntime(
                     "summary=${summarizeEvent(event)}"
             }
             if (_snapshot.value.loadState == SessionLoadState.HYDRATING) {
-                buffered = reduce(buffered, event, nowMs = null)
+                buffered = reduce(buffered, event, nowMs = null, eventSeq)
                 debug {
                     "event#$seq bufferedApplied messages=${buffered.messages.size} " +
                         "streaming=${buffered.isStreaming}"
                 }
                 return@withLock
             }
-            live = reduce(live, event, clock())
+            live = reduce(live, event, clock(), eventSeq)
             // A reply closed by a reattach ended while this client was away; stamping it now would
             // time the outage, not the turn, so it gets no time at all.
             when (event) {
-                is AppSessionEvent.SessionLoadComplete -> {
-                    openReplyId = null
-                    live = live.copy(turnStartedAt = null, turnFinishedAt = null)
-                }
-                is AppSessionEvent.TurnComplete -> {
-                    turnDurationMs = event.durationMs
-                    live = live.copy(turnFinishedAt = TimeSource.Monotonic.markNow())
-                }
+                is AppSessionEvent.SessionLoadComplete ->
+                    live = live.copy(openReplyId = null, turnStartedAt = null, turnFinishedAt = null)
+                is AppSessionEvent.TurnComplete ->
+                    live =
+                        live.copy(turnDurationMs = event.durationMs, turnFinishedAt = TimeSource.Monotonic.markNow())
                 else -> Unit
             }
             debug { "event#$seq liveApplied messages=${live.messages.size} streaming=${live.isStreaming}" }
@@ -325,146 +326,205 @@ class SessionRuntime(
         }
     }
 
-    /**
-     * Pure function that reduces an event onto the current state.
-     *
-     * Message list changes are delegated to [SessionMessageReducer.handleEvent].
-     * Side-field updates (usage, commands, config options, legacy mode/model) are handled
-     * directly here. The branching is straightforward: each event type updates exactly one
-     * field or a small related group.
-     *
-     * Config option value changes use [SessionConfigPolicy.applyValueChange] to ensure
-     * type-safe updates without duplicating the origin-handling logic.
-     */
-    private fun reduce(
-        current: RuntimeData,
-        event: AppSessionEvent,
-        nowMs: Long?,
-    ): RuntimeData {
-        val transcript = reduceTranscript(current, event, nowMs)
-        val fields = applySideFieldUpdates(current, event)
-
-        // TurnComplete / SessionLoadComplete end the streaming turn.
-        val endsTurn = event is AppSessionEvent.TurnComplete || event is AppSessionEvent.SessionLoadComplete
-        // Only the trailing bubble can be mid-stream: finishStreaming clears the flag on
-        // every message it closes, and a new streaming bubble is always appended last.
-        // A full scan is O(messages) and this runs per event.
-        val derivedStreaming =
-            (current.isStreaming && !endsTurn) || transcript.messages.lastOrNull()?.isStreaming == true
-        return current.copy(
-            messages = transcript.messages,
-            toolCallIndex = transcript.toolCallIndex,
-            isStreaming = derivedStreaming,
-            usage = fields.usage,
-            availableCommands = fields.availableCommands,
-            commandsAdvertised = fields.commandsAdvertised,
-            nativeConfigOptions = fields.nativeConfigOptions,
-            legacyModes = fields.legacyModes,
-            legacyModel = fields.legacyModel,
-            title = fields.title,
-            // A turn that has ended cannot still be waiting on the user: a request it left
-            // behind is unanswerable, so it must not keep the session in attention across a
-            // reconnect (the agent may never send its resolve event after a drop). Clearing on
-            // a turn end only - not on a load replay's close - keeps a request the agent
-            // raises while a load runs answerable.
-            pendingElicitations =
-                if (event is AppSessionEvent.TurnComplete) {
-                    emptyList()
-                } else {
-                    applyElicitationUpdate(current.pendingElicitations, event)
-                },
-            pendingPermissions =
-                if (event is AppSessionEvent.TurnComplete) {
-                    emptySet()
-                } else {
-                    pendingPermissionsAfter(current.pendingPermissions, event)
-                },
-            turnOutcome = turnOutcomeAfter(current.turnOutcome, event),
-            turnSettled = current.turnSettled || event is AppSessionEvent.TurnComplete,
-            turnCompletionSequence =
-                if (event is AppSessionEvent.TurnComplete) eventSeq else current.turnCompletionSequence,
-        )
+    /** The live state as JSON, for saving; [restore] installs it in a later process. */
+    suspend fun savedState(): String {
+        // The state is immutable, so the encode runs outside the lock and blocks no event.
+        val data = mutex.withLock { live }
+        return stateJson.encodeToString(data)
     }
 
-    /** Folds one event into the transcript: a stop's tail, the reducer, and the turn-close fold. */
-    private fun reduceTranscript(
-        current: RuntimeData,
-        event: AppSessionEvent,
-        nowMs: Long?,
-    ): ReducerResult {
-        // Text arriving after a stop would otherwise land in the stopped reply, and its
-        // turn-close fold would glue it onto that reply's last sentence.
-        val stoppedReply = current.messages.lastOrNull()?.takeIf { it.id == current.stoppedAt }
-        val opensReply =
-            stoppedReply?.segments?.isNotEmpty() == true &&
-                (
-                    event is AppSessionEvent.AgentMessage ||
-                        event is AppSessionEvent.AgentThought ||
-                        event is AppSessionEvent.PlanUpdated
-                )
-        val opened = if (opensReply) SessionMessageReducer.startStreaming(current.messages) else current.messages
+    /**
+     * Installs a [savedState] from an earlier process and publishes it; a streaming turn stays
+     * streaming. A saved permission prompt is dropped: its request died with the process, and
+     * the gateway re-sends the ones still open. Throws
+     * [kotlinx.serialization.SerializationException] when [saved] is not a saved state.
+     */
+    suspend fun restore(saved: String) {
+        val data = stateJson.decodeFromString<RuntimeData>(saved)
+        mutex.withLock {
+            live = data.copy(messages = data.messages.map { it.withoutPermissionPrompts() })
+            eventSeq = data.turnCompletionSequence
+            publishLive(loadState = SessionLoadState.READY, error = null)
+        }
+    }
 
-        // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
-        // which owns both the message list and the tool-call index
-        val fromReducer =
+    companion object {
+        private const val TAG = "TSRuntime"
+
+        // Defaults are encoded: ids and timestamps default to fresh values on decode.
+        private val stateJson = Json { encodeDefaults = true }
+
+        /**
+         * Pure function that reduces an event onto the current state.
+         *
+         * Message list changes are delegated to [SessionMessageReducer.handleEvent].
+         * Side-field updates (usage, commands, config options, legacy mode/model) are handled
+         * directly here. The branching is straightforward: each event type updates exactly one
+         * field or a small related group.
+         *
+         * Config option values go through [SessionConfigPolicy.applyValueChange], which owns origin handling.
+         */
+        private fun reduce(
+            current: RuntimeData,
+            event: AppSessionEvent,
+            nowMs: Long?,
+            eventSeq: Long,
+        ): RuntimeData {
+            val transcript = reduceTranscript(current, event, nowMs)
+            val fields = applySideFieldUpdates(current, event)
+
+            // TurnComplete / SessionLoadComplete end the streaming turn.
+            val endsTurn = event is AppSessionEvent.TurnComplete || event is AppSessionEvent.SessionLoadComplete
+            // Only the trailing bubble can be mid-stream: finishStreaming clears the flag on
+            // every message it closes, and a new streaming bubble is always appended last.
+            // A full scan is O(messages) and this runs per event.
+            val derivedStreaming =
+                (current.isStreaming && !endsTurn) || transcript.messages.lastOrNull()?.isStreaming == true
+            return current.copy(
+                messages = transcript.messages,
+                toolCallIndex = transcript.toolCallIndex,
+                isStreaming = derivedStreaming,
+                usage = fields.usage,
+                availableCommands = fields.availableCommands,
+                commandsAdvertised = fields.commandsAdvertised,
+                nativeConfigOptions = fields.nativeConfigOptions,
+                legacyModes = fields.legacyModes,
+                legacyModel = fields.legacyModel,
+                title = fields.title,
+                // A turn that has ended cannot still be waiting on the user: a request it left
+                // behind is unanswerable, so it must not keep the session in attention across a
+                // reconnect (the agent may never send its resolve event after a drop). Clearing on
+                // a turn end only - not on a load replay's close - keeps a request the agent
+                // raises while a load runs answerable.
+                pendingElicitations =
+                    if (event is AppSessionEvent.TurnComplete) {
+                        emptyList()
+                    } else {
+                        applyElicitationUpdate(current.pendingElicitations, event)
+                    },
+                pendingPermissions =
+                    if (event is AppSessionEvent.TurnComplete) {
+                        emptySet()
+                    } else {
+                        pendingPermissionsAfter(current.pendingPermissions, event)
+                    },
+                turnOutcome = turnOutcomeAfter(current.turnOutcome, event),
+                turnSettled = current.turnSettled || event is AppSessionEvent.TurnComplete,
+                turnCompletionSequence =
+                    if (event is AppSessionEvent.TurnComplete) eventSeq else current.turnCompletionSequence,
+            )
+        }
+
+        /** Folds one event into the transcript: a stop's tail, the reducer, and the turn-close fold. */
+        private fun reduceTranscript(
+            current: RuntimeData,
+            event: AppSessionEvent,
+            nowMs: Long?,
+        ): ReducerResult {
+            // Text arriving after a stop would otherwise land in the stopped reply, and its
+            // turn-close fold would glue it onto that reply's last sentence.
+            val stoppedReply = current.messages.lastOrNull()?.takeIf { it.id == current.stoppedAt }
+            val opensReply =
+                stoppedReply?.segments?.isNotEmpty() == true &&
+                    (
+                        event is AppSessionEvent.AgentMessage ||
+                            event is AppSessionEvent.AgentThought ||
+                            event is AppSessionEvent.PlanUpdated
+                    )
+            val opened = if (opensReply) SessionMessageReducer.startStreaming(current.messages) else current.messages
+
+            // SessionLoadComplete only flips isStreaming; everything else goes through the reducer,
+            // which owns both the message list and the tool-call index
+            val fromReducer =
+                when (event) {
+                    is AppSessionEvent.SessionLoadComplete -> null
+                    else -> SessionMessageReducer.handleEvent(opened, current.toolCallIndex, event, nowMs)
+                }
+            val reduced = fromReducer ?: ReducerResult(opened, current.toolCallIndex)
+            if (fromReducer == null || current.stoppedAt != null) {
+                // ponytail: re-folds the trailing reply per late event; fine for a stop's short tail.
+                return reduced.copy(messages = SessionMessageReducer.finishStreaming(reduced.messages))
+            }
+            return reduced
+        }
+
+        /**
+         * Applies side-field updates (usage, commands, config options, legacy mode/model)
+         * for a single event. Returns the new field values; unchanged fields carry through.
+         */
+        private fun applySideFieldUpdates(
+            current: RuntimeData,
+            event: AppSessionEvent,
+        ): SideFields {
+            var usage = current.usage
+            var availableCommands = current.availableCommands
+            var commandsAdvertised = current.commandsAdvertised
+            var nativeConfigOptions = current.nativeConfigOptions
+            var legacyModes = current.legacyModes
+            var legacyModel = current.legacyModel
+            var title = current.title
+
             when (event) {
-                is AppSessionEvent.SessionLoadComplete -> null
-                else -> SessionMessageReducer.handleEvent(opened, current.toolCallIndex, event, nowMs)
+                is AppSessionEvent.TurnComplete -> Unit
+                is AppSessionEvent.SessionLoadComplete -> Unit
+                is AppSessionEvent.UsageUpdated -> usage = mapUsage(event)
+                is AppSessionEvent.CommandsUpdated -> {
+                    availableCommands = event.commands
+                    commandsAdvertised = true
+                }
+                is AppSessionEvent.ModeChanged -> legacyModes = confirmModeChanged(legacyModes, event.modeId)
+                is AppSessionEvent.ModesUpdated -> legacyModes = mapModes(event, legacyModes)
+                is AppSessionEvent.ConfigOptionsUpdated -> nativeConfigOptions = event.options
+                is AppSessionEvent.ConfigOptionValueChanged -> {
+                    nativeConfigOptions = applyConfigValueChange(nativeConfigOptions, event)
+                }
+                is AppSessionEvent.LegacyModelOptionsUpdated -> legacyModel = mapLegacyModel(event)
+                is AppSessionEvent.ModelSelectionConfirmed -> {
+                    legacyModel = confirmModelSelection(legacyModel, event.modelId)
+                }
+                is AppSessionEvent.SessionInfoUpdated -> title = event.title ?: title
+                else -> Unit
             }
-        val reduced = fromReducer ?: ReducerResult(opened, current.toolCallIndex)
-        if (fromReducer == null || current.stoppedAt != null) {
-            // ponytail: re-folds the trailing reply per late event; fine for a stop's short tail.
-            return reduced.copy(messages = SessionMessageReducer.finishStreaming(reduced.messages))
+            return SideFields(
+                usage = usage,
+                availableCommands = availableCommands,
+                commandsAdvertised = commandsAdvertised,
+                nativeConfigOptions = nativeConfigOptions,
+                legacyModes = legacyModes,
+                legacyModel = legacyModel,
+                title = title,
+            )
         }
-        return reduced
-    }
 
-    /**
-     * Applies side-field updates (usage, commands, config options, legacy mode/model)
-     * for a single event. Returns the new field values; unchanged fields carry through.
-     */
-    private fun applySideFieldUpdates(
-        current: RuntimeData,
-        event: AppSessionEvent,
-    ): SideFields {
-        var usage = current.usage
-        var availableCommands = current.availableCommands
-        var commandsAdvertised = current.commandsAdvertised
-        var nativeConfigOptions = current.nativeConfigOptions
-        var legacyModes = current.legacyModes
-        var legacyModel = current.legacyModel
-        var title = current.title
-
-        when (event) {
-            is AppSessionEvent.TurnComplete -> Unit
-            is AppSessionEvent.SessionLoadComplete -> Unit
-            is AppSessionEvent.UsageUpdated -> usage = mapUsage(event)
-            is AppSessionEvent.CommandsUpdated -> {
-                availableCommands = event.commands
-                commandsAdvertised = true
-            }
-            is AppSessionEvent.ModeChanged -> legacyModes = confirmModeChanged(legacyModes, event.modeId)
-            is AppSessionEvent.ModesUpdated -> legacyModes = mapModes(event, legacyModes)
-            is AppSessionEvent.ConfigOptionsUpdated -> nativeConfigOptions = event.options
-            is AppSessionEvent.ConfigOptionValueChanged -> {
-                nativeConfigOptions = applyConfigValueChange(nativeConfigOptions, event)
-            }
-            is AppSessionEvent.LegacyModelOptionsUpdated -> legacyModel = mapLegacyModel(event)
-            is AppSessionEvent.ModelSelectionConfirmed -> {
-                legacyModel = confirmModelSelection(legacyModel, event.modelId)
-            }
-            is AppSessionEvent.SessionInfoUpdated -> title = event.title ?: title
-            else -> Unit
+        /**
+         * Every path that closes a reply (turn end, cancel, a failed send, a steer, a new prompt)
+         * publishes, so stamping there catches them all without each one knowing about time. The turn
+         * runs from its prompt's send; replayed history never streams here, so it is never stamped.
+         * The gateway's duration wins over the wall clock: a dozing phone hears the end late.
+         */
+        private fun stampClosedReply(
+            data: RuntimeData,
+            wallClock: () -> Long,
+        ): RuntimeData {
+            val messages = data.messages
+            val index = data.openReplyId?.let { id -> messages.indexOfLast { it.id == id } } ?: -1
+            val reply = messages.getOrNull(index)?.takeIf { !it.isStreaming && it.turn == null }
+            val prompt = messages.subList(0, index.coerceAtLeast(0)).lastOrNull { it.role == ChatMessage.Role.USER }
+            val stamped =
+                if (reply != null && prompt != null) {
+                    val finishedAt = data.turnDurationMs?.let { prompt.createdAt + it } ?: wallClock()
+                    data.copy(
+                        messages =
+                            messages.toMutableList().apply {
+                                this[index] = reply.copy(turn = TurnTiming(prompt.createdAt, finishedAt))
+                            },
+                    )
+                } else {
+                    data
+                }
+            val last = stamped.messages.lastOrNull()
+            return stamped.copy(turnDurationMs = null, openReplyId = if (last?.isStreaming == true) last.id else null)
         }
-        return SideFields(
-            usage = usage,
-            availableCommands = availableCommands,
-            commandsAdvertised = commandsAdvertised,
-            nativeConfigOptions = nativeConfigOptions,
-            legacyModes = legacyModes,
-            legacyModel = legacyModel,
-            title = title,
-        )
     }
 
     private data class SideFields(
@@ -509,7 +569,7 @@ class SessionRuntime(
         loadState: SessionLoadState,
         error: String?,
     ) {
-        stampClosedReply()
+        live = stampClosedReply(live, wallClock)
         val effectiveConfigOptions =
             SessionConfigPolicy.resolveEffectiveOptions(
                 nativeOptions = live.nativeConfigOptions,
@@ -549,33 +609,19 @@ class SessionRuntime(
         }
     }
 
-    /**
-     * Every path that closes a reply (turn end, cancel, a failed send, a steer, a new prompt)
-     * publishes, so stamping here catches them all without each one knowing about time. The turn
-     * runs from its prompt's send; replayed history never streams here, so it is never stamped.
-     * The gateway's duration wins over the wall clock: a dozing phone hears the end late.
-     */
-    private fun stampClosedReply() {
-        val messages = live.messages
-        val index = openReplyId?.let { id -> messages.indexOfLast { it.id == id } } ?: -1
-        val reply = messages.getOrNull(index)?.takeIf { !it.isStreaming && it.turn == null }
-        val prompt = messages.subList(0, index.coerceAtLeast(0)).lastOrNull { it.role == ChatMessage.Role.USER }
-        if (reply != null && prompt != null) {
-            val finishedAt = turnDurationMs?.let { prompt.createdAt + it } ?: wallClock()
-            live =
-                live.copy(
-                    messages =
-                        messages.toMutableList().apply {
-                            this[index] = reply.copy(turn = TurnTiming(prompt.createdAt, finishedAt))
-                        },
-                )
-        }
-        turnDurationMs = null
-        val last = live.messages.lastOrNull()
-        openReplyId = if (last?.isStreaming == true) last.id else null
-    }
-
     private fun debug(message: () -> String) {
         SessionDebug.d(TAG, sessionId, message)
     }
+}
+
+private fun ChatMessage.withoutPermissionPrompts(): ChatMessage {
+    if (segments.none { it.toolCall?.permissionRequestId != null }) return this
+    return copy(
+        segments =
+            segments
+                .map { segment ->
+                    val call = segment.toolCall?.takeIf { it.permissionRequestId != null } ?: return@map segment
+                    segment.copy(toolCall = call.copy(permissionOptions = null, permissionRequestId = null))
+                }.toPersistentList(),
+    )
 }

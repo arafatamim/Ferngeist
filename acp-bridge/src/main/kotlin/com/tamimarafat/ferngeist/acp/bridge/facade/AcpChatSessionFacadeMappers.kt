@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatCommand
@@ -29,6 +30,7 @@ import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.UsageState
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.serialization.SerializationException
 import java.net.SocketTimeoutException
 
 /** Upper bound on a user-facing send-error string, so error payloads never flood the UI. */
@@ -89,6 +91,20 @@ internal fun mapSnapshot(snapshot: SessionSnapshot): ChatSessionSnapshot =
                 )
             },
     )
+
+/** The chat [saved] draws, or null when the state no longer decodes (it then costs only a load). */
+internal suspend fun decodeSavedSnapshot(
+    sessionId: String,
+    saved: String,
+): ChatSessionSnapshot? {
+    val runtime = SessionRuntime(sessionId)
+    try {
+        runtime.restore(saved)
+    } catch (_: SerializationException) {
+        return null
+    }
+    return mapSnapshot(runtime.snapshot.value)
+}
 
 internal fun mapLoadState(acp: SessionLoadState): ChatLoadState =
     when (acp) {

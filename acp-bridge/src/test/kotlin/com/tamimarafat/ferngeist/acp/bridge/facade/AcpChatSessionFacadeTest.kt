@@ -74,6 +74,8 @@ class AcpChatSessionFacadeTest {
             snapshot: ChatSessionSnapshot,
         ) = Unit
 
+        override suspend fun savedStateFor(chatId: String): String? = null
+
         override fun register(
             serverId: String,
             sessionId: String,

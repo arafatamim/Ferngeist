@@ -96,7 +96,7 @@ internal class ChatSessionCoordinator(
      * Warm transport hit still wins — it reattaches live observers.
      */
     suspend fun attachCachedThenLoad() {
-        val cached = facade.cachedSnapshot.value
+        val cached = facade.cachedSnapshot()
         if (cached != null) {
             callbacks.onSnapshot(cached)
             callbacks.onSessionReady()

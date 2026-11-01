@@ -17,6 +17,8 @@ data class ChatRegistration(
     val isStreaming: () -> Boolean,
     val manager: AcpConnection? = null,
     val snapshot: StateFlow<SessionSnapshot>? = null,
+    /** The session's state for the hub to save, null once it is gone; see [ChatConnectionSurface.savedStateFor]. */
+    val saveState: (suspend () -> String?)? = null,
 )
 
 /**
@@ -51,6 +53,9 @@ interface ChatConnectionSurface {
         chatId: String,
         snapshot: ChatSessionSnapshot,
     )
+
+    /** The state a chat's runtime saved before the process died, or null when none survives. */
+    suspend fun savedStateFor(chatId: String): String?
 
     /**
      * Tracks (or re-attaches) a chat connection, evicting pooled idle entries

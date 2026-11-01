@@ -7,6 +7,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.OpenChat
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
@@ -108,6 +110,8 @@ class ChatConnectionHub(
     private val connectivityObserver: ConnectivityObserver,
     private val limits: HubLimits = HubLimits(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Saves each tracked chat's state so it draws at once after process death; null keeps none. */
+    private val stateStore: SessionStateStore? = null,
 ) : ChatConnectionSurface {
     private data class Entry(
         val chatId: String,
@@ -133,6 +137,9 @@ class ChatConnectionHub(
     private val pendingManagers = CopyOnWriteArrayList<AcpConnection>()
     private val browserManagers = CopyOnWriteArrayList<AcpConnection>()
     private val revision = MutableStateFlow(0L)
+
+    /** The entry table as [stateStore] saves it; see [restoreOpenChats]. */
+    private val openChats = MutableStateFlow(emptyList<OpenChat>())
 
     /**
      * Mints a fresh attachToken for a gateway session on the transport's behalf — the
@@ -164,9 +171,8 @@ class ChatConnectionHub(
         }
     }
 
-    // Presence is deliberately in-memory, like the focus-ordered store this hub supersedes.
-    // ponytail: a Room-backed or event-sourced presence table would replay
-    // open/closed state after process death if that ever becomes a requirement.
+    // Presence is in memory; only the entry table behind it is saved (see [restoreOpenChats]),
+    // so after process death the chats come back cold and presence rebuilds as screens open.
     private val _tapTarget = MutableStateFlow<ChatPresence?>(null)
     private val _onScreenChat = MutableStateFlow<ChatPresence?>(null)
 
@@ -234,7 +240,43 @@ class ChatConnectionHub(
                 _turnStatuses.update { it - disconnected }
             }
         }
+        stateStore?.let { store -> scope.launch { restoreOpenChats(store) } }
     }
+
+    /**
+     * Brings back the chats tracked before process death as cold entries (no transport), so the
+     * switcher, tap target and active-chats count read the same; then keeps the saved table current.
+     */
+    private suspend fun restoreOpenChats(store: SessionStateStore) {
+        store.readOpenChats().forEach { chat ->
+            entries.getOrPut(chatIdFor(chat.serverId, chat.sessionId)) {
+                coldEntry(chat.serverId, chat.sessionId, chat.cwd, chat.lastFocusedMs, openScreens = 0)
+            }
+        }
+        republish()
+        openChats.collect { store.saveOpenChats(it) }
+    }
+
+    private fun coldEntry(
+        serverId: String,
+        sessionId: String,
+        cwd: String,
+        lastFocusedMs: Long,
+        openScreens: Int,
+    ) = Entry(
+        chatId = chatIdFor(serverId, sessionId),
+        serverId = serverId,
+        sessionId = sessionId,
+        gatewaySessionId = null,
+        gatewaySourceId = "",
+        agentId = "",
+        isConnected = { false },
+        isStreaming = { false },
+        manager = null,
+        lastFocusedMs = lastFocusedMs,
+        openScreens = openScreens,
+        cwd = cwd,
+    )
 
     /** Network availability, so a feature can re-run work that failed while the device was offline. */
     val networkAvailable: Flow<Boolean> get() = connectivityObserver.isConnected
@@ -428,6 +470,8 @@ class ChatConnectionHub(
             }
         turnObservers[chatId] =
             scope.launch {
+                val save = registration.saveState
+                if (stateStore != null && save != null) launch { stateStore.keepSaved(chatId, snapshot, save) }
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
                 val expiry = TurnStatusExpiry(chatId, this)
                 turnPresenceFlow(chatId, snapshot, connection).collect { presence ->
@@ -566,6 +610,8 @@ class ChatConnectionHub(
         _streamingChatIds.update { if (streaming) it + chatId else it - chatId }
     }
 
+    override suspend fun savedStateFor(chatId: String): String? = stateStore?.read(chatId)
+
     /**
      * Records that the user opened [sessionId]'s chat screen, making it the
      * most recently focused screen-open entry. Returns false — and stores
@@ -591,21 +637,7 @@ class ChatConnectionHub(
                     lastFocusedMs = limits.clock(),
                 )
         } else {
-            entries[chatId] =
-                Entry(
-                    chatId = chatId,
-                    serverId = serverId,
-                    sessionId = sessionId,
-                    gatewaySessionId = null,
-                    gatewaySourceId = "",
-                    agentId = "",
-                    isConnected = { false },
-                    isStreaming = { false },
-                    manager = null,
-                    lastFocusedMs = limits.clock(),
-                    openScreens = 1,
-                    cwd = cwd,
-                )
+            entries[chatId] = coldEntry(serverId, sessionId, cwd, limits.clock(), openScreens = 1)
         }
         republish()
         return true
@@ -724,11 +756,15 @@ class ChatConnectionHub(
         chatId: String,
         endpoint: GatewayEndpoint? = null,
     ) {
-        turnObservers.remove(chatId)?.cancel()
+        val saver = turnObservers.remove(chatId)?.also { it.cancel() }
         snapshots.remove(chatId)
         _streamingChatIds.update { it - chatId }
         _turnStatuses.update { it - chatId }
-        val entry = entries.remove(chatId) ?: return
+        val entry = entries.remove(chatId)
+        // Joined first: a save still writing would bring the deleted state back.
+        saver?.join()
+        stateStore?.delete(chatId)
+        if (entry == null) return
         try {
             val gatewaySessionId = entry.gatewaySessionId
             if (endpoint != null && gatewaySessionId != null) {
@@ -848,6 +884,7 @@ class ChatConnectionHub(
             ignoringNotFound { close(chatIdFor(serverId, sessionId), endpoint) }
             return true
         }
+        stateStore?.delete(chatIdFor(serverId, sessionId))
         val gatewaySessionId =
             gatewayRepository
                 .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
@@ -886,6 +923,7 @@ class ChatConnectionHub(
         val onScreen = ordered.firstOrNull { it.screenOpen }
         _onScreenChat.value = onScreen?.toPresence()
         _tapTarget.value = (onScreen ?: ordered.firstOrNull())?.toPresence()
+        openChats.value = ordered.map { OpenChat(it.serverId, it.sessionId, it.cwd, it.lastFocusedMs) }
         revision.value += 1
     }
 }

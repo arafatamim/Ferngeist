@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
+import com.tamimarafat.ferngeist.acp.bridge.connection.workspaceConnection
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * The session a chat opens with: which server and session, where it runs, and the snapshot it
@@ -106,12 +108,18 @@ class AcpChatSessionFacade(
     private val _sessionSnapshot = MutableStateFlow<ChatSessionSnapshot?>(null)
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = _sessionSnapshot.asStateFlow()
 
-    // Paint cache is seeded from the hub's snapshot cache at creation (the durable
-    // store: observeSessionBridge writes hub.storeSnapshot per emission). This flow
-    // never mutates after construction — reopening builds a fresh facade seeded from
-    // the hub, so a live mirror here would duplicate the hub write per chunk.
-    override val cachedSnapshot: StateFlow<ChatSessionSnapshot?> =
-        MutableStateFlow(opening.cachedSnapshot)
+    // Paint cache: the hub's in-memory snapshot (observeSessionBridge writes hub.storeSnapshot per
+    // emission), else the state the session saved before the process died. A cached paint is
+    // history, never live state: a stale streaming flag is cleared. The live bridge republishes
+    // its true snapshot on reattach, so a real in-flight turn re-arms it at once, while a turn
+    // whose owner died can never strand the UI on STOP.
+    override suspend fun cachedSnapshot(): ChatSessionSnapshot? =
+        (
+            opening.cachedSnapshot
+                ?: hub.savedStateFor(snapshotChatId)?.let { saved ->
+                    withContext(repositories.ioDispatcher) { decodeSavedSnapshot(initialSessionId, saved) }
+                }
+        )?.asHistory()
 
     private val _agentCapabilities =
         MutableStateFlow(ChatAgentCapabilities())
@@ -355,7 +363,10 @@ class AcpChatSessionFacade(
             )
             return false
         }
-        if (isSendCapabilityRejected(images, files)) return false
+        sendCapabilityRejection(connectionManager.agentCapabilities.value, images, files)?.let { rejection ->
+            _operationError.emit(ChatOperationError(rejection, false))
+            return false
+        }
 
         try {
             bridge.sendPrompt(text, images, files)
@@ -377,27 +388,6 @@ class AcpChatSessionFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
     ): SteerOutcome = sessionBridge?.steer(text, images, files) ?: SteerOutcome.NOT_CONSUMED
-
-    /** Emits an operation error and returns true when the agent lacks image/file support. */
-    private suspend fun isSendCapabilityRejected(
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-    ): Boolean {
-        val capabilities = connectionManager.agentCapabilities.value ?: return false
-        if (images.isNotEmpty() && !capabilities.promptCapabilities.image) {
-            _operationError.emit(
-                ChatOperationError("This agent does not advertise image prompt support.", false),
-            )
-            return true
-        }
-        if (files.isNotEmpty() && !capabilities.promptCapabilities.embeddedContext) {
-            _operationError.emit(
-                ChatOperationError("This agent does not advertise file attachment support.", false),
-            )
-            return true
-        }
-        return false
-    }
 
     /**
      * Cancels the current streaming turn.
@@ -562,13 +552,7 @@ class AcpChatSessionFacade(
      */
     private fun restoreGatewayWorkspaceConnection() {
         val gateway = connectionManager.currentConnectionConfig() as? AcpConnectionConfig.Gateway ?: return
-        _gatewayWorkspaceConnection.value =
-            GatewayWorkspaceConnection(
-                runtimeId = gateway.runtimeId,
-                scheme = gateway.scheme,
-                host = gateway.host,
-                gatewayCredential = gateway.gatewayCredential,
-            )
+        _gatewayWorkspaceConnection.value = gateway.workspaceConnection
     }
 
     /**
@@ -599,6 +583,7 @@ class AcpChatSessionFacade(
                         },
                         manager = connectionManager,
                         snapshot = connectionManager.sessions.getSession(sessionId)?.snapshot,
+                        saveState = { connectionManager.sessions.savedState(sessionId) },
                     ),
             )
     }
@@ -671,14 +656,7 @@ class AcpChatSessionFacade(
         return context.fold(
             onSuccess = { launch ->
                 resolvedAgentId = target.binding.agentId
-                val source = launch.gatewaySource
-                _gatewayWorkspaceConnection.value =
-                    GatewayWorkspaceConnection(
-                        runtimeId = launch.runtimeId,
-                        scheme = source.scheme,
-                        host = source.host,
-                        gatewayCredential = source.gatewayCredential,
-                    )
+                _gatewayWorkspaceConnection.value = launch.workspaceConnection
                 launch.config
             },
             onFailure = { error ->
@@ -720,15 +698,8 @@ class AcpChatSessionFacade(
                     _loadFailed.emit(error.message ?: "Failed to connect to ${target.name}.")
                     return
                 }
-            val source = context.gatewaySource
             resolvedAgentId = target.binding.agentId
-            _gatewayWorkspaceConnection.value =
-                GatewayWorkspaceConnection(
-                    runtimeId = context.runtimeId,
-                    scheme = source.scheme,
-                    host = source.host,
-                    gatewayCredential = source.gatewayCredential,
-                )
+            _gatewayWorkspaceConnection.value = context.workspaceConnection
             if (!connectionManager.connect(context.config) || initializeSession() == null) {
                 _loadFailed.emit("Failed to connect to ${target.name}.")
                 return
@@ -843,3 +814,18 @@ class AcpChatSessionFacade(
         }
     }
 }
+
+/** Why the agent cannot take this prompt's images or files, or null when it can (or has not said). */
+private fun sendCapabilityRejection(
+    capabilities: AgentCapabilities?,
+    images: List<ChatImageData>,
+    files: List<ChatFileData>,
+): String? =
+    when {
+        capabilities == null -> null
+        images.isNotEmpty() && !capabilities.promptCapabilities.image ->
+            "This agent does not advertise image prompt support."
+        files.isNotEmpty() && !capabilities.promptCapabilities.embeddedContext ->
+            "This agent does not advertise file attachment support."
+        else -> null
+    }

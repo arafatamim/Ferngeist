@@ -643,6 +643,9 @@ internal class SessionGateway(
      */
     fun getSession(sessionId: String): SessionPort? = getLoadedSession(sessionId)
 
+    /** [sessionId]'s state as JSON for the hub to save, or null once its bridge is gone. */
+    suspend fun savedState(sessionId: String): String? = sessionRegistry.getBridge(sessionId)?.runtime?.savedState()
+
     /**
      * Ends a turn the gateway reports finished on an earlier connection. Its chunks
      * reach the reattached bridge, but its terminal reply answered a request this

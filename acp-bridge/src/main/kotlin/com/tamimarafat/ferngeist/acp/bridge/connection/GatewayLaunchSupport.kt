@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import android.util.Log
 import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -23,6 +24,20 @@ data class GatewayLaunchContext(
     val runtimeId: String,
     val sessionId: String,
 )
+
+/** The diff/status link to the runtime this launch attached to. */
+val GatewayLaunchContext.workspaceConnection: GatewayWorkspaceConnection
+    get() =
+        GatewayWorkspaceConnection(
+            runtimeId,
+            gatewaySource.scheme,
+            gatewaySource.host,
+            gatewaySource.gatewayCredential,
+        )
+
+/** The diff/status link to the runtime this transport is attached to. */
+val AcpConnectionConfig.Gateway.workspaceConnection: GatewayWorkspaceConnection
+    get() = GatewayWorkspaceConnection(runtimeId, scheme, host, gatewayCredential)
 
 /** The repositories a launch reads its target, gateway source and gateway runtime from. */
 class LaunchRepositories(

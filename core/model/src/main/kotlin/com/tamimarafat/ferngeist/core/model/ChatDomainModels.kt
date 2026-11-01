@@ -342,7 +342,14 @@ data class ChatSessionSnapshot(
     val usage: UsageState?,
     val title: String? = null,
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
-)
+) {
+    /** This snapshot as history, never live state: a stale streaming flag is cleared. */
+    fun asHistory(): ChatSessionSnapshot =
+        copy(
+            isStreaming = false,
+            messages = messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it },
+        )
+}
 
 /**
  * One plan-quota window (e.g. 5-hour, weekly). [paceFraction] is the share of the window already
@@ -439,13 +446,6 @@ interface ChatSessionState {
 
     /** Hub chat id (`"$serverId/$sessionId"`) once a live session is attached; null before. */
     val liveChatId: StateFlow<String?>
-
-    /**
-     * Last rendered snapshot, retained after [clear] so a reopening screen can
-     * paint instantly without waiting for reconnect + session/load replay.
-     * Null when nothing has rendered yet. Never blocks on transport.
-     */
-    val cachedSnapshot: StateFlow<ChatSessionSnapshot?>
 }
 
 /** One-shot events observed by the chat screen. */
@@ -461,6 +461,13 @@ interface ChatSessionEvents {
 
 /** Loading and connection ownership for one chat session. */
 interface ChatSessionLifecycle {
+    /**
+     * Last rendered snapshot, from memory or, after process death, from the state the
+     * session saved, so a reopening screen paints at once without waiting for reconnect
+     * and a load. Null when nothing survives. Never waits on the transport.
+     */
+    suspend fun cachedSnapshot(): ChatSessionSnapshot?
+
     /**
      * Attempts to reattach a warm in-memory session without wiping UI state.
      *

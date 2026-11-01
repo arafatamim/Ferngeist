@@ -6,14 +6,21 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonElement
 import java.util.UUID
 
+@Serializable
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: Role = Role.USER,
     val content: String = "",
+    @Serializable(with = PersistentListSerializer::class)
     val segments: PersistentList<AssistantSegment> = persistentListOf(),
     val isStreaming: Boolean = false,
     val isError: Boolean = false,
@@ -33,6 +40,7 @@ data class ChatMessage(
 }
 
 /** Wall-clock times a turn ran between: its prompt sent, its reply closed. */
+@Serializable
 data class TurnTiming(
     val startedAt: Long,
     val finishedAt: Long,
@@ -48,6 +56,7 @@ data class TurnKey(
     val promptHash: Int,
 )
 
+@Serializable
 data class AssistantSegment(
     val id: String = UUID.randomUUID().toString(),
     val kind: Kind = Kind.MESSAGE,
@@ -65,6 +74,7 @@ data class AssistantSegment(
     }
 }
 
+@Serializable
 data class ToolCallDisplay(
     val toolCallId: String? = null,
     val title: String = "",
@@ -79,6 +89,7 @@ data class ToolCallDisplay(
     val locations: List<String>? = null,
 )
 
+@Serializable
 data class AcpPermissionOption(
     val id: String,
     val label: String,
@@ -98,3 +109,18 @@ data class ChatFileData(
     val mimeType: String,
     val sizeBytes: Long,
 )
+
+/** Serializes a [PersistentList] as a plain list; the format has no persistent form. */
+class PersistentListSerializer<T>(
+    element: KSerializer<T>,
+) : KSerializer<PersistentList<T>> {
+    private val list = ListSerializer(element)
+    override val descriptor = list.descriptor
+
+    override fun serialize(
+        encoder: Encoder,
+        value: PersistentList<T>,
+    ) = list.serialize(encoder, value)
+
+    override fun deserialize(decoder: Decoder): PersistentList<T> = list.deserialize(decoder).toPersistentList()
+}

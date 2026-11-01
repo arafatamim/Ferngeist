@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
@@ -401,6 +402,7 @@ sealed interface AppSessionEvent {
     ) : AppSessionEvent
 }
 
+@Serializable
 data class SessionMode(
     val id: String,
     val name: String,

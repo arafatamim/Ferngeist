@@ -119,11 +119,12 @@ open class FakeChatSessionFacade(
     override val connectionState: StateFlow<ChatConnectionState> = connectionStateFlow
     override val diagnostics: StateFlow<ChatConnectionDiagnostics> = diagnosticsFlow
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = sessionSnapshotFlow
-    override val cachedSnapshot: StateFlow<ChatSessionSnapshot?> = sessionSnapshotFlow
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = agentCapabilitiesFlow
     override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> = gatewayWorkspaceConnectionFlow
     protected val liveChatIdFlow = MutableStateFlow<String?>(null)
     override val liveChatId: StateFlow<String?> = liveChatIdFlow
+
+    override suspend fun cachedSnapshot(): ChatSessionSnapshot? = sessionSnapshotFlow.value
 
     /** Test hook: push a new snapshot into the session state. */
     protected fun setSessionSnapshot(snapshot: ChatSessionSnapshot?) {
