@@ -1,0 +1,5 @@
+• Syntax highlighting for code, diffs and tool output
+• Read files with rendered Markdown and optional word wrap
+• Safer worktree removal and suggested branch names
+• Faster session loading and more reliable connections
+• Other fixes and polish
