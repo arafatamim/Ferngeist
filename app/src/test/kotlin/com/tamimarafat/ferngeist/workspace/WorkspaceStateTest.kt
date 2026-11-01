@@ -61,11 +61,22 @@ class WorkspaceStateTest {
     @Test
     fun selectingAnotherChat_dropsThePreviousChatsMintedId() {
         val state = WorkspaceState(null, null, false)
-        state.selectSession(WorkspaceSelection("srv", "new", "/work", ""))
-        state.mintedSessionId = "real-42"
-        state.selectSession(WorkspaceSelection("srv", "new", "/work", ""))
+        val created = WorkspaceSelection("srv", "new", "/work", "")
+        state.selectSession(created)
+        state.recordMinted(created, "real-42")
+        state.selectSession(created)
         assertEquals("real-42", state.mintedSessionId)
         state.selectSession(WorkspaceSelection("srv", "other", "/work", ""))
+        assertNull(state.mintedSessionId)
+    }
+
+    @Test
+    fun aMintFromAChatNoLongerSelected_isDropped() {
+        val state = WorkspaceState(null, null, false)
+        val outgoing = WorkspaceSelection("srv", "new", "/work", "")
+        state.selectSession(outgoing)
+        state.selectSession(WorkspaceSelection("srv", "other", "/work", ""))
+        state.recordMinted(outgoing, "real-42")
         assertNull(state.mintedSessionId)
     }
 
@@ -74,7 +85,7 @@ class WorkspaceStateTest {
         val scope = SaverScope { true }
         val state =
             WorkspaceState("srv", "sess", true, cwd = "/work", title = "Session S").apply {
-                mintedSessionId = "real-42"
+                recordMinted(WorkspaceSelection("srv", "sess", "/work", "Session S"), "real-42")
             }
         val saved = with(WorkspaceState.saver) { scope.save(state) }
         val restored = WorkspaceState.saver.restore(saved!!)

@@ -28,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -177,7 +176,7 @@ private fun WorkspaceChatPane(
                     updatedAt = workspace.updatedAt,
                 ),
             mintedSessionId = workspace.mintedSessionId,
-            onSessionMinted = { workspace.mintedSessionId = it },
+            onSessionMinted = workspace::recordMinted,
             chatViewModelFactory = chatViewModelFactory,
             // The workspace never gives the chat a back button: at two panes the
             // session list owns the one back affordance (it is the pane that
@@ -238,7 +237,7 @@ private fun SeedWorkspaceEffect(
 private fun SwitchingChatPane(
     selection: WorkspaceSelection,
     mintedSessionId: String?,
-    onSessionMinted: (String) -> Unit,
+    onSessionMinted: (WorkspaceSelection, String) -> Unit,
     chatViewModelFactory: ChatViewModelFactory,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
@@ -249,8 +248,6 @@ private fun SwitchingChatPane(
     // The swipe that picked a session, kept only for that session: a later pick from the list
     // must not reuse its direction.
     var swipe by remember { mutableStateOf<Pair<String, SwitchSlide>?>(null) }
-    // The outgoing pane's mint collector keeps the callback it started with; this reads the selection as it is now.
-    val currentSelection by rememberUpdatedState(selection)
     AnimatedContent(
         targetState = selection,
         contentKey = { it.serverId to it.sessionId },
@@ -271,10 +268,10 @@ private fun SwitchingChatPane(
     ) { shown ->
         ChatPane(
             selection = shown,
-            // The minted id belongs to the current selection, not to one sliding out: neither
-            // the id going in nor one the outgoing pane mints coming out.
+            // The minted id going in belongs to the current selection, not to one sliding out;
+            // one the outgoing pane mints is dropped by the workspace's own selection check.
             mintedSessionId = mintedSessionId.takeIf { shown.chatKey() == selection.chatKey() },
-            onSessionMinted = { id -> if (shown.chatKey() == currentSelection.chatKey()) onSessionMinted(id) },
+            onSessionMinted = { id -> onSessionMinted(shown, id) },
             chatViewModelFactory = chatViewModelFactory,
             showBackButton = showBackButton,
             onNavigateBack = onNavigateBack,

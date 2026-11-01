@@ -74,6 +74,19 @@ class WorkspaceState(
      * handle by hand (panes are not nav destinations), so nothing else would persist it.
      */
     var mintedSessionId by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Records [mintedId] for the chat that minted it, only while [chat] is still the selection.
+     * Checked here, against the selection itself: a pane sliding out can mint after a switch
+     * that its composition has not caught up with yet.
+     */
+    fun recordMinted(
+        chat: WorkspaceSelection,
+        mintedId: String,
+    ) {
+        if (chat.serverId == selectedServerId && chat.sessionId == selectedSessionId) mintedSessionId = mintedId
+    }
 
     /**
      * Working directory and title of [selectedSessionId]. The pane-built `ChatViewModel`
