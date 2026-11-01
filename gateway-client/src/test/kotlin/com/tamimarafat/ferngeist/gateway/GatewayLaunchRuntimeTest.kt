@@ -198,7 +198,7 @@ class GatewayLaunchRuntimeTest {
                 MockEngine { request ->
                     requested += "${request.method.value} ${request.url.encodedPath}"
                     if (request.url.encodedPath == "/v1/sessions/attach") {
-                        respond("not found", HttpStatusCode.NotFound)
+                        respond("404 page not found", HttpStatusCode.NotFound)
                     } else {
                         respond(CONNECT_BODY, HttpStatusCode.OK)
                     }
@@ -215,6 +215,24 @@ class GatewayLaunchRuntimeTest {
                 requested,
             )
             assertEquals("sess-1", handoff.sessionId)
+        }
+
+    @Test
+    fun `an attach the gateway itself rejects as not found fails instead of taking the old launch`() =
+        runTest {
+            val requested = mutableListOf<String>()
+            val engine =
+                MockEngine { request ->
+                    requested += "${request.method.value} ${request.url.encodedPath}"
+                    respond("""{"error":"agent not found"}""", HttpStatusCode.NotFound)
+                }
+
+            val result =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(gatewaySource = SOURCE, agentId = "pi-acp", acpSessionId = "chat-1")
+
+            assertEquals(listOf("POST /v1/sessions/attach"), requested)
+            assertFalse(result.isSuccess)
         }
 
     private fun repo(requested: MutableList<String>): GatewayRepositoryImpl {

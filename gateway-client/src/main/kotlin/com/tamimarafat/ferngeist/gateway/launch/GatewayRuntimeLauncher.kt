@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayProtocolMismatchException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
+import com.tamimarafat.ferngeist.gateway.gatewayErrorMessage
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -124,8 +125,11 @@ class GatewayRuntimeLauncher(
                 )
             }
         } catch (error: GatewayRequestException) {
-            // An older gateway routes the path to nothing (404) or to another method (405).
-            if (error.statusCode != HTTP_NOT_FOUND && error.statusCode != HTTP_BAD_METHOD) throw error
+            // An older gateway has no such route: its mux answers 404/405 in plain text. Both report
+            // protocol "v2", so the version can't tell them apart; the gateway's own error envelope
+            // (an unknown agent or session) is a real failure, not a missing endpoint.
+            val routeMissing = error.statusCode == HTTP_NOT_FOUND || error.statusCode == HTTP_BAD_METHOD
+            if (!routeMissing || gatewayErrorMessage(error.responseBody) != null) throw error
             null
         }
 
