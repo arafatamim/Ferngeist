@@ -64,7 +64,7 @@ class WorkspaceStateTest {
         val state = WorkspaceState(null, null, false)
         val newChat = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "")
         state.selectSession(newChat)
-        state.recordMinted(newChat.copy(newChatPick = state.newChatPicks), "real-42")
+        state.recordMinted(newChat.copy(chatId = state.selectedChatId!!), "real-42")
         assertEquals("real-42", state.mintedSessionId)
         state.selectSession(newChat)
         assertNull(state.mintedSessionId)
@@ -75,7 +75,7 @@ class WorkspaceStateTest {
         val state = WorkspaceState(null, null, false)
         val created = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "")
         state.selectSession(created)
-        state.recordMinted(created.copy(newChatPick = state.newChatPicks), "real-42")
+        state.recordMinted(created.copy(chatId = state.selectedChatId!!), "real-42")
         state.selectSession(WorkspaceSelection("srv", "other", "/work", ""))
         assertNull(state.mintedSessionId)
     }
@@ -84,7 +84,7 @@ class WorkspaceStateTest {
     fun aMintFromAChatNoLongerSelected_isDropped() {
         val state = WorkspaceState(null, null, false)
         state.selectSession(WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", ""))
-        val outgoing = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "", newChatPick = state.newChatPicks)
+        val outgoing = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "", chatId = state.selectedChatId!!)
         // Another new chat on the same agent: the outgoing pane minting late must not claim it.
         state.selectSession(WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", ""))
         state.recordMinted(outgoing, "real-42")
@@ -106,6 +106,19 @@ class WorkspaceStateTest {
         assertEquals("real-42", restored.mintedSessionId)
         assertEquals("/work", restored.cwd)
         assertEquals("Session S", restored.title)
+    }
+
+    @Test
+    fun aMintedNewChat_keepsItsChatAndMintedIdAcrossRestore() {
+        val scope = SaverScope { true }
+        val state = WorkspaceState(null, null, false)
+        val newChat = WorkspaceSelection("srv", NEW_SESSION_ARG, "/work", "")
+        state.selectSession(newChat)
+        state.recordMinted(newChat.copy(chatId = state.selectedChatId!!), "real-42")
+        val saved = with(WorkspaceState.saver) { scope.save(state) }
+        val restored = WorkspaceState.saver.restore(saved!!)!!
+        assertEquals(state.selectedChatId, restored.selectedChatId)
+        assertEquals("real-42", restored.mintedSessionId)
     }
 
     @Test

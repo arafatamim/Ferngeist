@@ -174,7 +174,7 @@ private fun WorkspaceChatPane(
                     cwd = workspace.cwd,
                     title = workspace.title,
                     updatedAt = workspace.updatedAt,
-                    newChatPick = workspace.newChatPicks,
+                    chatId = workspace.selectedChatId ?: sessionId,
                 ),
             mintedSessionId = workspace.mintedSessionId,
             onSessionMinted = workspace::recordMinted,
@@ -270,7 +270,7 @@ private fun SwitchingChatPane(
         ChatPane(
             selection = shown,
             // The minted id going in belongs to the current selection, not to one sliding out;
-            // one the outgoing pane mints is dropped by the workspace's own selection check.
+            // one the outgoing pane mints is kept under its own chat id by the workspace.
             mintedSessionId = mintedSessionId.takeIf { shown.chatKey() == selection.chatKey() },
             onSessionMinted = { id -> onSessionMinted(shown, id) },
             chatViewModelFactory = chatViewModelFactory,
@@ -297,7 +297,7 @@ private fun SwitchingChatPane(
 private fun WorkspaceSelection.sessionKey(): String = "$serverId/$sessionId"
 
 /** The pane's identity: [sessionKey] alone would make two new chats on one agent the same pane. */
-private fun WorkspaceSelection.chatKey(): String = "${sessionKey()}#$newChatPick"
+private fun WorkspaceSelection.chatKey(): String = "$serverId/$chatId"
 
 /**
  * Hosts one session's chat in the right pane.
