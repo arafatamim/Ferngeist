@@ -35,7 +35,8 @@ class SessionCatchUpTest {
     private fun catchUpReply(
         turnActive: Boolean,
         gap: Boolean,
-    ) = """{"jsonrpc":"2.0","id":${'$'}ID,"result":{"_meta":{"ferngeist/catchUp":""" +
+        result: String = "",
+    ) = """{"jsonrpc":"2.0","id":${'$'}ID,"result":{$result"_meta":{"ferngeist/catchUp":""" +
         """{"epoch":"e1","headSeq":5,"turnActive":$turnActive,"gap":$gap}}}}"""
 
     /** The state a chat saved mid-turn: the reply so far is update 4 of agent process `e1`. */
@@ -155,6 +156,46 @@ class SessionCatchUpTest {
         }
 
     @Test
+    fun `a turn still running behind a gap refill keeps the session busy`() =
+        runTest {
+            val transport =
+                ScriptedTransport(
+                    mapOf(
+                        "session/resume" to listOf(catchUpReply(true, true)),
+                        "session/load" to listOf(chunk("replayed", 1), LOADED),
+                    ),
+                )
+            val gateway = attachOver(transport)
+
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+
+            assertEquals("replayed", bridge.replyText())
+            assertTrue(bridge.snapshot.value.isStreaming)
+            assertEquals(TurnStatus.WORKING, bridge.snapshot.value.turnStatus)
+        }
+
+    @Test
+    fun `a gap refill keeps the modes the catch-up resume reported`() =
+        runTest {
+            val modes = """"modes":{"currentModeId":"code","availableModes":[{"id":"code","name":"Code"}]},"""
+            val transport =
+                ScriptedTransport(
+                    mapOf(
+                        "session/resume" to listOf(catchUpReply(false, true, result = modes)),
+                        "session/load" to listOf(chunk("replayed", 1), LOADED),
+                    ),
+                )
+            val gateway = attachOver(transport)
+
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e1") as SessionBridge
+
+            assertTrue(
+                bridge.snapshot.value.configOptions
+                    .isNotEmpty(),
+            )
+        }
+
+    @Test
     fun `a saved state from another agent process skips the catch-up`() =
         runTest {
             val gateway = newGateway()
@@ -220,4 +261,8 @@ class SessionCatchUpTest {
             assertFalse("no failed turn", bridge.snapshot.value.isStreaming)
             assertTrue(bridge.events.replayCache.none { it is AppSessionEvent.TurnComplete })
         }
+
+    private companion object {
+        const val LOADED = """{"jsonrpc":"2.0","id":${'$'}ID,"result":{}}"""
+    }
 }

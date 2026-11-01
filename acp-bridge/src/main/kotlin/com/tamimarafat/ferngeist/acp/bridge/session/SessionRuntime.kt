@@ -137,7 +137,12 @@ class SessionRuntime(
         }
     }
 
-    suspend fun completeHydration() {
+    /**
+     * Commits the replay. [turnRunning]: the gateway reports a turn still running behind it, so
+     * the session stays busy until that turn's end arrives; the replay is folded here instead,
+     * since the [AppSessionEvent.SessionLoadComplete] that would fold it also ends the turn.
+     */
+    suspend fun completeHydration(turnRunning: Boolean = false) {
         mutex.withLock {
             debug {
                 "completeHydration: committing buffered messages=${buffered.messages.size}, " +
@@ -148,18 +153,29 @@ class SessionRuntime(
             // so a loaded transcript can never carry a stray streaming flag — and derive the
             // snapshot flag from the messages instead of hard-coding it, keeping the two in sync.
             val finalizedMessages =
-                buffered.messages.map { message ->
-                    if (message.isStreaming) message.copy(isStreaming = false) else message
+                if (turnRunning) {
+                    SessionMessageReducer.finishStreaming(buffered.messages)
+                } else {
+                    buffered.messages.map { message ->
+                        if (message.isStreaming) message.copy(isStreaming = false) else message
+                    }
                 }
+            // A replay that brings no config keeps the attached session's: a gap refill
+            // starts after attach already pushed it, and the raw load reply is not mapped.
+            // shortcut: a replay that truly clears every option keeps the old ones until the next update.
+            val config = if (buffered.hasConfig) buffered else live
             live =
                 buffered.copy(
                     epoch = live.epoch,
                     messages = finalizedMessages,
-                    isStreaming = finalizedMessages.any { it.isStreaming },
+                    isStreaming = turnRunning || finalizedMessages.any { it.isStreaming },
                     title = buffered.title ?: live.title,
                     // A load replay carries no usage update, so keep the last known
                     // context reading instead of dropping it to null.
                     usage = buffered.usage ?: live.usage,
+                    nativeConfigOptions = config.nativeConfigOptions,
+                    legacyModes = config.legacyModes,
+                    legacyModel = config.legacyModel,
                 )
             publishLive(loadState = SessionLoadState.READY, error = null)
         }
@@ -601,6 +617,10 @@ class SessionRuntime(
     /** A permission prompt or a session-scoped elicitation is blocking the agent on the user. */
     private val RuntimeData.awaitsAttention: Boolean
         get() = pendingElicitations.isNotEmpty() || pendingPermissions.isNotEmpty()
+
+    /** Any of the session's config, native or legacy. */
+    private val RuntimeData.hasConfig: Boolean
+        get() = nativeConfigOptions.isNotEmpty() || legacyModes != null || legacyModel != null
 
     /**
      * Publishes the [live] state to the [_snapshot] StateFlow after resolving the effective

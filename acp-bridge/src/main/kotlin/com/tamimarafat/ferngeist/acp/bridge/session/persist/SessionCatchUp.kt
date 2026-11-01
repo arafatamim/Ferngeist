@@ -135,7 +135,8 @@ internal suspend fun Client.resumeCatchingUp(
 /**
  * Settles [bridge] once the gateway has replayed what it missed: follows the reply's epoch,
  * refills a gap with a load when the agent has one ([canLoad]; without it the bridge keeps its
- * state, as a plain resume would) and closes a turn that is no longer running.
+ * state, as a plain resume would) and closes a turn that is no longer running. A turn the
+ * gateway still runs stays open until its own end arrives, refill or not.
  */
 internal suspend fun Client.settleCatchUp(
     bridge: SessionBridge,
@@ -144,8 +145,8 @@ internal suspend fun Client.settleCatchUp(
     canLoad: Boolean,
 ) {
     reply.epoch?.let { bridge.runtime.catchUpFrom(it) }
-    if (reply.gap && canLoad) loadInto(bridge, cwd)
-    if (reply.gap || !reply.turnActive) bridge.emitEvent(AppSessionEvent.SessionLoadComplete)
+    if (reply.gap && canLoad) loadInto(bridge, cwd, turnRunning = reply.turnActive)
+    if (!reply.turnActive) bridge.emitEvent(AppSessionEvent.SessionLoadComplete)
 }
 
 /**
@@ -155,6 +156,7 @@ internal suspend fun Client.settleCatchUp(
 private suspend fun Client.loadInto(
     bridge: SessionBridge,
     cwd: String,
+    turnRunning: Boolean,
 ) {
     bridge.beginHydration()
     val params =
@@ -164,5 +166,5 @@ private suspend fun Client.loadInto(
             putJsonArray("mcpServers") {}
         }
     protocol.sendRequestRaw(MethodName("session/load"), params)
-    bridge.completeHydration()
+    bridge.completeHydration(turnRunning)
 }
