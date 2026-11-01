@@ -140,9 +140,6 @@ class ChatConnectionHub(
     private val browserManagers = CopyOnWriteArrayList<AcpConnection>()
     private val revision = MutableStateFlow(0L)
 
-    /** The entry table as [persistence] saves it; see [restoreOpenChats]. */
-    private val openChats = MutableStateFlow(emptyList<OpenChat>())
-
     /**
      * Mints a fresh attachToken for a gateway session on the transport's behalf — the
      * one gateway call a transport makes, so the managers take this instead of the
@@ -242,17 +239,14 @@ class ChatConnectionHub(
                 _turnStatuses.update { it - disconnected }
             }
         }
-        persistence?.let { scope.launch { restoreOpenChats(it.openChats) } }
+        persistence?.let { scope.launch { it.restoreOpenChats(::restoreEntries) } }
     }
 
     /**
      * Brings back the chats tracked before process death as cold entries (no transport), so the
-     * switcher, tap target and active-chats count read the same; then keeps the saved table current.
-     * shortcut: an unreadable table is left as it is and not saved this process, rather than
-     * overwritten with only the chats opened since; retry the read if that proves transient.
+     * switcher, tap target and active-chats count read the same.
      */
-    private suspend fun restoreOpenChats(store: OpenChatsStore) {
-        val saved = store.read() ?: return
+    private fun restoreEntries(saved: List<OpenChat>) {
         saved.forEach { chat ->
             entries.getOrPut(chatIdFor(chat.serverId, chat.sessionId)) {
                 coldEntry(chat.serverId, chat.sessionId, chat.cwd, chat.lastFocusedMs, openScreens = 0)
@@ -260,7 +254,6 @@ class ChatConnectionHub(
             }
         }
         republish()
-        openChats.collect { store.save(it) }
     }
 
     private fun coldEntry(
@@ -475,9 +468,7 @@ class ChatConnectionHub(
             }
         turnObservers[chatId] =
             scope.launch {
-                if (persistence != null) {
-                    launch { persistence.chatStates.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) } }
-                }
+                persistence?.let { launch { it.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) } } }
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
                 val expiry = TurnStatusExpiry(chatId, this)
                 turnPresenceFlow(chatId, snapshot, connection).collect { presence ->
@@ -930,7 +921,7 @@ class ChatConnectionHub(
         val onScreen = ordered.firstOrNull { it.screenOpen }
         _onScreenChat.value = onScreen?.toPresence()
         _tapTarget.value = (onScreen ?: ordered.firstOrNull())?.toPresence()
-        openChats.value = ordered.map { OpenChat(it.serverId, it.sessionId, it.cwd, it.lastFocusedMs) }
+        persistence?.track(ordered.map { OpenChat(it.serverId, it.sessionId, it.cwd, it.lastFocusedMs) })
         revision.value += 1
     }
 }

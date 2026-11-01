@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -25,17 +26,19 @@ class OpenChatsStoreTest {
     @Test
     fun `pruning the chat states beside it never deletes the open chats list`() =
         runTest {
-            val persistence = HubPersistence(dir, ioDispatcher = UnconfinedTestDispatcher(testScheduler))
+            val io = UnconfinedTestDispatcher(testScheduler)
+            val openChats = OpenChatsStore(dir, io)
+            val chatStates = SessionStateStore(dir, ioDispatcher = io)
             val open = listOf(OpenChat("srv", "a", "/w", 1L))
-            persistence.openChats.save(open)
+            openChats.save(open)
             // Past the 32-chat cap, so every save prunes.
             repeat(33) { id ->
                 val ready = MutableStateFlow(SessionSnapshot("s$id", loadState = SessionLoadState.READY))
-                val saving = backgroundScope.launch { persistence.chatStates.keepSaved("srv/s$id", ready) { "$id" } }
+                val saving = backgroundScope.launch { chatStates.keepSaved("srv/s$id", ready) { "$id" } }
                 runCurrent()
                 saving.cancel()
             }
 
-            assertEquals(open, persistence.openChats.read())
+            assertEquals(open, openChats.read())
         }
 }
