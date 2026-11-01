@@ -7,7 +7,9 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
  * A pending prompt that has been enqueued for delivery.
  *
  * [clientId] links this prompt to the [com.tamimarafat.ferngeist.core.model.ChatMessage.clientId]
- * in the UI state so status transitions can be matched back to the visible bubble.
+ * in the UI state so status transitions can be matched back to the visible bubble, and names it
+ * on the wire so the gateway delivers it once. [dispatched]: see
+ * [com.tamimarafat.ferngeist.core.model.QueuedPromptRecord.dispatched].
  */
 data class PendingPrompt(
     val clientId: String,
@@ -15,6 +17,7 @@ data class PendingPrompt(
     val images: List<ChatImageData> = emptyList(),
     val files: List<ChatFileData> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
+    val dispatched: Boolean = false,
 )
 
 /**

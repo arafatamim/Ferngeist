@@ -354,6 +354,7 @@ class AcpChatSessionFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
         val bridge =
             if (text.isBlank() && images.isEmpty() && files.isEmpty()) {
@@ -373,7 +374,7 @@ class AcpChatSessionFacade(
         }
 
         try {
-            bridge.sendPrompt(text, images, files)
+            bridge.sendPrompt(text, images, files, clientId)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -391,7 +392,8 @@ class AcpChatSessionFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
-    ): SteerOutcome = sessionBridge?.steer(text, images, files) ?: SteerOutcome.NOT_CONSUMED
+        clientId: String,
+    ): SteerOutcome = sessionBridge?.steer(text, images, files, clientId) ?: SteerOutcome.NOT_CONSUMED
 
     /**
      * Cancels the current streaming turn.

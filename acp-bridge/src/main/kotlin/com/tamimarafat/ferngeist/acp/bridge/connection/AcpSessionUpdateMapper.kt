@@ -10,6 +10,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoiceGroup
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.promptClientId
 import java.time.Instant
 import java.time.OffsetDateTime
 
@@ -59,6 +60,7 @@ internal object AcpSessionUpdateMapper {
             images = listOfNotNull(extractImage(update.content)),
             files = listOfNotNull(extractFiles(update.content)),
             append = true,
+            clientId = promptClientId(update),
         )
 
     @OptIn(UnstableApi::class)

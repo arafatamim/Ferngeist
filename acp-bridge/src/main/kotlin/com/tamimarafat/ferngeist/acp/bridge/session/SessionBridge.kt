@@ -134,9 +134,10 @@ class SessionBridge(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String?,
     ) {
-        runtime.onLocalPromptStarted(text, images, files)
-        sendWithRollback(text, images, files)
+        runtime.onLocalPromptStarted(text, images, files, clientId)
+        sendWithRollback(text, images, files, clientId)
     }
 
     /**
@@ -148,9 +149,10 @@ class SessionBridge(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String?,
     ) {
         try {
-            connectionManager?.sessions?.sendSessionMessage(sessionId, text, images, files)
+            connectionManager?.sessions?.sendSessionMessage(sessionId, text, images, files, clientId)
         } catch (e: CancellationException) {
             // Propagate structured cancellation without swallowing; the coroutine's
             // parent will handle it and the streaming placeholder remains cancellable.
@@ -172,12 +174,13 @@ class SessionBridge(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String?,
     ): SteerOutcome {
         val outcome =
             connectionManager?.sessions?.steerSession(sessionId, text, images, files)
                 ?: SteerOutcome.NOT_CONSUMED
         if (outcome != SteerOutcome.NOT_CONSUMED) {
-            runtime.onPromptSteered(text, images, files, injected = outcome == SteerOutcome.INJECTED)
+            runtime.onPromptSteered(text, images, files, clientId, injected = outcome == SteerOutcome.INJECTED)
         }
         return outcome
     }
@@ -279,6 +282,8 @@ sealed interface AppSessionEvent {
         val files: List<ChatFileData> = emptyList(),
         val append: Boolean = false,
         val timestampMs: Long? = null,
+        /** The client's id for the prompt this echoes, when the gateway tagged it. */
+        val clientId: String? = null,
     ) : AppSessionEvent
 
     data class AgentMessage(

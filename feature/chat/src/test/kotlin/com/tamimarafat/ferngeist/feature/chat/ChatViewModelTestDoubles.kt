@@ -44,11 +44,16 @@ open class TestFacade(
     var reconnectCount = 0
         private set
 
+    /** The client id of every prompt handed to [sendMessage], in order. */
+    val sentClientIds = mutableListOf<String>()
+
     override suspend fun sendMessage(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
+        sentClientIds += clientId
         val result = sendResultProvider()
         if (!result) {
             emitOperationError()
@@ -146,6 +151,7 @@ open class FakeChatSessionFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
         emitOperationError()
         return false

@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 
 private class ConnectivityStub : ConnectivityObserver {
@@ -130,6 +131,8 @@ internal class ScriptedTransport(
 ) : Transport {
     val sentMethods = mutableListOf<String>()
 
+    /** The params of each request sent, in order. */
+    val sentParams = mutableListOf<JsonElement?>()
     private var onFrame: (TransportFrame) -> Unit = {}
 
     override val state: StateFlow<Transport.State> = MutableStateFlow(Transport.State.STARTED)
@@ -139,6 +142,7 @@ internal class ScriptedTransport(
     override fun send(frame: TransportFrame) {
         val request = (frame as? TransportFrame.Single)?.message as? JsonRpcRequest ?: return
         sentMethods += request.method.name
+        sentParams += request.params
         val id = ACPJson.encodeToJsonElement(request.id).toString()
         scripts[request.method.name].orEmpty().forEach { onFrame(parseTransportFrame(it.replace("\$ID", id))) }
     }

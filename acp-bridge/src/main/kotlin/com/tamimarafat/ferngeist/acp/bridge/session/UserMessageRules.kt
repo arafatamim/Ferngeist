@@ -11,6 +11,11 @@ internal fun appendUserText(
     timestampMs: Long?,
 ): List<ChatMessage> {
     if (content.text.isEmpty() && content.images.isEmpty() && content.files.isEmpty()) return messages
+    // A catch-up replays the prompts the gateway numbered, including ones this transcript already
+    // holds (sent, then saved before the gateway's number reached it). Only the echo still being
+    // assembled - the last message - takes more chunks.
+    val delivered = content.clientId?.let { id -> messages.indexOfLast { it.clientId == id } } ?: -1
+    if (delivered >= 0 && delivered != messages.lastIndex) return messages
     val mutableMessages = messages.mutableCopy()
     val lastMessage = mutableMessages.lastOrNull()
 
@@ -38,6 +43,7 @@ internal fun appendUserText(
             images = content.images,
             files = content.files,
             createdAt = timestampMs ?: System.currentTimeMillis(),
+            clientId = content.clientId,
         ),
     )
     return mutableMessages.build()
@@ -54,10 +60,10 @@ internal fun deduplicateOrMergeUserMessage(
     content: UserContent,
     append: Boolean,
 ): List<ChatMessage>? {
-    if (append && lastMessage?.role == ChatMessage.Role.USER) {
+    if (append && lastMessage?.role == ChatMessage.Role.USER && lastMessage.clientId == content.clientId) {
         // Exact-match dedup when the last message is already a USER bubble.
         // Image chunks arrive as separate UserMessageChunks with empty text — merge
-        // images even when the text is empty or unchanged.
+        // images even when the text is empty or unchanged. Another prompt's echo never merges.
         return mergeIntoUserBubble(mutableMessages, lastMessage, content)
     }
     // append=false: local optimistic insertion (or redundant source) — dedup against the

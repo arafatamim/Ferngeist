@@ -6,8 +6,6 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
-import com.tamimarafat.ferngeist.core.model.ChatFileData
-import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import kotlinx.collections.immutable.PersistentList
@@ -63,7 +61,7 @@ object SessionMessageReducer {
                     messages =
                         appendUserText(
                             messages,
-                            UserContent(event.text, event.images, event.files),
+                            UserContent(event.text, event.images, event.files, event.clientId),
                             event.append,
                             event.timestampMs,
                         ),
@@ -130,15 +128,13 @@ object SessionMessageReducer {
      * [steered] is a prompt pushed into the running turn: the reply so far closes, keeping
      * its running tool calls as they are, so the rest of the turn streams below the prompt.
      */
-    fun appendLocalUserMessage(
+    internal fun appendLocalUserMessage(
         messages: List<ChatMessage>,
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
+        prompt: UserContent,
         steered: Boolean = false,
     ): List<ChatMessage> {
         // Optimistic insertion: the UI gets an immediate user bubble before the server round-trip
-        if (text.isBlank() && images.isEmpty() && files.isEmpty()) return messages
+        if (prompt.text.isBlank() && prompt.images.isEmpty() && prompt.files.isEmpty()) return messages
         val last = messages.lastOrNull()
         val closed =
             if (steered && last?.role == ChatMessage.Role.ASSISTANT && last.isStreaming) {
@@ -149,10 +145,11 @@ object SessionMessageReducer {
         return closed +
             ChatMessage(
                 role = ChatMessage.Role.USER,
-                content = text,
-                images = images,
-                files = files,
+                content = prompt.text,
+                images = prompt.images,
+                files = prompt.files,
                 createdAt = System.currentTimeMillis(),
+                clientId = prompt.clientId,
             )
     }
 

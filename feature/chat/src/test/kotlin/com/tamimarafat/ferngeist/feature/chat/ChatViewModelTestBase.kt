@@ -201,12 +201,27 @@ internal fun hydratingSnapshot(): ChatSessionSnapshot =
 internal fun echoMessage(
     id: String = "server-echo-1",
     content: String = "hello world",
+    clientId: String? = null,
 ): ChatMessage =
     ChatMessage(
         id = id,
         role = ChatMessage.Role.USER,
         content = content,
         status = MessageDeliveryStatus.SENT,
+        clientId = clientId,
+    )
+
+/** The runtime's echo of this screen's pending prompt [content]: it carries the prompt's client id. */
+internal fun ChatViewModel.echoOf(
+    content: String,
+    id: String = "server-echo-1",
+): ChatMessage =
+    echoMessage(
+        id,
+        content,
+        state.value.pendingMessages
+            .single { it.content == content }
+            .clientId,
     )
 
 /** Builds a [ChatSessionSnapshot] containing a single echo message. */

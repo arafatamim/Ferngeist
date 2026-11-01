@@ -520,11 +520,13 @@ interface ChatSessionLifecycle {
 interface ChatSessionInteraction {
     /** Sends a user message with optional inline images. Returns true if the message
      * was dispatched to a live session; false when no bridge is available or the
-     * payload is unsupported by the current transport. */
+     * payload is unsupported by the current transport. [clientId] names the prompt so the
+     * gateway delivers it once and its echo can be told apart from an identical prompt. */
     suspend fun sendMessage(
         text: String,
-        images: List<ChatImageData> = emptyList(),
-        files: List<ChatFileData> = emptyList(),
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String,
     ): Boolean
 
     /** Requests a streaming cancel from the transport. */
@@ -533,8 +535,9 @@ interface ChatSessionInteraction {
     /** Steers a prompt into the running turn; see [ChatAgentCapabilities.supportsSteering]. */
     suspend fun steerMessage(
         text: String,
-        images: List<ChatImageData> = emptyList(),
-        files: List<ChatFileData> = emptyList(),
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String,
     ): SteerOutcome = SteerOutcome.NOT_CONSUMED
 
     /** Updates a session configuration option (mode, model, native config, etc.). */

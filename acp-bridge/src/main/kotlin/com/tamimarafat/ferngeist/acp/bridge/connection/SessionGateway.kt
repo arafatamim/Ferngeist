@@ -28,6 +28,8 @@ import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.failHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.markReady
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.clientIdMeta
+import com.tamimarafat.ferngeist.acp.bridge.session.persist.deliveredOnce
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.restoredFrom
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.resumeCatchingUp
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.settleCatchUp
@@ -44,6 +46,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -309,6 +312,7 @@ internal class SessionGateway(
         content: String,
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
+        clientId: String? = null,
     ) {
         val bridge =
             sessionRegistry.getBridge(sessionId) ?: error("Session bridge missing for sessionId=$sessionId")
@@ -332,7 +336,8 @@ internal class SessionGateway(
         // Awaiting merely joins the turn: if this caller is cancelled (the chat screen
         // closed) the cancellation propagates from here while the turn keeps running on
         // the bridge scope, emitting its own terminal event when the agent finishes.
-        awaitTurn(bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks) })
+        val meta = clientId?.let(::clientIdMeta)
+        awaitTurn(bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks, meta) })
     }
 
     /**
@@ -394,12 +399,16 @@ internal class SessionGateway(
         session: ClientSession,
         bridge: SessionBridge,
         blocks: List<ContentBlock>,
+        meta: JsonElement?,
     ) {
         // Start clean: a cancel that arrived after the previous turn had already
         // finished must not mislabel this one.
         cancelsRequested.remove(sessionId)
         try {
-            session.prompt(blocks).collect { event -> forwardPromptEvent(bridge, event) }
+            session
+                .prompt(blocks, meta)
+                .deliveredOnce { bridge.emitEvent(AppSessionEvent.SessionLoadComplete) }
+                .collect { event -> forwardPromptEvent(bridge, event) }
         } catch (error: CancellationException) {
             // Interrupted (transport reset) or torn down with the session. Either way the
             // turn is over: without a terminal event the bridge would read as streaming

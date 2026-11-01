@@ -506,14 +506,12 @@ class ChatViewModel
             val (reconciledPending, echoKeys) = reconcileEchoes(state.value.pendingMessages, snapshot.messages)
             val wasStreaming = state.value.isStreaming
             val wasReady = state.value.isSessionReady
-            // The echo is the runtime's own record of the prompt, written just before the
-            // turn starts on the bridge's scope, which outlives this screen. From here the
-            // prompt is delivered, so its durable copy goes now rather than when the turn
-            // ends: a screen closed mid-turn would otherwise restore and re-send it.
+            // The echo is the runtime's own record of the prompt, not the gateway's: the durable
+            // copy stays (as dispatched) until the turn ends, so a process death before the
+            // prompt left can still resend it.
             // Only a phone-origin echo advances this clock; completion can arrive after the screen closes.
             if (echoKeys.isNotEmpty()) {
                 durableSessionId?.let { PhoneTurnClock.record(serverId, it, System.currentTimeMillis(), echoKeys.keys) }
-                offlineQueue.persistQueue()
             }
             durableSessionId?.let { PhoneTurnClock.observe(serverId, it, snapshot.messages) }
             val messages =

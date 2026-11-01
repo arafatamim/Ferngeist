@@ -4,10 +4,12 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientOperationsFactory
 import com.agentclientprotocol.client.ClientSession
+import com.agentclientprotocol.common.Event
 import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.AcpWithMeta
 import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.SessionUpdate
+import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.MethodName
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
@@ -15,6 +17,8 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -27,9 +31,14 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
-// The gateway's catch-up wire contract: ferngeist-acp-gateway docs/api.md, "Catch-up resume".
+// The gateway's catch-up wire contract: ferngeist-acp-gateway docs/api.md, "Catch-up resume"
+// and "Exactly-once prompts".
 private const val SEQ_KEY = "ferngeist/seq"
 private const val CATCH_UP_KEY = "ferngeist/catchUp"
+private const val CLIENT_ID_KEY = "ferngeist/clientId"
+
+/** The gateway's answer to a prompt whose [CLIENT_ID_KEY] it already delivered. */
+private const val PROMPT_ALREADY_DELIVERED = -32050
 
 /** What the gateway reported after replaying the updates a catch-up resume missed. */
 internal data class CatchUpReply(
@@ -41,6 +50,23 @@ internal data class CatchUpReply(
 /** The gateway's number for [update], or null for a frame it did not number (a direct agent). */
 internal fun updateSeq(update: SessionUpdate): Long? =
     ((update as? AcpWithMeta)?._meta as? JsonObject)?.get(SEQ_KEY)?.jsonPrimitive?.longOrNull
+
+/** The client's id for the prompt a replayed user message echoes, when the gateway tagged it. */
+internal fun promptClientId(update: SessionUpdate): String? =
+    ((update as? AcpWithMeta)?._meta as? JsonObject)?.get(CLIENT_ID_KEY)?.jsonPrimitive?.contentOrNull
+
+/** `session/prompt` params `_meta` naming the prompt, so the gateway delivers it to the agent once. */
+internal fun clientIdMeta(clientId: String): JsonObject = buildJsonObject { put(CLIENT_ID_KEY, clientId) }
+
+/**
+ * Ends a resend of a prompt the gateway already delivered quietly: its turn runs (or ran) on, so it
+ * counts as sent, and [onDelivered] closes what the resend opened locally.
+ */
+internal fun Flow<Event>.deliveredOnce(onDelivered: suspend () -> Unit): Flow<Event> =
+    catch { error ->
+        if ((error as? JsonRpcException)?.code != PROMPT_ALREADY_DELIVERED) throw error
+        onDelivered()
+    }
 
 /** `session/resume` params `_meta` asking the gateway for the updates after [CatchUpCursor.afterSeq]. */
 internal fun CatchUpCursor.toResumeMeta(): JsonObject =

@@ -257,6 +257,7 @@ class SessionRuntime(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String? = null,
     ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) {
@@ -265,7 +266,8 @@ class SessionRuntime(
             }
 
             debug { "onLocalPromptStarted textLen=${text.length}, images=${images.size}, files=${files.size}" }
-            val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, text, images, files)
+            val prompt = UserContent(text, images, files, clientId)
+            val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, prompt)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
             live =
@@ -289,6 +291,7 @@ class SessionRuntime(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String?,
         injected: Boolean,
     ) {
         mutex.withLock {
@@ -299,9 +302,7 @@ class SessionRuntime(
             val withUser =
                 SessionMessageReducer.appendLocalUserMessage(
                     live.messages,
-                    text,
-                    images,
-                    files,
+                    UserContent(text, images, files, clientId),
                     steered = true,
                 )
             live =

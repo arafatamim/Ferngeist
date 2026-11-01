@@ -518,7 +518,10 @@ class SessionRuntimeTest {
 
         // Simulate onLocalPromptStarted: optimistic user bubble + streaming assistant placeholder
         var messages =
-            SessionMessageReducer.appendLocalUserMessage(emptyList(), "hello", listOf(sampleImage), emptyList())
+            SessionMessageReducer.appendLocalUserMessage(
+                emptyList(),
+                UserContent("hello", listOf(sampleImage), emptyList()),
+            )
         assertEquals(1, messages.size)
         assertEquals("hello", messages[0].content)
         assertEquals(1, messages[0].images.size)
@@ -576,7 +579,10 @@ class SessionRuntimeTest {
             )
 
         var messages =
-            SessionMessageReducer.appendLocalUserMessage(emptyList(), "see attached", emptyList(), listOf(sampleFile))
+            SessionMessageReducer.appendLocalUserMessage(
+                emptyList(),
+                UserContent("see attached", emptyList(), listOf(sampleFile)),
+            )
         assertEquals(1, messages.size)
         assertEquals(1, messages[0].files.size)
         assertEquals("report.pdf", messages[0].files[0].name)

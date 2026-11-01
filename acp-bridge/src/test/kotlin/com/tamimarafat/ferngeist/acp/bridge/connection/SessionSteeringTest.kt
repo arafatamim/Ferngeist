@@ -4,6 +4,7 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionMessageReducer
+import com.tamimarafat.ferngeist.acp.bridge.session.UserContent
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.serialization.json.Json
@@ -61,9 +62,7 @@ class SessionSteeringTest {
         val messages =
             SessionMessageReducer.appendLocalUserMessage(
                 listOf(streaming),
-                "nudge",
-                emptyList(),
-                emptyList(),
+                UserContent("nudge", emptyList(), emptyList()),
                 steered = true,
             )
 

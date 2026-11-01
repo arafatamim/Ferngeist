@@ -5,14 +5,17 @@ import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Reattaching over the gateway's catch-up resume, pinned at the wire. */
+/** Reattaching over the gateway's catch-up resume and its exactly-once prompts, pinned at the wire. */
 class SessionCatchUpTest {
     private fun chunk(
         text: String,
@@ -20,6 +23,14 @@ class SessionCatchUpTest {
     ) = """{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","update":""" +
         """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"$text"},""" +
         """"_meta":{"ferngeist/seq":$seq}}}}"""
+
+    private fun promptEcho(
+        text: String,
+        clientId: String,
+        seq: Long,
+    ) = """{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","update":""" +
+        """{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"$text"},""" +
+        """"_meta":{"ferngeist/seq":$seq,"ferngeist/clientId":"$clientId"}}}}"""
 
     private fun catchUpReply(
         turnActive: Boolean,
@@ -128,5 +139,60 @@ class SessionCatchUpTest {
             runCatching { gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", savedMidTurn(), "e2") }
 
             assertEquals(listOf("session/load"), transport.sentMethods)
+        }
+
+    @Test
+    fun `a catch-up replaying a prompt the chat already holds shows it once`() =
+        runTest {
+            // Saved right after the prompt went out, before the gateway's number for it arrived.
+            val runtime = SessionRuntime(sessionId = "s1").apply { catchUpFrom("e1") }
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "c1")
+            val transport =
+                ScriptedTransport(
+                    mapOf(
+                        "session/resume" to
+                            listOf(promptEcho("go", "c1", 1), chunk("hel", 2), catchUpReply(true, false)),
+                    ),
+                )
+            val gateway = attachOver(transport)
+
+            val bridge =
+                gateway.attachSession(
+                    SessionAttachRpc.LOAD,
+                    "s1",
+                    "/w",
+                    runtime.savedState(),
+                    "e1",
+                ) as SessionBridge
+
+            val users =
+                bridge.snapshot.value.messages
+                    .filter { it.role == ChatMessage.Role.USER }
+            assertEquals(listOf("go"), users.map { it.content })
+            assertEquals("hel", bridge.replyText())
+        }
+
+    @Test
+    fun `a prompt names itself on the wire and a resend the gateway already delivered counts as sent`() =
+        runTest {
+            val delivered =
+                """{"jsonrpc":"2.0","id":${'$'}ID,"error":{"code":-32050,"message":"prompt already delivered",""" +
+                    """"data":{"clientId":"c1"}}}"""
+            val transport =
+                ScriptedTransport(
+                    mapOf(
+                        "session/load" to listOf("""{"jsonrpc":"2.0","id":${'$'}ID,"result":{}}"""),
+                        "session/prompt" to listOf(delivered),
+                    ),
+                )
+            val gateway = attachOver(transport)
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w") as SessionBridge
+
+            gateway.sendSessionMessage("s1", "go", clientId = "c1")
+
+            val meta = (transport.sentParams.last() as JsonObject)["_meta"] as JsonObject
+            assertEquals("c1", meta["ferngeist/clientId"]?.jsonPrimitive?.content)
+            assertFalse("no failed turn", bridge.snapshot.value.isStreaming)
+            assertTrue(bridge.events.replayCache.none { it is AppSessionEvent.TurnComplete })
         }
 }

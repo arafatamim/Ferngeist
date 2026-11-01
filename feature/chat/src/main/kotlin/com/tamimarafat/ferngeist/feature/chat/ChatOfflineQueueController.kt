@@ -41,6 +41,9 @@ internal class ChatOfflineQueueController(
      *  Used to wire the operation-error callback back to the specific SENDING bubble. */
     private var inFlightClientId: String? = null
 
+    /** The prompt whose turn is running, kept durable until that turn ends; see [sendWhenIdle]. */
+    private var dispatchedPrompt: PendingPrompt? = null
+
     /** Guards [flushOfflineQueue] so overlapping sessionReady/retry calls cannot interleave. */
     private val flushMutex = Mutex()
     private var reconnectKickJob: Job? = null
@@ -88,6 +91,7 @@ internal class ChatOfflineQueueController(
                     text = record.text,
                     images = record.images,
                     files = record.files,
+                    dispatched = record.dispatched,
                 ),
             )
             val message =
@@ -119,8 +123,8 @@ internal class ChatOfflineQueueController(
     suspend fun persistQueue() {
         persistMutex.withLock {
             val records =
-                offlineQueue.snapshot().map {
-                    QueuedPromptRecord(it.clientId, it.text, it.images, it.files)
+                (listOfNotNull(dispatchedPrompt) + offlineQueue.snapshot()).map {
+                    QueuedPromptRecord(it.clientId, it.text, it.images, it.files, it.dispatched)
                 }
             persistence.save(records)
         }
@@ -238,9 +242,18 @@ internal class ChatOfflineQueueController(
             while (!offlineQueue.isEmpty) {
                 val midTurn = state.first { !it.isStreaming || it.supportsSteering }.isStreaming
                 val prompt = offlineQueue.dequeue() ?: break
-                if (midTurn) steerIntoTurn(prompt) else startTurn(prompt)
+                when {
+                    prompt.isDeliveredIn(state.value.messages) -> dropDelivered(prompt)
+                    midTurn -> steerIntoTurn(prompt)
+                    else -> startTurn(prompt)
+                }
             }
         }
+    }
+
+    private suspend fun dropDelivered(prompt: PendingPrompt) {
+        update { copy(pendingMessages = pendingMessages.filterNot { it.clientId == prompt.clientId }) }
+        persistQueue()
     }
 
     /**
@@ -256,21 +269,22 @@ internal class ChatOfflineQueueController(
         // Transition QUEUED -> SENDING, keep the bubble visible.
         inFlightClientId = prompt.clientId
         setPendingStatus(prompt.clientId, MessageDeliveryStatus.QUEUED, MessageDeliveryStatus.SENDING)
-        val dispatched = coordinator.sendMessage(prompt.text, prompt.images, prompt.files)
+        dispatchedPrompt = prompt.copy(dispatched = true)
+        persistQueue()
+        val dispatched = coordinator.sendMessage(prompt)
         inFlightClientId = null
+        dispatchedPrompt = null
         if (!dispatched) {
             // No bridge / not ready / unsupported -> mark FAILED immediately. The facade
             // has already reported the cause; a second generic error would replace it.
             setPendingStatus(prompt.clientId, MessageDeliveryStatus.SENDING, MessageDeliveryStatus.FAILED)
         }
         // Only now is the durable copy dropped, and deliberately not from a
-        // finally: until the send resolves the stored snapshot still contains
-        // this prompt, so a screen teardown mid-send (which cancels
-        // sendMessage and skips this line) restores it as QUEUED rather than
-        // losing it. The cost is that a process death between a successful
-        // send and this write can re-send one prompt after restart
-        // (at-least-once); the record carries its clientId, so an echo-based
-        // dedupe could tighten that later if it ever matters.
+        // finally: until the send resolves the stored snapshot still holds
+        // this prompt as dispatched, so a screen teardown or process death
+        // mid-turn restores it. The restore resends it under the same clientId
+        // only when the transcript lacks its echo, and the gateway drops a
+        // repeat it already delivered, so the agent sees it once.
         persistQueue()
     }
 
@@ -282,7 +296,7 @@ internal class ChatOfflineQueueController(
      */
     private suspend fun steerIntoTurn(prompt: PendingPrompt) {
         setPendingStatus(prompt.clientId, MessageDeliveryStatus.QUEUED, MessageDeliveryStatus.SENDING)
-        val outcome = coordinator.steerMessage(prompt.text, prompt.images, prompt.files)
+        val outcome = coordinator.steerMessage(prompt)
         if (outcome == SteerOutcome.NOT_CONSUMED) {
             offlineQueue.enqueueFirst(prompt)
             setPendingStatus(prompt.clientId, MessageDeliveryStatus.SENDING, MessageDeliveryStatus.QUEUED)
@@ -397,3 +411,7 @@ private fun List<ChatMessage>.foldedInto(
             else -> it
         }
     }
+
+/** A prompt restored as dispatched whose echo [messages] already holds: the agent has it. */
+private fun PendingPrompt.isDeliveredIn(messages: List<ChatMessage>): Boolean =
+    dispatched && messages.any { it.clientId == clientId }
