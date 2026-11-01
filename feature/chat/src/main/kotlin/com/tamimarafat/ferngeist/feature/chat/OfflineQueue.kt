@@ -52,14 +52,17 @@ class OfflineQueue {
     }
 
     /**
-     * Folds [clientId]'s prompt and every prompt ahead of it into one, under [clientId], and puts
-     * it at the front. Returns it with the client ids it swallowed, or null if [clientId] is not
-     * queued.
+     * Folds [clientId]'s prompt and every prompt ahead of it into one, under [clientId], in the
+     * first folded prompt's place. Returns it with the client ids it swallowed, or null if
+     * [clientId] is not queued. A dispatched prompt is never folded: the gateway knows it only by
+     * its own id, so under another it could be delivered twice. It stays ahead, sent first.
      */
     fun foldThrough(clientId: String): Pair<PendingPrompt, Set<String>>? {
         val index = prompts.indexOfFirst { it.clientId == clientId }
         if (index < 0) return null
-        val batch = List(index + 1) { prompts.removeFirst() }
+        if (prompts[index].dispatched) return prompts[index] to emptySet()
+        val start = prompts.subList(0, index).indexOfLast { it.dispatched } + 1
+        val batch = List(index - start + 1) { prompts.removeAt(start) }
         val folded =
             PendingPrompt(
                 clientId = clientId,
@@ -67,7 +70,7 @@ class OfflineQueue {
                 images = batch.flatMap { it.images },
                 files = batch.flatMap { it.files },
             )
-        prompts.addFirst(folded)
+        prompts.add(start, folded)
         return folded to (batch.mapTo(HashSet()) { it.clientId } - clientId)
     }
 
