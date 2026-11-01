@@ -147,7 +147,7 @@ suspend fun buildGatewayLaunchContext(
                 gatewaySource = source,
                 runtimeId = handoff.runtimeId,
                 sessionId = handoff.sessionId,
-                epoch = handoff.epoch,
+                epoch = result.epoch,
             )
         }
 

@@ -150,14 +150,14 @@ class GatewayLaunchRuntimeTest {
     fun `reopening a chat on a gateway with the one-call attach makes only that call`() =
         runTest {
             val requested = mutableListOf<String>()
-            val attached = CONNECT_BODY.dropLast(1) + ""","epoch":"e7","needsLoad":true}"""
+            val attached = CONNECT_BODY.dropLast(1) + ""","epoch":"e7"}"""
             val engine =
                 MockEngine { request ->
                     requested += "${request.method.value} ${request.url.encodedPath}"
                     respond(attached, HttpStatusCode.OK)
                 }
 
-            val handoff =
+            val launched =
                 GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
                     .launch(
                         gatewaySource = SOURCE,
@@ -165,11 +165,9 @@ class GatewayLaunchRuntimeTest {
                         requireSupportedProtocol = true,
                         acpSessionId = "chat-1",
                     ).getOrThrow()
-                    .handoff
 
             assertEquals(listOf("POST /v1/sessions/attach"), requested)
-            assertEquals("e7", handoff.epoch)
-            assertTrue(handoff.needsLoad)
+            assertEquals("e7", launched.epoch)
         }
 
     @Test

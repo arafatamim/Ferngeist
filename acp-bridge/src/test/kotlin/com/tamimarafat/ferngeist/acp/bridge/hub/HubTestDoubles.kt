@@ -26,6 +26,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayProtocol
 import com.tamimarafat.ferngeist.gateway.GatewayRemoteStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewaySessionAttachResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
@@ -226,7 +227,7 @@ internal class FakeGatewayRepo : GatewayRepository {
         gatewayCredential: String,
         agentId: String,
         acpSessionId: String,
-    ): GatewayConnectResponse = throw GatewayRequestException(statusCode = 404, message = "not found")
+    ): GatewaySessionAttachResponse = throw GatewayRequestException(statusCode = 404, message = "not found")
 
     override suspend fun resumeSession(
         scheme: String,

@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayProtocol
 import com.tamimarafat.ferngeist.gateway.GatewayProtocolMismatchException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewaySessionAttachResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.gatewayErrorMessage
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
@@ -88,13 +89,15 @@ class GatewayRuntimeLauncher(
         }
 
         if (acpSessionId != null) {
-            attachChat(refreshedSource, agentId, acpSessionId)?.let { handoff ->
+            attachChat(refreshedSource, agentId, acpSessionId)?.let { attached ->
                 // The attach skips the status fetch that checks the protocol; its reply carries the version.
-                val version = handoff.protocolVersion
+                val version = attached.protocolVersion
                 if (requireSupportedProtocol && version != null && version !in GatewayProtocol.supported) {
                     throw GatewayProtocolMismatchException(version)
                 }
-                return Result.success(GatewayLaunchResult(gatewaySource = refreshedSource, handoff = handoff))
+                val handoff =
+                    with(attached) { GatewayConnectResponse(runtimeId, sessionId, attachToken, webSocketUrl) }
+                return Result.success(GatewayLaunchResult(refreshedSource, handoff, attached.epoch))
             }
         }
         if (requireSupportedProtocol) {
@@ -113,7 +116,7 @@ class GatewayRuntimeLauncher(
         gatewaySource: GatewaySource,
         agentId: String,
         acpSessionId: String,
-    ): GatewayConnectResponse? =
+    ): GatewaySessionAttachResponse? =
         try {
             withContext(ioDispatcher) {
                 gatewayRepository.attachSession(

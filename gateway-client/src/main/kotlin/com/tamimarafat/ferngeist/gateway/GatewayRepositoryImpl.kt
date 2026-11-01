@@ -282,7 +282,7 @@ class GatewayRepositoryImpl
             gatewayCredential: String,
             agentId: String,
             acpSessionId: String,
-        ): GatewayConnectResponse =
+        ): GatewaySessionAttachResponse =
             http.postJson(
                 scheme = scheme,
                 host = host,

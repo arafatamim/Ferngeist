@@ -26,6 +26,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayProtocol
 import com.tamimarafat.ferngeist.gateway.GatewayRemoteStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewaySessionAttachResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
@@ -233,7 +234,7 @@ class AcpChatSessionFacadeTest {
             gatewayCredential: String,
             agentId: String,
             acpSessionId: String,
-        ): GatewayConnectResponse {
+        ): GatewaySessionAttachResponse {
             attachedSessionIds += acpSessionId
             throw GatewayRequestException(statusCode = 404, message = "not found")
         }

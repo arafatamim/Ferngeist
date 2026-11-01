@@ -657,8 +657,8 @@ class AcpChatSessionFacade(
         return context.fold(
             onSuccess = { launch ->
                 resolvedAgentId = target.binding.agentId
-                // needsLoad needs no branch: a new agent process brings a new epoch, which no saved
-                // cursor matches, so the attach loads.
+                // A new agent process brings a new epoch, which no saved cursor matches, so the
+                // attach loads.
                 launchEpoch = launch.epoch
                 _gatewayWorkspaceConnection.value = launch.workspaceConnection
                 launch.config

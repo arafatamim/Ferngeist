@@ -98,7 +98,7 @@ interface GatewaySessionRepository {
         gatewayCredential: String,
         agentId: String,
         acpSessionId: String,
-    ): GatewayConnectResponse
+    ): GatewaySessionAttachResponse
 
     suspend fun resumeSession(
         scheme: String,

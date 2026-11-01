@@ -93,13 +93,9 @@ data class GatewayAgentSecurity(
 )
 
 /**
- * Response of `POST /v1/agents/{id}/connect`, `POST /v1/runtimes/{id}/restart` and
- * `POST /v1/sessions/attach` (protocol v2): the session handoff and the ACP WebSocket to
- * attach to. A restart hands back a different [runtimeId]. Auth uses the device credential;
- * [attachToken] authorises the ACP WebSocket attach.
- *
- * Only an attach fills the rest: [epoch] names the runtime's update numbering for a catch-up
- * resume, and [needsLoad] says the chat's agent process is new, so it must be loaded.
+ * Response of `POST /v1/agents/{id}/connect` and `POST /v1/runtimes/{id}/restart` (protocol v2):
+ * the session handoff and the ACP WebSocket to attach to. A restart hands back a different
+ * [runtimeId]. Auth uses the device credential; [attachToken] authorises the ACP WebSocket attach.
  */
 @Serializable
 data class GatewayConnectResponse(
@@ -110,9 +106,22 @@ data class GatewayConnectResponse(
     val attachToken: String,
     @SerialName("websocketUrl")
     val webSocketUrl: String,
+)
+
+/**
+ * Response of `POST /v1/sessions/attach`: the [GatewayConnectResponse] handoff plus the [protocolVersion] the
+ * skipped status fetch would have checked and the [epoch] naming the runtime's update numbering
+ * for a catch-up resume.
+ */
+@Serializable
+data class GatewaySessionAttachResponse(
+    val runtimeId: String,
+    val sessionId: String,
+    val attachToken: String,
+    @SerialName("websocketUrl")
+    val webSocketUrl: String,
     val protocolVersion: String? = null,
     val epoch: String? = null,
-    val needsLoad: Boolean = false,
 )
 
 @Serializable
