@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -452,6 +453,30 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             reopenOver(store, reopened, transcript = emptyList())
 
             assertEquals(listOf(clientId), reopened.sentClientIds)
+        }
+
+    @Test
+    fun `a restored prompt is sent once a quiet load makes the session ready`() =
+        runTest {
+            val record = QueuedPromptRecord("c-1", "later", emptyList(), emptyList(), dispatched = false)
+            val store = InMemoryPendingPromptStore(mapOf(("server_1" to "session_1") to listOf(record)))
+            val facade =
+                object : TestFacade(sendResult = true) {
+                    init {
+                        connectionStateFlow.value = ChatConnectionState.Connected
+                    }
+                }
+            createViewModel(
+                facadeFactory = TestFacadeFactory { facade },
+                stores = testStores(pendingPromptStore = store),
+            )
+            advanceUntilIdle()
+
+            // A session/load announces no sessionReady: the ready snapshot is the only cue.
+            facade.emitSnapshot(readySnapshot())
+            advanceUntilIdle()
+
+            assertEquals(listOf("c-1"), facade.sentClientIds)
         }
 
     /** Sends [text] on a screen that closes while its turn runs; returns the prompt's client id. */

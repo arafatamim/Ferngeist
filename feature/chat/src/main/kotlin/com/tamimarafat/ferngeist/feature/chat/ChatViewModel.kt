@@ -485,11 +485,16 @@ class ChatViewModel
         }
 
         /**
-         * A session/load announces no sessionReady, and the status asked for when the workspace
-         * appeared ran before the gateway knew this session's directory, so ask again once ready.
+         * A session/load announces no sessionReady, so the ready snapshot is the only cue for prompts
+         * restored into the queue; and the status asked for when the workspace appeared ran before the
+         * gateway knew this session's directory, so ask again once ready.
          */
-        private fun refreshGitStatusOnceReady(wasReady: Boolean) {
+        private fun onSessionBecameReady(wasReady: Boolean) {
             if (wasReady || !state.value.isSessionReady) return
+            // Launched: a flush suspends until its turn ends, which would stall snapshot collection.
+            if (state.value.connectionState == ChatConnectionState.Connected) {
+                viewModelScope.launch { offlineQueue.flushOfflineQueue() }
+            }
             state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
             gitStatusLoader.loadRefs()
         }
@@ -525,7 +530,7 @@ class ChatViewModel
             }
             // A new turn retires inline diffs from the previous working tree.
             if (!wasStreaming && snapshot.isStreaming) gitTurnDiffLoader.clearTurnDiffs()
-            refreshGitStatusOnceReady(wasReady)
+            onSessionBecameReady(wasReady)
             titleController.onSnapshot(snapshot)
         }
 
