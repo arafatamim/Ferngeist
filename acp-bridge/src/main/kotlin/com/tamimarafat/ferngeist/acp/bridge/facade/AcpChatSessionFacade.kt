@@ -264,13 +264,7 @@ class AcpChatSessionFacade(
         if (initialSessionId == NEW_SESSION_ARG) {
             // Create-on-arrival: the session list no longer pre-creates on its
             // browser transport; this chat's own connection mints the session.
-            val bridge = connectionManager.sessions.createSession(cwd)
-            if (bridge == null) {
-                _loadFailed.emit(connectionFailure("Failed to create a new session."))
-                return
-            }
-            attachSessionBridge(bridge)
-            _sessionReady.emit(Unit)
+            createAndAttachSession()
             return
         }
 
@@ -734,7 +728,12 @@ class AcpChatSessionFacade(
                 return
             }
             publishCapabilities()
-            if (!reload) {
+            if (reload) {
+                // Load the chat's own session, the same way a launch does.
+                val outcome = sessionLoadCoordinator.run(sessionId = activeSessionId, epoch = context.epoch)
+                if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
+            } else if (createAndAttachSession()) {
+                // Not the handoff's session id: that names the gateway session, not an ACP one.
                 _operationError.emit(
                     ChatOperationError(
                         message = "The previous session could not be resumed. Opened a new session.",
@@ -742,14 +741,19 @@ class AcpChatSessionFacade(
                     ),
                 )
             }
-            // Attach the session the gateway just minted, or load the chat's own, the same way a launch does.
-            val outcome =
-                sessionLoadCoordinator.run(
-                    sessionId = launchedFor ?: context.sessionId,
-                    epoch = context.epoch,
-                )
-            if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
         }
+    }
+
+    /** Mints a session on this chat's connection and attaches it; false after reporting a failure. */
+    private suspend fun createAndAttachSession(): Boolean {
+        val bridge = connectionManager.sessions.createSession(cwd)
+        if (bridge == null) {
+            _loadFailed.emit(connectionFailure("Failed to create a new session."))
+            return false
+        }
+        attachSessionBridge(bridge)
+        _sessionReady.emit(Unit)
+        return true
     }
 
     private fun attachSessionBridge(bridge: SessionPort) {
