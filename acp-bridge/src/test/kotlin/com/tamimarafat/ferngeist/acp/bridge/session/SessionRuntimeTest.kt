@@ -621,7 +621,7 @@ class SessionRuntimeTest {
     }
 
     /**
-     * Pins the invariant the trailing-message streaming check in [SessionRuntime.reduce] relies
+     * Pins the invariant the trailing-message streaming check in [reduce] relies
      * on: mid-turn only the last bubble streams, and a completed turn clears the snapshot flag
      * while leaving no message with a stray `isStreaming = true` anywhere in the list.
      */

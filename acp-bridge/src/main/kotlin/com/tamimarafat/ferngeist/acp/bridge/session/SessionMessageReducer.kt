@@ -545,7 +545,7 @@ object SessionMessageReducer {
      *
      * TurnComplete can arrive for a streaming message in any position, and more than one bubble can
      * be streaming at once (the order of prompt events is not guaranteed to be sequential). The
-     * runtime derives its streaming flag as an OR over all messages (SessionRuntime.reduce), and
+     * runtime derives its streaming flag as an OR over all messages ([reduce]), and
      * the chat UI's STOP action is driven by that flag, so every streaming bubble must be cleared -
      * a single orphan left behind keeps the snapshot streaming forever and strands the user on STOP.
      *
@@ -553,7 +553,7 @@ object SessionMessageReducer {
      * each ([appendText]), so this is where adjacent MESSAGE segments fold back into a single
      * markdown document and where the flat `content` view is derived. Both run once per turn,
      * which is the point - doing either per chunk is the O(n^2) copy that the segment-per-chunk
-     * shape exists to avoid. [SessionRuntime.reduce] routes TurnEndUnheard through this method
+     * shape exists to avoid. [reduce] routes TurnEndUnheard through this method
      * too, which is what gives a hydrated transcript its content and its single-segment replies.
      */
 

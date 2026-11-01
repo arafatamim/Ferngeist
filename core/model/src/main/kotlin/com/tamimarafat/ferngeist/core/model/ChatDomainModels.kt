@@ -349,14 +349,7 @@ data class ChatSessionSnapshot(
     val dropsRepeatPrompts: Boolean? = false,
     /** The last attach missed updates the agent cannot replay: the transcript may have a hole. */
     val historyGap: Boolean = false,
-) {
-    /** This snapshot as history, never live state: a stale streaming flag is cleared. */
-    fun asHistory(): ChatSessionSnapshot =
-        copy(
-            isStreaming = false,
-            messages = messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it },
-        )
-}
+)
 
 /**
  * One plan-quota window (e.g. 5-hour, weekly). [paceFraction] is the share of the window already

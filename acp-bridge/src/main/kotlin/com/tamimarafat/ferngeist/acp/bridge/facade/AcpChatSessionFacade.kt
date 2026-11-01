@@ -109,7 +109,14 @@ class AcpChatSessionFacade(
     // live bridge republishes its true snapshot on reattach, so a real in-flight turn re-arms it
     // at once, while a turn whose owner died can never strand the UI on STOP.
     override suspend fun cachedSnapshot(): ChatSessionSnapshot? =
-        hub.lastSnapshot(serverId, initialSessionId)?.let { mapSnapshot(it).asHistory() }
+        hub.lastSnapshot(serverId, initialSessionId)?.let { saved ->
+            mapSnapshot(saved).let { paint ->
+                paint.copy(
+                    isStreaming = false,
+                    messages = paint.messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it },
+                )
+            }
+        }
 
     private val _agentCapabilities =
         MutableStateFlow(ChatAgentCapabilities())
