@@ -72,6 +72,23 @@ class SessionRuntimeRestoreTest {
         }
 
     @Test
+    fun a_reply_saved_mid_stream_restores_as_one_segment_per_run() =
+        runTest {
+            val original = SessionRuntime(sessionId = "ses_test")
+            original.onLocalPromptStarted("go", emptyList(), emptyList())
+            listOf("a", "b", "c").forEach { original.onEvent(AppSessionEvent.AgentMessage(it)) }
+
+            val restored = SessionRuntime(sessionId = "ses_test")
+            restored.restore(original.savedState())
+
+            val reply =
+                restored.snapshot.value.messages
+                    .last()
+            assertEquals(listOf("abc"), reply.segments.map { it.text })
+            assertTrue(reply.isStreaming)
+        }
+
+    @Test
     fun a_restored_permission_prompt_waits_for_the_gateway_to_ask_again() =
         runTest {
             val original = SessionRuntime(sessionId = "ses_test")
