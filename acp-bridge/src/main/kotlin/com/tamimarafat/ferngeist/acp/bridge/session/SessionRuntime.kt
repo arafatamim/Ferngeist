@@ -65,8 +65,19 @@ internal data class RuntimeData(
     val epoch: String? = null,
     val lastSeq: Long = 0,
 ) {
-    fun after(updateSeq: Long?): RuntimeData = if (updateSeq == null) this else copy(lastSeq = updateSeq)
+    fun after(updateSeq: Long?): RuntimeData =
+        when {
+            updateSeq == null -> this
+            // The gateway numbers a prompt's echo but sends it only in a catch-up, so a live
+            // client sees a skipped number where its prompt was: the gateway took that prompt.
+            updateSeq > lastSeq + 1 -> copy(messages = messages.confirmingLastSent(), lastSeq = updateSeq)
+            else -> copy(lastSeq = updateSeq)
+        }
 }
+
+/** Confirms the newest prompt this client sent that no echo confirmed yet. */
+private fun List<ChatMessage>.confirmingLastSent(): List<ChatMessage> =
+    confirmingDelivery(lastOrNull { it.role == ChatMessage.Role.USER && it.clientId != null }?.clientId)
 
 /**
  * Owns canonical transcript/session state for one ACP session.

@@ -16,6 +16,23 @@ import org.junit.Test
 
 class SessionRuntimeTest {
     @Test
+    fun a_skipped_update_number_confirms_the_prompt_the_gateway_numbered_there() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+            runtime.onEvent(AppSessionEvent.AgentMessage("earlier"), updateSeq = 1)
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"), updateSeq = 2)
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "p1")
+
+            runtime.onEvent(AppSessionEvent.AgentMessage("first"), updateSeq = 3)
+            assertFalse(runtime.prompt("p1").deliveryConfirmed)
+            // The gateway numbered the echo 4 but sends it only in a catch-up.
+            runtime.onEvent(AppSessionEvent.AgentMessage("reply"), updateSeq = 5)
+            assertTrue(runtime.prompt("p1").deliveryConfirmed)
+        }
+
+    private fun SessionRuntime.prompt(clientId: String) = snapshot.value.messages.single { it.clientId == clientId }
+
+    @Test
     fun live_segments_and_the_turns_close_are_stamped_but_a_replay_is_not() =
         runTest {
             var now = 0L
