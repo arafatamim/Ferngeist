@@ -32,7 +32,7 @@
     <string name="chat_file_origin_commit">En %1$s</string>
     <string name="chat_file_origin_compare">vs %1$s</string>
     <string name="chat_file_open_full">Abrir archivo completo</string>
-    <string name="chat_file_truncated">Solo se muestra el primer MiB de este archivo</string>
+    <string name="chat_file_truncated">Solo se muestran los primeros 8 MiB de este archivo</string>
     <string name="chat_file_soft_wrap">Ajustar</string>
     <string name="chat_file_markdown_preview">Vista previa</string>
     <string name="chat_tool_call">Llamada a herramienta</string>
@@ -349,5 +349,6 @@
     <string name="chat_active_elsewhere_title">¿Activo en otro lugar?</string>
     <string name="chat_active_elsewhere_body">Este chat estuvo activo recientemente en otro lugar. Enviar ahora puede iniciar otro proceso de agente en el mismo chat.</string>
     <string name="chat_send_anyway">Enviar de todos modos</string>
+    <string name="quote_selection">Citar</string>
 </resources>
 

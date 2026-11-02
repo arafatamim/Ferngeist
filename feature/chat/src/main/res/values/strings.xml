@@ -64,7 +64,7 @@
     <string name="chat_file_origin_commit">At %1$s</string>
     <string name="chat_file_origin_compare">vs %1$s</string>
     <string name="chat_file_open_full">Open full file</string>
-    <string name="chat_file_truncated">Only the first 1 MiB of this file is shown</string>
+    <string name="chat_file_truncated">Only the first 8 MiB of this file is shown</string>
     <string name="chat_file_soft_wrap">Wrap</string>
     <string name="chat_file_markdown_preview">Preview</string>
     <string name="chat_tool_call">Tool Call</string>

@@ -35,7 +35,7 @@
     <string name="chat_file_origin_commit">于 %1$s</string>
     <string name="chat_file_origin_compare">对比 %1$s</string>
     <string name="chat_file_open_full">打开完整文件</string>
-    <string name="chat_file_truncated">仅显示此文件的前 1 MiB</string>
+    <string name="chat_file_truncated">仅显示此文件的前 8 MiB</string>
     <string name="chat_file_soft_wrap">换行</string>
     <string name="chat_file_markdown_preview">预览</string>
     <string name="chat_tool_call">工具调用</string>
@@ -303,5 +303,6 @@
     <string name="chat_active_elsewhere_title">正在其他位置使用？</string>
     <string name="chat_active_elsewhere_body">此聊天最近在其他位置处于活跃状态。现在发送可能会为同一聊天启动另一个代理进程。</string>
     <string name="chat_send_anyway">仍然发送</string>
+    <string name="quote_selection">引用</string>
 </resources>
 
