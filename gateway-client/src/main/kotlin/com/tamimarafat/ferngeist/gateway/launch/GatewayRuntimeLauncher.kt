@@ -41,13 +41,14 @@ class GatewayRuntimeLauncher(
         agentId: String,
         requireSupportedProtocol: Boolean = false,
         acpSessionId: String? = null,
+        claimedAcpSessionIds: Set<String> = emptySet(),
     ): Result<GatewayLaunchResult> =
         try {
             launchRefreshedRuntime(
                 gatewaySource = gatewaySource,
                 agentId = agentId,
                 requireSupportedProtocol = requireSupportedProtocol,
-                acpSessionId = acpSessionId,
+                target = ReattachRequest(acpSessionId, claimedAcpSessionIds),
             )
         } catch (error: CancellationException) {
             throw error
@@ -67,8 +68,9 @@ class GatewayRuntimeLauncher(
         gatewaySource: GatewaySource,
         agentId: String,
         requireSupportedProtocol: Boolean,
-        acpSessionId: String?,
+        target: ReattachRequest,
     ): Result<GatewayLaunchResult> {
+        val acpSessionId = target.acpSessionId
         val refreshedSource =
             try {
                 withContext(ioDispatcher) {
@@ -104,7 +106,7 @@ class GatewayRuntimeLauncher(
             gatewayRepository.verifyProtocol(refreshedSource.scheme, refreshedSource.host)
         }
 
-        return attemptConnect(refreshedSource, agentId, acpSessionId)
+        return attemptConnect(refreshedSource, agentId, target)
     }
 
     /**
@@ -150,12 +152,12 @@ class GatewayRuntimeLauncher(
     private suspend fun attemptConnect(
         gatewaySource: GatewaySource,
         agentId: String,
-        acpSessionId: String?,
+        target: ReattachRequest,
     ): Result<GatewayLaunchResult> =
         try {
             val handoff =
                 withContext(ioDispatcher) {
-                    resumeExistingSession(gatewaySource, agentId, acpSessionId)
+                    resumeExistingSession(gatewaySource, agentId, target)
                         ?: gatewayRepository.connectAgent(
                             scheme = gatewaySource.scheme,
                             host = gatewaySource.host,
@@ -182,7 +184,7 @@ class GatewayRuntimeLauncher(
     private suspend fun resumeExistingSession(
         gatewaySource: GatewaySource,
         agentId: String,
-        acpSessionId: String?,
+        target: ReattachRequest,
     ): GatewayConnectResponse? =
         try {
             val existing =
@@ -193,7 +195,7 @@ class GatewayRuntimeLauncher(
                         gatewaySource.gatewayCredential,
                     ),
                     agentId,
-                    acpSessionId,
+                    target,
                 )
             existing?.let {
                 val resumed =
@@ -221,17 +223,28 @@ class GatewayRuntimeLauncher(
 private const val HTTP_NOT_FOUND = 404
 private const val HTTP_BAD_METHOD = 405
 
+/** The chat a launch opens ([acpSessionId], null for a listing) and the chats this device already tracks. */
+internal data class ReattachRequest(
+    val acpSessionId: String?,
+    val claimedAcpSessionIds: Set<String>,
+)
+
 /**
- * The gateway session a launch of [agentId] reattaches to: the one already running
- * [acpSessionId] when the gateway lists it, else the newest. Only disconnected ones, since
- * attaching to an active session would steal it from its live client.
+ * The gateway session a launch of [agentId] reattaches to: the one already running the
+ * requested chat when the gateway lists it, else the newest no tracked chat runs. Only
+ * disconnected ones, since attaching to an active session would steal it from its live client.
  */
 internal fun reattachTarget(
     sessions: List<GatewaySessionSummary>,
     agentId: String,
-    acpSessionId: String?,
+    target: ReattachRequest,
 ): GatewaySessionSummary? {
     val disconnected = sessions.filter { it.agentId == agentId && it.status == "disconnected" }
+    val acpSessionId = target.acpSessionId
+    // A chat restored after process death is disconnected until its screen reattaches; a
+    // listing that took its session would hang it up, killing the turn it is still running.
     return disconnected.firstOrNull { acpSessionId != null && acpSessionId in it.acpSessionIds }
-        ?: disconnected.maxByOrNull { it.createdAt.orEmpty() }
+        ?: disconnected
+            .filter { session -> session.acpSessionIds.none { it in target.claimedAcpSessionIds } }
+            .maxByOrNull { it.createdAt.orEmpty() }
 }

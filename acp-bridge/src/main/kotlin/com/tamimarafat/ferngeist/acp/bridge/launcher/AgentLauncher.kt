@@ -162,7 +162,11 @@ class AgentLaunchSession internal constructor(
 
                 is LaunchableTarget.GatewayAgent -> {
                     val context =
-                        buildGatewayLaunchContext(repositories.runtimeLauncher, server).getOrElse { error ->
+                        buildGatewayLaunchContext(
+                            repositories.runtimeLauncher,
+                            server,
+                            hub.trackedSessionIds(),
+                        ).getOrElse { error ->
                             return AgentLaunchOutcome.Failed(error.message ?: "Failed to launch ${server.name}")
                         }
                     pendingGateway = GatewayRuntime(source = context.gatewaySource, runtimeId = context.runtimeId)

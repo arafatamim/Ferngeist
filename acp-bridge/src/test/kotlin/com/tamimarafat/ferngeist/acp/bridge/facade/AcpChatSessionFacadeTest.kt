@@ -69,6 +69,8 @@ class AcpChatSessionFacadeTest {
 
         override fun managerFor(chatId: String): AcpConnection? = null
 
+        override fun trackedSessionIds(): Set<String> = emptySet()
+
         override suspend fun lastSnapshot(
             serverId: String,
             sessionId: String,

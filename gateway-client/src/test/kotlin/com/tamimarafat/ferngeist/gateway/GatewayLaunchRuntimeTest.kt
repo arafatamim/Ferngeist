@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.gateway
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
+import com.tamimarafat.ferngeist.gateway.launch.ReattachRequest
 import com.tamimarafat.ferngeist.gateway.launch.reattachTarget
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -94,8 +95,26 @@ class GatewayLaunchRuntimeTest {
                 GatewaySessionSummary("s-live", "r-3", "pi-acp", "active", "2026-03-01", listOf("chat-a")),
             )
 
-        assertEquals("s-mine", reattachTarget(sessions, "pi-acp", "chat-a")?.sessionId)
-        assertEquals("s-newer", reattachTarget(sessions, "pi-acp", "chat-unknown")?.sessionId)
+        assertEquals("s-mine", reattachTarget(sessions, "pi-acp", ReattachRequest("chat-a", emptySet()))?.sessionId)
+        assertEquals(
+            "s-newer",
+            reattachTarget(sessions, "pi-acp", ReattachRequest("chat-unknown", emptySet()))?.sessionId,
+        )
+    }
+
+    @Test
+    fun `a listing never reattaches a session a restored chat still runs`() {
+        val sessions =
+            listOf(
+                GatewaySessionSummary("s-orphan", "r-1", "pi-acp", "disconnected", "2026-01-01", listOf("gone")),
+                GatewaySessionSummary("s-restored", "r-2", "pi-acp", "disconnected", "2026-02-01", listOf("chat-b")),
+            )
+
+        assertEquals("s-orphan", reattachTarget(sessions, "pi-acp", ReattachRequest(null, setOf("chat-b")))?.sessionId)
+        assertEquals(
+            "s-restored",
+            reattachTarget(sessions, "pi-acp", ReattachRequest("chat-b", setOf("chat-b")))?.sessionId,
+        )
     }
 
     @Test

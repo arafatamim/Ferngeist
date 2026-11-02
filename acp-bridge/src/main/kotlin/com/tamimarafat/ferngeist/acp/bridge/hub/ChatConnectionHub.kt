@@ -595,6 +595,8 @@ class ChatConnectionHub(
     /** The live transport for a tracked chat, or null when untracked/cold. */
     override fun managerFor(chatId: String): AcpConnection? = entries[chatId]?.manager
 
+    override fun trackedSessionIds(): Set<String> = entries.values.mapTo(HashSet()) { it.sessionId }
+
     /** The runtime every connection of [sessionId]'s chat attaches to; see [ChatRuntimes]. */
     internal suspend fun runtimeFor(
         serverId: String,

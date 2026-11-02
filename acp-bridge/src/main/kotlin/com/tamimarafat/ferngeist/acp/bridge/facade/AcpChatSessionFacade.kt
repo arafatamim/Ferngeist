@@ -658,6 +658,7 @@ class AcpChatSessionFacade(
             buildGatewayLaunchContext(
                 repositories.runtimeLauncher,
                 target,
+                hub.trackedSessionIds(),
                 acpSessionId = activeSessionId.takeUnless { it == NEW_SESSION_ARG },
             )
         openTimer?.mark("launch")
@@ -708,11 +709,12 @@ class AcpChatSessionFacade(
                 repositories.launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent ?: return
             val chatSession = activeSessionId.takeIf { it != NEW_SESSION_ARG }
             val context =
-                buildGatewayLaunchContext(repositories.runtimeLauncher, target, chatSession).getOrElse { error ->
-                    // The gateway's own words: a 502 carries the agent's exit error.
-                    _loadFailed.emit(error.message ?: "Failed to connect to ${target.name}.")
-                    return
-                }
+                buildGatewayLaunchContext(repositories.runtimeLauncher, target, hub.trackedSessionIds(), chatSession)
+                    .getOrElse { error ->
+                        // The gateway's own words: a 502 carries the agent's exit error.
+                        _loadFailed.emit(error.message ?: "Failed to connect to ${target.name}.")
+                        return
+                    }
             resolvedAgentId = target.binding.agentId
             _gatewayWorkspaceConnection.value = context.workspaceConnection
             if (!connectionManager.connect(context.config) || initializeSession() == null) {

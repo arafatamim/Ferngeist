@@ -22,7 +22,8 @@ class GatewayLaunchSupportTest {
     fun `a v1 gateway fails the server connect without calling connect`() =
         runTest {
             val repo = FakeGatewayRepo().apply { protocolVersion = "v1" }
-            val result = buildGatewayLaunchContext(GatewayRuntimeLauncher(repo, FakeGatewaySources()), target())
+            val result =
+                buildGatewayLaunchContext(GatewayRuntimeLauncher(repo, FakeGatewaySources()), target(), emptySet())
 
             assertTrue("a v1 gateway must fail the server connect", result.isFailure)
             val message = result.exceptionOrNull()?.message.orEmpty()
@@ -37,7 +38,8 @@ class GatewayLaunchSupportTest {
     fun `a v2 gateway still launches the server connect`() =
         runTest {
             val repo = FakeGatewayRepo().apply { protocolVersion = GatewayProtocol.CURRENT }
-            val result = buildGatewayLaunchContext(GatewayRuntimeLauncher(repo, FakeGatewaySources()), target())
+            val result =
+                buildGatewayLaunchContext(GatewayRuntimeLauncher(repo, FakeGatewaySources()), target(), emptySet())
 
             assertTrue("a v2 gateway must launch: ${result.exceptionOrNull()?.message}", result.isSuccess)
             assertEquals(1, repo.connectCalls)

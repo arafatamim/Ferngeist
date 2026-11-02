@@ -125,6 +125,8 @@ suspend fun persistEnvValues(
 suspend fun buildGatewayLaunchContext(
     runtimeLauncher: GatewayRuntimeLauncher,
     server: LaunchableTarget.GatewayAgent,
+    /** The chats this device tracks, whose gateway sessions only their own chat may reattach. */
+    claimedAcpSessionIds: Set<String>,
     acpSessionId: String? = null,
 ): Result<GatewayLaunchContext> =
     runtimeLauncher
@@ -136,6 +138,7 @@ suspend fun buildGatewayLaunchContext(
             // message instead of opaquely on the connect call.
             requireSupportedProtocol = true,
             acpSessionId = acpSessionId,
+            claimedAcpSessionIds = claimedAcpSessionIds,
         ).map { result ->
             val source = result.gatewaySource
             val handoff = result.handoff

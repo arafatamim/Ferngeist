@@ -42,6 +42,9 @@ interface ChatConnectionSurface {
     /** Releases an acquired manager that never registered (failed spawn, cleared screen). */
     fun abandon(manager: AcpConnection)
 
+    /** The ACP session ids of every chat the hub tracks, restored cold ones included. */
+    fun trackedSessionIds(): Set<String>
+
     /** The live transport for a tracked chat, or null when untracked/cold. */
     fun managerFor(chatId: String): AcpConnection?
 

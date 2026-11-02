@@ -686,6 +686,7 @@ class SessionCatalog(
                 buildGatewayLaunchContext(
                     runtimeLauncher = repositories.runtimeLauncher,
                     server = target,
+                    claimedAcpSessionIds = hub.trackedSessionIds(),
                 ).map { it.config }
 
             is LaunchableTarget.Manual -> Result.success(target.toConnectionConfig())
