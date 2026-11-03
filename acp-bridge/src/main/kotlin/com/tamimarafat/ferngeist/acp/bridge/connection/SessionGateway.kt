@@ -109,9 +109,13 @@ internal class SessionGateway(
      * Internally this sends a `session/new` RPC, [registerSession] maps the SDK
      * [ClientSession] capabilities (modes, models, config options) into events.
      * Auth-required errors are re-thrown so the facade can prompt re-auth; other
-     * errors are recorded in diagnostics and null is returned.
+     * errors are recorded in diagnostics and null is returned. [epoch] is the gateway's
+     * numbering of the agent process, when the launch reported one.
      */
-    suspend fun createSession(cwd: String = ""): SessionPort? {
+    suspend fun createSession(
+        cwd: String = "",
+        epoch: String? = null,
+    ): SessionPort? {
         if (cwd.isBlank()) {
             connection.diagnosticsStore.appendError("session/new", "Refusing to create session: blank cwd")
             return null
@@ -126,7 +130,7 @@ internal class SessionGateway(
                     sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
                     operationsFactory = operationsFactory,
                 )
-            registerSession(session, cwd)
+            registerSession(session, cwd).also { bridge -> epoch?.let { bridge.runtime.catchUpFrom(it) } }
         }.getOrElse {
             connection.toAuthRequiredException(it)?.let { error -> throw error }
             connection.diagnosticsStore.appendError(

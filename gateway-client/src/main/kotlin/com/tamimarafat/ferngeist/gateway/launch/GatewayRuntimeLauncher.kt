@@ -223,7 +223,10 @@ class GatewayRuntimeLauncher(
 private const val HTTP_NOT_FOUND = 404
 private const val HTTP_BAD_METHOD = 405
 
-/** The chat a launch opens ([acpSessionId], null for a listing) and the chats this device already tracks. */
+/**
+ * The chat a launch opens ([acpSessionId]: empty for a new chat, null for a listing) and the chats this
+ * device already tracks.
+ */
 internal data class ReattachRequest(
     val acpSessionId: String?,
     val claimedAcpSessionIds: Set<String>,

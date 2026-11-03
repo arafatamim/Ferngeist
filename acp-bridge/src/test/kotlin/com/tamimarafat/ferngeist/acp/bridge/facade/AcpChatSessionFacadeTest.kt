@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
@@ -438,6 +439,27 @@ class AcpChatSessionFacadeTest {
             assertEquals(listOf("s1"), repo.attachedSessionIds)
             assertEquals("agent exited: boom", failures.first())
             collector.cancel()
+        }
+
+    @Test
+    fun `a new chat launches through the attach so its runtime's epoch is known`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo = FakeGatewayRepo()
+            val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
+            val facade =
+                AcpChatSessionFacade(
+                    scope = backgroundScope,
+                    connectionManager = newManager(backgroundScope),
+                    repositories = LaunchRepositories(repo, FakeGatewaySources(), targets),
+                    opening = ChatOpening(serverId = "srv", sessionId = NEW_SESSION_ARG, cwd = "/work"),
+                    hub = RecordingSurface(),
+                )
+
+            backgroundScope.launch { facade.loadSession() }
+            awaitRealWork { repo.attachedSessionIds.isNotEmpty() }
+
+            // The gateway's attach takes an empty id as a new chat, and only its reply carries an epoch.
+            assertEquals(listOf(""), repo.attachedSessionIds)
         }
 
     @Test

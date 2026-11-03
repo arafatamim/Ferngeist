@@ -653,13 +653,14 @@ class AcpChatSessionFacade(
             _loadFailed.emit("Gateway is not paired for ${target.name}.")
             return null
         }
-        // A chat whose agent survived the app reattaches to the gateway session still running it.
+        // A chat whose agent survived the app reattaches to the gateway session still running it. A new
+        // chat attaches too, under an empty id, so it learns the epoch its first turn can catch up in.
         val context =
             buildGatewayLaunchContext(
                 repositories.runtimeLauncher,
                 target,
                 hub.trackedSessionIds(),
-                acpSessionId = activeSessionId.takeUnless { it == NEW_SESSION_ARG },
+                acpSessionId = activeSessionId.takeUnless { it == NEW_SESSION_ARG }.orEmpty(),
             )
         openTimer?.mark("launch")
         return context.fold(
@@ -734,7 +735,7 @@ class AcpChatSessionFacade(
 
     /** Mints a session on this chat's connection and attaches it; false after reporting a failure. */
     private suspend fun createAndAttachSession(): Boolean {
-        val bridge = connectionManager.sessions.createSession(cwd)
+        val bridge = connectionManager.sessions.createSession(cwd, launchEpoch)
         if (bridge == null) {
             _loadFailed.emit(connectionFailure("Failed to create a new session."))
             return false
@@ -803,7 +804,7 @@ class AcpChatSessionFacade(
         }
         val created =
             try {
-                connectionManager.sessions.createSession(cwd)
+                connectionManager.sessions.createSession(cwd, launchEpoch)
             } catch (_: AcpAuthenticationRequiredException) {
                 _loadFailed.emit(
                     "ACP authentication is required for this server. " +
