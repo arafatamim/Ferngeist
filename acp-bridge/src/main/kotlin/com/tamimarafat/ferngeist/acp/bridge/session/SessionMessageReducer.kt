@@ -550,7 +550,7 @@ object SessionMessageReducer {
      * a single orphan left behind keeps the snapshot streaming forever and strands the user on STOP.
      *
      * Also settles what the bubble renders (see [closedByTurnClose]): chunks arrive as one segment
-     * each ([appendText]), so this is where adjacent MESSAGE segments fold back into a single
+     * each ([appendText]), so this is where adjacent MESSAGE (and THOUGHT) segments fold back into a single
      * markdown document and where the flat `content` view is derived. Both run once per turn,
      * which is the point - doing either per chunk is the O(n^2) copy that the segment-per-chunk
      * shape exists to avoid. [reduce] routes TurnEndUnheard through this method

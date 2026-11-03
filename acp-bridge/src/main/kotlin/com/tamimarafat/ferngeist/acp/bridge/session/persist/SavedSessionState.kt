@@ -8,7 +8,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionUsage
 import com.tamimarafat.ferngeist.acp.bridge.session.ToolCallLocation
-import com.tamimarafat.ferngeist.acp.bridge.session.mergedMessageSegments
+import com.tamimarafat.ferngeist.acp.bridge.session.mergedTextRuns
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.collections.immutable.toPersistentList
@@ -71,7 +71,7 @@ internal suspend fun SessionRuntime.restore(saved: String) {
 // long turn saves and restores as a few segments instead of thousands.
 private fun RuntimeData.toSaved() =
     SavedSessionState(
-        messages = messages.map { it.copy(segments = mergedMessageSegments(it.segments)) },
+        messages = messages.map { it.copy(segments = mergedTextRuns(it.segments)) },
         isStreaming = isStreaming,
         toolCallIndex = toolCallIndex,
         usage = usage,
