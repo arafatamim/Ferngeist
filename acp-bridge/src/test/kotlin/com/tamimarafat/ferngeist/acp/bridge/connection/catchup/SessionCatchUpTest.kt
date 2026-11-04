@@ -94,6 +94,21 @@ class SessionCatchUpTest {
         }
 
     @Test
+    fun `a live update that outruns the catch-up replay lands once, in its place`() =
+        runTest {
+            // The gateway streams to the new connection before it answers the resume, and replays that
+            // update again among the ones after the cursor.
+            val replay = listOf(chunk("!", 6), chunk("lo", 5), chunk("!", 6), catchUpReply(true, false))
+            val transport = ScriptedTransport(mapOf("session/resume" to replay))
+            val gateway = attachOver(transport, restoredMidTurn())
+
+            val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
+
+            assertEquals("hello!", bridge.replyText())
+            assertEquals(CatchUpCursor("e1", 6), bridge.runtime.catchUpFrom(null))
+        }
+
+    @Test
     fun `a turn that ended while the app was dead stops streaming after the catch-up`() =
         runTest {
             val transport =

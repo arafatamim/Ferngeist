@@ -75,6 +75,12 @@ internal data class RuntimeData(
         }
 }
 
+/** An update a catch-up replays in its place, so it is not applied out of order. */
+private fun RuntimeData.outOfCatchUpOrder(
+    updateSeq: Long?,
+    catchingUp: Boolean,
+): Boolean = catchingUp && updateSeq != null && updateSeq != lastSeq + 1
+
 /** Confirms the newest prompt this client sent that no echo confirmed yet. */
 private fun List<ChatMessage>.confirmingLastSent(): List<ChatMessage> =
     confirmingDelivery(lastOrNull { it.role == ChatMessage.Role.USER && it.clientId != null }?.clientId)
@@ -113,6 +119,13 @@ class SessionRuntime(
     /** Between [beginAttach] and its settle; a turn end arriving then is held in [heldTurnEnd]. */
     private var attaching = false
     private var heldTurnEnd: AppSessionEvent.TurnComplete? = null
+
+    /**
+     * Between a catch-up cursor handed to an attach and its settle. The gateway streams to a new
+     * connection before it answers the resume, then replays those updates among the ones after the
+     * cursor, gaplessly: only the next number is applied, so one that outran the replay lands once.
+     */
+    private var catchingUp = false
 
     /** What the last attach learned about the gateway; see [SessionSnapshot.dropsRepeatPrompts]. */
     private var dropsRepeatPrompts: Boolean? = false
@@ -237,6 +250,7 @@ class SessionRuntime(
     suspend fun beginAttach() {
         mutex.withLock {
             attaching = true
+            catchingUp = false
             heldTurnEnd = null
             dropsRepeatPrompts = null
             historyGap = false
@@ -264,6 +278,7 @@ class SessionRuntime(
         val end =
             mutex.withLock {
                 attaching = false
+                catchingUp = false
                 this.dropsRepeatPrompts = dropsRepeatPrompts
                 this.historyGap = historyGap
                 _snapshot.value =
@@ -309,6 +324,10 @@ class SessionRuntime(
                     "event#$seq bufferedApplied messages=${buffered.messages.size} " +
                         "streaming=${buffered.isStreaming}"
                 }
+                return@withLock
+            }
+            if (live.outOfCatchUpOrder(updateSeq, catchingUp)) {
+                debug { "onEvent: dropping update $updateSeq out of catch-up order after ${live.lastSeq}" }
                 return@withLock
             }
             live = reduce(live, event, clock(), eventSeq).after(updateSeq)
@@ -459,7 +478,9 @@ class SessionRuntime(
         mutex.withLock {
             val held = live.epoch
             if (epoch != null && held != epoch) live = live.copy(epoch = epoch, lastSeq = 0)
-            CatchUpCursor(held ?: return@withLock null, live.lastSeq).takeIf { epoch == null || held == epoch }
+            CatchUpCursor(held ?: return@withLock null, live.lastSeq)
+                .takeIf { epoch == null || held == epoch }
+                .also { catchingUp = attaching && it != null }
         }
 
     companion object {
