@@ -1,14 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - master
-    # Docs-only changes are covered by docs.yml; they do not need a full build.
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
   pull_request:
+    # Docs-only changes are covered by docs.yml; they do not need a full build.
     paths-ignore:
       - "**.md"
       - "docs/**"
@@ -16,7 +10,7 @@ on:
 # A new push to the same pull request makes the previous run obsolete.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
