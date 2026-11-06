@@ -53,7 +53,9 @@ jobs:
           git config user.email "31634638+arafatamim@users.noreply.github.com"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        # setup-uv stopped publishing floating major tags after v7, so v10.3.3 is the newest
+        # that resolves; pinning the exact tag is also the safer reference.
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install mini-SWE-agent
         run: |
