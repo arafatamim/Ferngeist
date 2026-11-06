@@ -100,6 +100,9 @@
         <item quantity="one">%d filter applied</item>
         <item quantity="other">%d filters applied</item>
     </plurals>
+    <string name="sessionlist_filter_agent_selected">Agent: %1$s</string>
+    <string name="sessionlist_filter_worktree_selected">Worktree: %1$s</string>
+    <string name="sessionlist_filter_clear">Clear %1$s filter</string>
     <string name="sessionlist_filter_agent">Agent</string>
     <string name="sessionlist_filter_worktree">Worktree</string>
     <string name="sessionlist_action_busy">This chat is still responding. Cancel it from inside the chat first.</string>

@@ -97,6 +97,9 @@
     <plurals name="sessionlist_filters_applied">
         <item quantity="other">已应用 %d 个筛选条件</item>
     </plurals>
+    <string name="sessionlist_filter_agent_selected">代理：%1$s</string>
+    <string name="sessionlist_filter_worktree_selected">工作树：%1$s</string>
+    <string name="sessionlist_filter_clear">清除筛选条件：%1$s</string>
     <string name="sessionlist_filter_agent">代理</string>
     <string name="sessionlist_filter_worktree">工作树</string>
     <string name="sessionlist_action_busy">此聊天仍在回复。请先在聊天中取消。</string>

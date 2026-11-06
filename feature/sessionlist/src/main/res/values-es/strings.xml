@@ -98,8 +98,12 @@
     <string name="sessionlist_filters">Filtros</string>
     <plurals name="sessionlist_filters_applied">
         <item quantity="one">%d filtro aplicado</item>
+        <item quantity="many">%d filtros aplicados</item>
         <item quantity="other">%d filtros aplicados</item>
     </plurals>
+    <string name="sessionlist_filter_agent_selected">Agente: %1$s</string>
+    <string name="sessionlist_filter_worktree_selected">Árbol de trabajo: %1$s</string>
+    <string name="sessionlist_filter_clear">Quitar filtro %1$s</string>
     <string name="sessionlist_filter_agent">Agente</string>
     <string name="sessionlist_filter_worktree">Árbol de trabajo</string>
     <string name="sessionlist_action_busy">Este chat sigue respondiendo. Cancélalo primero desde el chat.</string>
