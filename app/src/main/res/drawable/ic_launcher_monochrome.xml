@@ -5,7 +5,7 @@
     android:viewportHeight="108">
   <!-- Themed icons tint this; the eyes stay holes via evenOdd. -->
   <group android:translateX="54" android:translateY="54">
-    <group android:scaleX="0.92" android:scaleY="0.92">
+    <group android:scaleX="0.81" android:scaleY="0.81">
       <group android:translateX="-54.7" android:translateY="-52.8">
         <path
             android:fillColor="#FFFFFFFF"
