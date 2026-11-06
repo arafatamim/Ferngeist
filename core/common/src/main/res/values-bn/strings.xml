@@ -49,6 +49,10 @@
     <string name="common_status_needs_attention">মনোযোগ প্রয়োজন</string>
     <string name="common_status_error">টার্ন ব্যর্থ হয়েছে</string>
     <string name="common_status_finished">শেষ হয়েছে</string>
+    <string name="common_status_finished_now">এইমাত্র শেষ হয়েছে</string>
+    <string name="common_status_finished_ago">%1$s আগে শেষ হয়েছে</string>
+    <string name="common_status_working_for">%2$s ধরে %1$s</string>
+    <string name="common_quota_unavailable">কোটা পাওয়া যাচ্ছে না</string>
     <string name="common_quota_updated">আপডেট হয়েছে %1$s</string>
     <string name="common_quota_used">%1$s ব্যবহৃত</string>
     <string name="common_quota_in_reserve">%1$s রিজার্ভে</string>

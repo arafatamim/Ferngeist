@@ -11,7 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -59,7 +59,7 @@ fun compactRelativeTime(
         is RelativeAge.Hours -> compactDuration(age.count, MeasureUnit.HOUR)
         is RelativeAge.Days -> compactDuration(age.count, MeasureUnit.DAY)
         RelativeAge.Older -> {
-            val locale = LocalContext.current.resources.configuration.locales[0]
+            val locale = LocalConfiguration.current.locales[0]
             val pattern = DateFormat.getBestDateTimePattern(locale, "MMMd")
             SimpleDateFormat(pattern, locale).format(Date(updatedAt))
         }
@@ -70,7 +70,7 @@ fun compactDuration(
     count: Int,
     unit: MeasureUnit,
 ): String {
-    val locale = LocalContext.current.resources.configuration.locales[0]
+    val locale = LocalConfiguration.current.locales[0]
     val formatter = remember(locale) { NumberFormatter.withLocale(locale).unitWidth(NumberFormatter.UnitWidth.NARROW) }
     return formatter.format(Measure(count, unit)).toString()
 }

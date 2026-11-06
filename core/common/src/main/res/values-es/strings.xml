@@ -49,6 +49,10 @@
     <string name="common_status_needs_attention">Requiere atención</string>
     <string name="common_status_error">El turno falló</string>
     <string name="common_status_finished">Terminado</string>
+    <string name="common_status_finished_now">Terminado ahora mismo</string>
+    <string name="common_status_finished_ago">Terminado hace %1$s</string>
+    <string name="common_status_working_for">%1$s durante %2$s</string>
+    <string name="common_quota_unavailable">Cuota no disponible</string>
     <string name="common_quota_updated">Actualizado %1$s</string>
     <string name="common_quota_used">%1$s usado</string>
     <string name="common_quota_in_reserve">%1$s de reserva</string>
