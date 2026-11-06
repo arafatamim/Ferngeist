@@ -119,9 +119,11 @@ internal class AcpSocket(
         // is private — we need onError/onClose for reconnection.
         // Switch to the extension if a future SDK exposes Protocol.transport publicly.
         val transport =
-            WebSocketTransport(
-                parentScope = webSocketSession,
-                wss = webSocketSession,
+            SessionConfigCapabilityTransport(
+                WebSocketTransport(
+                    parentScope = webSocketSession,
+                    wss = webSocketSession,
+                ),
             )
         val protocol =
             Protocol(
