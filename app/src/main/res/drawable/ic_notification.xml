@@ -4,12 +4,12 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
   <!--
-    Status bar mark: the same silhouette, scaled so the ghost fills about 20 dp of
+    Status bar mark: the same silhouette, scaled so the ghost fills about 24 dp of
     the 24 dp box. Notification icons are tinted, so only the alpha matters.
   -->
   <group
-      android:scaleX="1.4254"
-      android:scaleY="1.4254"
+      android:scaleX="1.71"
+      android:scaleY="1.71"
       android:translateX="54"
       android:translateY="54">
     <group
