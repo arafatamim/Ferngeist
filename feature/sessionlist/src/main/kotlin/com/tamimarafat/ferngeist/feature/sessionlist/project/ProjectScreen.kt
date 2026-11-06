@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -49,6 +50,7 @@ import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.TurnActivity
+import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.pathSegments
 import com.tamimarafat.ferngeist.core.model.projectName
@@ -127,6 +129,8 @@ fun ProjectScreen(
 
     val repo = project?.repo
     val options = remember(project, worktrees) { project?.let { worktreeScopeOptions(it, worktrees) }.orEmpty() }
+    val scopeName = scope.takeUnless { it == WorktreeScope.All }?.let { scopeLabel(it, options) }
+    val selectedAgent = agents.firstOrNull { it.id == selectedAgentId }
 
     Box(
         modifier =
@@ -154,6 +158,16 @@ fun ProjectScreen(
                     sharedTransitionScope,
                     animatedContentScope,
                     sharedBoundsEnabled,
+                    filterChips = {
+                        ProjectFilterChips(
+                            agentName = selectedAgent?.name,
+                            agentIconUrl = selectedAgent?.iconUrl,
+                            scopeName = scopeName,
+                            onEdit = { showFilters = true },
+                            onClearAgent = { viewModel.selectAgent(null) },
+                            onClearScope = { viewModel.selectScope(WorktreeScope.All) },
+                        )
+                    },
                 )
             },
             floatingActionButton = {
@@ -199,7 +213,7 @@ fun ProjectScreen(
                     SessionListEmptyContent(
                         padding = padding,
                         supportsSessionList = true,
-                        scopeName = scope.takeUnless { it == WorktreeScope.All }?.let { scopeLabel(it, options) },
+                        scopeName = scopeName,
                         onCreateSession = onNewChat,
                     )
                 } else {
@@ -341,6 +355,7 @@ private fun ProjectTopBar(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
+    filterChips: @Composable () -> Unit,
 ) {
     val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     // Same as the session list: the title eases between the two rows' sizes as the bar collapses.
@@ -360,7 +375,12 @@ private fun ProjectTopBar(
         },
         subtitle =
             project?.let { shown ->
-                { Text(shown.gateway.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                {
+                    Column {
+                        Text(shown.gateway.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        filterChips()
+                    }
+                }
             },
         navigationIcon = {
             if (showBackButton) {

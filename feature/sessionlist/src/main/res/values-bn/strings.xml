@@ -98,6 +98,9 @@
         <item quantity="one">%dটি ফিল্টার প্রয়োগ করা হয়েছে</item>
         <item quantity="other">%dটি ফিল্টার প্রয়োগ করা হয়েছে</item>
     </plurals>
+    <string name="sessionlist_filter_agent_selected">এজেন্ট: %1$s</string>
+    <string name="sessionlist_filter_worktree_selected">ওয়ার্কট্রি: %1$s</string>
+    <string name="sessionlist_filter_clear">%1$s ফিল্টার সাফ করুন</string>
     <string name="sessionlist_filter_agent">এজেন্ট</string>
     <string name="sessionlist_filter_worktree">ওয়ার্কট্রি</string>
     <string name="sessionlist_action_busy">এই চ্যাটে এখনও উত্তর আসছে। আগে চ্যাটের ভেতর থেকে বাতিল করুন।</string>
