@@ -1,0 +1,132 @@
+name: Issue to PR
+
+# Assign an issue to yourself and a mini-SWE-agent turn implements it, then opens a draft PR.
+# The workflow is the agent; the assignee only has to be someone you trust to spend credits.
+on:
+  issues:
+    types: [assigned]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    # Assignment is open to triage-level users, so gate the paid, write-scoped run on a person.
+    if: github.event.sender.login == 'arafatamim'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install mini-SWE-agent
+        run: |
+          python -m pip install --upgrade pip
+          # litellm imports `mcp` whenever tools are passed, and mini's dependency set omits it.
+          pip install "mini-swe-agent>=2,<3" mcp
+
+      - name: Write the agent config and the task
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SESSION_ID: ${{ github.run_id }}
+          MODEL: ${{ vars.MINI_MODEL || 'deepseek-v4.1-flash' }}
+        run: |
+          # The hosted runner pre-creates RUNNER_TEMP; local runners may not.
+          mkdir -p "$RUNNER_TEMP"
+          # OpenCode Go asks non-OpenCode clients to send their own UA and a stable session id.
+          # -c replaces the packaged config, so this file is merged on top of mini.yaml below.
+          cat > "$RUNNER_TEMP/overrides.yaml" <<YAML
+          model:
+            # litellm has no price entry for these ids, and mini hard-fails without this.
+            cost_tracking: ignore_errors
+            model_name: openai/${MODEL}
+            model_kwargs:
+              api_base: https://opencode.ai/inference/go/openai/v1
+              extra_headers:
+                User-Agent: mini-swe-agent/2
+                x-opencode-session: "${SESSION_ID}"  # quote: run_id is numeric and YAML would type it
+          agent:
+            mode: yolo
+            confirm_exit: false
+            cost_limit: 0
+            step_limit: 120
+            wall_time_limit_seconds: 2400
+          environment:
+            timeout: 900
+          YAML
+
+          {
+            echo "Read AGENTS.md and follow it."
+            echo
+            echo "Implement GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+            echo
+            printf '%s\n' "$ISSUE_BODY"
+            echo
+            echo "Constraints:"
+            echo "- Leave the changes uncommitted; the workflow commits and opens the PR."
+            echo "- Do not modify .github/workflows, local.properties, or signing material."
+            echo "- Run ./gradlew detekt ktlintCheck and the unit tests for the modules you touch."
+          } > "$RUNNER_TEMP/task.md"
+
+      - name: Run mini-SWE-agent
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          # Without this, mini runs its interactive first-run setup and aborts on a non-tty runner.
+          MSWEA_CONFIGURED: "1"
+        run: |
+          chmod +x ./gradlew
+          # Branch first: the agent may commit on its own, and either way the work must land here.
+          git switch -c "agent/issue-${ISSUE_NUMBER}"
+          git rev-parse HEAD > "$(git rev-parse --git-dir)/agent-base-sha"
+          mini \
+            -c mini.yaml \
+            -c "$RUNNER_TEMP/overrides.yaml" \
+            -t "$(cat "$RUNNER_TEMP/task.md")" \
+            -y --exit-immediately
+
+      - name: Open a draft pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          BASE_SHA=$(cat "$(git rev-parse --git-dir)/agent-base-sha")
+          # Compares the whole tree against the branch point, so agent-made commits count too.
+          if git diff --quiet "$BASE_SHA"; then
+            gh issue comment "$ISSUE_NUMBER" --body "mini-SWE-agent produced no changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "fix: implement #${ISSUE_NUMBER}"
+          git push --set-upstream origin "agent/issue-${ISSUE_NUMBER}"
+
+          gh pr create --draft \
+            --base master \
+            --title "fix: ${ISSUE_TITLE}" \
+            --body "Closes #${ISSUE_NUMBER}
+
+          Automated by mini-SWE-agent. Review before marking ready."
