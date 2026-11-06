@@ -13,6 +13,9 @@ import androidx.navigation.NavBackStackEntry
 import kotlin.math.roundToInt
 
 private const val SESSIONS_ROUTE_PREFIX = "sessions/"
+private const val PROJECT_ROUTE_PREFIX = "project/"
+private const val CHAT_ROUTE_PREFIX = "chat/"
+private const val SERVER_LIST_ROUTE = "server_list"
 
 internal fun AnimatedContentTransitionScope<NavBackStackEntry>.navEnterTransition(
     navSpring: SpringSpec<IntOffset>,
@@ -90,13 +93,26 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.navPopExitTransit
  * shared bounds inside the two screens drive the change instead.
  */
 internal fun AnimatedContentTransitionScope<NavBackStackEntry>.isSharedBoundsTransition(): Boolean =
-    isSessionChatTransition() || isServerListSessionsTransition()
+    isSessionChatTransition() || isServerListSessionsTransition() || isProjectTransition()
+
+/** Project screens share bounds with both their home row and their chat cards. */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isProjectTransition(): Boolean {
+    val fromRoute = initialState.destination.route ?: return false
+    val toRoute = targetState.destination.route ?: return false
+    val otherRoute =
+        when {
+            fromRoute.startsWith(PROJECT_ROUTE_PREFIX) -> toRoute
+            toRoute.startsWith(PROJECT_ROUTE_PREFIX) -> fromRoute
+            else -> return false
+        }
+    return otherRoute == SERVER_LIST_ROUTE || otherRoute.startsWith(CHAT_ROUTE_PREFIX)
+}
 
 internal fun AnimatedContentTransitionScope<NavBackStackEntry>.isSessionChatTransition(): Boolean {
     val fromRoute = initialState.destination.route ?: return false
     val toRoute = targetState.destination.route ?: return false
-    return (fromRoute.startsWith(SESSIONS_ROUTE_PREFIX) && toRoute.startsWith("chat/")) ||
-        (fromRoute.startsWith("chat/") && toRoute.startsWith(SESSIONS_ROUTE_PREFIX))
+    return (fromRoute.startsWith(SESSIONS_ROUTE_PREFIX) && toRoute.startsWith(CHAT_ROUTE_PREFIX)) ||
+        (fromRoute.startsWith(CHAT_ROUTE_PREFIX) && toRoute.startsWith(SESSIONS_ROUTE_PREFIX))
 }
 
 /**
@@ -105,6 +121,6 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.isSessionChatTran
 internal fun AnimatedContentTransitionScope<NavBackStackEntry>.isServerListSessionsTransition(): Boolean {
     val fromRoute = initialState.destination.route ?: return false
     val toRoute = targetState.destination.route ?: return false
-    return (fromRoute == "server_list" && toRoute.startsWith(SESSIONS_ROUTE_PREFIX)) ||
-        (fromRoute.startsWith(SESSIONS_ROUTE_PREFIX) && toRoute == "server_list")
+    return (fromRoute == SERVER_LIST_ROUTE && toRoute.startsWith(SESSIONS_ROUTE_PREFIX)) ||
+        (fromRoute.startsWith(SESSIONS_ROUTE_PREFIX) && toRoute == SERVER_LIST_ROUTE)
 }
