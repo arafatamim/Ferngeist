@@ -1,11 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.catalog.project
 
 import com.tamimarafat.ferngeist.acp.bridge.hub.newHub
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.acp.bridge.hub.registerChat
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
-import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectRepo
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectWorktree
 import io.ktor.client.engine.mock.MockEngine
@@ -18,6 +17,7 @@ import io.ktor.utils.io.writeStringUtf8
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -33,12 +33,13 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
         runTest {
             var requests = 0
             val consent = MutableStateFlow(false)
+            discoveryConsent = consent
             val engine =
                 MockEngine {
                     requests++
                     respond("", HttpStatusCode.OK)
                 }
-            val catalog = catalog(engine, consent = consent)
+            val catalog = catalog(engine)
             runCurrent()
 
             catalog.refresh(force = true).join()
@@ -365,6 +366,7 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
     fun `local turn completion refreshes project timestamp within the fetch throttle`() =
         runTest {
             val hub = newHub()
+            val frames = fakeStream()
             var timestamp = "2026-10-25T00:00:00Z"
             val catalog =
                 catalog(
@@ -375,13 +377,16 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
                         },
                     ),
                     hub = hub,
+                    stream = turnStream(frames),
                 )
             runCurrent()
             catalog.refresh().join()
             runCurrent()
-            val (key, live) = hub.registerLiveChat(serverId = claude.id, sessionId = "same")
+            hub.registerChat(serverId = claude.id, sessionId = "same")
+            backgroundScope.launch { catalog.streamTurns() }
+            frames.send(snapshotFrame(gatewayTurn("claude", "same", "running")))
             runCurrent()
-            assertEquals(setOf(key), catalog.inProgressChatKeys.value)
+            assertEquals(setOf("b-claude/same"), catalog.inProgressChatKeys.value)
             timestamp = "2026-10-25T00:00:30Z"
             assertEquals(
                 1_792_886_400_000L,
@@ -390,7 +395,7 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
                     .updatedAt,
             )
 
-            live.value = SessionSnapshot(sessionId = "same", turnStatus = TurnStatus.FINISHED)
+            frames.send(changesFrame(upsert = gatewayTurn("claude", "same", "succeeded")))
             runCurrent()
 
             assertEquals(
@@ -405,6 +410,7 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
     fun `completions sharing a gateway fetch fresh timestamps after an older fetch finishes`() =
         runTest {
             val hub = newHub()
+            val frames = fakeStream()
             val body = ByteChannel(autoFlush = true)
             var requests = 0
             val catalog =
@@ -423,18 +429,25 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
                         },
                     ),
                     hub = hub,
+                    stream = turnStream(frames),
                 )
             runCurrent()
-            val chats = listOf(claude, codex).map { hub.registerLiveChat(serverId = it.id, sessionId = "same") }
+            val chats = listOf(claude, codex).map { hub.registerChat(serverId = it.id, sessionId = "same") }
+            backgroundScope.launch { catalog.streamTurns() }
+            frames.send(
+                snapshotFrame(
+                    gatewayTurn("claude", "same", "running"),
+                    gatewayTurn("codex", "same", "running"),
+                ),
+            )
             runCurrent()
-            assertEquals(chats.map { it.first }.toSet(), catalog.inProgressChatKeys.value)
+            assertEquals(chats.toSet(), catalog.inProgressChatKeys.value)
             catalog.refresh()
             runCurrent()
             body.writeStringUtf8(timestampLine("2026-10-25T00:00:00Z"))
             runCurrent()
-            chats.forEach { (_, live) ->
-                live.value = SessionSnapshot(sessionId = "same", turnStatus = TurnStatus.FINISHED)
-            }
+            frames.send(changesFrame(upsert = gatewayTurn("claude", "same", "succeeded")))
+            frames.send(changesFrame(upsert = gatewayTurn("codex", "same", "succeeded")))
             runCurrent()
             assertEquals(
                 1_792_886_400_000L,

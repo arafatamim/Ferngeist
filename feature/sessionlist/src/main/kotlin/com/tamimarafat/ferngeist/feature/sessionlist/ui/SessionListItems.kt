@@ -605,6 +605,7 @@ internal fun ChatCard(
     val colors = sessionCardColors(live, status)
     SharedChatCard(
         updatedAt = updatedAt,
+        status = status,
         containerColor = colors.containerColor,
         contentColor = colors.contentColor,
         modifier =

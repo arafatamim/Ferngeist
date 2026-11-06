@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.acp.bridge.catalog.project
+package com.tamimarafat.ferngeist.acp.bridge.catalog.turns
 
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.turns.GatewayTurn

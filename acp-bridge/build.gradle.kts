@@ -52,6 +52,7 @@ dependencies {
     implementation(project(":gateway-client"))
 
     // === Testing ===
+    testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

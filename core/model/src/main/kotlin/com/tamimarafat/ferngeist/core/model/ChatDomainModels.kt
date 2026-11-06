@@ -652,7 +652,7 @@ interface ChatSessionPresence {
     /** Servers that hold at least one live chat connection. */
     val warmServers: StateFlow<Set<String>>
 
-    /** Live local or last fetched gateway turn status, keyed by target/session identity. */
+    /** Gateway turn status, keyed by target/session identity; absent means unknown. */
     val turnStatuses: StateFlow<Map<String, TurnActivity>>
 
     /** Connected session ids tracked on [serverId], re-emitting as connections come and go. */

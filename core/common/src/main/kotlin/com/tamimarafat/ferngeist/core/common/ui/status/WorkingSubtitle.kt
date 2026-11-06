@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.core.common.ui.status
 
 import android.icu.text.MeasureFormat
+import android.icu.util.MeasureUnit
+import android.text.format.DateUtils
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.ColorScheme
@@ -26,8 +28,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.tamimarafat.ferngeist.core.common.R
 import com.tamimarafat.ferngeist.core.common.ui.motion.WorkingEllipsis
+import com.tamimarafat.ferngeist.core.common.ui.time.compactDuration
 import com.tamimarafat.ferngeist.core.common.ui.time.elapsedOf
 import com.tamimarafat.ferngeist.core.common.ui.time.formatElapsed
+import com.tamimarafat.ferngeist.core.common.ui.time.spokenDuration
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.delay
@@ -39,6 +43,7 @@ private const val STATUS_TICK_MILLIS = 1000L
  * The one presentation of a session's turn status: a working verb while the turn runs,
  * a plain label for attention, failure and completion, and [idleContent] when unknown.
  * [workingContent] overrides the verb where a caller has something more specific to say.
+ * A running turn counts elapsed seconds; a finished one shows a coarse age ("Finished 3m ago").
  * [chatId] picks the verb, so a chat reads the same wherever it shows.
  * [style] must match the idle content's: the crossfade overlaps both, and mismatched baselines
  * read as multi-line to a list item, which then keeps a three-line height.
@@ -62,47 +67,78 @@ fun WorkingSubtitle(
                     status.status == TurnStatus.FINISHED
             },
         )
-    val elapsed = age?.let(::elapsedOf)
+    val elapsed = age?.takeIf { status.status == TurnStatus.WORKING }?.let(::elapsedOf)
     val compact = elapsed?.let { formatElapsed(it, MeasureFormat.FormatWidth.NARROW) }
     val spoken = elapsed?.let { formatElapsed(it, MeasureFormat.FormatWidth.WIDE) }
-    val description = timedStatusLabel(status.status, spoken, age != null && elapsed == null)
+    val finishedAge = age?.takeIf { status.status == TurnStatus.FINISHED }
+    val finished = finishedAge?.let { finishedStatusLabel(it) }
+    val description =
+        when (status.status) {
+            TurnStatus.WORKING -> workingStatusLabel(turnStatusLabel(status.status).orEmpty(), spoken)
+            TurnStatus.FINISHED ->
+                finishedAge?.let { finishedStatusDescription(it) } ?: turnStatusLabel(status.status)
+            else -> turnStatusLabel(status.status)
+        }
     Crossfade(
         targetState = status.status,
         modifier = Modifier.semantics { description?.let { stateDescription = it } },
         animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
         label = "workingSubtitle",
     ) { active ->
-        when (active) {
-            TurnStatus.UNKNOWN -> idleContent()
-            TurnStatus.WORKING ->
-                if (workingContent != null) {
-                    workingContent(compact)
-                } else {
-                    WorkingStatusText(
-                        text = workingStatusLabel(rememberSpinnerVerb(chatId), compact),
-                        style = style,
-                        color = accent,
-                    )
-                }
-            TurnStatus.NEEDS_ATTENTION ->
-                TurnStatusLabel(
-                    turnStatusLabel(active).orEmpty(),
-                    MaterialTheme.colorScheme.onTertiaryContainer,
-                    style,
+        TurnStatusContent(
+            active = active,
+            chatId = chatId,
+            style = style,
+            accent = accent,
+            workingContent = workingContent,
+            compact = compact,
+            finished = finished,
+            idleContent = idleContent,
+        )
+    }
+}
+
+@Composable
+private fun TurnStatusContent(
+    active: TurnStatus,
+    chatId: String,
+    style: TextStyle,
+    accent: Color,
+    workingContent: (@Composable (elapsed: String?) -> Unit)?,
+    compact: String?,
+    finished: String?,
+    idleContent: @Composable () -> Unit,
+) {
+    when (active) {
+        TurnStatus.UNKNOWN -> idleContent()
+        TurnStatus.WORKING ->
+            if (workingContent != null) {
+                workingContent(compact)
+            } else {
+                WorkingStatusText(
+                    text = workingStatusLabel(rememberSpinnerVerb(chatId), compact),
+                    style = style,
+                    color = accent,
                 )
-            TurnStatus.ERROR ->
-                TurnStatusLabel(
-                    turnStatusLabel(active).orEmpty(),
-                    MaterialTheme.colorScheme.error,
-                    style,
-                )
-            TurnStatus.FINISHED ->
-                TurnStatusLabel(
-                    timedStatusLabel(active, compact, age != null && elapsed == null).orEmpty(),
-                    accent,
-                    style,
-                )
-        }
+            }
+        TurnStatus.NEEDS_ATTENTION ->
+            TurnStatusLabel(
+                turnStatusLabel(active).orEmpty(),
+                MaterialTheme.colorScheme.onTertiaryContainer,
+                style,
+            )
+        TurnStatus.ERROR ->
+            TurnStatusLabel(
+                turnStatusLabel(active).orEmpty(),
+                MaterialTheme.colorScheme.error,
+                style,
+            )
+        TurnStatus.FINISHED ->
+            TurnStatusLabel(
+                finished ?: turnStatusLabel(active).orEmpty(),
+                accent,
+                style,
+            )
     }
 }
 
@@ -173,19 +209,35 @@ fun workingStatusLabel(
     elapsed: String?,
 ): String = if (elapsed == null) verb else stringResource(R.string.common_status_working_for, verb, elapsed)
 
-@Composable
-private fun timedStatusLabel(
-    status: TurnStatus,
-    elapsed: String?,
-    justFinished: Boolean,
-): String? =
+/** A coarse duration in whole units; null under a minute, where the label says "just now". */
+private fun coarseAge(ageMs: Long): CoarseAge? =
     when {
-        status == TurnStatus.WORKING -> workingStatusLabel(turnStatusLabel(status).orEmpty(), elapsed)
-        status != TurnStatus.FINISHED -> turnStatusLabel(status)
-        justFinished -> stringResource(R.string.common_status_finished_now)
-        elapsed != null -> stringResource(R.string.common_status_finished_ago, elapsed)
-        else -> turnStatusLabel(status)
+        ageMs < DateUtils.MINUTE_IN_MILLIS ->
+            null
+        ageMs < DateUtils.HOUR_IN_MILLIS ->
+            CoarseAge((ageMs / DateUtils.MINUTE_IN_MILLIS).toInt(), MeasureUnit.MINUTE)
+        ageMs < DateUtils.DAY_IN_MILLIS ->
+            CoarseAge((ageMs / DateUtils.HOUR_IN_MILLIS).toInt(), MeasureUnit.HOUR)
+        else ->
+            CoarseAge((ageMs / DateUtils.DAY_IN_MILLIS).toInt(), MeasureUnit.DAY)
     }
+
+private data class CoarseAge(
+    val count: Int,
+    val unit: MeasureUnit,
+)
+
+@Composable
+private fun finishedStatusLabel(ageMs: Long): String {
+    val age = coarseAge(ageMs) ?: return stringResource(R.string.common_status_finished_now)
+    return stringResource(R.string.common_status_finished_ago, compactDuration(age.count, age.unit))
+}
+
+@Composable
+private fun finishedStatusDescription(ageMs: Long): String {
+    val age = coarseAge(ageMs) ?: return stringResource(R.string.common_status_finished_now)
+    return stringResource(R.string.common_status_finished_ago, spokenDuration(age.count, age.unit))
+}
 
 /** Derived from the chat, not rolled per call site: every row showing a chat must agree on its verb. */
 @Composable

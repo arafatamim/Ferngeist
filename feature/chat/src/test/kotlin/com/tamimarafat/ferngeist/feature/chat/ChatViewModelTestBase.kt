@@ -24,6 +24,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -74,6 +75,7 @@ open class ChatViewModelTestBase {
                     chatConnectionHub,
                     repositories.launchableTargetRepository,
                     FakeGatewayRepository(),
+                    turnStatuses = MutableStateFlow(emptyMap()),
                 ),
             repositories = repositories,
             stores = stores,

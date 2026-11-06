@@ -69,8 +69,22 @@ fun compactRelativeTime(
 fun compactDuration(
     count: Int,
     unit: MeasureUnit,
+): String = duration(count, unit, NumberFormatter.UnitWidth.NARROW)
+
+/** Wide units for a screen reader: "3 minutes" rather than "3m". */
+@Composable
+fun spokenDuration(
+    count: Int,
+    unit: MeasureUnit,
+): String = duration(count, unit, NumberFormatter.UnitWidth.FULL_NAME)
+
+@Composable
+private fun duration(
+    count: Int,
+    unit: MeasureUnit,
+    width: NumberFormatter.UnitWidth,
 ): String {
     val locale = LocalContext.current.resources.configuration.locales[0]
-    val formatter = remember(locale) { NumberFormatter.withLocale(locale).unitWidth(NumberFormatter.UnitWidth.NARROW) }
+    val formatter = remember(locale, width) { NumberFormatter.withLocale(locale).unitWidth(width) }
     return formatter.format(Measure(count, unit)).toString()
 }

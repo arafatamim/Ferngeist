@@ -1,12 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import app.cash.turbine.test
-import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
@@ -16,12 +14,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -601,82 +596,11 @@ class ChatConnectionHubTest {
         }
 
     @Test
-    fun `queued disconnect observation keeps a newly registered connected chat streaming`() =
-        runTest {
-            val hub =
-                ChatConnectionHub(
-                    gatewayRepository = FakeGatewayRepo(),
-                    scope = backgroundScope,
-                    connectivityObserver = ConnectivityObserverStub(initialState = true),
-                    ioDispatcher = StandardTestDispatcher(testScheduler),
-                )
-            val first = hub.acquireChatManager("srv")
-            first.forceConnectionState(AcpConnectionState.Connected)
-            hub.registerChat(sessionId = "first", manager = first)
-            runCurrent()
-            first.forceConnectionState(AcpConnectionState.Disconnected)
-            backgroundScope.launch {
-                val second = hub.acquireChatManager("srv")
-                second.forceConnectionState(AcpConnectionState.Connected)
-                hub.registerChat(sessionId = "second", manager = second, snapshot = streamingSnapshot())
-            }
-            runCurrent()
-            assertEquals(setOf("srv/second"), hub.streamingChatIds.value)
-        }
-
-    @Test
-    fun `forced hot eviction clears streaming presence`() =
+    fun `forced hot eviction untracks the chat`() =
         runTest {
             val hub = newHub(maxHot = 1, maxGateway = 1)
-            val first = hub.registerChat(sessionId = "first", snapshot = streamingSnapshot())
+            hub.registerChat(sessionId = "first", snapshot = streamingSnapshot())
             hub.registerChat(sessionId = "second")
             assertFalse(hub.isTracked("srv", "first"))
-            assertFalse(first in hub.streamingChatIds.value)
-        }
-
-    @Test
-    fun `connection dropped mid turn clears streaming presence`() =
-        runTest {
-            val hub = newHub()
-            val manager = hub.acquireChatManager("srv")
-            manager.forceConnectionState(AcpConnectionState.Connected)
-            val key = hub.registerChat(sessionId = "s1", manager = manager, snapshot = streamingSnapshot())
-            assertTrue(key in hub.streamingChatIds.value)
-            manager.forceConnectionState(AcpConnectionState.Disconnected)
-            advanceUntilIdle()
-            assertFalse(key in hub.streamingChatIds.value)
-        }
-
-    @Test
-    fun `reconnecting a streaming bridge restores presence without a screen snapshot`() =
-        runTest {
-            val hub = newHub()
-            val manager = hub.acquireChatManager("srv")
-            manager.forceConnectionState(AcpConnectionState.Connected)
-            val bridge = SessionBridge("s1", null)
-            bridge.runtime.beginHydration()
-            bridge.runtime.completeHydration()
-            bridge.sendPrompt("go", emptyList(), emptyList())
-            val key =
-                hub.register(
-                    "srv",
-                    "s1",
-                    ChatRegistration(
-                        gatewaySessionId = null,
-                        gatewaySourceId = "",
-                        agentId = "",
-                        isConnected = { manager.isConnected },
-                        isStreaming = { bridge.snapshot.value.isStreaming },
-                        manager = manager,
-                        snapshot = bridge.snapshot,
-                    ),
-                )
-            assertTrue(key in hub.streamingChatIds.value)
-            manager.forceConnectionState(AcpConnectionState.Disconnected)
-            assertFalse(key in hub.streamingChatIds.value)
-            manager.forceConnectionState(AcpConnectionState.Connected)
-            assertTrue(key in hub.streamingChatIds.value)
-            hub.close(key)
-            bridge.close()
         }
 }

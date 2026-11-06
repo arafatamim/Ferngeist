@@ -243,19 +243,26 @@ private fun ProjectItem(
                 Text(projectCounts(project))
             }
         },
-        trailingContent = {
-            project.updatedAt?.let { updatedAt ->
-                Text(
-                    text = relativeTime(updatedAt, now),
-                    style = MaterialTheme.typography.labelMedium,
-                    color =
-                        MaterialTheme.colorScheme.turnStatusContentColor(
-                            status.status,
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                )
-            }
-        },
+        // A known turn already shows its state in the supporting line, so the age
+        // would be a second indicator.
+        trailingContent =
+            if (status.status == TurnStatus.UNKNOWN) {
+                {
+                    project.updatedAt?.let { updatedAt ->
+                        Text(
+                            text = relativeTime(updatedAt, now),
+                            style = MaterialTheme.typography.labelMedium,
+                            color =
+                                MaterialTheme.colorScheme.turnStatusContentColor(
+                                    status.status,
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                        )
+                    }
+                }
+            } else {
+                null
+            },
     ) {
         with(sharedTransitionScope) {
             Text(

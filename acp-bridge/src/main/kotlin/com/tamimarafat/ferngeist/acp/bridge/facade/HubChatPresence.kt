@@ -25,7 +25,7 @@ class HubChatPresence(
     private val launchableTargetRepository: LaunchableTargetRepository,
     private val gatewayRepository: GatewayRepository,
     private val onChatCreated: (serverId: String, summary: SessionSummary) -> Unit = { _, _ -> },
-    override val turnStatuses: StateFlow<Map<String, TurnActivity>> = hub.turnStatuses,
+    override val turnStatuses: StateFlow<Map<String, TurnActivity>>,
 ) : ChatSessionPresence {
     override val warmServers: StateFlow<Set<String>> = hub.warmServers
 

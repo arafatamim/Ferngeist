@@ -16,10 +16,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.time.compactRelativeTime
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 
 @Composable
 fun ChatCard(
     updatedAt: Long?,
+    status: TurnStatus,
     containerColor: Color,
     contentColor: Color,
     modifier: Modifier = Modifier,
@@ -37,13 +39,16 @@ fun ChatCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             content()
-            // A relative stamp makes the age readable without a full date and time.
-            updatedAt?.let {
-                Text(
-                    text = compactRelativeTime(it, rememberPresentationTime()),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            // A relative stamp makes the age readable without a full date and time, unless
+            // the subtitle already carries a turn indicator (working, finished, error).
+            if (status == TurnStatus.UNKNOWN) {
+                updatedAt?.let {
+                    Text(
+                        text = compactRelativeTime(it, rememberPresentationTime()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

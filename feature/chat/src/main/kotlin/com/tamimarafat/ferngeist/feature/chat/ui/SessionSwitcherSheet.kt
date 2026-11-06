@@ -682,6 +682,7 @@ private fun SwitcherRowContent(
 ) {
     ChatCard(
         updatedAt = session.updatedAt,
+        status = session.turnStatus.status,
         containerColor =
             MaterialTheme.colorScheme.turnStatusContainerColor(
                 session.turnStatus.status,

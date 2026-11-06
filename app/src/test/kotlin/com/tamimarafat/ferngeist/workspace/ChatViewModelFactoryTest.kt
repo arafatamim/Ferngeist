@@ -22,6 +22,7 @@ import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -46,6 +47,7 @@ class ChatViewModelFactoryTest {
             hub = hub,
             launchableTargetRepository = mockk<LaunchableTargetRepository>(relaxed = true),
             gatewayRepository = mockk<GatewayRepository>(relaxed = true),
+            turnStatuses = MutableStateFlow(emptyMap()),
         )
     private val sessionFacadeFactory = mockk<ChatSessionFacadeFactory>(relaxed = true)
     private val mainDispatcher = StandardTestDispatcher()

@@ -2,8 +2,10 @@ package com.tamimarafat.ferngeist.gateway
 
 import android.util.Log
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeoutConfig
 import io.ktor.client.plugins.timeout
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.request.accept
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -17,6 +19,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
@@ -95,6 +98,51 @@ internal class GatewayHttpPipeline(
         val body = response.bodyAsText()
         parseGatewayErrorBody(body.trim())?.let { recordServerClock(host, response, it) }
         return gatewayRequestException(response.status.value, response.status.description, endpoint, body)
+    }
+
+    /**
+     * Opens one WebSocket upgrade, hands the live session to [consume], and tears the socket
+     * down when the block returns or is cancelled.
+     *
+     * A refused upgrade never reaches its body: the client's WebSocket transform throws before
+     * the error envelope can be read, so the failure carries the status and an empty body. The
+     * `Date` header still teaches the clock, and a 401 gets one re-signed retry — the closest
+     * this path can get to the REST `proof_expired` recovery.
+     */
+    internal suspend fun webSocket(
+        scheme: String,
+        host: String,
+        credential: String,
+        vararg segments: String,
+        consume: suspend (DefaultClientWebSocketSession) -> Unit,
+    ) {
+        val wsScheme = if (normalizeControlScheme(scheme) == "https") "wss" else "ws"
+        val endpoint = "$wsScheme://${normalizeGatewayHost(host)}/${segments.joinToString("/")}"
+        repeat(2) { attempt ->
+            val authHeaders = proofHeaders(host, credential, GatewayProofRequest(method = "GET", endpoint = endpoint))
+            val failure =
+                httpClient
+                    .prepareGet(endpoint) {
+                        authHeaders?.let { applyGatewayAuthHeaders(it) }
+                    }.execute { response ->
+                        if (response.status == HttpStatusCode.SwitchingProtocols) {
+                            consume(response.body<DefaultClientWebSocketSession>())
+                            null
+                        } else {
+                            // The transform that throws on a refused upgrade runs before the body is
+                            // readable, so the envelope is lost; the Date header still teaches the clock.
+                            recordServerClock(host, response, GatewayErrorResponse())
+                            gatewayRequestException(
+                                statusCode = response.status.value,
+                                statusDescription = response.status.description,
+                                endpoint = endpoint,
+                                responseBody = "",
+                            )
+                        }
+                    }
+            if (failure == null) return
+            if (attempt > 0 || failure.statusCode != HTTP_UNAUTHORIZED) throw failure
+        }
     }
 
     internal suspend inline fun <reified T> getJson(

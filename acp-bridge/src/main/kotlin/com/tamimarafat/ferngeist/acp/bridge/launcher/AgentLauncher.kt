@@ -64,12 +64,6 @@ class AgentLauncher(
     private val sessionCatalog: SessionCatalog,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    /**
-     * Server ids whose agent holds a live hub-tracked transport. The card dot
-     * tracks this, not the verification socket, which hangs up after every tap.
-     */
-    val streamingChatIds: StateFlow<Set<String>> get() = hub.streamingChatIds
-
     val liveServerIds: StateFlow<Set<String>> get() = hub.warmServers
 
     val connectedChatIds: StateFlow<Set<String>> get() = hub.connectedChatIds

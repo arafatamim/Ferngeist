@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -117,7 +118,12 @@ class FerngeistApplication : Application() {
         appScope.launch {
             combine(appForegroundState.isForeground, chatConnectionHub.networkAvailable, Boolean::and)
                 .distinctUntilChanged()
-                .collect { visibleAndOnline -> if (visibleAndOnline) projectCatalog.refresh() }
+                .collectLatest { visibleAndOnline ->
+                    if (visibleAndOnline) {
+                        projectCatalog.refresh()
+                        projectCatalog.streamTurns()
+                    }
+                }
         }
     }
 

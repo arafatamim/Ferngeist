@@ -285,11 +285,7 @@ private fun ServerCardTitleRow(
                 chatId = workingChatIds.firstOrNull().orEmpty(),
                 workingContent =
                     if (workingChatIds.isNotEmpty()) {
-                        (
-                            { elapsed ->
-                                ActiveChatsSubtitle(workingChatIds, elapsed)
-                            }
-                        )
+                        { elapsed -> ActiveChatsSubtitle(workingChatIds, elapsed) }
                     } else {
                         null
                     },
