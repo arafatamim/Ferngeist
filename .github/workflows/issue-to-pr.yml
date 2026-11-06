@@ -37,11 +37,32 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # The repository ruleset requires verified signatures on every branch, the agent's included.
+      - name: Configure commit signing
+        env:
+          AGENT_SIGNING_KEY: ${{ secrets.AGENT_SIGNING_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP"
+          printf '%s\n' "$AGENT_SIGNING_KEY" > "$RUNNER_TEMP/signing-key"
+          chmod 600 "$RUNNER_TEMP/signing-key"
+          git config gpg.format ssh
+          git config user.signingkey "$RUNNER_TEMP/signing-key"
+          # From the repo config, so commits the agent makes itself are signed too.
+          git config commit.gpgsign true
+          git config user.name "Tamim Arafat"
+          git config user.email "31634638+arafatamim@users.noreply.github.com"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+
       - name: Install mini-SWE-agent
         run: |
-          python -m pip install --upgrade pip
+          mkdir -p "$RUNNER_TEMP"
+          # A venv, not --system: the install stays off the runner's Python and needs no PEP 668 escape.
+          uv venv "$RUNNER_TEMP/venv"
           # litellm imports `mcp` whenever tools are passed, and mini's dependency set omits it.
-          pip install "mini-swe-agent>=2,<3" mcp
+          uv pip install --python "$RUNNER_TEMP/venv/bin/python" "mini-swe-agent>=2,<3" mcp
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
 
       - name: Write the agent config and the task
         env:
@@ -85,7 +106,14 @@ jobs:
             echo "Constraints:"
             echo "- Leave the changes uncommitted; the workflow commits and opens the PR."
             echo "- Do not modify .github/workflows, local.properties, or signing material."
-            echo "- Run ./gradlew detekt ktlintCheck and the unit tests for the modules you touch."
+            echo
+            echo "Builds are the slow part, so build as little as possible:"
+            echo "- While editing, check your work with ./gradlew -q <module>:compileDebugKotlin, where"
+            echo "  <module> is the Gradle path of the module you changed (e.g. :feature:chat)."
+            echo "- Never run ./gradlew build, any assemble* or lint* task, or any :app: task."
+            echo "  CI compiles both flavours, runs lint and Konsist on the pull request; do not repeat it."
+            echo "- When you believe you are done, run this gate once and fix whatever it reports:"
+            echo "    timeout 900 ./gradlew detekt ktlintCheck <module>:testDebugUnitTest"
           } > "$RUNNER_TEMP/task.md"
 
       - name: Run mini-SWE-agent
@@ -118,9 +146,8 @@ jobs:
             exit 0
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          # Signed through commit.gpgsign; identity was set with the signing key above.
           git diff --cached --quiet || git commit -m "fix: implement #${ISSUE_NUMBER}"
           git push --set-upstream origin "agent/issue-${ISSUE_NUMBER}"
 
