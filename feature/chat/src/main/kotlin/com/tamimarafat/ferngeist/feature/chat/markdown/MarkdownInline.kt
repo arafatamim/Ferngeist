@@ -122,8 +122,6 @@ private fun AnnotatedString.Builder.appendInlineNodes(
 
             is InlineNode.Text -> appendWithChips(node.literal, chips)
 
-            is InlineNode.UnsupportedInline -> append(node.literal)
-
             // ponytail: math renders as its raw source. No LaTeX renderer is wired up; swap in a
             // MathRenderer only if an agent actually emits $$ math in chat.
             is InlineNode.MathSpan -> append(node.latex)

@@ -105,7 +105,6 @@ internal fun BlockNode.revealLength(): Int =
     when (this) {
         is BlockNode.TableRow -> cells.sumOf { it.revealLength() }
         is BlockNode.TableBlock -> header.revealLength() + rows.sumOf { it.revealLength() }
-        is BlockNode.Document -> children.sumOf { it.revealLength() }
         is BlockNode.BlockQuote -> children.sumOf { it.revealLength() }
         is BlockNode.ListBlock -> items.sumOf { it.revealLength() }
         is BlockNode.ListItem -> children.sumOf { it.revealLength() }
@@ -124,8 +123,7 @@ private fun BlockNode.leafRevealLength(): Int =
         is BlockNode.Heading -> children.inlineLength()
         is BlockNode.TableCell -> children.inlineLength()
         is BlockNode.FencedCodeBlock -> literal.length
-        is BlockNode.RawTextBlock -> literal.length
-        is BlockNode.UnsupportedBlock -> literal.length
+        is BlockNode.IndentedCodeBlock -> literal.length
         is BlockNode.MathBlock -> latex.length
         is BlockNode.ThematicBreak -> 1
         else -> error("${this::class.simpleName} is measured by revealLength, not as a leaf")
@@ -144,7 +142,6 @@ private fun List<InlineNode>.inlineLength(): Int =
             is InlineNode.Strikethrough -> node.children.inlineLength()
             is InlineNode.Strong -> node.children.inlineLength()
             is InlineNode.Text -> node.literal.length
-            is InlineNode.UnsupportedInline -> node.literal.length
             is InlineNode.MathSpan -> node.latex.length
         }
     }
