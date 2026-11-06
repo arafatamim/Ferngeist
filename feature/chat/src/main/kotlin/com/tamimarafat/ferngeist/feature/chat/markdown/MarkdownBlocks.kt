@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adamglin.compose.markdown.core.model.BlockNode
 import com.adamglin.compose.markdown.core.model.InlineNode
+import com.adamglin.compose.markdown.core.model.ListType
 import com.adamglin.compose.markdown.core.model.TaskState
 import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.MarkdownImage
@@ -150,13 +151,13 @@ internal fun MarkdownBlocksLazy(
 private fun <T : BlockNode> RevealChildren(
     children: List<T>,
     reveal: BlockReveal?,
-    content: @Composable (T, BlockReveal?) -> Unit,
+    content: @Composable (T, Int, BlockReveal?) -> Unit,
 ) {
     var offset = reveal?.offset ?: 0
-    children.forEach { child ->
+    children.forEachIndexed { index, child ->
         val childReveal = reveal?.copy(offset = offset)
         if (reveal != null) offset += child.revealLength()
-        RevealGate(childReveal) { content(child, childReveal) }
+        RevealGate(childReveal) { content(child, index, childReveal) }
     }
 }
 
@@ -170,20 +171,6 @@ private fun MarkdownBlock(
     reveal: BlockReveal? = null,
 ) {
     when (block) {
-        is BlockNode.Document ->
-            Column(
-                modifier = modifier,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                RevealChildren(block.children, reveal) { child, childReveal ->
-                    MarkdownBlock(
-                        block = child,
-                        styles = styles,
-                        reveal = childReveal,
-                    )
-                }
-            }
-
         is BlockNode.BlockQuote ->
             QuoteBlock(
                 block = block,
@@ -194,7 +181,10 @@ private fun MarkdownBlock(
 
         is BlockNode.FencedCodeBlock ->
             CodeBlock(
-                block = block,
+                literal = block.literal,
+                languageHint = block.languageHint,
+                infoString = block.infoString,
+                isClosed = block.isClosed,
                 styles = styles,
                 modifier = modifier,
                 reveal = reveal,
@@ -237,6 +227,9 @@ private fun MarkdownBlock(
             )
         }
 
+        // List items are rendered by their ListBlock, which owns the marker column.
+        is BlockNode.ListItem -> Unit
+
         else -> MarkdownLeafBlock(block = block, styles = styles, modifier = modifier, reveal = reveal)
     }
 }
@@ -270,12 +263,15 @@ private fun MarkdownLeafBlock(
 
         is BlockNode.Paragraph -> ParagraphBlock(block, styles, modifier, reveal)
 
-        is BlockNode.RawTextBlock ->
-            RevealText(
-                text = AnnotatedString(block.literal),
-                style = MarkdownTheme.typography.bodyLarge,
+        is BlockNode.IndentedCodeBlock ->
+            CodeBlock(
+                literal = block.literal,
+                languageHint = null,
+                infoString = null,
+                isClosed = true,
+                styles = styles,
+                modifier = modifier,
                 reveal = reveal,
-                modifier = modifier.fillMaxWidth(),
             )
 
         is BlockNode.ThematicBreak -> {
@@ -286,22 +282,6 @@ private fun MarkdownLeafBlock(
                 thickness = 1.dp,
             )
         }
-
-        is BlockNode.UnsupportedBlock ->
-            RevealText(
-                text = AnnotatedString(block.literal),
-                style = MarkdownTheme.typography.bodyLarge,
-                reveal = reveal,
-                modifier = modifier.fillMaxWidth(),
-            )
-
-        is BlockNode.ListItem ->
-            ListItemBlock(
-                block = block,
-                styles = styles,
-                modifier = modifier,
-                reveal = reveal,
-            )
 
         // The "streaming..." suffix sits past the reveal length, so it stays hidden while revealing.
         is BlockNode.MathBlock ->
@@ -402,7 +382,7 @@ private fun QuoteBlock(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            RevealChildren(block.children, reveal) { child, childReveal ->
+            RevealChildren(block.children, reveal) { child, _, childReveal ->
                 MarkdownBlock(
                     block = child,
                     styles = styles,
@@ -415,17 +395,20 @@ private fun QuoteBlock(
 
 @Composable
 private fun CodeBlock(
-    block: BlockNode.FencedCodeBlock,
+    literal: String,
+    languageHint: String?,
+    infoString: String?,
+    isClosed: Boolean,
     styles: MarkdownBlockStyles,
     modifier: Modifier = Modifier,
     reveal: BlockReveal? = null,
 ) {
-    val language = SyntaxLanguageResolver.fromFence(block.languageHint ?: block.infoString)
-    val highlighted = rememberHighlightedCode(block.literal, language, streaming = !block.isClosed)
+    val language = SyntaxLanguageResolver.fromFence(languageHint ?: infoString)
+    val highlighted = rememberHighlightedCode(literal, language, streaming = !isClosed)
     val colors = localSyntaxColors.current
     val annotatedCode =
-        remember(block.literal, highlighted, language, colors) {
-            styledCode(block.literal, highlighted, language, colors)
+        remember(literal, highlighted, language, colors) {
+            styledCode(literal, highlighted, language, colors)
         }
 
     Column(
@@ -442,12 +425,12 @@ private fun CodeBlock(
                 ).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (!block.infoString.isNullOrBlank() || !block.isClosed) {
+        if (!infoString.isNullOrBlank() || !isClosed) {
             MarkdownText(
                 text =
                     buildString {
-                        append(block.infoString ?: "code")
-                        if (!block.isClosed) {
+                        append(infoString ?: "code")
+                        if (!isClosed) {
                             append("  streaming...")
                         }
                     },
@@ -480,9 +463,14 @@ private fun ListBlock(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(if (block.isLoose) 10.dp else 6.dp),
     ) {
-        RevealChildren(block.items, reveal) { item, itemReveal ->
+        RevealChildren(block.items, reveal) { item, index, itemReveal ->
             ListItemBlock(
                 block = item,
+                marker =
+                    when (val type = block.type) {
+                        is ListType.Bullet -> type.bulletChar.toString()
+                        is ListType.Ordered -> "${type.startNumber + index}${type.delimiter}"
+                    },
                 styles = styles,
                 reveal = itemReveal,
             )
@@ -493,6 +481,7 @@ private fun ListBlock(
 @Composable
 private fun ListItemBlock(
     block: BlockNode.ListItem,
+    marker: String,
     styles: MarkdownBlockStyles,
     modifier: Modifier = Modifier,
     reveal: BlockReveal? = null,
@@ -507,7 +496,7 @@ private fun ListItemBlock(
             TaskListMarker(taskState = taskState)
         } else {
             MarkdownText(
-                text = block.marker,
+                text = marker,
                 style = MarkdownTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                 modifier =
                     Modifier
@@ -519,7 +508,7 @@ private fun ListItemBlock(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            RevealChildren(block.children, reveal) { child, childReveal ->
+            RevealChildren(block.children, reveal) { child, _, childReveal ->
                 MarkdownBlock(
                     block = child,
                     styles = styles,

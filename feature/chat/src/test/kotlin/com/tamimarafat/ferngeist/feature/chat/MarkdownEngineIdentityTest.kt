@@ -38,7 +38,7 @@ class MarkdownEngineIdentityTest {
         assertEquals(
             "the appended paragraph should be the only new block",
             1,
-            delta.insertedBlockIds.size,
+            delta.changedBlocks.count { it.oldIndex == null },
         )
     }
 
@@ -58,7 +58,7 @@ class MarkdownEngineIdentityTest {
 
         assertTrue(
             "a paragraph that only grew is updated, not inserted",
-            id !in delta.insertedBlockIds,
+            delta.changedBlocks.none { it.id == id && it.oldIndex == null },
         )
         assertTrue(
             "a paragraph that only grew keeps its id instead of being renumbered",
