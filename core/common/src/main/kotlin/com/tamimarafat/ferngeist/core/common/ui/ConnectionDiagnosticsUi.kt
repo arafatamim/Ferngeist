@@ -28,10 +28,10 @@ fun connectionStateLabel(state: ChatConnectionState): String =
  * Examples: 1 500 → "2k", 2 500 000 → "3M", negatives use absolute value.
  */
 internal fun formatCompactTokens(
-    tokens: Int,
+    tokens: Long,
     locale: Locale,
 ): String {
-    val absolute = kotlin.math.abs(tokens.toLong())
+    val absolute = kotlin.math.abs(tokens)
     return when {
         absolute >= TOKENS_PER_B -> {
             val value = (tokens / TOKENS_PER_B.toDouble()).roundToInt()

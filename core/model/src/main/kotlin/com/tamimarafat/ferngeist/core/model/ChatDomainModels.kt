@@ -392,11 +392,11 @@ data class AgentQuota(
 )
 
 data class UsageState(
-    val promptTokens: Int? = null,
-    val completionTokens: Int? = null,
-    val totalTokens: Int? = null,
-    val cachedReadTokens: Int? = null,
-    val contextWindowTokens: Int? = null,
+    val promptTokens: Long? = null,
+    val completionTokens: Long? = null,
+    val totalTokens: Long? = null,
+    val cachedReadTokens: Long? = null,
+    val contextWindowTokens: Long? = null,
     val costAmount: Double? = null,
     val costCurrency: String? = null,
 )

@@ -66,8 +66,8 @@ import java.text.NumberFormat
 fun ConnectionStatusPill(
     modifier: Modifier = Modifier,
     connectionState: ChatConnectionState,
-    totalTokens: Int? = null,
-    contextWindowTokens: Int? = null,
+    totalTokens: Long? = null,
+    contextWindowTokens: Long? = null,
     costAmount: Double? = null,
     costCurrency: String? = null,
     onClick: () -> Unit,
@@ -118,8 +118,8 @@ fun ConnectionStatusPill(
 
 @Composable
 private fun ConnectionUsageTooltipBody(
-    totalTokens: Int?,
-    contextWindowTokens: Int?,
+    totalTokens: Long?,
+    contextWindowTokens: Long?,
     costAmount: Double?,
     costCurrency: String?,
 ) {
@@ -146,8 +146,8 @@ private fun ConnectionUsageTooltipBody(
 @Composable
 private fun ConnectionStateIcon(
     connectionState: ChatConnectionState,
-    totalTokens: Int?,
-    contextWindowTokens: Int?,
+    totalTokens: Long?,
+    contextWindowTokens: Long?,
 ) {
     // Keyed on the icon kind (not the full state) so token-count updates
     // don't replay the transition.
@@ -193,8 +193,8 @@ private enum class StatusIconKind {
 
 private fun statusIconKind(
     connectionState: ChatConnectionState,
-    totalTokens: Int?,
-    contextWindowTokens: Int?,
+    totalTokens: Long?,
+    contextWindowTokens: Long?,
 ): StatusIconKind =
     when (connectionState) {
         is ChatConnectionState.Connecting -> StatusIconKind.CONNECTING
@@ -234,8 +234,8 @@ private fun ConnectingSunnyIcon() {
 
 @Composable
 private fun UsageRingIcon(
-    totalTokens: Int,
-    contextWindowTokens: Int,
+    totalTokens: Long,
+    contextWindowTokens: Long,
 ) {
     val ratio by animateFloatAsState(
         targetValue =
