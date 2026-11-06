@@ -54,7 +54,7 @@ internal fun UsageSection(usage: UsageState) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionLabel(stringResource(R.string.common_diagnostics_this_chat))
         if (total != null && window != null) {
-            val ratio = (total.toFloat() / window).coerceIn(0f, 1f)
+            val ratio = (total.toFloat() / window.toFloat()).coerceIn(0f, 1f)
             val percent = NumberFormat.getPercentInstance(locale).format(ratio)
             MeterRow(
                 label = stringResource(R.string.common_diagnostics_context),

@@ -97,8 +97,8 @@ internal object AcpSessionUpdateMapper {
     @OptIn(UnstableApi::class)
     private fun mapUsageUpdate(update: SessionUpdate.UsageUpdate): AppSessionEvent =
         AppSessionEvent.UsageUpdated(
-            totalTokens = update.used.toInt(),
-            contextWindowTokens = update.size.toInt(),
+            totalTokens = update.used,
+            contextWindowTokens = update.size,
             costAmount = update.cost?.amount,
             costCurrency = update.cost?.currency,
         )

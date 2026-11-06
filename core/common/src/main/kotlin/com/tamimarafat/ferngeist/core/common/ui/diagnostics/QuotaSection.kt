@@ -231,7 +231,7 @@ private fun costValue(
 ): String {
     val amount = money.format(cost.amount)
     val tokens = cost.tokens ?: return amount
-    return stringResource(R.string.common_quota_cost_value, amount, formatCompactTokens(tokens, locale))
+    return stringResource(R.string.common_quota_cost_value, amount, formatCompactTokens(tokens.toLong(), locale))
 }
 
 /** Two largest non-zero units, e.g. "4h 24m"; localized by ICU so no unit strings are needed. */

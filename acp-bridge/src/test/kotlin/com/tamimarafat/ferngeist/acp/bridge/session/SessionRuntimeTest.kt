@@ -265,8 +265,8 @@ class SessionRuntimeTest {
             val snapshot = runtime.snapshot.value
             assertTrue(snapshot.commandsAdvertised)
             assertEquals(listOf(CommandInfo("init"), CommandInfo("status")), snapshot.availableCommands)
-            assertEquals(99, snapshot.usage?.totalTokens)
-            assertEquals(4096, snapshot.usage?.contextWindowTokens)
+            assertEquals(99L, snapshot.usage?.totalTokens)
+            assertEquals(4096L, snapshot.usage?.contextWindowTokens)
             assertEquals(0.12, snapshot.usage?.costAmount ?: 0.0, 0.0001)
         }
 
@@ -281,7 +281,7 @@ class SessionRuntimeTest {
             )
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
             val afterTurn = runtime.snapshot.value
-            assertEquals(21000, afterTurn.usage?.totalTokens)
+            assertEquals(21000L, afterTurn.usage?.totalTokens)
 
             // Agents emit `usage_update` only at end of turn, so a reconnect/load replay
             // carries no usage: the last known reading must survive it.
@@ -290,8 +290,8 @@ class SessionRuntimeTest {
             runtime.completeHydration()
 
             val snapshot = runtime.snapshot.value
-            assertEquals(21000, snapshot.usage?.totalTokens)
-            assertEquals(200000, snapshot.usage?.contextWindowTokens)
+            assertEquals(21000L, snapshot.usage?.totalTokens)
+            assertEquals(200000L, snapshot.usage?.contextWindowTokens)
         }
 
     @Test
