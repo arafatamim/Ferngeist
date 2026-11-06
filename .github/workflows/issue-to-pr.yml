@@ -115,12 +115,14 @@ jobs:
             echo "- Do not modify .github/workflows, local.properties, or signing material."
             echo
             echo "Builds are the slow part, so build as little as possible:"
-            echo "- While editing, check your work with ./gradlew -q <module>:compileDebugKotlin, where"
-            echo "  <module> is the Gradle path of the module you changed (e.g. :feature:chat)."
+            echo "- While editing, check your work with ./gradlew -q :<module>:compileDebugKotlin, where"
+            echo "  <module> is the Gradle path of a module you changed (e.g. :feature:chat)."
             echo "- Never run ./gradlew build, any assemble* or lint* task, or any :app: task."
             echo "  CI compiles both flavours, runs lint and Konsist on the pull request; do not repeat it."
             echo "- When you believe you are done, run this gate once and fix whatever it reports:"
-            echo "    timeout 900 ./gradlew detekt ktlintCheck <module>:testDebugUnitTest"
+            echo "    timeout 900 ./gradlew :<module>:detekt :<module>:ktlintCheck :<module>:testDebugUnitTest"
+            echo "  Repeat the :<module> prefix for every module you changed. Never call detekt or"
+            echo "  ktlint without a module prefix: that analyses the whole repository."
           } > "$RUNNER_TEMP/task.md"
 
       - name: Run mini-SWE-agent
