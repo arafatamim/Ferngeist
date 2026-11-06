@@ -45,6 +45,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP"
           printf '%s\n' "$AGENT_SIGNING_KEY" > "$RUNNER_TEMP/signing-key"
           chmod 600 "$RUNNER_TEMP/signing-key"
+          # Fail in seconds, not at commit time after the agent has already spent its whole run.
+          if ! ssh-keygen -y -f "$RUNNER_TEMP/signing-key" </dev/null >/dev/null 2>&1; then
+            echo "AGENT_SIGNING_KEY is not a readable private key; refusing to start." >&2
+            exit 1
+          fi
           git config gpg.format ssh
           git config user.signingkey "$RUNNER_TEMP/signing-key"
           # From the repo config, so commits the agent makes itself are signed too.
