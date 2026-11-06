@@ -213,14 +213,14 @@ JUnit4. 110 `*Test.kt` files. `mockk` + `kotlinx-coroutines-test` + Turbine for 
 
 Test names describe behaviour, e.g. `appendChunk_afterInterleavedUpdate_keepsSingleMessage`. Add tests next to changed logic — reducers, ACP parsing, segment runs, stream/chunk handling.
 
-**Never write tests for what the type system already guarantees** — non-null returns, sealed `when` exhaustiveness, enum membership, `data class` `equals`/`copy`, constructor field assignment, generics. Same for getters that forward a field and assertions that only compile against the implementation.
+**Never write tests for what the type system already guarantees** — non-null returns, sealed `when` exhaustiveness, enum membership, `data class` `equals`/`copy`, constructor field assignment, generics. A widened or narrowed parameter belongs here too: if the old type could not express the new value, the compiler already fails every call site. Same for getters that forward a field and assertions that only compile against the implementation.
 
 ### Authoring gate
 
 Answer all four before adding a test:
 
 1. Which observable behaviour, invariant, or independent contract does it protect?
-2. Which credible regression makes it fail?
+2. Which credible regression makes it fail? A compile error is not one — a type change, a widened parameter, or tightened nullability is owned by the compiler.
 3. Why does existing proof miss it? One owner per contract — a second layer needs a distinct transport or lifecycle risk.
 4. Does it need an export, flag, wrapper, or injection hook with no production caller? Then the proof belongs at the real boundary.
 
