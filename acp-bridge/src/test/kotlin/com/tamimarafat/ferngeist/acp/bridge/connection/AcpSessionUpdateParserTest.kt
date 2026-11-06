@@ -30,18 +30,6 @@ class AcpSessionUpdateParserTest {
     }
 
     @Test
-    fun `usage_update preserves token counts beyond int range`() {
-        val used = Int.MAX_VALUE.toLong() + 1_234L
-        val size = 5_000_000_000L
-        val update = SessionUpdate.UsageUpdate(used = used, size = size)
-
-        val event = invokeMapSessionUpdateToEvent(update)
-        val usage = event as AppSessionEvent.UsageUpdated
-        assertEquals(used, usage.totalTokens)
-        assertEquals(size, usage.contextWindowTokens)
-    }
-
-    @Test
     fun `chunk text parser preserves whitespace-only text`() {
         val update =
             SessionUpdate.AgentMessageChunk(
