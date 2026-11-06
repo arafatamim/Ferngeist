@@ -54,6 +54,10 @@
     <string name="common_status_needs_attention">需要注意</string>
     <string name="common_status_error">本轮失败</string>
     <string name="common_status_finished">已完成</string>
+    <string name="common_status_finished_now">刚刚完成</string>
+    <string name="common_status_finished_ago">%1$s前完成</string>
+    <string name="common_status_working_for">%1$s已持续%2$s</string>
+    <string name="common_quota_unavailable">配额不可用</string>
     <string name="common_quota_updated">更新于%1$s</string>
     <string name="common_quota_used">已用 %1$s</string>
     <string name="common_quota_in_reserve">余量 %1$s</string>
