@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.launchConsentKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -419,6 +420,7 @@ class ServerListViewModel
                 withContext(ioDispatcher) {
                     stores.agentLaunchConsentStore.setConsent(consentKey, true)
                 }
+                // Bypass the fetch throttle so the gateway reports the just-consented agent now.
                 projectCatalog.refresh(force = true)
                 _uiState.update { it.copy(pendingLaunchConsent = null) }
                 connectAndOpenServer(gatewayTarget, resumePendingLaunch = true)

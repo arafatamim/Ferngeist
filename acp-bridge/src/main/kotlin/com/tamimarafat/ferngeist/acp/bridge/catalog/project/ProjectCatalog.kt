@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.isInside
+import com.tamimarafat.ferngeist.core.model.launchConsentKey
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -74,7 +75,7 @@ class ProjectCatalog
         store: ProjectSnapshotStore,
         private val scope: CoroutineScope,
         hub: ChatConnectionHub,
-        @param:ProjectDiscoveryConsent private val consent: Flow<Set<String>>,
+        @param:ProjectDiscoveryConsent private val consent: Flow<@JvmSuppressWildcards Set<String>>,
     ) : ChatCatalog {
         private val gatewayProjects = gateway.projects
         private val gatewaySourceRepository = repositories.gatewaySourceRepository
@@ -87,6 +88,12 @@ class ProjectCatalog
         private val consentedKeys = consent.stateIn(scope, SharingStarted.Eagerly, emptySet())
         val discoveryAllowed = consentedKeys.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, false)
 
+        /** Targets discovery may see: manual servers plus gateway agents granted launch consent. */
+        val consentedTargets: StateFlow<List<LaunchableTarget>> =
+            combine(launchableTargetRepository.getTargets(), consentedKeys) { targets, consented ->
+                targets.filter { it.hasLaunchConsent(consented) }
+            }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
         private val snapshots = cache.state
         private val inFlight = HashMap<String, Job>()
         private val lastFetchAt = HashMap<String, Long>()
@@ -98,15 +105,11 @@ class ProjectCatalog
             combine(
                 snapshots,
                 gatewaySourceRepository.getGateways(),
-                launchableTargetRepository.getTargets(),
+                consentedTargets,
                 created,
-                consentedKeys,
-            ) { snapshots, gateways, targets, created, consented ->
+            ) { snapshots, gateways, targets, created ->
                 if (snapshots == null) return@combine ProjectCatalogState()
-                val gatewayTargets =
-                    targets
-                        .filterIsInstance<LaunchableTarget.GatewayAgent>()
-                        .filter { it.binding.launchConsentKey in consented }
+                val gatewayTargets = targets.filterIsInstance<LaunchableTarget.GatewayAgent>()
                 ProjectCatalogState(
                     projects =
                         gateways
@@ -137,7 +140,7 @@ class ProjectCatalog
         private val turnStatusCatalog =
             TurnStatusCatalog(
                 gateway.turnStream,
-                launchableTargetRepository.getTargets(),
+                consentedTargets,
                 scope,
                 hub,
             )
@@ -151,14 +154,11 @@ class ProjectCatalog
         val activityUpdatedAt: StateFlow<Map<String, Long>> =
             combine(
                 snapshots,
-                launchableTargetRepository.getTargets(),
+                consentedTargets,
                 hub.trackedChatIds,
                 inProgressChatKeys,
-                consentedKeys,
-            ) { cache, targets, tracked, running, consented ->
-                activityTimestamps(cache.orEmpty(), targets.filter { it.hasDiscoveryConsent(consented) }) -
-                    tracked -
-                    running
+            ) { cache, targets, tracked, running ->
+                activityTimestamps(cache.orEmpty(), targets) - tracked - running
             }.stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
         init {
@@ -203,13 +203,10 @@ class ProjectCatalog
         override fun getSessions(serverId: String): Flow<List<SessionSummary>> =
             combine(
                 snapshots.filterNotNull(),
-                launchableTargetRepository.getTargets(),
+                consentedTargets,
                 created,
-                consentedKeys,
-            ) { cache, targets, memory, consented ->
-                val target =
-                    targets.firstOrNull { it.id == serverId && it.hasDiscoveryConsent(consented) }
-                        ?: return@combine emptyList()
+            ) { cache, targets, memory ->
+                val target = targets.firstOrNull { it.id == serverId } ?: return@combine emptyList()
                 chatsOf(
                     target,
                     cache,
@@ -221,17 +218,15 @@ class ProjectCatalog
         override fun getRecentSessions(limit: Int): Flow<List<SessionSummary>> =
             combine(
                 snapshots.filterNotNull(),
-                launchableTargetRepository.getTargets(),
+                consentedTargets,
                 created,
-                consentedKeys,
-            ) { cache, targets, memory, consented ->
-                val consentedTargets = targets.filter { it.hasDiscoveryConsent(consented) }
+            ) { cache, targets, memory ->
                 val stored = cache.values.flatMap { it.listings.values.flatten() }
                 recentChatsOf(
-                    consentedTargets,
+                    targets,
                     cache,
                     stored,
-                    memory.filterKeys { id -> consentedTargets.any { it.id == id } },
+                    memory.filterKeys { id -> targets.any { it.id == id } },
                     limit,
                 )
             }
@@ -404,35 +399,11 @@ class ProjectCatalog
          * trigger retries.
          */
         private suspend fun fetch(gateway: GatewaySource) {
-            val consented = consent.first()
-            val targets =
-                launchableTargetRepository
-                    .gatewayTargets(gateway)
-                    .filter { it.binding.launchConsentKey in consented }
+            val targets = launchableTargetRepository.consentedGatewayTargets(gateway, consent)
             val agentIds = targets.map { it.binding.agentId }.distinct()
             if (agentIds.isEmpty()) return
             try {
-                val cached = snapshots.value?.get(gateway.id)
-                val fallbackPaths =
-                    targets.flatMap { target ->
-                        snapshots.value
-                            ?.get(agentKey(target.id))
-                            ?.listings
-                            ?.get(target.id)
-                            .orEmpty()
-                            .mapNotNull { it.cwd }
-                    }
-                val roots =
-                    (
-                        cached?.checkouts.orEmpty().map { it.repo } + cached?.missingPaths.orEmpty().keys +
-                            cached
-                                ?.agents
-                                .orEmpty()
-                                .filterKeys { agentId -> agentId in agentIds }
-                                .values
-                                .flatten()
-                                .map { it.repo } + fallbackPaths
-                    ).distinct()
+                val roots = knownRoots(snapshots.value.orEmpty(), gateway, targets, agentIds)
                 // The gateway bounds the signed query; batching still uses its shared agent cache.
                 val batches = roots.chunked(MAX_KNOWN_REPOS_PER_REQUEST).ifEmpty { listOf(emptyList()) }
                 batches.forEach { knownRepos ->
@@ -443,7 +414,7 @@ class ProjectCatalog
                             gateway.gatewayCredential,
                             agentIds,
                             knownRepos,
-                        ).collect { line -> applyLine(gateway, line) }
+                        ).collect { line -> applyLine(gateway, line, targets) }
                 }
             } catch (error: GatewayRequestException) {
                 if (error.statusCode == HTTP_NOT_FOUND) {
@@ -468,12 +439,10 @@ class ProjectCatalog
         private suspend fun applyLine(
             gateway: GatewaySource,
             line: GatewayProjectLine,
+            targets: List<LaunchableTarget.GatewayAgent>,
         ) {
-            val consented = consent.first()
-            val bound =
-                launchableTargetRepository
-                    .gatewayTargets(gateway)
-                    .filter { it.binding.launchConsentKey in consented }
+            // A consent revoked mid-stream stops the lines that already arrived too.
+            val bound = targets.filter { it.hasLaunchConsent(consentedKeys.value) }
             if (line is GatewayProjectLine.Agent && bound.none { it.binding.agentId == line.agentId }) return
             cache.writes.withLock {
                 val previous = snapshots.value?.get(gateway.id) ?: ProjectSnapshot()
@@ -523,8 +492,50 @@ class ProjectCatalog
 private suspend fun LaunchableTargetRepository.gatewayTargets(gateway: GatewaySource) =
     getTargets().first().filterIsInstance<LaunchableTarget.GatewayAgent>().filter { it.gatewaySource.id == gateway.id }
 
+/** The gateway's bindings whose agent has launch consent; the request may name only these. */
+private suspend fun LaunchableTargetRepository.consentedGatewayTargets(
+    gateway: GatewaySource,
+    consent: Flow<Set<String>>,
+): List<LaunchableTarget.GatewayAgent> {
+    val consented = consent.first()
+    return gatewayTargets(gateway).filter { it.hasLaunchConsent(consented) }
+}
+
+/**
+ * Repo paths the gateway already knows for [agentIds]. Checkouts stay gateway-wide inventory:
+ * they carry no agent attribution, so they are not narrowed to consented agents.
+ */
+private fun knownRoots(
+    snapshots: Map<String, ProjectSnapshot>,
+    gateway: GatewaySource,
+    targets: List<LaunchableTarget.GatewayAgent>,
+    agentIds: List<String>,
+): List<String> {
+    val cached = snapshots[gateway.id]
+    val fallbackPaths =
+        targets.flatMap { target ->
+            snapshots
+                .get(agentKey(target.id))
+                ?.listings
+                ?.get(target.id)
+                .orEmpty()
+                .mapNotNull { it.cwd }
+        }
+    return (
+        cached?.checkouts.orEmpty().map { it.repo } + cached?.missingPaths.orEmpty().keys +
+            cached
+                ?.agents
+                .orEmpty()
+                .filterKeys { it in agentIds }
+                .values
+                .flatten()
+                .map { it.repo } +
+            fallbackPaths
+    ).distinct()
+}
+
 private fun agentKey(serverId: String) = "agent-$serverId"
 
 /** Manual targets have no launch consent; gateway agents need their own grant. */
-private fun LaunchableTarget.hasDiscoveryConsent(consentedKeys: Set<String>): Boolean =
+private fun LaunchableTarget.hasLaunchConsent(consentedKeys: Set<String>): Boolean =
     this !is LaunchableTarget.GatewayAgent || binding.launchConsentKey in consentedKeys

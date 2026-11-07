@@ -14,11 +14,11 @@ data class GatewayAgentBinding(
      */
     val icon: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-) {
-    /** Stable key for this agent's launch-consent preference. */
-    val launchConsentKey: String
-        get() = "$gatewaySourceId:$agentId"
-}
+)
+
+/** Stable key for this agent's launch-consent preference. */
+val GatewayAgentBinding.launchConsentKey: String
+    get() = "$gatewaySourceId:$agentId"
 
 sealed interface LaunchableTarget {
     val id: String

@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.newHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.registerChat
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.launchConsentKey
 import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnStream
 import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnStreamFrame
 import io.ktor.client.engine.mock.MockEngine
@@ -19,6 +20,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -34,6 +36,24 @@ import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProjectTurnStatusTest : ProjectCatalogFixture() {
+    @Test
+    fun `turn status for an agent without launch consent stays hidden`() =
+        runTest {
+            discoveryConsent = MutableStateFlow(setOf(claude.binding.launchConsentKey))
+            val (catalog, frames) = streaming()
+            frames.send(
+                snapshotFrame(
+                    gatewayTurn("claude", "same", "running"),
+                    gatewayTurn("codex", "other", "running"),
+                ),
+            )
+            runCurrent()
+
+            assertEquals(setOf("b-claude/same"), catalog.inProgressChatKeys.value)
+            val codexKeyed = catalog.turnStatuses.value.keys
+            assertTrue(codexKeyed.none { it.startsWith("b-codex/") })
+        }
+
     @Test
     fun `opening a chat acknowledges its finished turn but not a later one`() =
         runTest {

@@ -5,6 +5,7 @@ import com.tamimarafat.ferngeist.acp.bridge.hub.registerChat
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.launchConsentKey
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectRepo
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectWorktree
 import io.ktor.client.engine.mock.MockEngine
@@ -86,6 +87,27 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
             runCurrent()
 
             assertEquals(listOf("old-codex"), catalog.getSessions(codex.id).first().map { it.id })
+        }
+
+    @Test
+    fun `streamed agent line without its consent stays out of the snapshot`() =
+        runTest {
+            discoveryConsent = MutableStateFlow(setOf(claude.binding.launchConsentKey))
+            val engine =
+                MockEngine {
+                    respond(
+                        agentLine("claude", "ok", "new-claude") + agentLine("codex", "ok", "new-codex"),
+                        HttpStatusCode.OK,
+                    )
+                }
+            val catalog = catalog(engine)
+            runCurrent()
+
+            catalog.refresh(force = true).join()
+
+            assertEquals(setOf("new-claude"), catalog.state.first { it.isReady }.chatIds())
+            val snapshot = store().readAll().getValue(gateway.id)
+            assertTrue(snapshot.agents["codex"].isNullOrEmpty())
         }
 
     @Test

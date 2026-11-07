@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.serverlist.consent
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
@@ -25,13 +26,7 @@ class AgentLaunchConsentStoreImpl
         private val dataStore get() = context.consentDataStore
 
         override val consentedKeys =
-            dataStore.data.map { prefs ->
-                prefs
-                    .asMap()
-                    .filter { (key, value) -> key.name.startsWith(CONSENT_PREFIX) && value == true }
-                    .keys
-                    .mapTo(mutableSetOf()) { key -> key.name.removePrefix(CONSENT_PREFIX) }
-            }
+            dataStore.data.map { prefs -> grantedConsentKeys(prefs.asMap()) }
 
         override suspend fun hasConsent(key: String): Boolean =
             withContext(ioDispatcher) {
@@ -66,8 +61,13 @@ class AgentLaunchConsentStoreImpl
         }
 
         private fun consentKeyName(key: String): String = "$CONSENT_PREFIX$key"
-
-        private companion object {
-            const val CONSENT_PREFIX = "consent."
-        }
     }
+
+private const val CONSENT_PREFIX = "consent."
+
+/** The consent keys granted in [prefs]; the prefix is the persisted format, parsed only here. */
+internal fun grantedConsentKeys(prefs: Map<Preferences.Key<*>, Any>): Set<String> =
+    prefs
+        .filter { (key, value) -> key.name.startsWith(CONSENT_PREFIX) && value == true }
+        .keys
+        .mapTo(mutableSetOf()) { key -> key.name.removePrefix(CONSENT_PREFIX) }
