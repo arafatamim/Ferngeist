@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,6 +131,8 @@ internal fun ProjectFilterChips(
     onEdit: () -> Unit,
     onClearAgent: () -> Unit,
     onClearScope: () -> Unit,
+    projectName: String? = null,
+    onClearProject: () -> Unit = {},
 ) {
     val motion = MaterialTheme.motionScheme
     // A blank icon is a gateway sending no logo, not a URL to fetch.
@@ -149,6 +152,29 @@ internal fun ProjectFilterChips(
         state = listState,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        projectName?.let { name ->
+            item(key = "project") {
+                ActiveFilterChip(
+                    modifier =
+                        Modifier.animateItem(
+                            fadeInSpec = motion.fastEffectsSpec(),
+                            placementSpec = motion.fastSpatialSpec(),
+                            fadeOutSpec = motion.fastEffectsSpec(),
+                        ),
+                    label = name,
+                    description = stringResource(R.string.sessionlist_filter_project_selected, name),
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.FolderOpen,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    },
+                    onEdit = onEdit,
+                    onClear = onClearProject,
+                )
+            }
+        }
         agentName?.let { name ->
             item(key = "agent") {
                 ActiveFilterChip(

@@ -91,6 +91,7 @@
     </plurals>
     <string name="sessionlist_filter_agent_selected">代理：%1$s</string>
     <string name="sessionlist_filter_worktree_selected">工作树：%1$s</string>
+    <string name="sessionlist_filter_project_selected">项目：%1$s</string>
     <string name="sessionlist_filter_clear">清除筛选条件：%1$s</string>
     <string name="sessionlist_filter_agent">代理</string>
     <string name="sessionlist_filter_worktree">工作树</string>

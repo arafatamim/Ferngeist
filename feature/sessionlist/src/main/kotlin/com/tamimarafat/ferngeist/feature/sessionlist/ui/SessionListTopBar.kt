@@ -5,6 +5,9 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
 import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -43,42 +47,48 @@ internal fun SessionListTopBar(
     onNavigateBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    filterChips: @Composable () -> Unit = {},
 ) {
     if (isWindowShort()) {
-        TopAppBar(
-            title = {
-                SessionListTopBarTitle(
-                    expanded = false,
-                    collapsedFraction = 1f,
-                    sharedKey = ServerNameSharedBoundsKey(serverId),
-                    title = state.screen.serverName,
-                    titleStyle = MaterialTheme.typography.titleLarge,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    sharedBoundsEnabled = sharedBoundsEnabled,
-                )
-            },
-            navigationIcon = {
-                if (showBackButton) {
-                    FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription =
-                                stringResource(
-                                    R.string.sessionlist_back_desc,
-                                ),
-                        )
+        Column {
+            TopAppBar(
+                title = {
+                    SessionListTopBarTitle(
+                        expanded = false,
+                        collapsedFraction = 1f,
+                        sharedKey = ServerNameSharedBoundsKey(serverId),
+                        title = state.screen.serverName,
+                        titleStyle = MaterialTheme.typography.titleLarge,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        sharedBoundsEnabled = sharedBoundsEnabled,
+                    )
+                },
+                navigationIcon = {
+                    if (showBackButton) {
+                        FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription =
+                                    stringResource(
+                                        R.string.sessionlist_back_desc,
+                                    ),
+                            )
+                        }
                     }
-                }
-            },
-            actions = {
-                SessionListTopBarActions(
-                    state = state,
-                    onShowConnectionStatusDialog = onShowConnectionStatusDialog,
-                )
-            },
-            scrollBehavior = state.screen.scrollBehavior,
-        )
+                },
+                actions = {
+                    SessionListTopBarActions(
+                        state = state,
+                        onShowConnectionStatusDialog = onShowConnectionStatusDialog,
+                    )
+                },
+                scrollBehavior = state.screen.scrollBehavior,
+            )
+            Box(Modifier.padding(horizontal = 16.dp)) {
+                filterChips()
+            }
+        }
         return
     }
     TwoRowsTopAppBar(
@@ -96,6 +106,7 @@ internal fun SessionListTopBar(
                 sharedBoundsEnabled = sharedBoundsEnabled,
             )
         },
+        subtitle = { filterChips() },
         navigationIcon = {
             if (showBackButton) {
                 FilledTonalIconButton(onClick = onNavigateBack, modifier = Modifier.handCursor()) {

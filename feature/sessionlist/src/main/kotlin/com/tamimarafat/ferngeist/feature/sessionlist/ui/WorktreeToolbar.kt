@@ -42,11 +42,7 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
@@ -128,28 +124,23 @@ internal fun FiltersButton(
  * Scrolling down collapses the toolbar to the FAB, and scrolling up restores the filter button.
  *
  * @param worktreesEnabled true when the filter names a repo on a gateway with worktrees.
+ * @param onFiltersClick opens the screen-owned filter sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun WorktreeToolbar(
     expanded: Boolean,
     repo: String?,
-    projects: List<String>,
     worktreesEnabled: Boolean,
     scope: WorktreeScope,
     options: List<ScopeOption>,
-    onSelectRepo: (String) -> Unit,
-    onOtherProject: (() -> Unit)?,
-    onSelectScope: (WorktreeScope) -> Unit,
     onNewChat: () -> Unit,
-    onNewWorktree: () -> Unit,
-    onRemoveWorktree: (worktreeId: String) -> Unit,
     newChatLabel: String? = null,
     newChatEnabled: Boolean = true,
     leadingSelector: (@Composable () -> Unit)? = null,
+    onFiltersClick: () -> Unit = {},
 ) {
     val scopeName = scopeLabel(scope, options)
-    var showFilters by remember { mutableStateOf(false) }
     val newChat =
         when {
             newChatLabel != null -> newChatLabel
@@ -168,26 +159,11 @@ internal fun WorktreeToolbar(
                 FiltersButton(
                     expanded = expanded,
                     count = (if (!repo.isNullOrBlank()) 1 else 0) + (if (scope != WorktreeScope.All) 1 else 0),
-                    onClick = { showFilters = true },
+                    onClick = onFiltersClick,
                 )
             }
         },
     )
-    if (showFilters) {
-        AgentFiltersSheet(
-            repo = repo,
-            projects = projects,
-            worktreesEnabled = worktreesEnabled,
-            scope = scope,
-            options = options,
-            onDismiss = { showFilters = false },
-            onSelectProject = onSelectRepo,
-            onOtherProject = onOtherProject,
-            onSelectScope = onSelectScope,
-            onNewWorktree = onNewWorktree,
-            onRemoveWorktree = onRemoveWorktree,
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -218,7 +194,7 @@ private fun NewChatButton(
 /** Project and worktree filters; keep the selected project alongside the most recent ones. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun AgentFiltersSheet(
+internal fun AgentFiltersSheet(
     repo: String?,
     projects: List<String>,
     worktreesEnabled: Boolean,

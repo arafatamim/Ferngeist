@@ -21,6 +21,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -71,6 +72,31 @@ class ProjectFilterChipsTest {
         clearWorktree.assertIsNotDisplayed()
         compose.onNode(hasScrollAction()).performTouchInput { swipeLeft() }
         clearWorktree.assertIsDisplayed()
+    }
+
+    @Test
+    fun projectChip_editsAndClears() {
+        var edits = 0
+        var cleared = 0
+        compose.setContent {
+            MaterialTheme {
+                ProjectFilterChips(
+                    agentName = null,
+                    agentIconUrl = null,
+                    scopeName = null,
+                    projectName = "Ferngeist",
+                    onEdit = { edits++ },
+                    onClearAgent = {},
+                    onClearScope = {},
+                    onClearProject = { cleared++ },
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Project: Ferngeist").assertIsDisplayed().performClick()
+        assertEquals(1, edits)
+        compose.onNodeWithContentDescription("Clear Project: Ferngeist filter").performClick()
+        assertEquals(1, cleared)
     }
 
     @Test

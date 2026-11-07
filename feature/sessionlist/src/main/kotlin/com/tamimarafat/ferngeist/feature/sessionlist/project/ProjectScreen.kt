@@ -175,20 +175,11 @@ fun ProjectScreen(
                 WorktreeToolbar(
                     expanded = toolbarExpanded,
                     repo = repo,
-                    projects = emptyList(),
                     // Checkouts come from the snapshot; a gateway that sent none has no worktrees to pick.
                     worktreesEnabled = project?.checkout != null,
                     scope = scope,
                     options = options,
-                    onSelectRepo = {},
-                    onOtherProject = null,
-                    onSelectScope = viewModel::selectScope,
                     onNewChat = onNewChat,
-                    onNewWorktree = {
-                        viewModel.clearWorktreeError()
-                        showWorktreeSheet = true
-                    },
-                    onRemoveWorktree = { viewModel.requestRemoveWorktree(null, it) },
                     newChatEnabled = agents.isNotEmpty(),
                     newChatLabel = agent?.let { stringResource(R.string.sessionlist_project_new_chat_with, it.name) },
                     leadingSelector = {
