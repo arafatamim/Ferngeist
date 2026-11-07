@@ -1,1 +1,1 @@
-A mobile client for ACP-compatible coding agents.
+Run Claude Code, Codex, Pi, OpenCode and other coding agents from your phone.

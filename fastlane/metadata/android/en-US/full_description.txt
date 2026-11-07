@@ -1,11 +1,15 @@
-Ferngeist is a mobile client for coding agents that speak the Agent Client Protocol (ACP). Connect to your agents and chat with them from your phone — review changes, run tools, and follow along with rich, readable transcripts wherever you are.
+Run Claude Code, Codex, OpenCode, Pi or another coding agent on your computer and drive it from your Android phone or tablet. Start a task from the couch, and Ferngeist notifies you when the agent finishes.
+
+Ferngeist works with any agent that speaks the Agent Client Protocol (ACP).
+
+What you need: a computer running your agent, plus the free Ferngeist Gateway (Windows, macOS or Linux). The gateway finds the agents you have installed and gives your phone one secure address to reach them. Ferngeist has no AI model of its own.
 
 Features:
-• Chat with ACP-compatible coding agents on the go
-• Rich rendering of messages, reasoning, code diffs, and tool calls
-• Resilient sessions that survive disconnects and reconnect automatically
-• Optional Ferngeist ACP Gateway pairing to auto-detect local agents behind a single secure endpoint
-• Push notifications with deep links straight to the active chat
-• Fast, smooth, modern Material 3 interface
+• Read messages, reasoning, tool calls and code diffs in a layout made for a small screen
+• Browse the project's git changes and history
+• Sessions reconnect where they left off after a dropped connection
+• Notifications that open the chat when an agent finishes or needs an answer
+• One pane on a phone, two on a small tablet, three on a large one
+• Free and open source (MIT), no account, and no servers of our own
 
-Ferngeist is free and open source (MIT). Learn more and view the source at https://github.com/arafatamim/Ferngeist
+Source and setup guide: https://github.com/arafatamim/ferngeist
