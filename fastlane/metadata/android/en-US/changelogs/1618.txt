@@ -1,0 +1,7 @@
+• Home groups chats by project, with live status on each card
+• Worktrees: pick one from a toolbar, adopt existing ones, remove them safely
+• Compare your working tree with another branch
+• Syntax highlighting and rendered Markdown in files
+• Restores chats and resumes prompts safely
+• New fern fiddlehead icon and animated splash
+• Other bug fixes and polish
