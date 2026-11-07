@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -56,6 +57,15 @@ import com.tamimarafat.ferngeist.workspace.projectRoute
 
 private const val SERVER_ID_ARG = "serverId"
 private const val ADD_GATEWAY_ROUTE = "add_gateway"
+
+/**
+ * Back for the calling destination, dropped once that destination is no longer resumed. A
+ * leaving screen stays composed, and its back button clickable, for the whole exit animation:
+ * every extra tap, or Space on the focused button, popped one more entry, and a pop past the
+ * start destination empties the back stack and leaves `NavHost` drawing nothing.
+ */
+@Composable
+private fun NavHostController.popIfResumed(): () -> Unit = dropUnlessResumed { popBackStack() }
 
 /** What the wide workspace's chat pane is hosted with: the connection hub and the pane's ViewModel factory. */
 internal class WorkspacePaneServices(
@@ -265,7 +275,7 @@ private fun NavGraphBuilder.gatewaysDestination(navController: NavHostController
     composable("gateways") {
         val viewModel: GatewayListViewModel = hiltViewModel()
         GatewayListScreen(
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             onPairAnother = { navController.navigate(ADD_GATEWAY_ROUTE) },
             onEditGateway = { gateway -> navController.navigate("edit_gateway/${gateway.id}") },
             onOpenGatewayAgents = { gatewayId -> navController.navigate("gateway_agents/$gatewayId") },
@@ -300,7 +310,7 @@ private fun NavGraphBuilder.addServerDestination(navController: NavHostControlle
         LocalNetworkPermissionGate {
             val viewModel: AddServerViewModel = hiltViewModel()
             AddServerScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = navController.popIfResumed(),
                 viewModel = viewModel,
             )
         }
@@ -313,7 +323,7 @@ private fun NavGraphBuilder.addGatewayDestination(navController: NavHostControll
         LocalNetworkPermissionGate {
             val viewModel: AddGatewayViewModel = hiltViewModel()
             AddGatewayScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = navController.popIfResumed(),
                 viewModel = viewModel,
             )
         }
@@ -328,7 +338,7 @@ private fun NavGraphBuilder.editGatewayDestination(navController: NavHostControl
     ) {
         val viewModel: AddGatewayViewModel = hiltViewModel()
         AddGatewayScreen(
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             viewModel = viewModel,
         )
     }
@@ -348,7 +358,7 @@ private fun NavGraphBuilder.addCustomAgentDestination(navController: NavHostCont
     ) {
         val viewModel: AddCustomAgentViewModel = hiltViewModel()
         AddCustomAgentScreen(
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             onCreated = {
                 navController.previousBackStackEntry
                     ?.savedStateHandle
@@ -376,7 +386,7 @@ private fun NavGraphBuilder.gatewayAgentsDestination(navController: NavHostContr
             }
         }
         GatewayAgentsScreen(
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             onNavigateToAddCustomAgent = { navController.navigate("add_custom_agent/${viewModel.gatewayId}") },
             viewModel = viewModel,
         )
@@ -391,7 +401,7 @@ private fun NavGraphBuilder.editServerDestination(navController: NavHostControll
     ) {
         val viewModel: AddServerViewModel = hiltViewModel()
         AddServerScreen(
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             viewModel = viewModel,
         )
     }
@@ -429,7 +439,7 @@ private fun NavGraphBuilder.sessionsDestination(
             loadedName = server?.name,
             serverId = serverId,
             openCreateSessionDialogOnLaunch = openCreateSessionDialog,
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             onNavigateToChat = { sessionId, cwd, updatedAt, title ->
                 val encodedCwd = Uri.encode(cwd)
                 val encodedTitle = Uri.encode(title.orEmpty())
@@ -467,7 +477,7 @@ private fun NavGraphBuilder.projectDestination(
             showBackButton = true,
             sharedTransitionScope = sharedTransitionLayout,
             animatedContentScope = this,
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             onNavigateToChat = { serverId, sessionId, cwd, updatedAt, title ->
                 navController.navigate(
                     "chat/$serverId/$sessionId?cwd=${Uri.encode(cwd)}&updatedAt=${updatedAt ?: -1L}" +
@@ -529,7 +539,7 @@ private fun NavGraphBuilder.chatDestination(
         ChatScreen(
             sessionId = sessionId,
             fallbackTitle = fallbackTitle,
-            onNavigateBack = { navController.popBackStack() },
+            onNavigateBack = navController.popIfResumed(),
             onSwitchSession = { session, slide ->
                 navController.switchToChat(session, slide)
             },
