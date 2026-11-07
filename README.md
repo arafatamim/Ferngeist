@@ -2,7 +2,9 @@
 
 **Your coding agents, in your pocket.**
 
-Run Claude Code, Codex, Gemini CLI or another coding agent on your computer and drive it from your Android phone or tablet. Start a task from the couch, and Ferngeist notifies you when the agent finishes.
+<img alt="Ferngeist: a coding agent chat and the project home on two phones, next to a list of supported agents" src="fastlane/metadata/android/en-US/images/featureGraphic.png" />
+
+Run Claude Code, Codex, OpenCode, Pi or another coding agent on your computer and drive it from your Android phone or tablet. Start a task from the couch, and Ferngeist notifies you when the agent finishes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?color=4DB6AC&style=flat-square)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/github/v/release/arafatamim/ferngeist?color=4DB6AC&style=flat-square)](https://github.com/arafatamim/ferngeist/releases/latest)
@@ -14,7 +16,7 @@ Or grab the APK from [GitHub Releases](https://github.com/arafatamim/ferngeist/r
 
 <img height="500" alt="A chat with a coding agent, showing its tool calls and code changes" src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" />
 
-https://github.com/user-attachments/assets/9af837d6-a901-493b-827e-93a3fdb1aa24
+https://github.com/user-attachments/assets/8da6a306-5678-4006-a791-8c5ddbda9ecf
 
 ## Why Ferngeist
 
@@ -99,9 +101,9 @@ More options are in the [gateway docs](https://github.com/arafatamim/ferngeist-a
 
 ## Screenshots
 
-<img height="500" alt="All your agents in one list" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" /> <img height="500" alt="Every session with an agent, grouped by day" src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" />
+<img height="500" alt="All your agents in one list" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" /> <img height="500" alt="The git history of a project, shown as a commit timeline" src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" />
 
-*Your agents, and the sessions you've had with each one.*
+*Your agents, and the git history of the project you're working in.*
 
 <img height="500" alt="Three-pane tablet workspace" src="fastlane/metadata/android/en-US/images/tenInchScreenshots/1.png" />
 
