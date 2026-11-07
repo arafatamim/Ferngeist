@@ -52,6 +52,7 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -138,6 +139,13 @@ internal fun FileSheet(
     val horizontalScroll = remember(file.path) { ScrollState(0) }
     val previewRequested = isMarkdown && markdownPreview
     val showingRendered = previewRequested && markdownDocument != null
+    // ACP locations are 1-based lines. Reveal the requested line once the text has landed; the
+    // source list owns line numbers, so this is the only mode that can navigate to one.
+    LaunchedEffect(file.path, file.line, file.text) {
+        val line = file.line?.takeIf { file.text != null } ?: return@LaunchedEffect
+        if (lines.isEmpty()) return@LaunchedEffect
+        rawScroll.scrollToItem((line - 1).coerceIn(0, lines.lastIndex))
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         // The body's height differs between source and rendered, and wrapping reflows the
         // source; let the sheet follow instead of jumping.

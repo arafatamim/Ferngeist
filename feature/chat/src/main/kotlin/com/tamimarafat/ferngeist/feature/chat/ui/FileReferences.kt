@@ -101,7 +101,7 @@ private fun List<String>.sameFile(): String? {
  * Opens the file a chip names, or a picker when its name is shared ([chipCandidates]); null where
  * there is no workspace to read it from.
  */
-internal val localFileOpener = compositionLocalOf<((List<String>) -> Unit)?> { null }
+internal val localFileOpener = compositionLocalOf<((List<String>, Int?) -> Unit)?> { null }
 
 /** The workspace's files by file name (`ChatState.workspaceFiles`); null until the gateway lists them. */
 internal val localWorkspaceFiles = compositionLocalOf<Map<String, List<String>>?> { null }
@@ -148,7 +148,7 @@ internal fun rememberFileChips(
                         label,
                         measurer.measure(label, style, maxLines = 1).size,
                         density,
-                    ) { open?.invoke(candidates) }
+                    ) { open?.invoke(candidates, null) }
                 }
             }
         }

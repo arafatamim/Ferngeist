@@ -1,0 +1,222 @@
+{
+  "messages": [
+    {
+      "id": "msg-0",
+      "role": "USER",
+      "content": "go",
+      "segments": [],
+      "isStreaming": false,
+      "isError": false,
+      "images": [
+        {
+          "base64": "aW1n",
+          "mimeType": "image/png"
+        }
+      ],
+      "files": [
+        {
+          "name": "a.txt",
+          "base64": "YQ==",
+          "mimeType": "text/plain",
+          "sizeBytes": 1
+        }
+      ],
+      "createdAt": 1700000000000,
+      "status": "SENT",
+      "clientId": "client-1",
+      "deliveryConfirmed": true,
+      "turn": null,
+      "messageId": "user-1"
+    },
+    {
+      "id": "msg-1",
+      "role": "ASSISTANT",
+      "content": "done",
+      "segments": [
+        {
+          "id": "seg-1-0",
+          "kind": "THOUGHT",
+          "text": "thinking",
+          "toolCall": null,
+          "planEntries": null,
+          "receivedAtMs": 1000
+        },
+        {
+          "id": "seg-1-1",
+          "kind": "PLAN",
+          "text": "",
+          "toolCall": null,
+          "planEntries": [
+            {
+              "content": "Read",
+              "priority": "high",
+              "status": "completed",
+              "_meta": null
+            }
+          ],
+          "receivedAtMs": 1000
+        },
+        {
+          "id": "seg-1-2",
+          "kind": "TOOL_CALL",
+          "text": "",
+          "toolCall": {
+            "toolCallId": "c1",
+            "title": "edit",
+            "kind": "edit",
+            "status": "completed",
+            "content": [
+              {
+                "type": "diff",
+                "path": "a.kt",
+                "newText": "new",
+                "oldText": "old",
+                "_meta": null
+              }
+            ],
+            "rawInput": null,
+            "rawOutput": null,
+            "permissionOptions": null,
+            "permissionRequestId": null,
+            "locations": [
+              {
+                "path": "a.kt",
+                "line": 2,
+                "_meta": null
+              }
+            ]
+          },
+          "planEntries": null,
+          "receivedAtMs": 1000
+        },
+        {
+          "id": "seg-1-3",
+          "kind": "MESSAGE",
+          "text": "done",
+          "toolCall": null,
+          "planEntries": null,
+          "receivedAtMs": 1000
+        }
+      ],
+      "isStreaming": false,
+      "isError": false,
+      "images": [],
+      "files": [],
+      "createdAt": 1700000000001,
+      "status": "SENT",
+      "clientId": null,
+      "deliveryConfirmed": false,
+      "turn": {
+        "startedAt": 1700000000000,
+        "finishedAt": 1700000005000
+      },
+      "messageId": "assistant-1"
+    }
+  ],
+  "isStreaming": false,
+  "toolCallIndex": {
+    "c1": {
+      "messageIndex": 1,
+      "segmentIndex": 2
+    }
+  },
+  "usage": {
+    "promptTokens": null,
+    "completionTokens": null,
+    "totalTokens": 42,
+    "cachedReadTokens": null,
+    "contextWindowTokens": 1000,
+    "costAmount": 0.5,
+    "costCurrency": "USD"
+  },
+  "availableCommands": [
+    {
+      "name": "review",
+      "description": "Review the diff"
+    }
+  ],
+  "commandsAdvertised": true,
+  "nativeConfigOptions": [
+    {
+      "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption.Select",
+      "id": "effort",
+      "name": "Effort",
+      "description": null,
+      "category": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory.Custom",
+        "rawValue": "thought"
+      },
+      "origin": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin.NativeConfigOption"
+      },
+      "currentValue": "high",
+      "choices": [
+        {
+          "id": "high",
+          "label": "High",
+          "value": "high",
+          "description": null
+        }
+      ],
+      "groups": []
+    },
+    {
+      "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption.BooleanOption",
+      "id": "fast",
+      "name": "Fast",
+      "description": null,
+      "category": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory.Mode"
+      },
+      "origin": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin.NativeConfigOption"
+      },
+      "currentValue": true
+    },
+    {
+      "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption.Unknown",
+      "id": "x",
+      "name": "X",
+      "description": null,
+      "category": null,
+      "origin": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin.NativeConfigOption"
+      },
+      "kind": "slider",
+      "currentValue": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue.StringValue",
+        "value": "3"
+      }
+    }
+  ],
+  "legacyModes": {
+    "modes": [
+      {
+        "id": "code",
+        "name": "Code",
+        "description": "Edits files"
+      }
+    ],
+    "currentModeId": "code"
+  },
+  "legacyModel": {
+    "choices": [
+      {
+        "id": "m1",
+        "label": "Model 1",
+        "value": "m1",
+        "description": null
+      }
+    ],
+    "currentModelId": "m1"
+  },
+  "title": "Golden chat",
+  "stoppedAt": null,
+  "turnOutcome": "FINISHED",
+  "turnSettled": true,
+  "turnCompletionSequence": 12,
+  "openReplyId": null,
+  "turnDurationMs": null,
+  "epoch": "ep-1",
+  "lastSeq": 10
+}

@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.core.model
 
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolCallLocation
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.serialization.PersistentListSerializer
@@ -88,8 +89,8 @@ data class ToolCallDisplay(
     val rawOutput: JsonElement? = null,
     val permissionOptions: List<AcpPermissionOption>? = null,
     val permissionRequestId: String? = null,
-    /** Files the agent says the call touches (ACP `locations`), as paths. */
-    val locations: List<String>? = null,
+    /** Files the agent says the call touches, and the line within each (ACP `locations`). */
+    val locations: List<ToolCallLocation>? = null,
 )
 
 @Serializable

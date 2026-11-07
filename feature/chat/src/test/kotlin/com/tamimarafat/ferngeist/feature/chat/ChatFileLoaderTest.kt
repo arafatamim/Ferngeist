@@ -102,6 +102,17 @@ class ChatFileLoaderTest {
         }
 
     @Test
+    fun anAcpLocationLineReachesTheOpenedFile() =
+        runTest {
+            var state = ChatState()
+            ChatFileLoader(this, workspace(), { state = it(state) }, "/repo", { emptyList() })
+                .open(path = "/repo/$FILE", line = 12)
+            advanceUntilIdle()
+
+            assertEquals(12, state.openFile?.line)
+        }
+
+    @Test
     fun aPathOutsideTheProjectFailsWithoutAskingTheGateway() =
         runTest {
             val facade = workspace()
@@ -130,7 +141,7 @@ class ChatFileLoaderTest {
     ): FileView? {
         var state = ChatState()
         ChatFileLoader(this, facade, { state = it(state) }, "/repo", { tree })
-            .open(path, commit, compare)
+            .open(path = path, commit = commit, compare = compare)
         advanceUntilIdle()
         return state.openFile
     }

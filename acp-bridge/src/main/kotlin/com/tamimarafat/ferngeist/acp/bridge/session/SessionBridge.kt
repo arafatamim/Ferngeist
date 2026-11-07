@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import com.agentclientprotocol.model.ToolCallLocation as AcpToolCallLocation
 
 /**
  * How many raw events [SessionBridge.events] replays to a collector that attaches late.
@@ -310,7 +311,7 @@ sealed interface AppSessionEvent {
         val status: ToolCallStatus?,
         val content: List<ToolCallContent>? = null,
         val rawInput: JsonElement? = null,
-        val locations: List<String>? = null,
+        val locations: List<AcpToolCallLocation>? = null,
     ) : AppSessionEvent
 
     data class ToolCallUpdated(
@@ -321,7 +322,7 @@ sealed interface AppSessionEvent {
         val content: List<ToolCallContent>? = null,
         val rawInput: JsonElement? = null,
         val rawOutput: JsonElement? = null,
-        val locations: List<String>? = null,
+        val locations: List<AcpToolCallLocation>? = null,
     ) : AppSessionEvent
 
     data class ToolPermissionRequested(

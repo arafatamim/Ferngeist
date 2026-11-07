@@ -81,7 +81,7 @@ internal object AcpSessionUpdateMapper {
             status = update.status,
             content = update.content.takeIf { it.isNotEmpty() },
             rawInput = update.rawInput,
-            locations = update.locations.map { it.path },
+            locations = update.locations,
         )
 
     @OptIn(UnstableApi::class)
@@ -94,7 +94,7 @@ internal object AcpSessionUpdateMapper {
             content = update.content,
             rawInput = update.rawInput,
             rawOutput = update.rawOutput,
-            locations = update.locations?.map { it.path },
+            locations = update.locations,
         )
 
     @OptIn(UnstableApi::class)
