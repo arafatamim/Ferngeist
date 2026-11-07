@@ -188,6 +188,18 @@ class AcpConnectionTest {
 
 class AcpErrorFormattingTest {
     @Test
+    fun `authentication required does not expose rpc data`() {
+        val error =
+            JsonRpcException(
+                code = -32000,
+                message = "Authentication required",
+                data = buildJsonObject { put("detail", "private challenge payload") },
+            )
+
+        assertEquals("Authentication required", formatAcpErrorMessage(error, "Request failed"))
+    }
+
+    @Test
     fun `formats json rpc string data into user facing message`() {
         val error =
             JsonRpcException(

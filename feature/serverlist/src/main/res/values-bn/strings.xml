@@ -27,14 +27,6 @@
     <string name="serverlist_scan_qr_desc">QR কোড স্ক্যান করুন</string>
 
     <string name="serverlist_auth_title">%1$s প্রমাণীকরণ করুন</string>
-    <string name="serverlist_auth_body">\"%1$s\" এজেন্টের সেশন খোলার আগে ACP প্রমাণীকরণ দরকার।</string>
-    <string name="serverlist_auth_method_fallback">ধরন: %1$s</string>
-    <string name="serverlist_auth_reconnect">পুনরায় সংযোগ করুন</string>
-    <string name="serverlist_auth_authenticate">প্রমাণীকরণ করুন</string>
-    <string name="serverlist_auth_cancel">বাতিল করুন</string>
-    <string name="serverlist_auth_cmd">কমান্ড: %1$s</string>
-    <string name="serverlist_auth_env_instructions">এজেন্ট চালু করার আগে এই পরিবেশ চলকগুলো সেট করুন, তারপর প্রমাণীকরণ পুনরায় চেষ্টা করতে আবার সংযোগ করুন।</string>
-    <string name="serverlist_auth_optional_suffix"> (ঐচ্ছিক)</string>
 
     <string name="serverlist_card_delete_title">সার্ভার মুছে ফেলুন</string>
     <string name="serverlist_card_delete_body">\"%1$s\" এবং এর সব সংরক্ষিত সেশন মুছে ফেলবেন?</string>

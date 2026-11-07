@@ -11,14 +11,6 @@
     </plurals>
 
     <string name="sessionlist_auth_title">身份验证 %1$s</string>
-    <string name="sessionlist_auth_body">代理“%1$s”在打开会话前需要 ACP 身份验证。</string>
-    <string name="sessionlist_auth_method_fallback">类型：%1$s</string>
-    <string name="sessionlist_auth_reconnect">重新连接</string>
-    <string name="sessionlist_auth_authenticate">身份验证</string>
-    <string name="sessionlist_auth_cancel">取消</string>
-    <string name="sessionlist_auth_terminal_cmd">命令：%1$s</string>
-    <string name="sessionlist_auth_env_instructions">在启动代理前设置这些环境变量，然后重新连接以重试身份验证。</string>
-    <string name="sessionlist_auth_optional_suffix">（可选）</string>
     <string name="sessionlist_untitled">无标题会话</string>
     <string name="sessionlist_empty_title">暂无会话</string>
     <string name="sessionlist_empty_subtitle_listed">来自服务器的会话将显示在此处</string>

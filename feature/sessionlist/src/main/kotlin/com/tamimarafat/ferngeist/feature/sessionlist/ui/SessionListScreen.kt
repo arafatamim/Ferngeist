@@ -20,6 +20,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -148,6 +149,7 @@ fun SessionListScreen(
         onDismissConnectionStatusDialog = { state.connection.showConnectionStatusDialog.value = false },
         pendingAuthentication = state.connection.pendingAuthentication,
         selectedAuthMethodId = state.connection.selectedAuthMethodId.value,
+        isAuthenticating = viewModel.isLoading.collectAsState().value,
         onSelectedAuthMethodChange = { state.connection.selectedAuthMethodId.value = it },
         envValues = state.connection.envValues,
         onSubmit = { methodId, values -> viewModel.authenticate(methodId, values) },

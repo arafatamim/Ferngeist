@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,10 +30,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.core.common.ui.auth.AuthenticationDialog
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
@@ -48,6 +51,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.processPickedUris
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.tamimarafat.ferngeist.core.common.R as CommonR
 
 // region: ChatScreen
 
@@ -84,6 +88,28 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val screenState = rememberChatScreenState(viewModel, sessionId)
+
+    screenState.state.authentication?.let { request ->
+        var selectedMethod by remember(request.agentName) { mutableStateOf<String?>(null) }
+        AuthenticationDialog(
+            request = request,
+            gatewayBacked = screenState.state.gatewayWorkspaceConnection != null,
+            title =
+                stringResource(
+                    CommonR.string.common_auth_title,
+                    request.agentName,
+                ),
+            selectedAuthMethodId = selectedMethod,
+            onSelectedAuthMethodChange = { selectedMethod = it },
+            envValues = remember(request.agentName) { mutableStateMapOf() },
+            allowEnvironmentAuth = false,
+            onSubmit = { methodId, _ -> viewModel.dispatch(ChatIntent.Authenticate(methodId)) },
+            onReconnect = {},
+            onDismiss = {
+                if (request.isAuthenticating) onNavigateBack() else viewModel.dispatch(ChatIntent.DismissAuthentication)
+            },
+        )
+    }
 
     // --- ViewModel effects ---
     CollectChatEffects(viewModel, screenState.mutations.snackbarHostState, onNavigateBack, onSwitchSession)

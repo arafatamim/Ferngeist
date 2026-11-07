@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.core.model
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -421,6 +422,8 @@ interface ChatSessionFacade :
 
 /** Observable session snapshots, independent of one-shot events. */
 interface ChatSessionState {
+    val authentication: StateFlow<AuthenticationRequest?>
+
     /** Current transport-level connection state. */
     val connectionState: StateFlow<ChatConnectionState>
 
@@ -494,6 +497,11 @@ interface ChatSessionLifecycle {
     suspend fun loadSessionQuietly() {
         loadSession()
     }
+
+    /** Authenticates on this session connection and retries the pending load. */
+    suspend fun authenticate(methodId: String)
+
+    fun dismissAuthentication()
 
     /** Tears down the active bridge and clears observers. */
     fun clear()

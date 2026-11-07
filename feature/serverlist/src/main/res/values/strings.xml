@@ -37,14 +37,6 @@
 
     <!-- Auth dialog (server list) -->
     <string name="serverlist_auth_title">Authenticate %1$s</string>
-    <string name="serverlist_auth_body">The agent \"%1$s\" requires ACP authentication before sessions can be opened.</string>
-    <string name="serverlist_auth_method_fallback">Type: %1$s</string>
-    <string name="serverlist_auth_reconnect">Reconnect</string>
-    <string name="serverlist_auth_authenticate">Authenticate</string>
-    <string name="serverlist_auth_cancel">Cancel</string>
-    <string name="serverlist_auth_cmd">Command: %1$s</string>
-    <string name="serverlist_auth_env_instructions">Set these environment variables before launching the agent, then reconnect to retry authentication.</string>
-    <string name="serverlist_auth_optional_suffix"> (optional)</string>
 
     <!-- Server Card -->
     <string name="serverlist_card_delete_title">Delete Server</string>

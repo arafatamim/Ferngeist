@@ -365,6 +365,8 @@ private fun ServerListDialogsAndEffects(
 
     ServerListDialogsHost(
         pendingAuthentication = pendingAuthentication,
+        isAuthenticating =
+            uiState.connectingServerId != null && uiState.connectingServerId == pendingAuthentication?.serverId,
         pendingLaunchConsent = pendingLaunchConsent,
         showAboutDialog = showAboutDialog,
         selectedAuthMethodId = selectedAuthMethodId,
@@ -426,6 +428,7 @@ private fun ServerListEventEffects(
 @Composable
 private fun ServerListDialogsHost(
     pendingAuthentication: PendingAuthentication?,
+    isAuthenticating: Boolean,
     pendingLaunchConsent: PendingLaunchConsent?,
     showAboutDialog: Boolean,
     selectedAuthMethodId: String?,
@@ -441,6 +444,7 @@ private fun ServerListDialogsHost(
     pendingAuthentication?.let {
         PendingAuthenticationDialog(
             pendingAuthentication = it,
+            isAuthenticating = isAuthenticating,
             selectedAuthMethodId = selectedAuthMethodId,
             onSelectedAuthMethodChange = onSelectedAuthMethodChange,
             envValues = envValues,

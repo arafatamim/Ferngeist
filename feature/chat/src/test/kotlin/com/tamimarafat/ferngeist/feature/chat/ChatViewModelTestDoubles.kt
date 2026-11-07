@@ -20,6 +20,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
+import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -103,6 +104,13 @@ open class FakeChatSessionFacade(
     /** Message [emitOperationError] carries; tests pass a sentinel to keep it distinct from a load failure. */
     protected val operationErrorText: String = "Session is not ready. Please retry in a moment.",
 ) : ChatSessionFacade {
+    override val authentication =
+        MutableStateFlow<AuthenticationRequest?>(null)
+
+    override suspend fun authenticate(methodId: String) = Unit
+
+    override fun dismissAuthentication() = Unit
+
     protected val connectionStateFlow = MutableStateFlow<ChatConnectionState>(ChatConnectionState.Disconnected)
     protected val diagnosticsFlow = MutableStateFlow(ChatConnectionDiagnostics())
     protected val sessionSnapshotFlow = MutableStateFlow<ChatSessionSnapshot?>(null)

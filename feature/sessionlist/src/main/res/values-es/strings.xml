@@ -13,14 +13,6 @@
     </plurals>
 
     <string name="sessionlist_auth_title">Autenticar %1$s</string>
-    <string name="sessionlist_auth_body">El agente "%1$s" requiere autenticación ACP antes de poder abrir sesiones.</string>
-    <string name="sessionlist_auth_method_fallback">Tipo: %1$s</string>
-    <string name="sessionlist_auth_reconnect">Reconectar</string>
-    <string name="sessionlist_auth_authenticate">Autenticar</string>
-    <string name="sessionlist_auth_cancel">Cancelar</string>
-    <string name="sessionlist_auth_terminal_cmd">Comando: %1$s</string>
-    <string name="sessionlist_auth_env_instructions">Establece estas variables de entorno antes de iniciar el agente y luego vuelve a conectarte para reintentar la autenticación.</string>
-    <string name="sessionlist_auth_optional_suffix"> (opcional)</string>
     <string name="sessionlist_untitled">Sesión sin título</string>
     <string name="sessionlist_empty_title">No hay sesiones</string>
     <string name="sessionlist_empty_subtitle_listed">Las sesiones del servidor aparecerán aquí</string>

@@ -41,18 +41,18 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Facade behavior against a recording [ChatConnectionSurface] and a fake gateway.
  *
- * Only the transport-free paths are drivable here: everything past
- * registerConnectingWithHub sits behind a connected [AcpConnection],
- * which is a concrete final class that only reaches Connected through a real
- * gateway handshake — so registration timing, sentinel skipping, and snapshot
- * re-keying stay covered at the ChatViewModel level (fake facade) and hub
- * level (ChatConnectionHubTest), and the seam exists to make the facade's own
- * wiring testable once a manager seam lands.
+ * Transport-free paths use a disconnected manager. Authentication regressions install a
+ * real SDK client over [ChatAuthTransport], so create-on-arrival and retry exercise the
+ * same facade and gateway code as a connected chat. Hub registration and snapshots
+ * retain their broader coverage in ChatConnectionHubTest and ChatViewModel tests.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AcpChatSessionFacadeTest {
@@ -78,7 +78,7 @@ class AcpChatSessionFacadeTest {
             serverId: String,
             sessionId: String,
             registration: ChatRegistration,
-        ): String = TODO("unused in facade attendance tests")
+        ): String = "$serverId/$sessionId"
 
         override fun refresh() = Unit
 
@@ -91,6 +91,7 @@ class AcpChatSessionFacadeTest {
 
     private class FakeLaunchableTargets : LaunchableTargetRepository {
         var target: LaunchableTarget? = null
+        var preferredMethod: String? = null
 
         override fun getTargets(): Flow<List<LaunchableTarget>> = flowOf(listOfNotNull(target))
 
@@ -99,7 +100,9 @@ class AcpChatSessionFacadeTest {
         override suspend fun updatePreferredAuthMethod(
             targetId: String,
             methodId: String,
-        ) = Unit
+        ) {
+            preferredMethod = methodId
+        }
 
         override suspend fun deleteTarget(id: String) = Unit
     }
@@ -355,9 +358,74 @@ class AcpChatSessionFacadeTest {
                     gatewaySourceRepository = FakeGatewaySources(),
                     launchableTargetRepository = targets,
                 ),
-            opening = ChatOpening(serverId = "srv", sessionId = "s1", cwd = "/work", cachedSnapshot = null),
+            opening = ChatOpening(serverId = "srv", sessionId = "__new__", cwd = "/work", cachedSnapshot = null),
             hub = surface,
         )
+
+    @Test
+    fun `create auth challenge stays recoverable without a load failure`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val manager = newManager(backgroundScope)
+            val transport = ChatAuthTransport()
+            transport.install(manager, backgroundScope)
+            val facade = newFacade(RecordingSurface(), backgroundScope, manager)
+            val failures = mutableListOf<String>()
+            backgroundScope.launch { facade.loadFailed.collect { failures += it } }
+
+            facade.loadSession()
+
+            val challenge = requireNotNull(facade.authentication.value)
+            assertEquals("Auth Agent", challenge.agentName)
+            assertEquals(listOf("login", "terminal"), challenge.methods.map { it.id })
+            assertEquals("Authentication required", challenge.errorMessage)
+            assertTrue(failures.isEmpty())
+            assertNull(facade.sessionSnapshot.value)
+        }
+
+    @Test
+    fun `successful authentication saves preference and retries creation on the chat connection`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val manager = newManager(backgroundScope)
+            val transport = ChatAuthTransport()
+            transport.install(manager, backgroundScope)
+            val targets = FakeLaunchableTargets()
+            val facade = newFacade(RecordingSurface(), backgroundScope, manager, targets)
+            facade.loadSession()
+
+            var finished = false
+            backgroundScope.launch {
+                facade.authenticate("login")
+                finished = true
+            }
+            awaitRealWork { finished }
+
+            assertTrue(finished)
+            assertEquals("login", targets.preferredMethod)
+            assertEquals(listOf("login"), transport.authenticatedMethods)
+            assertEquals(2, transport.creations)
+            assertNull(facade.authentication.value)
+            assertNotNull(facade.sessionSnapshot.value)
+            assertEquals("srv/created-session", facade.liveChatId.value)
+        }
+
+    @Test
+    fun `failed authentication retains the challenge and terminal selection never reaches the agent`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val manager = newManager(backgroundScope)
+            val transport = ChatAuthTransport().apply { authFailure = "Sign in declined" }
+            transport.install(manager, backgroundScope)
+            val facade = newFacade(RecordingSurface(), backgroundScope, manager)
+            facade.loadSession()
+
+            facade.authenticate("terminal")
+            assertTrue(transport.authenticatedMethods.isEmpty())
+            facade.authenticate("login")
+
+            assertEquals("Sign in declined", facade.authentication.value?.errorMessage)
+            assertEquals(false, facade.authentication.value?.isAuthenticating)
+            assertEquals(1, transport.creations)
+            assertNull(facade.sessionSnapshot.value)
+        }
 
     @Test
     fun `clear on an unregistered facade abandons its pending chat manager`() =

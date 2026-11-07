@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.protocol.JsonRpcException
+import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.serialization.json.JsonElement
@@ -54,6 +55,7 @@ private fun formatJsonRpcErrorMessage(
     fallback: String,
 ): String {
     val message = error.message.takeIf { it.isNotBlank() } ?: fallback
+    if (error.code == JsonRpcErrorCode.AUTH_REQUIRED.code) return message
     val formattedData = stringifyJsonRpcData(error.data)
     if (formattedData.isNullOrBlank()) return message
     if (message.contains(formattedData)) return message

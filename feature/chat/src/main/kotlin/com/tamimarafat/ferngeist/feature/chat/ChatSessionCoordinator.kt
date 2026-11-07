@@ -133,6 +133,10 @@ internal class ChatSessionCoordinator(
         }
     }
 
+    suspend fun authenticate(methodId: String) {
+        loadGuarded { facade.authenticate(methodId) }
+    }
+
     /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
     suspend fun sendMessage(
         text: String,

@@ -32,14 +32,6 @@
 
     <!-- Auth dialog (server list) -->
     <string name="serverlist_auth_title">Аутентификация %1$s</string>
-    <string name="serverlist_auth_body">Агент \"%1$s\" требует ACP-аутентификацию перед открытием сессий.</string>
-    <string name="serverlist_auth_method_fallback">Тип: %1$s</string>
-    <string name="serverlist_auth_reconnect">Переподключиться</string>
-    <string name="serverlist_auth_authenticate">Аутентифицировать</string>
-    <string name="serverlist_auth_cancel">Отмена</string>
-    <string name="serverlist_auth_cmd">Команда: %1$s</string>
-    <string name="serverlist_auth_env_instructions">Установите эти переменные окружения перед запуском агента, затем переподключитесь, чтобы повторить попытку аутентификации.</string>
-    <string name="serverlist_auth_optional_suffix"> (опционально)</string>
 
     <!-- Server Card -->
     <string name="serverlist_card_delete_title">Удалить сервер</string>

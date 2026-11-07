@@ -65,4 +65,15 @@
     <string name="common_quota_resets_in">Сброс через %1$s</string>
     <string name="common_quota_cost_value">%1$s · %2$s токенов</string>
     <string name="chat_git_date_now">сейчас</string>
+    <string name="common_auth_title">Аутентификация %1$s</string>
+    <string name="common_auth_body">Агент \"%1$s\" требует ACP-аутентификацию перед открытием сессий.</string>
+    <string name="common_auth_method_fallback">Тип: %1$s</string>
+    <string name="common_auth_reconnect">Переподключиться</string>
+    <string name="common_auth_authenticate">Аутентифицировать</string>
+    <string name="common_auth_waiting">Ожидание аутентификации…</string>
+    <string name="common_auth_gateway_guidance">Аутентификация выполняется на вашем шлюзе. Если агенту нужен браузер или терминал, следуйте его инструкциям по настройке на этом компьютере.</string>
+    <string name="common_auth_cancel">Отмена</string>
+    <string name="common_auth_cmd">Команда: %1$s</string>
+    <string name="common_auth_env_instructions">Установите эти переменные окружения перед запуском агента, затем переподключитесь, чтобы повторить попытку аутентификации.</string>
+    <string name="common_auth_optional_suffix"> (опционально)</string>
 </resources>

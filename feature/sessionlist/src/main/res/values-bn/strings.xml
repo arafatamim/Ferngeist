@@ -12,14 +12,6 @@
     </plurals>
 
     <string name="sessionlist_auth_title">%1$s যাচাই করুন</string>
-    <string name="sessionlist_auth_body">সেশন খোলার আগে \"%1$s\" এজেন্টের এসিপি (ACP) প্রমাণীকরণ প্রয়োজন।</string>
-    <string name="sessionlist_auth_method_fallback">ধরন: %1$s</string>
-    <string name="sessionlist_auth_reconnect">পুনরায় সংযোগ করুন</string>
-    <string name="sessionlist_auth_authenticate">প্রমাণীকরণ করুন</string>
-    <string name="sessionlist_auth_cancel">বাতিল করুন</string>
-    <string name="sessionlist_auth_terminal_cmd">কমান্ড: %1$s</string>
-    <string name="sessionlist_auth_env_instructions">এজেন্ট চালু করার আগে এই পরিবেশ চলকগুলো সেট করুন, তারপর প্রমাণীকরণ পুনরায় চেষ্টা করতে আবার সংযোগ করুন।</string>
-    <string name="sessionlist_auth_optional_suffix"> (ঐচ্ছিক)</string>
     <string name="sessionlist_untitled">শিরোনামহীন সেশন</string>
     <string name="sessionlist_empty_title">কোনো সেশন নেই</string>
     <string name="sessionlist_empty_subtitle_listed">সার্ভারের সেশনগুলো এখানে দেখাবে</string>

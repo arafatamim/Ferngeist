@@ -32,14 +32,6 @@
 
     <!-- Auth dialog (server list) -->
     <string name="serverlist_auth_title">身份验证 %1$s</string>
-    <string name="serverlist_auth_body">代理“%1$s”在打开会话前需要 ACP 身份验证。</string>
-    <string name="serverlist_auth_method_fallback">类型：%1$s</string>
-    <string name="serverlist_auth_reconnect">重新连接</string>
-    <string name="serverlist_auth_authenticate">身份验证</string>
-    <string name="serverlist_auth_cancel">取消</string>
-    <string name="serverlist_auth_cmd">命令：%1$s</string>
-    <string name="serverlist_auth_env_instructions">在启动代理前设置这些环境变量，然后重新连接以重试身份验证。</string>
-    <string name="serverlist_auth_optional_suffix">（可选）</string>
 
     <!-- Server Card -->
     <string name="serverlist_card_delete_title">删除服务器</string>

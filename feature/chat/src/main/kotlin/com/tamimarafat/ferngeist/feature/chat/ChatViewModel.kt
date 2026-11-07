@@ -341,6 +341,16 @@ class ChatViewModel
         val recentSelectionStore: RecentSelectionStore = stores.recentSelections
 
         init {
+            viewModelScope.launch {
+                sessionFacade.authentication.collect { request ->
+                    updateState {
+                        copy(
+                            authentication = request,
+                            isLoading = request == null && isLoading,
+                        )
+                    }
+                }
+            }
             updateState { copy(serverId = serverId, isNewChat = !openedExistingSession) }
             // Announce this chat's screen presence to the hub so the connection
             // notification deep-links back here instead of dropping the user on
@@ -560,8 +570,10 @@ class ChatViewModel
                 is ChatIntent.GrantPermission -> sessionCoordinator.grantPermission(intent.toolCallId, intent.optionId)
                 is ChatIntent.DenyPermission -> sessionCoordinator.denyPermission(intent.toolCallId)
                 is ChatIntent.RetryLoad -> sessionCoordinator.loadSession()
+                is ChatIntent.Authenticate -> sessionCoordinator.authenticate(intent.methodId)
                 is ChatIntent.RetryMessage -> offlineQueue.retryMessage(intent.clientId)
                 is ChatIntent.RefreshGitStatus -> refreshGit()
+                ChatIntent.DismissAuthentication,
                 is ChatIntent.RemoveQueuedMessage,
                 is ChatIntent.ForceSendMessage,
                 is ChatIntent.LoadGitDiff,
@@ -646,6 +658,7 @@ class ChatViewModel
         /** One-shot intents outside the send/streaming core: diff fetch, hint flag, session close. */
         private suspend fun handleAuxIntent(intent: ChatIntent) {
             when (intent) {
+                ChatIntent.DismissAuthentication -> sessionFacade.dismissAuthentication()
                 is ChatIntent.RemoveQueuedMessage -> offlineQueue.removeQueuedMessage(intent.clientId)
                 is ChatIntent.ForceSendMessage -> offlineQueue.forceSend(intent.clientId)
                 is ChatIntent.LoadGitDiff -> gitFileDiffLoader.load(intent.path, intent.commit, intent.oldPath)

@@ -2,7 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 
 import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.ToolCallContent
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthChallenge
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
+import com.tamimarafat.ferngeist.acp.bridge.facade.auth.ChatAuthentication
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
@@ -152,6 +153,9 @@ class AcpChatSessionFacade(
     private var pendingModelSelectionId: String? = null
     private var currentAcpCapabilities: AgentCapabilities? = null
     private val bridgeOperationMutex = Mutex()
+    private val chatAuthentication =
+        ChatAuthentication(connectionManager, repositories, serverId)
+    override val authentication = chatAuthentication.request
 
     // Times the steps of the open in flight; null outside one. Only touched under
     // bridgeOperationMutex, so it needs no further synchronization.
@@ -212,6 +216,16 @@ class AcpChatSessionFacade(
 
     override suspend fun loadSessionQuietly() = loadSessionInternal(quiet = true)
 
+    override suspend fun authenticate(methodId: String) {
+        bridgeOperationMutex.withLock {
+            if (chatAuthentication.authenticate(methodId)) loadSessionLocked(quiet = false)
+        }
+    }
+
+    override fun dismissAuthentication() {
+        chatAuthentication.dismiss()
+    }
+
     /**
      * Shared load implementation. [quiet] suppresses the ready announcement so a
      * screen that already painted its cached snapshot never flashes loading UI.
@@ -230,7 +244,9 @@ class AcpChatSessionFacade(
 
     private suspend fun loadSessionLocked(quiet: Boolean) {
         if (!ensureConnectedAndInitialized()) {
-            _loadFailed.emit(connectionFailure("Disconnected. Reconnect to refresh this session."))
+            if (authentication.value == null) {
+                _loadFailed.emit(connectionFailure("Disconnected. Reconnect to refresh this session."))
+            }
             return
         }
 
@@ -239,9 +255,9 @@ class AcpChatSessionFacade(
         if (initialSessionId == NEW_SESSION_ARG) {
             // Create-on-arrival: the session list no longer pre-creates on its
             // browser transport; this chat's own connection mints the session.
-            val bridge = connectionManager.sessions.createSession(cwd)
+            val bridge = chatAuthentication.createSession(cwd)
             if (bridge == null) {
-                _loadFailed.emit(connectionFailure("Failed to create a new session."))
+                if (authentication.value == null) _loadFailed.emit(connectionFailure("Failed to create a new session."))
                 return
             }
             attachSessionBridge(bridge)
@@ -350,9 +366,11 @@ class AcpChatSessionFacade(
                 ensureSessionReadyForSend()
             }
         if (bridge == null) {
-            _operationError.emit(
-                ChatOperationError(connectionFailure("Session is not ready. Please retry in a moment."), false),
-            )
+            if (authentication.value == null) {
+                _operationError.emit(
+                    ChatOperationError(connectionFailure("Session is not ready. Please retry in a moment."), false),
+                )
+            }
             return false
         }
         if (isSendCapabilityRejected(images, files)) return false
@@ -535,7 +553,7 @@ class AcpChatSessionFacade(
 
     /**
      * Ensures the transport is connected and initialised.
-     * Returns false and emits [loadFailed] if connection or auth fails.
+     * Returns false on connection failure or after publishing an authentication challenge.
      */
     private suspend fun ensureConnectedAndInitialized(): Boolean {
         if (connectionManager.isConnected) {
@@ -620,7 +638,7 @@ class AcpChatSessionFacade(
 
     /**
      * Runs the transport initialisation handshake. Returns the agent capabilities
-     * on success, or null after emitting [loadFailed] on auth-required failures.
+     * on success, or null after publishing an authentication challenge.
      */
     private suspend fun initializeSession(): AgentCapabilities? =
         when (val result = connectionManager.initialize()) {
@@ -630,9 +648,12 @@ class AcpChatSessionFacade(
                 result.agentCapabilities
             }
             is AcpInitializeResult.AuthenticationRequired -> {
-                _loadFailed.emit(
-                    "ACP authentication is required for this server. " +
-                        "Reconnect from the server list and choose an auth method.",
+                chatAuthentication.show(
+                    AcpAuthChallenge(
+                        result.agentInfo,
+                        result.authMethods,
+                        result.authErrorMessage ?: "Authentication required",
+                    ),
                 )
                 null
             }
@@ -801,31 +822,24 @@ class AcpChatSessionFacade(
      * Ensures a connected & initialised session exists, creating one if necessary.
      * @return the active [SessionPort], or null if connection / creation fails.
      */
-    private suspend fun ensureSessionReadyForSend(): SessionPort? {
-        sessionBridge?.let { return it }
-        if (!ensureConnectedAndInitialized()) return null
+    private suspend fun ensureSessionReadyForSend(): SessionPort? =
+        bridgeOperationMutex.withLock {
+            if (authentication.value != null) return@withLock null
+            sessionBridge?.let { return@withLock it }
+            if (!ensureConnectedAndInitialized()) return@withLock null
 
-        connectionManager.sessions.getSession(activeSessionId)?.let { existing ->
-            attachSessionBridge(existing)
-            _sessionReady.emit(Unit)
-            return existing
-        }
-
-        val created =
-            try {
-                connectionManager.sessions.createSession(cwd)
-            } catch (_: AcpAuthenticationRequiredException) {
-                _loadFailed.emit(
-                    "ACP authentication is required for this server. " +
-                        "Return to the session list and authenticate first.",
-                )
-                null
+            connectionManager.sessions.getSession(activeSessionId)?.let { existing ->
+                attachSessionBridge(existing)
+                _sessionReady.emit(Unit)
+                return@withLock existing
             }
-        return created?.also {
-            attachSessionBridge(it)
-            _sessionReady.emit(Unit)
+
+            val created = chatAuthentication.createSession(cwd)
+            created?.also {
+                attachSessionBridge(it)
+                _sessionReady.emit(Unit)
+            }
         }
-    }
 
     /** Clears the bridge reference, pending selection, and all observers. */
     private fun invalidateActiveBridge() {

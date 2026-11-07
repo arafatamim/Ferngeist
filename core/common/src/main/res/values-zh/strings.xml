@@ -65,4 +65,15 @@
     <string name="common_quota_resets_in">%1$s后重置</string>
     <string name="common_quota_cost_value">%1$s · %2$s 个令牌</string>
     <string name="chat_git_date_now">刚刚</string>
+    <string name="common_auth_title">身份验证 %1$s</string>
+    <string name="common_auth_body">代理“%1$s”在打开会话前需要 ACP 身份验证。</string>
+    <string name="common_auth_method_fallback">类型：%1$s</string>
+    <string name="common_auth_reconnect">重新连接</string>
+    <string name="common_auth_authenticate">身份验证</string>
+    <string name="common_auth_waiting">正在等待身份验证…</string>
+    <string name="common_auth_gateway_guidance">身份验证在你的网关上进行。如果代理需要浏览器或终端，请在该机器上按照代理的设置说明操作。</string>
+    <string name="common_auth_cancel">取消</string>
+    <string name="common_auth_cmd">命令：%1$s</string>
+    <string name="common_auth_env_instructions">在启动代理前设置这些环境变量，然后重新连接以重试身份验证。</string>
+    <string name="common_auth_optional_suffix">（可选）</string>
 </resources>

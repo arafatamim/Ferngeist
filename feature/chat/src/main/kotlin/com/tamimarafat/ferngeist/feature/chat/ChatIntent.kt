@@ -45,6 +45,12 @@ sealed interface ChatIntent {
 
     data object RetryLoad : ChatIntent
 
+    data class Authenticate(
+        val methodId: String,
+    ) : ChatIntent
+
+    data object DismissAuthentication : ChatIntent
+
     /** Retry sending a previously failed (or queued) message identified by its [clientId]. */
     data class RetryMessage(
         val clientId: String,

@@ -60,4 +60,15 @@
     <string name="common_quota_resets_in">রিসেট হবে %1$s পরে</string>
     <string name="common_quota_cost_value">%1$s · %2$s টোকেন</string>
     <string name="chat_git_date_now">এখন</string>
+    <string name="common_auth_title">%1$s প্রমাণীকরণ করুন</string>
+    <string name="common_auth_body">\"%1$s\" এজেন্টের সেশন খোলার আগে ACP প্রমাণীকরণ দরকার।</string>
+    <string name="common_auth_method_fallback">ধরন: %1$s</string>
+    <string name="common_auth_reconnect">পুনরায় সংযোগ করুন</string>
+    <string name="common_auth_authenticate">প্রমাণীকরণ করুন</string>
+    <string name="common_auth_waiting">প্রমাণীকরণের জন্য অপেক্ষা করা হচ্ছে…</string>
+    <string name="common_auth_gateway_guidance">প্রমাণীকরণ আপনার গেটওয়েতে চলে। এজেন্টের ব্রাউজার বা টার্মিনাল দরকার হলে, সেই মেশিনে তার সেটআপ নির্দেশনা অনুসরণ করুন।</string>
+    <string name="common_auth_cancel">বাতিল করুন</string>
+    <string name="common_auth_cmd">কমান্ড: %1$s</string>
+    <string name="common_auth_env_instructions">এজেন্ট চালু করার আগে এই পরিবেশ চলকগুলো সেট করুন, তারপর প্রমাণীকরণ পুনরায় চেষ্টা করতে আবার সংযোগ করুন।</string>
+    <string name="common_auth_optional_suffix"> (ঐচ্ছিক)</string>
 </resources>

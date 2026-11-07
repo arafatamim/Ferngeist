@@ -14,14 +14,6 @@
     </plurals>
 
     <string name="sessionlist_auth_title">Аутентификация %1$s</string>
-    <string name="sessionlist_auth_body">Агент \"%1$s\" требует ACP-аутентификацию перед открытием сессий.</string>
-    <string name="sessionlist_auth_method_fallback">Тип: %1$s</string>
-    <string name="sessionlist_auth_reconnect">Переподключиться</string>
-    <string name="sessionlist_auth_authenticate">Аутентифицировать</string>
-    <string name="sessionlist_auth_cancel">Отмена</string>
-    <string name="sessionlist_auth_terminal_cmd">Команда: %1$s</string>
-    <string name="sessionlist_auth_env_instructions">Установите эти переменные окружения перед запуском агента, затем переподключитесь, чтобы повторить попытку аутентификации.</string>
-    <string name="sessionlist_auth_optional_suffix"> (опционально)</string>
     <string name="sessionlist_untitled">Сессия без названия</string>
     <string name="sessionlist_empty_title">Сессии отсутствуют</string>
     <string name="sessionlist_empty_subtitle_listed">Здесь появятся сессии с сервера</string>

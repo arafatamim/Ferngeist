@@ -1,18 +1,15 @@
 package com.tamimarafat.ferngeist.feature.sessionlist.ui
 
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import com.tamimarafat.ferngeist.core.common.ui.auth.AuthenticationDialog
 import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
-import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.auth.AuthenticationEnvVar
+import com.tamimarafat.ferngeist.core.model.auth.AuthenticationMethod
+import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListPendingAuthentication
@@ -49,6 +46,7 @@ internal fun SessionListOverlays(
     fetchQuota: suspend () -> List<com.tamimarafat.ferngeist.core.model.AgentQuota>?,
     onDismissConnectionStatusDialog: () -> Unit,
     pendingAuthentication: SessionListPendingAuthentication?,
+    isAuthenticating: Boolean,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
     envValues: MutableMap<String, String>,
@@ -104,6 +102,7 @@ internal fun SessionListOverlays(
     pendingAuthentication?.let { pending ->
         PendingAuthenticationDialog(
             pendingAuthentication = pending,
+            isAuthenticating = isAuthenticating,
             selectedAuthMethodId = selectedAuthMethodId,
             onSelectedAuthMethodChange = onSelectedAuthMethodChange,
             envValues = envValues,
@@ -168,6 +167,7 @@ private fun SessionConnectionStatusDialog(
 @Composable
 private fun PendingAuthenticationDialog(
     pendingAuthentication: SessionListPendingAuthentication,
+    isAuthenticating: Boolean,
     selectedAuthMethodId: String?,
     onSelectedAuthMethodChange: (String) -> Unit,
     envValues: MutableMap<String, String>,
@@ -175,56 +175,35 @@ private fun PendingAuthenticationDialog(
     onReconnect: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val uriHandler = LocalUriHandler.current
-    val scrollState = rememberScrollState()
-    val selectedMethod =
-        pendingAuthentication.authMethods.firstOrNull { it.id == selectedAuthMethodId }
-            ?: pendingAuthentication.authMethods.firstOrNull()
-    val isGatewayEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntimeId != null
-    val isManualEnvAuth = selectedMethod?.type == "env" && pendingAuthentication.gatewayRuntimeId == null
-    // All non-optional env vars must be filled before the button is enabled.
-    val requiredEnvVarsFilled =
-        selectedMethod
-            ?.envVars
-            ?.all { envVar -> envVar.optional || !envValues[envVar.name].isNullOrBlank() }
-            ?: false
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                stringResource(
-                    R.string.sessionlist_auth_title,
-                    pendingAuthentication.serverName,
-                ),
-            )
-        },
-        text = {
-            SessionAuthDialogBody(
-                pendingAuthentication = pendingAuthentication,
-                selectedMethod = selectedMethod,
-                onSelectedAuthMethodChange = onSelectedAuthMethodChange,
-                envValues = envValues,
-                onOpenLink = { uriHandler.openUri(it) },
-                onEnvValueChange = { name, value -> envValues[name] = value },
-                scrollState = scrollState,
-            )
-        },
-        confirmButton = {
-            SessionAuthConfirmButton(
-                selectedMethod = selectedMethod,
-                isGatewayEnvAuth = isGatewayEnvAuth,
-                isManualEnvAuth = isManualEnvAuth,
-                requiredEnvVarsFilled = requiredEnvVarsFilled,
-                envValues = envValues,
-                onReconnect = onReconnect,
-                onSubmit = onSubmit,
-            )
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss, modifier = Modifier.handCursor()) {
-                Text(stringResource(R.string.sessionlist_auth_cancel))
-            }
-        },
+    AuthenticationDialog(
+        request =
+            AuthenticationRequest(
+                agentName = pendingAuthentication.agentName,
+                methods =
+                    pendingAuthentication.authMethods.map { method ->
+                        AuthenticationMethod(
+                            id = method.id,
+                            name = method.name,
+                            description = method.description,
+                            type = method.type,
+                            envVars =
+                                method.envVars.map {
+                                    AuthenticationEnvVar(it.name, it.label, it.secret, it.optional)
+                                },
+                            link = method.link,
+                            args = method.args,
+                        )
+                    },
+                errorMessage = pendingAuthentication.authErrorMessage,
+                isAuthenticating = isAuthenticating,
+            ),
+        title = stringResource(R.string.sessionlist_auth_title, pendingAuthentication.serverName),
+        gatewayBacked = pendingAuthentication.gatewayRuntimeId != null,
+        selectedAuthMethodId = selectedAuthMethodId,
+        onSelectedAuthMethodChange = onSelectedAuthMethodChange,
+        envValues = envValues,
+        onSubmit = onSubmit,
+        onReconnect = onReconnect,
+        onDismiss = onDismiss,
     )
 }

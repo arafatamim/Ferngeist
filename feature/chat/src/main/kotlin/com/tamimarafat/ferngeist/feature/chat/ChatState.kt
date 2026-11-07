@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.UsageState
+import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 
 /** UI state for the chat screen. */
 data class ChatState(
@@ -29,6 +30,7 @@ data class ChatState(
     val listKeys: Map<String, String> = emptyMap(),
     val markdownDocuments: Map<String, MarkdownRenderedDocument> = emptyMap(),
     val restoredScrollSnapshot: ChatScrollSnapshot? = null,
+    val authentication: AuthenticationRequest? = null,
     val isLoading: Boolean = false,
     val isStreaming: Boolean = false,
     val isSessionReady: Boolean = false,
@@ -131,6 +133,7 @@ data class GitHistoryState(
     val base: String? = null,
     /** Page 1 has answered at least once, so an empty [commits] means an empty repository. */
     val isLoaded: Boolean = false,
+    val authentication: AuthenticationRequest? = null,
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     /** Page 1 failed. */

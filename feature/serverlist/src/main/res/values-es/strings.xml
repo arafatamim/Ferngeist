@@ -27,14 +27,6 @@
     <string name="serverlist_scan_qr_desc">Escanear código QR</string>
 
     <string name="serverlist_auth_title">Autenticar %1$s</string>
-    <string name="serverlist_auth_body">El agente "%1$s" requiere autenticación ACP antes de poder abrir sesiones.</string>
-    <string name="serverlist_auth_method_fallback">Tipo: %1$s</string>
-    <string name="serverlist_auth_reconnect">Reconectar</string>
-    <string name="serverlist_auth_authenticate">Autenticar</string>
-    <string name="serverlist_auth_cancel">Cancelar</string>
-    <string name="serverlist_auth_cmd">Comando: %1$s</string>
-    <string name="serverlist_auth_env_instructions">Establece estas variables de entorno antes de iniciar el agente y luego vuelve a conectarte para reintentar la autenticación.</string>
-    <string name="serverlist_auth_optional_suffix"> (opcional)</string>
 
     <string name="serverlist_card_delete_title">Eliminar servidor</string>
     <string name="serverlist_card_delete_body">¿Eliminar "%1$s" y todas sus sesiones guardadas?</string>
