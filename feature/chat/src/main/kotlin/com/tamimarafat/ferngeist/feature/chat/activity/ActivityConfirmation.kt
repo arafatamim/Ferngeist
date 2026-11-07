@@ -20,8 +20,11 @@ internal class ActivityConfirmation(
             (lastPhoneTurn == null || listed > lastPhoneTurn + OWN_TURN_GRACE_MS)
     }
 
-    private companion object {
-        const val RECENT_ACTIVITY_MS = 120_000L
-        const val OWN_TURN_GRACE_MS = 30_000L
+    internal companion object {
+        private const val RECENT_ACTIVITY_MS = 120_000L
+        private const val OWN_TURN_GRACE_MS = 30_000L
+
+        /** A phone turn older than this decides nothing: any listed time it could explain is outside the window. */
+        const val RELEVANCE_MS = RECENT_ACTIVITY_MS + OWN_TURN_GRACE_MS
     }
 }

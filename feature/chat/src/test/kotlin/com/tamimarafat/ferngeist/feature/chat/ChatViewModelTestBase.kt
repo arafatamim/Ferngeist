@@ -1,5 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.lifecycle.SavedStateHandle
 import com.tamimarafat.ferngeist.acp.bridge.facade.HubChatPresence
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
@@ -17,12 +20,16 @@ import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
+import com.tamimarafat.ferngeist.feature.chat.activity.PhoneTurnClock
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -30,6 +37,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -107,7 +115,21 @@ internal fun testStores(
     pendingPromptStore: PendingPromptStore = InMemoryPendingPromptStore(),
     switcherHintStore: SwitcherHintStore = InMemorySwitcherHintStore(),
 ): ChatLocalStores =
-    ChatLocalStores(chatScrollStateStore, pendingPromptStore, switcherHintStore, FakeRecentSelectionStore())
+    ChatLocalStores(
+        chatScrollStateStore,
+        pendingPromptStore,
+        switcherHintStore,
+        FakeRecentSelectionStore(),
+        PhoneTurnClock(InMemoryPreferencesDataStore(), Json),
+    )
+
+internal class InMemoryPreferencesDataStore : DataStore<Preferences> {
+    private val mutex = Mutex()
+    override val data = MutableStateFlow(emptyPreferences())
+
+    override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences =
+        mutex.withLock { transform(data.value).also { data.value = it } }
+}
 
 internal class InMemoryTurnTimingRepository : TurnTimingRepository {
     val timings = HashMap<Pair<String, String>, MutableMap<TurnKey, TurnTiming>>()

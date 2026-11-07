@@ -10,10 +10,7 @@ import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
-import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
-import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
-import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
-import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
+import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -62,10 +59,7 @@ class ChatViewModelFactoryTest {
                     chatListings = mockk<ChatListings>(relaxed = true),
                     providerQuotas = mockk(relaxed = true),
                 ),
-            chatScrollStateStore = mockk<ChatScrollStateStore>(relaxed = true),
-            pendingPromptStore = mockk<PendingPromptStore>(relaxed = true),
-            switcherHintStore = mockk<SwitcherHintStore>(relaxed = true),
-            recentSelectionStore = mockk<RecentSelectionStore>(relaxed = true),
+            stores = mockk<ChatLocalStores>(relaxed = true),
             ioDispatcher = UnconfinedTestDispatcher(mainDispatcher.scheduler),
         )
 

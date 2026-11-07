@@ -19,7 +19,6 @@ import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.qualified
 import com.tamimarafat.ferngeist.feature.chat.activity.ActivityConfirmation
-import com.tamimarafat.ferngeist.feature.chat.activity.PhoneTurnClock
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitFileDiffLoader
@@ -108,7 +107,7 @@ class ChatViewModel
         /** Called only for an explicit send; merely opening the chat never consumes the decision. */
         fun needsActivityConfirmation(): Boolean =
             activityConfirmation.needsConfirmation(
-                lastPhoneTurn = PhoneTurnClock.lastTurn(serverId, trackedSessionId),
+                lastPhoneTurn = stores.phoneTurns.lastTurn(serverId, trackedSessionId),
                 now = System.currentTimeMillis(),
             )
 
@@ -369,6 +368,8 @@ class ChatViewModel
                 updateState { copy(restoredScrollSnapshot = snapshot) }
             }
             viewModelScope.launch { offlineQueue.restorePendingPrompts() }
+            // shortcut: a send before this tiny read lands still sees no phone turn; make the check suspend if that shows up.
+            if (openedExistingSession) viewModelScope.launch { stores.phoneTurns.restore() }
             viewModelScope.launch {
                 // The transport entry (created by the facade's register) becomes
                 // screen-open for real ids here. Existing-session chats were already
@@ -522,10 +523,14 @@ class ChatViewModel
             // ends: a screen closed mid-turn would otherwise restore and re-send it.
             // Only a phone-origin echo advances this clock; completion can arrive after the screen closes.
             if (echoKeys.isNotEmpty()) {
-                durableSessionId?.let { PhoneTurnClock.record(serverId, it, System.currentTimeMillis(), echoKeys.keys) }
+                durableSessionId?.let {
+                    stores.phoneTurns.record(serverId, it, System.currentTimeMillis(), echoKeys.keys)
+                }
                 offlineQueue.persistQueue()
             }
-            durableSessionId?.let { PhoneTurnClock.observe(serverId, it, snapshot.messages) }
+            durableSessionId?.let {
+                stores.phoneTurns.observe(serverId, it, snapshot.messages, System.currentTimeMillis())
+            }
             val messages =
                 durableSessionId?.let { turnTimings.withTurnTimings(it, snapshot.messages) } ?: snapshot.messages
             updateState {

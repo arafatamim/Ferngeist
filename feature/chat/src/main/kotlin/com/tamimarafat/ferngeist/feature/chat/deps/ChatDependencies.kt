@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
 import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
 import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
+import com.tamimarafat.ferngeist.feature.chat.activity.PhoneTurnClock
 import javax.inject.Inject
 
 /** The session-side repositories a chat reads and writes. */
@@ -21,7 +22,7 @@ data class ChatRepositories
         val providerQuotas: com.tamimarafat.ferngeist.core.model.repository.ProviderQuotas,
     )
 
-/** The stores that keep a chat's local state: its scroll position, queued prompts and switcher hints. */
+/** The stores that keep a chat's local state: its scroll position, queued prompts, switcher hints and own turns. */
 data class ChatLocalStores
     @Inject
     constructor(
@@ -29,4 +30,5 @@ data class ChatLocalStores
         val pendingPrompts: PendingPromptStore,
         val switcherHints: SwitcherHintStore,
         val recentSelections: RecentSelectionStore,
+        val phoneTurns: PhoneTurnClock,
     )

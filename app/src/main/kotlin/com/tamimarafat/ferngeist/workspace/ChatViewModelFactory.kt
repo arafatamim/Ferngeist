@@ -8,11 +8,7 @@ import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
-import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
-import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
-import com.tamimarafat.ferngeist.feature.chat.PendingPromptStore
-import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import kotlinx.coroutines.CoroutineDispatcher
@@ -44,10 +40,7 @@ class ChatViewModelFactory
     @Inject
     constructor(
         private val services: ChatSessionServices,
-        private val chatScrollStateStore: ChatScrollStateStore,
-        private val pendingPromptStore: PendingPromptStore,
-        private val switcherHintStore: SwitcherHintStore,
-        private val recentSelectionStore: RecentSelectionStore,
+        private val stores: ChatLocalStores,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) {
         /**
@@ -75,13 +68,7 @@ class ChatViewModelFactory
                         chatListings = services.chatListings,
                         providerQuotas = services.providerQuotas,
                     ),
-                stores =
-                    ChatLocalStores(
-                        scrollState = chatScrollStateStore,
-                        pendingPrompts = pendingPromptStore,
-                        switcherHints = switcherHintStore,
-                        recentSelections = recentSelectionStore,
-                    ),
+                stores = stores,
                 ioDispatcher = ioDispatcher,
                 // `SavedStateHandle` is public API; lint's VisibleForTests check calls the
                 // constructor test-only here, so this one function suppresses it.
