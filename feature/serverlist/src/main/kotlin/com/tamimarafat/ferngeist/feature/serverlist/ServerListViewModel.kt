@@ -226,11 +226,7 @@ class ServerListViewModel
          */
         private suspend fun hasLaunchConsent(server: LaunchableTarget): Boolean {
             if (server !is LaunchableTarget.GatewayAgent) return true
-            val consentKey =
-                buildLaunchConsentKey(
-                    gatewaySourceId = server.gatewaySource.id,
-                    agentId = server.binding.agentId,
-                )
+            val consentKey = server.binding.launchConsentKey
             val hasConsent =
                 withContext(ioDispatcher) {
                     stores.agentLaunchConsentStore.hasConsent(consentKey)
@@ -419,15 +415,11 @@ class ServerListViewModel
                         _uiState.update { it.copy(pendingLaunchConsent = null) }
                         return@launch
                     }
-                val consentKey =
-                    buildLaunchConsentKey(
-                        gatewaySourceId = gatewayTarget.gatewaySource.id,
-                        agentId = gatewayTarget.binding.agentId,
-                    )
+                val consentKey = gatewayTarget.binding.launchConsentKey
                 withContext(ioDispatcher) {
                     stores.agentLaunchConsentStore.setConsent(consentKey, true)
                 }
-                projectCatalog.refresh()
+                projectCatalog.refresh(force = true)
                 _uiState.update { it.copy(pendingLaunchConsent = null) }
                 connectAndOpenServer(gatewayTarget, resumePendingLaunch = true)
             }
@@ -451,11 +443,7 @@ class ServerListViewModel
                 withContext(ioDispatcher) {
                     val target = repos.launchableTargetRepository.getTarget(serverId)
                     if (target is LaunchableTarget.GatewayAgent) {
-                        val consentKey =
-                            buildLaunchConsentKey(
-                                gatewaySourceId = target.gatewaySource.id,
-                                agentId = target.binding.agentId,
-                            )
+                        val consentKey = target.binding.launchConsentKey
                         stores.agentLaunchConsentStore.clearByPrefix(consentKey)
                     }
                     stores.authEnvValueStore.deleteValues(serverId)
@@ -524,11 +512,6 @@ class ServerListViewModel
             )
         }
     }
-
-private fun buildLaunchConsentKey(
-    gatewaySourceId: String,
-    agentId: String,
-): String = "$gatewaySourceId:$agentId"
 
 sealed interface ServerListEvent {
     data class StartChat(

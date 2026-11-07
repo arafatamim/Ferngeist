@@ -32,7 +32,7 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
     fun `project refresh waits for consent before requesting projects`() =
         runTest {
             var requests = 0
-            val consent = MutableStateFlow(false)
+            val consent = MutableStateFlow(emptySet<String>())
             discoveryConsent = consent
             val engine =
                 MockEngine {
@@ -45,9 +45,47 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
             catalog.refresh(force = true).join()
             assertEquals(0, requests)
 
-            consent.value = true
+            consent.value = setOf(claude.binding.launchConsentKey)
             catalog.refresh(force = true).join()
             assertEquals(1, requests)
+        }
+
+    @Test
+    fun `project request names only agents with launch consent`() =
+        runTest {
+            var requestedAgents: List<String>? = null
+            discoveryConsent = MutableStateFlow(setOf(claude.binding.launchConsentKey))
+            val engine =
+                MockEngine { request ->
+                    requestedAgents = request.url.parameters["agents"]?.split(",")
+                    respond(agentLine("claude", "ok", "new-claude"), HttpStatusCode.OK)
+                }
+            val catalog = catalog(engine)
+            runCurrent()
+
+            catalog.refresh(force = true).join()
+
+            assertEquals(listOf("claude"), requestedAgents)
+            assertEquals(setOf("new-claude"), catalog.state.first { it.isReady }.chatIds())
+        }
+
+    @Test
+    fun `sessions for an agent stay hidden until its own consent`() =
+        runTest {
+            store().write(gateway.id, previous)
+            val consent = MutableStateFlow(setOf(claude.binding.launchConsentKey))
+            discoveryConsent = consent
+            val catalog = catalog(MockEngine { respond("", HttpStatusCode.OK) })
+            runCurrent()
+
+            assertEquals(listOf("old-claude"), catalog.getSessions(claude.id).first().map { it.id })
+            assertTrue(catalog.getSessions(codex.id).first().isEmpty())
+            assertEquals(listOf("old-claude"), catalog.getRecentSessions(10).first().map { it.id })
+
+            consent.value = setOf(claude.binding.launchConsentKey, codex.binding.launchConsentKey)
+            runCurrent()
+
+            assertEquals(listOf("old-codex"), catalog.getSessions(codex.id).first().map { it.id })
         }
 
     @Test

@@ -41,13 +41,14 @@ open class ProjectCatalogFixture {
     @get:Rule
     val folder = TemporaryFolder()
 
-    /** Discovery consent the catalog under test sees; a test overrides it before building one. */
-    internal var discoveryConsent: Flow<Boolean> = flowOf(true)
-
     internal val json = Json { ignoreUnknownKeys = true }
     internal val gateway = GatewaySource(id = "gw", name = "PC", host = "pc:5788", gatewayCredential = "token")
     internal val claude = agent("b-claude", "Claude", "claude")
     internal val codex = agent("b-codex", "Codex", "codex")
+
+    /** Discovery consent the catalog under test sees; a test overrides it before building one. */
+    internal var discoveryConsent: Flow<Set<String>> =
+        flowOf(setOf(claude.binding.launchConsentKey, codex.binding.launchConsentKey))
     internal val repo = "/h/Ferngeist"
     internal val previous =
         ProjectSnapshot(

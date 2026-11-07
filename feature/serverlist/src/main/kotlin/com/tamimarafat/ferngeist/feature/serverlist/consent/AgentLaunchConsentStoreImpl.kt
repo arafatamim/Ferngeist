@@ -24,9 +24,13 @@ class AgentLaunchConsentStoreImpl
     ) : AgentLaunchConsentStore {
         private val dataStore get() = context.consentDataStore
 
-        override val anyConsent =
+        override val consentedKeys =
             dataStore.data.map { prefs ->
-                prefs.asMap().any { (key, value) -> key.name.startsWith("consent.") && value == true }
+                prefs
+                    .asMap()
+                    .filter { (key, value) -> key.name.startsWith(CONSENT_PREFIX) && value == true }
+                    .keys
+                    .mapTo(mutableSetOf()) { key -> key.name.removePrefix(CONSENT_PREFIX) }
             }
 
         override suspend fun hasConsent(key: String): Boolean =
@@ -61,5 +65,9 @@ class AgentLaunchConsentStoreImpl
             }
         }
 
-        private fun consentKeyName(key: String): String = "consent.$key"
+        private fun consentKeyName(key: String): String = "$CONSENT_PREFIX$key"
+
+        private companion object {
+            const val CONSENT_PREFIX = "consent."
+        }
     }

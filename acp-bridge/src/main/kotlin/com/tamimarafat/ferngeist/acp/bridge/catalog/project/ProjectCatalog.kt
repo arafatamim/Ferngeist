@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.joinAll
@@ -73,7 +74,7 @@ class ProjectCatalog
         store: ProjectSnapshotStore,
         private val scope: CoroutineScope,
         hub: ChatConnectionHub,
-        @param:ProjectDiscoveryConsent private val consent: Flow<Boolean>,
+        @param:ProjectDiscoveryConsent private val consent: Flow<Set<String>>,
     ) : ChatCatalog {
         private val gatewayProjects = gateway.projects
         private val gatewaySourceRepository = repositories.gatewaySourceRepository
@@ -83,7 +84,8 @@ class ProjectCatalog
         private val cache = ProjectSnapshotCache(store, scope, ioDispatcher)
         private val _refreshing = MutableStateFlow<Set<String>>(emptySet())
         val refreshing: StateFlow<Set<String>> = _refreshing
-        val discoveryAllowed = consent.stateIn(scope, SharingStarted.Eagerly, false)
+        private val consentedKeys = consent.stateIn(scope, SharingStarted.Eagerly, emptySet())
+        val discoveryAllowed = consentedKeys.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, false)
 
         private val snapshots = cache.state
         private val inFlight = HashMap<String, Job>()
@@ -98,9 +100,13 @@ class ProjectCatalog
                 gatewaySourceRepository.getGateways(),
                 launchableTargetRepository.getTargets(),
                 created,
-            ) { snapshots, gateways, targets, created ->
+                consentedKeys,
+            ) { snapshots, gateways, targets, created, consented ->
                 if (snapshots == null) return@combine ProjectCatalogState()
-                val gatewayTargets = targets.filterIsInstance<LaunchableTarget.GatewayAgent>()
+                val gatewayTargets =
+                    targets
+                        .filterIsInstance<LaunchableTarget.GatewayAgent>()
+                        .filter { it.binding.launchConsentKey in consented }
                 ProjectCatalogState(
                     projects =
                         gateways
@@ -143,13 +149,16 @@ class ProjectCatalog
 
         /** Agent-reported activity is only a recency hint, never evidence of a running turn. */
         val activityUpdatedAt: StateFlow<Map<String, Long>> =
-            combine(snapshots, launchableTargetRepository.getTargets(), hub.trackedChatIds, inProgressChatKeys) {
-                cache,
-                targets,
-                tracked,
-                running,
-                ->
-                activityTimestamps(cache.orEmpty(), targets) - tracked - running
+            combine(
+                snapshots,
+                launchableTargetRepository.getTargets(),
+                hub.trackedChatIds,
+                inProgressChatKeys,
+                consentedKeys,
+            ) { cache, targets, tracked, running, consented ->
+                activityTimestamps(cache.orEmpty(), targets.filter { it.hasDiscoveryConsent(consented) }) -
+                    tracked -
+                    running
             }.stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
         init {
@@ -196,8 +205,11 @@ class ProjectCatalog
                 snapshots.filterNotNull(),
                 launchableTargetRepository.getTargets(),
                 created,
-            ) { cache, targets, memory ->
-                val target = targets.firstOrNull { it.id == serverId } ?: return@combine emptyList()
+                consentedKeys,
+            ) { cache, targets, memory, consented ->
+                val target =
+                    targets.firstOrNull { it.id == serverId && it.hasDiscoveryConsent(consented) }
+                        ?: return@combine emptyList()
                 chatsOf(
                     target,
                     cache,
@@ -211,9 +223,17 @@ class ProjectCatalog
                 snapshots.filterNotNull(),
                 launchableTargetRepository.getTargets(),
                 created,
-            ) { cache, targets, memory ->
+                consentedKeys,
+            ) { cache, targets, memory, consented ->
+                val consentedTargets = targets.filter { it.hasDiscoveryConsent(consented) }
                 val stored = cache.values.flatMap { it.listings.values.flatten() }
-                recentChatsOf(targets, cache, stored, memory.filterKeys { id -> targets.any { it.id == id } }, limit)
+                recentChatsOf(
+                    consentedTargets,
+                    cache,
+                    stored,
+                    memory.filterKeys { id -> consentedTargets.any { it.id == id } },
+                    limit,
+                )
             }
 
         override suspend fun getSession(
@@ -342,7 +362,7 @@ class ProjectCatalog
             force: Boolean = false,
         ): Job =
             scope.launch(ioDispatcher) {
-                if (!consent.first()) return@launch
+                if (consent.first().isEmpty()) return@launch
                 // A fetch merges into the hydrated snapshot; starting from nothing would drop the cache.
                 val hydrated = snapshots.filterNotNull().first()
                 val gateways = gatewaySourceRepository.getGateways().first()
@@ -384,12 +404,17 @@ class ProjectCatalog
          * trigger retries.
          */
         private suspend fun fetch(gateway: GatewaySource) {
-            val agentIds = launchableTargetRepository.gatewayTargets(gateway).map { it.binding.agentId }.distinct()
+            val consented = consent.first()
+            val targets =
+                launchableTargetRepository
+                    .gatewayTargets(gateway)
+                    .filter { it.binding.launchConsentKey in consented }
+            val agentIds = targets.map { it.binding.agentId }.distinct()
             if (agentIds.isEmpty()) return
             try {
                 val cached = snapshots.value?.get(gateway.id)
                 val fallbackPaths =
-                    launchableTargetRepository.gatewayTargets(gateway).flatMap { target ->
+                    targets.flatMap { target ->
                         snapshots.value
                             ?.get(agentKey(target.id))
                             ?.listings
@@ -403,6 +428,7 @@ class ProjectCatalog
                             cached
                                 ?.agents
                                 .orEmpty()
+                                .filterKeys { agentId -> agentId in agentIds }
                                 .values
                                 .flatten()
                                 .map { it.repo } + fallbackPaths
@@ -443,9 +469,14 @@ class ProjectCatalog
             gateway: GatewaySource,
             line: GatewayProjectLine,
         ) {
+            val consented = consent.first()
+            val bound =
+                launchableTargetRepository
+                    .gatewayTargets(gateway)
+                    .filter { it.binding.launchConsentKey in consented }
+            if (line is GatewayProjectLine.Agent && bound.none { it.binding.agentId == line.agentId }) return
             cache.writes.withLock {
                 val previous = snapshots.value?.get(gateway.id) ?: ProjectSnapshot()
-                val bound = launchableTargetRepository.gatewayTargets(gateway)
                 if (line is GatewayProjectLine.Checkouts && line.missingRepos.isNotEmpty()) {
                     val paths =
                         line.missingRepos +
@@ -493,3 +524,7 @@ private suspend fun LaunchableTargetRepository.gatewayTargets(gateway: GatewaySo
     getTargets().first().filterIsInstance<LaunchableTarget.GatewayAgent>().filter { it.gatewaySource.id == gateway.id }
 
 private fun agentKey(serverId: String) = "agent-$serverId"
+
+/** Manual targets have no launch consent; gateway agents need their own grant. */
+private fun LaunchableTarget.hasDiscoveryConsent(consentedKeys: Set<String>): Boolean =
+    this !is LaunchableTarget.GatewayAgent || binding.launchConsentKey in consentedKeys
