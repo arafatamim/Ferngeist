@@ -7,6 +7,9 @@ import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.chatFiles
+import com.tamimarafat.ferngeist.core.model.chatImages
+import com.tamimarafat.ferngeist.core.model.userContentBlocks
 import com.tamimarafat.ferngeist.feature.chat.ChatSessionCoordinator
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
@@ -148,8 +151,7 @@ internal class ChatOfflineQueueController(
                 id = clientId,
                 role = ChatMessage.Role.USER,
                 content = text,
-                images = images,
-                files = files,
+                contentBlocks = userContentBlocks(text, images, files),
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -199,8 +201,7 @@ internal class ChatOfflineQueueController(
                 id = clientId,
                 role = ChatMessage.Role.USER,
                 content = text,
-                images = images,
-                files = files,
+                contentBlocks = userContentBlocks(text, images, files),
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -358,8 +359,8 @@ internal class ChatOfflineQueueController(
             PendingPrompt(
                 clientId = clientId,
                 text = pendingMessage.content,
-                images = pendingMessage.images,
-                files = pendingMessage.files,
+                images = pendingMessage.contentBlocks.chatImages(),
+                files = pendingMessage.contentBlocks.chatFiles(),
             )
         // Remove existing queue entry for this clientId, then enqueue at the back.
         offlineQueue.removeByClientId(clientId)
@@ -417,7 +418,11 @@ private fun List<ChatMessage>.foldedInto(
 ): List<ChatMessage> =
     mapNotNull {
         when (it.clientId) {
-            merged.clientId -> it.copy(content = merged.text, images = merged.images, files = merged.files)
+            merged.clientId ->
+                it.copy(
+                    content = merged.text,
+                    contentBlocks = userContentBlocks(merged.text, merged.images, merged.files),
+                )
             in folded -> null
             else -> it
         }
@@ -436,8 +441,7 @@ private fun PendingPrompt.bubble(status: MessageDeliveryStatus) =
         id = clientId,
         role = ChatMessage.Role.USER,
         content = text,
-        images = images,
-        files = files,
+        contentBlocks = userContentBlocks(text, images, files),
         status = status,
         clientId = clientId,
     )

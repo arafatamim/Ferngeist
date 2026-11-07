@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.core.model
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
@@ -20,8 +21,8 @@ data class ChatMessage(
     val segments: PersistentList<AssistantSegment> = persistentListOf(),
     val isStreaming: Boolean = false,
     val isError: Boolean = false,
-    val images: List<ChatImageData> = emptyList(),
-    val files: List<ChatFileData> = emptyList(),
+    /** A user message's ordered ACP content blocks; [content] is their flattened text. */
+    val contentBlocks: List<ContentBlock> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val status: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
     val clientId: String? = null,

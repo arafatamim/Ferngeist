@@ -59,13 +59,7 @@ object SessionMessageReducer {
         when (event) {
             is AppSessionEvent.UserMessage ->
                 ReducerResult(
-                    messages =
-                        appendUserText(
-                            messages,
-                            UserContent(event.text, event.images, event.files, event.clientId, event.messageId),
-                            event.append,
-                            event.timestampMs,
-                        ),
+                    messages = appendUserMessage(messages, event),
                     toolCallIndex = toolCallIndex,
                 )
             is AppSessionEvent.AgentMessage ->
@@ -108,6 +102,22 @@ object SessionMessageReducer {
                 ReducerResult(messages = messages, toolCallIndex = toolCallIndex)
         }
 
+    private fun appendUserMessage(
+        messages: List<ChatMessage>,
+        event: AppSessionEvent.UserMessage,
+    ): List<ChatMessage> =
+        appendUserText(
+            messages,
+            UserContent(
+                text = event.text,
+                blocks = listOfNotNull(event.block),
+                clientId = event.clientId,
+                messageId = event.messageId,
+            ),
+            event.append,
+            event.timestampMs,
+        )
+
     fun startStreaming(messages: List<ChatMessage>): List<ChatMessage> {
         // Idempotent: avoid stacking placeholder bubbles when called repeatedly
         if (messages.isNotEmpty() &&
@@ -137,7 +147,7 @@ object SessionMessageReducer {
         steered: Boolean = false,
     ): List<ChatMessage> {
         // Optimistic insertion: the UI gets an immediate user bubble before the server round-trip
-        if (prompt.text.isBlank() && prompt.images.isEmpty() && prompt.files.isEmpty()) return messages
+        if (prompt.text.isBlank() && prompt.blocks.isEmpty()) return messages
         // A restored prompt is resent under its id; its saved bubble is already in the transcript.
         if (prompt.clientId != null && messages.any { it.clientId == prompt.clientId }) return messages
         val last = messages.lastOrNull()
@@ -151,8 +161,7 @@ object SessionMessageReducer {
             ChatMessage(
                 role = ChatMessage.Role.USER,
                 content = prompt.text,
-                images = prompt.images,
-                files = prompt.files,
+                contentBlocks = prompt.blocks,
                 createdAt = System.currentTimeMillis(),
                 clientId = prompt.clientId,
             )

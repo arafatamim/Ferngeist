@@ -62,7 +62,7 @@ class SessionSteeringTest {
         val messages =
             SessionMessageReducer.appendLocalUserMessage(
                 listOf(streaming),
-                UserContent("nudge", emptyList(), emptyList()),
+                UserContent.from("nudge", emptyList(), emptyList()),
                 steered = true,
             )
 

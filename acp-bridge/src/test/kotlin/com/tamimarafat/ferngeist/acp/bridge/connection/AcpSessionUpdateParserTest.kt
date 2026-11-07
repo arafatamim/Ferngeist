@@ -81,16 +81,14 @@ class AcpSessionUpdateParserTest {
     }
 
     @Test
-    fun `user message chunk with inline image data yields image`() {
+    fun `user message chunk with inline image data keeps the block`() {
         val update =
             SessionUpdate.UserMessageChunk(
                 content = ContentBlock.Image(data = "QUJD", mimeType = "image/png"),
             )
 
         val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
-        assertEquals(1, event.images.size)
-        assertEquals("QUJD", event.images[0].base64)
-        assertEquals("image/png", event.images[0].mimeType)
+        assertEquals(ContentBlock.Image(data = "QUJD", mimeType = "image/png"), event.block)
     }
 
     @Test
@@ -106,31 +104,78 @@ class AcpSessionUpdateParserTest {
             )
 
         val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
-        assertEquals(1, event.images.size)
-        assertEquals("QUJD", event.images[0].base64)
-        assertEquals("image/png", event.images[0].mimeType)
+        assertEquals(ContentBlock.Image(data = "QUJD", mimeType = "image/png"), event.block)
     }
 
     @Test
-    fun `user message chunk with blob resource yields file`() {
+    fun `user message chunk with blob resource keeps the block`() {
+        val content =
+            ContentBlock.Resource(
+                resource =
+                    EmbeddedResourceResource.BlobResourceContents(
+                        blob = "QUJD",
+                        uri = "file:///report.pdf",
+                        mimeType = "application/pdf",
+                    ),
+            )
+        val update = SessionUpdate.UserMessageChunk(content = content)
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+        assertEquals(content, event.block)
+    }
+
+    @Test
+    fun `user message chunk with audio keeps the block`() {
+        val content = ContentBlock.Audio(data = "QUJD", mimeType = "audio/wav")
+        val update = SessionUpdate.UserMessageChunk(content = content)
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+        assertEquals(content, event.block)
+    }
+
+    @Test
+    fun `user message chunk with resource link keeps the block`() {
+        val content =
+            ContentBlock.ResourceLink(
+                name = "report.pdf",
+                uri = "file:///report.pdf",
+                description = "Quarterly report",
+                mimeType = "application/pdf",
+                size = 42L,
+                title = "Report",
+            )
+        val update = SessionUpdate.UserMessageChunk(content = content)
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+        assertEquals(content, event.block)
+    }
+
+    @Test
+    fun `user message chunk with text resource keeps the block`() {
+        val content =
+            ContentBlock.Resource(
+                resource =
+                    EmbeddedResourceResource.TextResourceContents(
+                        text = "hello from a file",
+                        uri = "file:///notes.txt",
+                        mimeType = "text/plain",
+                    ),
+            )
+        val update = SessionUpdate.UserMessageChunk(content = content)
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+        assertEquals(content, event.block)
+    }
+
+    @Test
+    fun `user message chunk with empty attachment payload yields no block`() {
         val update =
             SessionUpdate.UserMessageChunk(
-                content =
-                    ContentBlock.Resource(
-                        resource =
-                            EmbeddedResourceResource.BlobResourceContents(
-                                blob = "QUJD",
-                                uri = "file:///report.pdf",
-                                mimeType = "application/pdf",
-                            ),
-                    ),
+                content = ContentBlock.Audio(data = "", mimeType = "audio/wav"),
             )
 
         val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
-        assertEquals(1, event.files.size)
-        assertEquals("report.pdf", event.files[0].name)
-        assertEquals("QUJD", event.files[0].base64)
-        assertEquals("application/pdf", event.files[0].mimeType)
+        assertEquals(null, event.block)
     }
 
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =

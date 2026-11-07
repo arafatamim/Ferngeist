@@ -103,6 +103,9 @@
     <string name="chat_tool_output_image">工具输出图片 (%1$s)</string>
     <string name="chat_failed_decode_image">图片解码失败 (%1$s)</string>
     <string name="chat_audio_content">音频内容 (%1$s)</string>
+    <string name="chat_audio_play_desc">播放音频</string>
+    <string name="chat_audio_pause_desc">暂停音频</string>
+    <string name="chat_audio_failed">无法播放音频 (%1$s)</string>
     <string name="chat_binary_resource">二进制资源 (%1$s)</string>
     <string name="chat_terminal_output">终端输出 (%1$s)</string>
 
