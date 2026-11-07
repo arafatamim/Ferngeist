@@ -30,11 +30,9 @@
 
 # Ktor
 -keep class io.ktor.** { *; }
--keep class kotlinx.coroutines.** { *; }
 -dontwarn io.ktor.**
 
-# Compose
--keep class androidx.compose.** { *; }
+# Compose supplies its own consumer rules.
 -dontwarn androidx.compose.**
 
 # ACP SDK

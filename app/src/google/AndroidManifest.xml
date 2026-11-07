@@ -4,6 +4,10 @@
 
     <application
         tools:targetApi="33">
+        <activity
+            android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity"
+            tools:remove="android:screenOrientation" />
+
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode_ui" />
