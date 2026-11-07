@@ -31,6 +31,7 @@ import com.agentclientprotocol.rpc.TransportFrame
 import com.agentclientprotocol.transport.Transport
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import kotlinx.coroutines.CancellationException
@@ -130,11 +131,21 @@ class SessionGatewayTest {
         override val configOptionsSupported: Boolean get() = false
         override val configOptions: StateFlow<List<SessionConfigOption>> get() = error("unused")
 
+        var configId: SessionConfigId? = null
+            private set
+        var configValue: SessionConfigOptionValue? = null
+            private set
+        var configResponse: SetSessionConfigOptionResponse? = null
+
         override suspend fun setConfigOption(
             configId: SessionConfigId,
             value: SessionConfigOptionValue,
             _meta: JsonElement?,
-        ): SetSessionConfigOptionResponse = error("unused")
+        ): SetSessionConfigOptionResponse {
+            this.configId = configId
+            this.configValue = value
+            return requireNotNull(configResponse)
+        }
     }
 
     private fun newGateway(): SessionGateway {
@@ -277,6 +288,39 @@ class SessionGatewayTest {
 
     private fun responseTurn(): Flow<Event> =
         flowOf(Event.PromptResponseEvent(PromptResponse(stopReason = StopReason.END_TURN)))
+
+    @Test
+    fun `setSessionConfigOption sends boolean value and mirrors boolean response`() =
+        runTest {
+            val gateway = newGateway()
+            val session = FakeClientSession(turns = emptyList())
+            session.configResponse =
+                SetSessionConfigOptionResponse(
+                    configOptions =
+                        listOf(
+                            SessionConfigOption.boolean(
+                                id = "brave_mode",
+                                name = "Brave Mode",
+                                currentValue = true,
+                            ),
+                        ),
+                )
+            val bridge = installSession(gateway, "s1", session)
+
+            gateway.setSessionConfigOption(
+                sessionId = "s1",
+                optionId = "brave_mode",
+                value = SessionConfigValue.BoolValue(true),
+            )
+
+            assertEquals(SessionConfigId("brave_mode"), session.configId)
+            assertEquals(SessionConfigOptionValue.of(true), session.configValue)
+            val configOptions = bridge.snapshot.value.configOptions
+            val option =
+                configOptions.single()
+                    as com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption.BooleanOption
+            assertTrue(option.currentValue)
+        }
 
     @Test
     fun `createSession with blank cwd returns null`() =
