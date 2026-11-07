@@ -47,7 +47,7 @@ internal fun SessionListTopBar(
     onNavigateBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    filterChips: @Composable () -> Unit = {},
+    filterChips: @Composable () -> Unit,
 ) {
     if (isWindowShort()) {
         Column {

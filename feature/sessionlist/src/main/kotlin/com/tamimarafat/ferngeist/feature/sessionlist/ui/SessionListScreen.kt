@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +41,8 @@ import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.path
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.projectRoot
-import com.tamimarafat.ferngeist.feature.sessionlist.project.ProjectFilterChips
+import com.tamimarafat.ferngeist.feature.sessionlist.ui.filters.ActiveFilterChips
+import com.tamimarafat.ferngeist.feature.sessionlist.ui.filters.ProjectFilter
 import kotlinx.coroutines.delay
 
 /**
@@ -239,12 +241,16 @@ private fun SessionListScaffold(
             MaterialTheme.typography.titleLarge, // collapsed
             collapse,
         )
-    var showFilters by remember { mutableStateOf(false) }
-    val projectFilterName = currentCwd?.takeIf { it.isNotBlank() }?.let(::projectName)
-    val scopeName =
-        state.repoScope.scope
-            .takeUnless { it == WorktreeScope.All }
-            ?.let { scopeLabel(it, state.repoScope.scopeOptions) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
+    val scope = state.repoScope.scope
+    val scopeName = scopeChipLabel(scope, state.repoScope.scopeOptions)
+    val projectFilter =
+        currentCwd
+            ?.takeIf { it.isNotBlank() }
+            ?.let { name -> ProjectFilter(projectName(name)) { onSelectRepo("") } }
+    val filterCount =
+        (if (projectFilter == null) 0 else 1) +
+            (if (scope == WorktreeScope.All) 0 else 1)
 
     // The whole list grows out of the agent card it was opened from. Not in the workspace: the
     // card stays on screen beside this pane, and two live claimants scale to each other's bounds.
@@ -287,15 +293,14 @@ private fun SessionListScaffold(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     filterChips = {
-                        ProjectFilterChips(
+                        ActiveFilterChips(
                             agentName = null,
                             agentIconUrl = null,
                             scopeName = scopeName,
+                            project = projectFilter,
                             onEdit = { showFilters = true },
                             onClearAgent = {},
                             onClearScope = { onSelectScope(WorktreeScope.All) },
-                            projectName = projectFilterName,
-                            onClearProject = { onSelectRepo("") },
                         )
                     },
                 )
@@ -303,12 +308,17 @@ private fun SessionListScaffold(
             floatingActionButton = {
                 WorktreeToolbar(
                     expanded = state.repoScope.toolbarExpanded.value,
-                    repo = currentCwd,
                     worktreesEnabled = state.repoScope.scopeEnabled,
-                    scope = state.repoScope.scope,
+                    scope = scope,
                     options = state.repoScope.scopeOptions,
                     onNewChat = createSession,
-                    onFiltersClick = { showFilters = true },
+                    filterButton = {
+                        FiltersButton(
+                            expanded = state.repoScope.toolbarExpanded.value,
+                            count = filterCount,
+                            onClick = { showFilters = true },
+                        )
+                    },
                 )
             },
             snackbarHost = { SnackbarHost(state.screen.snackbarHostState) },

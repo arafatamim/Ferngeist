@@ -87,6 +87,13 @@ internal fun scopeLabel(
                 ?: pathSegments(scope.path).lastOrNull().orEmpty()
     }
 
+/** The scope chip's label, or null when the list is not scoped to one part of the repo. */
+@Composable
+internal fun scopeChipLabel(
+    scope: WorktreeScope,
+    options: List<ScopeOption>,
+): String? = scope.takeUnless { it == WorktreeScope.All }?.let { scopeLabel(it, options) }
+
 private const val MAX_RECENT_PROJECTS = 5
 private const val DISABLED_ACTION_ALPHA = 0.38f
 
@@ -124,21 +131,19 @@ internal fun FiltersButton(
  * Scrolling down collapses the toolbar to the FAB, and scrolling up restores the filter button.
  *
  * @param worktreesEnabled true when the filter names a repo on a gateway with worktrees.
- * @param onFiltersClick opens the screen-owned filter sheet.
+ * @param filterButton the screen's filter button; the screen owns both its count and its sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun WorktreeToolbar(
     expanded: Boolean,
-    repo: String?,
     worktreesEnabled: Boolean,
     scope: WorktreeScope,
     options: List<ScopeOption>,
     onNewChat: () -> Unit,
+    filterButton: @Composable () -> Unit,
     newChatLabel: String? = null,
     newChatEnabled: Boolean = true,
-    leadingSelector: (@Composable () -> Unit)? = null,
-    onFiltersClick: () -> Unit = {},
 ) {
     val scopeName = scopeLabel(scope, options)
     val newChat =
@@ -152,17 +157,7 @@ internal fun WorktreeToolbar(
         expanded = expanded,
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
         floatingActionButton = { NewChatButton(newChat = newChat, onNewChat = onNewChat, enabled = newChatEnabled) },
-        content = {
-            if (leadingSelector != null) {
-                leadingSelector()
-            } else {
-                FiltersButton(
-                    expanded = expanded,
-                    count = (if (!repo.isNullOrBlank()) 1 else 0) + (if (scope != WorktreeScope.All) 1 else 0),
-                    onClick = onFiltersClick,
-                )
-            }
-        },
+        content = { filterButton() },
     )
 }
 
