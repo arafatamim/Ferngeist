@@ -51,13 +51,12 @@
     <string name="common_rpc_direction_err">ERR</string>
     <string name="common_rpc_direction_ntf">NTF</string>
     <string name="common_just_now">Just now</string>
+    <string name="common_status_ago">%1$s ago</string>
     <string name="common_in_progress">In progress</string>
     <string name="common_status_needs_attention">Needs attention</string>
+    <string name="common_status_needs_you">Needs you</string>
     <string name="common_status_error">Turn failed</string>
     <string name="common_status_finished">Finished</string>
-    <string name="common_status_finished_now">Finished just now</string>
-    <string name="common_status_finished_ago">Finished %1$s ago</string>
-    <string name="common_status_working_for">%1$s for %2$s</string>
     <string name="common_recently_active">Recently active</string>
     <string name="common_quota_unavailable">Quota unavailable</string>
     <string name="common_quota_install_codexbar">Install the CodexBar CLI on the gateway to see quotas.</string>

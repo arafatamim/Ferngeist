@@ -64,34 +64,6 @@ class ProjectChoicesTest {
     }
 
     @Test
-    fun `working chats match target and chat together, newest first, and empty when streaming stops`() {
-        val first = project("/repo", 1).chats.single().let { it.copy(summary = it.summary.copy(updatedAt = 1)) }
-        val second = first.copy(summary = first.summary.copy(id = "second", updatedAt = 2))
-        val project = project("/repo", 1).copy(chats = listOf(first, second))
-
-        assertEquals(
-            listOf("second"),
-            project.workingChatIds(
-                mapOf(
-                    "other//repo" to TurnActivity(TurnStatus.WORKING),
-                    "agent/second" to TurnActivity(TurnStatus.WORKING),
-                    "agent/unrelated" to TurnActivity(TurnStatus.WORKING),
-                ),
-            ),
-        )
-        assertEquals(
-            listOf("second", "/repo"),
-            project.workingChatIds(
-                mapOf(
-                    "agent//repo" to TurnActivity(TurnStatus.WORKING),
-                    "agent/second" to TurnActivity(TurnStatus.WORKING),
-                ),
-            ),
-        )
-        assertEquals(emptyList<String>(), project.workingChatIds(emptyMap()))
-    }
-
-    @Test
     fun `project status aggregates its own chats by full identity with attention first`() {
         val first = project("/repo", 1).chats.single()
         val second = first.copy(summary = first.summary.copy(id = "second"))

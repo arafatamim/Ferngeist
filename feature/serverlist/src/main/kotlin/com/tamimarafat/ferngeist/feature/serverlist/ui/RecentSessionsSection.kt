@@ -55,9 +55,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.RecentSessionTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
-import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberActivityRotation
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
@@ -208,35 +208,40 @@ private fun ContinueSessionCardContent(
                     ),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
-            WorkingSubtitle(
-                status = status,
-                chatId = session.sessionId,
-                accent = MaterialTheme.colorScheme.onPrimaryContainer,
+            // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
+            // get the icon, manual targets keep the bare host.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Same device-icon treatment as ServerSubtitle: gateway-sourced agents
-                // get the icon, manual targets keep the bare host.
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (session.target is LaunchableTarget.GatewayAgent) {
-                        Icon(
-                            imageVector = Icons.Default.Devices,
-                            contentDescription = stringResource(R.string.serverlist_card_from_gateway),
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                        )
-                    }
-                    Text(
-                        text = targetDeviceLabel(session.target),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                if (session.target is LaunchableTarget.GatewayAgent) {
+                    Icon(
+                        imageVector = Icons.Default.Devices,
+                        contentDescription = stringResource(R.string.serverlist_card_from_gateway),
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
                     )
                 }
+                Text(
+                    text = targetDeviceLabel(session.target),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
+        // As before, recent cards stamp only a turn's state, never a resting time.
+        ChatCardStamp(
+            updatedAt = null,
+            status = status,
+            workingColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            color =
+                MaterialTheme.colorScheme.turnStatusContentColor(
+                    status.status,
+                    MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+        )
     }
 }
 
@@ -465,16 +470,12 @@ private fun RecentSessionCardRow(
                     ),
                 after = session.target.name.takeIf { session.target.iconUrl == null },
             )
-            WorkingSubtitle(
-                status = status,
-                chatId = session.sessionId,
-            ) {
-                ServerSubtitle(
-                    server = session.target,
-                    hasSavedAuthMethod = false,
-                )
-            }
+            ServerSubtitle(
+                server = session.target,
+                hasSavedAuthMethod = false,
+            )
         }
+        ChatCardStamp(updatedAt = null, status = status)
     }
 }
 

@@ -94,12 +94,13 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.tamimarafat.ferngeist.core.common.ui.AgentIconBadge
 import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCard
+import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
+import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
-import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusLabel
@@ -682,6 +683,8 @@ private fun SwitcherRowContent(
 ) {
     ChatCard(
         updatedAt = session.updatedAt,
+        status = session.turnStatus,
+        trailingStamp = false,
         containerColor =
             MaterialTheme.colorScheme.turnStatusContainerColor(
                 session.turnStatus.status,
@@ -707,7 +710,6 @@ private fun SwitcherRowContent(
         ActivityIconContainer(
             status = session.turnStatus.status,
             size = 40.dp,
-            idleShape = CircleShape,
             modifier = Modifier.semantics { contentDescription = session.agentName },
         ) {
             AgentIconBadge(
@@ -716,26 +718,32 @@ private fun SwitcherRowContent(
                 containerSize = null,
             )
         }
-        Column(modifier = Modifier.weight(1f)) {
-            // A shared subtitle keeps turn state separate from the readable session title.
-            Text(
-                text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
-            )
-            WorkingSubtitle(status = session.turnStatus, chatId = session.sessionId) { }
+        StatusCardBody(
+            status = session.turnStatus.status,
+            modifier = Modifier.weight(1f),
+            headline = {
+                Text(
+                    text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
+            },
+            supporting = null,
+            stamp = { ChatCardStamp(session.updatedAt, session.turnStatus) },
             // The branch gets its own line, as on the session list: sharing one with the
             // project let a long branch squeeze the project down to a few characters.
-            session.worktree?.let {
-                WorktreeBadge(
-                    branch = it.branch,
-                    modifier = Modifier.padding(top = 4.dp),
-                    ahead = it.ahead,
-                    dirty = it.dirty,
-                )
-            }
-        }
+            footer = {
+                session.worktree?.let {
+                    WorktreeBadge(
+                        branch = it.branch,
+                        modifier = Modifier.padding(top = 4.dp),
+                        ahead = it.ahead,
+                        dirty = it.dirty,
+                    )
+                }
+            },
+        )
         // Centred against the whole card, not just the title line, so a worktree
         // row's extra branch line cannot pull it off-centre.
         if (session.isCurrent) {

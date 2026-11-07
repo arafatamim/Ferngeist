@@ -49,14 +49,13 @@
     <string name="common_rpc_direction_err">错误</string>
     <string name="common_rpc_direction_ntf">通知</string>
     <string name="common_just_now">刚刚</string>
+    <string name="common_status_ago">%1$s前</string>
     <string name="common_in_progress">进行中</string>
     <string name="common_recently_active">最近活跃</string>
     <string name="common_status_needs_attention">需要注意</string>
+    <string name="common_status_needs_you">需要你</string>
     <string name="common_status_error">本轮失败</string>
     <string name="common_status_finished">已完成</string>
-    <string name="common_status_finished_now">刚刚完成</string>
-    <string name="common_status_finished_ago">%1$s前完成</string>
-    <string name="common_status_working_for">%1$s已持续%2$s</string>
     <string name="common_quota_unavailable">配额不可用</string>
     <string name="common_quota_updated">更新于%1$s</string>
     <string name="common_quota_used">已用 %1$s</string>

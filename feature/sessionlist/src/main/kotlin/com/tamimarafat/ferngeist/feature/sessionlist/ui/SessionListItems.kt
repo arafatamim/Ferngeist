@@ -18,7 +18,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -59,9 +58,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.SessionTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
+import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
-import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
@@ -395,8 +395,19 @@ private fun RowScope.SessionCardText(
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
 ) {
-    with(sharedTransitionScope) {
-        Column(modifier = Modifier.weight(1f)) {
+    // With a directory picked the badge alone says where; otherwise every chat names its
+    // project, a worktree's by its repo. A gone folder keeps its full path: the only clue left.
+    val place =
+        when {
+            !showCwd -> null
+            gone -> session.cwd
+            worktreeBranch != null -> worktreeRepo?.let(::projectName)
+            else -> session.cwd?.let(::projectName)
+        }
+    StatusCardBody(
+        status = status.status,
+        modifier = Modifier.weight(1f),
+        headline = {
             Text(
                 text = sessionTitleOrNull(session.title) ?: stringResource(R.string.sessionlist_untitled),
                 style = MaterialTheme.typography.titleMedium,
@@ -410,18 +421,10 @@ private fun RowScope.SessionCardText(
                         sharedBoundsEnabled,
                     ),
             )
-            // With a directory picked the badge alone says where; otherwise every chat names its
-            // project, a worktree's by its repo. A gone folder keeps its full path: the only clue left.
-            val place =
-                when {
-                    !showCwd -> null
-                    gone -> session.cwd
-                    worktreeBranch != null -> worktreeRepo?.let(::projectName)
-                    else -> session.cwd?.let(::projectName)
-                }
-            // A turn in flight spends the subtitle line on its state; the place returns when unknown.
-            WorkingSubtitle(status = status, chatId = session.id) {
-                place?.let {
+        },
+        supporting =
+            place?.let {
+                {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
@@ -430,7 +433,9 @@ private fun RowScope.SessionCardText(
                         overflow = TextOverflow.MiddleEllipsis,
                     )
                 }
-            }
+            },
+        stamp = { ChatCardStamp(session.updatedAt, status) },
+        footer = {
             worktreeBranch?.let {
                 WorktreeBadge(
                     branch = it,
@@ -439,8 +444,8 @@ private fun RowScope.SessionCardText(
                     dirty = worktree?.dirty,
                 )
             }
-        }
-    }
+        },
+    )
 }
 
 private fun deleteAction(
@@ -547,9 +552,11 @@ private fun SessionCard(
         ChatCard(
             live = isLive,
             updatedAt = session.updatedAt,
-            status = status.status,
+            status = status,
             removing = removing,
             dimmed = removing || gone,
+            // The status body places the stamp, so it can rise clear of the status line.
+            trailingStamp = false,
             onClick = onClick,
             onOpenMenu = openActionsMenu,
             modifier =
@@ -594,17 +601,20 @@ private fun SessionCard(
 internal fun ChatCard(
     live: Boolean,
     updatedAt: Long?,
-    status: TurnStatus,
+    status: TurnActivity,
     removing: Boolean,
     onClick: () -> Unit,
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
     dimmed: Boolean = removing,
+    trailingStamp: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val colors = sessionCardColors(live, status)
+    val colors = sessionCardColors(live, status.status)
     SharedChatCard(
         updatedAt = updatedAt,
+        status = status,
+        trailingStamp = trailingStamp,
         containerColor = colors.containerColor,
         contentColor = colors.contentColor,
         modifier =

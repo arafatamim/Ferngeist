@@ -49,14 +49,13 @@
     <string name="common_rpc_direction_err">ОШИБ</string>
     <string name="common_rpc_direction_ntf">УВЕД</string>
     <string name="common_just_now">Только что</string>
+    <string name="common_status_ago">%1$s назад</string>
     <string name="common_in_progress">В процессе</string>
     <string name="common_recently_active">Недавняя активность</string>
     <string name="common_status_needs_attention">Требует внимания</string>
+    <string name="common_status_needs_you">Ждёт вас</string>
     <string name="common_status_error">Ход завершился с ошибкой</string>
     <string name="common_status_finished">Завершено</string>
-    <string name="common_status_finished_now">Только что завершено</string>
-    <string name="common_status_finished_ago">Завершено %1$s назад</string>
-    <string name="common_status_working_for">%1$s в течение %2$s</string>
     <string name="common_quota_unavailable">Квота недоступна</string>
     <string name="common_quota_updated">Обновлено %1$s</string>
     <string name="common_quota_used">Использовано: %1$s</string>

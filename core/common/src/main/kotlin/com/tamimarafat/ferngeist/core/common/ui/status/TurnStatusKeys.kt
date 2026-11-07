@@ -14,3 +14,7 @@ fun Map<String, TurnActivity>.statusesFor(targetId: String): Map<String, TurnAct
 /** A turn is in flight: working, or still holding while a request waits for the user. */
 val TurnStatus.isActive: Boolean
     get() = this == TurnStatus.WORKING || this == TurnStatus.NEEDS_ATTENTION
+
+/** Worth a status signal: a turn running, awaiting the user, or failed. Finished and unknown flag nothing. */
+val TurnStatus.showsMark: Boolean
+    get() = this == TurnStatus.WORKING || this == TurnStatus.NEEDS_ATTENTION || this == TurnStatus.ERROR

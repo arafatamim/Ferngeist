@@ -78,7 +78,6 @@ import com.tamimarafat.ferngeist.core.common.ui.status.statusesFor
 import com.tamimarafat.ferngeist.core.common.ui.time.rememberPresentationTime
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
-import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.aggregateTurnActivity
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
@@ -805,10 +804,6 @@ private fun FrontLayerContent(
                         ServerCard(
                             server = server,
                             status = chatStatuses.values.aggregateTurnActivity(),
-                            // shortcut: no recency here, so the lead chat is the lowest id; order by
-                            // updatedAt if the agent row should match the hero's verb.
-                            workingChatIds =
-                                chatStatuses.filterValues { it.status == TurnStatus.WORKING }.keys.sorted(),
                             uiState = uiState,
                             liveServerIds = liveServerIds,
                             onClick = { onConnect(server) },

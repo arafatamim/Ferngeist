@@ -64,7 +64,7 @@ import com.tamimarafat.ferngeist.core.common.ui.ServerNameSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
-import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
+import com.tamimarafat.ferngeist.core.common.ui.status.ActivityIconContainer
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
@@ -72,7 +72,6 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.feature.serverlist.R
 import com.tamimarafat.ferngeist.feature.serverlist.ServerListUiState
-import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitle
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -91,7 +90,6 @@ internal fun ServerCard(
     modifier: Modifier = Modifier,
     liveServerIds: Set<String> = emptySet(),
     status: TurnActivity = TurnActivity(),
-    workingChatIds: List<String> = emptyList(),
 ) {
     val connectionState = ServerConnectionUiState.from(server.id, uiState, liveServerIds)
     val actionsMenuInteractionSource = remember { MutableInteractionSource() }
@@ -124,7 +122,6 @@ internal fun ServerCard(
             server = server,
             connectionState = connectionState,
             status = status,
-            workingChatIds = workingChatIds,
             containerColor = containerColor,
             cardInteractionSource = cardInteractionSource,
             cardShape = cardShape,
@@ -157,7 +154,6 @@ private fun ServerCardSurface(
     server: LaunchableTarget,
     connectionState: ServerConnectionUiState,
     status: TurnActivity,
-    workingChatIds: List<String>,
     containerColor: Color,
     cardShape: RoundedCornerShape,
     cardInteractionSource: MutableInteractionSource,
@@ -216,7 +212,6 @@ private fun ServerCardSurface(
                 containerColor = containerColor,
                 isConnecting = connectionState.isConnecting,
                 status = status,
-                workingChatIds = workingChatIds,
                 hasSavedAuthMethod = hasSavedAuthMethod,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -231,7 +226,6 @@ private fun ServerCardTitleRow(
     containerColor: Color,
     isConnecting: Boolean,
     status: TurnActivity,
-    workingChatIds: List<String>,
     hasSavedAuthMethod: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -240,23 +234,22 @@ private fun ServerCardTitleRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AgentIconBadge(
-            target = server,
-            fallback = Icons.Default.SmartToy,
-            size = 18.dp,
-            containerSize = 28.dp,
+        ActivityIconContainer(
+            status = status.status,
+            size = 40.dp,
             // The frame follows the card's own tint, one shade darker, so a
             // connected or failed card reads as one surface instead of a neutral
             // chip sitting on a colored one.
-            containerColor = containerColor.darken(BADGE_FRAME_DARKEN),
-            tint =
-                MaterialTheme.colorScheme.turnStatusContentColor(
-                    status.status,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-            loading = isConnecting,
-        )
-        Spacer(modifier = Modifier.width(14.dp))
+            idleColor = containerColor.darken(BADGE_FRAME_DARKEN),
+        ) {
+            AgentIconBadge(
+                target = server,
+                fallback = Icons.Default.SmartToy,
+                containerSize = null,
+                loading = isConnecting,
+            )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             with(sharedTransitionScope) {
@@ -280,25 +273,10 @@ private fun ServerCardTitleRow(
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
-            WorkingSubtitle(
-                status = status,
-                chatId = workingChatIds.firstOrNull().orEmpty(),
-                workingContent =
-                    if (workingChatIds.isNotEmpty()) {
-                        (
-                            { elapsed ->
-                                ActiveChatsSubtitle(workingChatIds, elapsed)
-                            }
-                        )
-                    } else {
-                        null
-                    },
-            ) {
-                ServerSubtitle(
-                    server = server,
-                    hasSavedAuthMethod = hasSavedAuthMethod,
-                )
-            }
+            ServerSubtitle(
+                server = server,
+                hasSavedAuthMethod = hasSavedAuthMethod,
+            )
         }
     }
 }

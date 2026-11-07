@@ -18,7 +18,6 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
@@ -40,18 +39,16 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.projectRecencyOrder
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
+import com.tamimarafat.ferngeist.core.common.ui.chat.ChatCardStamp
+import com.tamimarafat.ferngeist.core.common.ui.chat.StatusCardBody
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.common.ui.status.WorkingSubtitle
 import com.tamimarafat.ferngeist.core.common.ui.status.isActive
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContainerColor
 import com.tamimarafat.ferngeist.core.common.ui.status.turnStatusContentColor
-import com.tamimarafat.ferngeist.core.common.ui.time.relativeTime
 import com.tamimarafat.ferngeist.core.model.TurnActivity
-import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.aggregateTurnActivity
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.serverlist.R
-import com.tamimarafat.ferngeist.feature.serverlist.ui.status.ActiveChatsSubtitle
 
 /** Live projects lead in both views; each group keeps newest known activity first. */
 internal fun projectsByActivity(
@@ -87,13 +84,6 @@ internal fun ProjectSummary.turnStatus(turnStatuses: Map<String, TurnActivity>):
 /** In flight means working or awaiting attention, never a terminal outcome. */
 internal fun ProjectSummary.hasActiveTurn(turnStatuses: Map<String, TurnActivity>): Boolean =
     chats.any { turnStatuses[it.chatKey]?.status?.isActive == true }
-
-/** Most recent first: the lead chat lends the row its verb, and the hero shows the most recent chat. */
-internal fun ProjectSummary.workingChatIds(turnStatuses: Map<String, TurnActivity>): List<String> =
-    chats
-        .filter { turnStatuses[it.chatKey]?.status == TurnStatus.WORKING }
-        .sortedByDescending { it.summary.updatedAt }
-        .map { it.summary.id }
 
 private val ProjectChat.chatKey: String get() = "${target.id}/${summary.id}"
 
@@ -137,9 +127,7 @@ internal fun ProjectsGroup(
                         count = count,
                         showGateway = showGateway,
                         status = project.turnStatus(turnStatuses),
-                        workingChatIds = project.workingChatIds(turnStatuses),
                         isConnected = project.hasLiveChat(connectedChatKeys),
-                        now = now,
                         onOpenProject = onOpenProject,
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
@@ -166,9 +154,7 @@ private fun ProjectItem(
     count: Int,
     showGateway: Boolean,
     status: TurnActivity,
-    workingChatIds: List<String>,
     isConnected: Boolean,
-    now: Long,
     onOpenProject: (ProjectSummary) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
@@ -226,56 +212,42 @@ private fun ProjectItem(
             } else {
                 null
             },
-        supportingContent = {
-            WorkingSubtitle(
-                status = status,
-                chatId = workingChatIds.firstOrNull().orEmpty(),
-                style = LocalTextStyle.current,
-                workingContent =
-                    if (workingChatIds.isNotEmpty()) {
-                        { elapsed -> ActiveChatsSubtitle(workingChatIds, elapsed) }
-                    } else {
-                        null
-                    },
-            ) {
-                // Never empty: an empty Text's baseline differs from the working line's, and the
-                // crossfade overlap then locks the row into its three-line height.
-                Text(projectCounts(project))
-            }
-        },
-        trailingContent = {
-            project.updatedAt?.let { updatedAt ->
-                Text(
-                    text = relativeTime(updatedAt, now),
-                    style = MaterialTheme.typography.labelMedium,
-                    color =
-                        MaterialTheme.colorScheme.turnStatusContentColor(
-                            status.status,
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                )
-            }
-        },
     ) {
-        with(sharedTransitionScope) {
-            Text(
-                text = projectName(project.repo),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier =
-                    Modifier.sharedBounds(
-                        sharedContentState =
-                            rememberSharedContentState(
-                                ProjectTitleSharedBoundsKey(project.gateway.id, project.repo),
+        StatusCardBody(
+            status = status.status,
+            headline = {
+                with(sharedTransitionScope) {
+                    Text(
+                        text = projectName(project.repo),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier =
+                            Modifier.sharedBounds(
+                                sharedContentState =
+                                    rememberSharedContentState(
+                                        ProjectTitleSharedBoundsKey(project.gateway.id, project.repo),
+                                    ),
+                                animatedVisibilityScope = animatedContentScope,
+                                enter = fadeIn(),
+                                exit = fadeOut(),
+                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
                             ),
-                        animatedVisibilityScope = animatedContentScope,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
-                    ),
-            )
-        }
+                    )
+                }
+            },
+            supporting = {
+                // The supporting slot's style, which this body no longer gets from the list item.
+                Text(
+                    text = projectCounts(project),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            stamp = { ChatCardStamp(project.updatedAt, status) },
+        )
     }
 }
 
