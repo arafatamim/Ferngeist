@@ -57,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -718,6 +719,8 @@ private fun FrontLayerContent(
     val showProjects = projects.isNotEmpty()
     val projectVisibility = remember { MutableTransitionState(false) }.apply { targetState = showProjects }
     val agentHeaderVisibility = remember { MutableTransitionState(false) }.apply { targetState = showProjects }
+    val includeProjects = projectSectionIncluded("projects", projectVisibility, scrollState)
+    val includeAgentHeader = projectSectionIncluded("agents-header", agentHeaderVisibility, scrollState)
     var lastProjects by remember { mutableStateOf(projects) }
     SideEffect { if (showProjects) lastProjects = projects }
     val displayedProjects = if (showProjects) projects else lastProjects
@@ -779,7 +782,7 @@ private fun FrontLayerContent(
                     state = scrollState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    animatedProjectSection("projects", projectVisibility, scrollState) {
+                    animatedProjectSection("projects", projectVisibility, includeProjects) {
                         ProjectsGroup(
                             projects = displayedProjects,
                             turnStatuses = turnStatuses,
@@ -791,7 +794,7 @@ private fun FrontLayerContent(
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
                     }
-                    animatedProjectSection("agents-header", agentHeaderVisibility, scrollState) {
+                    animatedProjectSection("agents-header", agentHeaderVisibility, includeAgentHeader) {
                         SectionHeader(
                             title = stringResource(R.string.serverlist_section_agents),
                             modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
@@ -831,13 +834,26 @@ private fun FrontLayerContent(
     }
 }
 
-private fun LazyListScope.animatedProjectSection(
+@Composable
+private fun projectSectionIncluded(
     key: String,
     state: MutableTransitionState<Boolean>,
     scrollState: LazyListState,
+): Boolean =
+    remember(key, state, scrollState) {
+        // Measure results change every pass; the item provider must observe only section inclusion.
+        derivedStateOf(structuralEqualityPolicy()) {
+            state.targetState || state.currentState && scrollState.layoutInfo.visibleItemsInfo.any { it.key == key }
+        }
+    }.value
+
+private fun LazyListScope.animatedProjectSection(
+    key: String,
+    state: MutableTransitionState<Boolean>,
+    included: Boolean,
     content: @Composable () -> Unit,
 ) {
-    if (state.targetState || state.currentState && scrollState.layoutInfo.visibleItemsInfo.any { it.key == key }) {
+    if (included) {
         item(key = key) { ProjectSectionVisibility(state, content) }
     }
 }
