@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolCallLocation
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
@@ -73,14 +74,38 @@ internal fun ToolCallDisplay.editedPath(): String? =
  * name files even for agents that report nothing else about a write.
  */
 internal fun ToolCallDisplay.editedPaths(): List<String> =
-    editedPath()?.let(::listOf) ?: locations.orEmpty().takeIf { kind == ToolKind.EDIT }.orEmpty()
+    editedPath()?.let(::listOf)
+        ?: locations
+            .orEmpty()
+            .map { it.path }
+            .takeIf { kind == ToolKind.EDIT }
+            .orEmpty()
 
 internal val fileKinds = setOf(ToolKind.READ, ToolKind.EDIT, ToolKind.DELETE, ToolKind.MOVE)
 
-/** The file a read, edit, delete or move works on, from its raw input or else its first location. */
-internal fun ToolCallDisplay.filePath(): String? =
-    ((rawInput as? JsonObject)?.firstString(pathKeys) ?: locations?.firstOrNull())
-        ?.takeIf { kind in fileKinds && it.isNotBlank() }
+/**
+ * The file a read, edit, delete or move works on, from its raw input or else its first location.
+ * When the raw input names the same file as an ACP location, that location's line is retained.
+ */
+internal fun ToolCallDisplay.fileLocation(): ToolCallLocation? {
+    if (kind !in fileKinds) return null
+    val inputPath = (rawInput as? JsonObject)?.firstString(pathKeys)
+    val location =
+        if (inputPath != null) {
+            ToolCallLocation(
+                path = inputPath,
+                line = locations.orEmpty().firstOrNull { it.path == inputPath }?.line,
+            )
+        } else {
+            locations?.firstOrNull()
+        }
+    return location?.takeIf { it.path.isNotBlank() }
+}
+
+internal fun ToolCallDisplay.filePath(): String? = fileLocation()?.path
+
+/** A path with its ACP line, e.g. `src/A.kt:12`; the path alone when the agent gives no line. */
+internal fun ToolCallLocation.displayLabel(): String = line?.let { "$path:$it" } ?: path
 
 /** The call's title, with its file's name added when the agent's title leaves it out ("Read" → "Read a.kt"). */
 internal fun ToolCallDisplay.titleWithFile(): String {

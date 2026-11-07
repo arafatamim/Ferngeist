@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 /** The file sheet's file: [path] as the transcript named it. */
 data class FileView(
     val path: String,
+    /** The 1-based ACP location line to reveal once the text loads; null leaves the reader at the top. */
+    val line: Int? = null,
     val isLoading: Boolean = true,
     val text: String? = null,
     /** Lines (0-based) added or changed since `HEAD`. */
@@ -56,6 +58,7 @@ internal class ChatFileLoader(
 
     fun open(
         path: String,
+        line: Int? = null,
         commit: String? = null,
         compare: String? = null,
         oldPath: String? = null,
@@ -68,7 +71,8 @@ internal class ChatFileLoader(
                 copy(
                     openFile =
                         FileView(
-                            path,
+                            path = path,
+                            line = line,
                             isLoading = false,
                             commit = commit,
                             compare = compare,
@@ -78,7 +82,7 @@ internal class ChatFileLoader(
             }
             return
         }
-        update { copy(openFile = FileView(path, commit = commit, compare = compare)) }
+        update { copy(openFile = FileView(path = path, line = line, commit = commit, compare = compare)) }
         job =
             scope.launch {
                 val result = runCatching { read(relative, commit, compare, oldPath) }
@@ -87,8 +91,9 @@ internal class ChatFileLoader(
                 val file =
                     result.fold(
                         onSuccess = { view ->
-                            view?.copy(path = path) ?: FileView(
-                                path,
+                            view?.copy(path = path, line = line) ?: FileView(
+                                path = path,
+                                line = line,
                                 isLoading = false,
                                 commit = commit,
                                 compare = compare,
@@ -98,7 +103,14 @@ internal class ChatFileLoader(
                         onFailure = { error ->
                             if (error is CancellationException) return@launch
                             val message = error.message?.takeIf { it.isNotBlank() } ?: "Failed to load $path"
-                            FileView(path, isLoading = false, commit = commit, compare = compare, error = message)
+                            FileView(
+                                path = path,
+                                line = line,
+                                isLoading = false,
+                                commit = commit,
+                                compare = compare,
+                                error = message,
+                            )
                         },
                     )
                 update { copy(openFile = file) }
