@@ -164,31 +164,7 @@ object SessionMessageReducer {
     ): ReducerResult {
         if (chunk.text.isEmpty()) return ReducerResult(messages, toolCallIndex)
         val mutableMessages = messages.mutableCopy()
-
-        val lastMessage = mutableMessages.lastOrNull()
-        val startsNewMessage =
-            lastMessage?.role != ChatMessage.Role.ASSISTANT ||
-                (
-                    chunk.messageId != null &&
-                        lastMessage.messageId != null &&
-                        lastMessage.messageId != chunk.messageId
-                )
-        val targetIndex =
-            if (!startsNewMessage) {
-                // Reuse the last assistant bubble when chunks arrive in sequence or carry no id
-                mutableMessages.lastIndex
-            } else {
-                // First chunk of a new turn or a different ACP message — seed a fresh bubble
-                val newMessage =
-                    ChatMessage(
-                        role = ChatMessage.Role.ASSISTANT,
-                        isStreaming = true,
-                        createdAt = timestampMs ?: System.currentTimeMillis(),
-                        messageId = chunk.messageId,
-                    )
-                mutableMessages.add(newMessage)
-                mutableMessages.lastIndex
-            }
+        val targetIndex = mutableMessages.textTargetIndex(chunk, timestampMs)
 
         val message = mutableMessages[targetIndex]
 
@@ -220,6 +196,35 @@ object SessionMessageReducer {
                 messageId = message.messageId ?: chunk.messageId,
             )
         return ReducerResult(mutableMessages.build(), toolCallIndex)
+    }
+
+    /**
+     * Reuses the trailing assistant bubble when the chunk continues it, otherwise seeds a fresh
+     * one: the first chunk of a turn, or one carrying a different ACP message id. A chunk with no
+     * id always continues the bubble, so agents that don't send ids keep the old grouping.
+     */
+    private fun MutableList<ChatMessage>.textTargetIndex(
+        chunk: TextChunk,
+        timestampMs: Long?,
+    ): Int {
+        val lastMessage = lastOrNull()
+        val continuesBubble =
+            lastMessage?.role == ChatMessage.Role.ASSISTANT &&
+                (
+                    chunk.messageId == null ||
+                        lastMessage.messageId == null ||
+                        lastMessage.messageId == chunk.messageId
+                )
+        if (continuesBubble) return lastIndex
+        add(
+            ChatMessage(
+                role = ChatMessage.Role.ASSISTANT,
+                isStreaming = true,
+                createdAt = timestampMs ?: System.currentTimeMillis(),
+                messageId = chunk.messageId,
+            ),
+        )
+        return lastIndex
     }
 
     private fun updatePlan(
