@@ -96,10 +96,9 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.localInlineChips
 import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
-import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachments
-import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
 import com.tamimarafat.ferngeist.feature.chat.ui.message.StreamingIndicator
+import com.tamimarafat.ferngeist.feature.chat.ui.message.UserContentBlocks
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.coroutines.delay
 
@@ -332,7 +331,14 @@ private fun UserMessageContent(
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.Bottom) {
         Column(modifier = Modifier.weight(1f, fill = false)) {
-            if (message.content.isNotBlank()) {
+            if (message.contentBlocks.isNotEmpty()) {
+                UserContentBlocks(
+                    blocks = message.contentBlocks,
+                    textColor = textColor,
+                    maxLines = maxLines,
+                    onImageClick = onImageClick,
+                )
+            } else if (message.content.isNotBlank()) {
                 QuoteSelectionContainer {
                     Text(
                         text = message.content,
@@ -342,14 +348,6 @@ private fun UserMessageContent(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-            if (message.images.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ImageAttachments(message.images, onImageClick = onImageClick)
-            }
-            if (message.files.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                FileAttachments(message.files)
             }
         }
         // Trailing status for non-SENT delivery states.

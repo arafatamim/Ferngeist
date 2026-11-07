@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import android.os.SystemClock
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
@@ -282,8 +283,8 @@ sealed interface AppSessionEvent {
 
     data class UserMessage(
         val text: String,
-        val images: List<ChatImageData> = emptyList(),
-        val files: List<ChatFileData> = emptyList(),
+        /** The exact ACP block this chunk carried; its position is the user's content order. */
+        val block: ContentBlock? = null,
         val append: Boolean = false,
         val timestampMs: Long? = null,
         val messageId: String? = null,

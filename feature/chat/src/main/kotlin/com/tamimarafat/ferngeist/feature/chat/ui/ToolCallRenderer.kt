@@ -5,18 +5,27 @@ import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -31,6 +40,8 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
 import com.tamimarafat.ferngeist.feature.chat.syntax.rememberHighlightedCode
 import com.tamimarafat.ferngeist.feature.chat.syntax.styledCode
+import com.tamimarafat.ferngeist.feature.chat.ui.audio.AudioPlaybackController
+import com.tamimarafat.ferngeist.feature.chat.ui.audio.localAudioPlaybackController
 
 private const val MAX_TEXT_CHARS = 5000
 
@@ -39,7 +50,7 @@ internal fun ContentBlockRenderer(block: ContentBlock) {
     when (block) {
         is ContentBlock.Text -> TextContentBlock(block.text)
         is ContentBlock.Image -> ImageContentBlock(block.data, block.mimeType)
-        is ContentBlock.Audio -> AudioContentBlock(block.mimeType)
+        is ContentBlock.Audio -> AudioContentBlock(block)
         is ContentBlock.ResourceLink -> ResourceLinkContentBlock(block)
         is ContentBlock.Resource -> ResourceContentBlock(block.resource)
     }
@@ -113,7 +124,101 @@ private fun ImageContentBlock(
 }
 
 @Composable
-private fun AudioContentBlock(mimeType: String) {
+private fun AudioContentBlock(block: ContentBlock.Audio) {
+    val controller = localAudioPlaybackController.current
+    if (controller == null) {
+        AudioContentLabel(block.mimeType)
+    } else {
+        AudioPlayer(block = block, controller = controller)
+    }
+}
+
+@Composable
+private fun AudioPlayer(
+    block: ContentBlock.Audio,
+    controller: AudioPlaybackController,
+) {
+    val key = remember(block) { "${block.mimeType}:${block.data.hashCode()}" }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+            if (controller.isPreparing(key)) {
+                AudioPreparingIndicator()
+            } else {
+                AudioToggleButton(
+                    controller = controller,
+                    key = key,
+                    block = block,
+                    playing = controller.isPlaying(key),
+                    failed = controller.hasFailed(key),
+                )
+            }
+            AudioStatusText(
+                mimeType = block.mimeType,
+                failed = controller.hasFailed(key),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AudioPreparingIndicator() {
+    CircularProgressIndicator(
+        modifier =
+            Modifier
+                .padding(8.dp)
+                .size(24.dp),
+        strokeWidth = 2.dp,
+    )
+}
+
+@Composable
+private fun AudioToggleButton(
+    controller: AudioPlaybackController,
+    key: String,
+    block: ContentBlock.Audio,
+    playing: Boolean,
+    failed: Boolean,
+) {
+    IconButton(
+        enabled = !failed,
+        onClick = { controller.toggle(key, block) },
+    ) {
+        Icon(
+            imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+            contentDescription =
+                stringResource(
+                    if (playing) R.string.chat_audio_pause_desc else R.string.chat_audio_play_desc,
+                ),
+        )
+    }
+}
+
+@Composable
+private fun AudioStatusText(
+    mimeType: String,
+    failed: Boolean,
+) {
+    Text(
+        text =
+            if (failed) {
+                stringResource(R.string.chat_audio_failed, mimeType)
+            } else {
+                stringResource(R.string.chat_audio_content, mimeType)
+            },
+        style = MaterialTheme.typography.bodySmall,
+    )
+}
+
+@Composable
+private fun AudioContentLabel(mimeType: String) {
     Text(
         text = stringResource(R.string.chat_audio_content, mimeType),
         style = MaterialTheme.typography.bodySmall,

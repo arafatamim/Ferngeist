@@ -359,7 +359,7 @@ class SessionRuntime(
             }
 
             debug { "onLocalPromptStarted textLen=${text.length}, images=${images.size}, files=${files.size}" }
-            val prompt = UserContent(text, images, files, clientId)
+            val prompt = UserContent.from(text, images, files, clientId)
             val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, prompt)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
@@ -395,7 +395,7 @@ class SessionRuntime(
             val withUser =
                 SessionMessageReducer.appendLocalUserMessage(
                     live.messages,
-                    UserContent(text, images, files, clientId),
+                    UserContent.from(text, images, files, clientId),
                     steered = true,
                 )
             live =

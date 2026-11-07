@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
@@ -8,6 +9,8 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnTiming
+import com.tamimarafat.ferngeist.core.model.chatFiles
+import com.tamimarafat.ferngeist.core.model.chatImages
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -504,7 +507,7 @@ class SessionRuntimeTest {
             runtime.onEvent(
                 AppSessionEvent.UserMessage(
                     text = "",
-                    images = listOf(sampleImage),
+                    block = ContentBlock.Image(data = sampleImage.base64, mimeType = sampleImage.mimeType),
                     append = true,
                 ),
             )
@@ -518,14 +521,15 @@ class SessionRuntimeTest {
             val message = snapshot.messages.single()
             assertEquals(ChatMessage.Role.USER, message.role)
             assertEquals("Describe this image:", message.content)
-            assertEquals(1, message.images.size)
-            assertEquals(sampleImage.base64, message.images[0].base64)
-            assertEquals(sampleImage.mimeType, message.images[0].mimeType)
+            assertEquals(
+                listOf(ContentBlock.Image(data = sampleImage.base64, mimeType = sampleImage.mimeType)),
+                message.contentBlocks.filterIsInstance<ContentBlock.Image>(),
+            )
         }
 
     @Test
     fun resend_of_a_saved_prompt_keeps_its_single_bubble() {
-        val prompt = UserContent("once", emptyList(), emptyList(), clientId = "c-1")
+        val prompt = UserContent.from("once", emptyList(), emptyList(), clientId = "c-1")
         val saved = SessionMessageReducer.appendLocalUserMessage(emptyList(), prompt)
         val reply = saved + ChatMessage(role = ChatMessage.Role.ASSISTANT, content = "done")
 
@@ -548,11 +552,11 @@ class SessionRuntimeTest {
         var messages =
             SessionMessageReducer.appendLocalUserMessage(
                 emptyList(),
-                UserContent("hello", listOf(sampleImage), emptyList()),
+                UserContent.from("hello", listOf(sampleImage), emptyList()),
             )
         assertEquals(1, messages.size)
         assertEquals("hello", messages[0].content)
-        assertEquals(1, messages[0].images.size)
+        assertEquals(1, messages[0].contentBlocks.chatImages().size)
 
         messages = SessionMessageReducer.startStreaming(messages)
         assertEquals(2, messages.size)
@@ -577,7 +581,7 @@ class SessionRuntimeTest {
                 afterTextEcho.toolCallIndex,
                 AppSessionEvent.UserMessage(
                     text = "",
-                    images = listOf(sampleImage),
+                    block = ContentBlock.Image(data = sampleImage.base64, mimeType = sampleImage.mimeType),
                     append = true,
                 ),
             )
@@ -587,8 +591,7 @@ class SessionRuntimeTest {
         val userMsg = afterImageEcho.messages[0]
         assertEquals(ChatMessage.Role.USER, userMsg.role)
         assertEquals("hello", userMsg.content)
-        assertEquals(1, userMsg.images.size)
-        assertEquals(sampleImage.base64, userMsg.images[0].base64)
+        assertEquals(listOf(sampleImage), userMsg.contentBlocks.chatImages())
 
         val assistantMsg = afterImageEcho.messages[1]
         assertEquals(ChatMessage.Role.ASSISTANT, assistantMsg.role)
@@ -609,11 +612,11 @@ class SessionRuntimeTest {
         var messages =
             SessionMessageReducer.appendLocalUserMessage(
                 emptyList(),
-                UserContent("see attached", emptyList(), listOf(sampleFile)),
+                UserContent.from("see attached", emptyList(), listOf(sampleFile)),
             )
         assertEquals(1, messages.size)
-        assertEquals(1, messages[0].files.size)
-        assertEquals("report.pdf", messages[0].files[0].name)
+        assertEquals(1, messages[0].contentBlocks.chatFiles().size)
+        assertEquals("report.pdf", messages[0].contentBlocks.chatFiles()[0].name)
 
         messages = SessionMessageReducer.startStreaming(messages)
         assertEquals(2, messages.size)
@@ -624,7 +627,15 @@ class SessionRuntimeTest {
                 emptyMap(),
                 AppSessionEvent.UserMessage(
                     text = "",
-                    files = listOf(sampleFile),
+                    block =
+                        ContentBlock.Resource(
+                            resource =
+                                EmbeddedResourceResource.BlobResourceContents(
+                                    blob = sampleFile.base64,
+                                    uri = sampleFile.name,
+                                    mimeType = sampleFile.mimeType,
+                                ),
+                        ),
                     append = true,
                 ),
             )
@@ -632,8 +643,7 @@ class SessionRuntimeTest {
         assertEquals("only one user bubble + one assistant placeholder", 2, afterFileEcho.messages.size)
         val userMsg = afterFileEcho.messages[0]
         assertEquals(ChatMessage.Role.USER, userMsg.role)
-        assertEquals(1, userMsg.files.size)
-        assertEquals("report.pdf", userMsg.files[0].name)
+        assertEquals(listOf(sampleFile), userMsg.contentBlocks.chatFiles())
         assertTrue(afterFileEcho.messages[1].isStreaming)
     }
 

@@ -65,8 +65,7 @@ internal object AcpSessionUpdateMapper {
     private fun mapUserMessageChunk(update: SessionUpdate.UserMessageChunk): AppSessionEvent =
         AppSessionEvent.UserMessage(
             text = extractText(update.content),
-            images = listOfNotNull(extractImage(update.content)),
-            files = listOfNotNull(extractFiles(update.content)),
+            block = update.content.toUserContentBlock(),
             append = true,
             messageId = update.messageId?.value,
             clientId = promptClientId(update),

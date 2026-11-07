@@ -10,7 +10,7 @@ internal fun appendUserText(
     append: Boolean,
     timestampMs: Long?,
 ): List<ChatMessage> {
-    if (content.text.isEmpty() && content.images.isEmpty() && content.files.isEmpty()) return received
+    if (content.isEmpty()) return received
     // Only the gateway tags an echo with its prompt's id, and only once it delivered that prompt.
     val messages = received.confirmingDelivery(content.clientId)
     // A catch-up replays the prompts the gateway numbered, including ones this transcript already
@@ -47,8 +47,7 @@ internal fun appendUserText(
         ChatMessage(
             role = ChatMessage.Role.USER,
             content = content.text,
-            images = content.images,
-            files = content.files,
+            contentBlocks = content.blocks,
             createdAt = timestampMs ?: System.currentTimeMillis(),
             messageId = content.messageId,
             clientId = content.clientId,
@@ -81,8 +80,8 @@ internal fun List<ChatMessage>.confirmingDelivery(clientId: String?): List<ChatM
 
 /**
  * When [append] is true this handles the server echo path: exact-match dedup against a
- * USER bubble, image-merge for image chunks, and placeholder dedup. When false it handles
- * the local optimistic insertion dedup. Returns null when a new message should be appended.
+ * USER bubble, attachment-merge for attachment chunks, and placeholder dedup. When false it
+ * handles the local optimistic insertion dedup. Returns null when a new message should be appended.
  */
 internal fun deduplicateOrMergeUserMessage(
     mutableMessages: MutableList<ChatMessage>,
@@ -92,8 +91,8 @@ internal fun deduplicateOrMergeUserMessage(
 ): List<ChatMessage>? {
     if (append && lastMessage?.role == ChatMessage.Role.USER && lastMessage.clientId == content.clientId) {
         // Exact-match dedup when the last message is already a USER bubble.
-        // Image chunks arrive as separate UserMessageChunks with empty text — merge
-        // images even when the text is empty or unchanged. Another prompt's echo never merges.
+        // Attachments arrive as separate UserMessageChunks with empty text — merge
+        // them even when the text is empty or unchanged. Another prompt's echo never merges.
         return mergeIntoUserBubble(mutableMessages, lastMessage, content)
     }
     // append=false: local optimistic insertion (or redundant source) — dedup against the
@@ -107,7 +106,7 @@ internal fun deduplicateOrMergeUserMessage(
 
 /**
  * Returns the merged message list when [lastMessage] is a USER bubble, or null when the
- * chunk should be appended as a new message. Merges when content/images/files differ,
+ * chunk should be appended as a new message. Merges when text/attachments differ,
  * and returns the unchanged list on an exact duplicate.
  */
 internal fun mergeIntoUserBubble(
@@ -115,13 +114,12 @@ internal fun mergeIntoUserBubble(
     lastMessage: ChatMessage,
     content: UserContent,
 ): List<ChatMessage> {
-    val dedup = lastMessage.content == content.text && content.images.isEmpty() && content.files.isEmpty()
+    val dedup = lastMessage.content == content.text && !content.hasAttachmentBlocks()
     if (dedup) return mutableMessages
     mutableMessages[mutableMessages.lastIndex] =
         lastMessage.copy(
             content = lastMessage.content + content.text,
-            images = lastMessage.images + content.images,
-            files = lastMessage.files + content.files,
+            contentBlocks = lastMessage.contentBlocks + content.blocks,
         )
     return mutableMessages
 }
