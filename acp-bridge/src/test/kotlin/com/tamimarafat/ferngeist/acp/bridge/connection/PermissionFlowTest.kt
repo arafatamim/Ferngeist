@@ -41,9 +41,9 @@ internal class PermissionFlowTest {
         val cancelled = flow.cancelPendingForSession("session-a")
 
         assertEquals(listOf("call-1"), cancelled)
-        assertNull(flow.takePending("call-1"))
-        val untouched = flow.takePending("call-2")
-        assertSame(theirs, untouched?.deferred)
+        assertNull(flow.takePending("session-a", "call-1"))
+        val untouched = flow.takePending("session-b", "call-2")
+        assertSame(theirs, untouched)
         assertFalse(theirs.isCompleted)
 
         // A session with no pending permission is a no-op, not an error.
@@ -62,8 +62,8 @@ internal class PermissionFlowTest {
         flow.cancelForSession("session-1")
 
         assertTrue(deferred1.isCancelled)
-        assertNull(flow.takePending("tool-1"))
-        assertNotNull(flow.takePending("tool-2"))
+        assertNull(flow.takePending("session-1", "tool-1"))
+        assertNotNull(flow.takePending("session-2", "tool-2"))
     }
 
     @Test
@@ -75,6 +75,6 @@ internal class PermissionFlowTest {
         flow.cancelAll()
 
         assertTrue(deferred.isCancelled)
-        assertNull(flow.takePending("tool-a"))
+        assertNull(flow.takePending("session-x", "tool-a"))
     }
 }
