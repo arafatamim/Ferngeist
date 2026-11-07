@@ -274,16 +274,19 @@ sealed interface AppSessionEvent {
         val files: List<ChatFileData> = emptyList(),
         val append: Boolean = false,
         val timestampMs: Long? = null,
+        val messageId: String? = null,
     ) : AppSessionEvent
 
     data class AgentMessage(
         val text: String,
         val timestampMs: Long? = null,
+        val messageId: String? = null,
     ) : AppSessionEvent
 
     data class AgentThought(
         val text: String,
         val timestampMs: Long? = null,
+        val messageId: String? = null,
     ) : AppSessionEvent
 
     data class ToolCallStarted(

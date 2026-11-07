@@ -18,8 +18,16 @@ internal object AcpSessionUpdateMapper {
     fun mapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent? =
         when (update) {
             is SessionUpdate.UserMessageChunk -> mapUserMessageChunk(update)
-            is SessionUpdate.AgentMessageChunk -> AppSessionEvent.AgentMessage(extractText(update.content))
-            is SessionUpdate.AgentThoughtChunk -> AppSessionEvent.AgentThought(extractText(update.content))
+            is SessionUpdate.AgentMessageChunk ->
+                AppSessionEvent.AgentMessage(
+                    text = extractText(update.content),
+                    messageId = update.messageId?.value,
+                )
+            is SessionUpdate.AgentThoughtChunk ->
+                AppSessionEvent.AgentThought(
+                    text = extractText(update.content),
+                    messageId = update.messageId?.value,
+                )
             is SessionUpdate.ToolCall -> mapToolCall(update)
             is SessionUpdate.ToolCallUpdate -> mapToolCallUpdate(update)
             is SessionUpdate.PlanUpdate, is SessionUpdate.PlanRemoved ->
@@ -59,6 +67,7 @@ internal object AcpSessionUpdateMapper {
             images = listOfNotNull(extractImage(update.content)),
             files = listOfNotNull(extractFiles(update.content)),
             append = true,
+            messageId = update.messageId?.value,
         )
 
     @OptIn(UnstableApi::class)

@@ -124,6 +124,66 @@ class SessionMessageReducerTest {
         )
     }
 
+    @Test
+    fun messageIds_splitChunksAtEachChangeAndMissingIdsKeepCurrentGrouping() {
+        var messages: List<ChatMessage> = emptyList()
+        messages = appendAgentChunk(messages, "one", messageId = "message_1")
+        messages = appendAgentChunk(messages, " two", messageId = "message_1")
+        messages = appendAgentChunk(messages, "three", messageId = "message_2")
+        messages = appendAgentChunk(messages, " four")
+        messages = appendAgentChunk(messages, " five")
+
+        val finished = SessionMessageReducer.finishStreaming(messages)
+
+        assertEquals(2, finished.size)
+        assertEquals("one two", finished[0].content)
+        assertEquals("message_1", finished[0].messageId)
+        assertEquals("three four five", finished[1].content)
+        assertEquals("message_2", finished[1].messageId)
+    }
+
+    @Test
+    fun interleavedMessageIdsStartANewMessageAtEveryIdChange() {
+        var messages: List<ChatMessage> = emptyList()
+        messages = appendAgentChunk(messages, "first", messageId = "message_1")
+        messages = appendAgentChunk(messages, "second", messageId = "message_2")
+        messages = appendAgentChunk(messages, "third", messageId = "message_1")
+
+        val finished = SessionMessageReducer.finishStreaming(messages)
+
+        assertEquals(listOf("first", "second", "third"), finished.map { it.content })
+        assertEquals(listOf("message_1", "message_2", "message_1"), finished.map { it.messageId })
+    }
+
+    @Test
+    fun userMessageIdsSplitUserChunksAtEachChange() {
+        var messages: List<ChatMessage> = emptyList()
+        messages =
+            SessionMessageReducer
+                .handleEvent(
+                    messages,
+                    emptyMap(),
+                    AppSessionEvent.UserMessage(text = "one", append = true, messageId = "user_1"),
+                ).messages
+        messages =
+            SessionMessageReducer
+                .handleEvent(
+                    messages,
+                    emptyMap(),
+                    AppSessionEvent.UserMessage(text = " two", append = true, messageId = "user_1"),
+                ).messages
+        messages =
+            SessionMessageReducer
+                .handleEvent(
+                    messages,
+                    emptyMap(),
+                    AppSessionEvent.UserMessage(text = "three", append = true, messageId = "user_2"),
+                ).messages
+
+        assertEquals(listOf("one two", "three"), messages.map { it.content })
+        assertEquals(listOf("user_1", "user_2"), messages.map { it.messageId })
+    }
+
     /**
      * Only ADJACENT MESSAGE segments merge. A thought that lands between two runs of reply chunks
      * keeps its place and each run folds on its own; absorbing across it would reorder the reply.
@@ -310,9 +370,10 @@ class SessionMessageReducerTest {
     private fun appendAgentChunk(
         messages: List<ChatMessage>,
         text: String,
+        messageId: String? = null,
     ): List<ChatMessage> =
         SessionMessageReducer
-            .handleEvent(messages, emptyMap(), AppSessionEvent.AgentMessage(text))
+            .handleEvent(messages, emptyMap(), AppSessionEvent.AgentMessage(text, messageId = messageId))
             .messages
 
     /** Threads one agent thought through the real reducer rather than reimplementing it here. */

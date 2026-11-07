@@ -32,6 +32,7 @@ data class ToolCallLocation(
 private data class TextChunk(
     val kind: AssistantSegment.Kind,
     val text: String,
+    val messageId: String?,
 )
 
 /**
@@ -61,7 +62,7 @@ object SessionMessageReducer {
                     messages =
                         appendUserText(
                             messages,
-                            UserContent(event.text, event.images, event.files),
+                            UserContent(event.text, event.images, event.files, event.messageId),
                             event.append,
                             event.timestampMs,
                         ),
@@ -71,7 +72,7 @@ object SessionMessageReducer {
                 appendText(
                     messages,
                     toolCallIndex,
-                    TextChunk(AssistantSegment.Kind.MESSAGE, event.text),
+                    TextChunk(AssistantSegment.Kind.MESSAGE, event.text, event.messageId),
                     event.timestampMs,
                     nowMs,
                 )
@@ -79,7 +80,7 @@ object SessionMessageReducer {
                 appendText(
                     messages,
                     toolCallIndex,
-                    TextChunk(AssistantSegment.Kind.THOUGHT, event.text),
+                    TextChunk(AssistantSegment.Kind.THOUGHT, event.text, event.messageId),
                     event.timestampMs,
                     nowMs,
                 )
@@ -165,17 +166,25 @@ object SessionMessageReducer {
         val mutableMessages = messages.mutableCopy()
 
         val lastMessage = mutableMessages.lastOrNull()
+        val startsNewMessage =
+            lastMessage?.role != ChatMessage.Role.ASSISTANT ||
+                (
+                    chunk.messageId != null &&
+                        lastMessage.messageId != null &&
+                        lastMessage.messageId != chunk.messageId
+                )
         val targetIndex =
-            if (lastMessage?.role == ChatMessage.Role.ASSISTANT) {
-                // Reuse the last assistant bubble when chunks arrive in sequence
+            if (!startsNewMessage) {
+                // Reuse the last assistant bubble when chunks arrive in sequence or carry no id
                 mutableMessages.lastIndex
             } else {
-                // First chunk of a new turn — seed a fresh assistant bubble
+                // First chunk of a new turn or a different ACP message — seed a fresh bubble
                 val newMessage =
                     ChatMessage(
                         role = ChatMessage.Role.ASSISTANT,
                         isStreaming = true,
                         createdAt = timestampMs ?: System.currentTimeMillis(),
+                        messageId = chunk.messageId,
                     )
                 mutableMessages.add(newMessage)
                 mutableMessages.lastIndex
@@ -208,6 +217,7 @@ object SessionMessageReducer {
                 segments = newSegments,
                 content = "",
                 isStreaming = true,
+                messageId = message.messageId ?: chunk.messageId,
             )
         return ReducerResult(mutableMessages.build(), toolCallIndex)
     }

@@ -4,6 +4,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.EmbeddedResourceResource
+import com.agentclientprotocol.model.MessageId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.ToolCallId
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
@@ -39,6 +40,28 @@ class AcpSessionUpdateParserTest {
         val event = invokeMapSessionUpdateToEvent(update)
         val msg = event as AppSessionEvent.AgentMessage
         assertEquals("  \n", msg.text)
+    }
+
+    @Test
+    fun `message id maps through every content chunk`() {
+        val messageId = MessageId("message_1")
+
+        val user =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.UserMessageChunk(content = ContentBlock.Text("user"), messageId = messageId),
+            ) as AppSessionEvent.UserMessage
+        val agent =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.AgentMessageChunk(content = ContentBlock.Text("agent"), messageId = messageId),
+            ) as AppSessionEvent.AgentMessage
+        val thought =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.AgentThoughtChunk(content = ContentBlock.Text("thought"), messageId = messageId),
+            ) as AppSessionEvent.AgentThought
+
+        assertEquals("message_1", user.messageId)
+        assertEquals("message_1", agent.messageId)
+        assertEquals("message_1", thought.messageId)
     }
 
     @Test
