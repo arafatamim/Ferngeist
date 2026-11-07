@@ -8,4 +8,5 @@ internal data class UserContent(
     val text: String,
     val images: List<ChatImageData>,
     val files: List<ChatFileData>,
+    val messageId: String? = null,
 )

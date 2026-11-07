@@ -24,6 +24,8 @@ data class ChatMessage(
     val clientId: String? = null,
     /** When the turn this reply answers was sent and finished; on a reply once it closes. */
     val turn: TurnTiming? = null,
+    /** ACP message id that identifies which streamed message this bubble belongs to. */
+    val messageId: String? = null,
 ) {
     enum class Role {
         USER,

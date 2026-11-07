@@ -14,11 +14,21 @@ internal fun appendUserText(
     val mutableMessages = messages.mutableCopy()
     val lastMessage = mutableMessages.lastOrNull()
 
-    // Dedup against the already-present user bubble (or the streaming placeholder that
-    // follows it) before appending a new one. Returns non-null when the caller should
-    // use the returned list instead of appending.
-    deduplicateOrMergeUserMessage(mutableMessages, lastMessage, content, append)?.let {
-        return it.toPersistentList()
+    // A new ACP message id is a hard message boundary, but an absent id keeps the
+    // previous merge behavior. An id on an as-yet-unidentified local/optimistic bubble
+    // claims that bubble instead of duplicating it.
+    val lastUser = mutableMessages.lastOrNull { it.role == ChatMessage.Role.USER }
+    val startsNewMessage =
+        content.messageId != null &&
+            lastUser?.messageId != null &&
+            lastUser.messageId != content.messageId
+    if (!startsNewMessage) {
+        // Dedup against the already-present user bubble (or the streaming placeholder that
+        // follows it) before appending a new one. Returns non-null when the caller should
+        // use the returned list instead of appending.
+        deduplicateOrMergeUserMessage(mutableMessages, lastMessage, content, append)?.let {
+            return it.toPersistentList().withMessageId(content.messageId)
+        }
     }
 
     // A new user message arriving means any running assistant turn is obsolete — close it
@@ -38,9 +48,18 @@ internal fun appendUserText(
             images = content.images,
             files = content.files,
             createdAt = timestampMs ?: System.currentTimeMillis(),
+            messageId = content.messageId,
         ),
     )
     return mutableMessages.build()
+}
+
+/** Claims an unidentified user bubble for [messageId] after an echo/merge. */
+private fun List<ChatMessage>.withMessageId(messageId: String?): List<ChatMessage> {
+    if (messageId == null) return this
+    val userIndex = indexOfLast { it.role == ChatMessage.Role.USER }
+    if (userIndex == -1 || this[userIndex].messageId != null) return this
+    return toMutableList().also { it[userIndex] = it[userIndex].copy(messageId = messageId) }
 }
 
 /**
