@@ -11,6 +11,8 @@
 #   bundle exec fastlane deploy                       # build + upload to the internal track
 #   bundle exec fastlane deploy track:production rollout:0.1
 #   bundle exec fastlane metadata                      # push store listing + changelogs, no binary
+#   bundle exec fastlane store_images                  # push icon, feature graphic and screenshots only
+#   bundle exec fastlane store_images dry_run:true     # validate them without committing
 #   bundle exec fastlane promote from:internal to:production
 #   bundle exec fastlane validate                      # dry-run the upload (validate_only)
 
@@ -49,6 +51,17 @@ platform :android do
       skip_upload_apk: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Push only the icon, feature graphic and screenshots (no binary, text or changelogs). Pass dry_run:true to validate without committing."
+  lane :store_images do |options|
+    upload_to_play_store(
+      validate_only: options[:dry_run] == true,
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
     )
   end
 
