@@ -92,6 +92,7 @@
     </plurals>
     <string name="sessionlist_filter_agent_selected">এজেন্ট: %1$s</string>
     <string name="sessionlist_filter_worktree_selected">ওয়ার্কট্রি: %1$s</string>
+    <string name="sessionlist_filter_project_selected">প্রকল্প: %1$s</string>
     <string name="sessionlist_filter_clear">%1$s ফিল্টার সাফ করুন</string>
     <string name="sessionlist_filter_agent">এজেন্ট</string>
     <string name="sessionlist_filter_worktree">ওয়ার্কট্রি</string>

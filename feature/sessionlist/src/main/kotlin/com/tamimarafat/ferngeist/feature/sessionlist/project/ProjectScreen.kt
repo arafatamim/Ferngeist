@@ -65,8 +65,9 @@ import com.tamimarafat.ferngeist.feature.sessionlist.ui.RemoveWorktreeDialog
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListEmptyContent
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.SessionListTopBarTitle
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.WorktreeToolbar
+import com.tamimarafat.ferngeist.feature.sessionlist.ui.filters.ActiveFilterChips
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.groupSessionsByDate
-import com.tamimarafat.ferngeist.feature.sessionlist.ui.scopeLabel
+import com.tamimarafat.ferngeist.feature.sessionlist.ui.scopeChipLabel
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 
 /** Opens a chat: the row's own agent, since one project mixes several. */
@@ -129,7 +130,7 @@ fun ProjectScreen(
 
     val repo = project?.repo
     val options = remember(project, worktrees) { project?.let { worktreeScopeOptions(it, worktrees) }.orEmpty() }
-    val scopeName = scope.takeUnless { it == WorktreeScope.All }?.let { scopeLabel(it, options) }
+    val scopeName = scopeChipLabel(scope, options)
     val selectedAgent = agents.firstOrNull { it.id == selectedAgentId }
 
     Box(
@@ -159,10 +160,11 @@ fun ProjectScreen(
                     animatedContentScope,
                     sharedBoundsEnabled,
                     filterChips = {
-                        ProjectFilterChips(
+                        ActiveFilterChips(
                             agentName = selectedAgent?.name,
                             agentIconUrl = selectedAgent?.iconUrl,
                             scopeName = scopeName,
+                            project = null,
                             onEdit = { showFilters = true },
                             onClearAgent = { viewModel.selectAgent(null) },
                             onClearScope = { viewModel.selectScope(WorktreeScope.All) },
@@ -174,30 +176,20 @@ fun ProjectScreen(
                 val agent by viewModel.newChatAgent.collectAsState()
                 WorktreeToolbar(
                     expanded = toolbarExpanded,
-                    repo = repo,
-                    projects = emptyList(),
                     // Checkouts come from the snapshot; a gateway that sent none has no worktrees to pick.
                     worktreesEnabled = project?.checkout != null,
                     scope = scope,
                     options = options,
-                    onSelectRepo = {},
-                    onOtherProject = null,
-                    onSelectScope = viewModel::selectScope,
                     onNewChat = onNewChat,
-                    onNewWorktree = {
-                        viewModel.clearWorktreeError()
-                        showWorktreeSheet = true
-                    },
-                    onRemoveWorktree = { viewModel.requestRemoveWorktree(null, it) },
-                    newChatEnabled = agents.isNotEmpty(),
-                    newChatLabel = agent?.let { stringResource(R.string.sessionlist_project_new_chat_with, it.name) },
-                    leadingSelector = {
+                    filterButton = {
                         FiltersButton(
                             expanded = toolbarExpanded,
                             count = projectFilterCount(selectedAgentId, scope),
                             onClick = { showFilters = true },
                         )
                     },
+                    newChatEnabled = agents.isNotEmpty(),
+                    newChatLabel = agent?.let { stringResource(R.string.sessionlist_project_new_chat_with, it.name) },
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },

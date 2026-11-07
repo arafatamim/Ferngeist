@@ -94,6 +94,7 @@
     </plurals>
     <string name="sessionlist_filter_agent_selected">Agent: %1$s</string>
     <string name="sessionlist_filter_worktree_selected">Worktree: %1$s</string>
+    <string name="sessionlist_filter_project_selected">Project: %1$s</string>
     <string name="sessionlist_filter_clear">Clear %1$s filter</string>
     <string name="sessionlist_filter_agent">Agent</string>
     <string name="sessionlist_filter_worktree">Worktree</string>

@@ -100,6 +100,7 @@
     </plurals>
     <string name="sessionlist_filter_agent_selected">Агент: %1$s</string>
     <string name="sessionlist_filter_worktree_selected">Рабочее дерево: %1$s</string>
+    <string name="sessionlist_filter_project_selected">Проект: %1$s</string>
     <string name="sessionlist_filter_clear">Сбросить фильтр «%1$s»</string>
     <string name="sessionlist_filter_agent">Агент</string>
     <string name="sessionlist_filter_worktree">Рабочее дерево</string>

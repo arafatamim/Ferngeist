@@ -1,4 +1,4 @@
-package com.tamimarafat.ferngeist.feature.sessionlist.project
+package com.tamimarafat.ferngeist.feature.sessionlist.ui.filters
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
@@ -21,6 +21,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -37,7 +38,7 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class ProjectFilterChipsTest {
+class ActiveFilterChipsTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
@@ -74,16 +75,46 @@ class ProjectFilterChipsTest {
     }
 
     @Test
+    fun projectChip_showsOnlyWhileTheProjectFilterApplies() {
+        val project = mutableStateOf<ProjectFilter?>(null)
+        compose.setContent {
+            MaterialTheme {
+                ActiveFilterChips(
+                    agentName = null,
+                    agentIconUrl = null,
+                    scopeName = null,
+                    project = project.value,
+                    onEdit = {},
+                    onClearAgent = {},
+                    onClearScope = {},
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Project: Ferngeist").assertDoesNotExist()
+        compose.runOnIdle {
+            project.value = ProjectFilter("Ferngeist") { project.value = null }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Project: Ferngeist").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Clear Project: Ferngeist filter").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Project: Ferngeist").assertDoesNotExist()
+    }
+
+    @Test
     fun clearingLastFilter_collapsesThroughIntermediateHeight() {
         val scope = mutableStateOf<String?>(WORKTREE)
         var height = 0
         compose.setContent {
             MaterialTheme {
                 Box(Modifier.width(320.dp).onSizeChanged { height = it.height }) {
-                    ProjectFilterChips(
+                    ActiveFilterChips(
                         agentName = null,
                         agentIconUrl = null,
                         scopeName = scope.value,
+                        project = null,
                         onEdit = {},
                         onClearAgent = {},
                         onClearScope = { scope.value = null },
@@ -129,10 +160,11 @@ class ProjectFilterChipsTest {
                         subtitle = {
                             Column {
                                 Text("australis-tamim")
-                                ProjectFilterChips(
+                                ActiveFilterChips(
                                     agentName = "OpenCode V2",
                                     agentIconUrl = null,
                                     scopeName = WORKTREE,
+                                    project = null,
                                     onEdit = onEdit,
                                     onClearAgent = {},
                                     onClearScope = onClearScope,
