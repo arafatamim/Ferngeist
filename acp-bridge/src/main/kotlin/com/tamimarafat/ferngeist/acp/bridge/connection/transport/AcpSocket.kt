@@ -40,7 +40,8 @@ private const val MILLIS_PER_SECOND = 1_000L
 // One CIO client for every socket in the process. Each client builds its own engine and TLS
 // context, so a client per connection paid for both on every chat, listing and verification
 // socket, and no handshake could resume another's TLS session. Never closed, like the REST client.
-private val sharedWebSocketClient: HttpClient by lazy {
+// The gateway turn-status stream shares it for the same reason.
+internal val sharedWebSocketClient: HttpClient by lazy {
     HttpClient(CIO) {
         install(WebSockets) {
             pingIntervalMillis = WEB_SOCKET_PING_INTERVAL_MILLIS

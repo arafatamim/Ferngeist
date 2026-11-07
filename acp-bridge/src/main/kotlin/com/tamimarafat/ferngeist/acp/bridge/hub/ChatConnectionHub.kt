@@ -10,8 +10,6 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatPresence
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
-import com.tamimarafat.ferngeist.core.model.TurnActivity
-import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CancellationException
@@ -26,11 +24,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -209,34 +205,12 @@ class ChatConnectionHub(
     private val _trackedChatIds = MutableStateFlow<Set<String>>(emptySet())
     val trackedChatIds: StateFlow<Set<String>> = _trackedChatIds.asStateFlow()
 
-    private val turnObservers = HashMap<String, Job>()
-
-    private val _streamingChatIds = MutableStateFlow<Set<String>>(emptySet())
-    val streamingChatIds: StateFlow<Set<String>> = _streamingChatIds.asStateFlow()
-
-    private val _turnStatuses = MutableStateFlow<Map<String, TurnActivity>>(emptyMap())
-
-    /**
-     * Reliable turn status of every tracked chat, keyed by the canonical [chatIdFor]
-     * composite (`"<serverId>/<sessionId>"`). A chat absent from the map has no local
-     * status: its screen or transport is gone, so a consumer falls back to whatever other
-     * source it has instead of reading a stale [TurnStatus.FINISHED]. [TurnStatus.UNKNOWN]
-     * is present and authoritative - the chat is tracked but no outcome is known.
-     */
-    val turnStatuses: StateFlow<Map<String, TurnActivity>> = _turnStatuses.asStateFlow()
+    private val saveJobs = HashMap<String, Job>()
 
     init {
         scope.launch {
-            connectedManagerValues(filter = { true }, select = { it.chatId }).collect { connected ->
-                _connectedChatIds.value = connected
-                val disconnected =
-                    entries.values
-                        .filter {
-                            it.manager != null && it.manager.connectionState.value !is AcpConnectionState.Connected
-                        }.map { it.chatId }
-                        .toSet()
-                _streamingChatIds.update { it - disconnected }
-                _turnStatuses.update { it - disconnected }
+            connectedManagerValues(filter = { true }, select = { it.chatId }).collect {
+                _connectedChatIds.value = it
             }
         }
         persistence?.let { scope.launch { it.restoreOpenChats(::restoreEntries) } }
@@ -431,137 +405,25 @@ class ChatConnectionHub(
                     cwd = "",
                 )
         }
-        observeTurn(chatId, registration)
+        startSaving(chatId, registration)
         republish()
         return chatId
     }
 
-    private fun expiryDuration(status: TurnStatus?): Long =
-        if (status == TurnStatus.ERROR) FAILED_STATUS_EXPIRY_MS else FINISHED_STATUS_EXPIRY_MS
-
-    private data class TurnPresence(
-        val isStreaming: Boolean,
-        val turnStatus: TurnActivity?,
-        val turnCompletionSequence: Long,
-    )
-
-    private companion object {
-        const val FINISHED_STATUS_EXPIRY_MS = 600_000L
-        const val FAILED_STATUS_EXPIRY_MS = 300_000L
-    }
-
     /**
-     * The turn outlives its screen, so the hub observes it independently of any publisher.
-     * A connection that is not up has no reliable turn state, so the chat's status is
-     * withdrawn until fresh bridge state arrives after reattachment. Only the bridge's live
-     * snapshot is read - never the rendered-snapshot cache - so eviction cannot replay an outcome.
+     * The turn outlives its screen, so the hub keeps saving this chat independently of any
+     * publisher. Losing the job stops its saved state, which a post-kill rehydration reads.
      */
-    private fun observeTurn(
+    private fun startSaving(
         chatId: String,
         registration: ChatRegistration,
     ) {
-        turnObservers.remove(chatId)?.cancel()
-        val snapshot =
-            registration.snapshot ?: run {
-                _turnStatuses.update { it - chatId }
-                return
-            }
-        turnObservers[chatId] =
+        saveJobs.remove(chatId)?.cancel()
+        val snapshot = registration.snapshot ?: return
+        saveJobs[chatId] =
             scope.launch {
-                persistence?.let { launch { it.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) } } }
-                val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
-                val expiry = TurnStatusExpiry(chatId, this)
-                turnPresenceFlow(chatId, snapshot, connection).collect { presence ->
-                    publishTurnPresence(chatId, expiry.apply(presence))
-                }
+                persistence?.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) }
             }
-    }
-
-    private fun turnPresenceFlow(
-        chatId: String,
-        snapshot: StateFlow<SessionSnapshot>,
-        connection: Flow<AcpConnectionState>,
-    ): Flow<TurnPresence> {
-        var awaitingFreshState = false
-        var acknowledgedCompletion: Long? = null
-        return combine(snapshot, connection, openChatIds) { state, connectionState, open ->
-            val connected = connectionState is AcpConnectionState.Connected
-            val terminal = state.turnStatus.isOutcome()
-            if (!connected) awaitingFreshState = true
-            if (connected && !terminal) awaitingFreshState = false
-            if (terminal && chatId in open) acknowledgedCompletion = state.turnCompletionSequence
-            val status =
-                if (terminal && acknowledgedCompletion == state.turnCompletionSequence) {
-                    TurnStatus.UNKNOWN
-                } else {
-                    state.turnStatus
-                }
-            // A retained terminal snapshot is not new evidence merely because transport recovered.
-            TurnPresence(
-                isStreaming = state.isStreaming && connected,
-                turnStatus =
-                    TurnActivity(status, state.turnStatusSince.takeIf { status == state.turnStatus })
-                        .takeIf { connected && !awaitingFreshState },
-                turnCompletionSequence = state.turnCompletionSequence,
-            )
-        }.distinctUntilChanged()
-    }
-
-    private inner class TurnStatusExpiry(
-        private val chatId: String,
-        private val scope: CoroutineScope,
-    ) {
-        private var latestCompletionSequence: Long? = null
-        private var expiredCompletionSequence: Long? = null
-        private var job: Job? = null
-
-        fun apply(presence: TurnPresence): TurnPresence {
-            if (presence.turnStatus?.status.isOutcome()) {
-                if (latestCompletionSequence != presence.turnCompletionSequence) {
-                    job?.cancel()
-                    latestCompletionSequence = presence.turnCompletionSequence
-                    expiredCompletionSequence = null
-                    val completionSequence = presence.turnCompletionSequence
-                    job =
-                        scope.launch {
-                            kotlinx.coroutines.delay(expiryDuration(presence.turnStatus?.status))
-                            _turnStatuses.update { statuses ->
-                                if (latestCompletionSequence == completionSequence &&
-                                    statuses[chatId]?.status.isOutcome()
-                                ) {
-                                    expiredCompletionSequence = completionSequence
-                                    statuses + (chatId to TurnActivity())
-                                } else {
-                                    statuses
-                                }
-                            }
-                        }
-                }
-            } else {
-                job?.cancel()
-                job = null
-                latestCompletionSequence = null
-                expiredCompletionSequence = null
-            }
-            return if (presence.turnStatus?.status.isOutcome() &&
-                expiredCompletionSequence == presence.turnCompletionSequence
-            ) {
-                presence.copy(turnStatus = TurnActivity())
-            } else {
-                presence
-            }
-        }
-    }
-
-    private fun publishTurnPresence(
-        chatId: String,
-        presence: TurnPresence,
-    ) {
-        _streamingChatIds.update { if (presence.isStreaming) it + chatId else it - chatId }
-        _turnStatuses.update { statuses ->
-            val status = presence.turnStatus
-            if (status == null) statuses - chatId else statuses + (chatId to status)
-        }
     }
 
     /**
@@ -653,9 +515,7 @@ class ChatConnectionHub(
         entries[chatId]?.let { existing ->
             val openScreens = (existing.openScreens - 1).coerceAtLeast(0)
             if (existing.manager == null && !existing.restored && openScreens == 0) {
-                turnObservers.remove(chatId)?.cancel()
-                _streamingChatIds.update { it - chatId }
-                _turnStatuses.update { it - chatId }
+                saveJobs.remove(chatId)?.cancel()
                 entries.remove(chatId)
             } else {
                 entries[chatId] = existing.copy(openScreens = openScreens)
@@ -752,9 +612,7 @@ class ChatConnectionHub(
         chatId: String,
         endpoint: GatewayEndpoint? = null,
     ) {
-        val saver = turnObservers.remove(chatId)?.also { it.cancel() }
-        _streamingChatIds.update { it - chatId }
-        _turnStatuses.update { it - chatId }
+        val saver = saveJobs.remove(chatId)?.also { it.cancel() }
         val entry = entries.remove(chatId)
         // Joined first: a save still writing would bring the deleted state back.
         saver?.join()
@@ -775,9 +633,7 @@ class ChatConnectionHub(
         entries.values.mapNotNullTo(mutableListOf()) { it.manager } + pendingManagers + browserManagers
 
     private fun removeAndEvict(chatId: String) {
-        turnObservers.remove(chatId)?.cancel()
-        _streamingChatIds.update { it - chatId }
-        _turnStatuses.update { it - chatId }
+        saveJobs.remove(chatId)?.cancel()
         val entry = entries.remove(chatId)
         if (entry != null) {
             entry.manager?.let { it.release() }
@@ -933,5 +789,3 @@ internal fun chatIdFor(
     serverId: String,
     sessionId: String,
 ): String = "$serverId/$sessionId"
-
-private fun TurnStatus?.isOutcome(): Boolean = this == TurnStatus.FINISHED || this == TurnStatus.ERROR

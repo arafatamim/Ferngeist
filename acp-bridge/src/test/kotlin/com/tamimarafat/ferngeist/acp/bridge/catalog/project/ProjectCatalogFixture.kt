@@ -2,43 +2,47 @@ package com.tamimarafat.ferngeist.acp.bridge.catalog.project
 
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
-import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.hub.newHub
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
-import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepositoryImpl
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectChat
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectRepo
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjects
-import com.tamimarafat.ferngeist.gateway.turns.GatewayTurns
+import com.tamimarafat.ferngeist.gateway.turns.GatewayTurn
+import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnKey
+import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnStream
+import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnStreamFrame
+import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnsSnapshot
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.http.HttpStatusCode
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.json.Json
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
-private const val EMPTY_TURNS =
-    """{"gatewayStartedAt":"2026-10-27T09:00:00Z",""" +
-        """"observedAt":"2026-10-27T10:00:00Z","turns":[]}"""
+private const val STARTED_AT = "2026-10-27T09:00:00Z"
+private const val OBSERVED_AT = "2026-10-27T09:30:00Z"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 open class ProjectCatalogFixture {
     @get:Rule
     val folder = TemporaryFolder()
+
+    /** Discovery consent the catalog under test sees; a test overrides it before building one. */
+    internal var discoveryConsent: Flow<Boolean> = flowOf(true)
 
     internal val json = Json { ignoreUnknownKeys = true }
     internal val gateway = GatewaySource(id = "gw", name = "PC", host = "pc:5788", gatewayCredential = "token")
@@ -55,48 +59,16 @@ open class ProjectCatalogFixture {
         """{"type":"agent","agentId":"claude","status":"ok","chats":[""" +
             """{"sessionId":"same","cwd":"$repo","repo":"$repo","updatedAt":"$timestamp"}]}""" + "\n"
 
-    /** A hub chat whose live snapshot this test drives: status and streaming change together. */
-    internal fun ChatConnectionHub.registerLiveChat(
-        serverId: String,
-        sessionId: String,
-        status: TurnStatus = TurnStatus.WORKING,
-    ): Pair<String, MutableStateFlow<SessionSnapshot>> {
-        val live =
-            MutableStateFlow(
-                SessionSnapshot(
-                    sessionId = sessionId,
-                    isStreaming = status == TurnStatus.WORKING,
-                    turnStatus = status,
-                ),
-            )
-        val chatId =
-            register(
-                serverId = serverId,
-                sessionId = sessionId,
-                registration =
-                    ChatRegistration(
-                        gatewaySessionId = null,
-                        gatewaySourceId = "gw",
-                        agentId = "claude",
-                        isConnected = { true },
-                        isStreaming = { live.value.isStreaming },
-                        snapshot = live,
-                    ),
-            )
-        return chatId to live
-    }
-
     internal fun TestScope.catalog(
         engine: MockEngine,
         targets: List<LaunchableTarget> = listOf(claude, codex),
         hub: ChatConnectionHub = newHub(),
-        turns: MockEngine = turnsEngine(EMPTY_TURNS),
-        consent: Flow<Boolean> = flowOf(true),
+        stream: GatewayTurnStream = idleTurnStream(),
     ) = ProjectCatalog(
         gateway =
             ProjectCatalogGateway(
                 GatewayProjects(HttpClient(engine), json),
-                GatewayTurns(HttpClient(turns), json),
+                stream,
             ),
         repositories =
             LaunchRepositories(
@@ -108,38 +80,47 @@ open class ProjectCatalogFixture {
         store = store(),
         scope = backgroundScope,
         hub = hub,
-        consent = consent,
+        consent = discoveryConsent,
     )
 
-    /** Answers `/v1/turns` with [bodies] in order, repeating the last, all with [status]. */
-    internal fun turnsEngine(
-        vararg bodies: String,
-        status: HttpStatusCode = HttpStatusCode.OK,
-    ): MockEngine {
-        var served = 0
-        return MockEngine { respond(bodies.getOrElse(served++) { bodies.last() }, status) }
-    }
+    /** A stream the test drives frame by frame, through [turnStream]. */
+    internal fun fakeStream(): Channel<GatewayTurnStreamFrame> = Channel(Channel.UNLIMITED)
 
-    internal fun turns(
-        vararg turns: String,
-        gatewayStartedAt: String = "2026-10-27T09:00:00Z",
-        observedAt: String = "2026-10-27T09:30:00Z",
-    ): String =
-        """{"gatewayStartedAt":"$gatewayStartedAt","observedAt":"$observedAt",""" +
-            """"turns":[${turns.joinToString(",")}]}"""
+    internal fun turnStream(frames: Channel<GatewayTurnStreamFrame>): GatewayTurnStream =
+        mockk { every { frames(any(), any(), any()) } returns frames.receiveAsFlow() }
 
-    internal fun turnLine(
+    internal fun idleTurnStream(): GatewayTurnStream =
+        mockk {
+            every { frames(any(), any(), any()) } returns Channel<GatewayTurnStreamFrame>().receiveAsFlow()
+        }
+
+    internal fun snapshotFrame(
+        vararg turns: GatewayTurn,
+        gatewayStartedAt: String = STARTED_AT,
+        observedAt: String = OBSERVED_AT,
+    ): GatewayTurnStreamFrame.Snapshot =
+        GatewayTurnStreamFrame.Snapshot(GatewayTurnsSnapshot(gatewayStartedAt, observedAt, turns.toList()))
+
+    internal fun changesFrame(
+        upsert: GatewayTurn? = null,
+        removed: List<GatewayTurnKey> = emptyList(),
+    ): GatewayTurnStreamFrame.Changes = GatewayTurnStreamFrame.Changes(OBSERVED_AT, listOfNotNull(upsert), removed)
+
+    internal fun gatewayTurn(
         agentId: String,
         sessionId: String,
         state: String,
-        attention: List<String> = emptyList(),
-        changedAt: String = "2026-10-27T09:30:00Z",
-    ): String {
-        val attentionJson = attention.joinToString(",", "[", "]") { "\"$it\"" }
-        return """{"agentId":"$agentId","sessionId":"$sessionId","gatewaySessionId":"gs",""" +
-            """"runtimeId":"rt","state":"$state","attention":$attentionJson,""" +
-            """"startedAt":"2026-10-27T09:30:00Z","changedAt":"$changedAt"}"""
-    }
+        changedAt: String = OBSERVED_AT,
+    ): GatewayTurn =
+        GatewayTurn(
+            agentId = agentId,
+            sessionId = sessionId,
+            gatewaySessionId = "gs-$sessionId",
+            state = state,
+            attention = emptyList(),
+            startedAt = OBSERVED_AT,
+            changedAt = changedAt,
+        )
 
     internal fun store() = ProjectSnapshotStore(folder.root, json)
 

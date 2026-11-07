@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
+import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewaySource
@@ -91,6 +92,15 @@ internal fun ChatConnectionHub.registerChat(
                 snapshot = snapshot,
             ),
     )
+
+/** Forces a connection state on a test transport, which has no other way to change it. */
+internal fun AcpConnection.forceConnectionState(state: AcpConnectionState) {
+    val stateField = AcpConnection::class.java.getDeclaredField("_connectionState")
+    stateField.isAccessible = true
+    @Suppress("UNCHECKED_CAST")
+    val stateFlow = stateField.get(this) as MutableStateFlow<AcpConnectionState>
+    stateFlow.value = state
+}
 
 /** A session's live state mid-turn, as its bridge publishes it. */
 internal fun streamingSnapshot(): StateFlow<SessionSnapshot> =

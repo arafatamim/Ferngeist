@@ -4,9 +4,12 @@ import android.content.Context
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectCatalog
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectDiscoveryConsent
 import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSnapshotStore
+import com.tamimarafat.ferngeist.acp.bridge.connection.transport.gatewayTurnStream
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.feature.serverlist.consent.AgentLaunchConsentStore
+import com.tamimarafat.ferngeist.gateway.GatewayClock
+import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnStream
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,6 +34,13 @@ object ProjectCatalogModule {
         @ApplicationContext context: Context,
         json: Json,
     ): ProjectSnapshotStore = ProjectSnapshotStore(File(context.noBackupFilesDir, "projects"), json)
+
+    @Provides
+    @Singleton
+    fun provideGatewayTurnStream(
+        json: Json,
+        clock: GatewayClock,
+    ): GatewayTurnStream = gatewayTurnStream(json, clock)
 
     @Provides
     fun provideChatCatalog(catalog: ProjectCatalog): ChatCatalog = catalog

@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.catalog.project
 
+import com.tamimarafat.ferngeist.acp.bridge.catalog.turns.TurnStatusCatalog
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.GatewaySource
@@ -8,18 +9,19 @@ import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.isInside
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
+import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectLine
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjects
-import com.tamimarafat.ferngeist.gateway.turns.GatewayTurns
+import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -47,21 +49,20 @@ class ProjectCatalogGateway
     @Inject
     constructor(
         val projects: GatewayProjects,
-        val turns: GatewayTurns,
+        val turnStream: GatewayTurnStream,
     )
 
 /**
  * Projects across paired gateways, drawn from the last `/v1/projects` response of each.
  *
- * Owns the per-gateway snapshots: hydrates them from disk, refreshes them on local turn
- * completion and the triggers the app wires (no timer or socket), and projects them onto this
- * phone's bindings. A gateway without a snapshot, including one that answered 404, contributes no projects.
+ * Owns the per-gateway snapshots: hydrates them from disk, refreshes them when a streamed turn
+ * ends and on the triggers the app wires (no timer), and projects them onto this phone's
+ * bindings. A gateway without a snapshot, including one that answered 404, contributes no projects.
  *
  * As [ChatCatalog] it answers for every agent: from its gateway's snapshot when that lists the
  * agent, else from its per-agent listing snapshot.
  *
- * Turn status comes from each gateway's `/v1/turns` answer on the same triggers, kept in memory
- * only, and a chat this phone tracks through [ChatConnectionHub] takes the hub's status instead.
+ * Turn status streams from each gateway while the app is visible; it stays in memory only.
  */
 @Singleton
 class ProjectCatalog
@@ -126,9 +127,14 @@ class ProjectCatalog
                 )
             }.stateIn(scope, SharingStarted.Eagerly, ProjectCatalogState())
 
-        /** Per gateway, the last `/v1/turns` answer with the hub's live status on top. */
+        /** Per gateway, its streamed turn status with the hub's live status on top. */
         private val turnStatusCatalog =
-            TurnStatusCatalog(gateway.turns, launchableTargetRepository.getTargets(), scope, hub)
+            TurnStatusCatalog(
+                gateway.turnStream,
+                launchableTargetRepository.getTargets(),
+                scope,
+                hub,
+            )
 
         val turnStatuses: StateFlow<Map<String, TurnActivity>> = turnStatusCatalog.statuses
 
@@ -147,12 +153,8 @@ class ProjectCatalog
             }.stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
         init {
-            var previous = hub.streamingChatIds.value
             scope.launch(ioDispatcher) {
-                hub.streamingChatIds.collect { streaming ->
-                    val ended = previous - streaming
-                    previous = streaming
-                    if (ended.isEmpty()) return@collect
+                turnStatusCatalog.turnEnded.collect { ended ->
                     launchableTargetRepository
                         .getTargets()
                         .first()
@@ -279,7 +281,11 @@ class ProjectCatalog
                                 previous.suppressed + (agent to (previous.suppressed[agent].orEmpty() + sessionId)),
                         ),
                     )
-                    val bindings = targetsOf(gateway.gatewaySource).filter { it.binding.agentId == agent }.map { it.id }
+                    val bindings =
+                        launchableTargetRepository
+                            .gatewayTargets(gateway.gatewaySource)
+                            .filter { it.binding.agentId == agent }
+                            .map { it.id }
                     bindings.forEach { suppressListing(it, sessionId) }
                 } else {
                     suppressListing(serverId, sessionId)
@@ -320,6 +326,16 @@ class ProjectCatalog
             created.update { all -> all + (serverId to all[serverId].orEmpty().filterNot { it.id in ids }) }
         }
 
+        /**
+         * Streams turn status while the app is visible, under the same discovery consent as the
+         * listing. Cancelling it (the app hidden, the network lost) closes every socket.
+         */
+        suspend fun streamTurns() {
+            discoveryAllowed.collectLatest { allowed ->
+                if (allowed) turnStatusCatalog.stream(gatewaySourceRepository.getGateways())
+            }
+        }
+
         /** Fetches [gatewaySourceId], or every paired gateway; one in flight per gateway. */
         fun refresh(
             gatewaySourceId: String? = null,
@@ -355,11 +371,7 @@ class ProjectCatalog
                     .launch(ioDispatcher) {
                         _refreshing.update { it + gateway.id }
                         try {
-                            coroutineScope {
-                                // Status must not queue behind a listing that can take a minute.
-                                launch { turnStatusCatalog.refresh(gateway) }
-                                fetch(gateway)
-                            }
+                            fetch(gateway)
                         } finally {
                             _refreshing.update { it - gateway.id }
                         }
@@ -372,12 +384,12 @@ class ProjectCatalog
          * trigger retries.
          */
         private suspend fun fetch(gateway: GatewaySource) {
-            val agentIds = targetsOf(gateway).map { it.binding.agentId }.distinct()
+            val agentIds = launchableTargetRepository.gatewayTargets(gateway).map { it.binding.agentId }.distinct()
             if (agentIds.isEmpty()) return
             try {
                 val cached = snapshots.value?.get(gateway.id)
                 val fallbackPaths =
-                    targetsOf(gateway).flatMap { target ->
+                    launchableTargetRepository.gatewayTargets(gateway).flatMap { target ->
                         snapshots.value
                             ?.get(agentKey(target.id))
                             ?.listings
@@ -433,7 +445,7 @@ class ProjectCatalog
         ) {
             cache.writes.withLock {
                 val previous = snapshots.value?.get(gateway.id) ?: ProjectSnapshot()
-                val bound = targetsOf(gateway)
+                val bound = launchableTargetRepository.gatewayTargets(gateway)
                 if (line is GatewayProjectLine.Checkouts && line.missingRepos.isNotEmpty()) {
                     val paths =
                         line.missingRepos +
@@ -441,7 +453,7 @@ class ProjectCatalog
                                 .orEmpty()
                                 .filter { it.repo in line.missingRepos }
                                 .flatMap { it.worktrees.map { tree -> tree.path } }
-                    bound.forEach { pruneMissingPaths(it.id, paths) }
+                    bound.forEach { target -> pruneMissingPaths(target.id, paths) }
                 }
                 cache.publish(gateway.id, previous.merge(line))
                 if (line is GatewayProjectLine.Agent && line.status == "ok") {
@@ -474,11 +486,10 @@ class ProjectCatalog
                 )
             }
         }
-
-        private suspend fun targetsOf(gateway: GatewaySource) =
-            launchableTargetRepository.getTargets().first().filterIsInstance<LaunchableTarget.GatewayAgent>().filter {
-                it.gatewaySource.id == gateway.id
-            }
     }
+
+/** The bindings on this phone for [gateway], as this catalog lists them. */
+private suspend fun LaunchableTargetRepository.gatewayTargets(gateway: GatewaySource) =
+    getTargets().first().filterIsInstance<LaunchableTarget.GatewayAgent>().filter { it.gatewaySource.id == gateway.id }
 
 private fun agentKey(serverId: String) = "agent-$serverId"

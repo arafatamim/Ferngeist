@@ -82,6 +82,7 @@ open class ChatViewModelTestBase {
                     chatConnectionHub,
                     repositories.launchableTargetRepository,
                     FakeGatewayRepository(),
+                    turnStatuses = MutableStateFlow(emptyMap()),
                 ),
             repositories = repositories,
             stores = stores,
