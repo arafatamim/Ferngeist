@@ -66,6 +66,9 @@ platform :android do
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: true,
+      # Images are app-wide, but supply still anchors the upload to one release on the track and
+      # aborts when a staged rollout leaves several; any of them will do, so take the newest.
+      version_code: google_play_track_version_codes(track: "production").max,
     )
   end
 
