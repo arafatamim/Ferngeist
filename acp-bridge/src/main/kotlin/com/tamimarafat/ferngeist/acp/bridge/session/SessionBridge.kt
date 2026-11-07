@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
@@ -30,6 +31,10 @@ import kotlinx.serialization.json.JsonElement
  * flight — a few update events and their terminal event — not a whole session history.
  */
 private const val EVENT_REPLAY_TAIL = 8
+
+/** A runtime timed on this device's monotonic clock, as every live chat's is. */
+internal fun deviceRuntime(sessionId: String): SessionRuntime =
+    SessionRuntime(sessionId = sessionId, clock = { runCatching { SystemClock.elapsedRealtime() }.getOrNull() })
 
 /**
  * SessionBridge is the UI-facing handle to a single ACP session, implementing [SessionPort].
@@ -54,10 +59,10 @@ private const val EVENT_REPLAY_TAIL = 8
 class SessionBridge(
     override val sessionId: String,
     private val connectionManager: AcpConnection?,
+    /** The chat's state, which outlives this bridge's connection when the hub owns it. */
+    internal val runtime: SessionRuntime = deviceRuntime(sessionId),
     defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : SessionPort {
-    internal val runtime: SessionRuntime =
-        SessionRuntime(sessionId = sessionId, clock = { runCatching { SystemClock.elapsedRealtime() }.getOrNull() })
     override val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
 
     // Raw event stream, for an observer that needs the events as they are emitted. No app
@@ -92,13 +97,17 @@ class SessionBridge(
     private val traceTag = "TSBridge"
 
     /**
-     * Feeds a session event into the runtime reducer and then emits it to observers.
+     * Feeds a session event into the runtime reducer and then emits it to observers;
+     * [updateSeq] is the gateway's number for the update it came from, if any.
      *
      * Ordering matters: runtime state is updated before observers see the event.
      */
-    suspend fun emitEvent(event: AppSessionEvent) {
+    suspend fun emitEvent(
+        event: AppSessionEvent,
+        updateSeq: Long? = null,
+    ) {
         debug { "emitEvent type=${event::class.simpleName}" }
-        runtime.onEvent(event)
+        runtime.onEvent(event, updateSeq)
         _events.emit(event)
         if (event is AppSessionEvent.ModelSelectionConfirmed) {
             _modelSelectionEvents.emit(event)
@@ -129,9 +138,10 @@ class SessionBridge(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String?,
     ) {
-        runtime.onLocalPromptStarted(text, images, files)
-        sendWithRollback(text, images, files)
+        runtime.onLocalPromptStarted(text, images, files, clientId)
+        sendWithRollback(text, images, files, clientId)
     }
 
     /**
@@ -143,9 +153,10 @@ class SessionBridge(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String?,
     ) {
         try {
-            connectionManager?.sessions?.sendSessionMessage(sessionId, text, images, files)
+            connectionManager?.sessions?.sendSessionMessage(sessionId, text, images, files, clientId)
         } catch (e: CancellationException) {
             // Propagate structured cancellation without swallowing; the coroutine's
             // parent will handle it and the streaming placeholder remains cancellable.
@@ -155,7 +166,7 @@ class SessionBridge(
             // RuntimeException from JSON/codec, etc.) must roll back the optimistic
             // bubble and clear the streaming flag, otherwise the loading indicator
             // lingers forever on a failed turn.
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(clientId)
             throw e
         }
     }
@@ -167,12 +178,13 @@ class SessionBridge(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String?,
     ): SteerOutcome {
         val outcome =
             connectionManager?.sessions?.steerSession(sessionId, text, images, files)
                 ?: SteerOutcome.NOT_CONSUMED
         if (outcome != SteerOutcome.NOT_CONSUMED) {
-            runtime.onPromptSteered(text, images, files, injected = outcome == SteerOutcome.INJECTED)
+            runtime.onPromptSteered(text, images, files, clientId, injected = outcome == SteerOutcome.INJECTED)
         }
         return outcome
     }
@@ -275,6 +287,8 @@ sealed interface AppSessionEvent {
         val append: Boolean = false,
         val timestampMs: Long? = null,
         val messageId: String? = null,
+        /** The client's id for the prompt this echoes, when the gateway tagged it. */
+        val clientId: String? = null,
     ) : AppSessionEvent
 
     data class AgentMessage(
@@ -384,8 +398,19 @@ sealed interface AppSessionEvent {
         val updatedAt: String?,
     ) : AppSessionEvent
 
-    /** Synthetic event emitted after session/load replay events have been forwarded. */
-    data object SessionLoadComplete : AppSessionEvent
+    /**
+     * The turn ended where this client could not hear how (a load replays no turn end, a resume
+     * or catch-up reports none): closes it with no outcome.
+     */
+    data object TurnEndUnheard : AppSessionEvent
+
+    /**
+     * The prompt [clientId] names reached the agent: its reply arrived, or the gateway refused a
+     * repeat of it. Emitted before the turn end it proves, so whoever waits for that end sees it.
+     */
+    data class PromptDelivered(
+        val clientId: String,
+    ) : AppSessionEvent
 
     /**
      * The turn's terminal event: normally the agent's reply, whose [stopReason] is the ACP
@@ -404,6 +429,7 @@ sealed interface AppSessionEvent {
     ) : AppSessionEvent
 }
 
+@Serializable
 data class SessionMode(
     val id: String,
     val name: String,

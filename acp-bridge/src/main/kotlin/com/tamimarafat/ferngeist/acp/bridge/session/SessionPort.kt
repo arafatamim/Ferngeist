@@ -30,11 +30,16 @@ interface SessionPort {
      */
     val modelSelectionEvents: SharedFlow<AppSessionEvent.ModelSelectionConfirmed>
 
-    /** Sends a prompt message to the agent. Optionally includes inline image data. */
+    /**
+     * Sends a prompt message to the agent. Optionally includes inline image data. [clientId] names
+     * the prompt for the gateway's exactly-once delivery and for matching its echo; null sends it
+     * unnamed.
+     */
     suspend fun sendPrompt(
         text: String,
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
+        clientId: String? = null,
     )
 
     /** Cancels the current agent turn (streaming). */
@@ -45,6 +50,7 @@ interface SessionPort {
         text: String,
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
+        clientId: String? = null,
     ): SteerOutcome
 
     /** Updates a configuration option value on the session. */

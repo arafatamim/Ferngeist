@@ -8,12 +8,12 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequired
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AuthEnvVarInfo
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildEnvPayload
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.acp.bridge.connection.loadPersistedEnvValues
-import com.tamimarafat.ferngeist.acp.bridge.connection.persistEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildEnvPayload
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildGatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.loadPersistedEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.persistEnvValues
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.facade.OpenStepTimer
 import com.tamimarafat.ferngeist.acp.bridge.facade.mapDiagnostics
@@ -355,9 +355,11 @@ class SessionCatalog(
         recentListings.remove(serverId)
         deleteOnAgent(serverId, sessionId)
         val endpoint = gatewayEndpoint(serverId)
-        when {
-            endpoint != null -> hub.closeSession(serverId, sessionId, endpoint)
-            hub.isTracked(serverId, sessionId) -> hub.close(chatIdFor(serverId, sessionId), endpoint = null)
+        // An evicted chat is untracked but keeps its saved state, so a direct delete still closes it.
+        if (endpoint != null) {
+            hub.closeSession(serverId, sessionId, endpoint)
+        } else {
+            hub.close(chatIdFor(serverId, sessionId), endpoint = null)
         }
         sessionRepository.deleteSession(serverId, sessionId)
         return known
@@ -684,6 +686,7 @@ class SessionCatalog(
                 buildGatewayLaunchContext(
                     runtimeLauncher = repositories.runtimeLauncher,
                     server = target,
+                    claimedAcpSessionIds = hub.trackedSessionIds(),
                 ).map { it.config }
 
             is LaunchableTarget.Manual -> Result.success(target.toConnectionConfig())

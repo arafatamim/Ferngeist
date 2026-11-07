@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
+import com.agentclientprotocol.client.ClientOperationsFactory
 import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.common.ClientSessionOperations
 import com.agentclientprotocol.common.Event
@@ -15,6 +16,7 @@ import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.PermissionOptionKind
 import com.agentclientprotocol.model.PromptResponse
 import com.agentclientprotocol.model.RequestPermissionOutcome
+import com.agentclientprotocol.model.ResumeSessionResponse
 import com.agentclientprotocol.model.SessionConfigId
 import com.agentclientprotocol.model.SessionConfigOption
 import com.agentclientprotocol.model.SessionConfigOptionValue
@@ -28,20 +30,16 @@ import com.agentclientprotocol.model.SetSessionModelResponse
 import com.agentclientprotocol.model.StopReason
 import com.agentclientprotocol.model.ToolCallId
 import com.agentclientprotocol.protocol.JsonRpcException
-import com.agentclientprotocol.protocol.Protocol
-import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
-import com.agentclientprotocol.rpc.JsonRpcRequest
-import com.agentclientprotocol.rpc.TransportFrame
-import com.agentclientprotocol.transport.Transport
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -49,7 +47,6 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
@@ -71,11 +68,6 @@ import org.junit.Test
 
 @OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
 class SessionGatewayTest {
-    private class ConnectivityStub : ConnectivityObserver {
-        private val _isConnected = MutableStateFlow(true)
-        override val isConnected: Flow<Boolean> = _isConnected
-    }
-
     /**
      * The SDK's [ClientSession] is an interface and this module has no mocking library,
      * so the members a prompt turn touches are hand-rolled and the rest are stubs — the
@@ -154,37 +146,6 @@ class SessionGatewayTest {
         }
     }
 
-    private fun newGateway(): SessionGateway {
-        val scope = CoroutineScope(UnconfinedTestDispatcher())
-        val connection =
-            AcpConnection(
-                connectivityObserver = ConnectivityStub(),
-                resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
-                scope = scope,
-            )
-        return SessionGateway(
-            connection = connection,
-            permissionFlow = PermissionFlow(),
-            elicitationFlow = ElicitationFlow(),
-            bridgeFactory = { sessionId -> SessionBridge(sessionId, null) },
-            scope = scope,
-        )
-    }
-
-    /**
-     * The gateway builds its [AcpSessionRegistry] internally and exposes no injection
-     * seam, so tests reach the private field reflectively — the same approach
-     * [com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHubTest] uses for `_connectionState`.
-     */
-    private fun gatewayField(
-        gateway: SessionGateway,
-        name: String,
-    ): Any {
-        val field = SessionGateway::class.java.getDeclaredField(name)
-        field.isAccessible = true
-        return field.get(gateway)!!
-    }
-
     /** Registers [session] and a fresh bridge for [sessionId]; returns the bridge. */
     private fun installSession(
         gateway: SessionGateway,
@@ -217,18 +178,12 @@ class SessionGatewayTest {
         return bridge
     }
 
-    private fun sessionOperations(
+    private suspend fun sessionOperations(
         gateway: SessionGateway,
         sessionId: String,
-    ): ClientSessionOperations {
-        val method =
-            SessionGateway::class.java.getDeclaredMethod(
-                "createBridgeSessionOperations",
-                String::class.java,
-            )
-        method.isAccessible = true
-        return method.invoke(gateway, sessionId) as ClientSessionOperations
-    }
+    ): ClientSessionOperations =
+        (gatewayField(gateway, "operationsFactory") as ClientOperationsFactory)
+            .createClientOperations(SessionId(sessionId), ResumeSessionResponse())
 
     private fun permissionRequest(toolCallId: String): SessionUpdate.ToolCallUpdate =
         SessionUpdate.ToolCallUpdate(
@@ -245,72 +200,8 @@ class SessionGatewayTest {
             ),
         )
 
-    /**
-     * Installs an SDK client on the connection's socket owner. Its client property
-     * is `private set` and only assigned by a real connect, so a test that needs
-     * `attachSession` past its disconnected check has to set it reflectively.
-     */
-    private fun installSdkClient(
-        gateway: SessionGateway,
-        client: Client,
-    ) {
-        val connection = gatewayField(gateway, "connection")
-        val transportField = connection.javaClass.getDeclaredField("transportClient")
-        transportField.isAccessible = true
-        val transport = transportField.get(connection)!!
-        val socketField = transport.javaClass.getDeclaredField("socket")
-        socketField.isAccessible = true
-        val socket = socketField.get(transport)!!
-        val clientField = socket.javaClass.getDeclaredField("client")
-        clientField.isAccessible = true
-        clientField.set(socket, client)
-    }
-
-    /**
-     * A [Client] whose next outbound request is failed by [transport].
-     *
-     * The SDK's [Client] is a final class — it can be neither proxied nor subclassed — and
-     * this module has no mocking library. Its collaborator [Transport] is an interface
-     * though, so the failure is injected at the wire instead: a real client over a real
-     * protocol whose transport refuses every message. Only requests routed through it fail.
-     */
-    private fun clientOver(transport: Transport): Client =
-        Client(
-            Protocol(
-                parentScope = CoroutineScope(UnconfinedTestDispatcher()),
-                transport = transport,
-                options = ProtocolOptions(protocolDebugName = "SessionGatewayTest"),
-            ),
-        )
-
     /** A [Client] whose every outbound request fails with [error]. */
     private fun clientFailingSessionLoad(error: Throwable): Client = clientOver(FailingSendTransport(error))
-
-    /** A [Transport] whose every outbound message fails with [error]. */
-    private class FailingSendTransport(
-        private val error: Throwable,
-    ) : Transport {
-        /** Methods of the requests sent through this transport, in order. */
-        val sentMethods = mutableListOf<String>()
-
-        override val state: StateFlow<Transport.State> = MutableStateFlow(Transport.State.STARTED)
-
-        override fun start() = Unit
-
-        override fun send(frame: TransportFrame) {
-            val message = (frame as? TransportFrame.Single)?.message
-            sentMethods += (message as? JsonRpcRequest)?.method?.name ?: frame.toString()
-            throw error
-        }
-
-        override fun onFrame(handler: (TransportFrame) -> Unit) = Unit
-
-        override fun onError(handler: (Throwable) -> Unit) = Unit
-
-        override fun onClose(handler: () -> Unit) = Unit
-
-        override fun close() = Unit
-    }
 
     private fun turnReasons(bridge: SessionBridge): List<String> =
         bridge.events.replayCache
@@ -467,6 +358,26 @@ class SessionGatewayTest {
         }
 
     @Test
+    fun `a prompt's reply confirms its delivery before its turn ends`() =
+        runTest {
+            val connection = newConnection()
+            val reply = flowOf<Event>(Event.PromptResponseEvent(PromptResponse(stopReason = StopReason.END_TURN)))
+            val bridge = SessionBridge("s1", connection)
+            val registry = gatewayField(connection.sessions, "sessionRegistry") as AcpSessionRegistry
+            registry.storeBridge("s1", bridge)
+            registry.storeSdkSession("s1", FakeClientSession(listOf(reply)))
+            val seen = mutableListOf<SessionSnapshot>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { bridge.snapshot.collect { seen += it } }
+
+            bridge.sendPrompt("go", clientId = "c1")
+
+            // A restored queue settles a dispatched prompt the moment its turn reads as ended.
+            val ended = seen.dropWhile { !it.isStreaming }.first { !it.isStreaming }
+            val prompt = ended.messages.single { it.role == ChatMessage.Role.USER }
+            assertTrue("delivery is proven by the time the turn reads as ended", prompt.deliveryConfirmed)
+        }
+
+    @Test
     fun `a turn the gateway reports ended on an earlier connection stops streaming`() =
         runTest {
             val gateway = newGateway()
@@ -475,7 +386,7 @@ class SessionGatewayTest {
             bridge.emitEvent(AppSessionEvent.AgentMessage("still going"))
             assertTrue(bridge.snapshot.value.isStreaming)
 
-            gateway.endRemoteTurn("s1", "end_turn")
+            gateway.endRemoteTurn("s1", "end_turn", null)
 
             val snapshot = bridge.snapshot.value
             assertFalse(snapshot.isStreaming)
@@ -502,11 +413,11 @@ class SessionGatewayTest {
             bridge.emitEvent(AppSessionEvent.AgentMessage("first"))
             bridge.emitEvent(AppSessionEvent.AgentMessage("second"))
             // ...and the session/load response commits the replay: `completeHydration`
-            // swaps the buffered state in, then `SessionLoadComplete` settles the reply
+            // swaps the buffered state in, then `TurnEndUnheard` settles the reply
             // (folds the chunk segments and derives their flat content), exactly as
             // [SessionGateway.attachAndHydrate] does.
             bridge.completeHydration()
-            bridge.emitEvent(AppSessionEvent.SessionLoadComplete)
+            bridge.emitEvent(AppSessionEvent.TurnEndUnheard)
 
             assertEquals(SessionLoadState.READY, bridge.snapshot.value.loadState)
             assertEquals(

@@ -5,24 +5,26 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toPersistentList
 
 internal fun appendUserText(
-    messages: List<ChatMessage>,
+    received: List<ChatMessage>,
     content: UserContent,
     append: Boolean,
     timestampMs: Long?,
 ): List<ChatMessage> {
-    if (content.text.isEmpty() && content.images.isEmpty() && content.files.isEmpty()) return messages
+    if (content.text.isEmpty() && content.images.isEmpty() && content.files.isEmpty()) return received
+    // Only the gateway tags an echo with its prompt's id, and only once it delivered that prompt.
+    val messages = received.confirmingDelivery(content.clientId)
+    // A catch-up replays the prompts the gateway numbered, including ones this transcript already
+    // holds (sent, then saved before the gateway's number reached it). Only the echo still being
+    // assembled - the last message - takes more chunks.
+    val delivered = content.clientId?.let { id -> messages.indexOfLast { it.clientId == id } } ?: -1
+    if (delivered >= 0 && delivered != messages.lastIndex) return messages
     val mutableMessages = messages.mutableCopy()
     val lastMessage = mutableMessages.lastOrNull()
 
     // A new ACP message id is a hard message boundary, but an absent id keeps the
     // previous merge behavior. An id on an as-yet-unidentified local/optimistic bubble
     // claims that bubble instead of duplicating it.
-    val lastUser = mutableMessages.lastOrNull { it.role == ChatMessage.Role.USER }
-    val startsNewMessage =
-        content.messageId != null &&
-            lastUser?.messageId != null &&
-            lastUser.messageId != content.messageId
-    if (!startsNewMessage) {
+    if (!mutableMessages.startsNewMessage(content.messageId)) {
         // Dedup against the already-present user bubble (or the streaming placeholder that
         // follows it) before appending a new one. Returns non-null when the caller should
         // use the returned list instead of appending.
@@ -49,9 +51,16 @@ internal fun appendUserText(
             files = content.files,
             createdAt = timestampMs ?: System.currentTimeMillis(),
             messageId = content.messageId,
+            clientId = content.clientId,
+            deliveryConfirmed = content.clientId != null,
         ),
     )
     return mutableMessages.build()
+}
+
+private fun List<ChatMessage>.startsNewMessage(messageId: String?): Boolean {
+    val lastUserId = lastOrNull { it.role == ChatMessage.Role.USER }?.messageId
+    return messageId != null && lastUserId != null && lastUserId != messageId
 }
 
 /** Claims an unidentified user bubble for [messageId] after an echo/merge. */
@@ -61,6 +70,14 @@ private fun List<ChatMessage>.withMessageId(messageId: String?): List<ChatMessag
     if (userIndex == -1 || this[userIndex].messageId != null) return this
     return toMutableList().also { it[userIndex] = it[userIndex].copy(messageId = messageId) }
 }
+
+/** Marks [clientId]'s prompt as having reached the agent; no id names no prompt. */
+internal fun List<ChatMessage>.confirmingDelivery(clientId: String?): List<ChatMessage> =
+    if (clientId == null) {
+        this
+    } else {
+        map { if (it.clientId == clientId && !it.deliveryConfirmed) it.copy(deliveryConfirmed = true) else it }
+    }
 
 /**
  * When [append] is true this handles the server echo path: exact-match dedup against a
@@ -73,10 +90,10 @@ internal fun deduplicateOrMergeUserMessage(
     content: UserContent,
     append: Boolean,
 ): List<ChatMessage>? {
-    if (append && lastMessage?.role == ChatMessage.Role.USER) {
+    if (append && lastMessage?.role == ChatMessage.Role.USER && lastMessage.clientId == content.clientId) {
         // Exact-match dedup when the last message is already a USER bubble.
         // Image chunks arrive as separate UserMessageChunks with empty text — merge
-        // images even when the text is empty or unchanged.
+        // images even when the text is empty or unchanged. Another prompt's echo never merges.
         return mergeIntoUserBubble(mutableMessages, lastMessage, content)
     }
     // append=false: local optimistic insertion (or redundant source) — dedup against the

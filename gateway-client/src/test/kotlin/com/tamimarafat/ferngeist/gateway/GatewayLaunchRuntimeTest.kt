@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.gateway
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.launch.GatewayRuntimeLauncher
+import com.tamimarafat.ferngeist.gateway.launch.ReattachRequest
 import com.tamimarafat.ferngeist.gateway.launch.reattachTarget
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -94,8 +95,26 @@ class GatewayLaunchRuntimeTest {
                 GatewaySessionSummary("s-live", "r-3", "pi-acp", "active", "2026-03-01", listOf("chat-a")),
             )
 
-        assertEquals("s-mine", reattachTarget(sessions, "pi-acp", "chat-a")?.sessionId)
-        assertEquals("s-newer", reattachTarget(sessions, "pi-acp", "chat-unknown")?.sessionId)
+        assertEquals("s-mine", reattachTarget(sessions, "pi-acp", ReattachRequest("chat-a", emptySet()))?.sessionId)
+        assertEquals(
+            "s-newer",
+            reattachTarget(sessions, "pi-acp", ReattachRequest("chat-unknown", emptySet()))?.sessionId,
+        )
+    }
+
+    @Test
+    fun `a listing never reattaches a session a restored chat still runs`() {
+        val sessions =
+            listOf(
+                GatewaySessionSummary("s-orphan", "r-1", "pi-acp", "disconnected", "2026-01-01", listOf("gone")),
+                GatewaySessionSummary("s-restored", "r-2", "pi-acp", "disconnected", "2026-02-01", listOf("chat-b")),
+            )
+
+        assertEquals("s-orphan", reattachTarget(sessions, "pi-acp", ReattachRequest(null, setOf("chat-b")))?.sessionId)
+        assertEquals(
+            "s-restored",
+            reattachTarget(sessions, "pi-acp", ReattachRequest("chat-b", setOf("chat-b")))?.sessionId,
+        )
     }
 
     @Test
@@ -144,6 +163,93 @@ class GatewayLaunchRuntimeTest {
                 message.contains("agent process exited before the runtime was ready"),
             )
             assertFalse("a failed launch must not report success", result.isSuccess)
+        }
+
+    @Test
+    fun `reopening a chat on a gateway with the one-call attach makes only that call`() =
+        runTest {
+            val requested = mutableListOf<String>()
+            val attached = CONNECT_BODY.dropLast(1) + ""","epoch":"e7"}"""
+            val engine =
+                MockEngine { request ->
+                    requested += "${request.method.value} ${request.url.encodedPath}"
+                    respond(attached, HttpStatusCode.OK)
+                }
+
+            val launched =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(
+                        gatewaySource = SOURCE,
+                        agentId = "pi-acp",
+                        requireSupportedProtocol = true,
+                        acpSessionId = "chat-1",
+                    ).getOrThrow()
+
+            assertEquals(listOf("POST /v1/sessions/attach"), requested)
+            assertEquals("e7", launched.epoch)
+        }
+
+    @Test
+    fun `an attach reporting an unsupported protocol fails as a protocol mismatch`() =
+        runTest {
+            val attached = CONNECT_BODY.dropLast(1) + ""","protocolVersion":"v9"}"""
+            val engine = MockEngine { respond(attached, HttpStatusCode.OK) }
+
+            val result =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(
+                        gatewaySource = SOURCE,
+                        agentId = "pi-acp",
+                        requireSupportedProtocol = true,
+                        acpSessionId = "chat-1",
+                    )
+
+            assertTrue(result.exceptionOrNull() is GatewayProtocolMismatchException)
+        }
+
+    @Test
+    fun `reopening a chat on an older gateway falls back to the old launch`() =
+        runTest {
+            val requested = mutableListOf<String>()
+            val engine =
+                MockEngine { request ->
+                    requested += "${request.method.value} ${request.url.encodedPath}"
+                    if (request.url.encodedPath == "/v1/sessions/attach") {
+                        respond("404 page not found", HttpStatusCode.NotFound)
+                    } else {
+                        respond(CONNECT_BODY, HttpStatusCode.OK)
+                    }
+                }
+
+            val handoff =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(gatewaySource = SOURCE, agentId = "pi-acp", acpSessionId = "chat-1")
+                    .getOrThrow()
+                    .handoff
+
+            assertEquals(
+                listOf("POST /v1/sessions/attach", "GET /v1/sessions", "POST /v1/agents/pi-acp/connect"),
+                requested,
+            )
+            assertEquals("sess-1", handoff.sessionId)
+        }
+
+    @Test
+    fun `an attach the gateway itself rejects as not found fails instead of taking the old launch`() =
+        runTest {
+            val requested = mutableListOf<String>()
+            val engine =
+                MockEngine { request ->
+                    requested += "${request.method.value} ${request.url.encodedPath}"
+                    respond("""{"error":"agent not found"}""", HttpStatusCode.NotFound)
+                }
+
+            val result =
+                GatewayRuntimeLauncher(GatewayRepositoryImpl(HttpClient(engine), json), FakeGatewaySources())
+                    .launch(gatewaySource = SOURCE, agentId = "pi-acp", acpSessionId = "chat-1")
+
+            assertEquals(listOf("POST /v1/sessions/attach"), requested)
+            assertFalse(result.isSuccess)
         }
 
     private fun repo(requested: MutableList<String>): GatewayRepositoryImpl {

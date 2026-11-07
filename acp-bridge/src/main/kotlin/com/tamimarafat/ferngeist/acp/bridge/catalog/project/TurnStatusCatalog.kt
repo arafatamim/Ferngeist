@@ -87,15 +87,13 @@ internal class TurnStatusCatalog(
         }
 
     /**
-     * A chat this phone tracks answers for itself and never inherits the gateway's answer: a
-     * tracked chat whose local status was withdrawn (a dropped connection, a cold start) is
-     * unknown, not a stale remote attention or finished claim. Untracked chats take the gateway's
-     * status, and only an untracked chat can be absent from this map.
+     * A chat's own status, where the hub has one, outranks the gateway's answer. A chat without
+     * one (restored cold after process death, or its connection dropped) takes the gateway's:
+     * nothing on the phone knows its turn, and its open screen still acknowledges seen outcomes.
      */
     val statuses: StateFlow<Map<String, TurnActivity>> =
-        combine(remoteStatuses, hub.trackedChatIds, hub.turnStatuses) { remote, tracked, local ->
-            remote.filterKeys { it !in tracked } + local
-        }.stateIn(scope, SharingStarted.Eagerly, emptyMap())
+        combine(remoteStatuses, hub.turnStatuses) { remote, local -> remote + local }
+            .stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
     /** Chats with a turn in flight, for the readers that predate [statuses]. */
     val activeChatKeys: StateFlow<Set<String>> =

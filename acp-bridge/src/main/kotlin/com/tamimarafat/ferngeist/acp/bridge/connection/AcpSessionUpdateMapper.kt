@@ -4,6 +4,7 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.PlanVariant
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.StopReason
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.promptClientId
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigChoice
@@ -68,6 +69,7 @@ internal object AcpSessionUpdateMapper {
             files = listOfNotNull(extractFiles(update.content)),
             append = true,
             messageId = update.messageId?.value,
+            clientId = promptClientId(update),
         )
 
     @OptIn(UnstableApi::class)

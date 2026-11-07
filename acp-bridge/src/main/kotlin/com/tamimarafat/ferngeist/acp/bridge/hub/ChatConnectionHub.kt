@@ -5,10 +5,10 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
-import com.tamimarafat.ferngeist.acp.bridge.connection.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatPresence
-import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -55,14 +55,14 @@ private const val GATEWAY_NOT_FOUND_STATUS = 404
 
 /**
  * [ChatConnectionHub] tuning: how many chats stay hot, how many gateway sessions
- * this device may lease, the snapshot cache bound, and the clock the entry table
- * ranks focus with.
+ * this device may lease, how many chats keep their state in memory, and the clock the
+ * entry table ranks focus with.
  */
 data class HubLimits(
     val maxHotConnections: Int = 3,
     val maxGatewaySessionsPerDevice: Int = 5,
     val clock: () -> Long = System::currentTimeMillis,
-    val maxSnapshotCacheSize: Int = 20,
+    val maxRetainedChats: Int = 20,
 )
 
 /**
@@ -108,6 +108,8 @@ class ChatConnectionHub(
     private val connectivityObserver: ConnectivityObserver,
     private val limits: HubLimits = HubLimits(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Saves each tracked chat's state so it draws at once after process death; null keeps none. */
+    private val persistence: HubPersistence? = null,
 ) : ChatConnectionSurface {
     private data class Entry(
         val chatId: String,
@@ -124,12 +126,16 @@ class ChatConnectionHub(
         // A screen before the old one's teardown closes it, and a flag would end up closed.
         val openScreens: Int,
         val cwd: String,
+        // Restored from the saved open-chat list: tracked like a pooled entry even with no
+        // transport, so leaving its screen (say, opened offline) does not drop it.
+        val restored: Boolean = false,
     )
 
     private val Entry.screenOpen: Boolean get() = openScreens > 0
 
     private val entries = LinkedHashMap<String, Entry>()
-    private val snapshots = LinkedHashMap<String, ChatSessionSnapshot>()
+    private val runtimes =
+        ChatRuntimes(persistence?.chatStates, limits.maxRetainedChats, ioDispatcher) { it in entries }
     private val pendingManagers = CopyOnWriteArrayList<AcpConnection>()
     private val browserManagers = CopyOnWriteArrayList<AcpConnection>()
     private val revision = MutableStateFlow(0L)
@@ -164,9 +170,8 @@ class ChatConnectionHub(
         }
     }
 
-    // Presence is deliberately in-memory, like the focus-ordered store this hub supersedes.
-    // ponytail: a Room-backed or event-sourced presence table would replay
-    // open/closed state after process death if that ever becomes a requirement.
+    // Presence is in memory; only the entry table behind it is saved (see [restoreOpenChats]),
+    // so after process death the chats come back cold and presence rebuilds as screens open.
     private val _tapTarget = MutableStateFlow<ChatPresence?>(null)
     private val _onScreenChat = MutableStateFlow<ChatPresence?>(null)
 
@@ -234,7 +239,43 @@ class ChatConnectionHub(
                 _turnStatuses.update { it - disconnected }
             }
         }
+        persistence?.let { scope.launch { it.restoreOpenChats(::restoreEntries) } }
     }
+
+    /**
+     * Brings back the chats tracked before process death as cold entries (no transport), so the
+     * switcher, tap target and active-chats count read the same.
+     */
+    private fun restoreEntries(saved: List<OpenChat>) {
+        saved.forEach { chat ->
+            entries.getOrPut(chatIdFor(chat.serverId, chat.sessionId)) {
+                coldEntry(chat.serverId, chat.sessionId, chat.cwd, chat.lastFocusedMs, openScreens = 0)
+                    .copy(restored = true)
+            }
+        }
+        republish()
+    }
+
+    private fun coldEntry(
+        serverId: String,
+        sessionId: String,
+        cwd: String,
+        lastFocusedMs: Long,
+        openScreens: Int,
+    ) = Entry(
+        chatId = chatIdFor(serverId, sessionId),
+        serverId = serverId,
+        sessionId = sessionId,
+        gatewaySessionId = null,
+        gatewaySourceId = "",
+        agentId = "",
+        isConnected = { false },
+        isStreaming = { false },
+        manager = null,
+        lastFocusedMs = lastFocusedMs,
+        openScreens = openScreens,
+        cwd = cwd,
+    )
 
     /** Network availability, so a feature can re-run work that failed while the device was offline. */
     val networkAvailable: Flow<Boolean> get() = connectivityObserver.isConnected
@@ -296,8 +337,8 @@ class ChatConnectionHub(
      * promotes it into a hot entry. A spawn that fails before attach stays
      * tracked (visible in the aggregates) until [abandon] releases it.
      */
-    override fun acquireChatManager(): AcpConnection =
-        AcpConnection(connectivityObserver, resumeAttachToken, scope).also { manager ->
+    override fun acquireChatManager(serverId: String): AcpConnection =
+        AcpConnection(connectivityObserver, resumeAttachToken, scope) { runtimeFor(serverId, it) }.also { manager ->
             pendingManagers.addIfAbsent(manager)
             revision.value += 1
         }
@@ -359,10 +400,10 @@ class ChatConnectionHub(
         registration: ChatRegistration,
     ): String {
         val chatId = chatIdFor(serverId, sessionId)
-        if (registration.manager != null) {
-            pendingManagers.remove(registration.manager)
-        }
+        registration.manager?.let { pendingManagers.remove(it) }
         val existing = entries[chatId]
+        // A cold entry taking a transport needs room as much as a new one does.
+        if (existing?.manager == null) makeRoomForEntry()
         if (existing != null) {
             entries[chatId] =
                 existing.copy(
@@ -374,7 +415,6 @@ class ChatConnectionHub(
                     manager = registration.manager,
                 )
         } else {
-            makeRoomForEntry()
             entries[chatId] =
                 Entry(
                     chatId = chatId,
@@ -428,6 +468,7 @@ class ChatConnectionHub(
             }
         turnObservers[chatId] =
             scope.launch {
+                persistence?.let { launch { it.keepSaved(chatId, snapshot) { runtimes.savedState(chatId) } } }
                 val connection = registration.manager?.connectionState ?: flowOf(AcpConnectionState.Connected)
                 val expiry = TurnStatusExpiry(chatId, this)
                 turnPresenceFlow(chatId, snapshot, connection).collect { presence ->
@@ -523,48 +564,49 @@ class ChatConnectionHub(
         }
     }
 
-    /** Evicts entries until one more fits under the hot cap; see [register] for the over-cap policy. */
+    /**
+     * Evicts entries until one more transport fits under the hot cap; see [register] for the
+     * over-cap policy. Cold entries hold no transport, so they neither count nor go: evicting a
+     * restored chat would drop it from the saved open-chats list for good.
+     */
     private fun makeRoomForEntry() {
-        while (entries.size >= limits.maxHotConnections) {
-            val victim =
-                entries.values
-                    .filter { !it.isStreaming() && !it.screenOpen }
-                    .minByOrNull { it.lastFocusedMs }
-                    // Every entry is streaming or on screen. Tolerate the over-cap while the pool
-                    // still fits the gateway's per-device session lease; past that point new spawns
-                    // fail and each extra entry leaks a transport, so evict the least-recently-focused
-                    // one (its turn is abandoned with it).
-                    ?: entries.values
-                        .takeIf { entries.size >= limits.maxGatewaySessionsPerDevice }
-                        ?.minByOrNull { it.lastFocusedMs }
-                    ?: break
+        while (true) {
+            val victim = evictionVictim() ?: break
             removeAndEvict(victim.chatId)
         }
+    }
+
+    /** The entry to evict for one more transport, or null when it fits (or nothing may go). */
+    private fun evictionVictim(): Entry? {
+        val hot = entries.values.filter { it.manager != null }
+        if (hot.size < limits.maxHotConnections) return null
+        return hot
+            .filter { !it.isStreaming() && !it.screenOpen }
+            .minByOrNull { it.lastFocusedMs }
+            // Every entry is streaming or on screen. Tolerate the over-cap while the pool
+            // still fits the gateway's per-device session lease; past that point new spawns
+            // fail and each extra entry leaks a transport, so evict the least-recently-focused
+            // one (its turn is abandoned with it).
+            ?: hot
+                .takeIf { it.size >= limits.maxGatewaySessionsPerDevice }
+                ?.minByOrNull { it.lastFocusedMs }
     }
 
     /** The live transport for a tracked chat, or null when untracked/cold. */
     override fun managerFor(chatId: String): AcpConnection? = entries[chatId]?.manager
 
-    /** Last rendered snapshot for a chat; survives evict/screen-close so reopen paints instantly. Dropped only on close. */
-    override fun snapshotFor(chatId: String): ChatSessionSnapshot? = snapshots[chatId]
+    override fun trackedSessionIds(): Set<String> = entries.values.mapTo(HashSet()) { it.sessionId }
 
-    /** Stashes the latest rendered snapshot; eldest-evicted past the snapshot cap. Safe before any entry exists. */
-    override fun storeSnapshot(
-        chatId: String,
-        snapshot: ChatSessionSnapshot,
-    ) {
-        snapshots.remove(chatId)
-        while (snapshots.size >= limits.maxSnapshotCacheSize) {
-            val evicted = snapshots.keys.first()
-            snapshots.remove(evicted)
-            _streamingChatIds.update { it - evicted }
-        }
-        snapshots[chatId] = snapshot
-        val manager = entries[chatId]?.manager
-        val streaming =
-            snapshot.isStreaming && (manager == null || manager.connectionState.value is AcpConnectionState.Connected)
-        _streamingChatIds.update { if (streaming) it + chatId else it - chatId }
-    }
+    /** The runtime every connection of [sessionId]'s chat attaches to; see [ChatRuntimes]. */
+    internal suspend fun runtimeFor(
+        serverId: String,
+        sessionId: String,
+    ): SessionRuntime = runtimes.runtimeFor(chatIdFor(serverId, sessionId), sessionId)
+
+    override suspend fun lastSnapshot(
+        serverId: String,
+        sessionId: String,
+    ): SessionSnapshot? = runtimes.existing(chatIdFor(serverId, sessionId), sessionId)?.snapshot?.value
 
     /**
      * Records that the user opened [sessionId]'s chat screen, making it the
@@ -591,21 +633,7 @@ class ChatConnectionHub(
                     lastFocusedMs = limits.clock(),
                 )
         } else {
-            entries[chatId] =
-                Entry(
-                    chatId = chatId,
-                    serverId = serverId,
-                    sessionId = sessionId,
-                    gatewaySessionId = null,
-                    gatewaySourceId = "",
-                    agentId = "",
-                    isConnected = { false },
-                    isStreaming = { false },
-                    manager = null,
-                    lastFocusedMs = limits.clock(),
-                    openScreens = 1,
-                    cwd = cwd,
-                )
+            entries[chatId] = coldEntry(serverId, sessionId, cwd, limits.clock(), openScreens = 1)
         }
         republish()
         return true
@@ -613,9 +641,9 @@ class ChatConnectionHub(
 
     /**
      * Records that [sessionId]'s chat screen closed. A pooled (transport-
-     * attached) entry survives as the tap-target fallback; an entry that only
-     * ever existed because its screen was open has no transport to pool and its
-     * tracking ends here.
+     * attached) or restored entry survives as the tap-target fallback; an entry
+     * that only ever existed because its screen was open has no transport to
+     * pool and its tracking ends here.
      */
     fun chatScreenClosed(
         serverId: String,
@@ -624,7 +652,7 @@ class ChatConnectionHub(
         val chatId = chatIdFor(serverId, sessionId)
         entries[chatId]?.let { existing ->
             val openScreens = (existing.openScreens - 1).coerceAtLeast(0)
-            if (existing.manager == null && openScreens == 0) {
+            if (existing.manager == null && !existing.restored && openScreens == 0) {
                 turnObservers.remove(chatId)?.cancel()
                 _streamingChatIds.update { it - chatId }
                 _turnStatuses.update { it - chatId }
@@ -724,11 +752,14 @@ class ChatConnectionHub(
         chatId: String,
         endpoint: GatewayEndpoint? = null,
     ) {
-        turnObservers.remove(chatId)?.cancel()
-        snapshots.remove(chatId)
+        val saver = turnObservers.remove(chatId)?.also { it.cancel() }
         _streamingChatIds.update { it - chatId }
         _turnStatuses.update { it - chatId }
-        val entry = entries.remove(chatId) ?: return
+        val entry = entries.remove(chatId)
+        // Joined first: a save still writing would bring the deleted state back.
+        saver?.join()
+        runtimes.forget(chatId)
+        if (entry == null) return
         try {
             val gatewaySessionId = entry.gatewaySessionId
             if (endpoint != null && gatewaySessionId != null) {
@@ -842,17 +873,23 @@ class ChatConnectionHub(
         sessionId: String,
         endpoint: GatewayEndpoint,
     ): Boolean {
-        if (isTracked(serverId, sessionId)) {
+        val chatId = chatIdFor(serverId, sessionId)
+        if (entries[chatId]?.gatewaySessionId != null) {
             // The gateway may already have forgotten the session (restart/reap): the
             // local transport is released either way, so that does not fail the close.
-            ignoringNotFound { close(chatIdFor(serverId, sessionId), endpoint) }
+            ignoringNotFound { close(chatId, endpoint) }
             return true
         }
+        // A chat restored after process death is tracked without its gateway session id: find
+        // the gateway session that runs it first, so a failed listing leaves the chat tracked.
+        val dropped = isTracked(serverId, sessionId)
         val gatewaySessionId =
             gatewayRepository
                 .listGatewaySessions(endpoint.scheme, endpoint.host, endpoint.credential)
                 .firstOrNull { sessionId in it.acpSessionIds }
-                ?.sessionId ?: return false
+                ?.sessionId
+        close(chatId, endpoint)
+        if (gatewaySessionId == null) return dropped
         // Reaped between the listing and the DELETE: nothing runs it any more.
         ignoringNotFound {
             gatewayRepository.closeSession(
@@ -886,6 +923,7 @@ class ChatConnectionHub(
         val onScreen = ordered.firstOrNull { it.screenOpen }
         _onScreenChat.value = onScreen?.toPresence()
         _tapTarget.value = (onScreen ?: ordered.firstOrNull())?.toPresence()
+        persistence?.track(ordered.map { OpenChat(it.serverId, it.sessionId, it.cwd, it.lastFocusedMs) })
         revision.value += 1
     }
 }

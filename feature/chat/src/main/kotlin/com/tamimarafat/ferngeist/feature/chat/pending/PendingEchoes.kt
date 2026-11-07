@@ -6,8 +6,9 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 /**
  * Reconciles SENDING pending bubbles with their reducer echo in [messages], returning the bubbles
  * still pending and the echo id to client id map of the bubbles that were delivered.
- * A SENDING bubble is removed when a matching USER message appears in the snapshot (content +
- * images + files match), because the echoed message in [messages] is the canonical delivery.
+ * A SENDING bubble is removed when a USER message carrying its client id appears in the snapshot,
+ * because the echoed message in [messages] is the canonical delivery. Matching by id, not
+ * content, keeps two identical prompts apart.
  */
 internal fun reconcileEchoes(
     pending: List<ChatMessage>,
@@ -28,14 +29,8 @@ private fun findEchoes(
 ): Map<String, String> =
     buildMap {
         for (sending in pendingSending) {
-            // The last match: an identical earlier prompt ("continue") is not this echo.
-            val echoed =
-                messages.lastOrNull { msg ->
-                    msg.role == ChatMessage.Role.USER &&
-                        msg.content == sending.content &&
-                        msg.images == sending.images &&
-                        msg.files == sending.files
-                }
-            if (echoed != null) put(echoed.id, sending.clientId ?: sending.id)
+            val clientId = sending.clientId ?: sending.id
+            val echoed = messages.lastOrNull { it.role == ChatMessage.Role.USER && it.clientId == clientId }
+            if (echoed != null) put(echoed.id, clientId)
         }
     }

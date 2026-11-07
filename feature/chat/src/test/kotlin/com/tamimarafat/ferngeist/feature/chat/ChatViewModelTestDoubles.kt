@@ -21,6 +21,7 @@ import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
+import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -45,11 +46,16 @@ open class TestFacade(
     var reconnectCount = 0
         private set
 
+    /** The client id of every prompt handed to [sendMessage], in order. */
+    val sentClientIds = mutableListOf<String>()
+
     override suspend fun sendMessage(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
+        sentClientIds += clientId
         val result = sendResultProvider()
         if (!result) {
             emitOperationError()
@@ -127,11 +133,12 @@ open class FakeChatSessionFacade(
     override val connectionState: StateFlow<ChatConnectionState> = connectionStateFlow
     override val diagnostics: StateFlow<ChatConnectionDiagnostics> = diagnosticsFlow
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = sessionSnapshotFlow
-    override val cachedSnapshot: StateFlow<ChatSessionSnapshot?> = sessionSnapshotFlow
     override val agentCapabilities: StateFlow<ChatAgentCapabilities> = agentCapabilitiesFlow
     override val gatewayWorkspaceConnection: StateFlow<GatewayWorkspaceConnection?> = gatewayWorkspaceConnectionFlow
     protected val liveChatIdFlow = MutableStateFlow<String?>(null)
     override val liveChatId: StateFlow<String?> = liveChatIdFlow
+
+    override suspend fun cachedSnapshot(): ChatSessionSnapshot? = sessionSnapshotFlow.value
 
     /** Test hook: push a new snapshot into the session state. */
     protected fun setSessionSnapshot(snapshot: ChatSessionSnapshot?) {
@@ -153,6 +160,7 @@ open class FakeChatSessionFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
         emitOperationError()
         return false

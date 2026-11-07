@@ -10,9 +10,9 @@ suspend fun SessionBridge.beginHydration() {
     runtime.beginHydration()
 }
 
-/** Marks hydration as completed and transitions the runtime toward ready. */
-suspend fun SessionBridge.completeHydration() {
-    runtime.completeHydration()
+/** Marks hydration as completed and transitions the runtime toward ready; see [SessionRuntime.completeHydration]. */
+suspend fun SessionBridge.completeHydration(turnRunning: Boolean = false) {
+    runtime.completeHydration(turnRunning)
 }
 
 /** Marks hydration as failed and stores the failure message. */

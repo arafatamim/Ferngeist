@@ -2,11 +2,10 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
-import com.tamimarafat.ferngeist.core.model.ChatFileData
-import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.feature.chat.queue.PendingPrompt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
@@ -96,7 +95,7 @@ internal class ChatSessionCoordinator(
      * Warm transport hit still wins — it reattaches live observers.
      */
     suspend fun attachCachedThenLoad() {
-        val cached = facade.cachedSnapshot.value
+        val cached = facade.cachedSnapshot()
         if (cached != null) {
             callbacks.onSnapshot(cached)
             callbacks.onSessionReady()
@@ -138,17 +137,11 @@ internal class ChatSessionCoordinator(
     }
 
     /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
-    suspend fun sendMessage(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-    ): Boolean = facade.sendMessage(text, images, files)
+    suspend fun sendMessage(prompt: PendingPrompt): Boolean =
+        facade.sendMessage(prompt.text, prompt.images, prompt.files, prompt.clientId)
 
-    suspend fun steerMessage(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-    ): SteerOutcome = facade.steerMessage(text, images, files)
+    suspend fun steerMessage(prompt: PendingPrompt): SteerOutcome =
+        facade.steerMessage(prompt.text, prompt.images, prompt.files, prompt.clientId)
 
     /** Ensures the transport is (re)connecting so queued prompts can drain. */
     suspend fun reconnect() {

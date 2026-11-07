@@ -34,6 +34,8 @@ data class ChatState(
     val isLoading: Boolean = false,
     val isStreaming: Boolean = false,
     val isSessionReady: Boolean = false,
+    /** See [com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot.dropsRepeatPrompts]. */
+    val dropsRepeatPrompts: Boolean? = false,
     val canCancelStreaming: Boolean = true,
     val connectionState: ChatConnectionState = ChatConnectionState.Disconnected,
     val connectionDiagnostics: ChatConnectionDiagnostics = ChatConnectionDiagnostics(),

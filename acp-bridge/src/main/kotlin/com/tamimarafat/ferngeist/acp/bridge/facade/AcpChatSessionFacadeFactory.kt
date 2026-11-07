@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.chatIdFor
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
@@ -47,32 +47,13 @@ class AcpChatSessionFacadeFactory(
     ): ChatSessionFacade {
         val chatId = chatIdFor(serverId, sessionId)
         val existing = hub.managerFor(chatId)
-        val manager = existing ?: hub.acquireChatManager()
+        val manager = existing ?: hub.acquireChatManager(serverId)
         return AcpChatSessionFacade(
             scope = scope,
             connectionManager = manager,
             repositories = repositories,
             opening =
-                ChatOpening(
-                    serverId = serverId,
-                    sessionId = sessionId,
-                    cwd = cwd,
-                    // A cached paint is history, never live state: clear any stale streaming flag it
-                    // carries. The live bridge republishes its true snapshot immediately on reattach
-                    // (AcpChatSessionFacade.tryRestoreWarmSession), so a real in-flight turn re-arms the
-                    // flag at once, while a turn that ended — or one whose owner died with the screen —
-                    // can never strand the UI on STOP.
-                    cachedSnapshot =
-                        hub.snapshotFor(chatId)?.let { cached ->
-                            cached.copy(
-                                isStreaming = false,
-                                messages =
-                                    cached.messages.map { message ->
-                                        if (message.isStreaming) message.copy(isStreaming = false) else message
-                                    },
-                            )
-                        },
-                ),
+                ChatOpening(serverId = serverId, sessionId = sessionId, cwd = cwd),
             hub = hub,
         )
     }

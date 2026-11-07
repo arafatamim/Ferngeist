@@ -1,7 +1,7 @@
 package com.tamimarafat.ferngeist.di
 
 import com.tamimarafat.ferngeist.acp.bridge.catalog.SessionCatalog
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.store.AuthEnvValueStore

@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge.session
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import kotlinx.serialization.Serializable
 import kotlin.time.ComparableTimeMark
 
 enum class SessionLoadState {
@@ -12,6 +13,7 @@ enum class SessionLoadState {
     FAILED,
 }
 
+@Serializable
 data class SessionUsage(
     val promptTokens: Long? = null,
     val completionTokens: Long? = null,
@@ -39,4 +41,8 @@ data class SessionSnapshot(
     val turnStatusSince: ComparableTimeMark? = null,
     /** Identity of the terminal event within this runtime, independent of conflated streaming updates. */
     val turnCompletionSequence: Long = 0,
+    /** See [com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot.dropsRepeatPrompts]. */
+    val dropsRepeatPrompts: Boolean? = false,
+    /** See [com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot.historyGap]. */
+    val historyGap: Boolean = false,
 )

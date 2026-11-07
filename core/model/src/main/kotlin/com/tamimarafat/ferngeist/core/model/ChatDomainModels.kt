@@ -343,6 +343,13 @@ data class ChatSessionSnapshot(
     val usage: UsageState?,
     val title: String? = null,
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
+    /**
+     * Whether the gateway would refuse a repeat of a prompt it already delivered, as the last
+     * attach found it; null while a restored or attaching chat has yet to learn it.
+     */
+    val dropsRepeatPrompts: Boolean? = false,
+    /** The last attach missed updates the agent cannot replay: the transcript may have a hole. */
+    val historyGap: Boolean = false,
 )
 
 /**
@@ -442,13 +449,6 @@ interface ChatSessionState {
 
     /** Hub chat id (`"$serverId/$sessionId"`) once a live session is attached; null before. */
     val liveChatId: StateFlow<String?>
-
-    /**
-     * Last rendered snapshot, retained after [clear] so a reopening screen can
-     * paint instantly without waiting for reconnect + session/load replay.
-     * Null when nothing has rendered yet. Never blocks on transport.
-     */
-    val cachedSnapshot: StateFlow<ChatSessionSnapshot?>
 }
 
 /** One-shot events observed by the chat screen. */
@@ -464,6 +464,13 @@ interface ChatSessionEvents {
 
 /** Loading and connection ownership for one chat session. */
 interface ChatSessionLifecycle {
+    /**
+     * Last rendered snapshot, from memory or, after process death, from the state the
+     * session saved, so a reopening screen paints at once without waiting for reconnect
+     * and a load. Null when nothing survives. Never waits on the transport.
+     */
+    suspend fun cachedSnapshot(): ChatSessionSnapshot?
+
     /**
      * Attempts to reattach a warm in-memory session without wiping UI state.
      *
@@ -521,11 +528,13 @@ interface ChatSessionLifecycle {
 interface ChatSessionInteraction {
     /** Sends a user message with optional inline images. Returns true if the message
      * was dispatched to a live session; false when no bridge is available or the
-     * payload is unsupported by the current transport. */
+     * payload is unsupported by the current transport. [clientId] names the prompt so the
+     * gateway delivers it once and its echo can be told apart from an identical prompt. */
     suspend fun sendMessage(
         text: String,
-        images: List<ChatImageData> = emptyList(),
-        files: List<ChatFileData> = emptyList(),
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String,
     ): Boolean
 
     /** Requests a streaming cancel from the transport. */
@@ -534,8 +543,9 @@ interface ChatSessionInteraction {
     /** Steers a prompt into the running turn; see [ChatAgentCapabilities.supportsSteering]. */
     suspend fun steerMessage(
         text: String,
-        images: List<ChatImageData> = emptyList(),
-        files: List<ChatFileData> = emptyList(),
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String,
     ): SteerOutcome = SteerOutcome.NOT_CONSUMED
 
     /** Updates a session configuration option (mode, model, native config, etc.). */

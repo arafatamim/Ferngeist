@@ -5,8 +5,13 @@ import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import com.tamimarafat.ferngeist.gateway.GatewayLaunchResult
+import com.tamimarafat.ferngeist.gateway.GatewayProtocol
+import com.tamimarafat.ferngeist.gateway.GatewayProtocolMismatchException
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewaySessionAttachResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
+import com.tamimarafat.ferngeist.gateway.gatewayErrorMessage
 import com.tamimarafat.ferngeist.gateway.refreshGatewaySourceIfNeeded
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -36,13 +41,14 @@ class GatewayRuntimeLauncher(
         agentId: String,
         requireSupportedProtocol: Boolean = false,
         acpSessionId: String? = null,
+        claimedAcpSessionIds: Set<String> = emptySet(),
     ): Result<GatewayLaunchResult> =
         try {
             launchRefreshedRuntime(
                 gatewaySource = gatewaySource,
                 agentId = agentId,
                 requireSupportedProtocol = requireSupportedProtocol,
-                acpSessionId = acpSessionId,
+                target = ReattachRequest(acpSessionId, claimedAcpSessionIds),
             )
         } catch (error: CancellationException) {
             throw error
@@ -62,8 +68,9 @@ class GatewayRuntimeLauncher(
         gatewaySource: GatewaySource,
         agentId: String,
         requireSupportedProtocol: Boolean,
-        acpSessionId: String?,
+        target: ReattachRequest,
     ): Result<GatewayLaunchResult> {
+        val acpSessionId = target.acpSessionId
         val refreshedSource =
             try {
                 withContext(ioDispatcher) {
@@ -83,12 +90,53 @@ class GatewayRuntimeLauncher(
             return Result.failure(IllegalStateException("Gateway is not paired"))
         }
 
+        if (acpSessionId != null) {
+            attachChat(refreshedSource, agentId, acpSessionId)?.let { attached ->
+                // The attach skips the status fetch that checks the protocol; its reply carries the version.
+                val version = attached.protocolVersion
+                if (requireSupportedProtocol && version != null && version !in GatewayProtocol.supported) {
+                    throw GatewayProtocolMismatchException(version)
+                }
+                val handoff =
+                    with(attached) { GatewayConnectResponse(runtimeId, sessionId, attachToken, webSocketUrl) }
+                return Result.success(GatewayLaunchResult(refreshedSource, handoff, attached.epoch))
+            }
+        }
         if (requireSupportedProtocol) {
             gatewayRepository.verifyProtocol(refreshedSource.scheme, refreshedSource.host)
         }
 
-        return attemptConnect(refreshedSource, agentId, acpSessionId)
+        return attemptConnect(refreshedSource, agentId, target)
     }
+
+    /**
+     * Reattaches [acpSessionId] in the one call that replaces status, list, resume and
+     * connect: a turn still streaming would otherwise sit frozen through four round trips.
+     * Null on a gateway that predates the endpoint, which the old path then serves.
+     */
+    private suspend fun attachChat(
+        gatewaySource: GatewaySource,
+        agentId: String,
+        acpSessionId: String,
+    ): GatewaySessionAttachResponse? =
+        try {
+            withContext(ioDispatcher) {
+                gatewayRepository.attachSession(
+                    scheme = gatewaySource.scheme,
+                    host = gatewaySource.host,
+                    gatewayCredential = gatewaySource.gatewayCredential,
+                    agentId = agentId,
+                    acpSessionId = acpSessionId,
+                )
+            }
+        } catch (error: GatewayRequestException) {
+            // An older gateway has no such route: its mux answers 404/405 in plain text. Both report
+            // protocol "v2", so the version can't tell them apart; the gateway's own error envelope
+            // (an unknown agent or session) is a real failure, not a missing endpoint.
+            val routeMissing = error.statusCode == HTTP_NOT_FOUND || error.statusCode == HTTP_BAD_METHOD
+            if (!routeMissing || gatewayErrorMessage(error.responseBody) != null) throw error
+            null
+        }
 
     /**
      * Runs the connect call for an already-refreshed [gatewaySource] and folds the
@@ -104,12 +152,12 @@ class GatewayRuntimeLauncher(
     private suspend fun attemptConnect(
         gatewaySource: GatewaySource,
         agentId: String,
-        acpSessionId: String?,
+        target: ReattachRequest,
     ): Result<GatewayLaunchResult> =
         try {
             val handoff =
                 withContext(ioDispatcher) {
-                    resumeExistingSession(gatewaySource, agentId, acpSessionId)
+                    resumeExistingSession(gatewaySource, agentId, target)
                         ?: gatewayRepository.connectAgent(
                             scheme = gatewaySource.scheme,
                             host = gatewaySource.host,
@@ -136,7 +184,7 @@ class GatewayRuntimeLauncher(
     private suspend fun resumeExistingSession(
         gatewaySource: GatewaySource,
         agentId: String,
-        acpSessionId: String?,
+        target: ReattachRequest,
     ): GatewayConnectResponse? =
         try {
             val existing =
@@ -147,7 +195,7 @@ class GatewayRuntimeLauncher(
                         gatewaySource.gatewayCredential,
                     ),
                     agentId,
-                    acpSessionId,
+                    target,
                 )
             existing?.let {
                 val resumed =
@@ -172,17 +220,34 @@ class GatewayRuntimeLauncher(
         }
 }
 
+private const val HTTP_NOT_FOUND = 404
+private const val HTTP_BAD_METHOD = 405
+
 /**
- * The gateway session a launch of [agentId] reattaches to: the one already running
- * [acpSessionId] when the gateway lists it, else the newest. Only disconnected ones, since
- * attaching to an active session would steal it from its live client.
+ * The chat a launch opens ([acpSessionId]: empty for a new chat, null for a listing) and the chats this
+ * device already tracks.
+ */
+internal data class ReattachRequest(
+    val acpSessionId: String?,
+    val claimedAcpSessionIds: Set<String>,
+)
+
+/**
+ * The gateway session a launch of [agentId] reattaches to: the one already running the
+ * requested chat when the gateway lists it, else the newest no tracked chat runs. Only
+ * disconnected ones, since attaching to an active session would steal it from its live client.
  */
 internal fun reattachTarget(
     sessions: List<GatewaySessionSummary>,
     agentId: String,
-    acpSessionId: String?,
+    target: ReattachRequest,
 ): GatewaySessionSummary? {
     val disconnected = sessions.filter { it.agentId == agentId && it.status == "disconnected" }
+    val acpSessionId = target.acpSessionId
+    // A chat restored after process death is disconnected until its screen reattaches; a
+    // listing that took its session would hang it up, killing the turn it is still running.
     return disconnected.firstOrNull { acpSessionId != null && acpSessionId in it.acpSessionIds }
-        ?: disconnected.maxByOrNull { it.createdAt.orEmpty() }
+        ?: disconnected
+            .filter { session -> session.acpSessionIds.none { it in target.claimedAcpSessionIds } }
+            .maxByOrNull { it.createdAt.orEmpty() }
 }

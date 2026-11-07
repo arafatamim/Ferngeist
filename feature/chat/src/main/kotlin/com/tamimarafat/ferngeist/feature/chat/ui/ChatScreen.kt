@@ -88,6 +88,9 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val screenState = rememberChatScreenState(viewModel, sessionId)
+    // A new chat's route keeps the shared new-session sentinel; once minted, the real id is the one
+    // its list card shares bounds under, so the morph back lands on that card.
+    val mintedSessionId by viewModel.mintedSessionIds.collectAsStateWithLifecycle()
 
     screenState.state.authentication?.let { request ->
         var selectedMethod by remember(request.agentName) { mutableStateOf<String?>(null) }
@@ -163,7 +166,7 @@ fun ChatScreen(
     ) {
         ChatScreenScaffold(
             screenState = screenState,
-            sessionId = sessionId,
+            sessionId = mintedSessionId ?: sessionId,
             fallbackTitle = fallbackTitle,
             viewModel = viewModel,
             onNavigateBack = onNavigateBack,

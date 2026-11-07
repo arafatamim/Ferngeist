@@ -3,14 +3,15 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
-import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
@@ -26,6 +27,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayProtocol
 import com.tamimarafat.ferngeist.gateway.GatewayRemoteStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewaySessionAttachResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
@@ -59,7 +61,7 @@ class AcpChatSessionFacadeTest {
     private class RecordingSurface : ChatConnectionSurface {
         val abandoned = mutableListOf<AcpConnection>()
 
-        override fun acquireChatManager(): AcpConnection = TODO("unused in facade attendance tests")
+        override fun acquireChatManager(serverId: String): AcpConnection = TODO("unused in facade attendance tests")
 
         override fun abandon(manager: AcpConnection) {
             abandoned += manager
@@ -67,12 +69,12 @@ class AcpChatSessionFacadeTest {
 
         override fun managerFor(chatId: String): AcpConnection? = null
 
-        override fun snapshotFor(chatId: String): ChatSessionSnapshot? = null
+        override fun trackedSessionIds(): Set<String> = emptySet()
 
-        override fun storeSnapshot(
-            chatId: String,
-            snapshot: ChatSessionSnapshot,
-        ) = Unit
+        override suspend fun lastSnapshot(
+            serverId: String,
+            sessionId: String,
+        ): SessionSnapshot? = null
 
         override fun register(
             serverId: String,
@@ -125,6 +127,7 @@ class AcpChatSessionFacadeTest {
         /** Connect failures, so a test can drive the facade's error surfacing. */
         var connectFailure: Exception? = null
         var connectCalls = 0
+        val attachedSessionIds = mutableListOf<String>()
 
         override suspend fun fetchStatus(
             scheme: String,
@@ -228,6 +231,18 @@ class AcpChatSessionFacadeTest {
             gatewayCredential: String,
             runtimeId: String,
         ) = TODO("unused in facade tests")
+
+        // An older gateway without the one-call attach, so launches take the status/list/connect path.
+        override suspend fun attachSession(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            agentId: String,
+            acpSessionId: String,
+        ): GatewaySessionAttachResponse {
+            attachedSessionIds += acpSessionId
+            throw GatewayRequestException(statusCode = 404, message = "not found")
+        }
 
         override suspend fun resumeSession(
             scheme: String,
@@ -358,7 +373,7 @@ class AcpChatSessionFacadeTest {
                     gatewaySourceRepository = FakeGatewaySources(),
                     launchableTargetRepository = targets,
                 ),
-            opening = ChatOpening(serverId = "srv", sessionId = "__new__", cwd = "/work", cachedSnapshot = null),
+            opening = ChatOpening(serverId = "srv", sessionId = "__new__", cwd = "/work"),
             hub = surface,
         )
 
@@ -397,7 +412,7 @@ class AcpChatSessionFacadeTest {
                 facade.authenticate("login")
                 finished = true
             }
-            awaitRealWork { finished }
+            awaitRealWork { finished && facade.sessionSnapshot.value != null }
 
             assertTrue(finished)
             assertEquals("login", targets.preferredMethod)
@@ -470,7 +485,7 @@ class AcpChatSessionFacadeTest {
         }
 
     @Test
-    fun `a rejected resume starts a fresh gateway connect`() =
+    fun `a rejected resume relaunches the chat's own session even when the agent cannot load`() =
         runTest(UnconfinedTestDispatcher()) {
             val repo =
                 FakeGatewayRepo().apply {
@@ -479,12 +494,12 @@ class AcpChatSessionFacadeTest {
             val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
             val manager = newManager(backgroundScope)
             val facade =
-                newFacade(
-                    RecordingSurface(),
-                    backgroundScope,
-                    manager = manager,
-                    targets = targets,
-                    repo = repo,
+                AcpChatSessionFacade(
+                    scope = backgroundScope,
+                    connectionManager = manager,
+                    repositories = LaunchRepositories(repo, FakeGatewaySources(), targets),
+                    opening = ChatOpening(serverId = "srv", sessionId = "s1", cwd = "/work"),
+                    hub = RecordingSurface(),
                 )
             val failures = mutableListOf<String>()
             val collector = backgroundScope.launch { facade.loadFailed.collect { failures += it } }
@@ -493,10 +508,58 @@ class AcpChatSessionFacadeTest {
             manager.emitEvent(AcpManagerEvent.SessionResumeRejected)
             awaitRealWork { failures.isNotEmpty() }
 
-            // The gateway session is gone: the only path is POST /v1/agents/{id}/connect.
-            assertEquals(1, repo.connectCalls)
+            // A launch without the session id is a fresh runtime, i.e. another session in this chat.
+            assertEquals(listOf("s1"), repo.attachedSessionIds)
             assertEquals("agent exited: boom", failures.first())
             collector.cancel()
+        }
+
+    @Test
+    fun `a new chat launches through the attach so its runtime's epoch is known`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo = FakeGatewayRepo()
+            val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
+            val facade =
+                AcpChatSessionFacade(
+                    scope = backgroundScope,
+                    connectionManager = newManager(backgroundScope),
+                    repositories = LaunchRepositories(repo, FakeGatewaySources(), targets),
+                    opening = ChatOpening(serverId = "srv", sessionId = NEW_SESSION_ARG, cwd = "/work"),
+                    hub = RecordingSurface(),
+                )
+
+            backgroundScope.launch { facade.loadSession() }
+            awaitRealWork { repo.attachedSessionIds.isNotEmpty() }
+
+            // The gateway's attach takes an empty id as a new chat, and only its reply carries an epoch.
+            assertEquals(listOf(""), repo.attachedSessionIds)
+        }
+
+    @Test
+    fun `a chat opened offline waits on the reconnect loop instead of failing`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo = FakeGatewayRepo().apply { connectFailure = java.net.ConnectException("network unreachable") }
+            val targets = FakeLaunchableTargets().apply { target = gatewayTarget() }
+            val offline =
+                AcpConnection(
+                    connectivityObserver = ConnectivityObserverStub(initialState = false),
+                    resumeAttachToken = { _, _ -> error("no gateway resume in this test") },
+                    scope = backgroundScope,
+                )
+            val facade =
+                newFacade(RecordingSurface(), backgroundScope, manager = offline, targets = targets, repo = repo)
+            val failures = mutableListOf<String>()
+            backgroundScope.launch { facade.loadFailed.collect { failures += it } }
+
+            var loaded = false
+            backgroundScope.launch {
+                facade.loadSession()
+                loaded = true
+            }
+            awaitRealWork { loaded }
+
+            assertEquals(emptyList<String>(), failures)
+            assertTrue("the open waits for the network", offline.reconnectPending.value)
         }
 }
 

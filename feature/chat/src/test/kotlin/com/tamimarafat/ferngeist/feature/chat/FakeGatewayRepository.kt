@@ -114,6 +114,14 @@ class FakeGatewayRepository : GatewayRepository {
         gatewayCredential: String,
     ) = TODO()
 
+    override suspend fun attachSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+        acpSessionId: String,
+    ) = TODO()
+
     override suspend fun resumeSession(
         scheme: String,
         host: String,

@@ -48,6 +48,7 @@ import com.tamimarafat.ferngeist.feature.chat.SlideDirection
 import com.tamimarafat.ferngeist.feature.chat.SwitchSlide
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreen
 import com.tamimarafat.ferngeist.feature.serverlist.RecentSession
+import kotlinx.coroutines.flow.filterNotNull
 import kotlin.math.roundToInt
 
 /**
@@ -173,8 +174,10 @@ private fun WorkspaceChatPane(
                     cwd = workspace.cwd,
                     title = workspace.title,
                     updatedAt = workspace.updatedAt,
+                    chatId = workspace.selectedChatId ?: sessionId,
                 ),
             mintedSessionId = workspace.mintedSessionId,
+            onSessionMinted = workspace::recordMinted,
             chatViewModelFactory = chatViewModelFactory,
             // The workspace never gives the chat a back button: at two panes the
             // session list owns the one back affordance (it is the pane that
@@ -235,6 +238,7 @@ private fun SeedWorkspaceEffect(
 private fun SwitchingChatPane(
     selection: WorkspaceSelection,
     mintedSessionId: String?,
+    onSessionMinted: (WorkspaceSelection, String) -> Unit,
     chatViewModelFactory: ChatViewModelFactory,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
@@ -247,9 +251,9 @@ private fun SwitchingChatPane(
     var swipe by remember { mutableStateOf<Pair<String, SwitchSlide>?>(null) }
     AnimatedContent(
         targetState = selection,
-        contentKey = { it.serverId to it.sessionId },
+        contentKey = { it.chatKey() },
         transitionSpec = {
-            val slide = swipe?.takeIf { it.first == targetState.chatKey() }?.second
+            val slide = swipe?.takeIf { it.first == targetState.sessionKey() }?.second
             if (slide == null) {
                 fadeIn(spring()) togetherWith fadeOut(spring())
             } else {
@@ -265,8 +269,10 @@ private fun SwitchingChatPane(
     ) { shown ->
         ChatPane(
             selection = shown,
-            // The minted id belongs to the current selection, not to one sliding out.
+            // The minted id going in belongs to the current selection, not to one sliding out;
+            // one the outgoing pane mints is kept under its own chat id by the workspace.
             mintedSessionId = mintedSessionId.takeIf { shown.chatKey() == selection.chatKey() },
+            onSessionMinted = { id -> onSessionMinted(shown, id) },
             chatViewModelFactory = chatViewModelFactory,
             showBackButton = showBackButton,
             onNavigateBack = onNavigateBack,
@@ -279,7 +285,7 @@ private fun SwitchingChatPane(
                         title = session.title.orEmpty(),
                         updatedAt = session.updatedAt,
                     )
-                swipe = slide?.let { next.chatKey() to it }
+                swipe = slide?.let { next.sessionKey() to it }
                 onSelectSession(next)
             },
             sharedTransitionScope = sharedTransitionScope,
@@ -288,7 +294,10 @@ private fun SwitchingChatPane(
     }
 }
 
-private fun WorkspaceSelection.chatKey(): String = "$serverId/$sessionId"
+private fun WorkspaceSelection.sessionKey(): String = "$serverId/$sessionId"
+
+/** The pane's identity: [sessionKey] alone would make two new chats on one agent the same pane. */
+private fun WorkspaceSelection.chatKey(): String = "$serverId/$chatId"
 
 /**
  * Hosts one session's chat in the right pane.
@@ -303,6 +312,7 @@ private fun WorkspaceSelection.chatKey(): String = "$serverId/$sessionId"
 private fun ChatPane(
     selection: WorkspaceSelection,
     mintedSessionId: String?,
+    onSessionMinted: (String) -> Unit,
     chatViewModelFactory: ChatViewModelFactory,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
@@ -310,12 +320,11 @@ private fun ChatPane(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
 ) {
-    val serverId = selection.serverId
     val sessionId = selection.sessionId
     val fallbackSessionTitle = stringResource(R.string.app_untitled_session)
     // A fresh owner per selection: replacing the remembered key forgets the old owner, and the
     // effect below clears the store it held — which is what actually runs `onCleared`.
-    val paneOwner = remember(serverId, sessionId) { SelectionViewModelStoreOwner() }
+    val paneOwner = remember(selection.chatKey()) { SelectionViewModelStoreOwner() }
     DisposableEffect(paneOwner) { onDispose { paneOwner.viewModelStore.clear() } }
 
     val viewModel: ChatViewModel =
@@ -337,6 +346,9 @@ private fun ChatPane(
                     }
                 },
         )
+    // The pane builds its own handle, so nothing else would persist the minted id across
+    // process death: copy it into the workspace, whose saver does.
+    LaunchedEffect(viewModel) { viewModel.mintedSessionIds.filterNotNull().collect(onSessionMinted) }
     ChatScreen(
         sessionId = sessionId,
         // The view model resolves the title (nav arg, then the session store); this is

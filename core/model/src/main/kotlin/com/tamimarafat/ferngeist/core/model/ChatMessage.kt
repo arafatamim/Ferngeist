@@ -4,16 +4,19 @@ import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.model.serialization.PersistentListSerializer
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import java.util.UUID
 
+@Serializable
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: Role = Role.USER,
     val content: String = "",
+    @Serializable(with = PersistentListSerializer::class)
     val segments: PersistentList<AssistantSegment> = persistentListOf(),
     val isStreaming: Boolean = false,
     val isError: Boolean = false,
@@ -22,6 +25,11 @@ data class ChatMessage(
     val createdAt: Long = System.currentTimeMillis(),
     val status: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
     val clientId: String? = null,
+    /**
+     * Proof this prompt reached the agent: its turn's reply, or the gateway's numbered echo of it.
+     * A local copy carries [clientId] too, so the id alone proves nothing.
+     */
+    val deliveryConfirmed: Boolean = false,
     /** When the turn this reply answers was sent and finished; on a reply once it closes. */
     val turn: TurnTiming? = null,
     /** ACP message id that identifies which streamed message this bubble belongs to. */
@@ -35,6 +43,7 @@ data class ChatMessage(
 }
 
 /** Wall-clock times a turn ran between: its prompt sent, its reply closed. */
+@Serializable
 data class TurnTiming(
     val startedAt: Long,
     val finishedAt: Long,
@@ -50,6 +59,7 @@ data class TurnKey(
     val promptHash: Int,
 )
 
+@Serializable
 data class AssistantSegment(
     val id: String = UUID.randomUUID().toString(),
     val kind: Kind = Kind.MESSAGE,
@@ -67,6 +77,7 @@ data class AssistantSegment(
     }
 }
 
+@Serializable
 data class ToolCallDisplay(
     val toolCallId: String? = null,
     val title: String = "",
@@ -81,6 +92,7 @@ data class ToolCallDisplay(
     val locations: List<String>? = null,
 )
 
+@Serializable
 data class AcpPermissionOption(
     val id: String,
     val label: String,

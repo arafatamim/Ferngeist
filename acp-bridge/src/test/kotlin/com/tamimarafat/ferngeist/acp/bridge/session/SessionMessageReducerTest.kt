@@ -185,15 +185,17 @@ class SessionMessageReducerTest {
     }
 
     /**
-     * Only ADJACENT MESSAGE segments merge. A thought that lands between two runs of reply chunks
-     * keeps its place and each run folds on its own; absorbing across it would reorder the reply.
+     * Only ADJACENT same-kind segments merge. A thought that lands between two runs of reply chunks
+     * keeps its place and folds on its own, as does each reply run; absorbing across kinds would
+     * reorder the reply.
      */
     @Test
-    fun finishStreaming_mergesEachMessageRunWithoutCrossingAThought() {
+    fun finishStreaming_foldsEachReplyAndThoughtRunWithoutCrossingKinds() {
         var messages: List<ChatMessage> = emptyList()
         messages = appendAgentChunk(messages, "one ")
         messages = appendAgentChunk(messages, "two")
-        messages = appendThoughtChunk(messages, "thinking")
+        messages = appendThoughtChunk(messages, "think")
+        messages = appendThoughtChunk(messages, "ing")
         messages = appendAgentChunk(messages, "three ")
         messages = appendAgentChunk(messages, "four")
 

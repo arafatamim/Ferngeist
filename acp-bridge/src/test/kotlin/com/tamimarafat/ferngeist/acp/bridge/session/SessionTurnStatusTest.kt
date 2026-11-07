@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -29,7 +30,8 @@ class SessionTurnStatusTest {
             val finished = runtime.snapshot.value.turnStatusSince
             assertNotNull(finished)
             assertTrue(finished!! >= beforeCompletion)
-            runtime.markReady()
+            runtime.beginAttach()
+            runtime.settleAttach(turnRunning = false)
             assertNull(runtime.snapshot.value.turnStatusSince)
         }
 
@@ -170,10 +172,15 @@ class SessionTurnStatusTest {
     fun `a failed prompt send is an error until the next turn`() =
         runTest {
             val runtime = runtime()
-            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-            runtime.onPromptSendFailed()
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "c-1")
+            runtime.onPromptSendFailed("c-1")
 
             assertEquals(TurnStatus.ERROR, runtime.status())
+            // The queue shows the unsent prompt FAILED; the transcript must not also show it as sent.
+            assertTrue(
+                runtime.snapshot.value.messages
+                    .none { it.role == ChatMessage.Role.USER },
+            )
             runtime.onLocalPromptStarted("retry", emptyList(), emptyList())
             assertEquals(TurnStatus.WORKING, runtime.status())
         }
@@ -197,33 +204,43 @@ class SessionTurnStatusTest {
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.elicitationRequested()
             runtime.onLocalCancel()
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(null)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("retry", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("cancelled"))
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(null)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("retry", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("error"))
-            runtime.onPromptSendFailed()
+            runtime.onPromptSendFailed(null)
             assertEquals(TurnStatus.ERROR, runtime.status())
         }
 
     @Test
-    fun `reattachment cannot reuse a retained terminal outcome`() =
+    fun `reattachment forgets a retained outcome but keeps one reported during the attach`() =
         runTest {
             val runtime = runtime()
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
-            runtime.markReady()
+            runtime.beginAttach()
+            runtime.settleAttach(turnRunning = false)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.TurnComplete("refusal"))
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            runtime.beginAttach()
+            runtime.settleAttach(turnRunning = false)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
+
+            // `_ferngeist/turn_result` lands mid-attach, before the attach closes.
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
+            runtime.beginAttach()
+            runtime.onEvent(AppSessionEvent.TurnComplete("refusal"))
+            assertEquals("held until the attach settles", TurnStatus.WORKING, runtime.status())
+            runtime.settleAttach(turnRunning = false)
+            assertEquals(TurnStatus.ERROR, runtime.status())
         }
 
     @Test
@@ -239,7 +256,7 @@ class SessionTurnStatusTest {
             runtime.completeHydration()
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            runtime.onEvent(AppSessionEvent.TurnEndUnheard)
             assertEquals(TurnStatus.UNKNOWN, runtime.status())
 
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())

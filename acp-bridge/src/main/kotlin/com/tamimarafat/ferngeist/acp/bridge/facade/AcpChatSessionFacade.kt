@@ -8,9 +8,10 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildGatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.workspaceConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.facade.auth.ChatAuthentication
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
@@ -49,16 +50,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.IOException
 
-/**
- * The session a chat opens with: which server and session, where it runs, and the snapshot it
- * paints before the live bridge answers.
- */
+/** The session a chat opens with: which server and session, and where it runs. */
 data class ChatOpening(
     val serverId: String,
     val sessionId: String,
     val cwd: String,
-    val cachedSnapshot: ChatSessionSnapshot?,
 )
 
 /**
@@ -107,12 +105,19 @@ class AcpChatSessionFacade(
     private val _sessionSnapshot = MutableStateFlow<ChatSessionSnapshot?>(null)
     override val sessionSnapshot: StateFlow<ChatSessionSnapshot?> = _sessionSnapshot.asStateFlow()
 
-    // Paint cache is seeded from the hub's snapshot cache at creation (the durable
-    // store: observeSessionBridge writes hub.storeSnapshot per emission). This flow
-    // never mutates after construction — reopening builds a fresh facade seeded from
-    // the hub, so a live mirror here would duplicate the hub write per chunk.
-    override val cachedSnapshot: StateFlow<ChatSessionSnapshot?> =
-        MutableStateFlow(opening.cachedSnapshot)
+    // Paint cache: the chat's runtime in the hub, restored from what it saved before the process
+    // died. A cached paint is history, never live state: a stale streaming flag is cleared. The
+    // live bridge republishes its true snapshot on reattach, so a real in-flight turn re-arms it
+    // at once, while a turn whose owner died can never strand the UI on STOP.
+    override suspend fun cachedSnapshot(): ChatSessionSnapshot? =
+        hub.lastSnapshot(serverId, initialSessionId)?.let { saved ->
+            mapSnapshot(saved).let { paint ->
+                paint.copy(
+                    isStreaming = false,
+                    messages = paint.messages.map { if (it.isStreaming) it.copy(isStreaming = false) else it },
+                )
+            }
+        }
 
     private val _agentCapabilities =
         MutableStateFlow(ChatAgentCapabilities())
@@ -127,7 +132,9 @@ class AcpChatSessionFacade(
     private val _liveChatId = MutableStateFlow<String?>(null)
     override val liveChatId: StateFlow<String?> = _liveChatId.asStateFlow()
     private var resolvedAgentId: String? = null
-    private var snapshotChatId: String = "$serverId/$initialSessionId"
+
+    /** The update numbering of the agent process the last launch attached to; see SessionGateway.attachSession. */
+    private var launchEpoch: String? = null
 
     // ---- Events (one-shot) ----
     // SharedFlow is used for one-off signals so repeated emissions are not lost.
@@ -160,6 +167,10 @@ class AcpChatSessionFacade(
     // Times the steps of the open in flight; null outside one. Only touched under
     // bridgeOperationMutex, so it needs no further synchronization.
     private var openTimer: OpenStepTimer? = null
+
+    // The last connect failed only because the agent was unreachable; reset by each
+    // ensureConnectedAndInitialized, so loadSessionLocked reads it straight after its own call.
+    private var reopenWhenOnline = false
 
     private val sessionLoadCoordinator by lazy {
         SessionLoadCoordinator(
@@ -244,7 +255,13 @@ class AcpChatSessionFacade(
 
     private suspend fun loadSessionLocked(quiet: Boolean) {
         if (!ensureConnectedAndInitialized()) {
-            if (authentication.value == null) {
+            // The one reopen trigger: the loop reruns this open once the device is back online.
+            if (reopenWhenOnline) {
+                connectionManager.retryWhenOnline {
+                    scope.launch { loadSessionInternal(quiet = false) }
+                    true
+                }
+            } else if (authentication.value == null) {
                 _loadFailed.emit(connectionFailure("Disconnected. Reconnect to refresh this session."))
             }
             return
@@ -255,17 +272,11 @@ class AcpChatSessionFacade(
         if (initialSessionId == NEW_SESSION_ARG) {
             // Create-on-arrival: the session list no longer pre-creates on its
             // browser transport; this chat's own connection mints the session.
-            val bridge = chatAuthentication.createSession(cwd)
-            if (bridge == null) {
-                if (authentication.value == null) _loadFailed.emit(connectionFailure("Failed to create a new session."))
-                return
-            }
-            attachSessionBridge(bridge)
-            _sessionReady.emit(Unit)
+            createAndAttachSession()
             return
         }
 
-        val outcome = sessionLoadCoordinator.run(announceReady = !quiet)
+        val outcome = sessionLoadCoordinator.run(announceReady = !quiet, epoch = launchEpoch)
         openTimer?.mark(if (outcome is SessionLoadOutcome.Attached) "load" else "loadFailed")
         if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
     }
@@ -358,6 +369,7 @@ class AcpChatSessionFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
         val bridge =
             if (text.isBlank() && images.isEmpty() && files.isEmpty()) {
@@ -373,10 +385,13 @@ class AcpChatSessionFacade(
             }
             return false
         }
-        if (isSendCapabilityRejected(images, files)) return false
+        sendCapabilityRejection(connectionManager.agentCapabilities.value, images, files)?.let { rejection ->
+            _operationError.emit(ChatOperationError(rejection, false))
+            return false
+        }
 
         try {
-            bridge.sendPrompt(text, images, files)
+            bridge.sendPrompt(text, images, files, clientId)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -394,28 +409,8 @@ class AcpChatSessionFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
-    ): SteerOutcome = sessionBridge?.steer(text, images, files) ?: SteerOutcome.NOT_CONSUMED
-
-    /** Emits an operation error and returns true when the agent lacks image/file support. */
-    private suspend fun isSendCapabilityRejected(
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-    ): Boolean {
-        val capabilities = connectionManager.agentCapabilities.value ?: return false
-        if (images.isNotEmpty() && !capabilities.promptCapabilities.image) {
-            _operationError.emit(
-                ChatOperationError("This agent does not advertise image prompt support.", false),
-            )
-            return true
-        }
-        if (files.isNotEmpty() && !capabilities.promptCapabilities.embeddedContext) {
-            _operationError.emit(
-                ChatOperationError("This agent does not advertise file attachment support.", false),
-            )
-            return true
-        }
-        return false
-    }
+        clientId: String,
+    ): SteerOutcome = sessionBridge?.steer(text, images, files, clientId) ?: SteerOutcome.NOT_CONSUMED
 
     /**
      * Cancels the current streaming turn.
@@ -556,6 +551,7 @@ class AcpChatSessionFacade(
      * Returns false on connection failure or after publishing an authentication challenge.
      */
     private suspend fun ensureConnectedAndInitialized(): Boolean {
+        reopenWhenOnline = false
         if (connectionManager.isConnected) {
             // Already connected — restore the gateway workspace connection from the live
             // config so the diff indicator works when resuming into an open session.
@@ -580,13 +576,7 @@ class AcpChatSessionFacade(
      */
     private fun restoreGatewayWorkspaceConnection() {
         val gateway = connectionManager.currentConnectionConfig() as? AcpConnectionConfig.Gateway ?: return
-        _gatewayWorkspaceConnection.value =
-            GatewayWorkspaceConnection(
-                runtimeId = gateway.runtimeId,
-                scheme = gateway.scheme,
-                host = gateway.host,
-                gatewayCredential = gateway.gatewayCredential,
-            )
+        _gatewayWorkspaceConnection.value = gateway.workspaceConnection
     }
 
     /**
@@ -661,14 +651,15 @@ class AcpChatSessionFacade(
         }
 
     /** Connects to the target's transport. Returns null when no config could be built. */
-    private suspend fun connectForTarget(server: LaunchableTarget): Boolean? =
-        when (server) {
-            is LaunchableTarget.GatewayAgent -> {
-                val config = buildGatewayConnectionConfig(server) ?: return null
-                connectionManager.connect(config)
+    private suspend fun connectForTarget(server: LaunchableTarget): Boolean? {
+        val config =
+            when (server) {
+                is LaunchableTarget.GatewayAgent -> buildGatewayConnectionConfig(server) ?: return null
+                is LaunchableTarget.Manual -> server.toConnectionConfig()
             }
-            is LaunchableTarget.Manual -> connectionManager.connect(server.toConnectionConfig())
-        }
+        // A socket that cannot open is retried by the open itself; see loadSessionLocked.
+        return connectionManager.connect(config).also { reopenWhenOnline = !it }
+    }
 
     /**
      * Builds a connection config for a gateway-backed agent by connecting it on
@@ -681,25 +672,23 @@ class AcpChatSessionFacade(
             _loadFailed.emit("Gateway is not paired for ${target.name}.")
             return null
         }
-        // A chat whose agent survived the app reattaches to the gateway session still running it.
+        // A chat whose agent survived the app reattaches to the gateway session still running it. A new
+        // chat attaches too, under an empty id, so it learns the epoch its first turn can catch up in.
         val context =
             buildGatewayLaunchContext(
                 repositories.runtimeLauncher,
                 target,
-                acpSessionId = initialSessionId.takeUnless { it == NEW_SESSION_ARG },
+                hub.trackedSessionIds(),
+                acpSessionId = activeSessionId.takeUnless { it == NEW_SESSION_ARG }.orEmpty(),
             )
         openTimer?.mark("launch")
         return context.fold(
             onSuccess = { launch ->
                 resolvedAgentId = target.binding.agentId
-                val source = launch.gatewaySource
-                _gatewayWorkspaceConnection.value =
-                    GatewayWorkspaceConnection(
-                        runtimeId = launch.runtimeId,
-                        scheme = source.scheme,
-                        host = source.host,
-                        gatewayCredential = source.gatewayCredential,
-                    )
+                // A new agent process brings a new epoch, which no saved cursor matches, so the
+                // attach loads.
+                launchEpoch = launch.epoch
+                _gatewayWorkspaceConnection.value = launch.workspaceConnection
                 launch.config
             },
             onFailure = { error ->
@@ -714,6 +703,9 @@ class AcpChatSessionFacade(
                         )
                     }
 
+                    // Unreachable, not refused: the chat waits for the network instead of failing.
+                    is IOException -> reopenWhenOnline = true
+
                     else ->
                         // The gateway's own words: a 502 carries the agent's exit error,
                         // which is the only thing that explains why it did not come up.
@@ -727,52 +719,53 @@ class AcpChatSessionFacade(
     /**
      * The connection layer's reconnect found the gateway session gone (the gateway
      * restarted, or the runtime failed): the gateway is the only recoverer, so the
-     * app's only path is a fresh connect — the gateway spawns a runtime and mints a
-     * new session. The dead session's transcript is not recoverable; the user is
-     * told through the existing operation-error channel and the new session carries on.
+     * app's only path is a fresh connect for the chat's own session, attached the same
+     * way a launch does. A chat never moves onto another session: an agent that cannot
+     * attach it again fails the load instead (see [SessionLoadCoordinator]).
      */
     private suspend fun reconnectAfterRejectedResume() {
         bridgeOperationMutex.withLock {
             val target =
                 repositories.launchableTargetRepository.getTarget(serverId) as? LaunchableTarget.GatewayAgent ?: return
+            val chatSession = activeSessionId.takeIf { it != NEW_SESSION_ARG }
             val context =
-                buildGatewayLaunchContext(repositories.runtimeLauncher, target).getOrElse { error ->
-                    // The gateway's own words: a 502 carries the agent's exit error.
-                    _loadFailed.emit(error.message ?: "Failed to connect to ${target.name}.")
-                    return
-                }
-            val source = context.gatewaySource
+                buildGatewayLaunchContext(repositories.runtimeLauncher, target, hub.trackedSessionIds(), chatSession)
+                    .getOrElse { error ->
+                        // The gateway's own words: a 502 carries the agent's exit error.
+                        _loadFailed.emit(error.message ?: "Failed to connect to ${target.name}.")
+                        return
+                    }
             resolvedAgentId = target.binding.agentId
-            _gatewayWorkspaceConnection.value =
-                GatewayWorkspaceConnection(
-                    runtimeId = context.runtimeId,
-                    scheme = source.scheme,
-                    host = source.host,
-                    gatewayCredential = source.gatewayCredential,
-                )
+            _gatewayWorkspaceConnection.value = context.workspaceConnection
             if (!connectionManager.connect(context.config) || initializeSession() == null) {
                 _loadFailed.emit("Failed to connect to ${target.name}.")
                 return
             }
             publishCapabilities()
-            _operationError.emit(
-                ChatOperationError(
-                    message = "The previous session could not be resumed. Opened a new session.",
-                    stopStreaming = false,
-                ),
-            )
-            // Attach to the session the gateway just minted, the same way a launch does.
-            val outcome = sessionLoadCoordinator.run(sessionId = context.sessionId)
+            if (chatSession == null) {
+                // Still creating on arrival: the session this chat asked for was never minted.
+                createAndAttachSession()
+                return
+            }
+            val outcome = sessionLoadCoordinator.run(sessionId = chatSession, epoch = context.epoch)
             if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
         }
     }
 
+    /** Mints a session on this chat's connection and attaches it; false after reporting a failure. */
+    private suspend fun createAndAttachSession(): Boolean {
+        val bridge = chatAuthentication.createSession(cwd, launchEpoch)
+        if (bridge == null) {
+            if (authentication.value == null) _loadFailed.emit(connectionFailure("Failed to create a new session."))
+            return false
+        }
+        attachSessionBridge(bridge)
+        _sessionReady.emit(Unit)
+        return true
+    }
+
     private fun attachSessionBridge(bridge: SessionPort) {
         activeSessionId = bridge.sessionId
-        // The create-on-arrival sentinel never registers with the hub (see
-        // registerConnectingWithHub); switch to the real id so snapshots store
-        // under the same key the factory seeds from.
-        snapshotChatId = "$serverId/${bridge.sessionId}"
         sessionBridge = bridge
         pendingModelSelectionId = null
         observeSessionBridge(bridge)
@@ -790,11 +783,7 @@ class AcpChatSessionFacade(
         bridgeObserverJobs =
             listOf(
                 scope.launch {
-                    bridge.snapshot.collect { snapshot ->
-                        val mapped = mapSnapshot(snapshot)
-                        _sessionSnapshot.value = mapped
-                        hub.storeSnapshot(snapshotChatId, mapped)
-                    }
+                    bridge.snapshot.collect { snapshot -> _sessionSnapshot.value = mapSnapshot(snapshot) }
                 },
                 scope.launch {
                     bridge.modelSelectionEvents.collect { event ->
@@ -819,8 +808,9 @@ class AcpChatSessionFacade(
     }
 
     /**
-     * Ensures a connected & initialised session exists, creating one if necessary.
-     * @return the active [SessionPort], or null if connection / creation fails.
+     * Ensures a connected & initialised session exists: the chat's own, or a minted one while
+     * the chat is still creating on arrival. An existing chat never sends into another session.
+     * @return the active [SessionPort], or null if connection, load or creation fails.
      */
     private suspend fun ensureSessionReadyForSend(): SessionPort? =
         bridgeOperationMutex.withLock {
@@ -828,14 +818,12 @@ class AcpChatSessionFacade(
             sessionBridge?.let { return@withLock it }
             if (!ensureConnectedAndInitialized()) return@withLock null
 
-            connectionManager.sessions.getSession(activeSessionId)?.let { existing ->
-                attachSessionBridge(existing)
-                _sessionReady.emit(Unit)
-                return@withLock existing
+            if (activeSessionId != NEW_SESSION_ARG) {
+                val outcome = sessionLoadCoordinator.run(sessionId = activeSessionId)
+                if (outcome is SessionLoadOutcome.Failed) _loadFailed.emit(outcome.message)
+                return@withLock sessionBridge
             }
-
-            val created = chatAuthentication.createSession(cwd)
-            created?.also {
+            chatAuthentication.createSession(cwd, launchEpoch)?.also {
                 attachSessionBridge(it)
                 _sessionReady.emit(Unit)
             }
@@ -857,3 +845,18 @@ class AcpChatSessionFacade(
         }
     }
 }
+
+/** Why the agent cannot take this prompt's images or files, or null when it can (or has not said). */
+private fun sendCapabilityRejection(
+    capabilities: AgentCapabilities?,
+    images: List<ChatImageData>,
+    files: List<ChatFileData>,
+): String? =
+    when {
+        capabilities == null -> null
+        images.isNotEmpty() && !capabilities.promptCapabilities.image ->
+            "This agent does not advertise image prompt support."
+        files.isNotEmpty() && !capabilities.promptCapabilities.embeddedContext ->
+            "This agent does not advertise file attachment support."
+        else -> null
+    }

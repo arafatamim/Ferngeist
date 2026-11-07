@@ -23,6 +23,7 @@ import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.feature.chat.activity.PhoneTurnClock
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
+import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -183,6 +184,7 @@ internal fun readySnapshot(
     title: String? = null,
     messages: List<ChatMessage> = emptyList(),
     isStreaming: Boolean = false,
+    dropsRepeatPrompts: Boolean? = false,
 ): ChatSessionSnapshot =
     ChatSessionSnapshot(
         loadState = ChatLoadState.READY,
@@ -194,6 +196,7 @@ internal fun readySnapshot(
         error = null,
         usage = null,
         title = title,
+        dropsRepeatPrompts = dropsRepeatPrompts,
     )
 
 /** Convenience overload that accepts a single [ChatMessage] for the [ChatSessionSnapshot.messages] field. */
@@ -223,12 +226,27 @@ internal fun hydratingSnapshot(): ChatSessionSnapshot =
 internal fun echoMessage(
     id: String = "server-echo-1",
     content: String = "hello world",
+    clientId: String? = null,
 ): ChatMessage =
     ChatMessage(
         id = id,
         role = ChatMessage.Role.USER,
         content = content,
         status = MessageDeliveryStatus.SENT,
+        clientId = clientId,
+    )
+
+/** The runtime's echo of this screen's pending prompt [content]: it carries the prompt's client id. */
+internal fun ChatViewModel.echoOf(
+    content: String,
+    id: String = "server-echo-1",
+): ChatMessage =
+    echoMessage(
+        id,
+        content,
+        state.value.pendingMessages
+            .single { it.content == content }
+            .clientId,
     )
 
 /** Builds a [ChatSessionSnapshot] containing a single echo message. */
@@ -313,7 +331,7 @@ class ChatViewModelPresenceTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `presence follows the session a rejected resume reconnects into`() =
+    fun `an existing chat stays on its own session whatever id the facade reports`() =
         runTest {
             val hub = newTestHub()
             val facadeFactory = FakeChatSessionFacadeFactory()
@@ -332,16 +350,15 @@ class ChatViewModelPresenceTest : ChatViewModelTestBase() {
                 )
             advanceUntilIdle()
 
-            // The gateway lost session_1, so the facade's fresh connect minted session_2;
-            // its pushes name session_2, so that is the chat the user is watching.
+            // Opening session_1 must never land the user in another session's chat.
             facadeFactory.lastFacade.value!!.emitLiveChatId("server_1/session_2")
             advanceUntilIdle()
 
             assertEquals(
-                ChatPresence(serverId = "server_1", sessionId = "session_2", cwd = "/"),
+                ChatPresence(serverId = "server_1", sessionId = "session_1", cwd = "/"),
                 hub.onScreenChat.value,
             )
-            assertFalse(hub.isTracked("server_1", "session_1"))
+            assertFalse(hub.isTracked("server_1", "session_2"))
 
             viewModel.clearForTest()
             assertNull(hub.onScreenChat.value)
@@ -363,7 +380,7 @@ class ChatViewModelPresenceTest : ChatViewModelTestBase() {
                         agentId = "agent-1",
                         isConnected = { false },
                         isStreaming = { false },
-                        manager = hub.acquireChatManager(),
+                        manager = hub.acquireChatManager("srv"),
                     ),
             )
             val viewModel =

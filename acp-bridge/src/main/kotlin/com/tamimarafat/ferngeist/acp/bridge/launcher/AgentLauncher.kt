@@ -7,17 +7,17 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpInitializeResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpManagerEvent
-import com.tamimarafat.ferngeist.acp.bridge.connection.GatewayRuntime
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildEnvPayload
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildGatewayLaunchContext
-import com.tamimarafat.ferngeist.acp.bridge.connection.buildInitializeFailureMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
-import com.tamimarafat.ferngeist.acp.bridge.connection.loadPersistedEnvValues
-import com.tamimarafat.ferngeist.acp.bridge.connection.logConnectionFailure
-import com.tamimarafat.ferngeist.acp.bridge.connection.persistEnvValues
-import com.tamimarafat.ferngeist.acp.bridge.connection.shortInitializeFailureMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewayRuntime
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildEnvPayload
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildGatewayLaunchContext
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.buildInitializeFailureMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.loadPersistedEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.logConnectionFailure
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.persistEnvValues
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.shortInitializeFailureMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.toConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.facade.OpenStepTimer
 import com.tamimarafat.ferngeist.acp.bridge.facade.mapConnectionState
@@ -162,7 +162,11 @@ class AgentLaunchSession internal constructor(
 
                 is LaunchableTarget.GatewayAgent -> {
                     val context =
-                        buildGatewayLaunchContext(repositories.runtimeLauncher, server).getOrElse { error ->
+                        buildGatewayLaunchContext(
+                            repositories.runtimeLauncher,
+                            server,
+                            hub.trackedSessionIds(),
+                        ).getOrElse { error ->
                             return AgentLaunchOutcome.Failed(error.message ?: "Failed to launch ${server.name}")
                         }
                     pendingGateway = GatewayRuntime(source = context.gatewaySource, runtimeId = context.runtimeId)

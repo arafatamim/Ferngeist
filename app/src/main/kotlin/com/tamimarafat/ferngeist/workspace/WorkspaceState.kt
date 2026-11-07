@@ -5,10 +5,13 @@ import androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import java.util.UUID
 import androidx.compose.runtime.saveable.Saver as ComposeSaver
 
 /**
@@ -24,6 +27,11 @@ data class WorkspaceSelection(
     val cwd: String,
     val title: String,
     val updatedAt: Long? = null,
+    /**
+     * The chat's own id: its session id, or one the workspace gives each new-chat pick, since every
+     * new chat shares the [NEW_SESSION_ARG] session id yet each is its own chat.
+     */
+    val chatId: String = sessionId,
 )
 
 /** A project the middle pane shows instead of an agent's sessions: one repo on one gateway. */
@@ -54,6 +62,10 @@ class WorkspaceState(
     var selectedSessionId by mutableStateOf(selectedSessionId)
         private set
 
+    /** See [WorkspaceSelection.chatId]. */
+    var selectedChatId by mutableStateOf(selectedSessionId)
+        private set
+
     var agentsInLeft by mutableStateOf(agentsInLeft)
         private set
 
@@ -68,12 +80,23 @@ class WorkspaceState(
     val placeId: String?
         get() = selectedProject?.let { "${it.gatewaySourceId}:${it.repo}" } ?: selectedServerId
 
+    // Minted ids by chat id: a pane sliding out that mints late writes under its own chat, never another's.
+    private val mintedIds = mutableStateMapOf<String, String>()
+
     /**
-     * The real session id a create-on-arrival chat minted, carried so it survives process
-     * death. `ChatViewModel` writes this into its `SavedStateHandle`, but a pane builds that
-     * handle by hand (panes are not nav destinations), so nothing else would persist it.
+     * The real session id the selected create-on-arrival chat minted, carried so it survives
+     * process death. `ChatViewModel` writes this into its `SavedStateHandle`, but a pane builds
+     * that handle by hand (panes are not nav destinations), so nothing else would persist it.
      */
-    var mintedSessionId by mutableStateOf<String?>(null)
+    val mintedSessionId: String?
+        get() = selectedChatId?.let { mintedIds[it] }
+
+    fun recordMinted(
+        chat: WorkspaceSelection,
+        mintedId: String,
+    ) {
+        mintedIds[chat.chatId] = mintedId
+    }
 
     /**
      * Working directory and title of [selectedSessionId]. The pane-built `ChatViewModel`
@@ -94,6 +117,7 @@ class WorkspaceState(
         selectedProject = null
         selectedServerId = serverId
         selectedSessionId = null
+        selectedChatId = null
         agentsInLeft = false
     }
 
@@ -102,7 +126,7 @@ class WorkspaceState(
         selectedProject = project
         selectedServerId = null
         selectedSessionId = null
-        mintedSessionId = null
+        selectedChatId = null
         agentsInLeft = false
     }
 
@@ -120,6 +144,9 @@ class WorkspaceState(
         selection: WorkspaceSelection,
         agentsInLeft: Boolean,
     ) {
+        // A new-chat pick is always another chat, even on the agent whose new chat is selected.
+        selectedChatId =
+            if (selection.sessionId == NEW_SESSION_ARG) UUID.randomUUID().toString() else selection.sessionId
         selectedServerId = selection.serverId
         selectedSessionId = selection.sessionId
         cwd = selection.cwd
@@ -144,7 +171,7 @@ class WorkspaceState(
         selectedProject = null
         selectedServerId = null
         selectedSessionId = null
-        mintedSessionId = null
+        selectedChatId = null
         cwd = ""
         title = ""
         updatedAt = null
@@ -169,6 +196,7 @@ class WorkspaceState(
                         it.selectedProject?.gatewaySourceId,
                         it.selectedProject?.repo,
                         it.updatedAt,
+                        it.selectedChatId,
                     )
                 },
                 restore = {
@@ -180,7 +208,10 @@ class WorkspaceState(
                         title = it[5] as String,
                         updatedAt = it.getOrNull(8) as Long?,
                     ).apply {
-                        mintedSessionId = it[3] as String?
+                        (it.getOrNull(9) as String?)?.let { chatId -> selectedChatId = chatId }
+                        val chatId = selectedChatId
+                        val minted = it[3] as String?
+                        if (chatId != null && minted != null) mintedIds[chatId] = minted
                         selectedProject =
                             (it[6] as String?)?.let { gatewaySourceId ->
                                 WorkspaceProject(gatewaySourceId, it[7] as String)

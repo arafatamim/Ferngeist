@@ -6,7 +6,11 @@ import com.agentclientprotocol.model.AgentCapabilities
 import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.PermissionFlow
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
+import com.tamimarafat.ferngeist.acp.bridge.session.deviceRuntime
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +49,8 @@ class AcpConnection(
         session: AcpConnectionConfig.ResumeInfo,
     ) -> String,
     private val scope: CoroutineScope,
+    /** The state each session attached here shows; the hub's, so it outlives this connection. */
+    runtimeFor: suspend (sessionId: String) -> SessionRuntime = { deviceRuntime(it) },
 ) {
     companion object {
         private const val LIST_SESSIONS_TIMEOUT_MS = 30_000L
@@ -90,7 +96,7 @@ class AcpConnection(
             connection = this,
             permissionFlow = PermissionFlow(),
             elicitationFlow = ElicitationFlow(),
-            bridgeFactory = { sessionId -> SessionBridge(sessionId, this) },
+            bridgeFactory = { sessionId -> SessionBridge(sessionId, this, runtimeFor(sessionId)) },
             scope = scope,
         )
 
@@ -122,8 +128,9 @@ class AcpConnection(
                     override suspend fun onRemoteTurnEnded(
                         sessionId: String,
                         stopReason: String,
+                        durationMs: Long?,
                     ) {
-                        sessions.endRemoteTurn(sessionId, stopReason)
+                        sessions.endRemoteTurn(sessionId, stopReason, durationMs)
                     }
 
                     override suspend fun onRemoteResumed(
@@ -223,6 +230,12 @@ class AcpConnection(
 
     suspend fun connect(config: AcpConnectionConfig): Boolean =
         transportClient.connect(config, resetState = ::resetConnectionState).also { sessionsToRestore.clear() }
+
+    /**
+     * Retries a chat's first open that failed before any transport existed (offline at launch)
+     * on the reconnect loop: [open] runs once online, after the backoff, and returns true to stop.
+     */
+    fun retryWhenOnline(open: suspend () -> Boolean) = transportClient.reconnect.takeOver(open)
 
     /**
      * Connects the transport and runs the ACP initialize handshake.

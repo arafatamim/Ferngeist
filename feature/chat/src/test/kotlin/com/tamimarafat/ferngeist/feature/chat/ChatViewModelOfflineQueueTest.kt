@@ -6,11 +6,14 @@ import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -36,6 +39,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                             text: String,
                             images: List<ChatImageData>,
                             files: List<ChatFileData>,
+                            clientId: String,
                         ): Boolean {
                             sent += text
                             return true
@@ -85,6 +89,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                             text: String,
                             images: List<ChatImageData>,
                             files: List<ChatFileData>,
+                            clientId: String,
                         ): Boolean {
                             sent += text
                             return true
@@ -116,7 +121,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
             val viewModel = steeringViewModel(facade)
 
             assertEquals(listOf("nudge"), facade.steered)
-            facade.emitSnapshot(readySnapshot(messages = listOf(echoMessage(content = "nudge")), isStreaming = true))
+            facade.emitSnapshot(readySnapshot(messages = listOf(viewModel.echoOf("nudge")), isStreaming = true))
             advanceUntilIdle()
             facade.emitSnapshot(readySnapshot(isStreaming = false))
             advanceUntilIdle()
@@ -241,7 +246,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                 assertEquals(1, state.pendingMessages.size)
                 assertEquals(MessageDeliveryStatus.SENDING, state.pendingMessages[0].status)
 
-                facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(echoMessage(content = "hello world")))
+                facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(viewModel.echoOf("hello world")))
                 advanceUntilIdle()
 
                 state = viewModel.state.value
@@ -279,6 +284,40 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
 
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test
+    fun `a send that fails after its local copy reconciled the bubble leaves it FAILED`() =
+        runTest {
+            val facadeFactory =
+                TestFacadeFactory {
+                    object : TestFacade(sendResult = false) {
+                        override suspend fun sendMessage(
+                            text: String,
+                            images: List<ChatImageData>,
+                            files: List<ChatFileData>,
+                            clientId: String,
+                        ): Boolean {
+                            // The runtime's local copy lands first, then the failure rolls it back.
+                            emitSnapshot(snapshotWithEcho(echoMessage(content = text, clientId = clientId)))
+                            delay(1)
+                            emitSnapshot(readySnapshot())
+                            return false
+                        }
+                    }
+                }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("lost"))
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            val pending =
+                viewModel.state.value.pendingMessages
+                    .single()
+            assertEquals(MessageDeliveryStatus.FAILED, pending.status)
+            assertEquals("lost", pending.content)
         }
 
     @Test
@@ -391,28 +430,176 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
-    fun `a screen closed mid-turn does not keep a delivered prompt to send again`() =
+    fun `a prompt cut off mid-turn whose delivery the transcript proves is not resent`() =
         runTest {
             val store = InMemoryPendingPromptStore()
-            // The real sendMessage returns only when the agent's turn ends.
-            val facadeFactory = TestFacadeFactory { SuspendingSendFacade() }
-            val viewModel =
-                createViewModel(facadeFactory = facadeFactory, stores = testStores(pendingPromptStore = store))
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            val reopened = TestFacade(sendResult = true)
+            val delivered = echoMessage(content = "once", clientId = clientId).copy(deliveryConfirmed = true)
+            val viewModel = reopenOver(store, reopened, transcript = listOf(delivered), dropsRepeatPrompts = false)
+
+            assertEquals(emptyList<String>(), reopened.sentClientIds)
+            assertEquals(emptyList<ChatMessage>(), viewModel.state.value.pendingMessages)
+            assertEquals(emptyList<QueuedPromptRecord>(), store.restore("server_1", "session_1"))
+        }
+
+    @Test
+    fun `an unconfirmed prompt cut off mid-turn is resent under its id to a gateway that refuses repeats`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            // The saved local bubble carries the id too, so it proves nothing about delivery.
+            val reopened = TestFacade(sendResult = true)
+            val transcript = listOf(echoMessage(content = "once", clientId = clientId))
+            reopenOver(store, reopened, transcript, dropsRepeatPrompts = true)
+
+            assertEquals(listOf(clientId), reopened.sentClientIds)
+        }
+
+    @Test
+    fun `an unconfirmed prompt cut off mid-turn is left to the user where a resend could run it twice`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            val reopened = TestFacade(sendResult = true)
+            val transcript = listOf(echoMessage(content = "once", clientId = clientId))
+            val viewModel = reopenOver(store, reopened, transcript, dropsRepeatPrompts = false)
+
+            assertEquals(emptyList<String>(), reopened.sentClientIds)
+            val pending =
+                viewModel.state.value.pendingMessages
+                    .single()
+            assertEquals(clientId to MessageDeliveryStatus.FAILED, pending.clientId to pending.status)
+        }
+
+    @Test
+    fun `an unconfirmed prompt waits for the attach to learn what the gateway remembers`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            val reopened = TestFacade(sendResult = true)
+            reopenOver(store, reopened, transcript = emptyList(), dropsRepeatPrompts = null)
+            assertEquals("restored, not yet attached", emptyList<String>(), reopened.sentClientIds)
+
+            reopened.emitSnapshot(readySnapshot(dropsRepeatPrompts = true))
             advanceUntilIdle()
 
-            viewModel.dispatch(ChatIntent.SendMessage("once"))
-            advanceUntilIdle()
-            facadeFactory.lastFacade.value?.emitSessionReady()
-            advanceUntilIdle()
-            // The echo lands while the turn is still running.
-            facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(echoMessage(content = "once")))
-            advanceUntilIdle()
+            assertEquals(listOf(clientId), reopened.sentClientIds)
+        }
 
+    @Test
+    fun `enqueue during attach settlement keeps the restored prompt durable after cancellation`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "first")
+            val reopened = TestFacade(sendResult = true)
+            val viewModel = reopenOver(store, reopened, transcript = emptyList(), dropsRepeatPrompts = null)
+
+            viewModel.dispatch(ChatIntent.SendMessage("second"))
+            advanceUntilIdle()
             viewModel.clearForTest()
             advanceUntilIdle()
 
-            assertEquals(emptyList<String>(), store.restore("server_1", "session_1").map { it.text })
+            val records = store.restore("server_1", "session_1")
+            assertEquals(listOf("first", "second"), records.map { it.text })
+            assertEquals(clientId, records.first().clientId)
+            assertTrue(records.first().dispatched)
         }
+
+    @Test
+    fun `a prompt cut off mid-turn shows once while its turn still runs after reopen`() =
+        runTest {
+            val store = InMemoryPendingPromptStore()
+            val clientId = sendCutOffMidTurn(store, "once")
+
+            val reopened = TestFacade(sendResult = true)
+            val viewModel =
+                createViewModel(
+                    facadeFactory = TestFacadeFactory { reopened },
+                    stores = testStores(pendingPromptStore = store),
+                )
+            advanceUntilIdle()
+            val transcript = listOf(echoMessage(content = "once", clientId = clientId))
+            reopened.emitSnapshot(readySnapshot(messages = transcript, isStreaming = true))
+            advanceUntilIdle()
+
+            val pending = viewModel.state.value.pendingMessages
+            assertEquals("the transcript's copy is the only bubble", emptyList<ChatMessage>(), pending)
+            viewModel.clearForTest()
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `a restored prompt is sent once a quiet load makes the session ready`() =
+        runTest {
+            val record = QueuedPromptRecord("c-1", "later", emptyList(), emptyList(), dispatched = false)
+            val store = InMemoryPendingPromptStore(mapOf(("server_1" to "session_1") to listOf(record)))
+            val facade =
+                object : TestFacade(sendResult = true) {
+                    init {
+                        connectionStateFlow.value = ChatConnectionState.Connected
+                    }
+                }
+            createViewModel(
+                facadeFactory = TestFacadeFactory { facade },
+                stores = testStores(pendingPromptStore = store),
+            )
+            advanceUntilIdle()
+
+            // A session/load announces no sessionReady: the ready snapshot is the only cue.
+            facade.emitSnapshot(readySnapshot())
+            advanceUntilIdle()
+
+            assertEquals(listOf("c-1"), facade.sentClientIds)
+        }
+
+    /** Sends [text] on a screen that closes while its turn runs; returns the prompt's client id. */
+    private suspend fun TestScope.sendCutOffMidTurn(
+        store: InMemoryPendingPromptStore,
+        text: String,
+    ): String {
+        // The real sendMessage returns only when the agent's turn ends.
+        val facadeFactory = TestFacadeFactory { SuspendingSendFacade() }
+        val viewModel = createViewModel(facadeFactory = facadeFactory, stores = testStores(pendingPromptStore = store))
+        advanceUntilIdle()
+        viewModel.dispatch(ChatIntent.SendMessage(text))
+        advanceUntilIdle()
+        facadeFactory.lastFacade.value?.emitSessionReady()
+        advanceUntilIdle()
+        viewModel.clearForTest()
+        advanceUntilIdle()
+        val record = store.restore("server_1", "session_1").single()
+        assertTrue("kept until its turn ends", record.dispatched)
+        return record.clientId
+    }
+
+    /**
+     * Reopens the chat over [store] with [transcript] caught up by an attach that found
+     * [dropsRepeatPrompts], then lets the queue flush. The screen stays open: a flush still
+     * waiting must not be cut short.
+     */
+    private suspend fun TestScope.reopenOver(
+        store: InMemoryPendingPromptStore,
+        facade: TestFacade,
+        transcript: List<ChatMessage>,
+        dropsRepeatPrompts: Boolean?,
+    ): ChatViewModel {
+        val viewModel =
+            createViewModel(
+                facadeFactory = TestFacadeFactory { facade },
+                stores = testStores(pendingPromptStore = store),
+            )
+        advanceUntilIdle()
+        facade.emitSnapshot(readySnapshot(messages = transcript, dropsRepeatPrompts = dropsRepeatPrompts))
+        advanceUntilIdle()
+        facade.emitSessionReady()
+        advanceUntilIdle()
+        return viewModel
+    }
 
     @Test
     fun `a prompt left by a torn-down new chat is not replayed into the next new chat`() =
@@ -499,7 +686,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         advanceUntilIdle()
 
         // B's echo arrives -> B removed from pending, A remains FAILED.
-        facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(echoMessage(id = "echo-b", content = "B")))
+        facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(viewModel.echoOf("B", id = "echo-b")))
         advanceUntilIdle()
 
         return viewModel
@@ -518,7 +705,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         assertPendingMessage(viewModel, clientId, MessageDeliveryStatus.SENDING)
 
         // A's echo arrives -> A removed from pending, no duplicate in messages.
-        facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(echoMessage(id = "echo-a", content = "A")))
+        facadeFactory.lastFacade.value?.emitSnapshot(snapshotWithEcho(viewModel.echoOf("A", id = "echo-a")))
         advanceUntilIdle()
 
         val state = viewModel.state.value
@@ -569,6 +756,7 @@ private class CancellingFacade : TestFacade() {
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
         sent += text
         return true
@@ -598,6 +786,7 @@ private class SteeringFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean {
         sent += text
         if (holdSends) awaitCancellation()
@@ -608,6 +797,7 @@ private class SteeringFacade(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): SteerOutcome {
         steered += text
         return outcome
@@ -624,5 +814,6 @@ private class SuspendingSendFacade : TestFacade() {
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        clientId: String,
     ): Boolean = awaitCancellation()
 }

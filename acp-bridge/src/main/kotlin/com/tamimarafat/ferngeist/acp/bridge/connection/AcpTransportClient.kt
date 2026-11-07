@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.connection
 
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.connection.transport.AcpHandshake
 import com.tamimarafat.ferngeist.acp.bridge.connection.transport.AcpSocket
 import kotlinx.coroutines.CancellationException
@@ -50,7 +51,8 @@ internal class AcpTransportClient(
     private val diagnosticsStore: AcpDiagnosticsStore,
     private val listener: AcpTransportListener,
 ) {
-    private val reconnect =
+    /** Also armed by a chat's first open that failed offline; see [AcpConnection.retryWhenOnline]. */
+    val reconnect =
         ReconnectLoop(
             scope = scope,
             connectivityObserver = connectivityObserver,

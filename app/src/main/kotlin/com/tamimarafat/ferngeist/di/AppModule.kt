@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserv
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.acp.bridge.hub.HubPersistence
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -20,6 +21,7 @@ import com.tamimarafat.ferngeist.data.database.migration16To17
 import com.tamimarafat.ferngeist.data.database.migration17To18
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
+import com.tamimarafat.ferngeist.push.AppForegroundState
 import com.tamimarafat.ferngeist.push.PushRegistrar
 import dagger.Module
 import dagger.Provides
@@ -34,6 +36,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
+import java.io.File
 import javax.inject.Singleton
 
 /** Bounds whole-call REST latency so network-backed spinners can never hang. */
@@ -103,14 +106,17 @@ object AppModule {
     @Provides
     @Singleton
     fun provideChatConnectionHub(
+        @ApplicationContext context: Context,
         connectivityObserver: ConnectivityObserver,
         gatewayRepository: GatewayRepository,
         applicationScope: CoroutineScope,
+        appForegroundState: AppForegroundState,
     ): ChatConnectionHub =
         ChatConnectionHub(
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
             connectivityObserver = connectivityObserver,
+            persistence = HubPersistence(File(context.filesDir, "chat-state"), appForegroundState.isForeground),
         )
 
     /** Supplies the chat-session facade factory backed by ACP. */

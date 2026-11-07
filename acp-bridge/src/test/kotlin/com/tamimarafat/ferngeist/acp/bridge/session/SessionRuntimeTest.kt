@@ -16,6 +16,23 @@ import org.junit.Test
 
 class SessionRuntimeTest {
     @Test
+    fun a_skipped_update_number_confirms_the_prompt_the_gateway_numbered_there() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test")
+            runtime.onEvent(AppSessionEvent.AgentMessage("earlier"), updateSeq = 1)
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"), updateSeq = 2)
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "p1")
+
+            runtime.onEvent(AppSessionEvent.AgentMessage("first"), updateSeq = 3)
+            assertFalse(runtime.prompt("p1").deliveryConfirmed)
+            // The gateway numbered the echo 4 but sends it only in a catch-up.
+            runtime.onEvent(AppSessionEvent.AgentMessage("reply"), updateSeq = 5)
+            assertTrue(runtime.prompt("p1").deliveryConfirmed)
+        }
+
+    private fun SessionRuntime.prompt(clientId: String) = snapshot.value.messages.single { it.clientId == clientId }
+
+    @Test
     fun live_segments_and_the_turns_close_are_stamped_but_a_replay_is_not() =
         runTest {
             var now = 0L
@@ -63,8 +80,8 @@ class SessionRuntimeTest {
             val runtime = SessionRuntime(sessionId = "ses_test", wallClock = { 9_000L })
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             runtime.onEvent(AppSessionEvent.AgentMessage("partial"))
-            // session/resume replays nothing and closes the open reply on SessionLoadComplete.
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            // session/resume replays nothing and closes the open reply on TurnEndUnheard.
+            runtime.onEvent(AppSessionEvent.TurnEndUnheard)
 
             val reply =
                 runtime.snapshot.value.messages
@@ -161,9 +178,9 @@ class SessionRuntimeTest {
                 }
 
             runtime.completeHydration()
-            // SessionGateway emits SessionLoadComplete right after completeHydration; that event
+            // SessionGateway emits TurnEndUnheard right after completeHydration; that event
             // is the finalize pass that derives the transcript's flat content.
-            runtime.onEvent(AppSessionEvent.SessionLoadComplete)
+            runtime.onEvent(AppSessionEvent.TurnEndUnheard)
 
             val snapshot = runtime.snapshot.value
             assertEquals(SessionLoadState.READY, snapshot.loadState)
@@ -506,6 +523,17 @@ class SessionRuntimeTest {
             assertEquals(sampleImage.mimeType, message.images[0].mimeType)
         }
 
+    @Test
+    fun resend_of_a_saved_prompt_keeps_its_single_bubble() {
+        val prompt = UserContent("once", emptyList(), emptyList(), clientId = "c-1")
+        val saved = SessionMessageReducer.appendLocalUserMessage(emptyList(), prompt)
+        val reply = saved + ChatMessage(role = ChatMessage.Role.ASSISTANT, content = "done")
+
+        val resent = SessionMessageReducer.appendLocalUserMessage(reply, prompt)
+
+        assertEquals(1, resent.count { it.role == ChatMessage.Role.USER })
+    }
+
     /** Regression: live-send image echo must not duplicate the user bubble or kill the stream. */
     @Test
     fun live_send_image_echo_dedups_and_preserves_stream() {
@@ -518,7 +546,10 @@ class SessionRuntimeTest {
 
         // Simulate onLocalPromptStarted: optimistic user bubble + streaming assistant placeholder
         var messages =
-            SessionMessageReducer.appendLocalUserMessage(emptyList(), "hello", listOf(sampleImage), emptyList())
+            SessionMessageReducer.appendLocalUserMessage(
+                emptyList(),
+                UserContent("hello", listOf(sampleImage), emptyList()),
+            )
         assertEquals(1, messages.size)
         assertEquals("hello", messages[0].content)
         assertEquals(1, messages[0].images.size)
@@ -576,7 +607,10 @@ class SessionRuntimeTest {
             )
 
         var messages =
-            SessionMessageReducer.appendLocalUserMessage(emptyList(), "see attached", emptyList(), listOf(sampleFile))
+            SessionMessageReducer.appendLocalUserMessage(
+                emptyList(),
+                UserContent("see attached", emptyList(), listOf(sampleFile)),
+            )
         assertEquals(1, messages.size)
         assertEquals(1, messages[0].files.size)
         assertEquals("report.pdf", messages[0].files[0].name)
@@ -604,7 +638,7 @@ class SessionRuntimeTest {
     }
 
     /**
-     * Pins the invariant the trailing-message streaming check in [SessionRuntime.reduce] relies
+     * Pins the invariant the trailing-message streaming check in [reduce] relies
      * on: mid-turn only the last bubble streams, and a completed turn clears the snapshot flag
      * while leaving no message with a stray `isStreaming = true` anywhere in the list.
      */

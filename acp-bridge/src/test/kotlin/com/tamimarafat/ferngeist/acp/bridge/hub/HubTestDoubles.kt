@@ -2,10 +2,13 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.ConnectivityObserverStub
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -22,6 +25,8 @@ import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
 import com.tamimarafat.ferngeist.gateway.GatewayProtocol
 import com.tamimarafat.ferngeist.gateway.GatewayRemoteStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
+import com.tamimarafat.ferngeist.gateway.GatewayRequestException
+import com.tamimarafat.ferngeist.gateway.GatewaySessionAttachResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionResumeResponse
 import com.tamimarafat.ferngeist.gateway.GatewaySessionSummary
 import com.tamimarafat.ferngeist.gateway.GatewayStatus
@@ -32,6 +37,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
@@ -62,13 +69,13 @@ internal fun newHub(
         ioDispatcher = dispatcher,
     )
 
-/** A connected chat registration; the hub is always handed a live transport probe. */
+/** A connected chat registration; like the facade, it hands the hub the chat's transport. */
 internal fun ChatConnectionHub.registerChat(
     serverId: String = "srv",
     sessionId: String,
     gatewaySessionId: String? = "gs-$sessionId",
-    streaming: Boolean = false,
-    manager: AcpConnection? = null,
+    manager: AcpConnection? = acquireChatManager(serverId),
+    snapshot: StateFlow<SessionSnapshot>? = null,
 ): String =
     register(
         serverId = serverId,
@@ -79,9 +86,16 @@ internal fun ChatConnectionHub.registerChat(
                 gatewaySourceId = "src-1",
                 agentId = "agent-1",
                 isConnected = { true },
-                isStreaming = { streaming },
+                isStreaming = { snapshot?.value?.isStreaming == true },
                 manager = manager,
+                snapshot = snapshot,
             ),
+    )
+
+/** A session's live state mid-turn, as its bridge publishes it. */
+internal fun streamingSnapshot(): StateFlow<SessionSnapshot> =
+    MutableStateFlow(
+        SessionSnapshot("s", loadState = SessionLoadState.READY, isStreaming = true, turnStatus = TurnStatus.WORKING),
     )
 
 internal class FakeGatewayRepo : GatewayRepository {
@@ -205,6 +219,15 @@ internal class FakeGatewayRepo : GatewayRepository {
         gatewayCredential: String,
         runtimeId: String,
     ) = TODO("unused in these tests")
+
+    // An older gateway without the one-call attach, so launches take the status/list/connect path.
+    override suspend fun attachSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+        acpSessionId: String,
+    ): GatewaySessionAttachResponse = throw GatewayRequestException(statusCode = 404, message = "not found")
 
     override suspend fun resumeSession(
         scheme: String,

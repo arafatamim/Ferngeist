@@ -1,43 +1,58 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 sealed interface SessionConfigCategory {
     val rawValue: String
 
+    @Serializable
     data object Mode : SessionConfigCategory {
         override val rawValue: String = "mode"
     }
 
+    @Serializable
     data object Model : SessionConfigCategory {
         override val rawValue: String = "model"
     }
 
+    @Serializable
     data class Custom(
         override val rawValue: String,
     ) : SessionConfigCategory
 }
 
+@Serializable
 sealed interface SessionConfigOrigin {
+    @Serializable
     data object NativeConfigOption : SessionConfigOrigin
 
+    @Serializable
     data object LegacyMode : SessionConfigOrigin
 
+    @Serializable
     data object LegacyModel : SessionConfigOrigin
 }
 
+@Serializable
 sealed interface SessionConfigValue {
+    @Serializable
     data class StringValue(
         val value: String,
     ) : SessionConfigValue
 
+    @Serializable
     data class BoolValue(
         val value: Boolean,
     ) : SessionConfigValue
 
+    @Serializable
     data class UnknownValue(
         val debugValue: String? = null,
     ) : SessionConfigValue
 }
 
+@Serializable
 data class SessionConfigChoice(
     val id: String,
     val label: String,
@@ -45,12 +60,14 @@ data class SessionConfigChoice(
     val description: String? = null,
 )
 
+@Serializable
 data class SessionConfigChoiceGroup(
     val id: String,
     val label: String? = null,
     val choices: List<SessionConfigChoice>,
 )
 
+@Serializable
 sealed interface SessionConfigOption {
     val id: String
     val name: String
@@ -58,6 +75,7 @@ sealed interface SessionConfigOption {
     val category: SessionConfigCategory?
     val origin: SessionConfigOrigin
 
+    @Serializable
     data class Select(
         override val id: String,
         override val name: String,
@@ -69,6 +87,7 @@ sealed interface SessionConfigOption {
         val groups: List<SessionConfigChoiceGroup> = emptyList(),
     ) : SessionConfigOption
 
+    @Serializable
     data class BooleanOption(
         override val id: String,
         override val name: String,
@@ -78,6 +97,7 @@ sealed interface SessionConfigOption {
         val currentValue: Boolean,
     ) : SessionConfigOption
 
+    @Serializable
     data class Unknown(
         override val id: String,
         override val name: String,
@@ -116,11 +136,13 @@ fun SessionConfigOption.displayValueLabel(): String? =
             }
     }
 
+@Serializable
 internal data class LegacyModeState(
     val modes: List<SessionMode> = emptyList(),
     val currentModeId: String? = null,
 )
 
+@Serializable
 internal data class LegacyModelState(
     val choices: List<SessionConfigChoice> = emptyList(),
     val currentModelId: String? = null,

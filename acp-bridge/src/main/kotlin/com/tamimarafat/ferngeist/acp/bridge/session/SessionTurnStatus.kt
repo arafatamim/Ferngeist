@@ -16,14 +16,18 @@ internal fun pendingPermissionsAfter(
         else -> current
     }
 
-/** Keeps the last outcome between turns; a load restores no reliable outcome. */
+/**
+ * Keeps the last outcome between turns. An attach that closes a still-open turn learns no
+ * outcome; one the gateway already reported for it (`_ferngeist/turn_result`) stands.
+ */
 internal fun turnOutcomeAfter(
     current: TurnStatus,
     event: AppSessionEvent,
+    streaming: Boolean,
 ): TurnStatus =
     when (event) {
         is AppSessionEvent.TurnComplete -> turnOutcomeFor(event.stopReason)
-        is AppSessionEvent.SessionLoadComplete -> TurnStatus.UNKNOWN
+        is AppSessionEvent.TurnEndUnheard -> if (streaming) TurnStatus.UNKNOWN else current
         else -> current
     }
 

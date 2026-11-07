@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 /**
  * The background reconnect loop of one [AcpTransportClient]: arming, connectivity waits,
  * exponential backoff, and the pending flag the foreground service reads. Each attempt's
- * transport work is supplied by the owner as [attemptOnce].
+ * transport work is supplied by the owner as [attemptOnce]; a chat's first open that failed
+ * before any transport existed arms it through [retry] with its own work instead.
  */
 internal class ReconnectLoop(
     private val scope: CoroutineScope,
@@ -66,6 +67,21 @@ internal class ReconnectLoop(
     }
 
     fun schedule(resetState: () -> Unit) {
+        val config = currentConfig() ?: return
+        retry { attemptOnce(config, resetState) }
+    }
+
+    /**
+     * Arms the loop with [attempt] in place of any armed one: a chat's offline open must rerun the
+     * whole open, not just the socket reconnect the transport armed when its connect failed.
+     */
+    fun takeOver(attempt: suspend () -> Boolean) {
+        abandon()
+        retry(attempt)
+    }
+
+    /** Arms the loop with [attempt], which returns true when the loop must stop; no-op while armed. */
+    fun retry(attempt: suspend () -> Boolean) {
         if (reconnectJob != null || resumeRejected) return
         pendingState.value = true
         // Lazy: assigned before it runs, so the finally's ownership check sees itself
@@ -73,9 +89,8 @@ internal class ReconnectLoop(
         reconnectJob =
             scope.launch(start = CoroutineStart.LAZY) {
                 try {
-                    val config = currentConfig() ?: return@launch
                     while (!isLive()) {
-                        if (runReconnectAttempt(config, resetState)) break
+                        if (runReconnectAttempt(attempt)) break
                     }
                 } finally {
                     // A transport drop mid-attempt cancels this loop and arms a new one;
@@ -90,15 +105,11 @@ internal class ReconnectLoop(
     }
 
     /**
-     * One reconnect attempt: waits for connectivity, backs off, then hands the transport work
-     * to [attemptOnce]. Returns true when the loop must stop — either the resume was rejected
-     * (the session is gone for good, so the facade's fresh connect supersedes this loop) or the
-     * socket is connected and usable.
+     * One reconnect attempt: waits for connectivity, backs off, then runs [attempt]. Returns
+     * true when the loop must stop — either the resume was rejected (the session is gone for
+     * good, so the facade's fresh connect supersedes this loop) or [attempt] says so.
      */
-    private suspend fun runReconnectAttempt(
-        config: AcpConnectionConfig,
-        resetState: () -> Unit,
-    ): Boolean {
+    private suspend fun runReconnectAttempt(attempt: suspend () -> Boolean): Boolean {
         // A rejected resume (400) means this session is gone for good; the
         // facade's fresh connect supersedes this loop, so stop retrying.
         if (resumeRejected) return true
@@ -113,7 +124,7 @@ internal class ReconnectLoop(
         // reconnects when many clients retry against the same gateway.
         // Capped at 30s; retries forever (no attempt cap).
         delay(computeReconnectDelayMs(reconnectAttempts))
-        return attemptOnce(config, resetState)
+        return attempt()
     }
 
     private suspend fun awaitConnectivity() {

@@ -4,18 +4,12 @@ import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.client.ClientOperationsFactory
 import com.agentclientprotocol.client.ClientSession
-import com.agentclientprotocol.common.ClientSessionOperations
 import com.agentclientprotocol.common.Event
 import com.agentclientprotocol.common.SessionCreationParameters
-import com.agentclientprotocol.model.CompleteElicitationNotification
 import com.agentclientprotocol.model.ContentBlock
-import com.agentclientprotocol.model.CreateElicitationRequest
-import com.agentclientprotocol.model.CreateElicitationResponse
 import com.agentclientprotocol.model.EmbeddedResourceResource
-import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.RequestPermissionOutcome
-import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionConfigId
 import com.agentclientprotocol.model.SessionConfigOptionValue
 import com.agentclientprotocol.model.SessionId
@@ -24,11 +18,23 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.agentclientprotocol.rpc.MethodName
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.BridgeSessionOperations
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationMappers
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.PermissionFlow
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.STEERING_METHOD
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.parseSteerOutcome
+import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.steeringParams
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.CatchUpAttach
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.clientIdMeta
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.deliveredOnce
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.gatewayTurnDurationMs
+import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.updateSeq
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.acp.bridge.session.CatchUpCursor
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
-import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
@@ -36,9 +42,9 @@ import com.tamimarafat.ferngeist.acp.bridge.session.failHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.markReady
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
@@ -63,14 +69,14 @@ import java.util.concurrent.ConcurrentHashMap
  * @property connection provides the SDK client, diagnostics store, and auth helpers
  * @property permissionFlow tracks pending permission completable-futures
  * @property elicitationFlow tracks pending elicitation completable-futures
- * @property bridgeFactory creates a [SessionBridge] wired to the thin shell
+ * @property bridgeFactory creates a [SessionBridge] wired to the thin shell, over the chat's runtime
  */
 @Suppress("TooManyFunctions")
 internal class SessionGateway(
     private val connection: AcpConnection,
     private val permissionFlow: PermissionFlow,
     private val elicitationFlow: ElicitationFlow,
-    private val bridgeFactory: (String) -> SessionBridge,
+    private val bridgeFactory: suspend (String) -> SessionBridge,
     private val scope: CoroutineScope,
 ) {
     private val sessionRegistry = AcpSessionRegistry(scope, ::shouldCloseSdkSession)
@@ -103,9 +109,13 @@ internal class SessionGateway(
      * Internally this sends a `session/new` RPC, [registerSession] maps the SDK
      * [ClientSession] capabilities (modes, models, config options) into events.
      * Auth-required errors are re-thrown so the facade can prompt re-auth; other
-     * errors are recorded in diagnostics and null is returned.
+     * errors are recorded in diagnostics and null is returned. [epoch] is the gateway's
+     * numbering of the agent process, when the launch reported one.
      */
-    suspend fun createSession(cwd: String = ""): SessionPort? {
+    suspend fun createSession(
+        cwd: String = "",
+        epoch: String? = null,
+    ): SessionPort? {
         if (cwd.isBlank()) {
             connection.diagnosticsStore.appendError("session/new", "Refusing to create session: blank cwd")
             return null
@@ -120,7 +130,7 @@ internal class SessionGateway(
                     sessionParameters = SessionCreationParameters(cwd = cwd, mcpServers = emptyList()),
                     operationsFactory = operationsFactory,
                 )
-            registerSession(session).also { sessionCwds[session.sessionId.value] = cwd }
+            registerSession(session, cwd).also { bridge -> epoch?.let { bridge.runtime.catchUpFrom(it) } }
         }.getOrElse {
             connection.toAuthRequiredException(it)?.let { error -> throw error }
             connection.diagnosticsStore.appendError(
@@ -142,27 +152,55 @@ internal class SessionGateway(
      * and the buffered history is committed afterwards
      * ([SessionBridge.completeHydration]). A resume replays nothing, so its bridge
      * simply publishes its empty snapshot.
+     *
+     * A bridge following the gateway's numbering under [epoch] (any, when null) first tries a
+     * [catchUp].
      */
     @OptIn(UnstableApi::class)
     suspend fun attachSession(
         rpc: SessionAttachRpc,
         sessionId: String,
         cwd: String,
+        epoch: String? = null,
     ): SessionPort? {
+        // The new-chat placeholder is a route value, not a session: an agent that loads or resumes
+        // an unknown id may create one under it, and every later tap on that chat mints anew.
+        require(sessionId != NEW_SESSION_ARG) { "The new-chat placeholder is not a session id" }
         getLoadedSession(sessionId)?.let { existing -> return existing }
 
         val client =
             connection.sdkClient
                 ?: throw AcpDisconnectedException()
         connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, rpc.rpc)
+        val bridge =
+            sessionRegistry.getBridge(sessionId) ?: bridgeFactory(sessionId).also {
+                sessionRegistry.storeBridge(sessionId, it)
+            }
+        bridge.runtime.beginAttach()
         val timing = AttachTiming().also { attachTimings[sessionId] = it }
         var succeeded = false
         try {
-            return attachAndHydrate(client, rpc, sessionId, cwd).also { succeeded = it != null }
+            val caughtUp = bridge.runtime.catchUpFrom(epoch)?.let { catchUp(client, rpc, bridge, cwd, it) }
+            return (caughtUp ?: attachAndHydrate(client, rpc, sessionId, cwd)).also { succeeded = it != null }
         } finally {
             attachTimings.remove(sessionId, timing)
+            // A failed attach still applies a turn end the gateway reported; it closes nothing else.
+            if (!succeeded) bridge.runtime.settleAttach(turnRunning = true)
             reportAttachTiming(rpc, sessionId, timing, succeeded)
         }
+    }
+
+    /** A catch-up reattach of [bridge] (see [CatchUpAttach]); null when the resume fails. */
+    private suspend fun catchUp(
+        client: Client,
+        rpc: SessionAttachRpc,
+        bridge: SessionBridge,
+        cwd: String,
+        cursor: CatchUpCursor,
+    ): SessionPort? {
+        val canLoad = rpc == SessionAttachRpc.LOAD
+        val attached = with(catchUpAttach) { client.attach(bridge, cwd, cursor, canLoad) { registerSession(it, cwd) } }
+        return attached?.getOrElse { error -> handleSessionAttachFailure(error, bridge.sessionId, rpc) }
     }
 
     @OptIn(UnstableApi::class)
@@ -174,13 +212,7 @@ internal class SessionGateway(
     ): SessionPort? {
         val result =
             runCatching {
-                // Store bridge before the attach RPC so BridgeSessionOperations
-                // notify() callbacks during loading have a target for history buffering.
-                val bridge =
-                    sessionRegistry.getBridge(sessionId)
-                        ?: bridgeFactory(sessionId).also {
-                            sessionRegistry.storeBridge(sessionId, it)
-                        }
+                val bridge = sessionRegistry.getBridge(sessionId) ?: error("Session bridge missing for $sessionId")
                 // Only a load replays history into the bridge. A resume replays nothing, so
                 // hydrating would wipe the transcript a reattached bridge still holds.
                 if (rpc == SessionAttachRpc.LOAD) bridge.beginHydration()
@@ -202,10 +234,9 @@ internal class SessionGateway(
                                 operationsFactory = operationsFactory,
                             )
                     }
-                val registeredBridge = registerSession(session)
-                sessionCwds[sessionId] = cwd
+                val registeredBridge = registerSession(session, cwd)
                 if (rpc == SessionAttachRpc.LOAD) registeredBridge.completeHydration()
-                registeredBridge.emitEvent(AppSessionEvent.SessionLoadComplete)
+                registeredBridge.runtime.settleAttach(turnRunning = false)
                 registeredBridge
             }
         return result.getOrElse { error ->
@@ -275,6 +306,7 @@ internal class SessionGateway(
         content: String,
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
+        clientId: String? = null,
     ) {
         val bridge =
             sessionRegistry.getBridge(sessionId) ?: error("Session bridge missing for sessionId=$sessionId")
@@ -298,7 +330,7 @@ internal class SessionGateway(
         // Awaiting merely joins the turn: if this caller is cancelled (the chat screen
         // closed) the cancellation propagates from here while the turn keeps running on
         // the bridge scope, emitting its own terminal event when the agent finishes.
-        awaitTurn(bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks) })
+        awaitTurn(bridge.startTurn { collectPromptTurn(sessionId, session, bridge, blocks, clientId) })
     }
 
     /**
@@ -325,28 +357,6 @@ internal class SessionGateway(
             SteerOutcome.NOT_CONSUMED
         }
     }
-
-    private fun promptBlocks(
-        content: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-    ): List<ContentBlock> =
-        buildList {
-            if (content.isNotEmpty()) add(ContentBlock.Text(content))
-            images.forEach { add(ContentBlock.Image(data = it.base64, mimeType = it.mimeType)) }
-            files.forEach { file ->
-                add(
-                    ContentBlock.Resource(
-                        resource =
-                            EmbeddedResourceResource.BlobResourceContents(
-                                blob = file.base64,
-                                uri = "file:///${file.name}",
-                                mimeType = file.mimeType,
-                            ),
-                    ),
-                )
-            }
-        }
 
     /**
      * Joins [turn]. A cancelled caller rethrows as-is. A live caller whose turn was
@@ -382,12 +392,16 @@ internal class SessionGateway(
         session: ClientSession,
         bridge: SessionBridge,
         blocks: List<ContentBlock>,
+        clientId: String?,
     ) {
         // Start clean: a cancel that arrived after the previous turn had already
         // finished must not mislabel this one.
         cancelsRequested.remove(sessionId)
         try {
-            session.prompt(blocks).collect { event -> forwardPromptEvent(bridge, event) }
+            session
+                .prompt(blocks, clientId?.let(::clientIdMeta))
+                .deliveredOnce(bridge, clientId)
+                .collect { event -> forwardPromptEvent(bridge, event, clientId) }
         } catch (error: CancellationException) {
             // Interrupted (transport reset) or torn down with the session. Either way the
             // turn is over: without a terminal event the bridge would read as streaming
@@ -418,19 +432,22 @@ internal class SessionGateway(
         }
     }
 
+    /** A reply proves [clientId]'s prompt reached the agent; the proof lands before the turn end. */
     private suspend fun forwardPromptEvent(
         bridge: SessionBridge,
         event: Event,
+        clientId: String?,
     ) {
         when (event) {
             is Event.SessionUpdateEvent -> {
                 val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(event.update)
                 if (appEvent != null) {
-                    bridge.emitEvent(appEvent)
+                    bridge.emitEvent(appEvent, updateSeq(event.update))
                 }
             }
 
             is Event.PromptResponseEvent -> {
+                clientId?.let { bridge.emitEvent(AppSessionEvent.PromptDelivered(it)) }
                 bridge.emitEvent(
                     AppSessionEvent.TurnComplete(
                         AcpSessionUpdateMapper.mapStopReason(
@@ -644,15 +661,17 @@ internal class SessionGateway(
     fun getSession(sessionId: String): SessionPort? = getLoadedSession(sessionId)
 
     /**
-     * Ends a turn the gateway reports finished on an earlier connection. Its chunks
-     * reach the reattached bridge, but its terminal reply answered a request this
-     * connection never made, so nothing else would close it.
+     * Ends a turn the gateway reports finished on an earlier connection, or while no client
+     * was attached. Its terminal reply answered a request this connection never made, so
+     * nothing else would close it. Mid-attach the runtime holds it until the attach settles;
+     * see [com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime.beginAttach].
      */
     suspend fun endRemoteTurn(
         sessionId: String,
         stopReason: String,
+        durationMs: Long?,
     ) {
-        sessionRegistry.getBridge(sessionId)?.emitEvent(AppSessionEvent.TurnComplete(stopReason))
+        sessionRegistry.getBridge(sessionId)?.emitEvent(AppSessionEvent.TurnComplete(stopReason, durationMs))
     }
 
     /**
@@ -713,130 +732,23 @@ internal class SessionGateway(
     // Ferngeist's AppSessionEvent stream. Each registered session gets an
     // instance of BridgeSessionOperations.
 
+    private val catchUpAttach by lazy { CatchUpAttach(operationsFactory) { connection.logError(it) } }
+
     private val operationsFactory =
         ClientOperationsFactory { sessionId, _ ->
-            createBridgeSessionOperations(sessionId.value)
+            val id = sessionId.value
+            BridgeSessionOperations(
+                sessionId = id,
+                permissionFlow = permissionFlow,
+                elicitationFlow = elicitationFlow,
+                diagnosticsStore = connection.diagnosticsStore,
+                attachTiming = { attachTimings[id] },
+                emit = { event, updateSeq -> emitToBridge(id, event, updateSeq) },
+            )
         }
-
-    private fun createBridgeSessionOperations(sessionId: String): ClientSessionOperations =
-        BridgeSessionOperations(sessionId)
 
     /**
-     * Handles three SDK callbacks per session:
-     * - [requestPermissions]: creates a deferred outcome, maps SDK permission
-     *   options to Ferngeist types, emits a [ToolPermissionRequested] event,
-     *   and suspends until the user responds via [respondPermissionSelected]
-     *   or [respondPermissionCancelled].
-     * - [createElicitation]: maps the SDK elicitation to a [ChatElicitationRequest],
-     *   emits an [ElicitationRequested] event, and suspends until the user
-     *   responds via [submitElicitation], [declineElicitation] or [cancelElicitation].
-     *   Request-scoped elicitations answer `cancel` at once — they have no
-     *   session UI to attach to.
-     * - [notify]: maps each [SessionUpdate] to an [AppSessionEvent] and
-     *   forwards it to the bridge.
-     */
-    private inner class BridgeSessionOperations(
-        private val sessionId: String,
-    ) : ClientSessionOperations {
-        override suspend fun requestPermissions(
-            toolCall: SessionUpdate.ToolCallUpdate,
-            permissions: List<PermissionOption>,
-            _meta: kotlinx.serialization.json.JsonElement?,
-        ): RequestPermissionResponse {
-            val toolId = toolCall.toolCallId.value
-            val deferred = CompletableDeferred<RequestPermissionOutcome>()
-            permissionFlow.addPending(
-                toolCallId = toolId,
-                sessionId = sessionId,
-                deferred = deferred,
-            )
-
-            val options =
-                permissions.map {
-                    SessionPermissionOption(
-                        id = it.optionId.value,
-                        label = it.name,
-                        kind = it.kind.name.lowercase(),
-                    )
-                }
-
-            // The request often carries the only copy of the call's diff and input, so it is
-            // applied as an update before the permission prompt.
-            AcpSessionUpdateMapper.mapSessionUpdateToEvent(toolCall)?.let { emitToBridge(sessionId, it) }
-            emitToBridge(
-                sessionId,
-                AppSessionEvent.ToolPermissionRequested(
-                    toolCallId = toolId,
-                    requestId = toolId,
-                    title = toolCall.title,
-                    options = options,
-                ),
-            )
-
-            val outcome = deferred.await()
-            return RequestPermissionResponse(outcome = outcome)
-        }
-
-        @OptIn(UnstableApi::class)
-        override suspend fun createElicitation(request: CreateElicitationRequest) = runElicitation(request)
-
-        /**
-         * Runs one `elicitation/create` round-trip: unsupported scopes answer `cancel`
-         * at once, renderable ones suspend on a deferred the UI resolves. Split from
-         * the override so its signature fits the line budget.
-         */
-        @OptIn(UnstableApi::class)
-        private suspend fun runElicitation(request: CreateElicitationRequest): CreateElicitationResponse {
-            val domain = ElicitationMappers.toDomain(sessionId, request)
-            if (domain == null) {
-                connection.diagnosticsStore.appendError(
-                    "elicitation/create",
-                    "Unsupported elicitation (request-scoped); answered cancel.",
-                )
-                return ElicitationMappers.cancelResponse()
-            }
-            val deferred = CompletableDeferred<CreateElicitationResponse>()
-            elicitationFlow.addPending(key = domain.key, sessionId = sessionId, deferred = deferred)
-            emitToBridge(sessionId, AppSessionEvent.ElicitationRequested(domain))
-            try {
-                return deferred.await()
-            } catch (error: CancellationException) {
-                // Transport reset or teardown cancelled the deferred without resolving it
-                // (detach/clear paths cancel rather than answer). Clear the sheet so it
-                // cannot linger past the connection that owned it, then rethrow so the
-                // agent sees the elicitation die with its turn.
-                elicitationFlow.takePending(domain.key)
-                emitToBridge(sessionId, AppSessionEvent.ElicitationResolved(domain.key))
-                throw error
-            }
-        }
-
-        @OptIn(UnstableApi::class)
-        override suspend fun completeElicitation(notification: CompleteElicitationNotification) {
-            emitToBridge(
-                sessionId,
-                AppSessionEvent.ElicitationCompleted(notification.elicitationId.value),
-            )
-        }
-
-        override suspend fun notify(
-            notification: SessionUpdate,
-            _meta: kotlinx.serialization.json.JsonElement?,
-        ) {
-            val receivedNanos = System.nanoTime()
-            try {
-                // mapSessionUpdateToEvent covers known SessionUpdate subtypes; null
-                // is defensive for unrecognized SDK types — skip silently.
-                val appEvent = AcpSessionUpdateMapper.mapSessionUpdateToEvent(notification) ?: return
-                emitToBridge(sessionId, appEvent)
-            } finally {
-                attachTimings[sessionId]?.record(receivedNanos, System.nanoTime())
-            }
-        }
-    }
-
-    /**
-     * Registers an SDK session and creates/reattaches a [SessionBridge].
+     * Registers an SDK session opened in [cwd] and creates/reattaches a [SessionBridge].
      *
      * Maps SDK capabilities (modes, models, config options) into their
      * corresponding [AppSessionEvent] values and forwards them to the bridge.
@@ -845,12 +757,16 @@ internal class SessionGateway(
      * @return the concrete [SessionBridge] so callers can invoke bridge-internal
      *         methods ([emitEvent], [markReady], hydration lifecycle).
      */
-    private suspend fun registerSession(session: ClientSession): SessionBridge {
+    private suspend fun registerSession(
+        session: ClientSession,
+        cwd: String,
+    ): SessionBridge {
         val bridge =
             sessionRegistry.getBridge(session.sessionId.value)
                 ?: bridgeFactory(session.sessionId.value)
         sessionRegistry.storeSdkSession(session.sessionId.value, session)
         sessionRegistry.storeBridge(session.sessionId.value, bridge)
+        sessionCwds[session.sessionId.value] = cwd
 
         session.pushInitialState { event -> emitToBridge(session.sessionId.value, event) }
 
@@ -881,10 +797,11 @@ internal class SessionGateway(
     private suspend fun emitToBridge(
         sessionId: String,
         event: AppSessionEvent,
+        updateSeq: Long? = null,
     ) {
         val bridge = sessionRegistry.getBridge(sessionId)
         if (bridge != null) {
-            bridge.emitEvent(event)
+            bridge.emitEvent(event, updateSeq)
             return
         }
         connection.logError(
@@ -981,16 +898,38 @@ internal class SessionGateway(
             formatAcpErrorMessage(error, "Cancel failed"),
         )
     }
-
-    /** Converts a Ferngeist [SessionConfigValue] to the SDK's wire format. */
-    @OptIn(UnstableApi::class)
-    private fun SessionConfigValue.toSdkValue(): SessionConfigOptionValue =
-        when (this) {
-            is SessionConfigValue.StringValue -> SessionConfigOptionValue.of(value)
-            is SessionConfigValue.BoolValue -> SessionConfigOptionValue.of(value)
-            is SessionConfigValue.UnknownValue -> error("Unsupported config option value: $this")
-        }
 }
+
+private fun promptBlocks(
+    content: String,
+    images: List<ChatImageData>,
+    files: List<ChatFileData>,
+): List<ContentBlock> =
+    buildList {
+        if (content.isNotEmpty()) add(ContentBlock.Text(content))
+        images.forEach { add(ContentBlock.Image(data = it.base64, mimeType = it.mimeType)) }
+        files.forEach { file ->
+            add(
+                ContentBlock.Resource(
+                    resource =
+                        EmbeddedResourceResource.BlobResourceContents(
+                            blob = file.base64,
+                            uri = "file:///${file.name}",
+                            mimeType = file.mimeType,
+                        ),
+                ),
+            )
+        }
+    }
+
+/** Converts a Ferngeist [SessionConfigValue] to the SDK's wire format. */
+@OptIn(UnstableApi::class)
+private fun SessionConfigValue.toSdkValue(): SessionConfigOptionValue =
+    when (this) {
+        is SessionConfigValue.StringValue -> SessionConfigOptionValue.of(value)
+        is SessionConfigValue.BoolValue -> SessionConfigOptionValue.of(value)
+        is SessionConfigValue.UnknownValue -> error("Unsupported config option value: $this")
+    }
 
 /**
  * Splits one `session/load` (or `session/resume`) into time spent waiting on the agent and

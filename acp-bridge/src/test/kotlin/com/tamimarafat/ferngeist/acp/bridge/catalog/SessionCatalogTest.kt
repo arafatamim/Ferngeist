@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.catalog
 
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.FakeAuthEnvValueStore
 import com.tamimarafat.ferngeist.acp.bridge.hub.FakeGatewayRepo

@@ -231,9 +231,10 @@ internal fun ToolCallGroup(
         )
         FoldBody(open = open, foldsInFlight = foldsInFlight) {
             ToolRail(rows, reveals, animate = isStreaming, hideStatsOf = soleDiffRow) { row ->
-                // Any chunk of a thought resolves to the whole run in the sheet.
+                // Any chunk of a thought resolves to the whole run in the sheet; the first id is the
+                // one turn close keeps when it folds the run, so an open sheet survives the fold.
                 val thought = row.thought
-                if (thought != null) onThoughtClick(thought.segments.last().id) else onToolCallClick(row.id)
+                if (thought != null) onThoughtClick(thought.key) else onToolCallClick(row.id)
             }
         }
     }

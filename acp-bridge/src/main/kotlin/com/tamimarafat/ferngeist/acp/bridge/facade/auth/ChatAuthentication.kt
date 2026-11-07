@@ -4,8 +4,8 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthChallenge
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticateResult
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpAuthenticationRequiredException
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
-import com.tamimarafat.ferngeist.acp.bridge.connection.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
+import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositories
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationEnvVar
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationMethod
@@ -56,9 +56,12 @@ internal class ChatAuthentication(
         if (pending.value?.isAuthenticating != true) pending.value = null
     }
 
-    suspend fun createSession(cwd: String): SessionPort? =
+    suspend fun createSession(
+        cwd: String,
+        epoch: String?,
+    ): SessionPort? =
         try {
-            connection.sessions.createSession(cwd)
+            connection.sessions.createSession(cwd, epoch)
         } catch (error: AcpAuthenticationRequiredException) {
             show(error.challenge)
             null

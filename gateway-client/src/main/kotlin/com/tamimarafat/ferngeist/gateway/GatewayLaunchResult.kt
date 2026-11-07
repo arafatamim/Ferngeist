@@ -4,8 +4,8 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 
 /**
  * The raw result of launching a gateway agent runtime: the (possibly
- * refreshed) gateway source and the connect handoff for the runtime the
- * gateway spawned.
+ * refreshed) gateway source, the connect handoff for the runtime the
+ * gateway spawned, and the runtime's update numbering when a one-call attach reported it.
  *
  * This deliberately contains no [AcpConnectionConfig] — that type lives in
  * acp-bridge, and this module must not depend upward. Callers compose their
@@ -14,4 +14,5 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 data class GatewayLaunchResult(
     val gatewaySource: GatewaySource,
     val handoff: GatewayConnectResponse,
+    val epoch: String? = null,
 )

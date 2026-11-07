@@ -27,6 +27,8 @@ import com.tamimarafat.ferngeist.feature.chat.git.ChatGitStatusLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitTurnDiffLoader
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.TranscriptImageLoader
 import com.tamimarafat.ferngeist.feature.chat.pending.reconcileEchoes
+import com.tamimarafat.ferngeist.feature.chat.queue.ChatOfflineQueueController
+import com.tamimarafat.ferngeist.feature.chat.queue.ChatPromptPersistence
 import com.tamimarafat.ferngeist.feature.chat.timing.ChatTurnTimings
 import com.tamimarafat.ferngeist.feature.chat.title.ChatTitleController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -80,6 +82,10 @@ class ChatViewModel
          * death. Null for ordinary chats, whose nav arg is already the real id.
          */
         private val mintedSessionId: String? = savedStateHandle[KEY_MINTED_SESSION_ID]
+
+        /** The minted id as it changes, for a host that persists it itself (the workspace pane). */
+        val mintedSessionIds: StateFlow<String?> = savedStateHandle.getStateFlow(KEY_MINTED_SESSION_ID, null)
+
         val cwd: String = savedStateHandle["cwd"] ?: ""
         private val sessionTitle: String =
             savedStateHandle.get<String>("title")?.let { Uri.decode(it) }.orEmpty()
@@ -93,6 +99,9 @@ class ChatViewModel
          * presence under the real id once that happens.
          */
         private var trackedSessionId: String = mintedSessionId ?: sessionId
+
+        // The last snapshot's [ChatSessionSnapshot.historyGap], so its notice shows once.
+        private var historyGap = false
 
         /**
          * True when this screen was opened on an existing session rather than the
@@ -377,13 +386,11 @@ class ChatViewModel
                 // sentinel nav arg and only become a real chat when the facade mints
                 // a session, so this second open is an idempotent screen-on merge
                 // under the real id — there is no store re-key or hub focus anymore.
-                // A rejected resume also moves the chat onto a freshly minted session;
-                // presence follows it so the notification tap target names the live id.
+                // A chat keeps one session for life: only the sentinel is ever replaced, once.
                 sessionFacade.liveChatId.collect { chatId ->
                     val liveSessionId = chatId?.substringAfter('/')
                     if (liveSessionId != null) {
-                        if (liveSessionId != trackedSessionId) {
-                            if (trackedSessionId != NEW_SESSION_ARG) presence.screenClosed(serverId, trackedSessionId)
+                        if (trackedSessionId == NEW_SESSION_ARG) {
                             trackedSessionId = liveSessionId
                             // Record the minted id where a rebuilt ViewModel reads it:
                             // the nav arg stays the sentinel for this route's lifetime,
@@ -492,11 +499,16 @@ class ChatViewModel
         }
 
         /**
-         * A session/load announces no sessionReady, and the status asked for when the workspace
-         * appeared ran before the gateway knew this session's directory, so ask again once ready.
+         * A session/load announces no sessionReady, so the ready snapshot is the only cue for prompts
+         * restored into the queue; and the status asked for when the workspace appeared ran before the
+         * gateway knew this session's directory, so ask again once ready.
          */
-        private fun refreshGitStatusOnceReady(wasReady: Boolean) {
+        private fun onSessionBecameReady(wasReady: Boolean) {
             if (wasReady || !state.value.isSessionReady) return
+            // Launched: a flush suspends until its turn ends, which would stall snapshot collection.
+            if (state.value.connectionState == ChatConnectionState.Connected) {
+                viewModelScope.launch { offlineQueue.flushOfflineQueue() }
+            }
             state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
             gitStatusLoader.loadRefs()
         }
@@ -517,16 +529,14 @@ class ChatViewModel
             val (reconciledPending, echoKeys) = reconcileEchoes(state.value.pendingMessages, snapshot.messages)
             val wasStreaming = state.value.isStreaming
             val wasReady = state.value.isSessionReady
-            // The echo is the runtime's own record of the prompt, written just before the
-            // turn starts on the bridge's scope, which outlives this screen. From here the
-            // prompt is delivered, so its durable copy goes now rather than when the turn
-            // ends: a screen closed mid-turn would otherwise restore and re-send it.
+            // The echo is the runtime's own record of the prompt, not proof it was delivered: the
+            // durable copy stays (as dispatched) until the turn ends, so a process death mid-turn
+            // leaves the restore to settle it (see ChatOfflineQueueController.settleDispatched).
             // Only a phone-origin echo advances this clock; completion can arrive after the screen closes.
             if (echoKeys.isNotEmpty()) {
                 durableSessionId?.let {
                     stores.phoneTurns.record(serverId, it, System.currentTimeMillis(), echoKeys.keys)
                 }
-                offlineQueue.persistQueue()
             }
             durableSessionId?.let {
                 stores.phoneTurns.observe(serverId, it, snapshot.messages, System.currentTimeMillis())
@@ -538,8 +548,13 @@ class ChatViewModel
             }
             // A new turn retires inline diffs from the previous working tree.
             if (!wasStreaming && snapshot.isStreaming) gitTurnDiffLoader.clearTurnDiffs()
-            refreshGitStatusOnceReady(wasReady)
+            onSessionBecameReady(wasReady)
             titleController.onSnapshot(snapshot)
+            // Once per attach that left a hole: the agent cannot replay what the gateway no longer holds.
+            if (snapshot.historyGap && !historyGap) {
+                emitEffect(ChatEffect.ShowMessage("Some earlier updates in this chat may be missing"))
+            }
+            historyGap = snapshot.historyGap
         }
 
         override fun onCleared() {
@@ -761,6 +776,7 @@ private fun ChatState.withSnapshot(
         commandsAdvertised = snapshot.commandsAdvertised,
         configOptions = snapshot.configOptions,
         pendingElicitations = snapshot.pendingElicitations,
+        dropsRepeatPrompts = snapshot.dropsRepeatPrompts,
         isLoading =
             !loadErrorStands &&
                 (

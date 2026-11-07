@@ -87,6 +87,19 @@ interface GatewayRuntimeRepository {
 
 /** Gateway session lifecycle operations. */
 interface GatewaySessionRepository {
+    /**
+     * Reattaches chat [acpSessionId] of [agentId] in one call (`POST /v1/sessions/attach`):
+     * the gateway session holding it, taken over, or a fresh runtime that needs a load. A
+     * blank [acpSessionId] starts a new chat. Fails with a 404 on a gateway that predates it.
+     */
+    suspend fun attachSession(
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
+        agentId: String,
+        acpSessionId: String,
+    ): GatewaySessionAttachResponse
+
     suspend fun resumeSession(
         scheme: String,
         host: String,
