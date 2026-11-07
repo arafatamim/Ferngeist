@@ -32,7 +32,7 @@
     <string name="chat_file_origin_commit">%1$s-এ</string>
     <string name="chat_file_origin_compare">%1$s-এর সাথে</string>
     <string name="chat_file_open_full">সম্পূর্ণ ফাইল খুলুন</string>
-    <string name="chat_file_truncated">এই ফাইলের শুধু প্রথম 1 MiB দেখানো হচ্ছে</string>
+    <string name="chat_file_truncated">এই ফাইলের শুধু প্রথম 8 MiB দেখানো হচ্ছে</string>
     <string name="chat_file_soft_wrap">র‍্যাপ</string>
     <string name="chat_file_markdown_preview">প্রিভিউ</string>
     <string name="chat_tool_call">টুল কল</string>
@@ -323,5 +323,6 @@
     <string name="chat_active_elsewhere_title">অন্য কোথাও সক্রিয়?</string>
     <string name="chat_active_elsewhere_body">এই চ্যাটটি সম্প্রতি অন্য কোথাও সক্রিয় ছিল। এখন পাঠালে একই চ্যাটে আরেকটি এজেন্ট প্রক্রিয়া শুরু হতে পারে।</string>
     <string name="chat_send_anyway">তবুও পাঠান</string>
+    <string name="quote_selection">উদ্ধৃত করুন</string>
 </resources>
 

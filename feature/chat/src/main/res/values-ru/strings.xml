@@ -35,7 +35,7 @@
     <string name="chat_file_origin_commit">В %1$s</string>
     <string name="chat_file_origin_compare">с %1$s</string>
     <string name="chat_file_open_full">Открыть файл целиком</string>
-    <string name="chat_file_truncated">Показан только первый 1 МиБ этого файла</string>
+    <string name="chat_file_truncated">Показаны только первые 8 МиБ этого файла</string>
     <string name="chat_file_soft_wrap">Перенос</string>
     <string name="chat_file_markdown_preview">Просмотр</string>
     <string name="chat_tool_call">Вызов инструмента</string>
@@ -371,5 +371,6 @@
     <string name="chat_active_elsewhere_title">Активен на другом устройстве?</string>
     <string name="chat_active_elsewhere_body">Этот чат недавно был активен в другом месте. Отправка может запустить ещё один процесс агента в том же чате.</string>
     <string name="chat_send_anyway">Всё равно отправить</string>
+    <string name="quote_selection">Цитировать</string>
 </resources>
 
