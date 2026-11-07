@@ -5,31 +5,29 @@ import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.ConcurrentHashMap
 
 internal class PermissionFlow {
-    private val pendingPermissionRequests = ConcurrentHashMap<String, PendingPermissionRequest>()
+    private val pendingPermissionRequests =
+        ConcurrentHashMap<PermissionRequestKey, CompletableDeferred<RequestPermissionOutcome>>()
 
     fun addPending(
         toolCallId: String,
         sessionId: String,
         deferred: CompletableDeferred<RequestPermissionOutcome>,
     ) {
-        pendingPermissionRequests[toolCallId] =
-            PendingPermissionRequest(
-                sessionId = sessionId,
-                deferred = deferred,
-            )
+        pendingPermissionRequests[PermissionRequestKey(sessionId, toolCallId)] = deferred
     }
 
-    fun takePending(toolCallId: String): PendingPermissionRequest? = pendingPermissionRequests.remove(toolCallId)
+    fun takePending(
+        sessionId: String,
+        toolCallId: String,
+    ): CompletableDeferred<RequestPermissionOutcome>? =
+        pendingPermissionRequests.remove(PermissionRequestKey(sessionId, toolCallId))
 
     // Explicit iterator with remove() to avoid ConcurrentModificationException
     // from mutating the ConcurrentHashMap during iteration.
     fun cancelAll() {
         val iterator = pendingPermissionRequests.entries.iterator()
         while (iterator.hasNext()) {
-            iterator
-                .next()
-                .value.deferred
-                .cancel()
+            iterator.next().value.cancel()
             iterator.remove()
         }
     }
@@ -40,8 +38,8 @@ internal class PermissionFlow {
         val iterator = pendingPermissionRequests.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            if (entry.value.sessionId != sessionId) continue
-            entry.value.deferred.cancel()
+            if (entry.key.sessionId != sessionId) continue
+            entry.value.cancel()
             iterator.remove()
         }
     }
@@ -57,16 +55,16 @@ internal class PermissionFlow {
         val iterator = pendingPermissionRequests.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            if (entry.value.sessionId != sessionId) continue
-            entry.value.deferred.complete(RequestPermissionOutcome.Cancelled)
-            cancelled += entry.key
+            if (entry.key.sessionId != sessionId) continue
+            entry.value.complete(RequestPermissionOutcome.Cancelled)
+            cancelled += entry.key.toolCallId
             iterator.remove()
         }
         return cancelled
     }
 }
 
-internal data class PendingPermissionRequest(
+private data class PermissionRequestKey(
     val sessionId: String,
-    val deferred: CompletableDeferred<RequestPermissionOutcome>,
+    val toolCallId: String,
 )

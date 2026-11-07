@@ -579,8 +579,8 @@ internal class SessionGateway(
         toolCallId: String,
         optionId: String,
     ) {
-        val pending = permissionFlow.takePending(toolCallId) ?: return
-        pending.deferred.complete(
+        val pending = permissionFlow.takePending(sessionId, toolCallId) ?: return
+        pending.complete(
             RequestPermissionOutcome.Selected(PermissionOptionId(optionId)),
         )
         emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
@@ -594,8 +594,8 @@ internal class SessionGateway(
         sessionId: String,
         toolCallId: String,
     ) {
-        val pending = permissionFlow.takePending(toolCallId) ?: return
-        pending.deferred.complete(RequestPermissionOutcome.Cancelled)
+        val pending = permissionFlow.takePending(sessionId, toolCallId) ?: return
+        pending.complete(RequestPermissionOutcome.Cancelled)
         emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
     }
 

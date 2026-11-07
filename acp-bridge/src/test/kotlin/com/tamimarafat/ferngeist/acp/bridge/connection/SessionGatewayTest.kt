@@ -10,6 +10,9 @@ import com.agentclientprotocol.model.CloseSessionResponse
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ModelId
 import com.agentclientprotocol.model.ModelInfo
+import com.agentclientprotocol.model.PermissionOption
+import com.agentclientprotocol.model.PermissionOptionId
+import com.agentclientprotocol.model.PermissionOptionKind
 import com.agentclientprotocol.model.PromptResponse
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.SessionConfigId
@@ -18,10 +21,12 @@ import com.agentclientprotocol.model.SessionConfigOptionValue
 import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.SessionMode
 import com.agentclientprotocol.model.SessionModeId
+import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.SetSessionConfigOptionResponse
 import com.agentclientprotocol.model.SetSessionModeResponse
 import com.agentclientprotocol.model.SetSessionModelResponse
 import com.agentclientprotocol.model.StopReason
+import com.agentclientprotocol.model.ToolCallId
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
@@ -52,6 +57,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
@@ -211,8 +217,33 @@ class SessionGatewayTest {
         return bridge
     }
 
-    private fun permissionFlowOf(gateway: SessionGateway): PermissionFlow =
-        gatewayField(gateway, "permissionFlow") as PermissionFlow
+    private fun sessionOperations(
+        gateway: SessionGateway,
+        sessionId: String,
+    ): ClientSessionOperations {
+        val method =
+            SessionGateway::class.java.getDeclaredMethod(
+                "createBridgeSessionOperations",
+                String::class.java,
+            )
+        method.isAccessible = true
+        return method.invoke(gateway, sessionId) as ClientSessionOperations
+    }
+
+    private fun permissionRequest(toolCallId: String): SessionUpdate.ToolCallUpdate =
+        SessionUpdate.ToolCallUpdate(
+            toolCallId = ToolCallId(toolCallId),
+            title = "Read file",
+        )
+
+    private val permissionOptions =
+        listOf(
+            PermissionOption(
+                optionId = PermissionOptionId("allow-once"),
+                name = "Allow once",
+                kind = PermissionOptionKind.ALLOW_ONCE,
+            ),
+        )
 
     /**
      * Installs an SDK client on the connection's socket owner. Its client property
@@ -740,24 +771,69 @@ class SessionGatewayTest {
         }
 
     @Test
-    fun `cancelSession resolves pending permissions for that session only`() =
+    fun `same tool call id in concurrent sessions resolves only the selected session`() =
         runTest {
             val gateway = newGateway()
-            val bridge = installSession(gateway, "s1", FakeClientSession(listOf(emptyFlow())))
-            val pending = CompletableDeferred<RequestPermissionOutcome>()
-            val otherSession = CompletableDeferred<RequestPermissionOutcome>()
-            val permissionFlow = permissionFlowOf(gateway)
-            permissionFlow.addPending("tc1", "s1", pending)
-            permissionFlow.addPending("tc2", "s2", otherSession)
+            installSession(gateway, "s1", FakeClientSession(listOf(emptyFlow())))
+            installSession(gateway, "s2", FakeClientSession(listOf(emptyFlow())))
+            val firstOperations = sessionOperations(gateway, "s1")
+            val secondOperations = sessionOperations(gateway, "s2")
+            val request = permissionRequest(TOOL_CALL_ID)
+
+            val first =
+                async {
+                    firstOperations.requestPermissions(request, permissionOptions, null)
+                }
+            val second =
+                async {
+                    secondOperations.requestPermissions(request, permissionOptions, null)
+                }
+            runCurrent()
+
+            gateway.respondPermissionSelected("s1", TOOL_CALL_ID, "allow-once")
+            runCurrent()
+
+            assertTrue(first.isCompleted)
+            assertFalse(second.isCompleted)
+            val selected = first.await().outcome as RequestPermissionOutcome.Selected
+            assertEquals("allow-once", selected.optionId.value)
+
+            gateway.respondPermissionCancelled("s2", TOOL_CALL_ID)
+            assertEquals(RequestPermissionOutcome.Cancelled, second.await().outcome)
+        }
+
+    @Test
+    fun `cancelling one session leaves a colliding permission in another session pending`() =
+        runTest {
+            val gateway = newGateway()
+            installSession(gateway, "s1", FakeClientSession(listOf(emptyFlow())))
+            installSession(gateway, "s2", FakeClientSession(listOf(emptyFlow())))
+            val firstOperations = sessionOperations(gateway, "s1")
+            val secondOperations = sessionOperations(gateway, "s2")
+            val request = permissionRequest(TOOL_CALL_ID)
+
+            val first =
+                async {
+                    firstOperations.requestPermissions(request, permissionOptions, null)
+                }
+            val second =
+                async {
+                    secondOperations.requestPermissions(request, permissionOptions, null)
+                }
+            runCurrent()
 
             gateway.cancelSession("s1")
+            runCurrent()
 
-            assertEquals(RequestPermissionOutcome.Cancelled, pending.await())
-            assertFalse(otherSession.isCompleted)
-            assertTrue(
-                bridge.events.replayCache.any {
-                    it is AppSessionEvent.ToolPermissionResolved && it.toolCallId == "tc1"
-                },
-            )
+            assertEquals(RequestPermissionOutcome.Cancelled, first.await().outcome)
+            assertFalse(second.isCompleted)
+
+            gateway.respondPermissionSelected("s2", TOOL_CALL_ID, "allow-once")
+            val selected = second.await().outcome as RequestPermissionOutcome.Selected
+            assertEquals("allow-once", selected.optionId.value)
         }
+
+    private companion object {
+        const val TOOL_CALL_ID = "shared-tool-call"
+    }
 }
