@@ -27,14 +27,18 @@ platform :android do
     UI.success("Built AAB: #{lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]}")
   end
 
-  desc "Build and upload to Play. Options: track (default internal), rollout (e.g. 0.1 for a staged release)."
+  desc "Build and upload to Play. Options: track (default internal), rollout (e.g. 0.1 for a staged release), aab (upload this bundle instead of building one)."
   lane :deploy do |options|
     track = options[:track] || "internal"
     rollout = options[:rollout]&.to_s
-    build
+    aab = options[:aab]
+    unless aab
+      build
+      aab = lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]
+    end
     upload_to_play_store(
       track: track,
-      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      aab: aab,
       release_status: rollout ? "inProgress" : "completed",
       rollout: rollout,
       skip_upload_apk: true,

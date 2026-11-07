@@ -92,3 +92,66 @@ jobs:
             "Ferngeist-${VERSION}.aab" \
             "Ferngeist-${VERSION}-foss.apk" \
             --clobber
+
+  # Uploads the bundle the first job attached to the release, so Play gets the exact signed build
+  # that GitHub shows. A pre-release never reaches Play. If the upload fails, re-run only this job.
+  deploy-play:
+    needs: build-and-upload
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Add required reviewers to this environment in the repo settings to gate production deploys.
+    environment: play-production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Verify the release notes for this version exist
+        run: |
+          CODE=$(grep -oP 'val appVersionCode = \K\d+' app/build.gradle.kts)
+          test -f "fastlane/metadata/android/en-US/changelogs/${CODE}.txt" || {
+            echo "::error::fastlane/metadata/android/en-US/changelogs/${CODE}.txt is missing; Play would show no release notes."
+            exit 1
+          }
+
+      - name: Set up Ruby and Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Download the release bundle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${{ github.event.release.tag_name }}" --pattern "Ferngeist-*.aab" --dir "$RUNNER_TEMP"
+
+      - name: Write Play credentials
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not configured"
+            exit 1
+          fi
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
+      # The rollout fraction comes from the PLAY_ROLLOUT repository variable (Settings > Secrets and
+      # variables > Actions > Variables): 0.1 is 10%, and 1 releases to everyone at once. Unset, it
+      # starts at 10% so a bad build reaches few users; finish the rollout in Play Console. Images
+      # and screenshots stay out of this lane; see store_images.
+      - name: Upload to Play production
+        env:
+          SUPPLY_JSON_KEY_FILE: ${{ runner.temp }}/play-service-account.json
+          PLAY_ROLLOUT: ${{ vars.PLAY_ROLLOUT || '0.1' }}
+        run: |
+          [[ "$PLAY_ROLLOUT" =~ ^(0\.[0-9]+|1)$ ]] || { echo "::error::PLAY_ROLLOUT must be a fraction like 0.1, or 1 for everyone."; exit 1; }
+          ROLLOUT_ARG="rollout:$PLAY_ROLLOUT"
+          [ "$PLAY_ROLLOUT" = 1 ] && ROLLOUT_ARG=
+          bundle exec fastlane deploy track:production $ROLLOUT_ARG aab:"$(ls "$RUNNER_TEMP"/Ferngeist-*.aab)"
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/play-service-account.json"
