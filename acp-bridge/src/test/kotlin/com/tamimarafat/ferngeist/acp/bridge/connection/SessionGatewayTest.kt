@@ -806,7 +806,7 @@ class SessionGatewayTest {
     fun `cancelling one session leaves a colliding permission in another session pending`() =
         runTest {
             val gateway = newGateway()
-            installSession(gateway, "s1", FakeClientSession(listOf(emptyFlow())))
+            val bridge = installSession(gateway, "s1", FakeClientSession(listOf(emptyFlow())))
             installSession(gateway, "s2", FakeClientSession(listOf(emptyFlow())))
             val firstOperations = sessionOperations(gateway, "s1")
             val secondOperations = sessionOperations(gateway, "s2")
@@ -826,6 +826,11 @@ class SessionGatewayTest {
             runCurrent()
 
             assertEquals(RequestPermissionOutcome.Cancelled, first.await().outcome)
+            assertTrue(
+                bridge.events.replayCache.any {
+                    it is AppSessionEvent.ToolPermissionResolved && it.toolCallId == TOOL_CALL_ID
+                },
+            )
             assertFalse(second.isCompleted)
 
             gateway.respondPermissionSelected("s2", TOOL_CALL_ID, "allow-once")
