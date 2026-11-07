@@ -37,7 +37,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -68,7 +67,6 @@ class ProjectViewModel
         repos: SessionListRepositories,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
-        private val targetRepository = repos.launchableTargetRepository
         val gatewaySourceId: String = savedStateHandle.get<String>(PROJECT_GATEWAY_ARG).orEmpty()
 
         /** The repo on screen; the project sheet moves it, and the handle keeps it across process death. */
@@ -85,8 +83,7 @@ class ProjectViewModel
                 .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
         private val targets: StateFlow<List<LaunchableTarget.GatewayAgent>> =
-            repos.launchableTargetRepository
-                .getTargets()
+            projectCatalog.consentedTargets
                 .map { all ->
                     all.filterIsInstance<LaunchableTarget.GatewayAgent>().filter {
                         it.gatewaySource.id ==
@@ -233,11 +230,7 @@ class ProjectViewModel
                 refreshingRunning.value = true
                 try {
                     _runningChatKeys.value =
-                        targetRepository
-                            .getTargets()
-                            .first()
-                            .filterIsInstance<LaunchableTarget.GatewayAgent>()
-                            .filter { it.gatewaySource.id == gatewaySourceId }
+                        targets.value
                             .flatMap { target ->
                                 sessionCatalog.runningSessionIds(target.id).orEmpty().map { "${target.id}/$it" }
                             }.toSet()
@@ -268,6 +261,7 @@ class ProjectViewModel
         /** A new chat in the picked checkout with [agent]; the chat screen creates it on arrival. */
         fun newChat(agent: LaunchableTarget.GatewayAgent? = newChatAgent.value) {
             agent ?: return
+            if (targets.value.none { it.id == agent.id }) return
             if (agentStatuses.value[agent.id]?.launchAvailable == false) return
             viewModelScope.launch {
                 _events.emit(

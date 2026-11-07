@@ -3,7 +3,8 @@ package com.tamimarafat.ferngeist.feature.serverlist.consent
 import kotlinx.coroutines.flow.Flow
 
 interface AgentLaunchConsentStore {
-    val anyConsent: Flow<Boolean>
+    /** Launch-consent keys currently granted on this phone. */
+    val consentedKeys: Flow<Set<String>>
 
     suspend fun hasConsent(key: String): Boolean
 

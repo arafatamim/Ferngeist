@@ -5,6 +5,7 @@ import com.tamimarafat.ferngeist.acp.bridge.hub.registerChat
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.ServerConfig
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.launchConsentKey
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectRepo
 import com.tamimarafat.ferngeist.gateway.projects.GatewayProjectWorktree
 import io.ktor.client.engine.mock.MockEngine
@@ -32,7 +33,7 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
     fun `project refresh waits for consent before requesting projects`() =
         runTest {
             var requests = 0
-            val consent = MutableStateFlow(false)
+            val consent = MutableStateFlow(emptySet<String>())
             discoveryConsent = consent
             val engine =
                 MockEngine {
@@ -45,9 +46,68 @@ class ProjectCatalogTest : ProjectCatalogFixture() {
             catalog.refresh(force = true).join()
             assertEquals(0, requests)
 
-            consent.value = true
+            consent.value = setOf(claude.binding.launchConsentKey)
             catalog.refresh(force = true).join()
             assertEquals(1, requests)
+        }
+
+    @Test
+    fun `project request names only agents with launch consent`() =
+        runTest {
+            var requestedAgents: List<String>? = null
+            discoveryConsent = MutableStateFlow(setOf(claude.binding.launchConsentKey))
+            val engine =
+                MockEngine { request ->
+                    requestedAgents = request.url.parameters["agents"]?.split(",")
+                    respond(agentLine("claude", "ok", "new-claude"), HttpStatusCode.OK)
+                }
+            val catalog = catalog(engine)
+            runCurrent()
+
+            catalog.refresh(force = true).join()
+
+            assertEquals(listOf("claude"), requestedAgents)
+            assertEquals(setOf("new-claude"), catalog.state.first { it.isReady }.chatIds())
+        }
+
+    @Test
+    fun `sessions for an agent stay hidden until its own consent`() =
+        runTest {
+            store().write(gateway.id, previous)
+            val consent = MutableStateFlow(setOf(claude.binding.launchConsentKey))
+            discoveryConsent = consent
+            val catalog = catalog(MockEngine { respond("", HttpStatusCode.OK) })
+            runCurrent()
+
+            assertEquals(listOf("old-claude"), catalog.getSessions(claude.id).first().map { it.id })
+            assertTrue(catalog.getSessions(codex.id).first().isEmpty())
+            assertEquals(listOf("old-claude"), catalog.getRecentSessions(10).first().map { it.id })
+
+            consent.value = setOf(claude.binding.launchConsentKey, codex.binding.launchConsentKey)
+            runCurrent()
+
+            assertEquals(listOf("old-codex"), catalog.getSessions(codex.id).first().map { it.id })
+        }
+
+    @Test
+    fun `streamed agent line without its consent stays out of the snapshot`() =
+        runTest {
+            discoveryConsent = MutableStateFlow(setOf(claude.binding.launchConsentKey))
+            val engine =
+                MockEngine {
+                    respond(
+                        agentLine("claude", "ok", "new-claude") + agentLine("codex", "ok", "new-codex"),
+                        HttpStatusCode.OK,
+                    )
+                }
+            val catalog = catalog(engine)
+            runCurrent()
+
+            catalog.refresh(force = true).join()
+
+            assertEquals(setOf("new-claude"), catalog.state.first { it.isReady }.chatIds())
+            val snapshot = store().readAll().getValue(gateway.id)
+            assertTrue(snapshot.agents["codex"].isNullOrEmpty())
         }
 
     @Test

@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.acp.bridge.hub.newHub
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
+import com.tamimarafat.ferngeist.core.model.launchConsentKey
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRepositoryImpl
@@ -41,13 +42,14 @@ open class ProjectCatalogFixture {
     @get:Rule
     val folder = TemporaryFolder()
 
-    /** Discovery consent the catalog under test sees; a test overrides it before building one. */
-    internal var discoveryConsent: Flow<Boolean> = flowOf(true)
-
     internal val json = Json { ignoreUnknownKeys = true }
     internal val gateway = GatewaySource(id = "gw", name = "PC", host = "pc:5788", gatewayCredential = "token")
     internal val claude = agent("b-claude", "Claude", "claude")
     internal val codex = agent("b-codex", "Codex", "codex")
+
+    /** Discovery consent the catalog under test sees; a test overrides it before building one. */
+    internal var discoveryConsent: Flow<Set<String>> =
+        flowOf(setOf(claude.binding.launchConsentKey, codex.binding.launchConsentKey))
     internal val repo = "/h/Ferngeist"
     internal val previous =
         ProjectSnapshot(

@@ -26,7 +26,7 @@ import javax.inject.Singleton
 object ProjectCatalogModule {
     @Provides
     @ProjectDiscoveryConsent
-    fun provideProjectDiscoveryConsent(store: AgentLaunchConsentStore): Flow<Boolean> = store.anyConsent
+    fun provideProjectDiscoveryConsent(store: AgentLaunchConsentStore): Flow<Set<String>> = store.consentedKeys
 
     @Provides
     @Singleton
