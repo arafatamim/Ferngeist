@@ -1,0 +1,4 @@
+• More reliable chat turns and attachment restoration
+• Faster launch from chat notifications
+• Refined splash and chat animations
+• Improved chat switcher titles and message queue spacing
