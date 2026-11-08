@@ -15,7 +15,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,9 +30,6 @@ import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
 import kotlin.random.Random
 
-/** The open chat's id: its verb must match the chat's rows on other screens. */
-internal val localChatId = compositionLocalOf { "" }
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun StreamingIndicator(
@@ -41,7 +37,7 @@ internal fun StreamingIndicator(
     modifier: Modifier = Modifier,
     baseColor: Color = LocalContentColor.current.copy(alpha = 0.8f),
 ) {
-    val spinnerVerb = rememberSpinnerVerb(localChatId.current)
+    val spinnerVerb = rememberSpinnerVerb()
     val polygons = remember(streamKey) { pickLoadingPolygons(streamKey) }
     Row(
         modifier = modifier,

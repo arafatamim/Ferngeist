@@ -38,12 +38,9 @@ fun ColorScheme.turnStatusContentColor(
         else -> fallback
     }
 
-/** Derived from the chat, not rolled per call site: every row showing a chat must agree on its verb. */
+/** Rolled once when the indicator enters composition, then stable across recompositions. */
 @Composable
-fun rememberSpinnerVerb(chatId: String): String {
+fun rememberSpinnerVerb(): String {
     val resources = LocalResources.current
-    return remember(chatId, resources) {
-        val verbs = resources.getStringArray(R.array.chat_spinner_verbs)
-        verbs[Math.floorMod(chatId.hashCode(), verbs.size)]
-    }
+    return remember(resources) { resources.getStringArray(R.array.chat_spinner_verbs).random() }
 }
