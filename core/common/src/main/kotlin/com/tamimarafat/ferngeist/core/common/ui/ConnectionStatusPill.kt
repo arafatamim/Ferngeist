@@ -263,7 +263,7 @@ private fun StatusDot(color: Color) {
  *
  * Renders a 3dp-thick circular arc starting at 12 o'clock and sweeping clockwise
  * proportional to [ratio]. The ring is rendered as a muted background arc
- * ([MaterialTheme.colorScheme.outline]) with a coloured foreground arc on top.
+ * ([MaterialTheme.colorScheme.outlineVariant]) with a coloured foreground arc on top.
  *
  * The foreground arc uses [MaterialTheme.colorScheme.primary] by default and shifts
  * to [MaterialTheme.colorScheme.error] when [ratio] exceeds 0.95 (near-full warning).
@@ -283,7 +283,7 @@ private fun DonutRing(
         } else {
             MaterialTheme.colorScheme.primary
         }
-    val ringColor = MaterialTheme.colorScheme.outline
+    val ringColor = MaterialTheme.colorScheme.outlineVariant
     // 16dp canvas inside a 44dp button with 12dp content padding leaves
     // enough room for a readable 3dp ring.
     Canvas(modifier = modifier) {
