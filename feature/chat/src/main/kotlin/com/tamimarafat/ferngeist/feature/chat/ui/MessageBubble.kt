@@ -72,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -281,6 +282,7 @@ internal fun PendingPromptQueue(
     onRetryMessage: (String) -> Unit,
     onForceSendMessage: (String) -> Unit,
     onRemoveMessage: (String) -> Unit,
+    onRestingHeight: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -290,6 +292,9 @@ internal fun PendingPromptQueue(
                 .fillMaxWidth()
                 .animateContentSize()
                 .heightIn(max = pendingQueueMaxHeight)
+                // Inside the size animation: it becomes list padding, and a per-frame height
+                // recomposed the chat screen and moved the runway glide's target on every send.
+                .onSizeChanged { onRestingHeight(it.height) }
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.End,

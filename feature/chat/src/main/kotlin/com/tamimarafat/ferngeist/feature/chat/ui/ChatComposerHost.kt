@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -24,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -123,7 +121,7 @@ internal fun BoxScope.ChatComposerHost(
             onRetryMessage = { viewModel.dispatch(ChatIntent.RetryMessage(it)) },
             onForceSendMessage = { viewModel.dispatch(ChatIntent.ForceSendMessage(it)) },
             onRemoveMessage = { viewModel.dispatch(ChatIntent.RemoveQueuedMessage(it)) },
-            modifier = Modifier.onSizeChanged { queueHeightPx = it.height },
+            onRestingHeight = { queueHeightPx = it },
         )
         ChatComposerRow(
             screenState = screenState,
