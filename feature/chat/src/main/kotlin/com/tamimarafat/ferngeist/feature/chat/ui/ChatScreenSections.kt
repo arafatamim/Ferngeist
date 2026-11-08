@@ -3,6 +3,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
@@ -315,7 +316,7 @@ private fun ChatMessageList(
     val fadePx = with(LocalDensity.current) { pinnedPromptFadeDistance.roundToPx() }
     val runway = rememberRunway(scroll, windowed, itemKey, listBottomPadding)
     val turnSegments = remember(allMessages) { allMessages.turnSegmentsByCloser() }
-    val messageRow: @Composable (ChatMessage) -> Unit = { message ->
+    val messageRow: @Composable (ChatMessage, Modifier) -> Unit = { message, modifier ->
         ChatMessageItem(
             message = message,
             state = state,
@@ -324,7 +325,7 @@ private fun ChatMessageList(
             onThoughtClick = onThoughtClick,
             onToolCallClick = onToolCallClick,
             onRetryMessage = onRetryMessage,
-            modifier = Modifier.runwayRow(scroll, runway, itemKey(message)),
+            modifier = modifier.runwayRow(scroll, runway, itemKey(message)),
         )
     }
 
@@ -356,7 +357,13 @@ private fun ChatMessageList(
                     key = itemKey,
                     contentType = { messageContentType(it) },
                 ) { message ->
-                    messageRow(message)
+                    val modifier =
+                        if (message.role == ChatMessage.Role.USER) {
+                            Modifier.animateItem(fadeInSpec = tween(180), placementSpec = null, fadeOutSpec = null)
+                        } else {
+                            Modifier
+                        }
+                    messageRow(message, modifier)
                 }
                 item(key = BOTTOM_SPACER_KEY) {
                     RunwaySpacer(scroll, runway)
