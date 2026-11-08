@@ -34,6 +34,7 @@ import com.tamimarafat.ferngeist.core.common.ui.isWindowCompact
 import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_GATEWAY_ARG
 import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_REPO_ARG
 import com.tamimarafat.ferngeist.push.PushRegistrar
+import com.tamimarafat.ferngeist.push.resolveChatDeepLink
 import com.tamimarafat.ferngeist.service.BatteryOptimizationDialog
 import com.tamimarafat.ferngeist.ui.theme.FerngeistTheme
 import com.tamimarafat.ferngeist.workspace.ChatViewModelFactory
@@ -96,8 +97,10 @@ class MainActivity : ComponentActivity() {
         // — never composes `server_list`, and would hold the splash forever with the window
         // unshown: a black screen with no focused window, then an ANR. Nothing is lost on a
         // relaunch, because the list ViewModel survives it and draws populated either way.
-        val coldStart = savedInstanceState == null
-        splashScreen.setKeepOnScreenCondition { coldStart && !homeScreenReady.value }
+        // A chat notification tap navigates past `server_list` on the first frame, often before
+        // its load lands, so it would hold the (icon-less) splash forever too.
+        val holdSplash = savedInstanceState == null && resolveChatDeepLink(intent) == null
+        splashScreen.setKeepOnScreenCondition { holdSplash && !homeScreenReady.value }
         super.onCreate(savedInstanceState)
         latestIntent.value = intent
         // Pick the UnifiedPush distributor that delivers pushes: one the user installed
