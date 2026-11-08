@@ -138,11 +138,12 @@ internal fun List<ChatMessage>.toolCallForSelection(
     val segmentId = selectionId?.selectedSegmentId() ?: return null
     val path = selectionId.substringAfter(TURN_FILE_SEPARATOR, "")
     val call = toolCallForSegment(segmentId) ?: return null
-    val message = lastOrNull { candidate -> candidate.segments.any { it.id == segmentId } }
-    val tree = if (message === lastOrNull()) newestTree else emptyList()
+    val owner = indexOfLast { candidate -> candidate.segments.any { it.id == segmentId } }
+    val turn = owner.takeIf { it >= 0 }?.let(::turnRange)
+    val tree = if (turn?.last == lastIndex) newestTree else emptyList()
     val file =
-        message
-            ?.segments
+        turn
+            ?.let(::segmentsOf)
             ?.fileChanges()
             ?.firstOrNull { it.path == path && (it.diffs.isNotEmpty() || tree.statsFor(path) != null) }
             ?: return call
@@ -154,6 +155,28 @@ internal fun List<ChatMessage>.toolCallForSelection(
         locations = listOf(path),
     )
 }
+
+/** The run of assistant messages around [index]: one turn's reply, which ACP message ids can split. */
+private fun List<ChatMessage>.turnRange(index: Int): IntRange {
+    val isReply = { at: Int -> getOrNull(at)?.role == ChatMessage.Role.ASSISTANT }
+    var start = index
+    while (isReply(start - 1)) start--
+    var end = index
+    while (isReply(end + 1)) end++
+    return start..end
+}
+
+private fun List<ChatMessage>.segmentsOf(turn: IntRange): List<AssistantSegment> =
+    if (turn.first == turn.last) this[turn.first].segments else slice(turn).flatMap { it.segments }
+
+/** Each turn's segments, keyed by the assistant message that ends it: the one that shows its footer. */
+internal fun List<ChatMessage>.turnSegmentsByCloser(): Map<String, List<AssistantSegment>> =
+    buildMap {
+        this@turnSegmentsByCloser.forEachIndexed { index, message ->
+            val closes = message.role == ChatMessage.Role.ASSISTANT && getOrNull(index + 1)?.role != message.role
+            if (closes) put(message.id, segmentsOf(turnRange(index)))
+        }
+    }
 
 /**
  * The files a turn changed, in the order each was first touched. A failed call's diff never

@@ -157,7 +157,12 @@ internal fun stampClosedReply(
 ): RuntimeData {
     val messages = data.messages
     val index = data.openReplyId?.let { id -> messages.indexOfLast { it.id == id } } ?: -1
-    val reply = messages.getOrNull(index)?.takeIf { !it.isStreaming && it.turn == null }
+    // A reply followed by another assistant message closed mid-turn (a new ACP message id); the
+    // turn's timing belongs on the message that ends it.
+    val reply =
+        messages.getOrNull(index)?.takeIf {
+            !it.isStreaming && it.turn == null && messages.getOrNull(index + 1)?.role != ChatMessage.Role.ASSISTANT
+        }
     val prompt = messages.subList(0, index.coerceAtLeast(0)).lastOrNull { it.role == ChatMessage.Role.USER }
     val stamped =
         if (reply != null && prompt != null) {

@@ -322,6 +322,35 @@ class FileChangesTest {
         assertEquals("c0", FileChange("a.kt", emptyList(), "c0").selectionId().selectedSegmentId())
     }
 
+    @Test
+    fun aTurnSplitAcrossMessagesShowsOneFooterWithEveryBubblesEdits() {
+        val turn = listOf(reply(edit("c0", "a.kt")), reply(edit("c1", "b.kt")))
+        val messages = listOf(ChatMessage(role = ChatMessage.Role.USER, content = "go")) + turn
+
+        val footers = messages.turnSegmentsByCloser()
+
+        assertEquals(setOf(turn[1].id), footers.keys)
+        assertEquals(listOf("a.kt", "b.kt"), footers.getValue(turn[1].id).fileChanges().map { it.path })
+    }
+
+    @Test
+    fun aTurnFileSplitAcrossMessagesOpensEveryDiffAndGitsCounts() {
+        val editedTwice = listOf(reply(edit("c0", "a.kt")), reply(edit("c1", "a.kt")))
+        val file = turnSegmentsOf(editedTwice).fileChanges().single()
+        assertEquals(file.diffs, editedTwice.toolCallForSelection(file.selectionId(), emptyList())?.content)
+
+        // a.kt's last call sits in the first bubble, but the turn is still the newest one.
+        val newest = listOf(reply(edit("c0", "a.kt")), reply(edit("c1", "b.kt")))
+        val earlier = turnSegmentsOf(newest).fileChanges().first()
+        val tree = listOf(ChatChangedFile(path = "a.kt", status = "M", added = 1, removed = 1))
+        assertEquals(emptyList<ToolCallContent>(), newest.toolCallForSelection(earlier.selectionId(), tree)?.content)
+    }
+
+    private fun turnSegmentsOf(turn: List<ChatMessage>) = turn.turnSegmentsByCloser().values.single()
+
+    private fun reply(vararg segments: AssistantSegment) =
+        ChatMessage(role = ChatMessage.Role.ASSISTANT, segments = segments.toList().toPersistentList())
+
     private fun turnFiles(turn: List<ChatMessage>) = turn.single().segments.fileChanges()
 
     private fun turnOf(vararg segments: AssistantSegment) =

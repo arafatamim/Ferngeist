@@ -103,7 +103,9 @@ internal class RunwayHold {
     ) {
         val last = lastReplyKey
         lastReplyKey = replyKey
-        if (last == null || last == replyKey) return
+        // Only a send hands the runway to a prompt (reply -> null). A reply -> reply hand-off is a
+        // turn split across ACP messages: holding the old one there leaves a gap above the new one.
+        if (last == null || replyKey != null) return
         val row = info().visibleItemsInfo.firstOrNull { it.key == last } ?: return
         key = last
         px = row.size

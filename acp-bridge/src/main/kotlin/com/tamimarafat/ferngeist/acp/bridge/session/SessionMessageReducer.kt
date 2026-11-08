@@ -219,6 +219,11 @@ object SessionMessageReducer {
                         lastMessage.messageId == chunk.messageId
                 )
         if (continuesBubble) return lastIndex
+        // A new id means the previous message is complete: close it, as a steer does, or it reads
+        // as still streaming (its tool group never folds) until the whole turn ends.
+        if (lastMessage?.role == ChatMessage.Role.ASSISTANT && lastMessage.isStreaming) {
+            this[lastIndex] = lastMessage.closedByTurnClose()
+        }
         add(
             ChatMessage(
                 role = ChatMessage.Role.ASSISTANT,

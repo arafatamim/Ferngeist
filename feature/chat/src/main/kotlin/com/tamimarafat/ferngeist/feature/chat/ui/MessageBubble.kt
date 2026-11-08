@@ -108,6 +108,7 @@ fun MessageBubble(
     message: ChatMessage,
     markdownDocuments: ImmutableMap<String, MarkdownRenderedDocument>,
     showStreamingIndicator: Boolean,
+    turnSegments: List<AssistantSegment>?,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -154,6 +155,7 @@ fun MessageBubble(
             reveals = reveals,
             live = live,
             showStreamingIndicator = showStreamingIndicator,
+            turnSegments = turnSegments,
             onThoughtClick = onThoughtClick,
             onToolCallClick = onToolCallClick,
             onRetryMessage = onRetryMessage,
@@ -176,6 +178,7 @@ private fun BubbleContent(
     reveals: BubbleReveals,
     live: Boolean,
     showStreamingIndicator: Boolean,
+    turnSegments: List<AssistantSegment>?,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onRetryMessage: ((String) -> Unit)?,
@@ -198,6 +201,7 @@ private fun BubbleContent(
                 markdownDocuments = markdownDocuments,
                 reveals = reveals,
                 showStreamingIndicator = showStreamingIndicator,
+                turnSegments = turnSegments,
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
                 // Height springs to each new line instead of jumping by a line at a time. Only on a
@@ -477,6 +481,7 @@ private fun AssistantMessageContent(
     markdownDocuments: ImmutableMap<String, MarkdownRenderedDocument>,
     reveals: BubbleReveals,
     showStreamingIndicator: Boolean,
+    turnSegments: List<AssistantSegment>?,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -521,6 +526,7 @@ private fun AssistantMessageContent(
             message = message,
             reveals = reveals,
             showStreamingIndicator = showStreamingIndicator,
+            turnSegments = turnSegments,
             settled = gateOpen,
             onToolCallClick = onToolCallClick,
         )
@@ -654,6 +660,7 @@ private fun ColumnScope.TurnFooter(
     message: ChatMessage,
     reveals: BubbleReveals,
     showStreamingIndicator: Boolean,
+    turnSegments: List<AssistantSegment>?,
     settled: Boolean,
     onToolCallClick: (String) -> Unit,
 ) {
@@ -672,10 +679,15 @@ private fun ColumnScope.TurnFooter(
         }
     }
 
-    // The turn's edits, once it has ended and everything above has finished revealing.
-    AnimatedVisibility(visible = !message.isStreaming && settled, enter = fadeIn(), exit = fadeOut()) {
+    // The turn's edits, once it has ended and everything above has finished revealing. Null
+    // [turnSegments]: a later message continues this turn, and the footer belongs on that one.
+    AnimatedVisibility(
+        visible = !message.isStreaming && settled && turnSegments != null,
+        enter = fadeIn(),
+        exit = fadeOut(),
+    ) {
         TurnChanges(
-            segments = message.segments,
+            segments = turnSegments.orEmpty(),
             turn = message.turn,
             onToolCallClick = onToolCallClick,
             foldsInFlight = reveals.foldsInFlight,

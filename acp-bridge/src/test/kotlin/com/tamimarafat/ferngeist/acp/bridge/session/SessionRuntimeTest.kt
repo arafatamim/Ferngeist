@@ -62,6 +62,30 @@ class SessionRuntimeTest {
         }
 
     @Test
+    fun a_turn_split_by_message_ids_closes_each_bubble_and_times_only_the_last() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "ses_test", wallClock = { 9_000L })
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList())
+            runtime.onEvent(AppSessionEvent.AgentMessage("reading", messageId = "m1"))
+            runtime.onEvent(AppSessionEvent.ToolCallStarted("c1", "ls", ToolKind.EXECUTE, ToolCallStatus.COMPLETED))
+            runtime.onEvent(AppSessionEvent.AgentMessage("found it", messageId = "m2"))
+
+            val (first, second) = runtime.replies()
+            assertFalse("a message superseded by a new id must stop streaming", first.isStreaming)
+            assertEquals("reading", first.content)
+            assertEquals(null, first.turn)
+            assertTrue(second.isStreaming)
+
+            runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
+
+            val (closedFirst, closedLast) = runtime.replies()
+            assertEquals(null, closedFirst.turn)
+            assertEquals(9_000L, closedLast.turn?.finishedAt)
+        }
+
+    private fun SessionRuntime.replies() = snapshot.value.messages.filter { it.role == ChatMessage.Role.ASSISTANT }
+
+    @Test
     fun the_gateways_duration_times_the_turn_not_when_the_phone_heard_it_end() =
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test", wallClock = { Long.MAX_VALUE })

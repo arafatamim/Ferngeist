@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
+import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -313,11 +314,13 @@ private fun ChatMessageList(
         }
     val fadePx = with(LocalDensity.current) { pinnedPromptFadeDistance.roundToPx() }
     val runway = rememberRunway(scroll, windowed, itemKey, listBottomPadding)
+    val turnSegments = remember(allMessages) { allMessages.turnSegmentsByCloser() }
     val messageRow: @Composable (ChatMessage) -> Unit = { message ->
         ChatMessageItem(
             message = message,
             state = state,
             renderedLastMessageId = renderedLastMessageId,
+            turnSegments = turnSegments[message.id],
             onThoughtClick = onThoughtClick,
             onToolCallClick = onToolCallClick,
             onRetryMessage = onRetryMessage,
@@ -459,6 +462,7 @@ private fun ChatMessageItem(
     message: ChatMessage,
     state: ChatState,
     renderedLastMessageId: String?,
+    turnSegments: List<AssistantSegment>?,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
     onRetryMessage: ((String) -> Unit)?,
@@ -487,6 +491,7 @@ private fun ChatMessageItem(
             message = message,
             markdownDocuments = messageMarkdown,
             showStreamingIndicator = message.isStreaming && isLast,
+            turnSegments = turnSegments,
             onThoughtClick = onThoughtClick,
             onToolCallClick = onToolCallClick,
             onRetryMessage = onRetryMessage,
