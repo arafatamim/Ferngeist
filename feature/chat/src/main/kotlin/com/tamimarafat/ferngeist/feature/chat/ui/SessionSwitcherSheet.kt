@@ -725,8 +725,8 @@ private fun SwitcherRowContent(
                 Text(
                     text = sessionTitleOrNull(session.title) ?: stringResource(R.string.switcher_untitled),
                     style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             },
             supporting = null,
