@@ -30,6 +30,40 @@ internal fun extractFiles(content: ContentBlock): ChatFileData? {
     return ChatFileData(name = name, base64 = blob, mimeType = mimeType, sizeBytes = sizeBytes)
 }
 
+/** A user message's prose with the attachments an agent inlined into it as text pulled back out. */
+internal data class SplitUserText(
+    val text: String,
+    val files: List<ChatFileData>,
+)
+
+// Codex replays an attachment as `[@name](file:///name)` plus a base64 `<context>` block inside the
+// user's text, not as a resource block. Left as text, a 500 KB zip is one unbreakable 700 KB line.
+private val embeddedContext =
+    Regex(
+        """(?:\[@[^\]]*]\([^)]*\)\s*)?""" +
+            """<context ref="([^"]*)" mimeType="([^"]*)" encoding="base64">([^<]*)</context>""",
+    )
+
+/** Turns the base64 `<context>` blocks in [text] back into file attachments, keeping the rest as text. */
+internal fun splitEmbeddedContexts(text: String): SplitUserText {
+    val blocks = embeddedContext.findAll(text).toList()
+    if (blocks.isEmpty()) return SplitUserText(text, emptyList())
+    val files =
+        blocks.mapNotNull { block ->
+            val (ref, mimeType, body) = block.destructured
+            val blob = body.filterNot(Char::isWhitespace)
+            blob.takeIf { it.isNotEmpty() }?.let {
+                ChatFileData(
+                    name = ref.substringAfterLast('/').ifBlank { "file" },
+                    base64 = it,
+                    mimeType = mimeType.ifBlank { "application/octet-stream" },
+                    sizeBytes = it.length.toLong() * 3L / 4L,
+                )
+            }
+        }
+    return SplitUserText(embeddedContext.replace(text, "").trim(), files)
+}
+
 /** Extracts the base64 payload from a `data:<mime>;base64,<payload>` URI, else "". */
 private fun dataUriBase64(uri: String?): String {
     val value = uri.orEmpty()

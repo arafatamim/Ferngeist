@@ -101,6 +101,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
 import com.tamimarafat.ferngeist.feature.chat.ui.message.StreamingIndicator
+import com.tamimarafat.ferngeist.feature.chat.ui.message.cappedForDisplay
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.coroutines.delay
 
@@ -344,7 +345,7 @@ private fun UserMessageContent(
             if (message.content.isNotBlank()) {
                 QuoteSelectionContainer {
                     Text(
-                        text = message.content,
+                        text = message.content.cappedForDisplay(),
                         style = MaterialTheme.typography.bodyMedium,
                         color = textColor,
                         maxLines = maxLines,

@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.feature.chat.ui.message.cappedForDisplay
 import kotlinx.coroutines.launch
 
 /**
@@ -203,7 +204,7 @@ internal fun PinnedPrompt(
                     .onSizeChanged { onChipHeight(it.height) },
         ) {
             Text(
-                text = text,
+                text = text.cappedForDisplay(),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

@@ -133,6 +133,23 @@ class AcpSessionUpdateParserTest {
         assertEquals("application/pdf", event.files[0].mimeType)
     }
 
+    @Test
+    fun `user message text with an inlined base64 context block yields a file and keeps the prose`() {
+        val inlined =
+            "[@splash.zip](file:///splash.zip)\n" +
+                "<context ref=\"file:///splash.zip\" mimeType=\"application/zip\" encoding=\"base64\">\n" +
+                "UEsDBAoA\nAAAA\n</context>\nwhy does this crash?"
+        val update = SessionUpdate.UserMessageChunk(content = ContentBlock.Text(inlined))
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+
+        assertEquals("why does this crash?", event.text)
+        assertEquals(1, event.files.size)
+        assertEquals("splash.zip", event.files[0].name)
+        assertEquals("application/zip", event.files[0].mimeType)
+        assertEquals("UEsDBAoAAAAA", event.files[0].base64)
+    }
+
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =
         requireNotNull(AcpSessionUpdateMapper.mapSessionUpdateToEvent(update))
 }

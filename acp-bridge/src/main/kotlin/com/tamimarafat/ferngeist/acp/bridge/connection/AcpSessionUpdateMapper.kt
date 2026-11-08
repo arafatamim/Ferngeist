@@ -62,15 +62,17 @@ internal object AcpSessionUpdateMapper {
         )
 
     @OptIn(UnstableApi::class)
-    private fun mapUserMessageChunk(update: SessionUpdate.UserMessageChunk): AppSessionEvent =
-        AppSessionEvent.UserMessage(
-            text = extractText(update.content),
+    private fun mapUserMessageChunk(update: SessionUpdate.UserMessageChunk): AppSessionEvent {
+        val inlined = splitEmbeddedContexts(extractText(update.content))
+        return AppSessionEvent.UserMessage(
+            text = inlined.text,
             images = listOfNotNull(extractImage(update.content)),
-            files = listOfNotNull(extractFiles(update.content)),
+            files = listOfNotNull(extractFiles(update.content)) + inlined.files,
             append = true,
             messageId = update.messageId?.value,
             clientId = promptClientId(update),
         )
+    }
 
     @OptIn(UnstableApi::class)
     private fun mapToolCall(update: SessionUpdate.ToolCall): AppSessionEvent =
