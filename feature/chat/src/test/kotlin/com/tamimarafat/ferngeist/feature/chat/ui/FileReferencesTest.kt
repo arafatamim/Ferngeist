@@ -12,6 +12,17 @@ import org.junit.Test
 
 class FileReferencesTest {
     @Test
+    fun markdownFileLinksResolveWithinTheWorkspace() {
+        val cwd = "/home/dev/project"
+        listOf("src/../internal/api/server.go:321", "/home/dev/project/internal/api/server.go:321").forEach {
+            assertEquals("internal/api/server.go" to ":321", fileLink(it, cwd))
+        }
+        listOf("../other/file.kt", "/home/dev/other/file.kt", "https://example.com/a.kt", "#section").forEach {
+            assertEquals(null, fileLink(it, cwd))
+        }
+    }
+
+    @Test
     fun aBareNameChipsTheCallPathNotTheProseToken() {
         val paths = listOf(edit("c0", "/repo/src/FileChange.kt")).fileReferences()
 

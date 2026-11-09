@@ -306,6 +306,7 @@ private fun BoxScope.ChatScreenContentOverlays(
         // The tool call sheet's open-full-file button wants the same opener the transcript chips use.
         localFileOpener provides openFile,
         localWorkspaceFiles provides screenState.state.workspaceFiles,
+        localWorkspaceRoot provides viewModel.cwd,
         localTranscriptImages provides viewModel.transcriptImages,
     ) {
         ChatScreenDialogsHost(screenState, viewModel)
@@ -388,6 +389,7 @@ private fun BoxScope.ChatScreenContentOverlays(
     CompositionLocalProvider(
         localFileOpener provides openFile,
         localWorkspaceFiles provides screenState.state.workspaceFiles,
+        localWorkspaceRoot provides viewModel.cwd,
         localTranscriptImages provides viewModel.transcriptImages,
     ) {
         ChatScreenBody(

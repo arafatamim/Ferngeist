@@ -11,6 +11,26 @@ import org.junit.Test
 /** The reveal cursor's arithmetic: rate, word cut, fade and rendered length. */
 class MarkdownRevealTest {
     @Test
+    fun `file links retain their label and show the destination`() {
+        val paragraph =
+            MarkdownEngine(MarkdownDialect.GfmCompat)
+                .append("[the route registrations](internal/api/server.go:321)")
+                .snapshot.document.blocks
+                .single() as BlockNode.Paragraph
+        val chips =
+            InlineChips(
+                find = { emptyList() },
+                content = { error("unused") },
+                link = { "internal/api/server.go" to ":321" },
+            )
+
+        val rendered = paragraph.children.toAnnotatedString(chips = chips)
+
+        assertEquals("the route registrations (internal/api/server.go:321)", rendered.text)
+        assertTrue(rendered.getLinkAnnotations(0, rendered.length).isEmpty())
+    }
+
+    @Test
     fun `a burst closes most of the gap within the catch-up time constant`() {
         var shown = 0f
         repeat(21) { shown = revealStep(shown, target = 5_000, dtSeconds = 1f / 60) } // ~0.35s

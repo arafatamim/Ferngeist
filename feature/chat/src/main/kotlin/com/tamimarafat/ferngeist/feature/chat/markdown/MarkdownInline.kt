@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat.markdown
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -69,11 +70,12 @@ internal fun RevealInlines(
     modifier: Modifier,
     reveal: BlockReveal?,
 ) {
-    val (text, inlineContent) = inlines.toChipText(styles.inline, settledChips(reveal))
+    val chips = settledChips(reveal)
+    val (text, inlineContent) = inlines.toChipText(styles.inline, chips)
     RevealText(
         text = text,
         style = MarkdownTheme.typography.bodyLarge,
-        reveal = reveal,
+        reveal = if (chips != null) null else reveal,
         inlineContent = inlineContent,
         modifier = modifier.fillMaxWidth(),
     )
@@ -95,16 +97,21 @@ private fun AnnotatedString.Builder.appendInlineNodes(
 
             is InlineNode.HardBreak -> append("\n")
 
-            // No chips inside a link: the tap already goes to its destination.
-            is InlineNode.Link ->
-                withLink(
-                    LinkAnnotation.Url(
-                        url = node.destination,
-                        styles = styles.link,
-                    ),
-                ) {
+            is InlineNode.Link -> {
+                val file = chips?.link?.invoke(node.destination)
+                if (file != null) {
+                    val (id, suffix) = file
                     appendInlineNodes(node.children, styles)
+                    append(" (")
+                    appendInlineContent(id, id.substringBefore('\n'))
+                    append(suffix)
+                    append(")")
+                } else {
+                    withLink(LinkAnnotation.Url(url = node.destination, styles = styles.link)) {
+                        appendInlineNodes(node.children, styles)
+                    }
                 }
+            }
 
             is InlineNode.SoftBreak -> append("\n")
 

@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.feature.chat.markdown.InlineChips
+import com.tamimarafat.ferngeist.feature.chat.relativeTo
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
+import java.nio.file.Paths
 
 /** The files a turn's tool calls name: what each read, edit, delete or move works on, and every diff's file. */
 internal fun List<AssistantSegment>.fileReferences(): Set<String> =
@@ -106,6 +108,33 @@ internal val localFileOpener = compositionLocalOf<((List<String>) -> Unit)?> { n
 /** The workspace's files by file name (`ChatState.workspaceFiles`); null until the gateway lists them. */
 internal val localWorkspaceFiles = compositionLocalOf<Map<String, List<String>>?> { null }
 
+/** The active project's directory on the gateway. */
+internal val localWorkspaceRoot = compositionLocalOf { "" }
+
+internal fun fileLink(
+    destination: String,
+    cwd: String,
+): Pair<String, String>? {
+    if (cwd.isBlank() || destination.contains('?') || destination.contains('#')) return null
+    val suffix = Regex(":\\d+$").find(destination)?.value.orEmpty()
+    val path = destination.removeSuffix(suffix)
+    if (Regex("^[A-Za-z][A-Za-z0-9+.-]+:").containsMatchIn(path)) return null
+    return path
+        .relativeTo(cwd)
+        ?.takeIf { it.isNotBlank() }
+        ?.let {
+            runCatching {
+                Paths
+                    .get(it)
+                    .normalize()
+                    .toString()
+                    .replace('\\', '/')
+            }.getOrNull()
+        }?.takeIf { it.isNotBlank() && it != "." && it != ".." }
+        ?.takeUnless { it.startsWith("../") }
+        ?.let { it to suffix }
+}
+
 // Mirrors FileChip's chrome: 6dp padding each side, the 14dp icon and the 4dp gap; 2dp above and below.
 private val chipChromeWidth = 30.dp
 private val chipChromeHeight = 4.dp
@@ -123,13 +152,14 @@ internal fun rememberFileChips(
 ): InlineChips? {
     val opener = localFileOpener.current
     val workspace = localWorkspaceFiles.current
+    val cwd = localWorkspaceRoot.current
     val paths = remember(segments) { segments.fileReferences() }
     val open by rememberUpdatedState(opener)
     val measurer = rememberTextMeasurer()
     val style = MaterialTheme.typography.bodySmall
     val density = LocalDensity.current
     val chips =
-        remember(paths, workspace, measurer, style, density) {
+        remember(paths, workspace, cwd, measurer, style, density) {
             // Built on first use: a written path can name a file no call touched.
             val cache = HashMap<String, InlineTextContent>()
             // The id leads with the text as written, which the chip shows: a written path stays a path.
@@ -139,18 +169,24 @@ internal fun rememberFileChips(
                         range to literal.substring(range) + CANDIDATE_SEPARATOR + file
                     }
                 },
-            ) { id ->
-                cache.getOrPut(id) {
-                    val label = id.substringBefore(CANDIDATE_SEPARATOR)
-                    val candidates = chipCandidates(id.substringAfter(CANDIDATE_SEPARATOR))
-                    chipContent(
-                        candidates.first(),
-                        label,
-                        measurer.measure(label, style, maxLines = 1).size,
-                        density,
-                    ) { open?.invoke(candidates) }
-                }
-            }
+                link = { destination ->
+                    fileLink(destination, cwd)?.let { (path, suffix) ->
+                        (path + CANDIDATE_SEPARATOR + path) to suffix
+                    }
+                },
+                content = { id ->
+                    cache.getOrPut(id) {
+                        val label = id.substringBefore(CANDIDATE_SEPARATOR)
+                        val candidates = chipCandidates(id.substringAfter(CANDIDATE_SEPARATOR))
+                        chipContent(
+                            candidates.first(),
+                            label,
+                            measurer.measure(label, style, maxLines = 1).size,
+                            density,
+                        ) { open?.invoke(candidates) }
+                    }
+                },
+            )
         }
     return chips.takeIf { opener != null && !isStreaming }
 }

@@ -17,6 +17,7 @@ import com.adamglin.compose.markdown.core.model.InlineNode
 internal class InlineChips(
     val find: (String) -> List<Pair<IntRange, String>>,
     val content: (String) -> InlineTextContent,
+    val link: (String) -> Pair<String, String>? = { null },
 )
 
 /** Null (no chips) by default, so previews and every renderer outside an assistant run are untouched. */
@@ -54,7 +55,12 @@ internal fun List<InlineNode>.toChipText(
 ): Pair<AnnotatedString, Map<String, InlineTextContent>> {
     if (chips == null) return toAnnotatedString(styles) to emptyMap()
     val used = LinkedHashSet<String>()
-    val recording = InlineChips(find = { literal -> chips.find(literal).onEach { used += it.second } }, chips.content)
+    val recording =
+        InlineChips(
+            find = { literal -> chips.find(literal).onEach { used += it.second } },
+            content = chips.content,
+            link = { destination -> chips.link(destination)?.also { used += it.first } },
+        )
     val text = toAnnotatedString(styles, recording)
     return text to used.associateWith(chips.content)
 }
