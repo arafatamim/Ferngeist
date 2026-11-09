@@ -20,7 +20,7 @@ class MarkdownRevealTest {
         val chips =
             InlineChips(
                 find = { emptyList() },
-                content = { error("unused") },
+                content = { _, _ -> error("unused") },
                 link = { "internal/api/server.go" to ":321" },
             )
 

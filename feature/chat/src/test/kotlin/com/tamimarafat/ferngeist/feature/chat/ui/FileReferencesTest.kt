@@ -12,6 +12,18 @@ import org.junit.Test
 
 class FileReferencesTest {
     @Test
+    fun anUnlistedAbsoluteWorkspacePathOpensAsAFileReference() {
+        val path = "/home/dev/project/internal/pairing/service.go"
+        val found = findFileReferences("Main file: $path (868 lines).", emptySet(), cwd = "/home/dev/project")
+
+        assertEquals(listOf(11 until 11 + path.length to "internal/pairing/service.go"), found)
+        assertEquals(
+            emptyList<Pair<IntRange, String>>(),
+            findFileReferences("/home/dev/other/a.go", emptySet(), cwd = "/home/dev/project"),
+        )
+    }
+
+    @Test
     fun markdownFileLinksResolveWithinTheWorkspace() {
         val cwd = "/home/dev/project"
         listOf("src/../internal/api/server.go:321", "/home/dev/project/internal/api/server.go:321").forEach {

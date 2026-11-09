@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -36,12 +37,14 @@ private val pathToken = Regex("""[\w.~@+\-/\\]+""")
  * files), which cover a list the gateway cut short or doesn't have: a bare name matches when
  * exactly one has it. A path matches one it equals or ends on, at a path boundary, in either
  * direction (an absolute mention of a relative call path, or the reverse). A relative path nothing
- * matches opens as written. A name the turn's files share stays text.
+ * matches opens as written. An unlisted absolute path inside [cwd] opens relative to it. A name the
+ * turn's files share stays text.
  */
 internal fun findFileReferences(
     literal: String,
     paths: Set<String>,
     workspace: Map<String, List<String>>? = null,
+    cwd: String = "",
 ): List<Pair<IntRange, String>> =
     pathToken
         .findAll(literal)
@@ -63,7 +66,9 @@ internal fun findFileReferences(
             val file =
                 when {
                     listed.isNotEmpty() -> listed.joinToString(CANDIDATE_SEPARATOR)
-                    hits.isEmpty() -> mention.takeIf { relativeFilePath.matches(it) }
+                    hits.isEmpty() ->
+                        mention.takeIf { relativeFilePath.matches(it) }
+                            ?: mention.takeIf { it.startsWith('/') }?.let { fileLink(it, cwd)?.first }
                     else -> hits.sameFile()
                 }
             file?.let { (start until end) to it }
@@ -161,12 +166,14 @@ internal fun rememberFileChips(
     val chips =
         remember(paths, workspace, cwd, measurer, style, density) {
             // Built on first use: a written path can name a file no call touched.
-            val cache = HashMap<String, InlineTextContent>()
+            val cache = HashMap<Pair<String, Int>, InlineTextContent>()
             // The id leads with the text as written, which the chip shows: a written path stays a path.
             InlineChips(
                 find = { literal ->
-                    findFileReferences(literal, paths, workspace).map { (range, file) ->
-                        range to literal.substring(range) + CANDIDATE_SEPARATOR + file
+                    findFileReferences(literal, paths, workspace, cwd).map { (range, file) ->
+                        val mention = literal.substring(range)
+                        val label = mention.takeIf { it.startsWith('/') }?.let { fileLink(it, cwd)?.first } ?: mention
+                        range to label + CANDIDATE_SEPARATOR + file
                     }
                 },
                 link = { destination ->
@@ -174,14 +181,15 @@ internal fun rememberFileChips(
                         (path + CANDIDATE_SEPARATOR + path) to suffix
                     }
                 },
-                content = { id ->
-                    cache.getOrPut(id) {
+                content = { id, maxWidth ->
+                    cache.getOrPut(id to maxWidth) {
                         val label = id.substringBefore(CANDIDATE_SEPARATOR)
                         val candidates = chipCandidates(id.substringAfter(CANDIDATE_SEPARATOR))
+                        val textWidth = (maxWidth - with(density) { chipChromeWidth.roundToPx() } - 1).coerceAtLeast(1)
                         chipContent(
                             candidates.first(),
                             label,
-                            measurer.measure(label, style, maxLines = 1).size,
+                            measurer.measure(label, style, constraints = Constraints(maxWidth = textWidth)).size,
                             density,
                         ) { open?.invoke(candidates) }
                     }
@@ -208,6 +216,11 @@ private fun chipContent(
             )
         }
     return InlineTextContent(placeholder) {
-        FileChip(path, label = label, modifier = Modifier.handCursor().clickable(onClick = onClick))
+        FileChip(
+            path,
+            label = label,
+            maxLines = Int.MAX_VALUE,
+            modifier = Modifier.handCursor().clickable(onClick = onClick),
+        )
     }
 }

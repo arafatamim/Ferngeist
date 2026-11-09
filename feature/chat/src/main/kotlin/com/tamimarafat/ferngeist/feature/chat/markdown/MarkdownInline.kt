@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.markdown
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.appendInlineContent
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import com.adamglin.compose.markdown.core.model.BlockNode
 import com.adamglin.compose.markdown.core.model.InlineNode
 
 internal fun List<InlineNode>.toAnnotatedString(
@@ -70,15 +72,17 @@ internal fun RevealInlines(
     modifier: Modifier,
     reveal: BlockReveal?,
 ) {
-    val chips = settledChips(reveal)
-    val (text, inlineContent) = inlines.toChipText(styles.inline, chips)
-    RevealText(
-        text = text,
-        style = MarkdownTheme.typography.bodyLarge,
-        reveal = if (chips != null) null else reveal,
-        inlineContent = inlineContent,
-        modifier = modifier.fillMaxWidth(),
-    )
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val chips = settledChips(reveal)
+        val (text, inlineContent) = inlines.toChipText(styles.inline, chips, constraints.maxWidth)
+        RevealText(
+            text = text,
+            style = MarkdownTheme.typography.bodyLarge,
+            reveal = if (chips != null) null else reveal,
+            inlineContent = inlineContent,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 private fun AnnotatedString.Builder.appendInlineNodes(
@@ -177,3 +181,31 @@ internal fun List<InlineNode>.imageSegments(): List<InlineSegment> {
 }
 
 private fun InlineNode.isBreak(): Boolean = this is InlineNode.SoftBreak || this is InlineNode.HardBreak
+
+@Composable
+internal fun MarkdownHeading(
+    block: BlockNode.Heading,
+    styles: MarkdownBlockStyles,
+    modifier: Modifier,
+    reveal: BlockReveal?,
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val chips = settledChips(reveal)
+        val (text, inlineContent) = block.children.toChipText(styles.inline, chips, constraints.maxWidth)
+        RevealText(
+            text = text,
+            reveal = if (chips != null) null else reveal,
+            inlineContent = inlineContent,
+            style =
+                when (block.level) {
+                    1 -> MarkdownTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
+                    2 -> MarkdownTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                    3 -> MarkdownTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
+                    4 -> MarkdownTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+                    5 -> MarkdownTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                    else -> MarkdownTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
+                },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}

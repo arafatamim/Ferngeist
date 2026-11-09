@@ -16,7 +16,7 @@ import com.adamglin.compose.markdown.core.model.InlineNode
 @Immutable
 internal class InlineChips(
     val find: (String) -> List<Pair<IntRange, String>>,
-    val content: (String) -> InlineTextContent,
+    val content: (String, Int) -> InlineTextContent,
     val link: (String) -> Pair<String, String>? = { null },
 )
 
@@ -52,6 +52,7 @@ internal fun AnnotatedString.Builder.appendWithChips(
 internal fun List<InlineNode>.toChipText(
     styles: MarkdownInlineStyles,
     chips: InlineChips?,
+    maxWidth: Int,
 ): Pair<AnnotatedString, Map<String, InlineTextContent>> {
     if (chips == null) return toAnnotatedString(styles) to emptyMap()
     val used = LinkedHashSet<String>()
@@ -62,5 +63,5 @@ internal fun List<InlineNode>.toChipText(
             link = { destination -> chips.link(destination)?.also { used += it.first } },
         )
     val text = toAnnotatedString(styles, recording)
-    return text to used.associateWith(chips.content)
+    return text to used.associateWith { chips.content(it, maxWidth) }
 }

@@ -190,24 +190,7 @@ private fun MarkdownBlock(
                 reveal = reveal,
             )
 
-        is BlockNode.Heading -> {
-            val (text, inlineContent) = block.children.toChipText(styles.inline, settledChips(reveal))
-            RevealText(
-                text = text,
-                reveal = reveal,
-                inlineContent = inlineContent,
-                style =
-                    when (block.level) {
-                        1 -> MarkdownTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
-                        2 -> MarkdownTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                        3 -> MarkdownTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-                        4 -> MarkdownTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
-                        5 -> MarkdownTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                        else -> MarkdownTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
-                    },
-                modifier = modifier.fillMaxWidth(),
-            )
-        }
+        is BlockNode.Heading -> MarkdownHeading(block, styles, modifier, reveal)
 
         is BlockNode.ListBlock ->
             ListBlock(
