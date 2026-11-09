@@ -43,7 +43,7 @@ class AcpSessionUpdateParserTest {
     }
 
     @Test
-    fun `message id maps through every content chunk`() {
+    fun `message id maps through user and agent message chunks`() {
         val messageId = MessageId("message_1")
 
         val user =
@@ -54,14 +54,9 @@ class AcpSessionUpdateParserTest {
             invokeMapSessionUpdateToEvent(
                 SessionUpdate.AgentMessageChunk(content = ContentBlock.Text("agent"), messageId = messageId),
             ) as AppSessionEvent.AgentMessage
-        val thought =
-            invokeMapSessionUpdateToEvent(
-                SessionUpdate.AgentThoughtChunk(content = ContentBlock.Text("thought"), messageId = messageId),
-            ) as AppSessionEvent.AgentThought
 
         assertEquals("message_1", user.messageId)
         assertEquals("message_1", agent.messageId)
-        assertEquals("message_1", thought.messageId)
     }
 
     @Test

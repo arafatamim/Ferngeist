@@ -300,7 +300,6 @@ sealed interface AppSessionEvent {
     data class AgentThought(
         val text: String,
         val timestampMs: Long? = null,
-        val messageId: String? = null,
     ) : AppSessionEvent
 
     data class ToolCallStarted(

@@ -25,10 +25,7 @@ internal object AcpSessionUpdateMapper {
                     messageId = update.messageId?.value,
                 )
             is SessionUpdate.AgentThoughtChunk ->
-                AppSessionEvent.AgentThought(
-                    text = extractText(update.content),
-                    messageId = update.messageId?.value,
-                )
+                AppSessionEvent.AgentThought(text = extractText(update.content))
             is SessionUpdate.ToolCall -> mapToolCall(update)
             is SessionUpdate.ToolCallUpdate -> mapToolCallUpdate(update)
             is SessionUpdate.PlanUpdate, is SessionUpdate.PlanRemoved ->

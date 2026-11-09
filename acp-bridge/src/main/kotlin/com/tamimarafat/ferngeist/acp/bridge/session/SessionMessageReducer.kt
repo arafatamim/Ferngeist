@@ -76,11 +76,13 @@ object SessionMessageReducer {
                     event.timestampMs,
                     nowMs,
                 )
+            // No id: reasoning always continues the bubble. Agents give each thought its own id,
+            // and splitting on it scatters one activity group across a bubble per thought.
             is AppSessionEvent.AgentThought ->
                 appendText(
                     messages,
                     toolCallIndex,
-                    TextChunk(AssistantSegment.Kind.THOUGHT, event.text, event.messageId),
+                    TextChunk(AssistantSegment.Kind.THOUGHT, event.text, messageId = null),
                     event.timestampMs,
                     nowMs,
                 )
