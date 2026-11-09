@@ -105,6 +105,7 @@ Adapted from [ponytail](https://github.com/DietrichGebert/ponytail).
 ### Verification gate
 
 - Gate before reporting: `./gradlew detekt ktlintCheck` plus the touched module's `testDebugUnitTest`.
+- Don't rerun the gate after every small edit while iterating with the maintainer; run it once before commit.
 - **Fix findings; never silence them.** Applies to detekt, ktlint, and Android lint alike: no `@Suppress`, `tools:ignore`, or `//noinspection`; no `detekt-baseline.xml`; no raising a threshold, setting `active: false`, or adding an exclusion glob; no deleting the offending call to dodge the rule. If a finding is genuinely wrong, say why in your report and let the maintainer decide. Silencing a finding to get a green build is a failed task, not a passing one.
 - Device verification is off-limits unless specifically asked — no emulator, APK installs, UI driving, screenshots, or pixel scans.
 - `detekt` runs in `--analysis-mode full`; findings in `src/test` can be artefacts of the main-only classpath, so don't treat a thin report as a clean bill of health.
