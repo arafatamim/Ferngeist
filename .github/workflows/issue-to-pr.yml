@@ -114,6 +114,17 @@ jobs:
             echo "- Leave the changes uncommitted; the workflow commits and opens the PR."
             echo "- Do not modify .github/workflows, local.properties, or signing material."
             echo
+            # PR #30 split bubbles correctly in acp-bridge and broke feature/chat, which it never read.
+            echo "Before editing, map the blast radius. This is part of doing the task correctly:"
+            echo "- Find every consumer of the types, events and state you will change, in every module,"
+            echo "  including feature/* UI, not only the module you edit."
+            echo "- For each consumer, note the assumption it makes (e.g. one assistant bubble per turn)"
+            echo "  and whether your change breaks it. Fix what breaks, within the issue's scope."
+            echo "- Treat the issue's \"Expected UI result\" section as the acceptance target. If it has none"
+            echo "  and the change is user-visible, state what the user will now see."
+            echo "- Write the consumer list, the assumptions, and the expected UI result to"
+            echo "  .git/agent-pr-notes.md as Markdown. The workflow puts it in the PR body."
+            echo
             echo "Builds are the slow part, so build as little as possible:"
             echo "- While editing, check your work with ./gradlew -q :<module>:compileDebugKotlin, where"
             echo "  <module> is the Gradle path of a module you changed (e.g. :feature:chat)."
@@ -160,9 +171,20 @@ jobs:
           git diff --cached --quiet || git commit -m "fix: implement #${ISSUE_NUMBER}"
           git push --set-upstream origin "agent/issue-${ISSUE_NUMBER}"
 
+          NOTES="$(git rev-parse --git-dir)/agent-pr-notes.md"
+          {
+            echo "Closes #${ISSUE_NUMBER}"
+            echo
+            echo "Automated by mini-SWE-agent. Review before marking ready."
+            echo
+            if [ -s "$NOTES" ]; then
+              cat "$NOTES"
+            else
+              echo "**The agent wrote no consumer list; check the blast radius by hand.**"
+            fi
+          } > "$RUNNER_TEMP/pr-body.md"
+
           gh pr create --draft \
             --base master \
             --title "fix: ${ISSUE_TITLE}" \
-            --body "Closes #${ISSUE_NUMBER}
-
-          Automated by mini-SWE-agent. Review before marking ready."
+            --body-file "$RUNNER_TEMP/pr-body.md"
