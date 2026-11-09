@@ -13,7 +13,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +20,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
@@ -39,11 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -243,9 +239,16 @@ private fun UsageRingIcon(
                 .coerceIn(0f, 1f),
         animationSpec = tween(500),
     )
-    DonutRing(
-        ratio = ratio,
-        modifier = Modifier.size(16.dp),
+    // 20dp fills a 44dp button with 12dp content padding, matching the connecting icon.
+    CircularProgressIndicator(
+        progress = { ratio },
+        modifier = Modifier.size(20.dp),
+        // Shift to error colour when the context window is nearly full.
+        color = if (ratio > 0.95f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        strokeWidth = 3.dp,
+        // The default track matches the tonal button container and vanishes.
+        trackColor = MaterialTheme.colorScheme.outlineVariant,
+        gapSize = 2.dp,
     )
 }
 
@@ -256,69 +259,6 @@ private fun StatusDot(color: Color) {
         color = color,
         modifier = Modifier.size(10.dp),
     ) {}
-}
-
-/**
- * Draws a small donut / ring chart representing a usage ratio.
- *
- * Renders a 3dp-thick circular arc starting at 12 o'clock and sweeping clockwise
- * proportional to [ratio]. The ring is rendered as a muted background arc
- * ([MaterialTheme.colorScheme.outlineVariant]) with a coloured foreground arc on top.
- *
- * The foreground arc uses [MaterialTheme.colorScheme.primary] by default and shifts
- * to [MaterialTheme.colorScheme.error] when [ratio] exceeds 0.95 (near-full warning).
- *
- * @param ratio The fill fraction in `[0f..1f]` — controls the foreground sweep angle.
- * @param modifier Optional [Modifier] applied to the inner [Canvas].
- */
-@Composable
-private fun DonutRing(
-    ratio: Float,
-    modifier: Modifier = Modifier,
-) {
-    // Shift to error colour when the context window is nearly full.
-    val arcColor =
-        if (ratio > 0.95f) {
-            MaterialTheme.colorScheme.error
-        } else {
-            MaterialTheme.colorScheme.primary
-        }
-    val ringColor = MaterialTheme.colorScheme.outlineVariant
-    // 16dp canvas inside a 44dp button with 12dp content padding leaves
-    // enough room for a readable 3dp ring.
-    Canvas(modifier = modifier) {
-        val stroke = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-        // Square the size so the ring is a perfect circle regardless of
-        // minor constraint asymmetry.
-        val aSize = Size(size.minDimension, size.minDimension)
-        val topLeft =
-            Offset(
-                (size.width - aSize.width) / 2f,
-                (size.height - aSize.height) / 2f,
-            )
-        // Background: full grey ring.
-        drawArc(
-            color = ringColor,
-            startAngle = -90f,
-            sweepAngle = 360f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = aSize,
-            style = stroke,
-        )
-        // Foreground: coloured arc proportional to usage ratio.
-        // -90° start shifts the origin from 3 o'clock (Canvas default)
-        // to 12 o'clock, matching standard progress-ring convention.
-        drawArc(
-            color = arcColor,
-            startAngle = -90f,
-            sweepAngle = 360f * ratio,
-            useCenter = false,
-            topLeft = topLeft,
-            size = aSize,
-            style = stroke,
-        )
-    }
 }
 
 /** Duration of one full rotation of the connecting sunny icon, in milliseconds. */
