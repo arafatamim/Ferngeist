@@ -15,6 +15,7 @@ lifecycleViewmodelCompose = "2.11.0"
 activityCompose = "1.13.0"
 composeBom = "2026.09.00"
 androidxWindow = "1.5.1"
+androidxBrowser = "1.10.0"
 
 # Serialization
 kotlinxSerializationJson = "1.12.0"
@@ -91,6 +92,7 @@ androidx-compose-material3-adaptive = { group = "androidx.compose.material3.adap
 androidx-compose-material3-adaptive-layout = { group = "androidx.compose.material3.adaptive", name = "adaptive-layout" }
 androidx-compose-material3-adaptive-navigation = { group = "androidx.compose.material3.adaptive", name = "adaptive-navigation" }
 androidx-window = { group = "androidx.window", name = "window", version.ref = "androidxWindow" }
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "androidxBrowser" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 diff-kotlin = { module = "io.github.baole:diff-kotlin", version.ref = "diffKotlin" }
