@@ -51,3 +51,5 @@ Thumbs.db
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+.codebase-memory
