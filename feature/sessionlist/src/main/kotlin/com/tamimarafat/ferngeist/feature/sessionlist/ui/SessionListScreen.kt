@@ -35,12 +35,15 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.agentclientprotocol.annotations.UnstableApi
 import com.tamimarafat.ferngeist.core.common.ui.ServerSharedBoundsKey
+import com.tamimarafat.ferngeist.core.git.ui.ProjectGitAction
+import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.core.model.projectName
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListViewModel
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.path
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.projectRoot
+import com.tamimarafat.ferngeist.feature.sessionlist.git.scopedGitTarget
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.filters.ActiveFilterChips
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.filters.ProjectFilter
 import kotlinx.coroutines.delay
@@ -79,6 +82,9 @@ fun SessionListScreen(
 ) {
     val state = rememberSessionListState(viewModel, navArgName, loadedName)
     val currentCwd = state.project.currentCwd
+    val server by viewModel.server.collectAsState()
+    val gitTarget =
+        scopedGitTarget((server as? LaunchableTarget.GatewayAgent)?.gatewaySource, currentCwd, state.repoScope.scope)
 
     // The gateway has no change feed, so sessions created or advanced elsewhere (another
     // device, the CLI) only arrive by re-listing: on every resume, then on a slow poll while
@@ -168,6 +174,7 @@ fun SessionListScreen(
         state = state,
         serverId = serverId,
         currentCwd = currentCwd,
+        gitAction = { ProjectGitAction(gitTarget, viewModel.gitReaderFactory) },
         onShowCwdDialog = {
             state.project.cwdDialogValue.value = currentCwd.orEmpty()
             state.project.showCwdDialog.value = true
@@ -212,6 +219,7 @@ private fun SessionListScaffold(
     state: SessionListState,
     serverId: String,
     currentCwd: String?,
+    gitAction: @Composable () -> Unit,
     showBackButton: Boolean,
     sharedBoundsEnabled: Boolean,
     onShowCwdDialog: () -> Unit,
@@ -286,6 +294,7 @@ private fun SessionListScaffold(
                     state = state,
                     serverId = serverId,
                     titleStyle = titleStyle,
+                    gitAction = gitAction,
                     onShowConnectionStatusDialog = onShowConnectionStatusDialog,
                     showBackButton = showBackButton,
                     sharedBoundsEnabled = sharedBoundsEnabled,

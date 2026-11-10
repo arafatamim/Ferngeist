@@ -51,6 +51,7 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.RecentSelectionStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.tamimarafat.ferngeist.core.git.R as GitR
 
 internal data class PickerItem(
     val id: String,
@@ -319,7 +320,7 @@ internal fun PickerItemRow(
         if (selectedValue != null && item.value == selectedValue) {
             Icon(
                 Icons.Filled.Check,
-                contentDescription = stringResource(R.string.chat_selected_desc),
+                contentDescription = stringResource(GitR.string.chat_selected_desc),
                 tint = MaterialTheme.colorScheme.primary,
             )
         }

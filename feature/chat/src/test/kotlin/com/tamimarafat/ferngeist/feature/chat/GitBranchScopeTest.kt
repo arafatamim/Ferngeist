@@ -1,5 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.core.git.graph.BandFade
+import com.tamimarafat.ferngeist.core.git.graph.GitBranchScope
+import com.tamimarafat.ferngeist.core.git.graph.bandFades
+import com.tamimarafat.ferngeist.core.git.graph.gitBranchScope
 import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

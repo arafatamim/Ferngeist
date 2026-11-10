@@ -47,6 +47,7 @@ dependencies {
     // === Core ===
     implementation(projects.core.model)
     implementation(projects.core.common)
+    implementation(projects.core.git)
     // ACP model types surface in the chat domain itself (`ToolCallContent.Diff` for git
     // diffs, `ToolKind`/`ToolCallStatus` for tool rendering), so the SDK model module is a
     // direct dependency rather than one inherited from the ACP bridge.

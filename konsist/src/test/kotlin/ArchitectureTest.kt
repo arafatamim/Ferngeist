@@ -12,6 +12,7 @@ class ArchitectureTest {
         Konsist.scopeFromProduction().assertArchitecture {
             val model = Layer("Core model", "com.tamimarafat.ferngeist.core.model..")
             val common = Layer("Core common", "com.tamimarafat.ferngeist.core.common..")
+            val git = Layer("Core Git", "com.tamimarafat.ferngeist.core.git..")
             val gateway = Layer("Gateway client", "com.tamimarafat.ferngeist.gateway..")
             val data = Layer("Data", "com.tamimarafat.ferngeist.data..")
             val acp = Layer("ACP bridge", "com.tamimarafat.ferngeist.acp..")
@@ -19,10 +20,11 @@ class ArchitectureTest {
 
             model.dependsOnNothing()
             common.dependsOn(model)
+            git.dependsOn(model, common)
             gateway.dependsOn(model)
             data.dependsOn(model)
             acp.dependsOn(model, gateway)
-            features.dependsOn(model, common, gateway, acp)
+            features.dependsOn(model, common, git, gateway, acp)
         }
     }
 

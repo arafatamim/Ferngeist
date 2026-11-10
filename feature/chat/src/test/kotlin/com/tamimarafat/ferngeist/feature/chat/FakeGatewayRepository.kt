@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayCreateWorktreeRequest
 import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
@@ -157,31 +158,31 @@ class FakeGatewayRepository : GatewayRepository {
         subscription: com.tamimarafat.ferngeist.gateway.GatewayPushSubscription,
     ) = Unit
 
+    override suspend fun fetchProjectFile(
+        connection: ProjectGitTarget,
+        path: String,
+    ): GatewayFileContents = error("Unused")
+
     override suspend fun fetchGitStatus(
-        connection: GatewayWorkspaceConnection,
-        acpSessionId: String?,
+        connection: ProjectGitTarget,
         compare: String?,
     ): GatewayGitStatus = TODO()
 
     override suspend fun fetchGitDiff(
-        connection: GatewayWorkspaceConnection,
+        connection: ProjectGitTarget,
         query: GatewayDiffQuery,
     ) = TODO()
 
     override suspend fun fetchGitLog(
-        connection: GatewayWorkspaceConnection,
+        connection: ProjectGitTarget,
         query: GatewayLogQuery,
     ): GatewayGitLog = TODO()
 
-    override suspend fun fetchGitRefs(
-        connection: GatewayWorkspaceConnection,
-        acpSessionId: String?,
-    ): GatewayGitRefs = TODO()
+    override suspend fun fetchGitRefs(connection: ProjectGitTarget): GatewayGitRefs = TODO()
 
     override suspend fun fetchGitCommit(
-        connection: GatewayWorkspaceConnection,
+        connection: ProjectGitTarget,
         sha: String,
-        acpSessionId: String?,
     ): GatewayGitCommitFiles = TODO()
 
     override suspend fun fetchFile(

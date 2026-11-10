@@ -3,6 +3,11 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.git.files.entryFor
+import com.tamimarafat.ferngeist.core.git.files.statsFor
+import com.tamimarafat.ferngeist.core.git.state.GitState
+import com.tamimarafat.ferngeist.core.git.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.core.git.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
@@ -10,9 +15,6 @@ import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.ChatState
-import com.tamimarafat.ferngeist.feature.chat.GitState
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithoutFile

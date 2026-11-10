@@ -16,25 +16,14 @@
     <string name="chat_send_desc">পাঠান</string>
     <string name="chat_stop_desc">থামুন</string>
 
-    <string name="chat_back_desc">ফিরে যান</string>
-
     <string name="chat_reasoning">যুক্তি</string>
     <string name="chat_show_reasoning">যুক্তি দেখুন</string>
     <string name="chat_reasoning_desc">যুক্তি দেখুন</string>
     <string name="chat_plan_desc">পরিকল্পনা</string>
     <string name="chat_completed_desc">সম্পন্ন</string>
     <string name="chat_error_desc">ত্রুটি</string>
-    <string name="chat_file_binary">বাইনারি ফাইল, দেখানো হচ্ছে না</string>
     <string name="chat_image_unavailable">ছবি পাওয়া যায়নি</string>
-    <string name="chat_file_empty">খালি ফাইল</string>
-    <string name="chat_file_deleted">এই সংশোধনীতে মুছে ফেলা হয়েছে</string>
-    <string name="chat_file_origin_working_tree">ওয়ার্কিং ট্রি</string>
-    <string name="chat_file_origin_commit">%1$s-এ</string>
-    <string name="chat_file_origin_compare">%1$s-এর সাথে</string>
-    <string name="chat_file_open_full">সম্পূর্ণ ফাইল খুলুন</string>
-    <string name="chat_file_truncated">এই ফাইলের শুধু প্রথম 8 MiB দেখানো হচ্ছে</string>
-    <string name="chat_file_soft_wrap">র‍্যাপ</string>
-    <string name="chat_file_markdown_preview">প্রিভিউ</string>
+
     <string name="chat_tool_call">টুল কল</string>
     <string name="chat_tool_call_details_desc">টুল কলের বিবরণ দেখুন</string>
     <string name="chat_awaiting_permission">অনুমতির উত্তরের অপেক্ষায়</string>
@@ -63,9 +52,8 @@
 
     <string name="chat_mode_label">মোড</string>
 
-    <string name="chat_retry">পুনরায় চেষ্টা করুন</string>
     <string name="chat_load_error_title">এই সেশনটি লোড করা যায়নি</string>
-    <string name="chat_diff_error_title">এই ডিফটি লোড করা যায়নি</string>
+
     <string name="chat_permission_title">অনুমতি প্রয়োজন</string>
     <string name="chat_permission_body">চালিয়ে যাওয়ার আগে এজেন্ট আপনার অনুমতির অপেক্ষায় আছে।</string>
     <string name="chat_deny">অস্বীকার</string>
@@ -79,13 +67,13 @@
     <string name="chat_elicitation_required">আবশ্যক</string>
     <string name="chat_elicitation_invalid">এই ফিল্ডটি যাচাই করুন</string>
     <string name="chat_elicitation_no_browser">এই লিংক খোলার মতো কোনো অ্যাপ নেই</string>
-    <string name="chat_no_tool_output">কোনো টুল আউটপুট নেই।</string>
+
     <string name="chat_picker_empty">কোনো আইটেম নেই।</string>
     <string name="chat_picker_no_results">মিলছে এমন কোনো আইটেম নেই।</string>
     <string name="chat_search_desc">অনুসন্ধান</string>
     <string name="chat_recent">সাম্প্রতিক</string>
     <string name="chat_all_items">সব আইটেম</string>
-    <string name="chat_selected_desc">নির্বাচিত</string>
+
     <string name="chat_picker_no_values">এজেন্ট থেকে কোনো মান পাওয়া যায়নি।</string>
     <string name="chat_picker_no_models">মিলছে এমন কোনো মডেল নেই।</string>
     <string name="chat_search_placeholder">%1$s অনুসন্ধান করুন</string>
@@ -132,58 +120,9 @@
     <string name="chat_attach_nothing_found">সংযুক্ত করার জন্য কোনো ছবি বা ফাইল নেই</string>
     <string name="chat_remove_file_desc">ফাইল সরান</string>
     <string name="chat_remove_image_desc">ছবি সরান</string>
-    <string name="chat_git_binary">বাইনারি</string>
-    <string name="chat_git_clean">কাজের ট্রি পরিষ্কার</string>
-    <string name="chat_git_worktree">Worktree</string>
-    <string name="chat_git_worktree_dirty">কমিট করা হয়নি</string>
-    <string name="chat_git_no_branch">(শাখা নেই)</string>
-    <string name="chat_git_status_title">Git</string>
+
     <string name="chat_git_status_desc">গিট স্ট্যাটাসের বিবরণ</string>
-    <string name="chat_git_directory">ডিরেক্টরি</string>
-    <string name="chat_git_staged">স্টেজ করা</string>
-    <string name="chat_git_unstaged">পরিবর্তন</string>
-    <string name="chat_git_file_deleted">ফাইলটি আর ওয়ার্কিং ট্রিতে নেই: %1$s</string>
-    <string name="chat_git_tab_changes">পরিবর্তন</string>
-    <string name="chat_git_tab_history">ইতিহাস</string>
-    <string name="chat_git_ref_branch">ব্রাঞ্চ %1$s</string>
-    <string name="chat_git_ref_remote">রিমোট ব্রাঞ্চ %1$s</string>
-    <string name="chat_git_ref_tag">ট্যাগ %1$s</string>
-    <string name="chat_git_ref_detached">বিচ্ছিন্ন HEAD</string>
-    <string name="chat_git_copy_sha">কমিট হ্যাশ %1$s কপি করুন</string>
-    <string name="chat_git_sha_copied">কমিট হ্যাশ কপি হয়েছে</string>
-    <string name="chat_git_commit_body_expand">পুরো বার্তা দেখান</string>
-    <string name="chat_git_commit_body_collapse">কম দেখান</string>
-    <string name="chat_git_commit_no_files">এই ডিরেক্টরিতে কোনো পরিবর্তন নেই</string>
-    <string name="chat_git_loading">লোড হচ্ছে</string>
-    <string name="chat_git_open_on_github">GitHub-এ খুলুন</string>
-    <string name="chat_git_open_in_browser">ব্রাউজারে খুলুন</string>
-    <string name="chat_git_commit_error_title">এই কমিট লোড করা যায়নি</string>
-    <string name="chat_git_history_empty">এখনো কোনো কমিট নেই</string>
-    <string name="chat_git_history_error_title">ইতিহাস লোড করা যায়নি</string>
-    <string name="chat_git_history_more_failed">আরও কমিট লোড করা যায়নি</string>
-    <plurals name="chat_git_day_commits">
-        <item quantity="one">সেদিন %1$dটি কমিট</item>
-        <item quantity="other">সেদিন %1$dটি কমিট</item>
-    </plurals>
-    <string name="chat_git_compare_vs">vs</string>
-    <string name="chat_git_compare_working_tree">কাজের ট্রি</string>
-    <string name="chat_git_compare_uncommitted">অকমিটেড পরিবর্তন</string>
-    <string name="chat_git_compare_title">ব্রাঞ্চের সাথে তুলনা করুন</string>
-    <string name="chat_git_compare_local">লোকাল</string>
-    <string name="chat_git_compare_remote">রিমোট</string>
-    <string name="chat_git_compare_tags">ট্যাগ</string>
-    <string name="chat_git_compare_chip_desc">%1$s-এর সাথে তুলনা চলছে। লক্ষ্য পরিবর্তন করুন</string>
-    <string name="chat_git_compare_current">বর্তমান</string>
-    <string name="chat_git_compare_error_title">তুলনা লোড করা যায়নি</string>
-    <string name="chat_git_compare_identical">%1$s থেকে কোনো পার্থক্য নেই</string>
-    <string name="chat_git_compare_load_failed">তুলনা লোড করা যায়নি</string>
-    <string name="chat_git_compare_no_workspace">তুলনা লোড করার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই</string>
-    <string name="chat_git_compare_not_honoured">গেটওয়ে তুলনাটি প্রয়োগ করেনি</string>
-    <string name="chat_git_diff_no_workspace">গিট ডিফ লোড করার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই: %1$s</string>
-    <string name="chat_git_diff_load_failed">%1$s-এর জন্য গিট ডিফ লোড করা যায়নি</string>
-    <string name="chat_git_history_no_workspace">ইতিহাস লোড করার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই</string>
-    <string name="chat_git_history_load_failed">ইতিহাস লোড করা যায়নি</string>
-    <string name="chat_git_commit_load_failed">এই কমিট লোড করা যায়নি</string>
+
     <string name="chat_file_no_workspace">ফাইল পড়ার জন্য কোনো গেটওয়ে ওয়ার্কস্পেস সংযোগ নেই</string>
     <string name="chat_load_earlier">আগের বার্তাগুলো লোড করুন</string>
     <string-array name="chat_empty_titles">
@@ -224,10 +163,7 @@
         <item quantity="one">%1$dটি ডিকোড করা যায়নি এমন ছবি বাদ দেওয়া হয়েছে; প্রতি বার্তায় সীমা %2$dটি</item>
         <item quantity="other">%1$dটি ডিকোড করা যায়নি এমন ছবি বাদ দেওয়া হয়েছে; প্রতি বার্তায় সীমা %2$dটি</item>
     </plurals>
-    <plurals name="chat_git_files_changed">
-        <item quantity="one">%1$dটি ফাইল পরিবর্তিত হয়েছে</item>
-        <item quantity="other">%1$dটি ফাইল পরিবর্তিত হয়েছে</item>
-    </plurals>
+
     <string name="switcher_content_desc">সেশন বদলান</string>
     <string name="switcher_first_run_hint">সেশন বদলাতে সোয়াইপ করুন</string>
     <string name="switcher_title">সক্রিয় সেশনগুলি</string>

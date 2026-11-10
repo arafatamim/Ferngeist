@@ -27,10 +27,10 @@ import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
+import com.tamimarafat.ferngeist.core.git.syntax.SyntaxLanguageResolver
+import com.tamimarafat.ferngeist.core.git.syntax.rememberHighlightedCode
+import com.tamimarafat.ferngeist.core.git.syntax.styledCode
 import com.tamimarafat.ferngeist.feature.chat.R
-import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
-import com.tamimarafat.ferngeist.feature.chat.syntax.rememberHighlightedCode
-import com.tamimarafat.ferngeist.feature.chat.syntax.styledCode
 
 private const val MAX_TEXT_CHARS = 5000
 

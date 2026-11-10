@@ -577,13 +577,8 @@ interface ChatSessionInteraction {
 }
 
 /** Read-only access to a session's gateway workspace. */
-interface ChatWorkspaceReader {
-    /**
-     * Git status of this chat's gateway working tree, or null when it has none: a manual
-     * agent, a gateway chat whose runtime is not up yet, or a create-on-arrival chat that
-     * has not minted its real session id (the gateway would scope the read to whichever
-     * session it saw last).
-     */
+interface GitWorkspaceReader {
+    /** Git status of one gateway checkout, or null when this reader has no gateway workspace. */
     suspend fun fetchGitStatus(compare: String? = null): ChatGitStatus?
 
     /**
@@ -628,7 +623,9 @@ interface ChatWorkspaceReader {
      * when it has none. Transport failures propagate.
      */
     suspend fun fetchFile(path: String): ChatFileContents?
+}
 
+interface ChatWorkspaceReader : GitWorkspaceReader {
     /**
      * The workspace's files, relative to its project directory, or null when it has none. Possibly
      * cut short on a huge repo. Throws on a gateway without the list, and on transport failures.

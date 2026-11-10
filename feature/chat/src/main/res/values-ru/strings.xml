@@ -18,7 +18,6 @@
     <string name="chat_stop_desc">Стоп</string>
 
     <!-- Chat Top Bar -->
-    <string name="chat_back_desc">Назад</string>
 
     <!-- Message Bubble -->
     <string name="chat_reasoning">Рассуждение</string>
@@ -27,17 +26,8 @@
     <string name="chat_plan_desc">План</string>
     <string name="chat_completed_desc">Завершено</string>
     <string name="chat_error_desc">Ошибка</string>
-    <string name="chat_file_binary">Двоичный файл не показан</string>
     <string name="chat_image_unavailable">Изображение недоступно</string>
-    <string name="chat_file_empty">Пустой файл</string>
-    <string name="chat_file_deleted">Удалён в этой версии</string>
-    <string name="chat_file_origin_working_tree">Рабочее дерево</string>
-    <string name="chat_file_origin_commit">В %1$s</string>
-    <string name="chat_file_origin_compare">с %1$s</string>
-    <string name="chat_file_open_full">Открыть файл целиком</string>
-    <string name="chat_file_truncated">Показаны только первые 8 МиБ этого файла</string>
-    <string name="chat_file_soft_wrap">Перенос</string>
-    <string name="chat_file_markdown_preview">Просмотр</string>
+
     <string name="chat_tool_call">Вызов инструмента</string>
     <string name="chat_tool_call_details_desc">Детали вызова</string>
     <string name="chat_awaiting_permission">Ожидание разрешения</string>
@@ -67,9 +57,8 @@
     <!-- Chat Screen -->
     <string name="chat_mode_label">РЕЖИМ</string>
 
-    <string name="chat_retry">Повторить</string>
     <string name="chat_load_error_title">Не удалось загрузить сессию</string>
-    <string name="chat_diff_error_title">Не удалось загрузить этот diff</string>
+
     <string name="chat_permission_title">Требуется разрешение</string>
     <string name="chat_permission_body">Агент ожидает вашего разрешения перед продолжением.</string>
     <string name="chat_deny">Отклонить</string>
@@ -83,13 +72,13 @@
     <string name="chat_elicitation_required">Обязательно</string>
     <string name="chat_elicitation_invalid">Проверьте это поле</string>
     <string name="chat_elicitation_no_browser">Нет приложения для открытия этой ссылки</string>
-    <string name="chat_no_tool_output">Нет вывода инструмента.</string>
+
     <string name="chat_picker_empty">Пусто.</string>
     <string name="chat_picker_no_results">Ничего не найдено.</string>
     <string name="chat_search_desc">Поиск</string>
     <string name="chat_recent">Недавние</string>
     <string name="chat_all_items">Все</string>
-    <string name="chat_selected_desc">Выбрано</string>
+
     <string name="chat_picker_no_values">Нет данных от агента.</string>
     <string name="chat_picker_no_models">Модели не найдены.</string>
     <string name="chat_search_placeholder">Поиск %1$s</string>
@@ -136,59 +125,9 @@
     <string name="chat_attach_nothing_found">Нет изображения или файла для прикрепления</string>
     <string name="chat_remove_file_desc">Удалить файл</string>
     <string name="chat_remove_image_desc">Удалить изображение</string>
-    <string name="chat_git_binary">бинарный</string>
-    <string name="chat_git_clean">Рабочее дерево чистое</string>
-    <string name="chat_git_worktree">Worktree</string>
-    <string name="chat_git_worktree_dirty">есть изменения</string>
-    <string name="chat_git_no_branch">(нет ветки)</string>
-    <string name="chat_git_status_title">Git</string>
+
     <string name="chat_git_status_desc">Сведения о статусе Git</string>
-    <string name="chat_git_directory">Каталог</string>
-    <string name="chat_git_staged">В индексе</string>
-    <string name="chat_git_unstaged">Изменения</string>
-    <string name="chat_git_file_deleted">Файла больше нет в рабочем дереве: %1$s</string>
-    <string name="chat_git_tab_changes">Изменения</string>
-    <string name="chat_git_tab_history">История</string>
-    <string name="chat_git_ref_branch">ветка %1$s</string>
-    <string name="chat_git_ref_remote">удалённая ветка %1$s</string>
-    <string name="chat_git_ref_tag">тег %1$s</string>
-    <string name="chat_git_ref_detached">отсоединённый HEAD</string>
-    <string name="chat_git_copy_sha">Скопировать хеш коммита %1$s</string>
-    <string name="chat_git_sha_copied">Хеш коммита скопирован</string>
-    <string name="chat_git_commit_body_expand">Показать сообщение полностью</string>
-    <string name="chat_git_commit_body_collapse">Свернуть</string>
-    <string name="chat_git_commit_no_files">В этом каталоге нет изменений</string>
-    <string name="chat_git_loading">Загрузка</string>
-    <string name="chat_git_open_on_github">Открыть на GitHub</string>
-    <string name="chat_git_open_in_browser">Открыть в браузере</string>
-    <string name="chat_git_commit_error_title">Не удалось загрузить коммит</string>
-    <string name="chat_git_history_empty">Коммитов пока нет</string>
-    <string name="chat_git_history_error_title">Не удалось загрузить историю</string>
-    <string name="chat_git_history_more_failed">Не удалось загрузить больше коммитов</string>
-    <plurals name="chat_git_day_commits">
-        <item quantity="one">%1$d коммит в этот день</item>
-        <item quantity="few">%1$d коммита в этот день</item>
-        <item quantity="many">%1$d коммитов в этот день</item>
-    </plurals>
-    <string name="chat_git_compare_vs">vs</string>
-    <string name="chat_git_compare_working_tree">Рабочее дерево</string>
-    <string name="chat_git_compare_uncommitted">Незафиксированные изменения</string>
-    <string name="chat_git_compare_title">Сравнить с веткой</string>
-    <string name="chat_git_compare_local">Локальные</string>
-    <string name="chat_git_compare_remote">Удалённые</string>
-    <string name="chat_git_compare_tags">Теги</string>
-    <string name="chat_git_compare_chip_desc">Сравнение с %1$s. Сменить цель</string>
-    <string name="chat_git_compare_current">текущая</string>
-    <string name="chat_git_compare_error_title">Не удалось загрузить сравнение</string>
-    <string name="chat_git_compare_identical">Нет отличий от %1$s</string>
-    <string name="chat_git_compare_load_failed">Не удалось загрузить сравнение</string>
-    <string name="chat_git_compare_no_workspace">Нет подключения к рабочей области шлюза для загрузки сравнения</string>
-    <string name="chat_git_compare_not_honoured">Шлюз не применил сравнение</string>
-    <string name="chat_git_diff_no_workspace">Нет подключения к рабочей области шлюза для загрузки diff git для %1$s</string>
-    <string name="chat_git_diff_load_failed">Не удалось загрузить diff git для %1$s</string>
-    <string name="chat_git_history_no_workspace">Нет подключения к рабочей области шлюза для загрузки истории</string>
-    <string name="chat_git_history_load_failed">Не удалось загрузить историю</string>
-    <string name="chat_git_commit_load_failed">Не удалось загрузить этот коммит</string>
+
     <string name="chat_file_no_workspace">Нет подключения к рабочей области шлюза для чтения файла</string>
     <string name="chat_load_earlier">Загрузить более ранние сообщения</string>
     <string-array name="chat_empty_titles">
@@ -235,11 +174,7 @@
         <item quantity="few">Отброшено %1$d нераскодированных изображения; лимит — %2$d на сообщение</item>
         <item quantity="many">Отброшено %1$d нераскодированных изображений; лимит — %2$d на сообщение</item>
     </plurals>
-    <plurals name="chat_git_files_changed">
-        <item quantity="one">%1$d файл изменен</item>
-        <item quantity="few">%1$d файла изменено</item>
-        <item quantity="many">%1$d файлов изменено</item>
-    </plurals>
+
     <string name="switcher_content_desc">Переключить сеанс</string>
     <string name="switcher_first_run_hint">Проведите, чтобы переключить сеанс</string>
     <string name="switcher_title">Активные сеансы</string>

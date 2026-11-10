@@ -18,7 +18,6 @@
     <string name="chat_stop_desc">停止</string>
 
     <!-- Chat Top Bar -->
-    <string name="chat_back_desc">返回</string>
 
     <!-- Message Bubble -->
     <string name="chat_reasoning">推理</string>
@@ -27,17 +26,8 @@
     <string name="chat_plan_desc">计划</string>
     <string name="chat_completed_desc">已完成</string>
     <string name="chat_error_desc">错误</string>
-    <string name="chat_file_binary">二进制文件，不显示</string>
     <string name="chat_image_unavailable">图片不可用</string>
-    <string name="chat_file_empty">空文件</string>
-    <string name="chat_file_deleted">在此修订中已删除</string>
-    <string name="chat_file_origin_working_tree">工作区</string>
-    <string name="chat_file_origin_commit">于 %1$s</string>
-    <string name="chat_file_origin_compare">对比 %1$s</string>
-    <string name="chat_file_open_full">打开完整文件</string>
-    <string name="chat_file_truncated">仅显示此文件的前 8 MiB</string>
-    <string name="chat_file_soft_wrap">换行</string>
-    <string name="chat_file_markdown_preview">预览</string>
+
     <string name="chat_tool_call">工具调用</string>
     <string name="chat_tool_call_details_desc">显示工具调用详情</string>
     <string name="chat_awaiting_permission">等待权限响应</string>
@@ -69,9 +59,8 @@
     <!-- Chat Screen -->
     <string name="chat_mode_label">模式</string>
 
-    <string name="chat_retry">重试</string>
     <string name="chat_load_error_title">无法加载此会话</string>
-    <string name="chat_diff_error_title">无法加载此差异</string>
+
     <string name="chat_permission_title">需要权限</string>
     <string name="chat_permission_body">代理正在等待您的批准以继续操作。</string>
     <string name="chat_deny">拒绝</string>
@@ -85,13 +74,13 @@
     <string name="chat_elicitation_required">必填</string>
     <string name="chat_elicitation_invalid">请检查此字段</string>
     <string name="chat_elicitation_no_browser">没有可打开此链接的应用</string>
-    <string name="chat_no_tool_output">无工具输出。</string>
+
     <string name="chat_picker_empty">暂无项目</string>
     <string name="chat_picker_no_results">没有匹配的项目。</string>
     <string name="chat_search_desc">搜索</string>
     <string name="chat_recent">最近</string>
     <string name="chat_all_items">所有项目</string>
-    <string name="chat_selected_desc">已选择</string>
+
     <string name="chat_picker_no_values">代理无可用值。</string>
     <string name="chat_picker_no_models">没有匹配的模型。</string>
     <string name="chat_search_placeholder">搜索 %1$s</string>
@@ -138,57 +127,9 @@
     <string name="chat_attach_nothing_found">没有可附加的图片或文件</string>
     <string name="chat_remove_file_desc">移除文件</string>
     <string name="chat_remove_image_desc">移除图片</string>
-    <string name="chat_git_binary">二进制</string>
-    <string name="chat_git_clean">工作区是干净的</string>
-    <string name="chat_git_worktree">Worktree</string>
-    <string name="chat_git_worktree_dirty">未提交</string>
-    <string name="chat_git_no_branch">(无分支)</string>
-    <string name="chat_git_status_title">Git</string>
+
     <string name="chat_git_status_desc">Git 状态详情</string>
-    <string name="chat_git_directory">目录</string>
-    <string name="chat_git_staged">已暂存</string>
-    <string name="chat_git_unstaged">更改</string>
-    <string name="chat_git_file_deleted">文件已不在工作区中：%1$s</string>
-    <string name="chat_git_tab_changes">更改</string>
-    <string name="chat_git_tab_history">历史</string>
-    <string name="chat_git_ref_branch">分支 %1$s</string>
-    <string name="chat_git_ref_remote">远程分支 %1$s</string>
-    <string name="chat_git_ref_tag">标签 %1$s</string>
-    <string name="chat_git_ref_detached">分离的 HEAD</string>
-    <string name="chat_git_copy_sha">复制提交哈希 %1$s</string>
-    <string name="chat_git_sha_copied">已复制提交哈希</string>
-    <string name="chat_git_commit_body_expand">显示完整信息</string>
-    <string name="chat_git_commit_body_collapse">收起</string>
-    <string name="chat_git_commit_no_files">此目录中没有更改</string>
-    <string name="chat_git_loading">正在加载</string>
-    <string name="chat_git_open_on_github">在 GitHub 上打开</string>
-    <string name="chat_git_open_in_browser">在浏览器中打开</string>
-    <string name="chat_git_commit_error_title">无法加载此提交</string>
-    <string name="chat_git_history_empty">暂无提交</string>
-    <string name="chat_git_history_error_title">无法加载历史记录</string>
-    <string name="chat_git_history_more_failed">无法加载更多提交</string>
-    <plurals name="chat_git_day_commits">
-        <item quantity="other">当天 %1$d 个提交</item>
-    </plurals>
-    <string name="chat_git_compare_vs">vs</string>
-    <string name="chat_git_compare_working_tree">工作区</string>
-    <string name="chat_git_compare_uncommitted">未提交的更改</string>
-    <string name="chat_git_compare_title">与分支比较</string>
-    <string name="chat_git_compare_local">本地</string>
-    <string name="chat_git_compare_remote">远程</string>
-    <string name="chat_git_compare_tags">标签</string>
-    <string name="chat_git_compare_chip_desc">正在与 %1$s 比较。更改目标</string>
-    <string name="chat_git_compare_current">当前</string>
-    <string name="chat_git_compare_error_title">无法加载比较结果</string>
-    <string name="chat_git_compare_identical">与 %1$s 没有差异</string>
-    <string name="chat_git_compare_load_failed">无法加载比较结果</string>
-    <string name="chat_git_compare_no_workspace">没有网关工作区连接，无法加载比较</string>
-    <string name="chat_git_compare_not_honoured">网关未应用该比较</string>
-    <string name="chat_git_diff_no_workspace">没有网关工作区连接，无法加载 %1$s 的 git 差异</string>
-    <string name="chat_git_diff_load_failed">无法加载 %1$s 的 git 差异</string>
-    <string name="chat_git_history_no_workspace">没有网关工作区连接，无法加载历史记录</string>
-    <string name="chat_git_history_load_failed">无法加载历史记录</string>
-    <string name="chat_git_commit_load_failed">无法加载此提交</string>
+
     <string name="chat_file_no_workspace">没有网关工作区连接，无法读取文件</string>
     <string name="chat_load_earlier">加载更早的消息</string>
     <string-array name="chat_empty_titles">
@@ -223,9 +164,7 @@
     <plurals name="chat_images_dropped_capped">
         <item quantity="other">已丢弃 %1$d 张无法解码的图片；每条消息限制为 %2$d 张</item>
     </plurals>
-    <plurals name="chat_git_files_changed">
-        <item quantity="other">%1$d 个文件已更改</item>
-    </plurals>
+
     <string name="switcher_content_desc">切换会话</string>
     <string name="switcher_first_run_hint">滑动即可切换会话</string>
     <string name="switcher_title">活动会话</string>

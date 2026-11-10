@@ -44,6 +44,7 @@ dependencies {
     // === Core ===
     implementation(projects.core.model)
     implementation(projects.core.common)
+    implementation(projects.core.git)
     implementation(projects.data.database)
     implementation(projects.acpBridge)
     implementation(projects.gatewayClient)

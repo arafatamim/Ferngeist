@@ -7,10 +7,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tamimarafat.ferngeist.acp.bridge.connection.AndroidConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.facade.AcpChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.acp.bridge.facade.GatewayProjectGitReaderFactory
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.HubPersistence
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitReaderFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.data.database.FerngeistDatabase
@@ -51,6 +53,9 @@ private const val HTTP_SOCKET_TIMEOUT_MS = 30_000L
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+    @Provides
+    fun provideProjectGitReaderFactory(factory: GatewayProjectGitReaderFactory): ProjectGitReaderFactory = factory
+
     /** Provides the Room database with all current migrations registered. */
     @Provides
     @Singleton

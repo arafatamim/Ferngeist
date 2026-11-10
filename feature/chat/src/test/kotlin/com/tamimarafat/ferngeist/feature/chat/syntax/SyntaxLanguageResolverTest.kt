@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.syntax
 
+import com.tamimarafat.ferngeist.core.git.syntax.SyntaxLanguageResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

@@ -66,12 +66,13 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.git.ui.DiffStatsRow
+import com.tamimarafat.ferngeist.core.git.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.core.git.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SegmentBlock
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.landed

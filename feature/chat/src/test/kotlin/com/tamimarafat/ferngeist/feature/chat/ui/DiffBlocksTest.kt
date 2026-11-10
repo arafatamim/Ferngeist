@@ -1,14 +1,15 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.git.ui.LineDiffRow
+import com.tamimarafat.ferngeist.core.git.ui.diff.DiffBlockResult
+import com.tamimarafat.ferngeist.core.git.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.core.git.ui.diff.buildDiffRows
+import com.tamimarafat.ferngeist.core.git.ui.diff.computeDiffBlocks
+import com.tamimarafat.ferngeist.core.git.ui.diff.computeDiffStats
+import com.tamimarafat.ferngeist.core.git.ui.diff.fileNameOf
+import com.tamimarafat.ferngeist.core.git.ui.diff.isDirectoryEntry
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffBlockResult
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.buildDiffRows
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffBlocks
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.fileNameOf
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.isDirectoryEntry
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

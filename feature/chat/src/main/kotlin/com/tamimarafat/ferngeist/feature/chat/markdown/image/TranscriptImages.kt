@@ -7,8 +7,8 @@ import coil3.decode.ImageSource
 import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import coil3.request.Options
+import com.tamimarafat.ferngeist.core.git.files.relativeTo
 import com.tamimarafat.ferngeist.core.model.ChatWorkspaceReader
-import com.tamimarafat.ferngeist.feature.chat.relativeTo
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible

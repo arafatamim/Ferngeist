@@ -7,13 +7,8 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -61,10 +56,12 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.isWindowShort
 import com.tamimarafat.ferngeist.core.common.ui.onSecondaryClick
 import com.tamimarafat.ferngeist.core.common.ui.sessionTitleSharedBounds
+import com.tamimarafat.ferngeist.core.git.ui.GitIndicatorVisibility
+import com.tamimarafat.ferngeist.core.git.ui.GitStatusIndicatorButton
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
-import com.tamimarafat.ferngeist.feature.chat.R
 import kotlinx.coroutines.launch
+import com.tamimarafat.ferngeist.core.git.R as GitR
 
 // region: ChatTopBar
 
@@ -262,7 +259,7 @@ private fun TopBarBackButton(onNavigateBack: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-            contentDescription = stringResource(R.string.chat_back_desc),
+            contentDescription = stringResource(GitR.string.chat_back_desc),
         )
     }
 }
@@ -307,11 +304,7 @@ private fun TopBarActions(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AnimatedVisibility(
-            visible = gitRepo,
-            enter = fadeIn() + scaleIn(initialScale = 0.6f),
-            exit = fadeOut() + scaleOut(targetScale = 0.6f),
-        ) {
+        GitIndicatorVisibility(visible = gitRepo) {
             GitStatusIndicatorButton(
                 additions = gitAdditions,
                 deletions = gitDeletions,

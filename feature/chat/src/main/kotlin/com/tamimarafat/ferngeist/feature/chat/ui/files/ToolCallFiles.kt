@@ -8,9 +8,9 @@ import androidx.compose.runtime.setValue
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.git.files.entryFor
+import com.tamimarafat.ferngeist.core.git.ui.fileName
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
-import com.tamimarafat.ferngeist.feature.chat.ui.entryFor
-import com.tamimarafat.ferngeist.feature.chat.ui.fileName
 import com.tamimarafat.ferngeist.feature.chat.ui.localTurnGitFallback
 import com.tamimarafat.ferngeist.feature.chat.ui.localWorkingTreeChanges
 import com.tamimarafat.ferngeist.feature.chat.ui.revision

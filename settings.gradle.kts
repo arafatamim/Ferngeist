@@ -30,6 +30,7 @@ include(":gateway-client")
 include(":feature:serverlist")
 include(":feature:sessionlist")
 include(":feature:chat")
+include(":core:git")
 include(":e2e")
 include(":konsist")
 

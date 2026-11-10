@@ -43,25 +43,26 @@ import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
+import com.tamimarafat.ferngeist.core.git.ui.DiffRenderer
+import com.tamimarafat.ferngeist.core.git.ui.git.GitTooltip
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.IncrementalMarkdown
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.AGENT_TEXT_MAX_LINES
 import com.tamimarafat.ferngeist.feature.chat.ui.ContentBlockRenderer
-import com.tamimarafat.ferngeist.feature.chat.ui.DiffRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
 import com.tamimarafat.ferngeist.feature.chat.ui.TerminalRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.gitFallbackDiffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
-import com.tamimarafat.ferngeist.feature.chat.ui.git.GitTooltip
 import com.tamimarafat.ferngeist.feature.chat.ui.localFileOpener
 import com.tamimarafat.ferngeist.feature.chat.ui.toolCallStatusLabel
 import com.tamimarafat.ferngeist.feature.chat.ui.toolKindLabel
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
+import com.tamimarafat.ferngeist.core.git.R as GitR
 
 @Composable
 internal fun ToolCallDetailsSheet(
@@ -122,7 +123,7 @@ internal fun ToolCallDetailsHeader(toolCall: ToolCallDisplay) {
                 modifier = Modifier.weight(1f),
             )
             if (openablePath != null && openFile != null) {
-                val label = stringResource(R.string.chat_file_open_full)
+                val label = stringResource(GitR.string.chat_file_open_full)
                 GitTooltip(label) {
                     IconButton(
                         onClick = { openFile(listOf(openablePath)) },
@@ -201,7 +202,7 @@ internal fun ToolCallDetailsBody(toolCall: ToolCallDisplay) {
             )
         } else {
             Text(
-                text = stringResource(R.string.chat_no_tool_output),
+                text = stringResource(GitR.string.chat_no_tool_output),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

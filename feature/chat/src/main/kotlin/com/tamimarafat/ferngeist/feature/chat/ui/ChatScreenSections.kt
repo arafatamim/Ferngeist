@@ -80,6 +80,7 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import com.tamimarafat.ferngeist.core.git.R as GitR
 
 /**
  * Collects one-shot [ChatEffect]s from the view model and renders them as
@@ -280,7 +281,7 @@ private fun ChatLoadError(
             medallionContainer = MaterialTheme.colorScheme.errorContainer,
             medallionContent = MaterialTheme.colorScheme.onErrorContainer,
             medallionShape = MaterialShapes.VerySunny.toShape(),
-            ctaLabel = stringResource(R.string.chat_retry),
+            ctaLabel = stringResource(GitR.string.chat_retry),
             onCta = onRetry,
         )
     }

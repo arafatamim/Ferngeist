@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.git
 
+import com.tamimarafat.ferngeist.core.git.git.Coalesced
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle

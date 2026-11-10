@@ -49,6 +49,7 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.ui.ProjectSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.ProjectTitleSharedBoundsKey
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.git.ui.ProjectGitAction
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.isSameCwd
@@ -59,6 +60,7 @@ import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.WorktreeScope
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.displayName
 import com.tamimarafat.ferngeist.feature.sessionlist.cwd.worktreeScopeOptions
+import com.tamimarafat.ferngeist.feature.sessionlist.git.scopedGitTarget
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.FiltersButton
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.NewWorktreeSheet
 import com.tamimarafat.ferngeist.feature.sessionlist.ui.RemoveWorktreeDialog
@@ -128,6 +130,7 @@ fun ProjectScreen(
         onConfirmRemove = { pendingRemoval = it },
     )
 
+    val gitTarget = scopedGitTarget(project?.gateway, project?.repo, scope)
     val repo = project?.repo
     val options = remember(project, worktrees) { project?.let { worktreeScopeOptions(it, worktrees) }.orEmpty() }
     val scopeName = scopeChipLabel(scope, options)
@@ -159,6 +162,7 @@ fun ProjectScreen(
                     sharedTransitionScope,
                     animatedContentScope,
                     sharedBoundsEnabled,
+                    gitAction = { ProjectGitAction(gitTarget, viewModel.gitReaderFactory) },
                     filterChips = {
                         ActiveFilterChips(
                             agentName = selectedAgent?.name,
@@ -347,6 +351,7 @@ private fun ProjectTopBar(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     sharedBoundsEnabled: Boolean,
+    gitAction: @Composable () -> Unit,
     filterChips: @Composable () -> Unit,
 ) {
     val collapse = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
@@ -384,6 +389,7 @@ private fun ProjectTopBar(
                 }
             }
         },
+        actions = { gitAction() },
         collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
         expandedHeight = TopAppBarDefaults.LargeAppBarExpandedHeight,
         scrollBehavior = scrollBehavior,

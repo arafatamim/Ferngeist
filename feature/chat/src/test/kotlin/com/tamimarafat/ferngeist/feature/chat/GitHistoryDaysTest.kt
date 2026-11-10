@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.core.git.graph.dayGroupSizes
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

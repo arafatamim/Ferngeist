@@ -1,6 +1,10 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.git.files.FileView
+import com.tamimarafat.ferngeist.core.git.files.GitFileLoader
+import com.tamimarafat.ferngeist.core.git.files.markedFile
+import com.tamimarafat.ferngeist.core.git.files.relativeTo
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
@@ -129,7 +133,7 @@ class ChatFileLoaderTest {
         tree: List<ChatChangedFile> = emptyList(),
     ): FileView? {
         var state = ChatState()
-        ChatFileLoader(this, facade, { state = it(state) }, "/repo", { tree })
+        GitFileLoader(this, facade, { state = state.copy(openFile = it) }, "/repo", { tree })
             .open(path, commit, compare)
         advanceUntilIdle()
         return state.openFile

@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.core.model.repository.CodexBarNotFoundException
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
@@ -14,6 +15,7 @@ import javax.inject.Inject
 
 private val protocolVerifiedNanos = TimeUnit.MINUTES.toNanos(5)
 
+private const val PROJECTS_SEGMENT = "projects"
 private const val AGENTS_SEGMENT = "agents"
 private const val RUNTIMES_SEGMENT = "runtimes"
 private const val WORKTREES_SEGMENT = "worktrees"
@@ -420,23 +422,22 @@ class GatewayRepositoryImpl
         }
 
         override suspend fun fetchGitStatus(
-            connection: GatewayWorkspaceConnection,
-            acpSessionId: String?,
+            connection: ProjectGitTarget,
             compare: String?,
         ): GatewayGitStatus =
             http.getJson(
                 scheme = connection.scheme,
                 host = connection.host,
                 credential = connection.gatewayCredential,
-                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "status"),
-                query = compareQuery(compare) + acpSessionQuery(acpSessionId),
+                segments = arrayOf("v1", PROJECTS_SEGMENT, "git", "status"),
+                query = compareQuery(compare) + mapOf("cwd" to connection.cwd),
             )
 
         override suspend fun fetchGitDiff(
-            connection: GatewayWorkspaceConnection,
+            connection: ProjectGitTarget,
             query: GatewayDiffQuery,
         ): List<ToolCallContent.Diff> {
-            val segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "diff")
+            val segments = arrayOf("v1", PROJECTS_SEGMENT, "git", "diff")
             val pathQuery =
                 query.path
                     ?.takeIf { it.isNotBlank() }
@@ -444,7 +445,7 @@ class GatewayRepositoryImpl
                     .orEmpty()
             val commitQuery =
                 listOfNotNull(query.commit?.let { "commit" to it }, query.oldPath?.let { "oldPath" to it }).toMap()
-            val httpQuery = pathQuery + commitQuery + compareQuery(query.compare) + acpSessionQuery(query.acpSessionId)
+            val httpQuery = pathQuery + commitQuery + compareQuery(query.compare) + mapOf("cwd" to connection.cwd)
             return if (pathQuery.isEmpty()) {
                 // Whole-tree: gateway returns a JSON array of ToolCallContentDiff objects.
                 http.getJson(
@@ -469,46 +470,54 @@ class GatewayRepositoryImpl
         }
 
         override suspend fun fetchGitLog(
-            connection: GatewayWorkspaceConnection,
+            connection: ProjectGitTarget,
             query: GatewayLogQuery,
         ): GatewayGitLog =
             http.getJson(
                 scheme = connection.scheme,
                 host = connection.host,
                 credential = connection.gatewayCredential,
-                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "log"),
+                segments = arrayOf("v1", PROJECTS_SEGMENT, "git", "log"),
                 query =
                     listOfNotNull(
                         query.head?.let { "head" to it },
                         "skip" to query.skip.toString(),
                         "limit" to query.limit.toString(),
                     ).toMap() + compareQuery(query.compare) + beyondQuery(query.beyond) +
-                        acpSessionQuery(query.acpSessionId),
+                        mapOf("cwd" to connection.cwd),
             )
 
-        override suspend fun fetchGitRefs(
-            connection: GatewayWorkspaceConnection,
-            acpSessionId: String?,
-        ): GatewayGitRefs =
+        override suspend fun fetchGitRefs(connection: ProjectGitTarget): GatewayGitRefs =
             http.getJson(
                 scheme = connection.scheme,
                 host = connection.host,
                 credential = connection.gatewayCredential,
-                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "refs"),
-                query = acpSessionQuery(acpSessionId),
+                segments = arrayOf("v1", PROJECTS_SEGMENT, "git", "refs"),
+                query = mapOf("cwd" to connection.cwd),
             )
 
         override suspend fun fetchGitCommit(
-            connection: GatewayWorkspaceConnection,
+            connection: ProjectGitTarget,
             sha: String,
-            acpSessionId: String?,
         ): GatewayGitCommitFiles =
             http.getJson(
                 scheme = connection.scheme,
                 host = connection.host,
                 credential = connection.gatewayCredential,
-                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "git", "commits", sha),
-                query = acpSessionQuery(acpSessionId),
+                segments = arrayOf("v1", PROJECTS_SEGMENT, "git", "commits", sha),
+                query = mapOf("cwd" to connection.cwd),
+            )
+
+        override suspend fun fetchProjectFile(
+            connection: ProjectGitTarget,
+            path: String,
+        ): GatewayFileContents =
+            http.getJson(
+                scheme = connection.scheme,
+                host = connection.host,
+                credential = connection.gatewayCredential,
+                segments = arrayOf("v1", PROJECTS_SEGMENT, "files"),
+                query = mapOf("cwd" to connection.cwd, "path" to path),
             )
 
         override suspend fun fetchFile(

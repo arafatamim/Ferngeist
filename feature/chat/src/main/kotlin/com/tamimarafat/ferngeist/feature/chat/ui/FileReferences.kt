@@ -18,9 +18,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.git.files.relativeTo
+import com.tamimarafat.ferngeist.core.git.ui.FileChip
+import com.tamimarafat.ferngeist.core.git.ui.fileName
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.feature.chat.markdown.InlineChips
-import com.tamimarafat.ferngeist.feature.chat.relativeTo
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import java.nio.file.Paths
 

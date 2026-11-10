@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.syntax
 
+import com.tamimarafat.ferngeist.core.git.syntax.SyntaxHighlighter
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest

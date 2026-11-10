@@ -5,6 +5,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.common.MviViewModel
+import com.tamimarafat.ferngeist.core.git.files.GitFileLoader
+import com.tamimarafat.ferngeist.core.git.git.ChatGitFileDiffLoader
+import com.tamimarafat.ferngeist.core.git.git.ChatGitHistoryLoader
+import com.tamimarafat.ferngeist.core.git.git.ChatGitStatusLoader
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
@@ -21,9 +25,6 @@ import com.tamimarafat.ferngeist.core.model.qualified
 import com.tamimarafat.ferngeist.feature.chat.activity.ActivityConfirmation
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
-import com.tamimarafat.ferngeist.feature.chat.git.ChatGitFileDiffLoader
-import com.tamimarafat.ferngeist.feature.chat.git.ChatGitHistoryLoader
-import com.tamimarafat.ferngeist.feature.chat.git.ChatGitStatusLoader
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitTurnDiffLoader
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.TranscriptImageLoader
 import com.tamimarafat.ferngeist.feature.chat.pending.reconcileEchoes
@@ -279,7 +280,6 @@ class ChatViewModel
                 scope = viewModelScope,
                 facade = sessionFacade,
                 update = { reducer -> updateState { copy(git = git.reducer()) } },
-                acpSessionId = { trackedSessionId.takeIf { it != NEW_SESSION_ARG } },
                 git = { state.value.git },
                 onStatusRefreshed = gitTurnDiffLoader::rereadLoaded,
             )
@@ -295,10 +295,10 @@ class ChatViewModel
 
         /** The file sheet's file, read from the gateway workspace. */
         private val fileLoader =
-            ChatFileLoader(
+            GitFileLoader(
                 scope = viewModelScope,
                 facade = sessionFacade,
-                update = { reducer -> updateState(reducer) },
+                update = { file -> updateState { copy(openFile = file) } },
                 cwd = cwd,
                 tree = {
                     state.value.git.status

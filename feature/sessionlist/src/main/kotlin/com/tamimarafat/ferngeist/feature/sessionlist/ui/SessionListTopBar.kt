@@ -5,8 +5,10 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -20,6 +22,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TwoRowsTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -47,6 +50,7 @@ internal fun SessionListTopBar(
     onNavigateBack: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    gitAction: @Composable () -> Unit,
     filterChips: @Composable () -> Unit,
 ) {
     if (isWindowShort()) {
@@ -81,6 +85,7 @@ internal fun SessionListTopBar(
                     SessionListTopBarActions(
                         state = state,
                         onShowConnectionStatusDialog = onShowConnectionStatusDialog,
+                        gitAction = gitAction,
                     )
                 },
                 scrollBehavior = state.screen.scrollBehavior,
@@ -124,6 +129,7 @@ internal fun SessionListTopBar(
             SessionListTopBarActions(
                 state = state,
                 onShowConnectionStatusDialog = onShowConnectionStatusDialog,
+                gitAction = gitAction,
             )
         },
         collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
@@ -137,11 +143,15 @@ internal fun SessionListTopBar(
 private fun SessionListTopBarActions(
     state: SessionListState,
     onShowConnectionStatusDialog: () -> Unit,
+    gitAction: @Composable () -> Unit,
 ) {
-    ConnectionStatusPill(
-        connectionState = state.connection.connectionState,
-        onClick = onShowConnectionStatusDialog,
-    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        gitAction()
+        ConnectionStatusPill(
+            connectionState = state.connection.connectionState,
+            onClick = onShowConnectionStatusDialog,
+        )
+    }
 }
 
 /**

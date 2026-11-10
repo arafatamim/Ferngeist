@@ -1,6 +1,6 @@
 package com.tamimarafat.ferngeist.gateway
 
-import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import io.ktor.client.HttpClient
@@ -63,8 +63,8 @@ class GatewayWorkspaceTest {
             val status =
                 repo.fetchGitStatus(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "10.0.0.2:5788",
                             gatewayCredential = "plain-token",
@@ -73,7 +73,7 @@ class GatewayWorkspaceTest {
 
             val request = requireNotNull(captured)
             assertEquals(HttpMethod.Get, request.method)
-            assertEquals("/v1/runtimes/rt-1/git/status", request.url.encodedPath)
+            assertEquals("/v1/projects/git/status", request.url.encodedPath)
             assertEquals("Bearer plain-token", request.headers["Authorization"])
 
             val changed = requireNotNull(status.changed)
@@ -92,6 +92,19 @@ class GatewayWorkspaceTest {
         }
 
     @Test
+    fun `project files use the checkout and relative path without a runtime`() =
+        runTest {
+            var captured: HttpRequestData? = null
+            val repo = repoCapturing(responseBody = """{"text":"hello","truncated":false}""") { captured = it }
+            val file = repo.fetchProjectFile(ProjectGitTarget("http", "gateway", "paired", "/repo"), "src/A.kt")
+            val request = requireNotNull(captured)
+            assertEquals("/v1/projects/files", request.url.encodedPath)
+            assertEquals("/repo", request.url.parameters["cwd"])
+            assertEquals("src/A.kt", request.url.parameters["path"])
+            assertEquals("hello", file.text)
+        }
+
+    @Test
     fun `fetchGitStatus decodes an empty clean-tree response`() =
         runTest {
             // A clean tree arrives as `"changed":null`: the gateway marshals its nil Go slice,
@@ -102,8 +115,8 @@ class GatewayWorkspaceTest {
             val status =
                 repo.fetchGitStatus(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "10.0.0.2:5788",
                             gatewayCredential = "plain-token",
@@ -115,35 +128,20 @@ class GatewayWorkspaceTest {
         }
 
     @Test
-    fun `workspace calls scope to the ACP session when given one`() =
+    fun `project git reads scope to the checkout without an ACP session`() =
         runTest {
-            val queries = mutableListOf<String?>()
-            val repo = repoCapturing(responseBody = """[]""") { queries += it.url.encodedQuery }
-
-            runCatching {
-                repo.fetchGitStatus(
-                    connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
-                            scheme = "http",
-                            host = "10.0.0.2:5788",
-                            gatewayCredential = "plain-token",
-                        ),
-                    acpSessionId = "s-1",
-                )
-            }
-            repo.fetchGitDiff(
-                connection =
-                    GatewayWorkspaceConnection(
-                        runtimeId = "rt-1",
-                        scheme = "http",
-                        host = "10.0.0.2:5788",
-                        gatewayCredential = "plain-token",
-                    ),
-                query = GatewayDiffQuery(acpSessionId = "s-1"),
-            )
-
-            assertEquals(listOf("acpSessionId=s-1", "acpSessionId=s-1"), queries)
+            val requests = mutableListOf<HttpRequestData>()
+            val engine =
+                MockEngine { request ->
+                    requests += request
+                    respond(if (request.url.encodedPath.endsWith("/diff")) "[]" else "{}")
+                }
+            val repo = GatewayRepositoryImpl(HttpClient(engine), json)
+            val target = ProjectGitTarget("http", "gateway", "plain-token", "/repo with space")
+            repo.fetchGitStatus(target)
+            repo.fetchGitDiff(target)
+            assertEquals(listOf("/repo with space", "/repo with space"), requests.map { it.url.parameters["cwd"] })
+            assertTrue(requests.all { it.url.parameters["acpSessionId"] == null })
         }
 
     @Test
@@ -158,8 +156,8 @@ class GatewayWorkspaceTest {
             val diffs =
                 repo.fetchGitDiff(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "10.0.0.2:5788",
                             gatewayCredential = "plain-token",
@@ -168,8 +166,8 @@ class GatewayWorkspaceTest {
                 )
 
             val request = requireNotNull(captured)
-            assertEquals("/v1/runtimes/rt-1/git/diff", request.url.encodedPath)
-            assertEquals("path=src%2Fmain.kt", request.url.encodedQuery)
+            assertEquals("/v1/projects/git/diff", request.url.encodedPath)
+            assertEquals("path=src%2Fmain.kt&cwd=%2Frepo", request.url.encodedQuery)
             assertEquals(1, diffs.size)
             assertEquals("src/main.kt", diffs[0].path)
             assertEquals("old\n", diffs[0].oldText)
@@ -192,8 +190,8 @@ class GatewayWorkspaceTest {
             val diffs =
                 repo.fetchGitDiff(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "10.0.0.2:5788",
                             gatewayCredential = "plain-token",
@@ -201,9 +199,9 @@ class GatewayWorkspaceTest {
                 )
 
             val request = requireNotNull(captured)
-            assertEquals("/v1/runtimes/rt-1/git/diff", request.url.encodedPath)
-            // No path param → empty query (Ktor represents no query as "" rather than null).
-            assertTrue(request.url.encodedQuery.isEmpty())
+            assertEquals("/v1/projects/git/diff", request.url.encodedPath)
+            // A whole-tree read still identifies the checkout, without a file selector.
+            assertEquals("cwd=%2Frepo", request.url.encodedQuery)
             assertEquals(2, diffs.size)
             // New/untracked files have no oldText.
             assertNull(diffs[1].oldText)
@@ -218,8 +216,8 @@ class GatewayWorkspaceTest {
 
             repo.fetchGitDiff(
                 connection =
-                    GatewayWorkspaceConnection(
-                        runtimeId = "rt-1",
+                    ProjectGitTarget(
+                        cwd = "/repo",
                         scheme = "http",
                         host = "10.0.0.2:5788",
                         gatewayCredential = "plain-token",
@@ -228,7 +226,7 @@ class GatewayWorkspaceTest {
             )
 
             val request = requireNotNull(captured)
-            assertTrue(request.url.encodedQuery.isEmpty())
+            assertEquals("cwd=%2Frepo", request.url.encodedQuery)
         }
 
     @Test
@@ -240,8 +238,8 @@ class GatewayWorkspaceTest {
 
             repo.fetchGitDiff(
                 connection =
-                    GatewayWorkspaceConnection(
-                        runtimeId = "rt-1",
+                    ProjectGitTarget(
+                        cwd = "/repo",
                         scheme = "http",
                         host = "h",
                         gatewayCredential = "plain-token",
@@ -249,7 +247,7 @@ class GatewayWorkspaceTest {
                 query = GatewayDiffQuery(path = "b.kt", commit = "abc1234", oldPath = "a.kt"),
             )
 
-            assertEquals("path=b.kt&commit=abc1234&oldPath=a.kt", requireNotNull(captured).url.encodedQuery)
+            assertEquals("path=b.kt&commit=abc1234&oldPath=a.kt&cwd=%2Frepo", requireNotNull(captured).url.encodedQuery)
         }
 
     @Test
@@ -276,8 +274,8 @@ class GatewayWorkspaceTest {
             val log =
                 repo.fetchGitLog(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "plain-token",
@@ -286,8 +284,8 @@ class GatewayWorkspaceTest {
                 )
 
             val request = requireNotNull(captured)
-            assertEquals("/v1/runtimes/rt-1/git/log", request.url.encodedPath)
-            assertEquals("head=0901beff&skip=50&limit=50", request.url.encodedQuery)
+            assertEquals("/v1/projects/git/log", request.url.encodedPath)
+            assertEquals("head=0901beff&skip=50&limit=50&cwd=%2Frepo", request.url.encodedQuery)
             assertTrue(log.hasMore)
             assertEquals(1792000000L, log.commits[0].authorTime)
             assertTrue(log.commits[0].pushed)
@@ -306,8 +304,8 @@ class GatewayWorkspaceTest {
             val files =
                 repo.fetchGitCommit(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "plain-token",
@@ -315,7 +313,7 @@ class GatewayWorkspaceTest {
                     sha = "abc",
                 )
 
-            assertEquals("/v1/runtimes/rt-1/git/commits/abc", requireNotNull(captured).url.encodedPath)
+            assertEquals("/v1/projects/git/commits/abc", requireNotNull(captured).url.encodedPath)
             assertEquals("a.kt", files.changed[0].oldPath)
         }
 
@@ -333,8 +331,8 @@ class GatewayWorkspaceTest {
 
             repo.fetchGitStatus(
                 connection =
-                    GatewayWorkspaceConnection(
-                        runtimeId = "rt-1",
+                    ProjectGitTarget(
+                        cwd = "/repo",
                         scheme = "http",
                         host = "10.0.0.2:5788",
                         gatewayCredential = credential,
@@ -356,8 +354,8 @@ class GatewayWorkspaceTest {
             try {
                 repo.fetchGitStatus(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "10.0.0.2:5788",
                             gatewayCredential = "plain-token",
@@ -449,8 +447,8 @@ class GatewayWorkspaceTest {
             val status =
                 repo.fetchGitStatus(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "t",
@@ -460,8 +458,8 @@ class GatewayWorkspaceTest {
             runCatching {
                 repo.fetchGitDiff(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "t",
@@ -472,8 +470,8 @@ class GatewayWorkspaceTest {
             runCatching {
                 repo.fetchGitLog(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "t",
@@ -500,8 +498,8 @@ class GatewayWorkspaceTest {
             val log =
                 repo.fetchGitLog(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "t",
@@ -522,8 +520,8 @@ class GatewayWorkspaceTest {
             val status =
                 repo.fetchGitStatus(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "t",
@@ -548,15 +546,15 @@ class GatewayWorkspaceTest {
             val refs =
                 repo.fetchGitRefs(
                     connection =
-                        GatewayWorkspaceConnection(
-                            runtimeId = "rt-1",
+                        ProjectGitTarget(
+                            cwd = "/repo",
                             scheme = "http",
                             host = "h",
                             gatewayCredential = "t",
                         ),
                 )
 
-            assertEquals("/v1/runtimes/rt-1/git/refs", requireNotNull(captured).url.encodedPath)
+            assertEquals("/v1/projects/git/refs", requireNotNull(captured).url.encodedPath)
             assertEquals("main", refs.default)
             assertEquals(listOf("main", "origin/main"), refs.refs.map { it.name })
             assertTrue(refs.refs[0].isHead)

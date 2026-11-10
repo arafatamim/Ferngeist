@@ -1,5 +1,10 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.core.git.graph.GraphEdge
+import com.tamimarafat.ferngeist.core.git.graph.GraphStroke
+import com.tamimarafat.ferngeist.core.git.graph.graphReach
+import com.tamimarafat.ferngeist.core.git.graph.layoutGraph
+import com.tamimarafat.ferngeist.core.git.graph.strokesFor
 import com.tamimarafat.ferngeist.core.model.ChatGitCommit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

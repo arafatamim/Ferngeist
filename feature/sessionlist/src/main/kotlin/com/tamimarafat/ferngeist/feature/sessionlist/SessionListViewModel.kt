@@ -18,6 +18,7 @@ import com.tamimarafat.ferngeist.core.model.LaunchableTargetSessionSettings
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnActivity
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitReaderFactory
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.auth.AuthCompletion
 import com.tamimarafat.ferngeist.feature.sessionlist.auth.SessionListAuth
@@ -100,6 +101,8 @@ class SessionListViewModel
         private val repos: SessionListRepositories,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
+        val gitReaderFactory: ProjectGitReaderFactory = repos.gitReaderFactory
+
         val serverId: String = savedStateHandle.get<String>("serverId").orEmpty()
 
         suspend fun fetchProviderQuotas() = repos.providerQuotas.fetch(serverId)

@@ -60,12 +60,12 @@ import com.adamglin.compose.markdown.core.model.InlineNode
 import com.adamglin.compose.markdown.core.model.ListType
 import com.adamglin.compose.markdown.core.model.TaskState
 import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
+import com.tamimarafat.ferngeist.core.git.syntax.SyntaxLanguageResolver
+import com.tamimarafat.ferngeist.core.git.syntax.rememberHighlightedCode
+import com.tamimarafat.ferngeist.core.git.syntax.styledCode
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.MarkdownImage
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.localTranscriptImages
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
-import com.tamimarafat.ferngeist.feature.chat.syntax.SyntaxLanguageResolver
-import com.tamimarafat.ferngeist.feature.chat.syntax.rememberHighlightedCode
-import com.tamimarafat.ferngeist.feature.chat.syntax.styledCode
 
 /**
  * Renders parsed markdown blocks.

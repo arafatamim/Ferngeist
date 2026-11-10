@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 
@@ -145,14 +146,19 @@ interface GatewayPushRepository {
 
 /** Workspace file and git operations. */
 interface GatewayWorkspaceRepository {
+    /** One file in a checkout, without a runtime or session. */
+    suspend fun fetchProjectFile(
+        connection: ProjectGitTarget,
+        path: String,
+    ): GatewayFileContents
+
     /**
      * Returns the git branch, ahead/behind, and changed files for a runtime's project directory.
      * With [compare] (a fully-qualified ref) the files are the working tree against that ref's tip,
      * and the response echoes it; a gateway that ignores the parameter omits the echo.
      */
     suspend fun fetchGitStatus(
-        connection: GatewayWorkspaceConnection,
-        acpSessionId: String? = null,
+        connection: ProjectGitTarget,
         compare: String? = null,
     ): GatewayGitStatus
 
@@ -167,7 +173,7 @@ interface GatewayWorkspaceRepository {
      * tip instead of `HEAD`.
      */
     suspend fun fetchGitDiff(
-        connection: GatewayWorkspaceConnection,
+        connection: ProjectGitTarget,
         query: GatewayDiffQuery = GatewayDiffQuery(),
     ): List<ToolCallContent.Diff>
 
@@ -181,7 +187,7 @@ interface GatewayWorkspaceRepository {
      * many commits of the ref's own history from its tip in [GatewayGitLog.target], so 1 is just the tip.
      */
     suspend fun fetchGitLog(
-        connection: GatewayWorkspaceConnection,
+        connection: ProjectGitTarget,
         query: GatewayLogQuery,
     ): GatewayGitLog
 
@@ -189,16 +195,12 @@ interface GatewayWorkspaceRepository {
      * The refs a compare can target. Throws [GatewayRequestException] with a 404 status and no
      * `{"error"}` envelope on gateways that predate branch comparison.
      */
-    suspend fun fetchGitRefs(
-        connection: GatewayWorkspaceConnection,
-        acpSessionId: String? = null,
-    ): GatewayGitRefs
+    suspend fun fetchGitRefs(connection: ProjectGitTarget): GatewayGitRefs
 
     /** The files [sha] changed under the project directory, against its first parent. */
     suspend fun fetchGitCommit(
-        connection: GatewayWorkspaceConnection,
+        connection: ProjectGitTarget,
         sha: String,
-        acpSessionId: String? = null,
     ): GatewayGitCommitFiles
 
     /** `GET /files`: one file of the project directory; [path] is relative to it. */

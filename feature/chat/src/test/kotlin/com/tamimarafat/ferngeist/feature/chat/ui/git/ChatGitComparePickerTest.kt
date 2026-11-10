@@ -1,7 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat.ui.git
 
+import com.tamimarafat.ferngeist.core.git.state.GitRefsState
+import com.tamimarafat.ferngeist.core.git.ui.git.comparePickerSections
+import com.tamimarafat.ferngeist.core.git.ui.git.isSameTarget
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
-import com.tamimarafat.ferngeist.feature.chat.GitRefsState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

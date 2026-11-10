@@ -2,6 +2,8 @@ package com.tamimarafat.ferngeist.feature.chat.syntax
 
 import com.gallatinapps.syntaxmp.tokenizer.SyntaxTokenizer
 import com.tamimarafat.ferngeist.core.common.ui.lightSyntaxColors
+import com.tamimarafat.ferngeist.core.git.syntax.HighlightedCode
+import com.tamimarafat.ferngeist.core.git.syntax.styledCode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

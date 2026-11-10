@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.sessionlist
 
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitReaderFactory
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -20,6 +21,7 @@ data class SessionListRepositories
         val sessionSettingsRepository: LaunchableTargetSessionSettingsRepository,
         val recentCwdStore: RecentCwdStore,
         val gatewayRepository: GatewayRepository,
+        val gitReaderFactory: ProjectGitReaderFactory,
         val gatewaySourceRepository: GatewaySourceRepository,
         val providerQuotas: com.tamimarafat.ferngeist.core.model.repository.ProviderQuotas,
     )

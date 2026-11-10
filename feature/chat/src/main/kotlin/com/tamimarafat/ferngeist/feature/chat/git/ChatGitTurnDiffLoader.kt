@@ -1,8 +1,11 @@
 package com.tamimarafat.ferngeist.feature.chat.git
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.git.git.ChatGitHistoryLoader
+import com.tamimarafat.ferngeist.core.git.git.failureMessage
+import com.tamimarafat.ferngeist.core.git.git.noWorkspaceMessage
+import com.tamimarafat.ferngeist.core.git.state.GitState
 import com.tamimarafat.ferngeist.core.model.ChatWorkspaceReader
-import com.tamimarafat.ferngeist.feature.chat.GitState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart

@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
@@ -277,31 +278,32 @@ class AcpChatSessionFacadeTest {
             subscription: com.tamimarafat.ferngeist.gateway.GatewayPushSubscription,
         ) = Unit
 
+        override suspend fun fetchProjectFile(
+            connection: ProjectGitTarget,
+            path: String,
+        ): GatewayFileContents = error("Unused")
+
         override suspend fun fetchGitStatus(
-            connection: GatewayWorkspaceConnection,
-            acpSessionId: String?,
+            connection: ProjectGitTarget,
             compare: String?,
         ) = TODO("unused in facade tests")
 
         override suspend fun fetchGitDiff(
-            connection: GatewayWorkspaceConnection,
+            connection: ProjectGitTarget,
             query: GatewayDiffQuery,
         ) = TODO("unused in facade tests")
 
         override suspend fun fetchGitLog(
-            connection: GatewayWorkspaceConnection,
+            connection: ProjectGitTarget,
             query: GatewayLogQuery,
         ): GatewayGitLog = TODO("unused in facade tests")
 
-        override suspend fun fetchGitRefs(
-            connection: GatewayWorkspaceConnection,
-            acpSessionId: String?,
-        ): GatewayGitRefs = TODO("unused in facade attendance tests")
+        override suspend fun fetchGitRefs(connection: ProjectGitTarget): GatewayGitRefs =
+            TODO("unused in facade attendance tests")
 
         override suspend fun fetchGitCommit(
-            connection: GatewayWorkspaceConnection,
+            connection: ProjectGitTarget,
             sha: String,
-            acpSessionId: String?,
         ): GatewayGitCommitFiles = TODO("unused in facade tests")
 
         override suspend fun fetchFile(

@@ -31,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.core.common.ui.isWindowCompact
+import com.tamimarafat.ferngeist.feature.chat.markdown.files.ProvideFileMarkdown
 import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_GATEWAY_ARG
 import com.tamimarafat.ferngeist.feature.sessionlist.project.PROJECT_REPO_ARG
 import com.tamimarafat.ferngeist.push.PushRegistrar
@@ -122,18 +123,20 @@ class MainActivity : ComponentActivity() {
                 ),
         )
         setContent {
-            FerngeistTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    FerngeistNavHost(
-                        latestIntent = latestIntent,
-                        onIntentConsumed = { latestIntent.value = null },
-                        chatConnectionHub = chatConnectionHub,
-                        chatViewModelFactory = chatViewModelFactory,
-                        onHomeScreenReady = { homeScreenReady.value = it },
-                    )
+            ProvideFileMarkdown {
+                FerngeistTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        FerngeistNavHost(
+                            latestIntent = latestIntent,
+                            onIntentConsumed = { latestIntent.value = null },
+                            chatConnectionHub = chatConnectionHub,
+                            chatViewModelFactory = chatViewModelFactory,
+                            onHomeScreenReady = { homeScreenReady.value = it },
+                        )
+                    }
                 }
             }
         }

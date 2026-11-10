@@ -47,6 +47,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.core.common.ui.SessionSharedBoundsKey
+import com.tamimarafat.ferngeist.core.git.ui.FilePickerSheet
+import com.tamimarafat.ferngeist.core.git.ui.FileSheet
+import com.tamimarafat.ferngeist.core.git.ui.git.GitCompareUi
+import com.tamimarafat.ferngeist.core.git.ui.git.GitStatusSheet
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
@@ -54,8 +58,6 @@ import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.localTranscriptImages
-import com.tamimarafat.ferngeist.feature.chat.ui.git.GitCompareUi
-import com.tamimarafat.ferngeist.feature.chat.ui.git.GitStatusSheet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt

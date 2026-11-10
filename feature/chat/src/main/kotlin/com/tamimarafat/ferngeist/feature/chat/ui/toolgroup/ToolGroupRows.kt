@@ -40,13 +40,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
+import com.tamimarafat.ferngeist.core.git.ui.DiffSummaryRow
+import com.tamimarafat.ferngeist.core.git.ui.FileChip
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.markdown.RunReveal
 import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.ui.CONNECTOR_MS
-import com.tamimarafat.ferngeist.feature.chat.ui.DiffSummaryRow
-import com.tamimarafat.ferngeist.feature.chat.ui.FileChip
 import com.tamimarafat.ferngeist.feature.chat.ui.ROW_REVEAL_MS
 import com.tamimarafat.ferngeist.feature.chat.ui.RailRow
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs

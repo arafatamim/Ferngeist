@@ -45,9 +45,7 @@
         <item quantity="other">Limited to %1$d files per message</item>
     </plurals>
 
-
     <!-- Chat Top Bar -->
-    <string name="chat_back_desc">Back</string>
 
     <!-- Message Bubble -->
     <string name="chat_reasoning">Reasoning</string>
@@ -56,17 +54,8 @@
     <string name="chat_plan_desc">Plan</string>
     <string name="chat_completed_desc">Completed</string>
     <string name="chat_error_desc">Error</string>
-    <string name="chat_file_binary">Binary file, not shown</string>
     <string name="chat_image_unavailable">Image unavailable</string>
-    <string name="chat_file_empty">Empty file</string>
-    <string name="chat_file_deleted">Deleted in this revision</string>
-    <string name="chat_file_origin_working_tree">Working tree</string>
-    <string name="chat_file_origin_commit">At %1$s</string>
-    <string name="chat_file_origin_compare">vs %1$s</string>
-    <string name="chat_file_open_full">Open full file</string>
-    <string name="chat_file_truncated">Only the first 8 MiB of this file is shown</string>
-    <string name="chat_file_soft_wrap">Wrap</string>
-    <string name="chat_file_markdown_preview">Preview</string>
+
     <string name="chat_tool_call">Tool Call</string>
     <string name="chat_tool_call_details_desc">Show tool call details</string>
     <string name="chat_awaiting_permission">Awaiting permission response</string>
@@ -97,9 +86,9 @@
     <string name="chat_mode_label">MODE</string>
 
     <!-- Chat Screen Sections -->
-    <string name="chat_retry">Retry</string>
+
     <string name="chat_load_error_title">Couldn\'t load this session</string>
-    <string name="chat_diff_error_title">Couldn\'t load this diff</string>
+
     <string name="chat_permission_title">Permission Required</string>
     <string name="chat_permission_body">The agent is waiting for your approval before it can continue.</string>
     <string name="chat_deny">Deny</string>
@@ -113,64 +102,9 @@
     <string name="chat_elicitation_required">Required</string>
     <string name="chat_elicitation_invalid">Check this field</string>
     <string name="chat_elicitation_no_browser">No app can open this link</string>
-    <string name="chat_no_tool_output">No tool output.</string>
-    <string name="chat_git_status_title">Git</string>
-    <string name="chat_git_no_branch">(no branch)</string>
-    <plurals name="chat_git_files_changed">
-        <item quantity="one">%1$d file changed</item>
-        <item quantity="other">%1$d files changed</item>
-    </plurals>
-    <string name="chat_git_clean">Working tree is clean</string>
-    <string name="chat_git_worktree">Worktree</string>
-    <string name="chat_git_worktree_ahead" translatable="false">↑%1$d</string>
-    <string name="chat_git_worktree_dirty">uncommitted</string>
-    <string name="chat_git_binary">binary</string>
+
     <string name="chat_git_status_desc">Git status details</string>
-    <string name="chat_git_directory">Directory</string>
-    <string name="chat_git_staged">Staged</string>
-    <string name="chat_git_unstaged">Changes</string>
-    <string name="chat_git_file_deleted">File is no longer in the working tree: %1$s</string>
-    <string name="chat_git_tab_changes">Changes</string>
-    <string name="chat_git_tab_history">History</string>
-    <string name="chat_git_ref_branch">branch %1$s</string>
-    <string name="chat_git_ref_remote">remote branch %1$s</string>
-    <string name="chat_git_ref_tag">tag %1$s</string>
-    <string name="chat_git_ref_detached">detached HEAD</string>
-    <string name="chat_git_copy_sha">Copy commit hash %1$s</string>
-    <string name="chat_git_sha_copied">Commit hash copied</string>
-    <string name="chat_git_commit_body_expand">Show full message</string>
-    <string name="chat_git_commit_body_collapse">Show less</string>
-    <string name="chat_git_commit_no_files">No changes in this directory</string>
-    <string name="chat_git_loading">Loading</string>
-    <string name="chat_git_open_on_github">Open on GitHub</string>
-    <string name="chat_git_open_in_browser">Open in browser</string>
-    <string name="chat_git_commit_error_title">Couldn\'t load this commit</string>
-    <string name="chat_git_history_empty">No commits yet</string>
-    <string name="chat_git_history_error_title">Couldn\'t load history</string>
-    <string name="chat_git_history_more_failed">Couldn\'t load more commits</string>
-    <plurals name="chat_git_day_commits">
-        <item quantity="one">%1$d commit that day</item>
-        <item quantity="other">%1$d commits that day</item>
-    </plurals>
-    <string name="chat_git_compare_vs">vs</string>
-    <string name="chat_git_compare_working_tree">Working tree</string>
-    <string name="chat_git_compare_uncommitted">Uncommitted changes</string>
-    <string name="chat_git_compare_title">Compare with branch</string>
-    <string name="chat_git_compare_local">Local</string>
-    <string name="chat_git_compare_remote">Remote</string>
-    <string name="chat_git_compare_tags">Tags</string>
-    <string name="chat_git_compare_chip_desc">Comparing with %1$s. Change target</string>
-    <string name="chat_git_compare_current">current</string>
-    <string name="chat_git_compare_error_title">Couldn\'t load the comparison</string>
-    <string name="chat_git_compare_identical">No differences from %1$s</string>
-    <string name="chat_git_compare_load_failed">Failed to load the comparison</string>
-    <string name="chat_git_compare_no_workspace">No gateway workspace connection to load the comparison</string>
-    <string name="chat_git_compare_not_honoured">The gateway did not apply the comparison</string>
-    <string name="chat_git_diff_no_workspace">No gateway workspace connection to load git diff for %1$s</string>
-    <string name="chat_git_diff_load_failed">Failed to load git diff for %1$s</string>
-    <string name="chat_git_history_no_workspace">No gateway workspace connection to load history</string>
-    <string name="chat_git_history_load_failed">Failed to load history</string>
-    <string name="chat_git_commit_load_failed">Failed to load this commit</string>
+
     <string name="chat_file_no_workspace">No gateway workspace connection to read the file</string>
     <string name="chat_load_earlier">Load earlier messages</string>
     <string-array name="chat_empty_titles">
@@ -188,7 +122,7 @@
     <string name="chat_search_desc">Search</string>
     <string name="chat_recent">Recent</string>
     <string name="chat_all_items">All items</string>
-    <string name="chat_selected_desc">Selected</string>
+
     <string name="chat_picker_no_values">No values available from agent.</string>
     <string name="chat_picker_no_models">No matching models.</string>
     <string name="chat_search_placeholder">Search %1$s</string>

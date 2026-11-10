@@ -12,6 +12,7 @@ import com.tamimarafat.ferngeist.acp.bridge.catalog.project.ProjectSummary
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.git.ProjectGitReaderFactory
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.feature.sessionlist.R
 import com.tamimarafat.ferngeist.feature.sessionlist.SessionListEvent
@@ -67,6 +68,8 @@ class ProjectViewModel
         repos: SessionListRepositories,
         @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
+        val gitReaderFactory: ProjectGitReaderFactory = repos.gitReaderFactory
+
         val gatewaySourceId: String = savedStateHandle.get<String>(PROJECT_GATEWAY_ARG).orEmpty()
 
         /** The repo on screen; the project sheet moves it, and the handle keeps it across process death. */

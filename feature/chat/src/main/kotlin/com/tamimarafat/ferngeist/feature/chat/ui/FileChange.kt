@@ -33,40 +33,23 @@ import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.time.Elapsed
 import com.tamimarafat.ferngeist.core.common.ui.time.elapsedOf
 import com.tamimarafat.ferngeist.core.common.ui.time.formatElapsed
+import com.tamimarafat.ferngeist.core.git.files.statsFor
+import com.tamimarafat.ferngeist.core.git.state.GitState
+import com.tamimarafat.ferngeist.core.git.ui.DiffStatsRow
+import com.tamimarafat.ferngeist.core.git.ui.FileChip
+import com.tamimarafat.ferngeist.core.git.ui.diff.DiffStats
+import com.tamimarafat.ferngeist.core.git.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.core.model.TurnTiming
-import com.tamimarafat.ferngeist.feature.chat.GitState
 import com.tamimarafat.ferngeist.feature.chat.R
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.DiffStats
-import com.tamimarafat.ferngeist.feature.chat.ui.diff.computeDiffStats
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.editedPaths
 import com.tamimarafat.ferngeist.feature.chat.ui.files.landed
 import kotlin.random.Random
-
-/**
- * Git's entry for [path], from the working tree as it is now. [path] is usually absolute and git's
- * relative to the repo root, so a suffix on a path boundary is a match; the longest such entry wins,
- * so `src/X.kt` is not mistaken for a root `X.kt`.
- */
-internal fun List<ChatChangedFile>.entryFor(path: String): ChatChangedFile? = matching(path, dirs = false)
-
-/** Git's counts for [path]; see [entryFor] for how it is matched. Unlike it, a directory entry counts. */
-internal fun List<ChatChangedFile>.statsFor(path: String): DiffStats? =
-    matching(path, dirs = true)?.let { DiffStats(additions = it.added, deletions = it.removed) }
-
-private fun List<ChatChangedFile>.matching(
-    path: String,
-    dirs: Boolean,
-): ChatChangedFile? {
-    val normalized = path.replace('\\', '/')
-    return filter {
-        !it.binary && (dirs || !it.isDir) && (normalized == it.path || normalized.endsWith("/" + it.path))
-    }.maxByOrNull { it.path.length }
-}
+import com.tamimarafat.ferngeist.core.git.R as GitR
 
 /** Git's status and counts for an entry: a request for the same file at a different value refetches. */
 internal fun ChatChangedFile.revision() = "$status:$added:$removed"
@@ -248,7 +231,7 @@ internal fun TurnChanges(
                 joinPhrases(
                     listOfNotNull(
                         timing,
-                        pluralStringResource(R.plurals.chat_git_files_changed, files.size, files.size),
+                        pluralStringResource(GitR.plurals.chat_git_files_changed, files.size, files.size),
                     ),
                     separator,
                 ),

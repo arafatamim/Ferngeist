@@ -6,6 +6,8 @@ import com.gallatinapps.syntaxmp.role.SyntaxRole
 import com.gallatinapps.syntaxmp.spans.SyntaxTokenSpan
 import com.gallatinapps.syntaxmp.tokenizer.SyntaxTokenizer
 import com.tamimarafat.ferngeist.core.common.ui.lightSyntaxColors
+import com.tamimarafat.ferngeist.core.git.syntax.buildSyntaxAnnotatedString
+import com.tamimarafat.ferngeist.core.git.syntax.buildSyntaxLines
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
