@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.core.common.ui.chat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
@@ -80,7 +81,13 @@ fun StatusCardBody(
                 stamp,
                 footer,
             ),
-        modifier = modifier,
+        // The card row centres this body against its avatar, so a height snap would move the title
+        // in one frame while the stamp's raise glides. Animating the size keeps the two in step.
+        modifier =
+            modifier.animateContentSize(
+                animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                alignment = Alignment.TopStart,
+            ),
     ) { slots, constraints ->
         val (headlines, supportings, stamps) = slots
         val footers = slots.last()
@@ -162,7 +169,12 @@ private fun SupportingWithLine(
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "statusLineColor",
     )
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        // A breath under the title; the line otherwise starts on the title's descender. Skipped
+        // when the row is empty, so a card at rest gains no dead space.
+        modifier = Modifier.padding(top = if (supporting != null || shown) titleGap else 0.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         supporting?.invoke()
         // fill = false: the line takes the leftover width only while visible, so it can grow into it.
         AnimatedVisibility(
@@ -215,6 +227,7 @@ private fun TurnStatus.lineColor(): Color =
     }
 
 private val stampGap = 12.dp
+private val titleGap = 4.dp
 private val waveLength = WavyProgressIndicatorDefaults.LinearDeterminateWavelength * 0.75f
 
 // One wavelength every five seconds: present, never busy.
