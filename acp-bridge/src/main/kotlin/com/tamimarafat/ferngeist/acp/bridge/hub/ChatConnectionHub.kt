@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.agentclientprotocol.annotations.UnstableApi
+import com.agentclientprotocol.model.PlanEntry
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionConfig
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
@@ -8,8 +9,12 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.ConnectivityObserver
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.GatewaySessionResumeRejectedException
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatPresence
+import com.tamimarafat.ferngeist.core.model.LiveTurn
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import kotlinx.coroutines.CancellationException
@@ -48,6 +53,9 @@ private const val GATEWAY_SESSION_GONE_STATUS = 400
  * recorded lease pointer is stale (restart/reap) and safe to drop.
  */
 private const val GATEWAY_NOT_FOUND_STATUS = 404
+
+/** Converts a monotonic turn-start mark to wall clock without sub-second re-emission jitter. */
+private const val SECOND_MS = 1_000L
 
 /**
  * [ChatConnectionHub] tuning: how many chats stay hot, how many gateway sessions
@@ -117,6 +125,8 @@ class ChatConnectionHub(
         val isConnected: () -> Boolean,
         val isStreaming: () -> Boolean,
         val manager: AcpConnection?,
+        // The chat's live state, which the [liveTurns] observation follows; null until a bridge attaches.
+        val snapshot: StateFlow<SessionSnapshot>? = null,
         var lastFocusedMs: Long,
         // Open screens, counted rather than flagged: a fast A→B→A switch builds the new
         // A screen before the old one's teardown closes it, and a flag would end up closed.
@@ -293,6 +303,30 @@ class ChatConnectionHub(
                 }
             }.stateIn(scope, SharingStarted.Eagerly, false)
 
+    /**
+     * Every chat with a known turn state, for the background live-update notification:
+     * turn start, latest plan, activity, and terminal outcome.
+     *
+     * Derived from each entry's live [SessionSnapshot] (the same flow the facade publishes), so
+     * it follows streaming, plans and permission prompts without polling. The turn start is
+     * floored to the second: a monotonic mark can only be re-anchored to wall clock by adding
+     * the time elapsed since, and sub-second jitter there would re-emit an unchanged turn.
+     */
+    val liveTurns: StateFlow<List<LiveTurn>> =
+        revision
+            .flatMapLatest {
+                val observed =
+                    entries.values
+                        .mapNotNull { entry -> entry.snapshot?.let { snapshot -> entry to snapshot } }
+                if (observed.isEmpty()) {
+                    flowOf(emptyList())
+                } else {
+                    combine(observed.map { pair -> pair.second }) { snapshots ->
+                        observed.mapIndexedNotNull { index, pair -> pair.first.toLiveTurn(snapshots[index]) }
+                    }
+                }
+            }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
     /** Pings every connected transport so one whose peer vanished while backgrounded fails now. */
     fun probeConnections() {
         allManagers().forEach { it.probeConnection() }
@@ -387,28 +421,39 @@ class ChatConnectionHub(
                     isConnected = registration.isConnected,
                     isStreaming = registration.isStreaming,
                     manager = registration.manager,
+                    // A connecting registration can arrive before the bridge's session exists;
+                    // keep the snapshot already attached rather than dropping it.
+                    snapshot = registration.snapshot ?: existing.snapshot,
                 )
         } else {
-            entries[chatId] =
-                Entry(
-                    chatId = chatId,
-                    serverId = serverId,
-                    sessionId = sessionId,
-                    gatewaySessionId = registration.gatewaySessionId,
-                    gatewaySourceId = registration.gatewaySourceId,
-                    agentId = registration.agentId,
-                    isConnected = registration.isConnected,
-                    isStreaming = registration.isStreaming,
-                    manager = registration.manager,
-                    lastFocusedMs = limits.clock(),
-                    openScreens = 0,
-                    cwd = "",
-                )
+            entries[chatId] = hotEntry(chatId, serverId, sessionId, registration)
         }
         startSaving(chatId, registration)
         republish()
         return chatId
     }
+
+    /** A brand-new hot entry: the registration's transport facts, ranked as just registered. */
+    private fun hotEntry(
+        chatId: String,
+        serverId: String,
+        sessionId: String,
+        registration: ChatRegistration,
+    ) = Entry(
+        chatId = chatId,
+        serverId = serverId,
+        sessionId = sessionId,
+        gatewaySessionId = registration.gatewaySessionId,
+        gatewaySourceId = registration.gatewaySourceId,
+        agentId = registration.agentId,
+        isConnected = registration.isConnected,
+        isStreaming = registration.isStreaming,
+        manager = registration.manager,
+        snapshot = registration.snapshot,
+        lastFocusedMs = limits.clock(),
+        openScreens = 0,
+        cwd = "",
+    )
 
     /**
      * The turn outlives its screen, so the hub keeps saving this chat independently of any
@@ -686,6 +731,42 @@ class ChatConnectionHub(
             // attaches; "" would read as a mismatch, null reads as unknown.
             gatewaySourceId = gatewaySourceId.ifEmpty { null },
         )
+
+    /** The entry's turn as notification material; unknown states have no outcome to report. */
+    private fun Entry.toLiveTurn(snapshot: SessionSnapshot): LiveTurn? {
+        val status = snapshot.turnStatus
+        if (status == TurnStatus.UNKNOWN) return null
+        return LiveTurn(
+            presence = toPresence(),
+            status = status,
+            startedAtEpochMs =
+                snapshot.turnStatusSince?.let { mark ->
+                    (limits.clock() - mark.elapsedNow().inWholeMilliseconds) / SECOND_MS * SECOND_MS
+                },
+            planEntries = snapshot.livePlanEntries(),
+            activity = snapshot.liveActivity(),
+        )
+    }
+
+    /** The plan in the turn's own bubble; a closed bubble's plan belongs to a turn that ended. */
+    private fun SessionSnapshot.livePlanEntries(): List<PlanEntry> =
+        liveBubble()
+            ?.segments
+            ?.lastOrNull { it.kind == AssistantSegment.Kind.PLAN }
+            ?.planEntries
+            .orEmpty()
+
+    /** The agent's latest tool-call title, the most concrete "what is it doing" it publishes. */
+    private fun SessionSnapshot.liveActivity(): String? =
+        liveBubble()
+            ?.segments
+            ?.lastOrNull()
+            ?.toolCall
+            ?.title
+            ?.takeIf { it.isNotBlank() }
+
+    private fun SessionSnapshot.liveBubble(): ChatMessage? =
+        messages.lastOrNull { it.role == ChatMessage.Role.ASSISTANT && it.isStreaming }
 
     /**
      * Reads one session's current title without writing the session table.

@@ -13,7 +13,9 @@ import androidx.core.app.NotificationCompat
 import com.tamimarafat.ferngeist.MainActivity
 import com.tamimarafat.ferngeist.R
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
+import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
+import com.tamimarafat.ferngeist.push.AppForegroundState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +58,9 @@ class FerngeistForegroundService : Service() {
         const val ACTION_DISCONNECT_ALL = "com.tamimarafat.ferngeist.ACTION_DISCONNECT_ALL"
         const val ERROR_NOTIFICATION_ID = 2
 
+        // Sent by the live update's delete intent when the user swipes the promotion away.
+        const val ACTION_LIVE_DISMISSED = "com.tamimarafat.ferngeist.ACTION_LIVE_DISMISSED"
+
         // Extras carried by the notification's content intent so MainActivity can
         // deep-link straight to the active chat session.
         const val EXTRA_SERVER_ID = "com.tamimarafat.ferngeist.extra.SERVER_ID"
@@ -73,6 +78,14 @@ class FerngeistForegroundService : Service() {
     @Inject
     lateinit var launchableTargetRepository: LaunchableTargetRepository
 
+    @Inject
+    lateinit var appForegroundState: AppForegroundState
+
+    @Inject
+    lateinit var chatCatalog: ChatCatalog
+
+    private lateinit var liveUpdate: LiveUpdateNotifier
+
     // Comma-separated names of the connected agents; empty until resolved.
     private var connectedAgentNames = ""
 
@@ -83,6 +96,16 @@ class FerngeistForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        liveUpdate =
+            LiveUpdateNotifier(
+                context = this,
+                hub = chatConnectionHub,
+                foregroundState = appForegroundState,
+                targets = launchableTargetRepository,
+                catalog = chatCatalog,
+                scope = scope,
+            )
+        liveUpdate.start()
     }
 
     override fun onStartCommand(
@@ -90,6 +113,11 @@ class FerngeistForegroundService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
+        if (intent?.action == ACTION_LIVE_DISMISSED) {
+            liveUpdate.onDismissed()
+            if (!isStarted) stopSelf()
+            return if (isStarted) START_STICKY else START_NOT_STICKY
+        }
         if (handleTerminalAction(intent)) return START_NOT_STICKY
 
         // startForeground() MUST happen unconditionally within 5 s of
@@ -147,6 +175,7 @@ class FerngeistForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        liveUpdate.stop()
         observationJob?.cancel()
         scope.cancel()
         isStarted = false

@@ -21,6 +21,27 @@
     <string name="push_channel_alerts_description">Permission requests, errors, and crashes from your agent sessions that need your attention</string>
     <string name="push_channel_updates_name">Updates</string>
     <string name="push_channel_updates_description">Completed turns and routine updates from your agent sessions</string>
+    <!-- Android 16 live update: the promoted ongoing notification shown while agents run. -->
+    <string name="live_update_channel_name">Agent activity</string>
+    <string name="live_update_channel_description">Shows running agent turns while Ferngeist is in the background</string>
+    <string name="live_update_step_title">%1$s · Step %2$d of %3$d</string>
+    <string name="live_update_open">Open</string>
+    <string name="live_update_done">%1$d done</string>
+    <string name="live_update_errored">%1$d errored</string>
+    <string name="live_update_step_chip">%1$d/%2$d</string>
+    <string name="live_update_working">Working</string>
+    <plurals name="live_update_busy_chip">
+        <item quantity="one">%1$d busy</item>
+        <item quantity="other">%1$d busy</item>
+    </plurals>
+    <string name="live_update_needs_you">Needs you</string>
+    <string name="live_update_agents_working">Agents working</string>
+    <string name="live_update_agent_line">%1$s · %2$s · %3$s</string>
+    <string name="live_update_elapsed_seconds">%1$ds</string>
+    <string name="live_update_elapsed_minutes">%1$dm</string>
+    <string name="live_update_elapsed_hours">%1$dh %2$dm</string>
+    <string name="live_update_needs_you_alert">Needs your input</string>
+    <string name="live_update_agent_fallback">Agent</string>
     <string name="workspace_no_selection">Select an agent or session</string>
     <string name="local_network_title">Allow nearby devices access</string>
     <string name="local_network_body">Ferngeist needs nearby devices access to reach gateways and agent servers on your local network. Remote gateways work without it.</string>
