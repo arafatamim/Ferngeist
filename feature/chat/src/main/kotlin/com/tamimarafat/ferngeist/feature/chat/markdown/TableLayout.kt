@@ -6,16 +6,26 @@ import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.SubcomposeMeasureScope
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.adamglin.compose.markdown.core.model.TableAlignment
 
 // Vendored: SubcomposeLayout measure/place arithmetic, kept close to upstream so it stays diffable.
+
+/**
+ * Lays a table out at the width it needs, which may be wider than [availableWidth]: the caller's
+ * scroll container carries the overflow, so its constraints are unbounded and the width to fit has
+ * to come in as a parameter.
+ *
+ * A table that fits fills [availableWidth] exactly, as it always has.
+ */
 @Composable
 internal fun TableLayout(
     columnCount: Int,
     rowCount: Int,
     alignments: List<TableAlignment>,
+    availableWidth: Dp,
     modifier: Modifier = Modifier,
     columnSpacing: Dp = 8.dp,
     rowSpacing: Dp = 6.dp,
@@ -32,27 +42,15 @@ internal fun TableLayout(
             }
         val preferredCells = measurePreferredCells(rowCount, columnCount, resolvedAlignments, cell)
         val preferredWidths = IntArray(columnCount) { columnIndex -> maxWidthOfColumn(preferredCells, columnIndex) }
-        val availableWidth =
-            if (constraints.hasBoundedWidth) {
-                (constraints.maxWidth - totalColumnSpacing).coerceAtLeast(0)
-            } else {
-                preferredWidths.sum()
-            }
-        val columnWidths = distributeTableColumnWidths(preferredWidths, availableWidth)
-        val cells = measureTableCells(preferredCells, columnWidths, resolvedAlignments, cell)
-        val layoutWidth =
-            if (constraints.hasBoundedWidth) {
-                constraints.maxWidth
-            } else {
-                (columnWidths.sum() + totalColumnSpacing)
-                    .coerceIn(constraints.minWidth, constraints.maxWidth)
-            }
+        val metrics = tableMetrics(preferredWidths, availableWidth, totalColumnSpacing)
+        val cells = measureTableCells(preferredCells, metrics.columnWidths, resolvedAlignments, cell)
+        val layoutWidth = metrics.tableWidth.coerceIn(constraints.minWidth, constraints.maxWidth)
         val headerDivider = measureHeaderDivider(rowCount, divider, layoutWidth)
         val rowHeights = IntArray(rowCount) { rowIndex -> maxHeightOfRow(cells, rowIndex) }
         val table =
             MeasuredTable(
                 cells = cells,
-                columnWidths = columnWidths,
+                columnWidths = metrics.columnWidths,
                 rowHeights = rowHeights,
                 alignments = resolvedAlignments,
                 headerDivider = headerDivider,
@@ -60,7 +58,7 @@ internal fun TableLayout(
             )
         val layoutHeight = tableHeight(table)
         layout(
-            width = layoutWidth.coerceIn(constraints.minWidth, constraints.maxWidth),
+            width = layoutWidth,
             height = layoutHeight.coerceIn(constraints.minHeight, constraints.maxHeight),
         ) {
             placeTable(table)
@@ -77,6 +75,34 @@ private class MeasuredTable(
     val headerDivider: Placeable?,
     val spacing: TableSpacing,
 )
+
+/** Column widths plus the table's own width, which can exceed the space available for it. */
+private class TableMetrics(
+    val columnWidths: IntArray,
+    val tableWidth: Int,
+)
+
+/**
+ * Fits the table to [availableWidth], or overflows it when the columns would be squeezed too far
+ * to read. An unbounded parent offers no width to fit, so the table hugs its content instead.
+ */
+private fun Density.tableMetrics(
+    preferredWidths: IntArray,
+    availableWidth: Dp,
+    totalColumnSpacing: Int,
+): TableMetrics {
+    if (!availableWidth.value.isFinite()) {
+        val columnWidths = distributeTableColumnWidths(preferredWidths, preferredWidths.sum())
+        return TableMetrics(columnWidths, columnWidths.sum() + totalColumnSpacing)
+    }
+    val availablePx = availableWidth.roundToPx()
+    val columnWidths =
+        distributeTableColumnWidths(
+            preferredWidths = preferredWidths,
+            availableWidth = (availablePx - totalColumnSpacing).coerceAtLeast(0),
+        )
+    return TableMetrics(columnWidths, maxOf(availablePx, columnWidths.sum() + totalColumnSpacing))
+}
 
 /** Gaps between columns and between rows, in pixels. */
 private class TableSpacing(
@@ -193,6 +219,18 @@ private fun Placeable.PlacementScope.placeTable(table: MeasuredTable) {
     }
 }
 
+/**
+ * The most columns a table may squeeze itself to fit: past that, a column is too narrow to read a
+ * cell in, so the table overflows and scrolls instead.
+ */
+private const val SQUEEZE_COLUMNS = 3
+
+/**
+ * Column widths for [availableWidth]: content widths when they fit, otherwise a readable squeeze.
+ *
+ * The result sums to more than [availableWidth] only when squeezing would take a column below its
+ * share of a [SQUEEZE_COLUMNS]-column table; the caller scrolls that overflow.
+ */
 internal fun distributeTableColumnWidths(
     preferredWidths: IntArray,
     availableWidth: Int,
@@ -204,7 +242,7 @@ internal fun distributeTableColumnWidths(
         totalPreferred == 0 -> evenWidths(preferredWidths.size, availableWidth)
         totalPreferred <= availableWidth ->
             preferredWidths.copyOf().also { it[it.lastIndex] += availableWidth - totalPreferred }
-        else -> capToAvailable(preferredWidths, availableWidth)
+        else -> cappedToReadableWidth(preferredWidths, availableWidth)
     }
 }
 
@@ -219,33 +257,20 @@ private fun evenWidths(
     return widths
 }
 
-private fun capToAvailable(
+/**
+ * Holds every column to its content width, or to an even share of the width when the table has no
+ * more than [SQUEEZE_COLUMNS] columns; a wider table keeps that share and overflows. Whatever the
+ * caps leave unspent goes back to the capped columns, widest first, so a table that can fit fills
+ * the width instead of leaving a gap.
+ */
+private fun cappedToReadableWidth(
     preferredWidths: IntArray,
     availableWidth: Int,
 ): IntArray {
-    val cap = largestCapFitting(preferredWidths, availableWidth)
+    val cap = availableWidth / minOf(preferredWidths.size, SQUEEZE_COLUMNS)
     val widths = IntArray(preferredWidths.size) { index -> minOf(preferredWidths[index], cap) }
     spreadLeftover(widths, preferredWidths, availableWidth, availableWidth - widths.sum())
     return widths
-}
-
-/** The largest per-column cap whose capped widths still fit [availableWidth]. */
-private fun largestCapFitting(
-    preferredWidths: IntArray,
-    availableWidth: Int,
-): Int {
-    var low = 0
-    var high = preferredWidths.max()
-    while (low < high) {
-        val mid = (low + high + 1) ushr 1
-        val cappedSum = preferredWidths.sumOf { minOf(it, mid).toLong() }
-        if (cappedSum <= availableWidth) {
-            low = mid
-        } else {
-            high = mid - 1
-        }
-    }
-    return low
 }
 
 /** Hands the leftover pixels one at a time to the columns the cap held back, widest first. */

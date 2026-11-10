@@ -1,14 +1,19 @@
 /*
  * Vendored from com.adamglin.compose.markdown:markdown-compose 0.1.5 (MIT, (c) 2026 Adam Glin).
  * Trimmed: links open through the platform handler (no click callback), and the column-width
- * entry point is folded into its one implementation. See MarkdownBlocks.kt for why the vendor exists.
+ * entry point is folded into its one implementation. A table wider than the space it has scrolls
+ * rather than squeezing its columns. See MarkdownBlocks.kt for why the vendor exists.
  */
 
 package com.tamimarafat.ferngeist.feature.chat.markdown
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -18,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adamglin.compose.markdown.core.model.BlockNode
 import com.adamglin.compose.markdown.core.model.TableAlignment
+import com.tamimarafat.ferngeist.core.common.ui.edgeFadeMask
 
 @Composable
 internal fun TableBlock(
@@ -41,30 +47,41 @@ internal fun TableBlock(
             }
         }
 
-    TableLayout(
-        columnCount = columnCount,
-        rowCount = rows.size,
-        alignments = block.alignments,
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .border(
-                    width = 1.dp,
-                    color = borderColor.copy(alpha = 0.75f),
-                    shape = RoundedCornerShape(10.dp),
-                ).padding(10.dp),
-        divider = {
-            MarkdownDivider(color = borderColor)
-        },
-    ) { rowIndex, columnIndex, alignment ->
-        val model = cellModels[rowIndex][columnIndex]
-        val baseStyle = if (rowIndex == 0) headerStyle else bodyStyle
-        // Prefer content-sized measure: skip fillMaxWidth so preferred widths stay honest.
-        MarkdownInlineText(
-            text = model,
-            style = baseStyle.copy(textAlign = alignment.toTextAlign()),
-            fillMaxWidth = false,
-        )
+    // The border is part of the scrolling content, not a frame around it: a frame that stays put
+    // reads as the whole table, while a border clipped at the bubble edge shows there is more.
+    // The mask erases the edges instead of painting the bubble color over them, so it works on any
+    // bubble surface. The scroll's child is measured unbounded, so the width to fit is handed to
+    // TableLayout instead of being read off its constraints.
+    val framePadding = 10.dp
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val scrollState = rememberScrollState()
+        TableLayout(
+            columnCount = columnCount,
+            rowCount = rows.size,
+            alignments = block.alignments,
+            availableWidth = (maxWidth - framePadding * 2).coerceAtLeast(0.dp),
+            modifier =
+                Modifier
+                    .edgeFadeMask(scrollState = scrollState, orientation = Orientation.Horizontal)
+                    .horizontalScroll(scrollState)
+                    .border(
+                        width = 1.dp,
+                        color = borderColor.copy(alpha = 0.75f),
+                        shape = RoundedCornerShape(10.dp),
+                    ).padding(framePadding),
+            divider = {
+                MarkdownDivider(color = borderColor)
+            },
+        ) { rowIndex, columnIndex, alignment ->
+            val model = cellModels[rowIndex][columnIndex]
+            val baseStyle = if (rowIndex == 0) headerStyle else bodyStyle
+            // Prefer content-sized measure: skip fillMaxWidth so preferred widths stay honest.
+            MarkdownInlineText(
+                text = model,
+                style = baseStyle.copy(textAlign = alignment.toTextAlign()),
+                fillMaxWidth = false,
+            )
+        }
     }
 }
 

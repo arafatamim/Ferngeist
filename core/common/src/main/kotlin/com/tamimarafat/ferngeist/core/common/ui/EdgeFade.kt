@@ -109,17 +109,12 @@ fun BoxScope.EdgeFade(
     orientation: Orientation = Orientation.Vertical,
 ) {
     val edgePx = with(LocalDensity.current) { edgeHeight.toPx() }
-    // Band grows with scroll so it always covers content, never empty viewport.
-    // FrequentlyChangingValue: scrollState.value changes every frame; derivedStateOf
-    // throttles recomposition to actual band-size changes instead of every pixel.
-    val startBandPx = remember(edgePx) { derivedStateOf { min(scrollState.value.toFloat(), edgePx) } }
-    val endBandPx =
-        remember(edgePx) { derivedStateOf { min((scrollState.maxValue - scrollState.value).toFloat(), edgePx) } }
+    val bands = rememberScrollBands(scrollState, edgePx)
     EdgeFadeBands(
         scrollState.canScrollBackward,
         scrollState.canScrollForward,
-        startBandPx,
-        endBandPx,
+        bands.start,
+        bands.end,
         fadeColor,
         orientation,
     )
@@ -161,16 +156,46 @@ fun Modifier.edgeFadeMask(
     orientation: Orientation = Orientation.Vertical,
 ): Modifier {
     val edgePx = with(LocalDensity.current) { edgeSize.toPx() }
-    val bands = rememberLazyBands(listState, edgePx)
+    return edgeFadeMaskLayer(
+        bands = rememberLazyBands(listState, edgePx),
+        canScrollBackward = listState.canScrollBackward,
+        canScrollForward = listState.canScrollForward,
+        orientation = orientation,
+    )
+}
+
+/** [edgeFadeMask] for a plain [ScrollState]: one row or table that scrolls, not a lazy list. */
+@Composable
+fun Modifier.edgeFadeMask(
+    scrollState: ScrollState,
+    edgeSize: Dp = 22.dp,
+    orientation: Orientation = Orientation.Vertical,
+): Modifier {
+    val edgePx = with(LocalDensity.current) { edgeSize.toPx() }
+    return edgeFadeMaskLayer(
+        bands = rememberScrollBands(scrollState, edgePx),
+        canScrollBackward = scrollState.canScrollBackward,
+        canScrollForward = scrollState.canScrollForward,
+        orientation = orientation,
+    )
+}
+
+@Composable
+private fun Modifier.edgeFadeMaskLayer(
+    bands: EdgeBands,
+    canScrollBackward: Boolean,
+    canScrollForward: Boolean,
+    orientation: Orientation,
+): Modifier {
     val startAlpha =
         animateFloatAsState(
-            targetValue = if (listState.canScrollBackward) 1f else 0f,
+            targetValue = if (canScrollBackward) 1f else 0f,
             animationSpec = tween(300),
             label = "startMaskAlpha",
         )
     val endAlpha =
         animateFloatAsState(
-            targetValue = if (listState.canScrollForward) 1f else 0f,
+            targetValue = if (canScrollForward) 1f else 0f,
             animationSpec = tween(300),
             label = "endMaskAlpha",
         )
@@ -209,7 +234,27 @@ private fun DrawScope.drawEdgeErase(
     }
 }
 
-/** The two band sizes a lazy list needs, in pixels: one per viewport edge. */
+/** Bands for a plain [ScrollState], whose offsets are known directly. */
+@Composable
+private fun rememberScrollBands(
+    scrollState: ScrollState,
+    edgePx: Float,
+): EdgeBands =
+    EdgeBands(
+        start =
+            remember(scrollState, edgePx) {
+                // Band grows with scroll so it always covers content, never empty viewport.
+                // FrequentlyChangingValue: scrollState.value changes every frame; derivedStateOf
+                // throttles recomposition to actual band-size changes instead of every pixel.
+                derivedStateOf { min(scrollState.value.toFloat(), edgePx) }
+            },
+        end =
+            remember(scrollState, edgePx) {
+                derivedStateOf { min((scrollState.maxValue - scrollState.value).toFloat(), edgePx) }
+            },
+    )
+
+/** Both band sizes a scroll container needs, in pixels: one per viewport edge. */
 private class EdgeBands(
     val start: State<Float>,
     val end: State<Float>,
