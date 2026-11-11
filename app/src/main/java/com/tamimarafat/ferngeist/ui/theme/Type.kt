@@ -59,6 +59,46 @@ private fun TextStyle.forGeistMono(): TextStyle =
         letterSpacing = 0.sp,
     )
 
+/**
+ * Material's scale carries a second, emphasized set beside the base one, and every style here has
+ * a partner: a theme that maps only the base 15 leaves anything using `…Emphasized` on the platform
+ * sans face. The quota percentage is one — `titleMediumEmphasized` rendered proportional while the
+ * rest of the sheet was monospaced. Map both sets, not just the familiar one.
+ */
+private fun MaterialTypography.forGeistMono(): MaterialTypography =
+    copy(
+        displayLarge = displayLarge.forGeistMono(),
+        displayMedium = displayMedium.forGeistMono(),
+        displaySmall = displaySmall.forGeistMono(),
+        headlineLarge = headlineLarge.forGeistMono(),
+        headlineMedium = headlineMedium.forGeistMono(),
+        headlineSmall = headlineSmall.forGeistMono(),
+        titleLarge = titleLarge.forGeistMono(),
+        titleMedium = titleMedium.forGeistMono(),
+        titleSmall = titleSmall.forGeistMono(),
+        bodyLarge = bodyLarge.forGeistMono(),
+        bodyMedium = bodyMedium.forGeistMono(),
+        bodySmall = bodySmall.forGeistMono(),
+        labelLarge = labelLarge.forGeistMono(),
+        labelMedium = labelMedium.forGeistMono(),
+        labelSmall = labelSmall.forGeistMono(),
+        displayLargeEmphasized = displayLargeEmphasized.forGeistMono(),
+        displayMediumEmphasized = displayMediumEmphasized.forGeistMono(),
+        displaySmallEmphasized = displaySmallEmphasized.forGeistMono(),
+        headlineLargeEmphasized = headlineLargeEmphasized.forGeistMono(),
+        headlineMediumEmphasized = headlineMediumEmphasized.forGeistMono(),
+        headlineSmallEmphasized = headlineSmallEmphasized.forGeistMono(),
+        titleLargeEmphasized = titleLargeEmphasized.forGeistMono(),
+        titleMediumEmphasized = titleMediumEmphasized.forGeistMono(),
+        titleSmallEmphasized = titleSmallEmphasized.forGeistMono(),
+        bodyLargeEmphasized = bodyLargeEmphasized.forGeistMono(),
+        bodyMediumEmphasized = bodyMediumEmphasized.forGeistMono(),
+        bodySmallEmphasized = bodySmallEmphasized.forGeistMono(),
+        labelLargeEmphasized = labelLargeEmphasized.forGeistMono(),
+        labelMediumEmphasized = labelMediumEmphasized.forGeistMono(),
+        labelSmallEmphasized = labelSmallEmphasized.forGeistMono(),
+    )
+
 private val baseTypography =
     MaterialTypography(
         bodyLarge =
@@ -66,24 +106,7 @@ private val baseTypography =
                 fontWeight = FontWeight.Normal,
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
-            ).forGeistMono(),
+            ),
     )
 
-val appTypography =
-    baseTypography.copy(
-        displayLarge = baseTypography.displayLarge.forGeistMono(),
-        displayMedium = baseTypography.displayMedium.forGeistMono(),
-        displaySmall = baseTypography.displaySmall.forGeistMono(),
-        headlineLarge = baseTypography.headlineLarge.forGeistMono(),
-        headlineMedium = baseTypography.headlineMedium.forGeistMono(),
-        headlineSmall = baseTypography.headlineSmall.forGeistMono(),
-        titleLarge = baseTypography.titleLarge.forGeistMono(),
-        titleMedium = baseTypography.titleMedium.forGeistMono(),
-        titleSmall = baseTypography.titleSmall.forGeistMono(),
-        bodyLarge = baseTypography.bodyLarge.forGeistMono(),
-        bodyMedium = baseTypography.bodyMedium.forGeistMono(),
-        bodySmall = baseTypography.bodySmall.forGeistMono(),
-        labelLarge = baseTypography.labelLarge.forGeistMono(),
-        labelMedium = baseTypography.labelMedium.forGeistMono(),
-        labelSmall = baseTypography.labelSmall.forGeistMono(),
-    )
+val appTypography = baseTypography.forGeistMono()
