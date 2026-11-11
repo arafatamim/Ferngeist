@@ -83,16 +83,19 @@ private class TableMetrics(
 )
 
 /**
- * Fits the table to [availableWidth], or overflows it when the columns would be squeezed too far
- * to read. An unbounded parent offers no width to fit, so the table hugs its content instead.
+ * Fits the table to [availableWidth], or overflows it when the columns would be squeezed below
+ * [READABLE_COLUMN_WIDTH]. An unbounded parent offers no width to fit, so the table hugs its
+ * content instead.
  */
 private fun Density.tableMetrics(
     preferredWidths: IntArray,
     availableWidth: Dp,
     totalColumnSpacing: Int,
 ): TableMetrics {
+    val minColumnWidth = READABLE_COLUMN_WIDTH.roundToPx()
     if (!availableWidth.value.isFinite()) {
-        val columnWidths = distributeTableColumnWidths(preferredWidths, preferredWidths.sum())
+        val columnWidths =
+            distributeTableColumnWidths(preferredWidths, preferredWidths.sum(), minColumnWidth)
         return TableMetrics(columnWidths, columnWidths.sum() + totalColumnSpacing)
     }
     val availablePx = availableWidth.roundToPx()
@@ -100,6 +103,7 @@ private fun Density.tableMetrics(
         distributeTableColumnWidths(
             preferredWidths = preferredWidths,
             availableWidth = (availablePx - totalColumnSpacing).coerceAtLeast(0),
+            minColumnWidth = minColumnWidth,
         )
     return TableMetrics(columnWidths, maxOf(availablePx, columnWidths.sum() + totalColumnSpacing))
 }
@@ -220,20 +224,23 @@ private fun Placeable.PlacementScope.placeTable(table: MeasuredTable) {
 }
 
 /**
- * The most columns a table may squeeze itself to fit: past that, a column is too narrow to read a
- * cell in, so the table overflows and scrolls instead.
+ * The narrowest a column may be squeezed to. Below it a cell wraps into slivers, so the table
+ * keeps the width and scrolls instead — the floor is what makes that decision about the content,
+ * not about how wide the container happens to be.
  */
-private const val SQUEEZE_COLUMNS = 3
+private val READABLE_COLUMN_WIDTH = 120.dp
 
 /**
- * Column widths for [availableWidth]: content widths when they fit, otherwise a readable squeeze.
+ * Column widths for [availableWidth]: content widths when they fit, otherwise every column down
+ * to [minColumnWidth], widest first.
  *
- * The result sums to more than [availableWidth] only when squeezing would take a column below its
- * share of a [SQUEEZE_COLUMNS]-column table; the caller scrolls that overflow.
+ * The result sums to more than [availableWidth] only when holding that floor would not fit; the
+ * caller scrolls that overflow.
  */
 internal fun distributeTableColumnWidths(
     preferredWidths: IntArray,
     availableWidth: Int,
+    minColumnWidth: Int,
 ): IntArray {
     val totalPreferred = preferredWidths.sum()
     return when {
@@ -242,7 +249,7 @@ internal fun distributeTableColumnWidths(
         totalPreferred == 0 -> evenWidths(preferredWidths.size, availableWidth)
         totalPreferred <= availableWidth ->
             preferredWidths.copyOf().also { it[it.lastIndex] += availableWidth - totalPreferred }
-        else -> cappedToReadableWidth(preferredWidths, availableWidth)
+        else -> cappedToReadableWidth(preferredWidths, availableWidth, minColumnWidth)
     }
 }
 
@@ -258,16 +265,16 @@ private fun evenWidths(
 }
 
 /**
- * Holds every column to its content width, or to an even share of the width when the table has no
- * more than [SQUEEZE_COLUMNS] columns; a wider table keeps that share and overflows. Whatever the
- * caps leave unspent goes back to the capped columns, widest first, so a table that can fit fills
- * the width instead of leaving a gap.
+ * Holds every column to its content width, or to the larger of an even share and [minColumnWidth];
+ * a table that cannot fit that floor overflows. Whatever the caps leave unspent goes back to the
+ * capped columns, widest first, so a table that can fit fills the width instead of leaving a gap.
  */
 private fun cappedToReadableWidth(
     preferredWidths: IntArray,
     availableWidth: Int,
+    minColumnWidth: Int,
 ): IntArray {
-    val cap = availableWidth / minOf(preferredWidths.size, SQUEEZE_COLUMNS)
+    val cap = maxOf(availableWidth / preferredWidths.size, minColumnWidth)
     val widths = IntArray(preferredWidths.size) { index -> minOf(preferredWidths[index], cap) }
     spreadLeftover(widths, preferredWidths, availableWidth, availableWidth - widths.sum())
     return widths
