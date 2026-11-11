@@ -49,6 +49,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.lerp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.ConnectionStatusPill
@@ -66,11 +68,8 @@ import com.tamimarafat.ferngeist.core.git.R as GitR
 // region: ChatTopBar
 
 /**
- * Wraps [TwoRowsTopAppBar] with a gradient surface-fade background.
- *
- * The background gradient goes from opaque surface (top) to transparent (bottom).
- * As [scrollBehavior.state.collapsedFraction] approaches 1.0, the base surface
- * fades out completely, leaving only the pill elements visible.
+ * The session masthead: a solid tonal block with rounded bottom corners while expanded, handing
+ * over to a surface fade as the bar collapses, with the title stepping down alongside it.
  */
 @Composable
 internal fun ChatTopBar(
@@ -108,9 +107,10 @@ internal fun ChatTopBar(
     // header never pays for its height when vertical space is the constraint.
     if (isWindowShort()) {
         Box(
-            modifier = Modifier.chatTopBarGradient(1f),
+            modifier = Modifier.mastheadFade(1f),
         ) {
             TopAppBar(
+                modifier = Modifier.mastheadBlock(1f),
                 navigationIcon = {
                     if (showBackButton) {
                         TopBarBackButton(onNavigateBack)
@@ -125,6 +125,7 @@ internal fun ChatTopBar(
                         cwd = cwd,
                         model = activeModel,
                         onTitleClick = onTitleClick,
+                        titleStyle = MaterialTheme.typography.titleLarge,
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
                         sharedBoundsEnabled = sharedBoundsEnabled,
@@ -161,10 +162,19 @@ internal fun ChatTopBar(
         return
     }
 
+    // The title steps down with the bar, so the masthead never snaps between two type scales
+    // mid-scroll.
+    val titleStyle =
+        lerp(
+            MaterialTheme.typography.headlineSmall,
+            MaterialTheme.typography.titleLarge,
+            collapsedFraction,
+        )
     Box(
-        modifier = Modifier.chatTopBarGradient(collapsedFraction),
+        modifier = Modifier.mastheadFade(collapsedFraction),
     ) {
         TwoRowsTopAppBar(
+            modifier = Modifier.mastheadBlock(collapsedFraction),
             navigationIcon = {
                 if (showBackButton) {
                     TopBarBackButton(onNavigateBack)
@@ -179,6 +189,7 @@ internal fun ChatTopBar(
                     cwd = cwd,
                     model = activeModel,
                     onTitleClick = onTitleClick,
+                    titleStyle = titleStyle,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     sharedBoundsEnabled = sharedBoundsEnabled,
@@ -209,12 +220,9 @@ internal fun ChatTopBar(
                 )
             },
             collapsedHeight = TopAppBarDefaults.LargeAppBarCollapsedHeight,
-            expandedHeight =
-                if (activeModel.isNullOrBlank()) {
-                    TopAppBarDefaults.MediumFlexibleAppBarWithoutSubtitleExpandedHeight + 24.dp
-                } else {
-                    TopAppBarDefaults.MediumFlexibleAppBarWithSubtitleExpandedHeight + 24.dp
-                },
+            // Two lines of the masthead title under the 64dp action row, plus the model line
+            // and its breathing space when present. The medium flexible heights only hold one.
+            expandedHeight = if (activeModel.isNullOrBlank()) 132.dp else 152.dp,
             scrollBehavior = scrollBehavior,
             colors =
                 TopAppBarDefaults.topAppBarColors(
@@ -225,30 +233,42 @@ internal fun ChatTopBar(
     }
 }
 
-// Gradient: opaque surface at top fades to transparent at bottom.
-// As the bar collapses, the base surface fades to reveal the gradient
-// layer underneath, giving a "surface peeling away" effect.
+/**
+ * The masthead block: a solid tonal field whose bottom corners flatten as the bar collapses. It
+ * fades out entirely with the collapse, handing the bar over to [mastheadFade].
+ */
 @Composable
-private fun Modifier.chatTopBarGradient(collapsedFraction: Float): Modifier {
-    val expandedBackground = MaterialTheme.colorScheme.surface.copy(alpha = 1f - collapsedFraction)
-    val topShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-    val middleShadow = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-    val bottomShadow = Color.Transparent
+private fun Modifier.mastheadBlock(collapsedFraction: Float): Modifier {
+    val fraction = collapsedFraction.coerceIn(0f, 1f)
+    val corner = (MASTHEAD_CORNER_DP * (1f - fraction)).dp
+    return this.background(
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 1f - fraction),
+        shape = RoundedCornerShape(bottomStart = corner, bottomEnd = corner),
+    )
+}
+
+/** The fade the collapsed bar keeps: surface at the top dissolving to nothing at its bottom edge. */
+@Composable
+private fun Modifier.mastheadFade(collapsedFraction: Float): Modifier {
+    val fraction = collapsedFraction.coerceIn(0f, 1f)
+    val surface = MaterialTheme.colorScheme.surface
     return this
         .fillMaxWidth()
-        .background(expandedBackground)
         .background(
             brush =
                 Brush.verticalGradient(
                     colors =
                         listOf(
-                            topShadow,
-                            middleShadow,
-                            bottomShadow,
+                            surface.copy(alpha = 0.95f * fraction),
+                            surface.copy(alpha = 0.8f * fraction),
+                            Color.Transparent,
                         ),
                 ),
         )
 }
+
+/** The theme's extraLarge corner, kept as a plain value so it can be interpolated. */
+private const val MASTHEAD_CORNER_DP = 28f
 
 @Composable
 private fun TopBarBackButton(onNavigateBack: () -> Unit) {
@@ -272,11 +292,11 @@ private fun TopBarSubtitleContent(
     if (expanded) {
         Text(
             text = model,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(bottom = 12.dp),
+            modifier = Modifier.padding(bottom = 4.dp),
         )
     }
 }
@@ -347,6 +367,7 @@ internal fun ChatTopBarTitle(
     cwd: String?,
     model: String?,
     onTitleClick: () -> Unit,
+    titleStyle: TextStyle,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
     sharedBoundsEnabled: Boolean = true,
@@ -395,6 +416,7 @@ internal fun ChatTopBarTitle(
             ExpandedTitleText(
                 sessionId = sessionId,
                 sessionTitle = sessionTitle,
+                titleStyle = titleStyle,
                 ownsSharedTitleBounds = ownsSharedTitleBounds,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
@@ -444,6 +466,7 @@ private fun TooltipMetadataRows(
 private fun ExpandedTitleText(
     sessionId: String,
     sessionTitle: String,
+    titleStyle: TextStyle,
     ownsSharedTitleBounds: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: androidx.compose.animation.AnimatedContentScope,
@@ -454,7 +477,7 @@ private fun ExpandedTitleText(
     with(sharedTransitionScope) {
         Text(
             text = sessionTitle,
-            style = MaterialTheme.typography.titleLarge,
+            style = titleStyle,
             maxLines = 2,
             softWrap = true,
             overflow = TextOverflow.MiddleEllipsis,

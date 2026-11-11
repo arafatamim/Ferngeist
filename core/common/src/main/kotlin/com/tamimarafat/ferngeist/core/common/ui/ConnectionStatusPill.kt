@@ -93,10 +93,10 @@ fun ConnectionStatusPill(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 ),
             elevation = ButtonDefaults.filledTonalButtonElevation(defaultElevation = 0.dp),
-            contentPadding = PaddingValues(12.dp),
+            contentPadding = PaddingValues(10.dp),
             modifier =
                 modifier
-                    .size(44.dp)
+                    .size(40.dp)
                     .handCursor()
                     .semantics {
                         contentDescription = connectionStatusDesc
@@ -239,7 +239,7 @@ private fun UsageRingIcon(
                 .coerceIn(0f, 1f),
         animationSpec = tween(500),
     )
-    // 20dp fills a 44dp button with 12dp content padding, matching the connecting icon.
+    // 20dp fills a 40dp button with 10dp content padding, matching the connecting icon.
     CircularProgressIndicator(
         progress = { ratio },
         modifier = Modifier.size(20.dp),
