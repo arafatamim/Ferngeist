@@ -187,9 +187,11 @@ class SessionRuntime(
                 if (running) {
                     SessionMessageReducer.finishStreaming(buffered.messages)
                 } else {
-                    buffered.messages.map { message ->
-                        if (message.isStreaming) message.copy(isStreaming = false) else message
-                    }
+                    failUnfinishedToolCalls(
+                        buffered.messages.map { message ->
+                            if (message.isStreaming) message.copy(isStreaming = false) else message
+                        },
+                    )
                 }
             // A replay that brings no config keeps the attached session's: a gap refill
             // starts after attach already pushed it, and the raw load reply is not mapped.
@@ -281,6 +283,10 @@ class SessionRuntime(
                 catchingUp = false
                 this.dropsRepeatPrompts = dropsRepeatPrompts
                 this.historyGap = historyGap
+                // An idle attach proves no call is still running; an unheard resend close does not.
+                if (!turnRunning && heldTurnEnd == null) {
+                    live = live.copy(messages = failUnfinishedToolCalls(live.messages))
+                }
                 _snapshot.value =
                     _snapshot.value.copy(dropsRepeatPrompts = dropsRepeatPrompts, historyGap = historyGap)
                 heldTurnEnd.also { heldTurnEnd = null }

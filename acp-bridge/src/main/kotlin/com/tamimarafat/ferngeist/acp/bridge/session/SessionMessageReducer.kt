@@ -588,18 +588,17 @@ object SessionMessageReducer {
 }
 
 /**
- * Marks the last turn's PENDING / IN_PROGRESS tool calls FAILED. Once a turn has ended no
- * update can finish them, and a turn cut short (stopped, stream dropped, agent crashed) never
- * sends one, so left alone they would spin forever. A late update that does arrive still
- * carries its own status and overrides this.
+ * Marks all PENDING / IN_PROGRESS tool calls FAILED once no turn remains active. A turn cut
+ * short (stopped, stream dropped, agent crashed) may never send another update, so left alone
+ * they would spin forever. Steering inserts user messages within a turn, so the last user
+ * message cannot bound this cleanup. A late status update still overrides this fallback.
  */
 internal fun failUnfinishedToolCalls(messages: List<ChatMessage>): List<ChatMessage> {
-    val turnStart = messages.indexOfLast { it.role == ChatMessage.Role.USER } + 1
-    if ((turnStart until messages.size).none { messages[it].segments.any(AssistantSegment::isUnfinishedCall) }) {
+    if (messages.none { it.segments.any(AssistantSegment::isUnfinishedCall) }) {
         return messages
     }
-    return messages.mapIndexed { index, message ->
-        if (index < turnStart || message.segments.none(AssistantSegment::isUnfinishedCall)) {
+    return messages.map { message ->
+        if (message.segments.none(AssistantSegment::isUnfinishedCall)) {
             message
         } else {
             message.copy(
