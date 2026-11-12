@@ -4,6 +4,7 @@ import android.util.Log
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.SerializationException
 import java.io.IOException
 import java.time.Instant
 
@@ -67,6 +68,10 @@ private suspend fun refreshGatewayCredential(
         runCatching {
             Log.w(TAG, "network error refreshing ${gatewaySource.name}, keeping existing credential: ${e.message}")
         }
+        null
+    } catch (_: SerializationException) {
+        // A malformed response cannot replace the credential we already have.
+        runCatching { Log.w(TAG, "invalid refresh response for ${gatewaySource.name}, keeping existing credential") }
         null
     }
 

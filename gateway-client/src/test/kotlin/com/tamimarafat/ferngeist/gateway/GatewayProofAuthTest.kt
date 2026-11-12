@@ -1,9 +1,12 @@
 package com.tamimarafat.ferngeist.gateway
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
@@ -69,6 +72,31 @@ class GatewayProofAuthTest {
         assertNotNull(headers.proofTimestamp)
         assertNotNull(headers.proofNonce)
         assertNotNull(headers.proofSignature)
+    }
+
+    @Test
+    fun `malformed stored credentials produce a recoverable error without exposing the credential`() {
+        val credentials =
+            listOf(
+                "ferngeist-gateway-auth-v1:!",
+                "ferngeist-gateway-auth-v1:e30",
+                "ferngeist-gateway-auth-v1:" +
+                    Base64.getUrlEncoder().encodeToString(
+                        """{"token":"secret-token","proofPrivateKey":{}}""".toByteArray(),
+                    ),
+                GatewayProofAuth.encodeStoredCredential("secret-token", "!"),
+                GatewayProofAuth.encodeStoredCredential("secret-token", "AA"),
+            )
+        credentials.forEach { credential ->
+            val error =
+                assertThrows(IOException::class.java) {
+                    GatewayProofAuth.buildAuthHeaders(
+                        gatewayCredential = credential,
+                        request = GatewayProofRequest(method = "GET", endpoint = "/v1/agents"),
+                    )
+                }
+            assertFalse(error.stackTraceToString().contains("secret-token"))
+        }
     }
 
     @Test

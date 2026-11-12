@@ -2,7 +2,9 @@ package com.tamimarafat.ferngeist.gateway
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.io.IOException
 import java.net.URI
+import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.Signature
@@ -43,6 +45,12 @@ private data class GatewayAuthBundle(
     val token: String,
     val proofPrivateKey: String? = null,
 )
+
+// Decoder errors can include the stored token, so this error deliberately carries no cause.
+class GatewayCredentialInvalidException :
+    IOException(
+        "The stored gateway credential is invalid. Re-pair this gateway to continue.",
+    )
 
 object GatewayProofAuth {
     private val json = Json { ignoreUnknownKeys = true }
@@ -117,16 +125,11 @@ object GatewayProofAuth {
                 nonce,
                 bodyHash,
             ).joinToString("\n")
-        val keyFactory = KeyFactory.getInstance("EC")
-        val privateKey = keyFactory.generatePrivate(PKCS8EncodedKeySpec(decoder.decode(auth.proofPrivateKey)))
-        val signature = Signature.getInstance("SHA256withECDSA")
-        signature.initSign(privateKey)
-        signature.update(message.toByteArray(Charsets.UTF_8))
         return GatewayAuthHeaders(
             authorization = "Bearer ${auth.token}",
             proofTimestamp = timestamp,
             proofNonce = nonce,
-            proofSignature = encoder.encodeToString(signature.sign()),
+            proofSignature = signProof(message, auth.proofPrivateKey),
         )
     }
 
@@ -134,14 +137,36 @@ object GatewayProofAuth {
         if (!gatewayCredential.startsWith(AUTH_BUNDLE_PREFIX)) {
             return GatewayAuthBundle(token = gatewayCredential)
         }
-        val encodedPayload = gatewayCredential.removePrefix(AUTH_BUNDLE_PREFIX)
-        val payload = decoder.decode(encodedPayload).toString(Charsets.UTF_8)
-        val parsed = json.decodeFromString<GatewayStoredAuthBundle>(payload)
+        val parsed =
+            try {
+                val encodedPayload = gatewayCredential.removePrefix(AUTH_BUNDLE_PREFIX)
+                val payload = decoder.decode(encodedPayload).toString(Charsets.UTF_8)
+                json.decodeFromString<GatewayStoredAuthBundle>(payload)
+            } catch (_: IllegalArgumentException) {
+                throw GatewayCredentialInvalidException()
+            }
         return GatewayAuthBundle(
             token = parsed.token,
             proofPrivateKey = parsed.proofPrivateKey,
         )
     }
+
+    private fun signProof(
+        message: String,
+        encodedKey: String,
+    ): String =
+        try {
+            val keyFactory = KeyFactory.getInstance("EC")
+            val privateKey = keyFactory.generatePrivate(PKCS8EncodedKeySpec(decoder.decode(encodedKey)))
+            val signature = Signature.getInstance("SHA256withECDSA")
+            signature.initSign(privateKey)
+            signature.update(message.toByteArray(Charsets.UTF_8))
+            encoder.encodeToString(signature.sign())
+        } catch (_: IllegalArgumentException) {
+            throw GatewayCredentialInvalidException()
+        } catch (_: GeneralSecurityException) {
+            throw GatewayCredentialInvalidException()
+        }
 
     private fun sha256Base64Url(bytes: ByteArray): String {
         val digest =

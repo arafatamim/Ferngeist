@@ -6,6 +6,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialInvalidException
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.turns.GatewayTurn
 import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnKey
@@ -207,6 +208,8 @@ internal class TurnStatusCatalog(
             StreamEnd.Refused(error.statusCode)
         } catch (closed: GatewayTurnStreamClosedException) {
             StreamEnd.Closed(closed.code)
+        } catch (_: GatewayCredentialInvalidException) {
+            StreamEnd.Closed(CLOSE_CREDENTIAL_INVALID)
         } catch (_: IOException) {
             StreamEnd.Failed
         } catch (_: SerializationException) {

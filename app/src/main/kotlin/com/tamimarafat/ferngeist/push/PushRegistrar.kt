@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
@@ -182,6 +183,9 @@ class PushRegistrar(
             false
         } catch (e: IOException) {
             Log.w(TAG, "Network error trying to $action gateway ${gateway.name}", e)
+            false
+        } catch (_: SerializationException) {
+            Log.w(TAG, "Invalid response trying to $action gateway ${gateway.name}")
             false
         }
 

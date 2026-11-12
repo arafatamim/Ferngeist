@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.onRemoteTurnEnded
 import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.onRemoteResumed
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
@@ -22,6 +23,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.IOException
+import java.nio.channels.UnresolvedAddressException
 
 // Keeps the WebSocket alive and detects dead peers: the CIO client pings on
 // this interval when no frames are exchanged.
@@ -43,6 +45,14 @@ private const val MILLIS_PER_SECOND = 1_000L
 // The gateway turn-status stream shares it for the same reason.
 internal val sharedWebSocketClient: HttpClient by lazy {
     HttpClient(CIO) {
+        HttpResponseValidator {
+            handleResponseExceptionWithRequest { error, request ->
+                // CIO's unresolved address is an IllegalArgumentException, outside callers' network handlers.
+                if (error is UnresolvedAddressException) {
+                    throw IOException("Unable to resolve server address: ${request.url.host}", error)
+                }
+            }
+        }
         install(WebSockets) {
             pingIntervalMillis = WEB_SOCKET_PING_INTERVAL_MILLIS
             // Offered, not required: a gateway that does not negotiate permessage-deflate leaves the

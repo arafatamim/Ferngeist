@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -139,6 +140,21 @@ class PushRegistrarTest {
             verify(exactly = 0) { unifiedPush.register(any(), any()) }
 
             gateways.value = listOf(gateway("a"), gateway("b"))
+            verify(exactly = 1) { unifiedPush.register("a", "vapid-a") }
+        }
+
+    @Test
+    fun `malformed push config keeps registration alive and retries on the next gateway emission`() =
+        runTest(UnconfinedTestDispatcher()) {
+            givenGateways("a", "b")
+            coEvery { gatewayRepository.getPushConfig("https", "host-a", "cred-a") } throws
+                SerializationException("malformed config") andThen GatewayPushConfig("vapid-a")
+
+            registrar().start()
+            verify(exactly = 1) { unifiedPush.register("b", "vapid-host-b") }
+            verify(exactly = 0) { unifiedPush.register("a", any()) }
+
+            gateways.value = listOf(gateway("a"), gateway("b"), gateway("c"))
             verify(exactly = 1) { unifiedPush.register("a", "vapid-a") }
         }
 

@@ -1,9 +1,12 @@
 package com.tamimarafat.ferngeist.gateway
 
+import com.tamimarafat.ferngeist.core.model.GatewaySource
+import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -13,8 +16,8 @@ import org.junit.Test
 
 /**
  * Tests for the credential-refresh path in [GatewayRepositoryImpl.refreshCredential],
- * specifically the translation of a gateway 401 into a typed
- * [GatewayCredentialExpiredException] so callers can clear the dead credential.
+ * including translation of a gateway 401 into a typed [GatewayCredentialExpiredException]
+ * and preservation of the stored credential when refresh cannot produce a valid replacement.
  */
 class GatewayCredentialRefreshTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -78,6 +81,26 @@ class GatewayCredentialRefreshTest {
         }
 
     @Test
+    fun `a malformed refresh response preserves the stored gateway credential`() =
+        runTest {
+            val gateway =
+                GatewaySource(
+                    id = "gw",
+                    name = "PC",
+                    host = "host-a",
+                    gatewayCredential = "existing-credential",
+                    gatewayCredentialExpiresAt = 1_000L,
+                )
+            val repo = repoResponding(HttpStatusCode.OK, """{"token":"incomplete-replacement"}""")
+            val sources = GatewaySources(gateway)
+
+            val result = refreshGatewaySourceIfNeeded(gateway, repo, sources, nowMillis = 1_000L)
+
+            assertEquals(gateway, result)
+            assertEquals(gateway, sources.stored)
+        }
+
+    @Test
     fun `refreshCredential succeeds and rotates the credential on 200`() =
         runTest {
             val repo =
@@ -95,4 +118,26 @@ class GatewayCredentialRefreshTest {
             assertEquals("new-token", result.gatewayCredential)
             assertEquals("2099-01-01T00:00:00Z", result.expiresAt)
         }
+
+    private class GatewaySources(
+        var stored: GatewaySource?,
+    ) : GatewaySourceRepository {
+        override fun getGateways() = flowOf(listOfNotNull(stored))
+
+        override suspend fun addGateway(gateway: GatewaySource) {
+            stored = gateway
+        }
+
+        override suspend fun updateGateway(gateway: GatewaySource) {
+            stored = gateway
+        }
+
+        override suspend fun deleteGateway(id: String) {
+            stored = stored?.takeUnless { it.id == id }
+        }
+
+        override suspend fun getGateway(id: String) = stored?.takeIf { it.id == id }
+
+        override suspend fun getGatewayByGatewayId(gatewayId: String) = stored?.takeIf { it.gatewayId == gatewayId }
+    }
 }

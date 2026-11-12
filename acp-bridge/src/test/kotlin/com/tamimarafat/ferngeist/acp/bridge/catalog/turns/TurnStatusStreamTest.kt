@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.TurnActivity
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.gateway.GatewayCredentialInvalidException
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
 import com.tamimarafat.ferngeist.gateway.turns.GatewayTurn
 import com.tamimarafat.ferngeist.gateway.turns.GatewayTurnKey
@@ -183,6 +184,23 @@ class TurnStatusStreamTest {
             gateways.emit(listOf(gateway.copy(gatewayCredential = "rotated")))
             runCurrent()
             assertEquals(2, attempts)
+        }
+
+    @Test
+    fun `an invalid saved credential stops retrying`() =
+        runTest {
+            var attempts = 0
+            streamFrames {
+                attempts++
+                throw GatewayCredentialInvalidException()
+            }
+            val catalog = catalog()
+            backgroundScope.launch { catalog.stream(flowOf(listOf(gateway))) }
+            runCurrent()
+
+            advanceTimeBy(60_000)
+            runCurrent()
+            assertEquals(1, attempts)
         }
 
     private suspend fun TestScope.streamGateways(catalog: TurnStatusCatalog) {
