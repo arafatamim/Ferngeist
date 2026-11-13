@@ -8,6 +8,7 @@ import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -284,6 +285,7 @@ sealed interface AppSessionEvent {
         val text: String,
         val images: List<ChatImageData> = emptyList(),
         val files: List<ChatFileData> = emptyList(),
+        val links: List<ChatResourceLink> = emptyList(),
         val append: Boolean = false,
         val timestampMs: Long? = null,
         val messageId: String? = null,
@@ -291,10 +293,13 @@ sealed interface AppSessionEvent {
         val clientId: String? = null,
     ) : AppSessionEvent
 
+    /** One reply chunk: its [text], or the host file it links or the picture it shows instead. */
     data class AgentMessage(
         val text: String,
         val timestampMs: Long? = null,
         val messageId: String? = null,
+        val link: ChatResourceLink? = null,
+        val image: ChatImageData? = null,
     ) : AppSessionEvent
 
     data class AgentThought(

@@ -372,7 +372,7 @@ class GatewayProofSkewTest {
         """{"error":"gateway credential proof expired","code":"proof_expired","serverTime":"${rfc3339(serverTime)}"}"""
 
     private fun statusBody(serverTime: Instant) =
-        """{"name":"gw","version":"1.0","protocolVersion":"v2",""" +
+        """{"name":"gw","version":"1.0","protocolVersion":"v3",""" +
             """"serverTime":"${rfc3339(serverTime)}","remote":{"configured":false}}"""
 
     private fun rfc3339(instant: Instant) =

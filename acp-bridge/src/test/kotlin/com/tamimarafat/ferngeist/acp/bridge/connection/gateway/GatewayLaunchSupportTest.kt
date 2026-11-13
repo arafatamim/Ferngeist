@@ -35,13 +35,13 @@ class GatewayLaunchSupportTest {
         }
 
     @Test
-    fun `a v2 gateway still launches the server connect`() =
+    fun `a current-protocol gateway still launches the server connect`() =
         runTest {
             val repo = FakeGatewayRepo().apply { protocolVersion = GatewayProtocol.CURRENT }
             val result =
                 buildGatewayLaunchContext(GatewayRuntimeLauncher(repo, FakeGatewaySources()), target(), emptySet())
 
-            assertTrue("a v2 gateway must launch: ${result.exceptionOrNull()?.message}", result.isSuccess)
+            assertTrue("a current-protocol gateway must launch: ${result.exceptionOrNull()?.message}", result.isSuccess)
             assertEquals(1, repo.connectCalls)
         }
 

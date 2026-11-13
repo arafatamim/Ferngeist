@@ -21,6 +21,7 @@ import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
 import com.tamimarafat.ferngeist.core.model.repository.TurnTimingRepository
 import com.tamimarafat.ferngeist.feature.chat.activity.PhoneTurnClock
+import com.tamimarafat.ferngeist.feature.chat.artifact.storage.ArtifactCache
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
@@ -47,6 +48,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
+import kotlin.io.path.createTempDirectory
 
 /**
  * Shared infrastructure for [ChatViewModel] tests: a JUnit rule that swaps the main dispatcher
@@ -123,6 +125,7 @@ internal fun testStores(
         switcherHintStore,
         FakeRecentSelectionStore(),
         PhoneTurnClock(InMemoryPreferencesDataStore(), Json),
+        ArtifactCache(createTempDirectory("artifacts").toFile()),
     )
 
 internal class InMemoryPreferencesDataStore : DataStore<Preferences> {

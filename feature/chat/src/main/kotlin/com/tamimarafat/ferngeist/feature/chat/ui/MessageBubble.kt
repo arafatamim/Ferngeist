@@ -88,6 +88,8 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SegmentBlock
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.ResourceLinkCards
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.localTurnPaths
 import com.tamimarafat.ferngeist.feature.chat.displayBlocks
 import com.tamimarafat.ferngeist.feature.chat.markdown.InlineChips
 import com.tamimarafat.ferngeist.feature.chat.markdown.MarkdownBlocks
@@ -98,6 +100,7 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
 import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachments
+import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachmentItem
 import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
 import com.tamimarafat.ferngeist.feature.chat.ui.message.StreamingIndicator
@@ -206,6 +209,7 @@ private fun BubbleContent(
                 turnSegments = turnSegments,
                 onThoughtClick = onThoughtClick,
                 onToolCallClick = onToolCallClick,
+                onImageClick = onImageClick,
                 // Height springs to each new line instead of jumping by a line at a time. Only on a
                 // live bubble: on history it would animate unrelated size changes (rotation).
                 modifier =
@@ -361,6 +365,10 @@ private fun UserMessageContent(
                 Spacer(modifier = Modifier.height(8.dp))
                 FileAttachments(message.files)
             }
+            if (message.links.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                ResourceLinkCards(message.links, animate = false)
+            }
         }
         // Trailing status for non-SENT delivery states.
         AnimatedVisibility(
@@ -490,6 +498,7 @@ private fun AssistantMessageContent(
     turnSegments: List<AssistantSegment>?,
     onThoughtClick: (String) -> Unit,
     onToolCallClick: (String) -> Unit,
+    onImageClick: (ChatImageData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -506,21 +515,25 @@ private fun AssistantMessageContent(
                 ?.id
                 .takeIf { message.isStreaming }
         val blocks = message.segments.displayBlocks()
-        val fileChips = rememberFileChips(message.segments, message.isStreaming)
-        blocks.forEach { block ->
-            if (!gateOpen) return@forEach
-            key(block.key) {
-                assistantBlock(
-                    block = block,
-                    isTail = block === blocks.last(),
-                    message = message,
-                    liveSegmentId = liveSegmentId,
-                    markdownDocuments = markdownDocuments,
-                    reveals = reveals,
-                    fileChips = fileChips,
-                    onToolCallClick = onToolCallClick,
-                    onThoughtClick = onThoughtClick,
-                )?.let { gateOpen = it }
+        val turnPaths = remember(message.segments) { message.segments.fileReferences() }
+        val fileChips = rememberFileChips(turnPaths, message.isStreaming)
+        CompositionLocalProvider(localTurnPaths provides turnPaths) {
+            blocks.forEach { block ->
+                if (!gateOpen) return@forEach
+                key(block.key) {
+                    assistantBlock(
+                        block = block,
+                        isTail = block === blocks.last(),
+                        message = message,
+                        liveSegmentId = liveSegmentId,
+                        markdownDocuments = markdownDocuments,
+                        reveals = reveals,
+                        fileChips = fileChips,
+                        onToolCallClick = onToolCallClick,
+                        onThoughtClick = onThoughtClick,
+                        onImageClick = onImageClick,
+                    )?.let { gateOpen = it }
+                }
             }
         }
 
@@ -579,6 +592,7 @@ private fun assistantBlock(
     fileChips: InlineChips?,
     onToolCallClick: (String) -> Unit,
     onThoughtClick: (String) -> Unit,
+    onImageClick: (ChatImageData) -> Unit,
 ): Boolean? =
     when (block) {
         is SegmentBlock.Run ->
@@ -603,6 +617,7 @@ private fun assistantBlock(
                         block = block,
                         document = markdownDocuments[block.key],
                         isStreaming = message.isStreaming,
+                        isOpen = isTail && message.isStreaming,
                         reveals = reveals,
                         fileChips = fileChips,
                     )
@@ -623,11 +638,22 @@ private fun assistantBlock(
             null
         }
 
+        is SegmentBlock.LinkRow -> {
+            // Links that arrive while watched fade in one by one; a replayed or restored row is just there.
+            val animate = remember { message.isStreaming }
+            ResourceLinkCards(block.links, animate)
+            Spacer(modifier = Modifier.height(8.dp))
+            null
+        }
+
         is SegmentBlock.Single -> {
-            if (block.segment.kind == AssistantSegment.Kind.PLAN) {
-                PlanBubble(block.segment.planEntries.orEmpty())
-                Spacer(modifier = Modifier.height(8.dp))
+            when (block.segment.kind) {
+                AssistantSegment.Kind.PLAN -> PlanBubble(block.segment.planEntries.orEmpty())
+                AssistantSegment.Kind.IMAGE ->
+                    block.segment.image?.let { ImageAttachmentItem(image = it, onClick = { onImageClick(it) }) }
+                else -> Unit
             }
+            Spacer(modifier = Modifier.height(8.dp))
             null
         }
     }
@@ -641,6 +667,7 @@ private fun assistantProseRun(
     block: SegmentBlock.Run,
     document: MarkdownRenderedDocument?,
     isStreaming: Boolean,
+    isOpen: Boolean,
     reveals: BubbleReveals,
     fileChips: InlineChips?,
 ): Boolean {
@@ -650,7 +677,10 @@ private fun assistantProseRun(
     // every chunk.
     val total = remember(document) { document?.blocks?.sumOf { it.revealLength() } ?: 0 }
     val reveal = reveals.forRun(block.key, startHidden = isStreaming, total)
-    SideEffect { reveal.target = total }
+    SideEffect {
+        reveal.target = total
+        reveal.isOpen = isOpen
+    }
     // Prose only: reasoning rows render through ToolCallGroup, outside this.
     CompositionLocalProvider(localInlineChips provides fileChips) {
         RenderedMarkdown(text = block.text, document = document, reveal = reveal)

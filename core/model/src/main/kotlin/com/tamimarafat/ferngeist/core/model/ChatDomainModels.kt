@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.core.model
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
@@ -631,6 +632,9 @@ interface ChatWorkspaceReader : GitWorkspaceReader {
      * cut short on a huge repo. Throws on a gateway without the list, and on transport failures.
      */
     suspend fun fetchFileList(): List<String>?
+
+    /** A reader bound to the gateway and cwd as they are now, or null when the chat has no gateway workspace. */
+    fun artifactReader(): ChatArtifactReader?
 }
 
 /**

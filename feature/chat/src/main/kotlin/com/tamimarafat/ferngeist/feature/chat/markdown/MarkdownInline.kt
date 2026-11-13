@@ -101,21 +101,7 @@ private fun AnnotatedString.Builder.appendInlineNodes(
 
             is InlineNode.HardBreak -> append("\n")
 
-            is InlineNode.Link -> {
-                val file = chips?.link?.invoke(node.destination)
-                if (file != null) {
-                    val (id, suffix) = file
-                    appendInlineNodes(node.children, styles)
-                    append(" (")
-                    appendInlineContent(id, id.substringBefore('\n'))
-                    append(suffix)
-                    append(")")
-                } else {
-                    withLink(LinkAnnotation.Url(url = node.destination, styles = styles.link)) {
-                        appendInlineNodes(node.children, styles)
-                    }
-                }
-            }
+            is InlineNode.Link -> appendLink(node, styles, chips)
 
             is InlineNode.SoftBreak -> append("\n")
 
@@ -139,6 +125,37 @@ private fun AnnotatedString.Builder.appendInlineNodes(
         }
     }
 }
+
+/** A workspace source link as a chip, a web link for the URI handler, anything else as its label alone. */
+private fun AnnotatedString.Builder.appendLink(
+    node: InlineNode.Link,
+    styles: MarkdownInlineStyles,
+    chips: InlineChips?,
+) {
+    val file = chips?.link?.invoke(node.destination)
+    when {
+        file != null -> {
+            val (id, suffix) = file
+            appendInlineNodes(node.children, styles)
+            append(" (")
+            appendInlineContent(id, id.substringBefore('\n'))
+            append(suffix)
+            append(")")
+        }
+        isWebDestination(node.destination) ->
+            withLink(LinkAnnotation.Url(url = node.destination, styles = styles.link)) {
+                appendInlineNodes(node.children, styles)
+            }
+        // A host path means nothing to the browser; its attachment card opens it.
+        else -> appendInlineNodes(node.children, styles)
+    }
+}
+
+private val urlScheme = Regex("^[A-Za-z][A-Za-z0-9+.-]+:")
+
+/** A destination the URI handler can open: any scheme but `file`. A path, absolute or not, names a host file. */
+internal fun isWebDestination(destination: String): Boolean =
+    urlScheme.find(destination.trim())?.value?.equals("file:", ignoreCase = true) == false
 
 /** A paragraph's inlines split around its top-level images, so each image lays out on its own. */
 internal sealed interface InlineSegment {

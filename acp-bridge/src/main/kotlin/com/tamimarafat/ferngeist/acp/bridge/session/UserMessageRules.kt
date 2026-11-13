@@ -10,7 +10,7 @@ internal fun appendUserText(
     append: Boolean,
     timestampMs: Long?,
 ): List<ChatMessage> {
-    if (content.text.isEmpty() && content.images.isEmpty() && content.files.isEmpty()) return received
+    if (content.text.isEmpty() && !content.hasAttachments) return received
     // Only the gateway tags an echo with its prompt's id, and only once it delivered that prompt.
     val messages = received.confirmingDelivery(content.clientId)
     // A catch-up replays the prompts the gateway numbered, including ones this transcript already
@@ -49,6 +49,7 @@ internal fun appendUserText(
             content = content.text,
             images = content.images,
             files = content.files,
+            links = content.links,
             createdAt = timestampMs ?: System.currentTimeMillis(),
             messageId = content.messageId,
             clientId = content.clientId,
@@ -107,7 +108,7 @@ internal fun deduplicateOrMergeUserMessage(
 
 /**
  * Returns the merged message list when [lastMessage] is a USER bubble, or null when the
- * chunk should be appended as a new message. Merges when content/images/files differ,
+ * chunk should be appended as a new message. Merges when content/images/files/links differ,
  * and returns the unchanged list on an exact duplicate.
  */
 internal fun mergeIntoUserBubble(
@@ -115,13 +116,14 @@ internal fun mergeIntoUserBubble(
     lastMessage: ChatMessage,
     content: UserContent,
 ): List<ChatMessage> {
-    val dedup = lastMessage.content == content.text && content.images.isEmpty() && content.files.isEmpty()
+    val dedup = lastMessage.content == content.text && !content.hasAttachments
     if (dedup) return mutableMessages
     mutableMessages[mutableMessages.lastIndex] =
         lastMessage.copy(
             content = lastMessage.content + content.text,
             images = lastMessage.images + content.images,
             files = lastMessage.files + content.files,
+            links = lastMessage.links + content.links,
         )
     return mutableMessages
 }

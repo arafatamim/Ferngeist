@@ -307,5 +307,10 @@
     <string name="chat_active_elsewhere_body">Этот чат недавно был активен в другом месте. Отправка может запустить ещё один процесс агента в том же чате.</string>
     <string name="chat_send_anyway">Всё равно отправить</string>
     <string name="quote_selection">Цитировать</string>
+    <string name="artifact_download">Скачать</string>
+    <string name="artifact_unavailable_retry">Недоступно. Нажмите, чтобы повторить.</string>
+    <string name="artifact_no_viewer">Нет приложения, которое может открыть этот файл</string>
+    <string name="artifact_saved">Сохранено: %1$s</string>
+    <string name="artifact_save_failed">Не удалось сохранить %1$s</string>
 </resources>
 

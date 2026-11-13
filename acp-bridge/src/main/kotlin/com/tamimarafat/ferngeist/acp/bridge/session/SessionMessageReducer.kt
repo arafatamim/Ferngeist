@@ -6,7 +6,9 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.mutate
@@ -28,12 +30,31 @@ data class ToolCallLocation(
     val segmentIndex: Int,
 )
 
-/** One streamed text piece of a given kind, appended as its own segment. */
+/** One streamed piece of a given kind, appended as its own segment. */
 private data class TextChunk(
     val kind: AssistantSegment.Kind,
     val text: String,
     val messageId: String?,
+    val link: ChatResourceLink? = null,
+    val image: ChatImageData? = null,
 )
+
+private fun AppSessionEvent.UserMessage.content() = UserContent(text, images, files, clientId, messageId, links)
+
+/** A reply chunk is its link or its image when it carries one, otherwise prose. */
+private fun AppSessionEvent.AgentMessage.chunk() =
+    TextChunk(
+        kind =
+            when {
+                link != null -> AssistantSegment.Kind.RESOURCE_LINK
+                image != null -> AssistantSegment.Kind.IMAGE
+                else -> AssistantSegment.Kind.MESSAGE
+            },
+        text = text,
+        messageId = messageId,
+        link = link,
+        image = image,
+    )
 
 /**
  * Result of reducing a single event: the updated message list plus the
@@ -62,7 +83,7 @@ object SessionMessageReducer {
                     messages =
                         appendUserText(
                             messages,
-                            UserContent(event.text, event.images, event.files, event.clientId, event.messageId),
+                            event.content(),
                             event.append,
                             event.timestampMs,
                         ),
@@ -72,7 +93,7 @@ object SessionMessageReducer {
                 appendText(
                     messages,
                     toolCallIndex,
-                    TextChunk(AssistantSegment.Kind.MESSAGE, event.text, event.messageId),
+                    event.chunk(),
                     event.timestampMs,
                     nowMs,
                 )
@@ -167,7 +188,12 @@ object SessionMessageReducer {
         timestampMs: Long?,
         nowMs: Long?,
     ): ReducerResult {
-        if (chunk.text.isEmpty()) return ReducerResult(messages, toolCallIndex)
+        if (chunk.text.isEmpty() &&
+            chunk.link == null &&
+            chunk.image == null
+        ) {
+            return ReducerResult(messages, toolCallIndex)
+        }
         val mutableMessages = messages.mutableCopy()
         val targetIndex = mutableMessages.textTargetIndex(chunk, timestampMs)
 
@@ -188,6 +214,8 @@ object SessionMessageReducer {
                         id = UUID.randomUUID().toString(),
                         kind = chunk.kind,
                         text = chunk.text,
+                        resourceLink = chunk.link,
+                        image = chunk.image,
                         receivedAtMs = nowMs,
                     ),
                 )

@@ -38,6 +38,7 @@ import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -348,6 +349,8 @@ class AcpChatSessionFacade(
     override suspend fun fetchFile(path: String): ChatFileContents? = workspace.fetchFile(path)
 
     override suspend fun fetchFileList(): List<String>? = workspace.fetchFileList()
+
+    override fun artifactReader(): ChatArtifactReader? = workspace.artifactReader()
 
     /**
      * The real ACP session this chat shows, or null while a create-on-arrival chat still

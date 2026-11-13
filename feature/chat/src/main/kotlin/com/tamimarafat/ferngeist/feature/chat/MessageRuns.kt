@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 
 /*
  * Runs: adjacent same-kind segments, joined for display and for parsing.
@@ -59,7 +60,15 @@ internal sealed interface SegmentBlock {
         val items: List<SegmentBlock>,
     ) : SegmentBlock
 
-    /** A segment that renders on its own: a plan, or a tool call inside a [Group]. */
+    /** Adjacent resource links, rendered as one row of attachment cards. [key] is the first link's id. */
+    class LinkRow internal constructor(
+        override val key: String,
+        val segments: List<AssistantSegment>,
+    ) : SegmentBlock {
+        val links: List<ChatResourceLink> get() = segments.mapNotNull { it.resourceLink }
+    }
+
+    /** A segment that renders on its own: a plan, an image, or a tool call inside a [Group]. */
     class Single internal constructor(
         val segment: AssistantSegment,
     ) : SegmentBlock {
@@ -72,7 +81,8 @@ internal sealed interface SegmentBlock {
  *
  * Adjacent MESSAGE segments become one [SegmentBlock.Run]. A span of adjacent THOUGHT and TOOL_CALL
  * segments becomes one [SegmentBlock.Group] if it holds a call, or a THOUGHT run if it is reasoning
- * alone. PLAN segments render on their own as [SegmentBlock.Single]. Order is preserved so a turn
+ * alone. Adjacent RESOURCE_LINK segments become one [SegmentBlock.LinkRow]. PLAN and IMAGE segments
+ * render on their own as [SegmentBlock.Single]. Order is preserved so a turn
  * that interleaves reasoning, prose and tool calls still reads the way the agent produced it.
  */
 internal fun List<AssistantSegment>.displayBlocks(): List<SegmentBlock> {
@@ -82,10 +92,12 @@ internal fun List<AssistantSegment>.displayBlocks(): List<SegmentBlock> {
         val end = spanEnd(index)
         val span = subList(index, end)
         blocks +=
-            if (span.any { it.kind == AssistantSegment.Kind.TOOL_CALL }) {
-                SegmentBlock.Group(key = span.first().id, items = span.foldRuns())
-            } else {
-                span.foldRuns().single()
+            when {
+                span.any { it.kind == AssistantSegment.Kind.TOOL_CALL } ->
+                    SegmentBlock.Group(key = span.first().id, items = span.foldRuns())
+                span.first().kind == AssistantSegment.Kind.RESOURCE_LINK ->
+                    SegmentBlock.LinkRow(key = span.first().id, segments = span)
+                else -> span.foldRuns().single()
             }
         index = end
     }
@@ -96,7 +108,7 @@ private val activityKinds = setOf(AssistantSegment.Kind.THOUGHT, AssistantSegmen
 
 private fun List<AssistantSegment>.spanEnd(start: Int): Int {
     val kind = this[start].kind
-    if (kind == AssistantSegment.Kind.PLAN) return start + 1
+    if (kind == AssistantSegment.Kind.PLAN || kind == AssistantSegment.Kind.IMAGE) return start + 1
     var end = start + 1
     while (end < size && continuesSpan(kind, this[end].kind)) {
         end++

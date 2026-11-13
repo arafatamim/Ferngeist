@@ -18,15 +18,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -36,12 +33,16 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -63,6 +64,7 @@ import com.tamimarafat.ferngeist.core.common.ui.localSyntaxColors
 import com.tamimarafat.ferngeist.core.git.syntax.SyntaxLanguageResolver
 import com.tamimarafat.ferngeist.core.git.syntax.rememberHighlightedCode
 import com.tamimarafat.ferngeist.core.git.syntax.styledCode
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.ParagraphAttachments
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.MarkdownImage
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.localTranscriptImages
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
@@ -286,6 +288,7 @@ private fun MarkdownLeafBlock(
     }
 }
 
+/** A paragraph, then the files it references as cards once the paragraph has ended. */
 @Composable
 private fun ParagraphBlock(
     block: BlockNode.Paragraph,
@@ -294,41 +297,44 @@ private fun ParagraphBlock(
     reveal: BlockReveal?,
 ) {
     val images = localTranscriptImages.current
-    if (images == null || block.children.none { it is InlineNode.Image }) {
-        RevealInlines(block.children, styles, modifier, reveal)
-        return
-    }
-    val segments = remember(block.children) { block.children.imageSegments() }
+    // Per paragraph rather than the run's settle, which flips with every pause in the stream.
+    val ended by remember(reveal, block) { derivedStateOf { reveal == null || reveal.hasEnded(block.revealLength()) } }
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        var offset = reveal?.offset ?: 0
-        segments.forEach { segment ->
-            val segmentReveal = reveal?.copy(offset = offset)
-            if (reveal != null) offset += segment.revealLength()
-            RevealGate(segmentReveal) {
-                when (segment) {
-                    is InlineSegment.Text -> RevealInlines(segment.nodes, styles, Modifier, segmentReveal)
-                    is InlineSegment.Image -> {
-                        val alpha = rememberAtomicRevealAlpha(segmentReveal)
-                        MarkdownImage(
-                            destination = segment.node.destination,
-                            alt =
-                                segment.node.alt
-                                    .toAnnotatedString(styles.inline)
-                                    .text,
-                            loader = images,
-                            fallbackStyle =
-                                MarkdownTheme.typography.bodyLarge.copy(
-                                    color = MarkdownTheme.colors.textSecondary,
-                                ),
-                            modifier = Modifier.graphicsLayer { this.alpha = alpha.value },
-                        )
+        if (images == null || block.children.none { it is InlineNode.Image }) {
+            RevealInlines(block.children, styles, Modifier, reveal)
+        } else {
+            val segments = remember(block.children) { block.children.imageSegments() }
+            var offset = reveal?.offset ?: 0
+            segments.forEach { segment ->
+                val segmentReveal = reveal?.copy(offset = offset)
+                if (reveal != null) offset += segment.revealLength()
+                RevealGate(segmentReveal) {
+                    when (segment) {
+                        is InlineSegment.Text -> RevealInlines(segment.nodes, styles, Modifier, segmentReveal)
+                        is InlineSegment.Image -> {
+                            val alpha = rememberAtomicRevealAlpha(segmentReveal)
+                            MarkdownImage(
+                                destination = segment.node.destination,
+                                alt =
+                                    segment.node.alt
+                                        .toAnnotatedString(styles.inline)
+                                        .text,
+                                loader = images,
+                                fallbackStyle =
+                                    MarkdownTheme.typography.bodyLarge.copy(
+                                        color = MarkdownTheme.colors.textSecondary,
+                                    ),
+                                modifier = Modifier.graphicsLayer { this.alpha = alpha.value },
+                            )
+                        }
                     }
                 }
             }
         }
+        ParagraphAttachments(block.children, ended = ended)
     }
 }
 
@@ -339,39 +345,29 @@ private fun QuoteBlock(
     modifier: Modifier = Modifier,
     reveal: BlockReveal? = null,
 ) {
-    Row(
+    val bar = MarkdownTheme.colors.accent.copy(alpha = 0.55f)
+    Column(
         modifier =
             modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min)
                 .background(
                     color = MarkdownTheme.colors.surfaceMuted.copy(alpha = 0.45f),
                     shape = RoundedCornerShape(12.dp),
-                ).padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ).padding(12.dp)
+                // Drawn, not measured: a full-height bar sized by intrinsics crashes on the
+                // BoxWithConstraints inside quoted paragraphs and tables.
+                .drawBehind {
+                    val width = 4.dp.toPx()
+                    drawRoundRect(bar, size = Size(width, size.height), cornerRadius = CornerRadius(width / 2))
+                }.padding(start = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(
-                        color = MarkdownTheme.colors.accent.copy(alpha = 0.55f),
-                        shape = RoundedCornerShape(999.dp),
-                    ).align(Alignment.Top)
-                    .padding(vertical = 4.dp),
-        )
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            RevealChildren(block.children, reveal) { child, _, childReveal ->
-                MarkdownBlock(
-                    block = child,
-                    styles = styles,
-                    reveal = childReveal,
-                )
-            }
+        RevealChildren(block.children, reveal) { child, _, childReveal ->
+            MarkdownBlock(
+                block = child,
+                styles = styles,
+                reveal = childReveal,
+            )
         }
     }
 }

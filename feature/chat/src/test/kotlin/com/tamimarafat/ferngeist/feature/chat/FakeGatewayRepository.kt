@@ -1,12 +1,14 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayCreateWorktreeRequest
 import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
-import com.tamimarafat.ferngeist.gateway.GatewayFileContents
 import com.tamimarafat.ferngeist.gateway.GatewayFileList
+import com.tamimarafat.ferngeist.gateway.GatewayFileStat
 import com.tamimarafat.ferngeist.gateway.GatewayGitCommitFiles
 import com.tamimarafat.ferngeist.gateway.GatewayGitLog
 import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
@@ -15,6 +17,7 @@ import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayWorktree
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
+import java.io.OutputStream
 
 /**
  * No-op [GatewayRepository] for chat tests that build the real hub: only [closeSession] is
@@ -158,11 +161,6 @@ class FakeGatewayRepository : GatewayRepository {
         subscription: com.tamimarafat.ferngeist.gateway.GatewayPushSubscription,
     ) = Unit
 
-    override suspend fun fetchProjectFile(
-        connection: ProjectGitTarget,
-        path: String,
-    ): GatewayFileContents = error("Unused")
-
     override suspend fun fetchGitStatus(
         connection: ProjectGitTarget,
         compare: String?,
@@ -186,10 +184,23 @@ class FakeGatewayRepository : GatewayRepository {
     ): GatewayGitCommitFiles = TODO()
 
     override suspend fun fetchFile(
-        connection: GatewayWorkspaceConnection,
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
         path: String,
-        acpSessionId: String?,
-    ): GatewayFileContents = TODO()
+    ): ChatFileContents = error("Unused")
+
+    override suspend fun downloadFile(
+        connection: ProjectGitTarget,
+        path: String,
+        destination: OutputStream,
+        ifNoneMatch: String?,
+    ): ChatArtifactMetadata? = error("Unused")
+
+    override suspend fun statFiles(
+        connection: ProjectGitTarget,
+        paths: List<String>,
+    ): List<GatewayFileStat> = error("Unused")
 
     override suspend fun fetchFileList(
         connection: GatewayWorkspaceConnection,

@@ -256,7 +256,7 @@ private fun railRowsOf(
                     item,
                     thinking = item.segments.last().id == liveSegmentId,
                 )
-            is SegmentBlock.Group -> null
+            is SegmentBlock.Group, is SegmentBlock.LinkRow -> null
         }
     }
 

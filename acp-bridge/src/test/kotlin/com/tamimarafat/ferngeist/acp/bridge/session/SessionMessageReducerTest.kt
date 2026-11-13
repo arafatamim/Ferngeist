@@ -4,6 +4,7 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
@@ -410,4 +411,24 @@ class SessionMessageReducerTest {
         segments = segments,
         isStreaming = isStreaming,
     )
+
+    @Test
+    fun linksBetweenTextChunksKeepTheirPlaceAndTheTextOnEitherSideApart() {
+        val link = ChatResourceLink("/tmp/gallery/LICENSE", "LICENSE")
+        var messages: List<ChatMessage> = emptyList()
+        listOf(
+            AppSessionEvent.AgentMessage("**Odd names**"),
+            AppSessionEvent.AgentMessage("", link = link),
+            AppSessionEvent.AgentMessage("That is everything."),
+            AppSessionEvent.TurnComplete(stopReason = "end_turn"),
+        ).forEach { messages = SessionMessageReducer.handleEvent(messages, emptyMap(), it).messages }
+
+        val segments = messages.single().segments
+        assertEquals(
+            listOf(AssistantSegment.Kind.MESSAGE, AssistantSegment.Kind.RESOURCE_LINK, AssistantSegment.Kind.MESSAGE),
+            segments.map { it.kind },
+        )
+        assertEquals(listOf("**Odd names**", "", "That is everything."), segments.map { it.text })
+        assertEquals(link, segments[1].resourceLink)
+    }
 }

@@ -304,17 +304,6 @@ data class GatewayGitCommitFiles(
     val changed: List<GatewayChangedFile> = emptyList(),
 )
 
-/**
- * `GET /files`: ACP's `TextResourceContents` or `BlobResourceContents` in one shape, [text] set for
- * a text file and [blob] for a binary one. [truncated] (past 8 MiB) is a gateway extension.
- */
-@Serializable
-data class GatewayFileContents(
-    val text: String? = null,
-    val blob: String? = null,
-    val truncated: Boolean = false,
-)
-
 /** `GET /files/list`: the project's files, relative to its directory, cut at the gateway's cap when [truncated]. */
 @Serializable
 data class GatewayFileList(
@@ -330,7 +319,26 @@ data class GatewayCreateWorktreeRequest(
     val branch: String? = null,
 )
 
-/** Body of `POST /v1/paths/missing`. */
+/**
+ * One `POST /v1/files/stat` entry, an ACP `resource_link`: [size] and [mimeType] for a readable
+ * file, otherwise the gateway's [error] code.
+ */
+@Serializable
+data class GatewayFileStat(
+    val uri: String,
+    val name: String,
+    val mimeType: String? = null,
+    val size: Long? = null,
+    val error: String? = null,
+)
+
+/** `POST /v1/files/stat`: one entry per requested path, in order. */
+@Serializable
+data class GatewayFileStats(
+    val files: List<GatewayFileStat>,
+)
+
+/** Body of `POST /v1/paths/missing` and `POST /v1/files/stat`. */
 @Serializable
 data class GatewayPathsRequest(
     val paths: List<String>,
@@ -370,12 +378,12 @@ data class GatewayWorktree(
  */
 object GatewayProtocol {
     /** The current protocol version (see gateway `internal/api/server.go`). */
-    const val CURRENT = "v2"
+    const val CURRENT = "v3"
 
     /**
-     * All gateway protocol versions this client can talk to. The gateway is v2-only:
-     * it no longer serves the removed start/connect-runtime endpoints, so a v1
-     * gateway must fail the version check instead of failing opaquely later.
+     * All gateway protocol versions this client can talk to. v3 replaced the v2 JSON file
+     * readers with raw-bytes `/v1/files`, so a v2 gateway must fail the version check
+     * instead of failing every file read opaquely later.
      */
     val supported: Set<String> = setOf(CURRENT)
 }

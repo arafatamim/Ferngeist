@@ -20,6 +20,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
 import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
 import kotlinx.coroutines.CompletableDeferred
@@ -336,6 +337,8 @@ open class FakeChatSessionFacade(
     override suspend fun fetchFile(path: String): ChatFileContents? = null
 
     override suspend fun fetchFileList(): List<String>? = null
+
+    override fun artifactReader(): ChatArtifactReader? = null
 
     protected suspend fun emitOperationError() {
         operationErrorFlow.emit(ChatOperationError(operationErrorText, false))

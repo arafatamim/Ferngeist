@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 internal fun SegmentBlock.firstSegment(): AssistantSegment =
     when (this) {
         is SegmentBlock.Run -> segments.first()
+        is SegmentBlock.LinkRow -> segments.first()
         is SegmentBlock.Single -> segment
         is SegmentBlock.Group -> items.first().firstSegment()
     }

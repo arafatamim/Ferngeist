@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.acp.bridge.facade.artifact.GatewayArtifactReader
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.ChatGitLogPage
@@ -8,12 +9,13 @@ import com.tamimarafat.ferngeist.core.model.ChatGitRefs
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 
 /**
  * Reads a chat's gateway workspace (git, worktree, files) through the gateway, scoped to the
- * checkout for Git, or its live session for ordinary files. Reads are null without a gateway workspace.
+ * checkout for Git and file contents, or its live session for the file list. Reads are null without a gateway workspace.
  */
 internal class GatewayWorkspaceReader(
     private val gatewayRepository: GatewayRepository,
@@ -21,18 +23,14 @@ internal class GatewayWorkspaceReader(
     private val liveSessionId: () -> String?,
     private val cwd: String,
 ) {
-    private fun gitReader(): GatewayProjectGitReader? =
+    private fun target(): ProjectGitTarget? =
         workspaceConnection()?.let { connection ->
-            GatewayProjectGitReader(
-                gatewayRepository,
-                ProjectGitTarget(
-                    connection.scheme,
-                    connection.host,
-                    connection.gatewayCredential,
-                    cwd,
-                ),
-            )
+            ProjectGitTarget(connection.scheme, connection.host, connection.gatewayCredential, cwd)
         }
+
+    private fun gitReader(): GatewayProjectGitReader? = target()?.let { GatewayProjectGitReader(gatewayRepository, it) }
+
+    fun artifactReader(): ChatArtifactReader? = target()?.let { GatewayArtifactReader(gatewayRepository, it) }
 
     suspend fun fetchGitStatus(compare: String?): ChatGitStatus? = gitReader()?.fetchGitStatus(compare)
 
@@ -54,12 +52,7 @@ internal class GatewayWorkspaceReader(
 
     suspend fun fetchGitCommitFiles(sha: String): List<ChatChangedFile>? = gitReader()?.fetchGitCommitFiles(sha)
 
-    suspend fun fetchFile(path: String): ChatFileContents? {
-        val connection = workspaceConnection() ?: return null
-        val file =
-            gatewayRepository.fetchFile(connection = connection, path = path, acpSessionId = liveSessionId())
-        return ChatFileContents(text = file.text, truncated = file.truncated, blob = file.blob)
-    }
+    suspend fun fetchFile(path: String): ChatFileContents? = gitReader()?.fetchFile(path)
 
     suspend fun fetchFileList(): List<String>? {
         val connection = workspaceConnection() ?: return null

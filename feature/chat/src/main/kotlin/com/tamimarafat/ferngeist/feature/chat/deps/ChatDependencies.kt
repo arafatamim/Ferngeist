@@ -8,6 +8,7 @@ import com.tamimarafat.ferngeist.core.model.store.RecentSelectionStore
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollStateStore
 import com.tamimarafat.ferngeist.feature.chat.SwitcherHintStore
 import com.tamimarafat.ferngeist.feature.chat.activity.PhoneTurnClock
+import com.tamimarafat.ferngeist.feature.chat.artifact.storage.ArtifactCache
 import com.tamimarafat.ferngeist.feature.chat.queue.PendingPromptStore
 import javax.inject.Inject
 
@@ -31,4 +32,5 @@ data class ChatLocalStores
         val switcherHints: SwitcherHintStore,
         val recentSelections: RecentSelectionStore,
         val phoneTurns: PhoneTurnClock,
+        val artifactCache: ArtifactCache,
     )

@@ -92,19 +92,6 @@ class GatewayWorkspaceTest {
         }
 
     @Test
-    fun `project files use the checkout and relative path without a runtime`() =
-        runTest {
-            var captured: HttpRequestData? = null
-            val repo = repoCapturing(responseBody = """{"text":"hello","truncated":false}""") { captured = it }
-            val file = repo.fetchProjectFile(ProjectGitTarget("http", "gateway", "paired", "/repo"), "src/A.kt")
-            val request = requireNotNull(captured)
-            assertEquals("/v1/projects/files", request.url.encodedPath)
-            assertEquals("/repo", request.url.parameters["cwd"])
-            assertEquals("src/A.kt", request.url.parameters["path"])
-            assertEquals("hello", file.text)
-        }
-
-    @Test
     fun `fetchGitStatus decodes an empty clean-tree response`() =
         runTest {
             // A clean tree arrives as `"changed":null`: the gateway marshals its nil Go slice,
@@ -369,17 +356,17 @@ class GatewayWorkspaceTest {
         }
 
     @Test
-    fun `fetchStatus accepts the v2 protocol version`() =
+    fun `fetchStatus accepts the v3 protocol version`() =
         runTest {
             val repo =
                 repoCapturing(
                     responseBody =
-                        """{"name":"gw","version":"dev","protocolVersion":"v2","remote":{"configured":true}}""",
+                        """{"name":"gw","version":"dev","protocolVersion":"v3","remote":{"configured":true}}""",
                 )
 
             val status = repo.fetchStatus("http", "10.0.0.2:5788")
 
-            assertEquals("v2", status.protocolVersion)
+            assertEquals("v3", status.protocolVersion)
         }
 
     @Test
@@ -396,25 +383,25 @@ class GatewayWorkspaceTest {
                 fail("expected GatewayProtocolMismatchException")
             } catch (e: GatewayProtocolMismatchException) {
                 assertTrue(e.message.orEmpty().contains("v1"))
-                assertTrue(e.message.orEmpty().contains("v2"))
+                assertTrue(e.message.orEmpty().contains("v3"))
             }
         }
 
     @Test
-    fun `fetchStatus rejects an unsupported protocol version`() =
+    fun `fetchStatus rejects a v2 gateway, whose JSON file readers are gone`() =
         runTest {
             val repo =
                 repoCapturing(
                     responseBody =
-                        """{"name":"gw","version":"new","protocolVersion":"v3","remote":{"configured":true}}""",
+                        """{"name":"gw","version":"old","protocolVersion":"v2","remote":{"configured":true}}""",
                 )
 
             try {
                 repo.fetchStatus("http", "10.0.0.2:5788")
                 fail("expected GatewayProtocolMismatchException")
             } catch (e: GatewayProtocolMismatchException) {
-                assertTrue(e.message.orEmpty().contains("v3"))
                 assertTrue(e.message.orEmpty().contains("v2"))
+                assertTrue(e.message.orEmpty().contains("v3"))
             }
         }
 

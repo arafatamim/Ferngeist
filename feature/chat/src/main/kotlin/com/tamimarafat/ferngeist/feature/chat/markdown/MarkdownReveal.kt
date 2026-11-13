@@ -178,6 +178,9 @@ internal class RunReveal(
 
     var target by mutableIntStateOf(0)
 
+    /** More text may still arrive: the run is the tail of a streaming message. */
+    var isOpen by mutableStateOf(startHidden)
+
     /** A run composed for settled text starts past any target, so it never animates. */
     var shown by mutableFloatStateOf(if (startHidden) 0f else Float.MAX_VALUE)
         private set
@@ -263,6 +266,15 @@ internal data class BlockReveal(
     val run: RunReveal,
     val offset: Int,
 )
+
+/**
+ * True once the block of [length] rendered characters at [offset] has fully revealed and no later
+ * chunk can extend it: text past it has arrived, or its run has closed.
+ */
+internal fun BlockReveal.hasEnded(length: Int): Boolean {
+    val end = offset + length
+    return run.shown >= end && (!run.isOpen || run.target > end)
+}
 
 /** Composes [content] only once the cursor has reached [reveal], so unreached blocks take no space. */
 @Composable

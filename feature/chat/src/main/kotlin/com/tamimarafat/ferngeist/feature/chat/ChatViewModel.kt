@@ -20,9 +20,11 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionPresence
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.core.model.iconUrl
 import com.tamimarafat.ferngeist.core.model.qualified
 import com.tamimarafat.ferngeist.feature.chat.activity.ActivityConfirmation
+import com.tamimarafat.ferngeist.feature.chat.artifact.storage.ArtifactCache
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatLocalStores
 import com.tamimarafat.ferngeist.feature.chat.deps.ChatRepositories
 import com.tamimarafat.ferngeist.feature.chat.git.ChatGitTurnDiffLoader
@@ -309,6 +311,14 @@ class ChatViewModel
 
         /** The transcript's Markdown images, read through this chat's session. */
         internal val transcriptImages = TranscriptImageLoader(workspace = sessionFacade, cwd = cwd)
+
+        internal val artifactCache: ArtifactCache get() = stores.artifactCache
+
+        /** A reader bound to this chat's gateway and cwd as they are when called; null without a gateway workspace. */
+        internal val artifactReader: () -> ChatArtifactReader? = sessionFacade::artifactReader
+
+        /** Where the attachment host copies saved files, off the main thread. */
+        internal val artifactIo: CoroutineDispatcher = ioDispatcher
 
         /** Commit history and a commit's files for the git sheet's History tab. */
         private val gitHistoryLoader =

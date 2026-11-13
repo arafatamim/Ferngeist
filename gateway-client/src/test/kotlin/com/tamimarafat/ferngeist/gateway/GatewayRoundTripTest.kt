@@ -26,7 +26,7 @@ class GatewayRoundTripTest {
     fun `verifyProtocol asks the gateway once while the pass is fresh`() =
         runTest {
             val requested = mutableListOf<String>()
-            val repo = GatewayRepositoryImpl(HttpClient(statusEngine(requested, "v2")), json)
+            val repo = GatewayRepositoryImpl(HttpClient(statusEngine(requested, "v3")), json)
 
             repo.verifyProtocol("http", "gw.local:5788")
             repo.verifyProtocol("http", "gw.local:5788")

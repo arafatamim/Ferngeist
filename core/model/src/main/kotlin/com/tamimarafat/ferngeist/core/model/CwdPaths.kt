@@ -75,3 +75,20 @@ fun projectRootOf(
     cwd: String,
     worktrees: List<WorktreeRef>,
 ): String = worktreeOf(cwd, worktrees)?.repo ?: cwd
+
+/**
+ * [relative] joined onto [cwd] in [cwd]'s own separator: the clean absolute host path the
+ * gateway's `/v1/files` reads, which refuses `.` segments and mixed separators.
+ */
+fun hostPath(
+    cwd: String,
+    relative: String,
+): String {
+    val separator = if ('\\' in cwd && '/' !in cwd) "\\" else "/"
+    return normalizeCwd(cwd) + separator + pathSegments(relative).filter { it != "." }.joinToString(separator)
+}
+
+private val drivePath = Regex("""^[A-Za-z]:[\\/]""")
+
+/** True for a POSIX root path or a Windows drive path, the two spellings a host path can take. */
+fun isAbsoluteHostPath(path: String): Boolean = path.startsWith('/') || drivePath.containsMatchIn(path)

@@ -1,10 +1,13 @@
 package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
+import java.io.OutputStream
 
 /** Pairing and initial status operations. */
 interface GatewayPairingRepository {
@@ -146,12 +149,6 @@ interface GatewayPushRepository {
 
 /** Workspace file and git operations. */
 interface GatewayWorkspaceRepository {
-    /** One file in a checkout, without a runtime or session. */
-    suspend fun fetchProjectFile(
-        connection: ProjectGitTarget,
-        path: String,
-    ): GatewayFileContents
-
     /**
      * Returns the git branch, ahead/behind, and changed files for a runtime's project directory.
      * With [compare] (a fully-qualified ref) the files are the working tree against that ref's tip,
@@ -203,12 +200,34 @@ interface GatewayWorkspaceRepository {
         sha: String,
     ): GatewayGitCommitFiles
 
-    /** `GET /files`: one file of the project directory; [path] is relative to it. */
+    /**
+     * `GET /v1/files`: the first 8 MiB of the host file at absolute [path], inside a workspace or
+     * not, [ChatFileContents.truncated] past that.
+     */
     suspend fun fetchFile(
-        connection: GatewayWorkspaceConnection,
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
         path: String,
-        acpSessionId: String? = null,
-    ): GatewayFileContents
+    ): ChatFileContents
+
+    /**
+     * `GET /v1/files`: streams the whole host file at absolute [path] into [destination], or
+     * returns null when its etag still matches [ifNoneMatch]. Throws on any failure, a short body
+     * or a redirect off the gateway included.
+     */
+    suspend fun downloadFile(
+        connection: ProjectGitTarget,
+        path: String,
+        destination: OutputStream,
+        ifNoneMatch: String?,
+    ): ChatArtifactMetadata?
+
+    /** `POST /v1/files/stat`: describes the host files at absolute [paths] without reading them, in order. */
+    suspend fun statFiles(
+        connection: ProjectGitTarget,
+        paths: List<String>,
+    ): List<GatewayFileStat>
 
     /** `GET /files/list`: every file of the project directory git doesn't ignore. */
     suspend fun fetchFileList(

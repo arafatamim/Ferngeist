@@ -5,11 +5,13 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.SessionSummary
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -19,8 +21,8 @@ import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCreateWorktreeRequest
 import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
-import com.tamimarafat.ferngeist.gateway.GatewayFileContents
 import com.tamimarafat.ferngeist.gateway.GatewayFileList
+import com.tamimarafat.ferngeist.gateway.GatewayFileStat
 import com.tamimarafat.ferngeist.gateway.GatewayGitCommitFiles
 import com.tamimarafat.ferngeist.gateway.GatewayGitLog
 import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import java.io.OutputStream
 
 /** Deterministic clock: each call advances one tick, so focus order is exact. */
 internal fun tickingClock(): () -> Long {
@@ -284,11 +287,6 @@ internal class FakeGatewayRepo : GatewayRepository {
         subscription: com.tamimarafat.ferngeist.gateway.GatewayPushSubscription,
     ) = TODO("unused in these tests")
 
-    override suspend fun fetchProjectFile(
-        connection: ProjectGitTarget,
-        path: String,
-    ): GatewayFileContents = error("Unused")
-
     override suspend fun fetchGitStatus(
         connection: ProjectGitTarget,
         compare: String?,
@@ -312,10 +310,23 @@ internal class FakeGatewayRepo : GatewayRepository {
     ): GatewayGitCommitFiles = TODO("unused in these tests")
 
     override suspend fun fetchFile(
-        connection: GatewayWorkspaceConnection,
+        scheme: String,
+        host: String,
+        gatewayCredential: String,
         path: String,
-        acpSessionId: String?,
-    ): GatewayFileContents = TODO("unused in these tests")
+    ): ChatFileContents = error("Unused")
+
+    override suspend fun downloadFile(
+        connection: ProjectGitTarget,
+        path: String,
+        destination: OutputStream,
+        ifNoneMatch: String?,
+    ): ChatArtifactMetadata? = error("Unused")
+
+    override suspend fun statFiles(
+        connection: ProjectGitTarget,
+        paths: List<String>,
+    ): List<GatewayFileStat> = error("Unused")
 
     override suspend fun fetchFileList(
         connection: GatewayWorkspaceConnection,

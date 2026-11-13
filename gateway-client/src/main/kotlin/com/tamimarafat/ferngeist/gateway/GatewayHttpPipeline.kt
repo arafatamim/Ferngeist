@@ -3,9 +3,8 @@ package com.tamimarafat.ferngeist.gateway
 import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.HttpTimeoutConfig
-import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.accept
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -15,24 +14,19 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.job
 import kotlinx.serialization.json.Json
 import java.net.URLEncoder
 
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
 private const val NANOS_PER_MS = 1_000_000L
-
-// Lines arrive as agents finish, each within the gateway's 10 s listing limit plus
-// the agent's startup, so the client's 30 s idle cut would drop a slow agent's line.
-private const val PROJECTS_SOCKET_TIMEOUT_MS = 60_000L
 
 /**
  * Every JSON call the gateway repository makes funnels through here: [getJson],
@@ -49,37 +43,47 @@ internal class GatewayHttpPipeline(
     internal val json: Json,
     private val clock: GatewayClock,
 ) {
-    private val httpClient: HttpClient = httpClient
+    // Proof headers bind to the original endpoint and must never reach a redirect destination.
+    private val httpClient: HttpClient =
+        httpClient.config { followRedirects = false }.also { gatewayClient ->
+            httpClient.coroutineContext.job.invokeOnCompletion { gatewayClient.close() }
+        }
 
-    /** Keep the response open while consuming NDJSON; ordinary get saves the whole body first. */
-    internal suspend fun getStream(
-        host: String,
+    /**
+     * A signed GET whose successful response stays open while [consume] reads it (ordinary get
+     * saves the whole body first), with the same single re-signed retry on a transient proof
+     * rejection as [sendSigned]. `304 Not Modified` counts as success: it answers a conditional
+     * request [configure] made.
+     */
+    internal suspend fun <T> getOpen(
         credential: String,
         endpoint: String,
-        consume: suspend (ByteReadChannel) -> Unit,
-    ) {
+        configure: HttpRequestBuilder.() -> Unit,
+        acceptResponse: (HttpResponse) -> Boolean = { false },
+        consume: suspend (HttpResponse) -> T,
+    ): T {
+        // Keep the explicit port (including default ports), as GatewayClock keys the configured authority.
+        val host = endpoint.substringAfter("://").substringBefore('/')
         val request = GatewayProofRequest(method = "GET", endpoint = endpoint)
         repeat(2) { attempt ->
             val authHeaders = proofHeaders(host, credential, request)
-            val failure =
+            val outcome =
                 httpClient
                     .prepareGet {
                         url(endpoint)
-                        accept(ContentType.parse("application/x-ndjson"))
-                        timeout {
-                            requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
-                            socketTimeoutMillis = PROJECTS_SOCKET_TIMEOUT_MS
-                        }
+                        configure()
                         authHeaders?.let { applyGatewayAuthHeaders(it) }
                     }.execute { response ->
-                        if (response.status.isSuccess()) {
-                            consume(response.bodyAsChannel())
-                            null
+                        if (response.status.isSuccess() ||
+                            response.status == HttpStatusCode.NotModified ||
+                            acceptResponse(response)
+                        ) {
+                            Result.success(consume(response))
                         } else {
-                            streamFailure(host, endpoint, response)
+                            Result.failure(streamFailure(host, endpoint, response))
                         }
                     }
-            if (failure == null) return
+            val failure = (outcome.exceptionOrNull() ?: return outcome.getOrThrow()) as GatewayRequestException
             val rejection = parseGatewayErrorBody(failure.responseBody.orEmpty().trim())
             if (attempt > 0 ||
                 failure.statusCode != HTTP_UNAUTHORIZED ||
@@ -88,6 +92,7 @@ internal class GatewayHttpPipeline(
                 throw failure
             }
         }
+        error("unreachable: the second attempt always returns or throws")
     }
 
     private suspend fun streamFailure(
@@ -365,7 +370,7 @@ internal class GatewayHttpPipeline(
         }
 }
 
-private fun io.ktor.client.request.HttpRequestBuilder.applyGatewayAuthHeaders(headers: GatewayAuthHeaders) {
+private fun HttpRequestBuilder.applyGatewayAuthHeaders(headers: GatewayAuthHeaders) {
     header("Authorization", headers.authorization)
     headers.proofTimestamp?.let { header("X-Ferngeist-Proof-Timestamp", it) }
     headers.proofNonce?.let { header("X-Ferngeist-Proof-Nonce", it) }

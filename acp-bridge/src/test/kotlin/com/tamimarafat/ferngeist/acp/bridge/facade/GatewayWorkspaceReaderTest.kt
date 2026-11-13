@@ -3,36 +3,37 @@ package com.tamimarafat.ferngeist.acp.bridge.facade
 import com.tamimarafat.ferngeist.acp.bridge.hub.FakeGatewayRepo
 import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
-import com.tamimarafat.ferngeist.gateway.GatewayFileContents
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** A workspace file read keeps what the transcript's images need: the blob, and the session it is scoped to. */
+/** A workspace file read keeps what the transcript's images need: the blob, read at the host path under the chat's cwd. */
 class GatewayWorkspaceReaderTest {
     private val connection = GatewayWorkspaceConnection("runtime", "https", "gw.example", "credential")
 
     @Test
-    fun `a file read carries the gateway's blob and scopes the read to the live session`() =
+    fun `a file read carries the gateway's blob and reads the relative path under the cwd`() =
         runTest {
-            val reads = mutableListOf<Pair<String, String?>>()
+            val reads = mutableListOf<String>()
+            val blob = ChatFileContents(text = null, truncated = false, blob = "AQID")
             val gateway =
                 object : GatewayRepository by FakeGatewayRepo() {
                     override suspend fun fetchFile(
-                        connection: GatewayWorkspaceConnection,
+                        scheme: String,
+                        host: String,
+                        gatewayCredential: String,
                         path: String,
-                        acpSessionId: String?,
-                    ): GatewayFileContents {
-                        reads += path to acpSessionId
-                        return GatewayFileContents(blob = "AQID", truncated = false)
+                    ): ChatFileContents {
+                        reads += path
+                        return blob
                     }
                 }
             val reader = GatewayWorkspaceReader(gateway, { connection }, { "session-1" }, cwd = "/project")
 
-            assertEquals(ChatFileContents(text = null, truncated = false, blob = "AQID"), reader.fetchFile("a.png"))
-            assertEquals(listOf("a.png" to "session-1"), reads)
+            assertEquals(blob, reader.fetchFile("docs/a.png"))
+            assertEquals(listOf("/project/docs/a.png"), reads)
         }
 
     @Test

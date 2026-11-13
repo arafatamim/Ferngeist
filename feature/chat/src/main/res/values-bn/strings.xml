@@ -260,5 +260,10 @@
     <string name="chat_active_elsewhere_body">এই চ্যাটটি সম্প্রতি অন্য কোথাও সক্রিয় ছিল। এখন পাঠালে একই চ্যাটে আরেকটি এজেন্ট প্রক্রিয়া শুরু হতে পারে।</string>
     <string name="chat_send_anyway">তবুও পাঠান</string>
     <string name="quote_selection">উদ্ধৃত করুন</string>
+    <string name="artifact_download">ডাউনলোড</string>
+    <string name="artifact_unavailable_retry">উপলভ্য নয়। আবার চেষ্টা করতে ট্যাপ করুন।</string>
+    <string name="artifact_no_viewer">এই ফাইলটি খোলার মতো কোনো অ্যাপ নেই</string>
+    <string name="artifact_saved">%1$s সংরক্ষিত হয়েছে</string>
+    <string name="artifact_save_failed">%1$s সংরক্ষণ করা যায়নি</string>
 </resources>
 

@@ -18,6 +18,13 @@ class CwdPathsTest {
     }
 
     @Test
+    fun hostPath_joinsInTheCwdsOwnSeparatorWithoutDotSegments() {
+        assertEquals("/repo/src/A.kt", hostPath("/repo/", "./src/A.kt"))
+        assertEquals("/a.png", hostPath("/", "a.png"))
+        assertEquals("C:\\work\\api\\src\\A.kt", hostPath("C:\\work\\api", "src/A.kt"))
+    }
+
+    @Test
     fun projectName_isTheLastFolder() {
         assertEquals("Ferngeist", projectName("/home/tamim/src/Ferngeist"))
         assertEquals("Ferngeist", projectName("C:\\Users\\tamim\\src\\Ferngeist\\"))

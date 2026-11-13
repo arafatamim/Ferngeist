@@ -8,6 +8,7 @@ import com.agentclientprotocol.model.MessageId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.ToolCallId
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -147,4 +148,94 @@ class AcpSessionUpdateParserTest {
 
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =
         requireNotNull(AcpSessionUpdateMapper.mapSessionUpdateToEvent(update))
+
+    @Test
+    fun `a file resource link in a reply is a host file, not text`() {
+        val event =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.AgentMessageChunk(
+                    content =
+                        ContentBlock.ResourceLink(
+                            name = "Q3 review.txt",
+                            uri = "file:///tmp/attach/Q3%20review.txt",
+                            mimeType = "text/plain",
+                            size = 58,
+                        ),
+                ),
+            ) as AppSessionEvent.AgentMessage
+
+        assertEquals("", event.text)
+        assertEquals(ChatResourceLink("/tmp/attach/Q3 review.txt", "Q3 review.txt", "text/plain", 58), event.link)
+    }
+
+    @Test
+    fun `an unencoded file uri keeps its spaces and non-ascii as written`() {
+        val link =
+            (
+                invokeMapSessionUpdateToEvent(
+                    SessionUpdate.AgentMessageChunk(
+                        content = ContentBlock.ResourceLink(name = "", uri = "file:///tmp/Q3 review – ünï.txt"),
+                    ),
+                ) as AppSessionEvent.AgentMessage
+            ).link
+
+        assertEquals("/tmp/Q3 review – ünï.txt", link?.path)
+        assertEquals("Q3 review – ünï.txt", link?.name)
+    }
+
+    @Test
+    fun `a resource link to another scheme stays an ordinary markdown link`() {
+        val event =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.AgentMessageChunk(
+                    content = ContentBlock.ResourceLink(name = "spec [v2]", uri = "https://example.com/spec"),
+                ),
+            ) as AppSessionEvent.AgentMessage
+
+        assertEquals(null, event.link)
+        assertEquals("\n\n[spec \\[v2\\]](<https://example.com/spec>)\n\n", event.text)
+    }
+
+    @Test
+    fun `an embedded text resource shows inline in a fence its content cannot close`() {
+        val event =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.AgentMessageChunk(
+                    content =
+                        ContentBlock.Resource(
+                            EmbeddedResourceResource.TextResourceContents(
+                                text = "use ```go\nfmt.Println()\n```\n",
+                                uri = "file:///tmp/notes.md",
+                            ),
+                        ),
+                ),
+            ) as AppSessionEvent.AgentMessage
+
+        assertEquals("\n\n````md\nuse ```go\nfmt.Println()\n```\n````\n\n", event.text)
+    }
+
+    @Test
+    fun `an image in a reply survives as an image`() {
+        val event =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.AgentMessageChunk(
+                    content = ContentBlock.Image(data = "iVBORw0K", mimeType = "image/png"),
+                ),
+            ) as AppSessionEvent.AgentMessage
+
+        assertEquals("iVBORw0K", event.image?.base64)
+        assertEquals("", event.text)
+    }
+
+    @Test
+    fun `a file the user linked rides on their message`() {
+        val event =
+            invokeMapSessionUpdateToEvent(
+                SessionUpdate.UserMessageChunk(
+                    content = ContentBlock.ResourceLink(name = "notes.md", uri = "file:///tmp/attach/notes.md"),
+                ),
+            ) as AppSessionEvent.UserMessage
+
+        assertEquals(listOf("/tmp/attach/notes.md"), event.links.map { it.path })
+    }
 }

@@ -4,12 +4,72 @@ import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatResourceLink
+import java.net.URI
 
 internal fun extractText(content: ContentBlock): String =
     when (content) {
         is ContentBlock.Text -> content.text
         else -> ""
     }
+
+/**
+ * A reply block as Markdown text. A host file link is not text (see [extractLink]); a link to any
+ * other scheme stays an ordinary link, and an embedded text resource shows inline as a fenced block.
+ */
+internal fun extractReplyText(content: ContentBlock): String =
+    when (content) {
+        is ContentBlock.ResourceLink -> if (hostPath(content.uri) == null) webLink(content) else ""
+        is ContentBlock.Resource ->
+            (content.resource as? EmbeddedResourceResource.TextResourceContents)?.let(::fenced).orEmpty()
+        else -> extractText(content)
+    }
+
+/** The host file a `file://` resource link names, with the agent's description of it. */
+internal fun extractLink(content: ContentBlock): ChatResourceLink? {
+    if (content !is ContentBlock.ResourceLink) return null
+    val path = hostPath(content.uri) ?: return null
+    return ChatResourceLink(
+        path = path,
+        name = content.name.ifBlank { path.substringAfterLast('/') },
+        mimeType = content.mimeType?.takeIf { it.isNotBlank() },
+        size = content.size,
+    )
+}
+
+private val windowsDrive = Regex("^/[A-Za-z]:/")
+
+/** The absolute host path of a `file://` [uri], or null for another scheme. */
+private fun hostPath(uri: String): String? {
+    if (!uri.startsWith("file://")) return null
+    // Agents also send paths unencoded, spaces and all, which URI rejects: then the rest is the path.
+    val path = runCatching { URI(uri).path }.getOrNull() ?: uri.removePrefix("file://")
+    return when {
+        windowsDrive.containsMatchIn(path) -> path.drop(1)
+        path.startsWith("/") -> path
+        else -> null
+    }
+}
+
+// Blank lines on both sides: the block arrives between chunks that may not end or start a line.
+private fun webLink(link: ContentBlock.ResourceLink): String {
+    val label =
+        link.name
+            .ifBlank { link.uri }
+            .replace("[", "\\[")
+            .replace("]", "\\]")
+    return "\n\n[$label](<${link.uri}>)\n\n"
+}
+
+private val backtickRun = Regex("`+")
+
+private fun fenced(resource: EmbeddedResourceResource.TextResourceContents): String {
+    // Longer than any backtick run inside, so the content cannot close the fence early.
+    val longest = backtickRun.findAll(resource.text).maxOfOrNull { it.value.length } ?: 0
+    val fence = "`".repeat(maxOf(3, longest + 1))
+    val language = resource.uri.substringAfterLast('/').substringAfterLast('.', "")
+    return "\n\n$fence$language\n${resource.text.removeSuffix("\n")}\n$fence\n\n"
+}
 
 internal fun extractImage(content: ContentBlock): ChatImageData? {
     if (content !is ContentBlock.Image) return null

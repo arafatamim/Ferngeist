@@ -18,13 +18,15 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
-import com.tamimarafat.ferngeist.core.git.files.relativeTo
 import com.tamimarafat.ferngeist.core.git.ui.FileChip
-import com.tamimarafat.ferngeist.core.git.ui.fileName
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.feature.chat.artifact.reference.ArtifactKind
+import com.tamimarafat.ferngeist.feature.chat.artifact.reference.artifactKind
+import com.tamimarafat.ferngeist.feature.chat.artifact.reference.fileEvidence
+import com.tamimarafat.ferngeist.feature.chat.artifact.reference.fileLink
+import com.tamimarafat.ferngeist.feature.chat.artifact.reference.relativeFilePath
 import com.tamimarafat.ferngeist.feature.chat.markdown.InlineChips
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
-import java.nio.file.Paths
 
 /** The files a turn's tool calls name: what each read, edit, delete or move works on, and every diff's file. */
 internal fun List<AssistantSegment>.fileReferences(): Set<String> =
@@ -55,23 +57,14 @@ internal fun findFileReferences(
             val end = match.range.first + match.value.trimEnd('.').length
             val start = match.range.first + if (match.value.startsWith("./")) 2 else 0
             val mention = literal.substring(start, end).replace('\\', '/')
-            val hits =
-                paths.filter {
-                    val path = it.replace('\\', '/')
-                    if ('/' in mention) {
-                        path == mention || path.endsWith("/$mention") || mention.endsWith("/$path")
-                    } else {
-                        path.fileName() == mention
-                    }
-                }
-            val listed = workspace?.listed(mention).orEmpty()
+            val evidence = fileEvidence(mention, paths, workspace)
             val file =
                 when {
-                    listed.isNotEmpty() -> listed.joinToString(CANDIDATE_SEPARATOR)
-                    hits.isEmpty() ->
+                    evidence == null -> null
+                    evidence.isNotEmpty() -> evidence.joinToString(CANDIDATE_SEPARATOR)
+                    else ->
                         mention.takeIf { relativeFilePath.matches(it) }
                             ?: mention.takeIf { it.startsWith('/') }?.let { fileLink(it, cwd)?.first }
-                    else -> hits.sameFile()
                 }
             file?.let { (start until end) to it }
         }.toList()
@@ -80,31 +73,6 @@ internal fun findFileReferences(
 internal fun chipCandidates(id: String): List<String> = id.split(CANDIDATE_SEPARATOR)
 
 private const val CANDIDATE_SEPARATOR = "\n"
-
-/**
- * The listed files [mention] names. A bare name needs a dot to look the list up, so prose words
- * stay text in a project with a `run` or `test` script.
- */
-private fun Map<String, List<String>>.listed(mention: String): List<String> {
-    if ('/' !in mention && '.' !in mention) return emptyList()
-    return get(mention.fileName()).orEmpty().filter {
-        '/' !in mention || it == mention || it.endsWith("/$mention") || mention.endsWith("/$it")
-    }
-}
-
-/**
- * A relative path to a file with an extension, `dir/name.ext`: no leading `/`, `~` or `..`, and a
- * first segment without a dot unless it leads with one (`.github/`), so `example.com/a.html`,
- * `and/or` and `1/2` stay text.
- */
-private val relativeFilePath = Regex("""(?:\.?[\w@+-]+)(?:/[\w.@+-]+)*/[\w.@+-]*\.[A-Za-z]\w*""")
-
-/** The one file [this] names: calls can name it absolute and relative, so a path ending another's is the same file. */
-private fun List<String>.sameFile(): String? {
-    val longest = maxByOrNull { it.length } ?: return null
-    val normalized = longest.replace('\\', '/')
-    return if (all { it == longest || normalized.endsWith("/" + it.replace('\\', '/')) }) longest else null
-}
 
 /**
  * Opens the file a chip names, or a picker when its name is shared ([chipCandidates]); null where
@@ -118,49 +86,25 @@ internal val localWorkspaceFiles = compositionLocalOf<Map<String, List<String>>?
 /** The active project's directory on the gateway. */
 internal val localWorkspaceRoot = compositionLocalOf { "" }
 
-internal fun fileLink(
-    destination: String,
-    cwd: String,
-): Pair<String, String>? {
-    if (cwd.isBlank() || destination.contains('?') || destination.contains('#')) return null
-    val suffix = Regex(":\\d+$").find(destination)?.value.orEmpty()
-    val path = destination.removeSuffix(suffix)
-    if (Regex("^[A-Za-z][A-Za-z0-9+.-]+:").containsMatchIn(path)) return null
-    return path
-        .relativeTo(cwd)
-        ?.takeIf { it.isNotBlank() }
-        ?.let {
-            runCatching {
-                Paths
-                    .get(it)
-                    .normalize()
-                    .toString()
-                    .replace('\\', '/')
-            }.getOrNull()
-        }?.takeIf { it.isNotBlank() && it != "." && it != ".." }
-        ?.takeUnless { it.startsWith("../") }
-        ?.let { it to suffix }
-}
-
 // Mirrors FileChip's chrome: 6dp padding each side, the 14dp icon and the 4dp gap; 2dp above and below.
 private val chipChromeWidth = 30.dp
 private val chipChromeHeight = 4.dp
 private val chipIcon = 14.dp
 
 /**
- * File mentions in [segments]' prose as inline [FileChip]s that open the whole file
- * ([localFileOpener]); none without an opener. None while the turn streams: a file edited late
- * would chip prose already on screen.
+ * Source file mentions in a turn's prose as inline [FileChip]s that open the whole file
+ * ([localFileOpener]), [paths] being the turn's files; none without an opener. None while the
+ * turn streams: a file edited late would chip prose already on screen. Other files are
+ * attachment cards only; HTML is both.
  */
 @Composable
 internal fun rememberFileChips(
-    segments: List<AssistantSegment>,
+    paths: Set<String>,
     isStreaming: Boolean,
 ): InlineChips? {
     val opener = localFileOpener.current
     val workspace = localWorkspaceFiles.current
     val cwd = localWorkspaceRoot.current
-    val paths = remember(segments) { segments.fileReferences() }
     val open by rememberUpdatedState(opener)
     val measurer = rememberTextMeasurer()
     val style = MaterialTheme.typography.bodySmall
@@ -172,14 +116,15 @@ internal fun rememberFileChips(
             // The id leads with the text as written, which the chip shows: a written path stays a path.
             InlineChips(
                 find = { literal ->
-                    findFileReferences(literal, paths, workspace, cwd).map { (range, file) ->
+                    val sources = findFileReferences(literal, paths, workspace, cwd).filter { isSource(it.second) }
+                    sources.map { (range, file) ->
                         val mention = literal.substring(range)
                         val label = mention.takeIf { it.startsWith('/') }?.let { fileLink(it, cwd)?.first } ?: mention
                         range to label + CANDIDATE_SEPARATOR + file
                     }
                 },
                 link = { destination ->
-                    fileLink(destination, cwd)?.let { (path, suffix) ->
+                    fileLink(destination, cwd)?.takeIf { isSource(it.first) }?.let { (path, suffix) ->
                         (path + CANDIDATE_SEPARATOR + path) to suffix
                     }
                 },
@@ -200,6 +145,13 @@ internal fun rememberFileChips(
         }
     return chips.takeIf { opener != null && !isStreaming }
 }
+
+/**
+ * A chip id's file opens as source: source text, and HTML, whose card previews the page while the
+ * chip shows its markup. Its candidates share a name, so the first stands for all.
+ */
+private fun isSource(id: String): Boolean =
+    artifactKind(chipCandidates(id).first()).let { it == ArtifactKind.SOURCE || it == ArtifactKind.HTML }
 
 private fun chipContent(
     path: String,

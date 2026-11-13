@@ -1,6 +1,8 @@
 package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -149,4 +151,29 @@ class MessageRunsTest {
         kind: AssistantSegment.Kind,
         text: String,
     ) = AssistantSegment(id = id, kind = kind, text = text)
+
+    @Test
+    fun adjacentLinksFormOneRowAndImagesStandAlone() {
+        fun link(id: String) =
+            AssistantSegment(
+                id = id,
+                kind = AssistantSegment.Kind.RESOURCE_LINK,
+                resourceLink = ChatResourceLink("/$id", id),
+            )
+        val image = ChatImageData(base64 = "AA==", mimeType = "image/png")
+        val segments =
+            listOf(
+                segment("m0", AssistantSegment.Kind.MESSAGE, "**Documents**"),
+                link("a.pdf"),
+                link("b.csv"),
+                AssistantSegment(id = "i0", kind = AssistantSegment.Kind.IMAGE, image = image),
+                AssistantSegment(id = "i1", kind = AssistantSegment.Kind.IMAGE, image = image),
+            )
+
+        val blocks = segments.displayBlocks()
+
+        assertEquals(listOf("m0", "a.pdf", "i0", "i1"), blocks.map { it.key })
+        assertEquals(listOf("/a.pdf", "/b.csv"), (blocks[1] as SegmentBlock.LinkRow).links.map { it.path })
+        assertTrue(blocks[2] is SegmentBlock.Single && blocks[3] is SegmentBlock.Single)
+    }
 }

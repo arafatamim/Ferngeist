@@ -7,11 +7,13 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.gateway.LaunchRepositorie
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionSurface
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.GatewayAgentBinding
 import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -19,8 +21,8 @@ import com.tamimarafat.ferngeist.gateway.GatewayAgent
 import com.tamimarafat.ferngeist.gateway.GatewayConnectResponse
 import com.tamimarafat.ferngeist.gateway.GatewayCreateWorktreeRequest
 import com.tamimarafat.ferngeist.gateway.GatewayCustomAgentRequest
-import com.tamimarafat.ferngeist.gateway.GatewayFileContents
 import com.tamimarafat.ferngeist.gateway.GatewayFileList
+import com.tamimarafat.ferngeist.gateway.GatewayFileStat
 import com.tamimarafat.ferngeist.gateway.GatewayGitCommitFiles
 import com.tamimarafat.ferngeist.gateway.GatewayGitLog
 import com.tamimarafat.ferngeist.gateway.GatewayGitRefs
@@ -48,6 +50,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.OutputStream
 
 /**
  * Facade behavior against a recording [ChatConnectionSurface] and a fake gateway.
@@ -278,11 +281,6 @@ class AcpChatSessionFacadeTest {
             subscription: com.tamimarafat.ferngeist.gateway.GatewayPushSubscription,
         ) = Unit
 
-        override suspend fun fetchProjectFile(
-            connection: ProjectGitTarget,
-            path: String,
-        ): GatewayFileContents = error("Unused")
-
         override suspend fun fetchGitStatus(
             connection: ProjectGitTarget,
             compare: String?,
@@ -307,10 +305,23 @@ class AcpChatSessionFacadeTest {
         ): GatewayGitCommitFiles = TODO("unused in facade tests")
 
         override suspend fun fetchFile(
-            connection: GatewayWorkspaceConnection,
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
             path: String,
-            acpSessionId: String?,
-        ): GatewayFileContents = TODO("unused in facade tests")
+        ): ChatFileContents = error("Unused")
+
+        override suspend fun downloadFile(
+            connection: ProjectGitTarget,
+            path: String,
+            destination: OutputStream,
+            ifNoneMatch: String?,
+        ): ChatArtifactMetadata? = error("Unused")
+
+        override suspend fun statFiles(
+            connection: ProjectGitTarget,
+            paths: List<String>,
+        ): List<GatewayFileStat> = error("Unused")
 
         override suspend fun fetchFileList(
             connection: GatewayWorkspaceConnection,

@@ -284,5 +284,10 @@
     <string name="chat_active_elsewhere_body">Este chat esteve ativo recentemente em outro lugar. Enviar agora pode iniciar outro processo de agente no mesmo chat.</string>
     <string name="chat_send_anyway">Enviar mesmo assim</string>
     <string name="quote_selection">Citar</string>
+    <string name="artifact_download">Baixar</string>
+    <string name="artifact_unavailable_retry">Indisponível. Toque para tentar novamente.</string>
+    <string name="artifact_no_viewer">Nenhum app pode abrir este arquivo</string>
+    <string name="artifact_saved">%1$s salvo</string>
+    <string name="artifact_save_failed">Não foi possível salvar %1$s</string>
 </resources>
 

@@ -1,14 +1,22 @@
 package com.tamimarafat.ferngeist.gateway
 
 import com.agentclientprotocol.model.ToolCallContent
+import com.tamimarafat.ferngeist.core.model.ChatFileContents
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.core.model.repository.CodexBarNotFoundException
+import com.tamimarafat.ferngeist.gateway.files.isEmptyFileRange
+import com.tamimarafat.ferngeist.gateway.files.previewRange
+import com.tamimarafat.ferngeist.gateway.files.toPreview
+import com.tamimarafat.ferngeist.gateway.files.wholeFile
+import com.tamimarafat.ferngeist.gateway.files.writeWholeFile
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import io.ktor.client.HttpClient
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.Json
+import java.io.OutputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -20,6 +28,8 @@ private const val AGENTS_SEGMENT = "agents"
 private const val RUNTIMES_SEGMENT = "runtimes"
 private const val WORKTREES_SEGMENT = "worktrees"
 private const val SESSIONS_SEGMENT = "sessions"
+private const val FILES_SEGMENT = "files"
+private const val STAT_BATCH = 64
 
 @Suppress("TooManyFunctions") // one override per gateway endpoint
 class GatewayRepositoryImpl
@@ -508,30 +518,56 @@ class GatewayRepositoryImpl
                 query = mapOf("cwd" to connection.cwd),
             )
 
-        override suspend fun fetchProjectFile(
+        override suspend fun fetchFile(
+            scheme: String,
+            host: String,
+            gatewayCredential: String,
+            path: String,
+        ): ChatFileContents =
+            http.getOpen(
+                credential = gatewayCredential,
+                endpoint = fileEndpoint(scheme, host, path),
+                configure = { previewRange() },
+                acceptResponse = { it.isEmptyFileRange() },
+            ) { it.toPreview() }
+
+        override suspend fun downloadFile(
             connection: ProjectGitTarget,
             path: String,
-        ): GatewayFileContents =
-            http.getJson(
-                scheme = connection.scheme,
-                host = connection.host,
+            destination: OutputStream,
+            ifNoneMatch: String?,
+        ): ChatArtifactMetadata? {
+            val endpoint = fileEndpoint(connection.scheme, connection.host, path)
+            return http.getOpen(
                 credential = connection.gatewayCredential,
-                segments = arrayOf("v1", PROJECTS_SEGMENT, "files"),
-                query = mapOf("cwd" to connection.cwd, "path" to path),
-            )
+                endpoint = endpoint,
+                configure = { wholeFile(ifNoneMatch) },
+            ) { it.writeWholeFile(destination) }
+        }
 
-        override suspend fun fetchFile(
-            connection: GatewayWorkspaceConnection,
+        override suspend fun statFiles(
+            connection: ProjectGitTarget,
+            paths: List<String>,
+        ): List<GatewayFileStat> =
+            // The gateway takes at most STAT_BATCH paths a request.
+            paths.chunked(STAT_BATCH).flatMap { batch ->
+                http
+                    .postJson<GatewayFileStats>(
+                        scheme = connection.scheme,
+                        host = connection.host,
+                        credential = connection.gatewayCredential,
+                        "v1",
+                        FILES_SEGMENT,
+                        "stat",
+                        body = requestBodyJson.encodeToString(GatewayPathsRequest(batch)),
+                    ).files
+            }
+
+        private fun fileEndpoint(
+            scheme: String,
+            host: String,
             path: String,
-            acpSessionId: String?,
-        ): GatewayFileContents =
-            http.getJson(
-                scheme = connection.scheme,
-                host = connection.host,
-                credential = connection.gatewayCredential,
-                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "files"),
-                query = mapOf("path" to path) + acpSessionQuery(acpSessionId),
-            )
+        ): String = http.buildGatewayEndpoint(scheme, host, "v1", FILES_SEGMENT, query = mapOf("path" to path))
 
         override suspend fun fetchFileList(
             connection: GatewayWorkspaceConnection,
@@ -541,7 +577,7 @@ class GatewayRepositoryImpl
                 scheme = connection.scheme,
                 host = connection.host,
                 credential = connection.gatewayCredential,
-                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, "files", "list"),
+                segments = arrayOf("v1", RUNTIMES_SEGMENT, connection.runtimeId, FILES_SEGMENT, "list"),
                 query = acpSessionQuery(acpSessionId),
             )
 

@@ -56,6 +56,8 @@ import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.localArtifactHost
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.rememberArtifactHost
 import com.tamimarafat.ferngeist.feature.chat.localizeChatError
 import com.tamimarafat.ferngeist.feature.chat.markdown.image.localTranscriptImages
 import kotlinx.coroutines.CoroutineScope
@@ -289,6 +291,14 @@ private fun BoxScope.ChatScreenContentOverlays(
     val hasWorkspace = screenState.state.gatewayWorkspaceConnection != null
     val openFile = rememberOpenFile(viewModel, hasWorkspace, fileCandidates)
     val openFileAt = rememberOpenFileAt(viewModel, hasWorkspace)
+    val artifactHost =
+        rememberArtifactHost(
+            reader = viewModel.artifactReader,
+            cache = viewModel.artifactCache,
+            io = viewModel.artifactIo,
+            snackbar = screenState.mutations.snackbarHostState,
+            enabled = hasWorkspace,
+        )
     CompositionLocalProvider(
         localWorkingTreeChanges provides
             if (inNewestTurn) screenState.state.git.turnWorkingTree() else emptyList(),
@@ -310,6 +320,7 @@ private fun BoxScope.ChatScreenContentOverlays(
         localWorkspaceFiles provides screenState.state.workspaceFiles,
         localWorkspaceRoot provides viewModel.cwd,
         localTranscriptImages provides viewModel.transcriptImages,
+        localArtifactHost provides artifactHost,
     ) {
         ChatScreenDialogsHost(screenState, viewModel)
     }
@@ -393,6 +404,7 @@ private fun BoxScope.ChatScreenContentOverlays(
         localWorkspaceFiles provides screenState.state.workspaceFiles,
         localWorkspaceRoot provides viewModel.cwd,
         localTranscriptImages provides viewModel.transcriptImages,
+        localArtifactHost provides artifactHost,
     ) {
         ChatScreenBody(
             state = screenState.state,

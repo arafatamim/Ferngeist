@@ -22,6 +22,8 @@ data class ChatMessage(
     val isError: Boolean = false,
     val images: List<ChatImageData> = emptyList(),
     val files: List<ChatFileData> = emptyList(),
+    /** Host files a user prompt linked rather than inlined (ACP `resource_link`). */
+    val links: List<ChatResourceLink> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val status: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
     val clientId: String? = null,
@@ -66,6 +68,10 @@ data class AssistantSegment(
     val text: String = "",
     val toolCall: ToolCallDisplay? = null,
     val planEntries: List<PlanEntry>? = null,
+    /** The host file a [Kind.RESOURCE_LINK] segment points at. */
+    val resourceLink: ChatResourceLink? = null,
+    /** The picture an [Kind.IMAGE] segment carries. */
+    val image: ChatImageData? = null,
     /** `elapsedRealtime` the segment arrived at; null for hydrated history. */
     val receivedAtMs: Long? = null,
 ) {
@@ -74,8 +80,22 @@ data class AssistantSegment(
         THOUGHT,
         TOOL_CALL,
         PLAN,
+        RESOURCE_LINK,
+        IMAGE,
     }
 }
+
+/**
+ * A host file an ACP `resource_link` names, at its absolute [path], with what the agent said of it.
+ * [mimeType] and [size] are the agent's word and may be stale; the host's own stat replaces them.
+ */
+@Serializable
+data class ChatResourceLink(
+    val path: String,
+    val name: String,
+    val mimeType: String? = null,
+    val size: Long? = null,
+)
 
 @Serializable
 data class ToolCallDisplay(

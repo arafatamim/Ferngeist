@@ -75,6 +75,24 @@ class MarkdownRevealTest {
     }
 
     @Test
+    fun `a revealed tail paragraph ends only once text follows it or its run closes`() {
+        val run = RunReveal(startHidden = true).apply { target = 10 }
+        val paragraph = BlockReveal(run, offset = 0)
+        run.snapToTarget()
+
+        assertFalse("the stream may still extend it", paragraph.hasEnded(length = 10))
+
+        run.target = 15
+        assertTrue("text after it has arrived", paragraph.hasEnded(length = 10))
+        run.snapToTarget()
+
+        val tail = BlockReveal(run, offset = 10)
+        assertFalse(tail.hasEnded(length = 5))
+        run.isOpen = false
+        assertTrue(tail.hasEnded(length = 5))
+    }
+
+    @Test
     fun `a run composed for settled text starts fully shown`() {
         val run = RunReveal(startHidden = false).apply { target = 100 }
 

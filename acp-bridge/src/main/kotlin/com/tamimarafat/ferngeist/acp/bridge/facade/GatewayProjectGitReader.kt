@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GitWorkspaceReader
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
+import com.tamimarafat.ferngeist.core.model.hostPath
 import com.tamimarafat.ferngeist.core.model.isSameCwd
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.gateway.GatewayRequestException
@@ -94,8 +95,14 @@ internal class GatewayProjectGitReader(
             .map { it.toChatChangedFile() }
 
     override suspend fun fetchFile(path: String): ChatFileContents {
-        val file = gatewayRepository.fetchProjectFile(target, path)
-        return ChatFileContents(file.text, file.truncated, file.blob)
+        // Joined onto a blank cwd, the relative path would read from the host's root.
+        check(target.cwd.isNotBlank()) { "No project directory to read $path from" }
+        return gatewayRepository.fetchFile(
+            target.scheme,
+            target.host,
+            target.gatewayCredential,
+            hostPath(target.cwd, path),
+        )
     }
 }
 

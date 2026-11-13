@@ -243,5 +243,10 @@
     <string name="chat_active_elsewhere_body">此聊天最近在其他位置处于活跃状态。现在发送可能会为同一聊天启动另一个代理进程。</string>
     <string name="chat_send_anyway">仍然发送</string>
     <string name="quote_selection">引用</string>
+    <string name="artifact_download">下载</string>
+    <string name="artifact_unavailable_retry">不可用。点按即可重试。</string>
+    <string name="artifact_no_viewer">没有可以打开此文件的应用</string>
+    <string name="artifact_saved">已保存 %1$s</string>
+    <string name="artifact_save_failed">无法保存 %1$s</string>
 </resources>
 
