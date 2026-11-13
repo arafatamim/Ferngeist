@@ -18,7 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adamglin.compose.markdown.core.model.BlockNode
@@ -53,6 +55,20 @@ internal fun TableBlock(
     // bubble surface. The scroll's child is measured unbounded, so the width to fit is handed to
     // TableLayout instead of being read off its constraints.
     val framePadding = 10.dp
+    // Measured, not guessed: a fixed dp floor shrinks the line as the user's text grows, while the
+    // monospaced advance keeps a character count the same measure at every font scale.
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val minColumnWidth =
+        remember(bodyStyle, density, measurer) {
+            with(density) {
+                measurer
+                    .measure("M".repeat(READABLE_COLUMNS), bodyStyle, maxLines = 1)
+                    .size
+                    .width
+                    .toDp()
+            }
+        }
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val scrollState = rememberScrollState()
         TableLayout(
@@ -60,6 +76,7 @@ internal fun TableBlock(
             rowCount = rows.size,
             alignments = block.alignments,
             availableWidth = (maxWidth - framePadding * 2).coerceAtLeast(0.dp),
+            minColumnWidth = minColumnWidth,
             modifier =
                 Modifier
                     .edgeFadeMask(scrollState = scrollState, orientation = Orientation.Horizontal)
@@ -84,6 +101,13 @@ internal fun TableBlock(
         }
     }
 }
+
+/**
+ * The narrowest a column may be squeezed to, in characters of the table's body face. Below it a
+ * cell breaks words into slivers, so the table keeps the width and scrolls instead — the floor is
+ * what makes that decision about the content, not about how wide the container happens to be.
+ */
+private const val READABLE_COLUMNS = 20
 
 internal fun tableCellHorizontalOffset(
     alignment: TableAlignment,

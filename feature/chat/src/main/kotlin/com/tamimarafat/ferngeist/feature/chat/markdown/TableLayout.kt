@@ -18,7 +18,8 @@ import com.adamglin.compose.markdown.core.model.TableAlignment
  * scroll container carries the overflow, so its constraints are unbounded and the width to fit has
  * to come in as a parameter.
  *
- * A table that fits fills [availableWidth] exactly, as it always has.
+ * A table that fits fills [availableWidth] exactly, as it always has. [minColumnWidth] is the floor
+ * a column may be squeezed to; when the columns cannot hold it, the table overflows instead.
  */
 @Composable
 internal fun TableLayout(
@@ -26,6 +27,7 @@ internal fun TableLayout(
     rowCount: Int,
     alignments: List<TableAlignment>,
     availableWidth: Dp,
+    minColumnWidth: Dp,
     modifier: Modifier = Modifier,
     columnSpacing: Dp = 8.dp,
     rowSpacing: Dp = 6.dp,
@@ -42,7 +44,7 @@ internal fun TableLayout(
             }
         val preferredCells = measurePreferredCells(rowCount, columnCount, resolvedAlignments, cell)
         val preferredWidths = IntArray(columnCount) { columnIndex -> maxWidthOfColumn(preferredCells, columnIndex) }
-        val metrics = tableMetrics(preferredWidths, availableWidth, totalColumnSpacing)
+        val metrics = tableMetrics(preferredWidths, availableWidth, minColumnWidth, totalColumnSpacing)
         val cells = measureTableCells(preferredCells, metrics.columnWidths, resolvedAlignments, cell)
         val layoutWidth = metrics.tableWidth.coerceIn(constraints.minWidth, constraints.maxWidth)
         val headerDivider = measureHeaderDivider(rowCount, divider, layoutWidth)
@@ -84,18 +86,19 @@ private class TableMetrics(
 
 /**
  * Fits the table to [availableWidth], or overflows it when the columns would be squeezed below
- * [READABLE_COLUMN_WIDTH]. An unbounded parent offers no width to fit, so the table hugs its
- * content instead.
+ * [minColumnWidth]. An unbounded parent offers no width to fit, so the table hugs its content
+ * instead.
  */
 private fun Density.tableMetrics(
     preferredWidths: IntArray,
     availableWidth: Dp,
+    minColumnWidth: Dp,
     totalColumnSpacing: Int,
 ): TableMetrics {
-    val minColumnWidth = READABLE_COLUMN_WIDTH.roundToPx()
+    val minColumnWidthPx = minColumnWidth.roundToPx()
     if (!availableWidth.value.isFinite()) {
         val columnWidths =
-            distributeTableColumnWidths(preferredWidths, preferredWidths.sum(), minColumnWidth)
+            distributeTableColumnWidths(preferredWidths, preferredWidths.sum(), minColumnWidthPx)
         return TableMetrics(columnWidths, columnWidths.sum() + totalColumnSpacing)
     }
     val availablePx = availableWidth.roundToPx()
@@ -103,7 +106,7 @@ private fun Density.tableMetrics(
         distributeTableColumnWidths(
             preferredWidths = preferredWidths,
             availableWidth = (availablePx - totalColumnSpacing).coerceAtLeast(0),
-            minColumnWidth = minColumnWidth,
+            minColumnWidth = minColumnWidthPx,
         )
     return TableMetrics(columnWidths, maxOf(availablePx, columnWidths.sum() + totalColumnSpacing))
 }
@@ -222,13 +225,6 @@ private fun Placeable.PlacementScope.placeTable(table: MeasuredTable) {
         }
     }
 }
-
-/**
- * The narrowest a column may be squeezed to. Below it a cell wraps into slivers, so the table
- * keeps the width and scrolls instead — the floor is what makes that decision about the content,
- * not about how wide the container happens to be.
- */
-private val READABLE_COLUMN_WIDTH = 120.dp
 
 /**
  * Column widths for [availableWidth]: content widths when they fit, otherwise every column down

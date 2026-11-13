@@ -99,7 +99,7 @@ class TableWidthsTest {
     }
 
     private companion object {
-        /** The production floor in pixels at mdpi, so the arithmetic reads in the same unit. */
+        /** A floor in pixels: these tests only care how the production floor is honoured. */
         const val READABLE_COLUMN = 120
     }
 }
