@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactStat
@@ -89,7 +90,7 @@ internal fun rememberArtifactHost(
         mutableStateOf<PendingArtifactDownload?>(null)
     }
     var pendingReader by remember { mutableStateOf<ChatArtifactReader?>(null) }
-    val noViewer = context.getString(R.string.artifact_no_viewer)
+    val noViewer = stringResource(R.string.artifact_no_viewer)
     val picker =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             val request = pending ?: return@rememberLauncherForActivityResult
@@ -100,7 +101,7 @@ internal fun rememberArtifactHost(
             if (uri != null) scope.launch { snackbar.showSnackbar(context.save(cache, io, bound, request.path, uri)) }
         }
     if (!enabled) return null
-    return remember(context, cache, picker, snackbar) {
+    return remember(context, cache, picker, snackbar, noViewer) {
         ArtifactHost(
             open = { path ->
                 val bound = currentReader() ?: throw IOException("No gateway workspace to read $path from")
