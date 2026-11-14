@@ -387,7 +387,13 @@ class SessionCatchUpTest {
             val bridge = gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w") as SessionBridge
 
             bridge.runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "c1")
-            gateway.sendSessionMessage("s1", "go", clientId = "c1")
+            gateway.sendSessionMessage(
+                "s1",
+                listOf(
+                    ContentBlock.Text("go"),
+                ),
+                clientId = "c1",
+            )
 
             val meta = (transport.sentParams.last() as JsonObject)["_meta"] as JsonObject
             assertEquals("c1", meta["ferngeist/clientId"]?.jsonPrimitive?.content)

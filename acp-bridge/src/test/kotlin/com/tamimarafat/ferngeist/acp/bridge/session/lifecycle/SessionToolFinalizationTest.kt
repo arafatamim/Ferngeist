@@ -26,7 +26,15 @@ class SessionToolFinalizationTest {
             for ((id, status) in calls) {
                 runtime.onEvent(AppSessionEvent.ToolCallStarted(id, id, ToolKind.EXECUTE, status))
             }
-            runtime.onPromptSteered("nudge", emptyList(), emptyList(), clientId = null, injected = true)
+            runtime.onPromptSteered(
+                com.tamimarafat.ferngeist.acp.bridge.session.UserContent(
+                    listOf(
+                        com.agentclientprotocol.model.ContentBlock
+                            .Text("nudge"),
+                    ),
+                ),
+                injected = true,
+            )
             assertEquals(calls.map { it.second }, runtime.toolStatuses())
             // A terminal event also closes tools above the steer, even if their updates never arrived.
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))

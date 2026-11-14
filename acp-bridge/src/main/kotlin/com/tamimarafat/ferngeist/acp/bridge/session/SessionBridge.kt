@@ -7,11 +7,11 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
-import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -60,7 +60,6 @@ internal fun deviceRuntime(sessionId: String): SessionRuntime =
  * scope is cancelled in [close], which is called by [AcpSessionRegistry.clearSession] or
  * [AcpSessionRegistry.clearAll] when the session is torn down.
  */
-@Suppress("TooManyFunctions")
 class SessionBridge(
     override val sessionId: String,
     private val connectionManager: AcpConnection?,
@@ -144,49 +143,34 @@ class SessionBridge(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String?,
-    ) = sendPrompt(text, images, files, clientId, emptyList(), emptyList())
-
-    @Suppress("LongParameterList")
-    override suspend fun sendPrompt(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String?,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
+        extras: PromptExtras,
     ) {
         runtime.onLocalPromptStarted(
             text,
             images,
             files,
             clientId = clientId,
-            audios = audios,
-            resourceLinks = resourceLinks,
+            extras = extras,
         )
-        sendWithRollback(text, images, files, clientId, audios, resourceLinks)
+        sendWithRollback(text, images, files, clientId, extras)
     }
 
     /**
      * Sends the prompt through the connection manager; on any failure rolls back the
      * optimistic message and rethrows so the caller can surface the error.
      */
-    @Suppress("TooGenericExceptionCaught", "LongParameterList")
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun sendWithRollback(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String?,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
+        extras: PromptExtras,
     ) {
         try {
             connectionManager?.sessions?.sendSessionMessage(
                 sessionId = sessionId,
-                content = text,
-                images = images,
-                files = files,
-                audios = audios,
-                resourceLinks = resourceLinks,
+                blocks = userContentBlocks(text, images, files, extras.audios, extras.resourceLinks),
                 clientId = clientId,
             )
         } catch (e: CancellationException) {
@@ -211,16 +195,7 @@ class SessionBridge(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String?,
-    ): SteerOutcome = steer(text, images, files, clientId, emptyList(), emptyList())
-
-    @Suppress("LongParameterList")
-    override suspend fun steer(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String?,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
+        extras: PromptExtras,
     ): SteerOutcome {
         val outcome =
             connectionManager?.sessions?.steerSession(
@@ -228,18 +203,12 @@ class SessionBridge(
                 content = text,
                 images = images,
                 files = files,
-                audios = audios,
-                resourceLinks = resourceLinks,
+                extras = extras,
             ) ?: SteerOutcome.NOT_CONSUMED
         if (outcome != SteerOutcome.NOT_CONSUMED) {
             runtime.onPromptSteered(
-                text,
-                images,
-                files,
-                clientId,
+                UserContent(userContentBlocks(text, images, files, extras.audios, extras.resourceLinks), clientId),
                 injected = outcome == SteerOutcome.INJECTED,
-                audios = audios,
-                resourceLinks = resourceLinks,
             )
         }
         return outcome

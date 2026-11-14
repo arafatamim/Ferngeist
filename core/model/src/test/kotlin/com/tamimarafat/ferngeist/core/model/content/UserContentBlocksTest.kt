@@ -60,6 +60,37 @@ class UserContentBlocksTest {
     }
 
     @Test
+    fun `undecodable text stays a lossless embedded blob`() {
+        val file = ChatFileData("notes.txt", "/w==", "text/plain", 1)
+        val block = userContentBlocks("", emptyList(), listOf(file)).single()
+        assertEquals(
+            ContentBlock.Resource(
+                EmbeddedResourceResource.BlobResourceContents("/w==", "file:///notes.txt", "text/plain"),
+            ),
+            block,
+        )
+    }
+
+    @Test
+    fun `text with declared charset is decoded correctly`() {
+        val bytes = "café".toByteArray(Charsets.ISO_8859_1)
+        val file =
+            ChatFileData("notes.txt", Base64.getEncoder().encodeToString(bytes), "text/plain; charset=ISO-8859-1", 4)
+        val resource = (userContentBlocks("", emptyList(), listOf(file)).single() as ContentBlock.Resource).resource
+        assertEquals("café", (resource as EmbeddedResourceResource.TextResourceContents).text)
+        val replayed = requireNotNull(ContentBlock.Resource(resource).chatFile())
+        val replayResource =
+            (
+                userContentBlocks(
+                    "",
+                    emptyList(),
+                    listOf(replayed),
+                ).single() as ContentBlock.Resource
+            ).resource
+        assertEquals("café", (replayResource as EmbeddedResourceResource.TextResourceContents).text)
+    }
+
+    @Test
     fun `binary file stays an embedded blob`() {
         val pdf = ChatFileData("report.pdf", "UERG", "application/pdf", 3)
 

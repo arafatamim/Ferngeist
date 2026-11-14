@@ -25,12 +25,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,7 +48,6 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
@@ -79,11 +80,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
@@ -101,6 +106,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.composer.ImageThumbnailRow
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ResourceLinkChipRow
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
+import kotlin.math.roundToInt
 
 private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
 
@@ -149,6 +155,8 @@ internal fun ChatComposerBar(
     composerExpanded: Boolean,
     onComposerExpandedChange: (Boolean) -> Unit,
     messageText: TextFieldState,
+    mentionState: WorkspaceMentionState,
+    onMentionSelected: (String, Int?) -> Unit,
     inputAlpha: () -> Float,
     buttonsAlpha: () -> Float,
     showModeButton: Boolean,
@@ -178,8 +186,6 @@ internal fun ChatComposerBar(
     onAudiosChanged: (List<ChatAudioData>) -> Unit,
     selectedResourceLinks: List<ChatPromptResourceLink>,
     onResourceLinksChanged: (List<ChatPromptResourceLink>) -> Unit,
-    canReferenceWorkspaceFiles: Boolean,
-    onReferenceWorkspaceFile: () -> Unit,
     onAttach: () -> Unit,
     dropTargetActive: Boolean,
 ) {
@@ -200,6 +206,8 @@ internal fun ChatComposerBar(
         if (composerExpanded) {
             ExpandedComposerContent(
                 messageText = messageText,
+                mentionState = mentionState,
+                onMentionSelected = onMentionSelected,
                 inputAlpha = inputAlpha,
                 focusRequester = focusRequester,
                 showStopAction = primaryStop,
@@ -228,8 +236,6 @@ internal fun ChatComposerBar(
                 onAudiosChanged = onAudiosChanged,
                 selectedResourceLinks = selectedResourceLinks,
                 onResourceLinksChanged = onResourceLinksChanged,
-                canReferenceWorkspaceFiles = canReferenceWorkspaceFiles,
-                onReferenceWorkspaceFile = onReferenceWorkspaceFile,
                 onAttach = onAttach,
                 dropTargetActive = dropTargetActive,
             )
@@ -468,6 +474,8 @@ private fun ComposerContentRow(
 @Composable
 internal fun ExpandedComposerContent(
     messageText: TextFieldState,
+    mentionState: WorkspaceMentionState,
+    onMentionSelected: (String, Int?) -> Unit,
     inputAlpha: () -> Float,
     focusRequester: FocusRequester,
     showStopAction: Boolean,
@@ -487,8 +495,6 @@ internal fun ExpandedComposerContent(
     onAudiosChanged: (List<ChatAudioData>) -> Unit,
     selectedResourceLinks: List<ChatPromptResourceLink>,
     onResourceLinksChanged: (List<ChatPromptResourceLink>) -> Unit,
-    canReferenceWorkspaceFiles: Boolean,
-    onReferenceWorkspaceFile: () -> Unit,
     onAttach: () -> Unit,
     dropTargetActive: Boolean,
 ) {
@@ -540,6 +546,8 @@ internal fun ExpandedComposerContent(
         }
         ExpandedComposerTextField(
             messageText = messageText,
+            mentionState = mentionState,
+            onMentionSelected = onMentionSelected,
             focusRequester = focusRequester,
             onSend = onSend,
         )
@@ -548,8 +556,6 @@ internal fun ExpandedComposerContent(
             canSendImages = canSendImages,
             canSendFiles = canSendFiles,
             canSendAudio = canSendAudio,
-            canReferenceWorkspaceFiles = canReferenceWorkspaceFiles,
-            onReferenceWorkspaceFile = onReferenceWorkspaceFile,
             onAttach = onAttach,
             showStopAction = showStopAction,
             canCancelStreaming = canCancelStreaming,
@@ -573,16 +579,21 @@ internal fun ExpandedComposerContent(
 @Composable
 private fun ExpandedComposerTextField(
     messageText: TextFieldState,
+    mentionState: WorkspaceMentionState,
+    onMentionSelected: (String, Int?) -> Unit,
     focusRequester: FocusRequester,
     onSend: () -> Unit,
 ) {
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val scrollState = rememberScrollState()
+    var menuAnchor by remember { mutableStateOf(IntOffset.Zero) }
     val selectionColors =
         TextSelectionColors(
             handleColor = MaterialTheme.colorScheme.onPrimary,
             backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
         )
     val decorator =
-        remember(messageText) {
+        remember(messageText, mentionState, onMentionSelected, scrollState) {
             TextFieldDecorator { innerTextField ->
                 Box(
                     modifier =
@@ -599,12 +610,34 @@ private fun ExpandedComposerTextField(
                         )
                     }
                     innerTextField()
+                    val caret =
+                        textLayout?.let { layout ->
+                            layout.getCursorRect(messageText.selection.end.coerceAtMost(layout.layoutInput.text.length))
+                        }
+                    if (caret != null) {
+                        Box(
+                            Modifier
+                                .offset {
+                                    IntOffset(caret.left.roundToInt(), (caret.top - scrollState.value).roundToInt())
+                                }.size(0.dp)
+                                .onGloballyPositioned { coordinates ->
+                                    if (mentionState.visible) {
+                                        val position = coordinates.positionInWindow()
+                                        menuAnchor = IntOffset(position.x.roundToInt(), position.y.roundToInt())
+                                    }
+                                },
+                        ) {
+                            WorkspaceMentionMenu(mentionState, menuAnchor, onMentionSelected)
+                        }
+                    }
                 }
             }
         }
     CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
         BasicTextField(
             state = messageText,
+            scrollState = scrollState,
+            onTextLayout = { getResult -> getResult()?.let { textLayout = it } },
             textStyle =
                 MaterialTheme.typography.bodyLarge.copy(
                     color = MaterialTheme.colorScheme.onPrimary,
@@ -649,21 +682,11 @@ private fun ComposerAttachmentButtons(
     canSendImages: Boolean,
     canSendFiles: Boolean,
     canSendAudio: Boolean,
-    canReferenceWorkspaceFiles: Boolean,
-    onReferenceWorkspaceFile: () -> Unit,
     onAttach: () -> Unit,
     dropTargetActive: Boolean,
 ) {
     if (canSendImages || canSendFiles || canSendAudio) {
         AttachComposerButton(onAttach = onAttach, dropTargetActive = dropTargetActive)
-    }
-    if (canReferenceWorkspaceFiles) {
-        IconButton(onClick = onReferenceWorkspaceFile, modifier = Modifier.handCursor()) {
-            Icon(
-                imageVector = Icons.Default.Link,
-                contentDescription = stringResource(R.string.chat_reference_workspace_file),
-            )
-        }
     }
 }
 
@@ -677,8 +700,6 @@ private fun ExpandedComposerBottomBar(
     canSendImages: Boolean,
     canSendFiles: Boolean,
     canSendAudio: Boolean,
-    canReferenceWorkspaceFiles: Boolean,
-    onReferenceWorkspaceFile: () -> Unit,
     onAttach: () -> Unit,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
@@ -710,8 +731,6 @@ private fun ExpandedComposerBottomBar(
                 canSendImages = canSendImages,
                 canSendFiles = canSendFiles,
                 canSendAudio = canSendAudio,
-                canReferenceWorkspaceFiles = canReferenceWorkspaceFiles,
-                onReferenceWorkspaceFile = onReferenceWorkspaceFile,
                 onAttach = onAttach,
                 dropTargetActive = dropTargetActive,
             )

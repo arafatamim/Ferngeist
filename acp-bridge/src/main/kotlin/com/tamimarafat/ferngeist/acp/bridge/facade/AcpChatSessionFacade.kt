@@ -39,6 +39,7 @@ import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -74,7 +75,7 @@ data class ChatOpening(
  * ponytail: hub integration helpers live here until the facade splits;
  * splitting now would scatter five one-call methods.
  */
-@Suppress("TooManyFunctions", "LargeClass")
+@Suppress("TooManyFunctions")
 class AcpChatSessionFacade(
     private val scope: CoroutineScope,
     private val connectionManager: AcpConnection,
@@ -375,19 +376,10 @@ class AcpChatSessionFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
-    ): Boolean = sendMessage(text, images, files, clientId, emptyList(), emptyList())
-
-    @Suppress("TooGenericExceptionCaught", "LongParameterList")
-    override suspend fun sendMessage(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
+        extras: PromptExtras,
     ): Boolean {
         val bridge =
-            if (!hasPromptContent(text, images, files, audios, resourceLinks)) {
+            if (!hasPromptContent(text, images, files, extras.audios, extras.resourceLinks)) {
                 null
             } else {
                 ensureSessionReadyForSend()
@@ -400,13 +392,14 @@ class AcpChatSessionFacade(
             }
             return false
         }
-        sendCapabilityRejection(connectionManager.agentCapabilities.value, images, audios, files)?.let { rejection ->
+        val rejection = sendCapabilityRejection(connectionManager.agentCapabilities.value, images, extras.audios, files)
+        if (rejection != null) {
             _operationError.emit(ChatOperationError(rejection, false))
             return false
         }
 
         try {
-            bridge.sendPrompt(text, images, files, clientId, audios, resourceLinks)
+            bridge.sendPrompt(text, images, files, clientId, extras)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -425,18 +418,8 @@ class AcpChatSessionFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
-    ): SteerOutcome = sessionBridge?.steer(text, images, files, clientId) ?: SteerOutcome.NOT_CONSUMED
-
-    @Suppress("LongParameterList")
-    override suspend fun steerMessage(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
-    ): SteerOutcome =
-        sessionBridge?.steer(text, images, files, clientId, audios, resourceLinks) ?: SteerOutcome.NOT_CONSUMED
+        extras: PromptExtras,
+    ): SteerOutcome = sessionBridge?.steer(text, images, files, clientId, extras) ?: SteerOutcome.NOT_CONSUMED
 
     /**
      * Cancels the current streaming turn.

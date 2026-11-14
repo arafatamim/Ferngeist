@@ -149,6 +149,11 @@ data class ChatAudioData(
  * A host resource the user names in a prompt. Unlike an embedded file, the agent is only told
  * where to find it; resource links need no prompt capability.
  */
+data class PromptExtras(
+    val audios: List<ChatAudioData> = emptyList(),
+    val resourceLinks: List<ChatPromptResourceLink> = emptyList(),
+)
+
 @Serializable
 data class ChatPromptResourceLink(
     val name: String,

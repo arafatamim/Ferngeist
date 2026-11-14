@@ -454,27 +454,36 @@ class SessionGatewayTest {
 
             gateway.sendSessionMessage(
                 sessionId = "s1",
-                content = "hello",
-                audios =
-                    listOf(
-                        ChatAudioData(base64 = "YXVkaW8=", mimeType = "audio/wav", name = "voice.wav", sizeBytes = 5),
-                    ),
-                files =
-                    listOf(
-                        ChatFileData(
-                            name = "notes.txt",
-                            base64 = "aGVsbG8=",
-                            mimeType = "text/plain",
-                            sizeBytes = 5,
-                        ),
-                    ),
-                resourceLinks =
-                    listOf(
-                        ChatPromptResourceLink(
-                            name = "main.kt",
-                            uri = "file:///workspace/main.kt",
-                            mimeType = "text/x-kotlin",
-                        ),
+                blocks =
+                    com.tamimarafat.ferngeist.core.model.content.userContentBlocks(
+                        text = "hello",
+                        images = emptyList(),
+                        files =
+                            listOf(
+                                ChatFileData(
+                                    name = "notes.txt",
+                                    base64 = "aGVsbG8=",
+                                    mimeType = "text/plain",
+                                    sizeBytes = 5,
+                                ),
+                            ),
+                        audios =
+                            listOf(
+                                ChatAudioData(
+                                    base64 = "YXVkaW8=",
+                                    mimeType = "audio/wav",
+                                    name = "voice.wav",
+                                    sizeBytes = 5,
+                                ),
+                            ),
+                        resourceLinks =
+                            listOf(
+                                ChatPromptResourceLink(
+                                    name = "main.kt",
+                                    uri = "file:///workspace/main.kt",
+                                    mimeType = "text/x-kotlin",
+                                ),
+                            ),
                     ),
             )
 
@@ -530,7 +539,12 @@ class SessionGatewayTest {
                     ),
                 )
 
-            val send = async { runCatching { gateway.sendSessionMessage("s1", "hello") } }
+            val send =
+                async {
+                    runCatching {
+                        gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("hello")))
+                    }
+                }
             collecting.await()
             gateway.detachAllSessions()
 
@@ -566,13 +580,16 @@ class SessionGatewayTest {
 
             // The turn runs on the bridge's own scope (Dispatchers.Default), so the
             // handshake — not a yield — is what orders the cancel after collection.
-            val first = launch { gateway.sendSessionMessage("s1", "first") }
+            val first =
+                launch {
+                    gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("first")))
+                }
             collecting.await()
             gateway.cancelSession("s1") // STOP pressed mid-turn
             turn.close() // stream ends without a terminal event
             first.join()
 
-            gateway.sendSessionMessage("s1", "second")
+            gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("second")))
 
             assertEquals(
                 "a stream that ends without a terminal response must not be papered over " +
@@ -625,7 +642,12 @@ class SessionGatewayTest {
                     cancelError = failure,
                 )
             val bridge = installSession(gateway, "s1", session)
-            val send = async { runCatching { gateway.sendSessionMessage("s1", "hello") } }
+            val send =
+                async {
+                    runCatching {
+                        gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("hello")))
+                    }
+                }
             collecting.await()
 
             assertSame(failure, runCatching { gateway.cancelSession("s1") }.exceptionOrNull())
@@ -647,7 +669,10 @@ class SessionGatewayTest {
                     FakeClientSession(listOf(flow { throw failure })),
                 )
 
-            val result = runCatching { gateway.sendSessionMessage("s1", "hello") }
+            val result =
+                runCatching {
+                    gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("hello")))
+                }
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             // The turn runs on the bridge scope, so its starter may already be gone and
@@ -670,7 +695,12 @@ class SessionGatewayTest {
             val bridge =
                 installSession(gateway, "s1", FakeClientSession(listOf(failsAfterClose)))
 
-            val first = launch { runCatching { gateway.sendSessionMessage("s1", "hello") } }
+            val first =
+                launch {
+                    runCatching {
+                        gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("hello")))
+                    }
+                }
             collecting.await()
             gateway.cancelSession("s1")
             turn.close()
@@ -699,11 +729,13 @@ class SessionGatewayTest {
                 )
 
             // Turn 1 ends normally, with no response expected after it.
-            gateway.sendSessionMessage("s1", "first")
+            gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("first")))
             // A cancel lands after the turn is over (user tapped STOP late).
             gateway.cancelSession("s1")
             // Turn 2 must not inherit that stale mark.
-            runCatching { gateway.sendSessionMessage("s1", "second") }
+            runCatching {
+                gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("second")))
+            }
 
             assertEquals(listOf("end_turn", "error"), turnReasons(bridge))
         }
@@ -730,7 +762,12 @@ class SessionGatewayTest {
                 )
             val bridge = installSession(gateway, "s1", session)
 
-            val first = launch { runCatching { gateway.sendSessionMessage("s1", "first") } }
+            val first =
+                launch {
+                    runCatching {
+                        gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("first")))
+                    }
+                }
             collecting.await()
             val cancelling = launch { gateway.cancelSession("s1") }
             session.cancelStarted.await()

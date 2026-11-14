@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.feature.chat.queue.PendingPrompt
 import kotlinx.coroutines.CancellationException
@@ -143,8 +144,7 @@ internal class ChatSessionCoordinator(
             prompt.images,
             prompt.files,
             prompt.clientId,
-            prompt.audios,
-            prompt.resourceLinks,
+            PromptExtras(prompt.audios, prompt.resourceLinks),
         )
 
     suspend fun steerMessage(prompt: PendingPrompt): SteerOutcome =
@@ -153,8 +153,7 @@ internal class ChatSessionCoordinator(
             prompt.images,
             prompt.files,
             prompt.clientId,
-            prompt.audios,
-            prompt.resourceLinks,
+            PromptExtras(prompt.audios, prompt.resourceLinks),
         )
 
     /** Ensures the transport is (re)connecting so queued prompts can drain. */

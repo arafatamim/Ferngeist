@@ -532,49 +532,27 @@ interface ChatSessionInteraction {
     /** Sends a user message with optional inline images. Returns true if the message
      * was dispatched to a live session; false when no bridge is available or the
      * payload is unsupported by the current transport. [clientId] names the prompt so the
-     * gateway delivers it once and its echo can be told apart from an identical prompt. */
+     * gateway delivers it once and its echo can be told apart from an identical prompt.
+     * [extras] carries audio and resource links. */
     suspend fun sendMessage(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras = PromptExtras(),
     ): Boolean
-
-    /**
-     * Sends a prompt carrying every ACP content attachment. Implementations that predate audio
-     * and resource links only need the four-argument overload.
-     */
-    @Suppress("LongParameterList")
-    suspend fun sendMessage(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
-    ): Boolean = sendMessage(text, images, files, clientId)
 
     /** Requests a streaming cancel from the transport. */
     suspend fun cancelStreaming()
 
-    /** Steers a prompt into the running turn; see [ChatAgentCapabilities.supportsSteering]. */
+    /** Steers a prompt, including audio and resource links, into the running turn. */
     suspend fun steerMessage(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras = PromptExtras(),
     ): SteerOutcome = SteerOutcome.NOT_CONSUMED
-
-    /** Steers [text] plus ordered audio and resource-link attachments when the transport supports it. */
-    @Suppress("LongParameterList")
-    suspend fun steerMessage(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
-    ): SteerOutcome = steerMessage(text, images, files, clientId)
 
     /** Updates a session configuration option (mode, model, native config, etc.). */
     suspend fun setConfigOption(

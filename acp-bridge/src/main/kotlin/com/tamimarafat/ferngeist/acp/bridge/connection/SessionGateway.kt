@@ -39,11 +39,10 @@ import com.tamimarafat.ferngeist.acp.bridge.session.beginHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.failHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.markReady
-import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.CancellationException
@@ -303,15 +302,10 @@ internal class SessionGateway(
      *    [Event.PromptResponseEvent]. A prompt sent on an earlier connection gets its
      *    terminal notice from the gateway instead ([SessionGateway.endRemoteTurn]).
      */
-    @Suppress("LongParameterList")
     suspend fun sendSessionMessage(
         sessionId: String,
-        content: String,
-        images: List<ChatImageData> = emptyList(),
-        files: List<ChatFileData> = emptyList(),
+        blocks: List<ContentBlock>,
         clientId: String? = null,
-        audios: List<ChatAudioData> = emptyList(),
-        resourceLinks: List<ChatPromptResourceLink> = emptyList(),
     ) {
         val bridge =
             sessionRegistry.getBridge(sessionId) ?: error("Session bridge missing for sessionId=$sessionId")
@@ -322,7 +316,6 @@ internal class SessionGateway(
 
         // User message already added optimistically by onLocalPromptStarted; omitted here to
         // avoid duplication.
-        val blocks = userContentBlocks(content, images, files, audios, resourceLinks)
 
         // session.prompt returns a cold flow; .collect is terminal and suspends
         // until the entire prompt turn completes (all updates + final response).
@@ -343,19 +336,22 @@ internal class SessionGateway(
      * including an agent without the method, reads as [SteerOutcome.NOT_CONSUMED] so the
      * caller falls back to an ordinary prompt.
      */
-    @Suppress("TooGenericExceptionCaught", "LongParameterList")
+    @Suppress("TooGenericExceptionCaught")
     suspend fun steerSession(
         sessionId: String,
         content: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
-        audios: List<ChatAudioData> = emptyList(),
-        resourceLinks: List<ChatPromptResourceLink> = emptyList(),
+        extras: PromptExtras = PromptExtras(),
     ): SteerOutcome {
         val client = connection.sdkClient ?: return SteerOutcome.NOT_CONSUMED
         connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, STEERING_METHOD)
         return try {
-            val params = steeringParams(sessionId, userContentBlocks(content, images, files, audios, resourceLinks))
+            val params =
+                steeringParams(
+                    sessionId,
+                    userContentBlocks(content, images, files, extras.audios, extras.resourceLinks),
+                )
             parseSteerOutcome(client.protocol.sendRequestRaw(MethodName(STEERING_METHOD), params))
         } catch (e: CancellationException) {
             throw e

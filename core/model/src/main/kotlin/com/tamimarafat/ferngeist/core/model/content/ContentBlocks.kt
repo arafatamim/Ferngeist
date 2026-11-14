@@ -8,6 +8,9 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import java.net.URI
+import java.nio.ByteBuffer
+import java.nio.charset.Charset
+import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
@@ -30,11 +33,13 @@ fun userContentBlocks(
         images.forEach { add(ContentBlock.Image(data = it.base64, mimeType = it.mimeType)) }
         audios.forEach { add(ContentBlock.Audio(data = it.base64, mimeType = it.mimeType)) }
         files.forEach { file ->
+            val textContent =
+                if (isTextMimeType(file.mimeType) || isTextFileName(file.name)) file.textContent() else null
             add(
-                if (isTextMimeType(file.mimeType) || isTextFileName(file.name)) {
+                if (textContent != null) {
                     ContentBlock.Resource(
                         EmbeddedResourceResource.TextResourceContents(
-                            text = file.textContent(),
+                            text = textContent,
                             uri = fileUri(file.name),
                             mimeType = file.mimeType,
                         ),
@@ -93,7 +98,7 @@ fun ContentBlock.chatFile(): ChatFileData? {
             ChatFileData(
                 name = resource.uri.substringAfterLast('/').ifBlank { "file" },
                 base64 = Base64.getEncoder().encodeToString(bytes),
-                mimeType = resource.mimeType?.takeIf(String::isNotBlank) ?: "text/plain",
+                mimeType = resource.mimeType?.substringBefore(';')?.takeIf(String::isNotBlank) ?: "text/plain",
                 sizeBytes = bytes.size.toLong(),
             )
         }
@@ -143,9 +148,25 @@ fun isTextFileName(name: String): Boolean {
     return extension in TEXT_FILE_EXTENSIONS
 }
 
-private fun ChatFileData.textContent(): String =
-    runCatching { String(Base64.getDecoder().decode(base64), StandardCharsets.UTF_8) }
-        .getOrDefault("")
+private fun ChatFileData.textContent(): String? =
+    runCatching {
+        val charsetName =
+            mimeType
+                .split(';')
+                .drop(1)
+                .map { it.trim() }
+                .firstOrNull { it.startsWith("charset=", ignoreCase = true) }
+                ?.substringAfter('=')
+                ?.trim()
+                ?.trim('"')
+        val charset = charsetName?.let(Charset::forName) ?: StandardCharsets.UTF_8
+        charset
+            .newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(Base64.getDecoder().decode(base64)))
+            .toString()
+    }.getOrNull()
 
 private fun fileUri(name: String): String = "file:///$name"
 

@@ -14,6 +14,7 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.audios
 import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
@@ -70,8 +71,7 @@ class UserContentReplayTest {
                 emptyList(),
                 listOf(file),
                 clientId = "local-1",
-                audios = listOf(audio),
-                resourceLinks = listOf(link),
+                extras = PromptExtras(listOf(audio), listOf(link)),
             )
             val sent =
                 runtime.snapshot.value.messages

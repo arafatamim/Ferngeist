@@ -1,10 +1,9 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
-import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * Implemented by [SessionBridge].
  */
-@Suppress("ComplexInterface")
 interface SessionPort {
     val sessionId: String
     val snapshot: StateFlow<SessionSnapshot>
@@ -36,47 +34,27 @@ interface SessionPort {
     /**
      * Sends a prompt message to the agent. Optionally includes inline image data. [clientId] names
      * the prompt for the gateway's exactly-once delivery and for matching its echo; null sends it
-     * unnamed.
+     * unnamed. [extras] includes audio and resource links.
      */
     suspend fun sendPrompt(
         text: String,
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
         clientId: String? = null,
+        extras: PromptExtras = PromptExtras(),
     )
-
-    /** Sends audio and resource links alongside the legacy prompt payload. */
-    @Suppress("LongParameterList")
-    suspend fun sendPrompt(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String?,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
-    ) = sendPrompt(text, images, files, clientId)
 
     /** Cancels the current agent turn (streaming). */
     suspend fun cancel()
 
-    /** Steers a prompt into the running turn; the transcript only changes when it is taken. */
+    /** Steers a prompt, including audio and resource links; the transcript changes when it is taken. */
     suspend fun steer(
         text: String,
         images: List<ChatImageData> = emptyList(),
         files: List<ChatFileData> = emptyList(),
         clientId: String? = null,
+        extras: PromptExtras = PromptExtras(),
     ): SteerOutcome
-
-    /** Steers audio and resource links alongside the legacy prompt payload. */
-    @Suppress("LongParameterList")
-    suspend fun steer(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String?,
-        audios: List<ChatAudioData>,
-        resourceLinks: List<ChatPromptResourceLink>,
-    ): SteerOutcome = steer(text, images, files, clientId)
 
     /** Updates a configuration option value on the session. */
     suspend fun setConfigOption(

@@ -1,11 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
-import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
-import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
@@ -356,14 +355,12 @@ class SessionRuntime(
         }
     }
 
-    @Suppress("LongParameterList")
     suspend fun onLocalPromptStarted(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String? = null,
-        audios: List<ChatAudioData> = emptyList(),
-        resourceLinks: List<ChatPromptResourceLink> = emptyList(),
+        extras: PromptExtras = PromptExtras(),
     ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) {
@@ -373,9 +370,10 @@ class SessionRuntime(
 
             debug {
                 "onLocalPromptStarted textLen=${text.length}, images=${images.size}, " +
-                    "audios=${audios.size}, files=${files.size}, links=${resourceLinks.size}"
+                    "audios=${extras.audios.size}, files=${files.size}, links=${extras.resourceLinks.size}"
             }
-            val prompt = UserContent(userContentBlocks(text, images, files, audios, resourceLinks), clientId)
+            val prompt =
+                UserContent(userContentBlocks(text, images, files, extras.audios, extras.resourceLinks), clientId)
             val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, prompt)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
@@ -396,15 +394,9 @@ class SessionRuntime(
         }
     }
 
-    @Suppress("LongParameterList")
-    suspend fun onPromptSteered(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String?,
+    internal suspend fun onPromptSteered(
+        prompt: UserContent,
         injected: Boolean,
-        audios: List<ChatAudioData> = emptyList(),
-        resourceLinks: List<ChatPromptResourceLink> = emptyList(),
     ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) return@withLock
@@ -414,7 +406,7 @@ class SessionRuntime(
             val withUser =
                 SessionMessageReducer.appendLocalUserMessage(
                     live.messages,
-                    UserContent(userContentBlocks(text, images, files, audios, resourceLinks), clientId),
+                    prompt,
                     steered = true,
                 )
             live =

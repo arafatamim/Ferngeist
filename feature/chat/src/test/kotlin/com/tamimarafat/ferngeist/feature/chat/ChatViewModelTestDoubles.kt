@@ -19,6 +19,7 @@ import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.core.model.auth.AuthenticationRequest
@@ -55,6 +56,7 @@ open class TestFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras,
     ): Boolean {
         sentClientIds += clientId
         val result = sendResultProvider()
@@ -162,6 +164,7 @@ open class FakeChatSessionFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras,
     ): Boolean {
         emitOperationError()
         return false
