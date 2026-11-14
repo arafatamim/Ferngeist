@@ -169,6 +169,8 @@ data class ChatAgentCapabilities(
     val supportsHistoryReplay: Boolean = true,
     /** True when a prompt can be steered into a running turn instead of waiting for it. */
     val supportsSteering: Boolean = false,
+    /** True when the agent accepts inline ACP audio content in prompts. */
+    val canSendAudio: Boolean = false,
 )
 
 /** What the agent did with a steered prompt. */
@@ -530,23 +532,26 @@ interface ChatSessionInteraction {
     /** Sends a user message with optional inline images. Returns true if the message
      * was dispatched to a live session; false when no bridge is available or the
      * payload is unsupported by the current transport. [clientId] names the prompt so the
-     * gateway delivers it once and its echo can be told apart from an identical prompt. */
+     * gateway delivers it once and its echo can be told apart from an identical prompt.
+     * [extras] carries audio and resource links. */
     suspend fun sendMessage(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras = PromptExtras(),
     ): Boolean
 
     /** Requests a streaming cancel from the transport. */
     suspend fun cancelStreaming()
 
-    /** Steers a prompt into the running turn; see [ChatAgentCapabilities.supportsSteering]. */
+    /** Steers a prompt, including audio and resource links, into the running turn. */
     suspend fun steerMessage(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras = PromptExtras(),
     ): SteerOutcome = SteerOutcome.NOT_CONSUMED
 
     /** Updates a session configuration option (mode, model, native config, etc.). */

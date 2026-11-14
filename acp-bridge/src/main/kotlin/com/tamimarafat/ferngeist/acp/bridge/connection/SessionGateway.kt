@@ -42,6 +42,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.markReady
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.CancellationException
@@ -303,9 +304,7 @@ internal class SessionGateway(
      */
     suspend fun sendSessionMessage(
         sessionId: String,
-        content: String,
-        images: List<ChatImageData> = emptyList(),
-        files: List<ChatFileData> = emptyList(),
+        blocks: List<ContentBlock>,
         clientId: String? = null,
     ) {
         val bridge =
@@ -317,7 +316,6 @@ internal class SessionGateway(
 
         // User message already added optimistically by onLocalPromptStarted; omitted here to
         // avoid duplication.
-        val blocks = userContentBlocks(content, images, files)
 
         // session.prompt returns a cold flow; .collect is terminal and suspends
         // until the entire prompt turn completes (all updates + final response).
@@ -344,11 +342,16 @@ internal class SessionGateway(
         content: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        extras: PromptExtras = PromptExtras(),
     ): SteerOutcome {
         val client = connection.sdkClient ?: return SteerOutcome.NOT_CONSUMED
         connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, STEERING_METHOD)
         return try {
-            val params = steeringParams(sessionId, userContentBlocks(content, images, files))
+            val params =
+                steeringParams(
+                    sessionId,
+                    userContentBlocks(content, images, files, extras.audios, extras.resourceLinks),
+                )
             parseSteerOutcome(client.protocol.sendRequestRaw(MethodName(STEERING_METHOD), params))
         } catch (e: CancellationException) {
             throw e

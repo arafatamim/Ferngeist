@@ -1,16 +1,20 @@
 package com.tamimarafat.ferngeist.feature.chat.queue
 
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatConnectionState
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.audios
 import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import com.tamimarafat.ferngeist.core.model.files
 import com.tamimarafat.ferngeist.core.model.images
+import com.tamimarafat.ferngeist.core.model.promptResourceLinks
 import com.tamimarafat.ferngeist.feature.chat.ChatSessionCoordinator
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
@@ -98,6 +102,8 @@ internal class ChatOfflineQueueController(
                     text = record.text,
                     images = record.images,
                     files = record.files,
+                    audios = record.audios,
+                    resourceLinks = record.resourceLinks,
                     dispatched = record.dispatched,
                 )
             offlineQueue.enqueue(prompt)
@@ -124,7 +130,15 @@ internal class ChatOfflineQueueController(
         persistMutex.withLock {
             val records =
                 (listOfNotNull(dispatchedPrompt) + offlineQueue.snapshot()).map {
-                    QueuedPromptRecord(it.clientId, it.text, it.images, it.files, it.dispatched)
+                    QueuedPromptRecord(
+                        clientId = it.clientId,
+                        text = it.text,
+                        images = it.images,
+                        files = it.files,
+                        audios = it.audios,
+                        resourceLinks = it.resourceLinks,
+                        dispatched = it.dispatched,
+                    )
                 }
             persistence.save(records)
         }
@@ -141,8 +155,10 @@ internal class ChatOfflineQueueController(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        audios: List<ChatAudioData> = emptyList(),
+        resourceLinks: List<ChatPromptResourceLink> = emptyList(),
     ) {
-        if (text.isBlank() && images.isEmpty() && files.isEmpty()) return
+        if (!hasPromptContent(text, images, files, audios, resourceLinks)) return
         val clientId =
             java.util.UUID
                 .randomUUID()
@@ -151,7 +167,7 @@ internal class ChatOfflineQueueController(
             ChatMessage(
                 id = clientId,
                 role = ChatMessage.Role.USER,
-                contentBlocks = userContentBlocks(text, images, files),
+                contentBlocks = userContentBlocks(text, images, files, audios, resourceLinks),
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -161,6 +177,8 @@ internal class ChatOfflineQueueController(
                 text = text,
                 images = images,
                 files = files,
+                audios = audios,
+                resourceLinks = resourceLinks,
             ),
         )
         update {
@@ -190,8 +208,10 @@ internal class ChatOfflineQueueController(
         text: String,
         images: List<ChatImageData>,
         files: List<ChatFileData>,
+        audios: List<ChatAudioData> = emptyList(),
+        resourceLinks: List<ChatPromptResourceLink> = emptyList(),
     ) {
-        if (text.isBlank() && images.isEmpty() && files.isEmpty()) return
+        if (!hasPromptContent(text, images, files, audios, resourceLinks)) return
         val clientId =
             java.util.UUID
                 .randomUUID()
@@ -200,7 +220,7 @@ internal class ChatOfflineQueueController(
             ChatMessage(
                 id = clientId,
                 role = ChatMessage.Role.USER,
-                contentBlocks = userContentBlocks(text, images, files),
+                contentBlocks = userContentBlocks(text, images, files, audios, resourceLinks),
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -210,6 +230,8 @@ internal class ChatOfflineQueueController(
                 text = text,
                 images = images,
                 files = files,
+                audios = audios,
+                resourceLinks = resourceLinks,
             )
         offlineQueue.enqueue(prompt)
         persistQueue()
@@ -360,6 +382,8 @@ internal class ChatOfflineQueueController(
                 text = pendingMessage.content,
                 images = pendingMessage.images,
                 files = pendingMessage.files,
+                audios = pendingMessage.audios,
+                resourceLinks = pendingMessage.promptResourceLinks,
             )
         // Remove existing queue entry for this clientId, then enqueue at the back.
         offlineQueue.removeByClientId(clientId)
@@ -417,7 +441,17 @@ private fun List<ChatMessage>.foldedInto(
 ): List<ChatMessage> =
     mapNotNull {
         when (it.clientId) {
-            merged.clientId -> it.copy(contentBlocks = userContentBlocks(merged.text, merged.images, merged.files))
+            merged.clientId ->
+                it.copy(
+                    contentBlocks =
+                        userContentBlocks(
+                            merged.text,
+                            merged.images,
+                            merged.files,
+                            merged.audios,
+                            merged.resourceLinks,
+                        ),
+                )
             in folded -> null
             else -> it
         }
@@ -435,7 +469,16 @@ private fun PendingPrompt.bubble(status: MessageDeliveryStatus) =
     ChatMessage(
         id = clientId,
         role = ChatMessage.Role.USER,
-        contentBlocks = userContentBlocks(text, images, files),
+        contentBlocks = userContentBlocks(text, images, files, audios, resourceLinks),
         status = status,
         clientId = clientId,
     )
+
+private fun hasPromptContent(
+    text: String,
+    images: List<ChatImageData>,
+    files: List<ChatFileData>,
+    audios: List<ChatAudioData>,
+    resourceLinks: List<ChatPromptResourceLink>,
+): Boolean =
+    text.isNotBlank() || images.isNotEmpty() || files.isNotEmpty() || audios.isNotEmpty() || resourceLinks.isNotEmpty()

@@ -232,6 +232,7 @@ class ChatViewModel
                             updateState {
                                 copy(
                                     canSendImages = capabilities.canSendImages,
+                                    canSendAudio = capabilities.canSendAudio,
                                     supportsEmbeddedContext = capabilities.supportsEmbeddedContext,
                                     supportsSteering = capabilities.supportsSteering,
                                     resumedSession =
@@ -589,9 +590,21 @@ class ChatViewModel
                         state.value.isSessionReady &&
                             state.value.connectionState == ChatConnectionState.Connected
                     if (canSendNow) {
-                        offlineQueue.enqueueThenSend(intent.text, intent.images, intent.files)
+                        offlineQueue.enqueueThenSend(
+                            intent.text,
+                            intent.images,
+                            intent.files,
+                            intent.audios,
+                            intent.resourceLinks,
+                        )
                     } else {
-                        offlineQueue.enqueuePrompt(intent.text, intent.images, intent.files)
+                        offlineQueue.enqueuePrompt(
+                            intent.text,
+                            intent.images,
+                            intent.files,
+                            intent.audios,
+                            intent.resourceLinks,
+                        )
                     }
                     state.value.gatewayWorkspaceConnection?.let { gitStatusLoader.refresh() }
                 }

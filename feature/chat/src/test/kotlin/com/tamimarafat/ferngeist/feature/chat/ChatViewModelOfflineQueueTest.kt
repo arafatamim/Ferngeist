@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.core.model.content
@@ -41,6 +42,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                             images: List<ChatImageData>,
                             files: List<ChatFileData>,
                             clientId: String,
+                            extras: PromptExtras,
                         ): Boolean {
                             sent += text
                             return true
@@ -91,6 +93,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                             images: List<ChatImageData>,
                             files: List<ChatFileData>,
                             clientId: String,
+                            extras: PromptExtras,
                         ): Boolean {
                             sent += text
                             return true
@@ -298,6 +301,7 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
                             images: List<ChatImageData>,
                             files: List<ChatFileData>,
                             clientId: String,
+                            extras: PromptExtras,
                         ): Boolean {
                             // The runtime's local copy lands first, then the failure rolls it back.
                             emitSnapshot(snapshotWithEcho(echoMessage(content = text, clientId = clientId)))
@@ -758,6 +762,7 @@ private class CancellingFacade : TestFacade() {
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras,
     ): Boolean {
         sent += text
         return true
@@ -788,6 +793,7 @@ private class SteeringFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras,
     ): Boolean {
         sent += text
         if (holdSends) awaitCancellation()
@@ -799,6 +805,7 @@ private class SteeringFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras,
     ): SteerOutcome {
         steered += text
         return outcome
@@ -816,5 +823,6 @@ private class SuspendingSendFacade : TestFacade() {
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras,
     ): Boolean = awaitCancellation()
 }

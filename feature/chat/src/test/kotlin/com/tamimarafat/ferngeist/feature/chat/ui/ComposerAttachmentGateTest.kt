@@ -27,6 +27,34 @@ class ComposerAttachmentGateTest {
     }
 
     @Test
+    fun `audio needs audio support or the embedded-context fallback`() {
+        assertTrue(
+            acceptsAttachmentMimeType(
+                "audio/wav",
+                canSendImages = false,
+                canSendFiles = false,
+                canSendAudio = true,
+            ),
+        )
+        assertTrue(
+            acceptsAttachmentMimeType(
+                "audio/wav",
+                canSendImages = false,
+                canSendFiles = true,
+                canSendAudio = false,
+            ),
+        )
+        assertFalse(
+            acceptsAttachmentMimeType(
+                "audio/wav",
+                canSendImages = true,
+                canSendFiles = false,
+                canSendAudio = false,
+            ),
+        )
+    }
+
+    @Test
     fun `unknown type is treated as a file, not as an image`() {
         // Providers may return no type at all; that must land on the file branch, not be dropped.
         assertTrue(acceptsAttachmentMimeType(null, canSendImages = true, canSendFiles = true))

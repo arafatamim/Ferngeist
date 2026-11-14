@@ -108,6 +108,7 @@
     <string name="chat_session_error_load_timeout">Время загрузки сессии истекло.</string>
     <string name="chat_session_error_could_not_load">Не удалось загрузить сессию.</string>
     <string name="chat_session_error_not_ready">Сессия не готова.</string>
+    <string name="chat_session_error_no_audio">Агент не поддерживает аудио в запросах.</string>
     <string name="chat_session_error_no_image">Агент не поддерживает изображения в запросах.</string>
     <string name="chat_session_error_no_file">Агент не поддерживает прикрепление файлов.</string>
     <string name="chat_session_error_cancel_failed">Не удалось отменить операцию.</string>
@@ -121,6 +122,7 @@
     <string name="chat_error_unknown">неизвестная ошибка</string>
     <string name="chat_error_send_failed">Ошибка отправки</string>
     <string name="chat_scroll_to_bottom">Прокрутить вниз</string>
+    <string name="chat_reference_workspace_file">Ссылаться на файл рабочей области</string>
     <string name="chat_attach_desc">Прикрепить файл</string>
     <string name="chat_attach_nothing_found">Нет изображения или файла для прикрепления</string>
     <string name="chat_remove_file_desc">Удалить файл</string>

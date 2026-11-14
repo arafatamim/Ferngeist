@@ -9,7 +9,9 @@ import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -141,9 +143,16 @@ class SessionBridge(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String?,
+        extras: PromptExtras,
     ) {
-        runtime.onLocalPromptStarted(text, images, files, clientId)
-        sendWithRollback(text, images, files, clientId)
+        runtime.onLocalPromptStarted(
+            text,
+            images,
+            files,
+            clientId = clientId,
+            extras = extras,
+        )
+        sendWithRollback(text, images, files, clientId, extras)
     }
 
     /**
@@ -156,9 +165,14 @@ class SessionBridge(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String?,
+        extras: PromptExtras,
     ) {
         try {
-            connectionManager?.sessions?.sendSessionMessage(sessionId, text, images, files, clientId)
+            connectionManager?.sessions?.sendSessionMessage(
+                sessionId = sessionId,
+                blocks = userContentBlocks(text, images, files, extras.audios, extras.resourceLinks),
+                clientId = clientId,
+            )
         } catch (e: CancellationException) {
             // Propagate structured cancellation without swallowing; the coroutine's
             // parent will handle it and the streaming placeholder remains cancellable.
@@ -181,12 +195,21 @@ class SessionBridge(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String?,
+        extras: PromptExtras,
     ): SteerOutcome {
         val outcome =
-            connectionManager?.sessions?.steerSession(sessionId, text, images, files)
-                ?: SteerOutcome.NOT_CONSUMED
+            connectionManager?.sessions?.steerSession(
+                sessionId = sessionId,
+                content = text,
+                images = images,
+                files = files,
+                extras = extras,
+            ) ?: SteerOutcome.NOT_CONSUMED
         if (outcome != SteerOutcome.NOT_CONSUMED) {
-            runtime.onPromptSteered(text, images, files, clientId, injected = outcome == SteerOutcome.INJECTED)
+            runtime.onPromptSteered(
+                UserContent(userContentBlocks(text, images, files, extras.audios, extras.resourceLinks), clientId),
+                injected = outcome == SteerOutcome.INJECTED,
+            )
         }
         return outcome
     }

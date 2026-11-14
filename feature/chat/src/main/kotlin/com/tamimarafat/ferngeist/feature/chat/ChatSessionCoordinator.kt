@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.feature.chat.queue.PendingPrompt
 import kotlinx.coroutines.CancellationException
@@ -138,10 +139,22 @@ internal class ChatSessionCoordinator(
 
     /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
     suspend fun sendMessage(prompt: PendingPrompt): Boolean =
-        facade.sendMessage(prompt.text, prompt.images, prompt.files, prompt.clientId)
+        facade.sendMessage(
+            prompt.text,
+            prompt.images,
+            prompt.files,
+            prompt.clientId,
+            PromptExtras(prompt.audios, prompt.resourceLinks),
+        )
 
     suspend fun steerMessage(prompt: PendingPrompt): SteerOutcome =
-        facade.steerMessage(prompt.text, prompt.images, prompt.files, prompt.clientId)
+        facade.steerMessage(
+            prompt.text,
+            prompt.images,
+            prompt.files,
+            prompt.clientId,
+            PromptExtras(prompt.audios, prompt.resourceLinks),
+        )
 
     /** Ensures the transport is (re)connecting so queued prompts can drain. */
     suspend fun reconnect() {

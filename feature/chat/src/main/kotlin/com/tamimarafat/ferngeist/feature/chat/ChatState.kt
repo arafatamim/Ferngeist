@@ -41,6 +41,7 @@ data class ChatState(
     val commandsAdvertised: Boolean = false,
     val pendingElicitations: List<ChatElicitationRequest> = emptyList(),
     val canSendImages: Boolean = false,
+    val canSendAudio: Boolean = false,
     val supportsEmbeddedContext: Boolean = false,
     val supportsSteering: Boolean = false,
     /**

@@ -1,7 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat.queue
 
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -36,6 +38,34 @@ class QueuedPromptRecordTest {
             )
 
         assertEquals(records, roundTrip(records))
+    }
+
+    @Test
+    fun `audio and resource-link payloads round trip`() {
+        val record =
+            QueuedPromptRecord(
+                clientId = "client-audio-link",
+                text = "see attached",
+                audios =
+                    listOf(
+                        ChatAudioData(
+                            name = "voice.wav",
+                            base64 = "YXVkaW8=",
+                            mimeType = "audio/wav",
+                            sizeBytes = 5,
+                        ),
+                    ),
+                resourceLinks =
+                    listOf(
+                        ChatPromptResourceLink(
+                            name = "notes.txt",
+                            uri = "file:///workspace/notes.txt",
+                            mimeType = "text/plain",
+                        ),
+                    ),
+            )
+
+        assertEquals(listOf(record), roundTrip(listOf(record)))
     }
 
     @Test

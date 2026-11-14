@@ -58,6 +58,7 @@ internal fun mapCapabilities(caps: AgentCapabilities): ChatAgentCapabilities =
     ChatAgentCapabilities(
         canSendImages = caps.promptCapabilities.image,
         supportsEmbeddedContext = caps.promptCapabilities.embeddedContext,
+        canSendAudio = caps.promptCapabilities.audio,
         // Reuse the attach decision rather than re-reading the capability flags:
         // resume-only agents (and those that can attach no session at all) never
         // replay history into this client.

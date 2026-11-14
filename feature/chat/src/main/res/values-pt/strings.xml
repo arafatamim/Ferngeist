@@ -103,6 +103,7 @@
     <string name="chat_session_error_load_timeout">O carregamento da sessão expirou. Verifique a conexão com o servidor e tente novamente.</string>
     <string name="chat_session_error_could_not_load">Não foi possível carregar esta sessão. Verifique a conexão e tente novamente.</string>
     <string name="chat_session_error_not_ready">A sessão não está pronta. Tente novamente em instantes.</string>
+    <string name="chat_session_error_no_audio">Este agente não anuncia suporte a solicitação de áudio.</string>
     <string name="chat_session_error_no_image">Este agente não anuncia suporte a solicitação de imagem.</string>
     <string name="chat_session_error_no_file">Este agente não anuncia suporte a anexos de ficheiro.</string>
     <string name="chat_session_error_cancel_failed">Falha ao cancelar a rodada atual</string>
@@ -116,6 +117,7 @@
     <string name="chat_error_unknown">erro desconhecido</string>
     <string name="chat_error_send_failed">Falha no envio</string>
     <string name="chat_scroll_to_bottom">Rolar para baixo</string>
+    <string name="chat_reference_workspace_file">Referenciar arquivo do workspace</string>
     <string name="chat_attach_desc">Anexar arquivo</string>
     <string name="chat_attach_nothing_found">Nenhuma imagem ou arquivo para anexar</string>
     <string name="chat_remove_file_desc">Remover arquivo</string>

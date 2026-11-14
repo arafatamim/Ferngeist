@@ -4,6 +4,7 @@ import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
@@ -359,6 +360,7 @@ class SessionRuntime(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String? = null,
+        extras: PromptExtras = PromptExtras(),
     ) {
         mutex.withLock {
             if (_snapshot.value.loadState != SessionLoadState.READY) {
@@ -366,8 +368,12 @@ class SessionRuntime(
                 return@withLock
             }
 
-            debug { "onLocalPromptStarted textLen=${text.length}, images=${images.size}, files=${files.size}" }
-            val prompt = UserContent(userContentBlocks(text, images, files), clientId)
+            debug {
+                "onLocalPromptStarted textLen=${text.length}, images=${images.size}, " +
+                    "audios=${extras.audios.size}, files=${files.size}, links=${extras.resourceLinks.size}"
+            }
+            val prompt =
+                UserContent(userContentBlocks(text, images, files, extras.audios, extras.resourceLinks), clientId)
             val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, prompt)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
@@ -388,11 +394,8 @@ class SessionRuntime(
         }
     }
 
-    suspend fun onPromptSteered(
-        text: String,
-        images: List<ChatImageData>,
-        files: List<ChatFileData>,
-        clientId: String?,
+    internal suspend fun onPromptSteered(
+        prompt: UserContent,
         injected: Boolean,
     ) {
         mutex.withLock {
@@ -403,7 +406,7 @@ class SessionRuntime(
             val withUser =
                 SessionMessageReducer.appendLocalUserMessage(
                     live.messages,
-                    UserContent(userContentBlocks(text, images, files), clientId),
+                    prompt,
                     steered = true,
                 )
             live =

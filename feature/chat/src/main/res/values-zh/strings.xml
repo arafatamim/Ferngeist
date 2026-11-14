@@ -110,6 +110,7 @@
     <string name="chat_session_error_load_timeout">会话加载超时。请检查服务器连接并重试。</string>
     <string name="chat_session_error_could_not_load">无法加载此会话。请检查连接并重试。</string>
     <string name="chat_session_error_not_ready">会话未就绪。请稍后重试。</string>
+    <string name="chat_session_error_no_audio">此代理不支持音频提示词。</string>
     <string name="chat_session_error_no_image">此代理不支持图片提示词。</string>
     <string name="chat_session_error_no_file">此代理不支持文件附件。</string>
     <string name="chat_session_error_cancel_failed">取消当前轮次失败</string>
@@ -123,6 +124,7 @@
     <string name="chat_error_unknown">未知错误</string>
     <string name="chat_error_send_failed">发送失败</string>
     <string name="chat_scroll_to_bottom">滚动到底部</string>
+    <string name="chat_reference_workspace_file">引用工作区文件</string>
     <string name="chat_attach_desc">附加文件</string>
     <string name="chat_attach_nothing_found">没有可附加的图片或文件</string>
     <string name="chat_remove_file_desc">移除文件</string>

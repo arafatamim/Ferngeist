@@ -20,6 +20,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPort
 import com.tamimarafat.ferngeist.core.model.ChatAgentCapabilities
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatConnectionDiagnostics
@@ -31,12 +32,14 @@ import com.tamimarafat.ferngeist.core.model.ChatGitRefs
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatOperationError
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacade
 import com.tamimarafat.ferngeist.core.model.ChatSessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatWorktree
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactReader
 import com.tamimarafat.ferngeist.gateway.GatewayCredentialExpiredException
@@ -373,9 +376,10 @@ class AcpChatSessionFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
+        extras: PromptExtras,
     ): Boolean {
         val bridge =
-            if (text.isBlank() && images.isEmpty() && files.isEmpty()) {
+            if (!hasPromptContent(text, images, files, extras.audios, extras.resourceLinks)) {
                 null
             } else {
                 ensureSessionReadyForSend()
@@ -388,13 +392,14 @@ class AcpChatSessionFacade(
             }
             return false
         }
-        sendCapabilityRejection(connectionManager.agentCapabilities.value, images, files)?.let { rejection ->
+        val rejection = sendCapabilityRejection(connectionManager.agentCapabilities.value, images, extras.audios, files)
+        if (rejection != null) {
             _operationError.emit(ChatOperationError(rejection, false))
             return false
         }
 
         try {
-            bridge.sendPrompt(text, images, files, clientId)
+            bridge.sendPrompt(text, images, files, clientId, extras)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -413,7 +418,8 @@ class AcpChatSessionFacade(
         images: List<ChatImageData>,
         files: List<ChatFileData>,
         clientId: String,
-    ): SteerOutcome = sessionBridge?.steer(text, images, files, clientId) ?: SteerOutcome.NOT_CONSUMED
+        extras: PromptExtras,
+    ): SteerOutcome = sessionBridge?.steer(text, images, files, clientId, extras) ?: SteerOutcome.NOT_CONSUMED
 
     /**
      * Cancels the current streaming turn.
@@ -849,16 +855,28 @@ class AcpChatSessionFacade(
     }
 }
 
-/** Why the agent cannot take this prompt's images or files, or null when it can (or has not said). */
-private fun sendCapabilityRejection(
+private fun hasPromptContent(
+    text: String,
+    images: List<ChatImageData>,
+    files: List<ChatFileData>,
+    audios: List<ChatAudioData>,
+    resourceLinks: List<ChatPromptResourceLink>,
+): Boolean =
+    text.isNotBlank() || images.isNotEmpty() || files.isNotEmpty() || audios.isNotEmpty() || resourceLinks.isNotEmpty()
+
+/** Why the agent cannot take this prompt's images, audio or files, or null when it can (or has not said). */
+internal fun sendCapabilityRejection(
     capabilities: AgentCapabilities?,
     images: List<ChatImageData>,
+    audios: List<ChatAudioData>,
     files: List<ChatFileData>,
 ): String? =
     when {
         capabilities == null -> null
         images.isNotEmpty() && !capabilities.promptCapabilities.image ->
             "This agent does not advertise image prompt support."
+        audios.isNotEmpty() && !capabilities.promptCapabilities.audio ->
+            "This agent does not advertise audio prompt support."
         files.isNotEmpty() && !capabilities.promptCapabilities.embeddedContext ->
             "This agent does not advertise file attachment support."
         else -> null
