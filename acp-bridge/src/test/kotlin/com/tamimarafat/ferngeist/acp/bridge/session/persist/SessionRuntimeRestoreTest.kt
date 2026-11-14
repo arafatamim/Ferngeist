@@ -32,7 +32,7 @@ class SessionRuntimeRestoreTest {
                 AppSessionEvent.ConfigOptionsUpdated(
                     listOf(SessionConfigOption.BooleanOption(id = "fast", name = "Fast", currentValue = true)),
                 ),
-                AppSessionEvent.CommandsUpdated(listOf(CommandInfo("review"))),
+                AppSessionEvent.CommandsUpdated(listOf(CommandInfo("review", inputHint = "diff base"))),
                 AppSessionEvent.UsageUpdated(totalTokens = 42),
             ).forEach { original.onEvent(it) }
             original.onLocalPromptStarted("go", emptyList(), emptyList())

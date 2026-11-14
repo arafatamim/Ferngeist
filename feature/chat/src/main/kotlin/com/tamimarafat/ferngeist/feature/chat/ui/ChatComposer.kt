@@ -87,6 +87,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -194,6 +195,7 @@ internal fun ChatComposerBar(
     // be steered in, so stop steps aside into the toolbar.
     val stopAside = showStopAction && state.supportsSteering
     val primaryStop = showStopAction && !stopAside
+    val commandInputHint = activeCommandInputHint(messageText.text, state.availableCommands)
 
     ComposerSurfaceContainer(
         modifier = modifier,
@@ -205,6 +207,7 @@ internal fun ChatComposerBar(
                 messageText = messageText,
                 mentionState = mentionState,
                 onMentionSelected = onMentionSelected,
+                commandInputHint = commandInputHint,
                 inputAlpha = inputAlpha,
                 focusRequester = focusRequester,
                 showStopAction = primaryStop,
@@ -473,6 +476,7 @@ internal fun ExpandedComposerContent(
     messageText: TextFieldState,
     mentionState: WorkspaceMentionState,
     onMentionSelected: (String, Int?) -> Unit,
+    commandInputHint: String?,
     inputAlpha: () -> Float,
     focusRequester: FocusRequester,
     showStopAction: Boolean,
@@ -528,6 +532,7 @@ internal fun ExpandedComposerContent(
             messageText = messageText,
             mentionState = mentionState,
             onMentionSelected = onMentionSelected,
+            commandInputHint = commandInputHint,
             focusRequester = focusRequester,
             onSend = onSend,
         )
@@ -561,6 +566,7 @@ private fun ExpandedComposerTextField(
     messageText: TextFieldState,
     mentionState: WorkspaceMentionState,
     onMentionSelected: (String, Int?) -> Unit,
+    commandInputHint: String?,
     focusRequester: FocusRequester,
     onSend: () -> Unit,
 ) {
@@ -573,7 +579,7 @@ private fun ExpandedComposerTextField(
             backgroundColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f),
         )
     val decorator =
-        remember(messageText, mentionState, onMentionSelected, scrollState) {
+        remember(messageText, mentionState, onMentionSelected, commandInputHint, scrollState) {
             TextFieldDecorator { innerTextField ->
                 Box(
                     modifier =
@@ -595,6 +601,22 @@ private fun ExpandedComposerTextField(
                             layout.getCursorRect(messageText.selection.end.coerceAtMost(layout.layoutInput.text.length))
                         }
                     if (caret != null) {
+                        commandInputHint?.let { hint ->
+                            Text(
+                                text = hint,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier =
+                                    Modifier.offset {
+                                        IntOffset(
+                                            caret.left.roundToInt(),
+                                            (caret.top - scrollState.value).roundToInt(),
+                                        )
+                                    },
+                            )
+                        }
                         Box(
                             Modifier
                                 .offset {

@@ -58,6 +58,7 @@ internal data class PickerItem(
     val label: String,
     val value: String,
     val description: String? = null,
+    val inputHint: String? = null,
 )
 
 /**
@@ -306,7 +307,19 @@ internal fun PickerItemRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = item.label, style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = item.label, style = MaterialTheme.typography.bodyMedium)
+                item.inputHint?.let { hint ->
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
             item.description?.let {
                 Text(
                     text = it,

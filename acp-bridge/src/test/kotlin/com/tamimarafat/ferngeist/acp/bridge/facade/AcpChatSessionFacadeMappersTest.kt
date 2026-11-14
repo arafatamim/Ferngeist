@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
+import com.tamimarafat.ferngeist.acp.bridge.session.CommandInfo
+import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.core.model.GitHistoryHeadGoneException
 import com.tamimarafat.ferngeist.core.model.GitHistoryUnsupportedException
@@ -22,6 +24,23 @@ private val gatewayJson = Json { ignoreUnknownKeys = true }
 
 /** The gateway working tree's shape, mapped into the chat domain the feature layer holds. */
 class AcpChatSessionFacadeMappersTest {
+    @Test
+    fun `available commands carry their input hints into the chat domain`() {
+        val snapshot =
+            SessionSnapshot(
+                sessionId = "ses_test",
+                availableCommands =
+                    listOf(
+                        CommandInfo("review", "Review a diff", inputHint = "base branch"),
+                        CommandInfo("clear", "Clear the chat"),
+                    ),
+            )
+
+        val commands = mapSnapshot(snapshot).availableCommands
+
+        assertEquals(listOf("base branch", null), commands.map { it.inputHint })
+    }
+
     @Test
     fun `git status carries branch, ahead-behind, and every changed file field`() {
         val mapped =
