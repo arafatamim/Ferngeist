@@ -311,7 +311,7 @@ internal fun PickerItemRow(
                 Text(text = item.label, style = MaterialTheme.typography.bodyMedium)
                 item.inputHint?.let { hint ->
                     Text(
-                        text = hint,
+                        text = "[$hint]",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

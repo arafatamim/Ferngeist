@@ -604,7 +604,7 @@ private fun ExpandedComposerTextField(
                         commandInputHint?.let { hint ->
                             val hintAnchor = textLayout?.let { it.getCursorRect(it.layoutInput.text.length) } ?: caret
                             Text(
-                                text = hint,
+                                text = "[$hint]",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
                                 maxLines = 1,
