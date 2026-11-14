@@ -95,13 +95,15 @@ sealed interface ChatIntent {
     /**
      * Open a file in the file sheet, read at the revision the reader is looking at: the working
      * tree's copy by default, the copy [commit] holds, or the working tree marked against the
-     * compare ref [compare]. [oldPath] names a renamed file's old side.
+     * compare ref [compare]. [oldPath] names a renamed file's old side. [line] is the 1-based ACP
+     * location line to reveal, when known.
      */
     data class OpenFile(
         val path: String,
         val commit: String? = null,
         val compare: String? = null,
         val oldPath: String? = null,
+        val line: Int? = null,
     ) : ChatIntent
 
     /** Close the file sheet. */

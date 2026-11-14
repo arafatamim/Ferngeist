@@ -1,0 +1,288 @@
+{
+  "messages": [
+    {
+      "id": "msg-0",
+      "role": "USER",
+      "segments": [],
+      "isStreaming": false,
+      "isError": false,
+      "createdAt": 1700000000000,
+      "status": "SENT",
+      "clientId": "client-1",
+      "deliveryConfirmed": true,
+      "turn": null,
+      "messageId": "user-1",
+      "contentBlocks": [
+        {
+          "type": "text",
+          "text": "go",
+          "annotations": null,
+          "_meta": null
+        },
+        {
+          "type": "image",
+          "data": "aW1n",
+          "mimeType": "image/png",
+          "uri": null,
+          "annotations": null,
+          "_meta": null
+        },
+        {
+          "type": "resource",
+          "resource": {
+            "blob": "YQ==",
+            "uri": "a.txt",
+            "mimeType": "text/plain",
+            "_meta": null
+          },
+          "annotations": null,
+          "_meta": null
+        },
+        {
+          "type": "resource_link",
+          "uri": "file:///tmp/notes.md",
+          "name": "notes.md",
+          "description": null,
+          "mimeType": "text/markdown",
+          "size": 42,
+          "title": null,
+          "annotations": null,
+          "_meta": null
+        }
+      ],
+      "echoStarted": true
+    },
+    {
+      "id": "msg-1",
+      "role": "ASSISTANT",
+      "segments": [
+        {
+          "id": "seg-1-0",
+          "kind": "THOUGHT",
+          "toolCall": null,
+          "planEntries": null,
+          "receivedAtMs": 1000,
+          "contentBlock": {
+            "type": "text",
+            "text": "thinking",
+            "annotations": null,
+            "_meta": null
+          }
+        },
+        {
+          "id": "seg-1-1",
+          "kind": "PLAN",
+          "toolCall": null,
+          "planEntries": [
+            {
+              "content": "Read",
+              "priority": "high",
+              "status": "completed",
+              "_meta": null
+            }
+          ],
+          "receivedAtMs": 1000,
+          "contentBlock": null
+        },
+        {
+          "id": "seg-1-2",
+          "kind": "TOOL_CALL",
+          "toolCall": {
+            "toolCallId": "c1",
+            "title": "edit",
+            "kind": "edit",
+            "status": "completed",
+            "content": [
+              {
+                "type": "diff",
+                "path": "a.kt",
+                "newText": "new",
+                "oldText": "old",
+                "_meta": null
+              }
+            ],
+            "rawInput": null,
+            "rawOutput": null,
+            "permissionOptions": null,
+            "permissionRequestId": null,
+            "locations": [
+              {
+                "path": "a.kt",
+                "line": 2,
+                "_meta": null
+              }
+            ]
+          },
+          "planEntries": null,
+          "receivedAtMs": 1000,
+          "contentBlock": null
+        },
+        {
+          "id": "seg-1-3",
+          "kind": "MESSAGE",
+          "toolCall": null,
+          "planEntries": null,
+          "receivedAtMs": 1000,
+          "contentBlock": {
+            "type": "text",
+            "text": "done",
+            "annotations": null,
+            "_meta": null
+          }
+        },
+        {
+          "id": "seg-1-4",
+          "kind": "RESOURCE_LINK",
+          "toolCall": null,
+          "planEntries": null,
+          "receivedAtMs": 1000,
+          "contentBlock": {
+            "type": "resource_link",
+            "uri": "file:///tmp/report.pdf",
+            "name": "report.pdf",
+            "description": null,
+            "mimeType": null,
+            "size": null,
+            "title": null,
+            "annotations": null,
+            "_meta": null
+          }
+        },
+        {
+          "id": "seg-1-5",
+          "kind": "CONTENT",
+          "toolCall": null,
+          "planEntries": null,
+          "receivedAtMs": 1000,
+          "contentBlock": {
+            "type": "image",
+            "data": "aW1n",
+            "mimeType": "image/png",
+            "uri": null,
+            "annotations": null,
+            "_meta": null
+          }
+        }
+      ],
+      "isStreaming": false,
+      "isError": false,
+      "createdAt": 1700000000001,
+      "status": "SENT",
+      "clientId": null,
+      "deliveryConfirmed": false,
+      "turn": {
+        "startedAt": 1700000000000,
+        "finishedAt": 1700000005000
+      },
+      "messageId": "assistant-1",
+      "contentBlocks": [],
+      "echoStarted": false
+    }
+  ],
+  "isStreaming": false,
+  "toolCallIndex": {
+    "c1": {
+      "messageIndex": 1,
+      "segmentIndex": 2
+    }
+  },
+  "usage": {
+    "promptTokens": null,
+    "completionTokens": null,
+    "totalTokens": 42,
+    "cachedReadTokens": null,
+    "contextWindowTokens": 1000,
+    "costAmount": 0.5,
+    "costCurrency": "USD"
+  },
+  "availableCommands": [
+    {
+      "name": "review",
+      "description": "Review the diff"
+    }
+  ],
+  "commandsAdvertised": true,
+  "nativeConfigOptions": [
+    {
+      "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption.Select",
+      "id": "effort",
+      "name": "Effort",
+      "description": null,
+      "category": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory.Custom",
+        "rawValue": "thought"
+      },
+      "origin": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin.NativeConfigOption"
+      },
+      "currentValue": "high",
+      "choices": [
+        {
+          "id": "high",
+          "label": "High",
+          "value": "high",
+          "description": null
+        }
+      ],
+      "groups": []
+    },
+    {
+      "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption.BooleanOption",
+      "id": "fast",
+      "name": "Fast",
+      "description": null,
+      "category": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigCategory.Mode"
+      },
+      "origin": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin.NativeConfigOption"
+      },
+      "currentValue": true
+    },
+    {
+      "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOption.Unknown",
+      "id": "x",
+      "name": "X",
+      "description": null,
+      "category": null,
+      "origin": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigOrigin.NativeConfigOption"
+      },
+      "kind": "slider",
+      "currentValue": {
+        "type": "com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue.StringValue",
+        "value": "3"
+      }
+    }
+  ],
+  "legacyModes": {
+    "modes": [
+      {
+        "id": "code",
+        "name": "Code",
+        "description": "Edits files"
+      }
+    ],
+    "currentModeId": "code"
+  },
+  "legacyModel": {
+    "choices": [
+      {
+        "id": "m1",
+        "label": "Model 1",
+        "value": "m1",
+        "description": null
+      }
+    ],
+    "currentModelId": "m1"
+  },
+  "title": "Golden chat",
+  "stoppedAt": null,
+  "turnOutcome": "FINISHED",
+  "turnSettled": true,
+  "turnCompletionSequence": 12,
+  "openReplyId": null,
+  "turnDurationMs": null,
+  "epoch": "ep-1",
+  "lastSeq": 10
+}

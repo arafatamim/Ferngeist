@@ -2,6 +2,7 @@
 
 package com.tamimarafat.ferngeist.feature.chat.ui.details
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -53,7 +54,8 @@ import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
 import com.tamimarafat.ferngeist.feature.chat.ui.TerminalRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.content.ContentBlockRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
-import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
+import com.tamimarafat.ferngeist.feature.chat.ui.files.displayLabel
+import com.tamimarafat.ferngeist.feature.chat.ui.files.fileLocation
 import com.tamimarafat.ferngeist.feature.chat.ui.files.gitFallbackDiffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
 import com.tamimarafat.ferngeist.feature.chat.ui.localFileOpener
@@ -109,7 +111,8 @@ internal fun ToolCallDetailsHeader(toolCall: ToolCallDisplay) {
     val defaultToolCallLabel = stringResource(R.string.chat_tool_call)
     val toolCallSheetTitle = toolCall.titleWithFile().ifBlank { defaultToolCallLabel }
     // An edit's diff and a read's slice both show only part of the file.
-    val openablePath = toolCall.filePath()?.takeIf { toolCall.kind == ToolKind.EDIT || toolCall.kind == ToolKind.READ }
+    val openableLocation =
+        toolCall.fileLocation()?.takeIf { toolCall.kind == ToolKind.EDIT || toolCall.kind == ToolKind.READ }
     val openFile = localFileOpener.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.Top) {
@@ -122,11 +125,11 @@ internal fun ToolCallDetailsHeader(toolCall: ToolCallDisplay) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (openablePath != null && openFile != null) {
+            if (openableLocation != null && openFile != null) {
                 val label = stringResource(GitR.string.chat_file_open_full)
                 GitTooltip(label) {
                     IconButton(
-                        onClick = { openFile(listOf(openablePath)) },
+                        onClick = { openFile(listOf(openableLocation.path), openableLocation.line?.toInt()) },
                         modifier = Modifier.size(32.dp).handCursor(),
                     ) {
                         Icon(
@@ -138,6 +141,21 @@ internal fun ToolCallDetailsHeader(toolCall: ToolCallDisplay) {
                     }
                 }
             }
+        }
+        val openLocationLabel = stringResource(GitR.string.chat_file_open_full)
+        toolCall.locations.orEmpty().forEach { location ->
+            Text(
+                text = location.displayLabel(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier =
+                    openFile?.let { open ->
+                        Modifier
+                            .clickable(onClickLabel = openLocationLabel) {
+                                open(listOf(location.path), location.line?.toInt())
+                            }.handCursor()
+                    } ?: Modifier,
+            )
         }
         toolCall.kind?.let { kind ->
             Text(

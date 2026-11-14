@@ -106,6 +106,17 @@ class ChatFileLoaderTest {
         }
 
     @Test
+    fun anAcpLocationLineReachesTheOpenedFile() =
+        runTest {
+            var state = ChatState()
+            GitFileLoader(this, workspace(), { state = state.copy(openFile = it) }, "/repo", { emptyList() })
+                .open(path = "/repo/$FILE", line = 12)
+            advanceUntilIdle()
+
+            assertEquals(12, state.openFile?.line)
+        }
+
+    @Test
     fun aPathOutsideTheProjectFailsWithoutAskingTheGateway() =
         runTest {
             val facade = workspace()

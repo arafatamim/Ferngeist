@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -52,6 +53,7 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -67,10 +69,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.dismissSheet
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
@@ -134,6 +138,13 @@ fun FileSheet(
     val horizontalScroll = remember(file.path) { ScrollState(0) }
     val previewRequested = isMarkdown && markdownPreview
     val showingRendered = previewRequested && markdownDocument != null
+    // ACP locations are 1-based lines. Reveal the requested line once, when the text lands; the
+    // source list owns line numbers, so a rendered markdown preview stays where it is.
+    val hasText = lines.isNotEmpty()
+    LaunchedEffect(file.path, file.line, hasText) {
+        val line = file.line?.takeIf { hasText } ?: return@LaunchedEffect
+        rawScroll.scrollToItem((line - 1).coerceIn(0, lines.lastIndex))
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         // The body's height differs between source and rendered, and wrapping reflows the
         // source; let the sheet follow instead of jumping.
@@ -500,6 +511,7 @@ private fun FileLines(
     val colors = localGitSemanticColors.current
     val style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
     val numberColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    val locatedColor = MaterialTheme.colorScheme.secondaryContainer
     // Measured, not guessed: the widest number at this style and font scale, so none wraps.
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -524,7 +536,13 @@ private fun FileLines(
         ) {
             itemsIndexed(lines) { index, line ->
                 // Intrinsic height, so the gutter bar spans the line it marks.
-                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                val located = index + 1 == file.line
+                Row(
+                    modifier =
+                        Modifier
+                            .height(IntrinsicSize.Min)
+                            .then(if (located) Modifier.background(locatedColor) else Modifier),
+                ) {
                     Gutter(
                         changed = index in file.changedLines,
                         deletedAbove = index in file.deletedAbove,
@@ -533,26 +551,13 @@ private fun FileLines(
                         added = colors.added,
                         deleted = colors.deleted,
                     )
-                    // The gutter is a reading aid, not code: copying a selection must not
-                    // pick up the line numbers.
-                    DisableSelection {
-                        Text(
-                            text = "${index + 1}",
-                            style = style,
-                            color = numberColor,
-                            textAlign = TextAlign.End,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.padding(end = 8.dp).width(numberWidth),
-                        )
-                    }
-                    Text(
+                    NumberedLine(
+                        number = index + 1,
                         text = annotatedLines?.getOrNull(index) ?: AnnotatedString(line),
                         style = style,
+                        numberColor = numberColor,
+                        numberWidth = numberWidth,
                         softWrap = softWrap,
-                        // Weighted only when wrapping: it both fixes the wrapped height the
-                        // intrinsic gutter measures and would cap the line if scrolling instead.
-                        modifier = if (softWrap) Modifier.weight(1f) else Modifier,
                     )
                 }
             }
@@ -568,6 +573,38 @@ private fun FileLines(
             }
         }
     }
+}
+
+@Composable
+private fun RowScope.NumberedLine(
+    number: Int,
+    text: AnnotatedString,
+    style: TextStyle,
+    numberColor: Color,
+    numberWidth: Dp,
+    softWrap: Boolean,
+) {
+    // The gutter is a reading aid, not code: copying a selection must not
+    // pick up the line numbers.
+    DisableSelection {
+        Text(
+            text = "$number",
+            style = style,
+            color = numberColor,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(end = 8.dp).width(numberWidth),
+        )
+    }
+    Text(
+        text = text,
+        style = style,
+        softWrap = softWrap,
+        // Weighted only when wrapping: it both fixes the wrapped height the
+        // intrinsic gutter measures and would cap the line if scrolling instead.
+        modifier = if (softWrap) Modifier.weight(1f) else Modifier,
+    )
 }
 
 @Composable

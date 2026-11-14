@@ -17,6 +17,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.agentclientprotocol.model.ToolCallLocation as AcpToolCallLocation
 
 class SessionMessageReducerTest {
     @Test
@@ -307,6 +308,52 @@ class SessionMessageReducerTest {
     }
 
     @Test
+    fun toolCallUpdateReplacesLocationsWithTheirLines() {
+        val started =
+            SessionMessageReducer.handleEvent(
+                emptyList(),
+                emptyMap(),
+                AppSessionEvent.ToolCallStarted(
+                    toolCallId = "tool_1",
+                    title = "Read",
+                    kind = ToolKind.READ,
+                    status = ToolCallStatus.IN_PROGRESS,
+                    locations = listOf(AcpToolCallLocation(path = "/repo/src/A.kt", line = 3u)),
+                ),
+            )
+        val updated =
+            SessionMessageReducer.handleEvent(
+                started.messages,
+                started.toolCallIndex,
+                AppSessionEvent.ToolCallUpdated(
+                    toolCallId = "tool_1",
+                    status = ToolCallStatus.COMPLETED,
+                    title = null,
+                    kind = null,
+                    locations =
+                        listOf(
+                            AcpToolCallLocation(path = "/repo/src/A.kt"),
+                            AcpToolCallLocation(path = "/repo/src/B.kt", line = 19u),
+                        ),
+                ),
+            )
+
+        val toolCall =
+            updated.messages
+                .single()
+                .segments
+                .single()
+                .toolCall
+        assertEquals(
+            listOf(
+                AcpToolCallLocation(path = "/repo/src/A.kt"),
+                AcpToolCallLocation(path = "/repo/src/B.kt", line = 19u),
+            ),
+            toolCall?.locations,
+        )
+    }
+
+    @Test
     fun toolCallLocationsSurviveAnUpdateThatDoesNotRepeatThem() {
         val started =
             SessionMessageReducer.handleEvent(
@@ -317,7 +364,7 @@ class SessionMessageReducerTest {
                     title = "Write",
                     kind = ToolKind.EDIT,
                     status = ToolCallStatus.IN_PROGRESS,
-                    locations = listOf("/repo/src/New.kt"),
+                    locations = listOf(AcpToolCallLocation(path = "/repo/src/New.kt", line = 12u)),
                 ),
             )
         val updated =
@@ -338,7 +385,7 @@ class SessionMessageReducerTest {
                 .segments
                 .single()
                 .toolCall
-        assertEquals(listOf("/repo/src/New.kt"), toolCall?.locations)
+        assertEquals(listOf(AcpToolCallLocation(path = "/repo/src/New.kt", line = 12u)), toolCall?.locations)
     }
 
     /**

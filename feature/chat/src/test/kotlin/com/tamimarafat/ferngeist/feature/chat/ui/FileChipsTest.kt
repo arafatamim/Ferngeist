@@ -21,7 +21,7 @@ class FileChipsTest {
     fun `source and html links chip, media and documents do not`() {
         var chips: InlineChips? = null
         compose.setContent {
-            CompositionLocalProvider(localFileOpener provides {}, localWorkspaceRoot provides "/home/u/app") {
+            CompositionLocalProvider(localFileOpener provides { _, _ -> }, localWorkspaceRoot provides "/home/u/app") {
                 chips = rememberFileChips(emptySet(), isStreaming = false)
             }
         }
