@@ -122,8 +122,13 @@ fun ChatScreen(
     CollectChatEffects(viewModel, screenState.mutations.snackbarHostState, onNavigateBack, onSwitchSession)
 
     // Auto-focus the text field when the composer expands
-    LaunchedEffect(screenState.mutations.composerExpanded.value, screenState.mutations.imageFocusTrigger.value) {
-        if (screenState.mutations.composerExpanded.value) {
+    LaunchedEffect(
+        screenState.mutations.composerExpanded.value,
+        screenState.mutations.imageFocusTrigger.value,
+        screenState.mutations.composerFocusTrigger.value,
+        screenState.mutations.showCommandsDialog.value,
+    ) {
+        if (screenState.mutations.composerExpanded.value && !screenState.mutations.showCommandsDialog.value) {
             screenState.mutations.focusRequester.requestFocus()
         }
     }
@@ -214,6 +219,7 @@ internal data class ChatScreenMutations(
     val composerExpanded: MutableState<Boolean>,
     val focusRequester: FocusRequester,
     val imageFocusTrigger: MutableState<Int>,
+    val composerFocusTrigger: MutableState<Int>,
 )
 
 @Composable
@@ -237,6 +243,7 @@ private fun rememberChatScreenMutations(): ChatScreenMutations =
         composerExpanded = remember { mutableStateOf(false) },
         focusRequester = remember { FocusRequester() },
         imageFocusTrigger = remember { mutableIntStateOf(0) },
+        composerFocusTrigger = remember { mutableIntStateOf(0) },
     )
 
 /** The attachment picker and the composer's send actions the chat screen hands its children. */

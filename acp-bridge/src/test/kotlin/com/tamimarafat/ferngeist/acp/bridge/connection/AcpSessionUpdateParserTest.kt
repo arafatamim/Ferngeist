@@ -2,6 +2,8 @@
 
 package com.tamimarafat.ferngeist.acp.bridge.connection
 
+import com.agentclientprotocol.model.AvailableCommand
+import com.agentclientprotocol.model.AvailableCommandInput
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.MessageId
@@ -20,6 +22,26 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class AcpSessionUpdateParserTest {
+    @Test
+    fun `available commands preserve input hints and commands without one stay hintless`() {
+        val update =
+            SessionUpdate.AvailableCommandsUpdate(
+                availableCommands =
+                    listOf(
+                        AvailableCommand(
+                            name = "review",
+                            description = "Review a diff",
+                            input = AvailableCommandInput.Unstructured(hint = "base branch"),
+                        ),
+                        AvailableCommand(name = "clear", description = "Clear the chat"),
+                    ),
+            )
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.CommandsUpdated
+
+        assertEquals(listOf("base branch", null), event.commands.map { it.inputHint })
+    }
+
     @Test
     fun `usage_update maps used size and usd cost`() {
         val update =

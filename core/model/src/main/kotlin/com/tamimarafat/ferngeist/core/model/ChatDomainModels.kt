@@ -139,6 +139,8 @@ fun ChatConfigOption.displayValueLabel(): String? =
 data class ChatCommand(
     val name: String,
     val description: String? = null,
+    /** The agent's placeholder for this command's argument, when it accepts one. */
+    val inputHint: String? = null,
 )
 
 data class ChatConnectionDiagnostics(

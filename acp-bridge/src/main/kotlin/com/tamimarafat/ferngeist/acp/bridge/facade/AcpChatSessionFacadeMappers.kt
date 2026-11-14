@@ -72,7 +72,10 @@ internal fun mapSnapshot(snapshot: SessionSnapshot): ChatSessionSnapshot =
         messages = snapshot.messages,
         isStreaming = snapshot.isStreaming,
         configOptions = snapshot.configOptions.map { mapConfigOption(it) },
-        availableCommands = snapshot.availableCommands.map { ChatCommand(it.name, it.description) },
+        availableCommands =
+            snapshot.availableCommands.map {
+                ChatCommand(it.name, it.description, it.inputHint)
+            },
         commandsAdvertised = snapshot.commandsAdvertised,
         error = snapshot.error,
         title = snapshot.title,

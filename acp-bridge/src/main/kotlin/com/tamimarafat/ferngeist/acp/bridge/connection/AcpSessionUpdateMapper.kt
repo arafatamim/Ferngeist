@@ -96,7 +96,13 @@ internal object AcpSessionUpdateMapper {
     private fun mapAvailableCommands(update: SessionUpdate.AvailableCommandsUpdate): AppSessionEvent =
         AppSessionEvent.CommandsUpdated(
             update.availableCommands.map { cmd ->
-                CommandInfo(name = cmd.name, description = cmd.description)
+                CommandInfo(
+                    name = cmd.name,
+                    description = cmd.description,
+                    inputHint =
+                        (cmd.input as? com.agentclientprotocol.model.AvailableCommandInput.Unstructured)
+                            ?.hint,
+                )
             },
         )
 

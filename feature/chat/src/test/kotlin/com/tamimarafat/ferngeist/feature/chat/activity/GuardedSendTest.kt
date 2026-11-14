@@ -8,6 +8,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.SavedStateHandle
+import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModelTestBase
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreenMutations
@@ -17,10 +18,53 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GuardedSendTest : ChatViewModelTestBase() {
+    @Test
+    fun aCommandWithAnInputHintStagesInTheComposerInsteadOfSending() {
+        val viewModel =
+            createViewModel(
+                savedStateHandle =
+                    SavedStateHandle(
+                        mapOf(
+                            "serverId" to "hinted-command",
+                            "sessionId" to "chat",
+                            "updatedAt" to System.currentTimeMillis(),
+                        ),
+                    ),
+            )
+        val mutations = mutations()
+        val focusManager =
+            object : FocusManager {
+                override fun clearFocus(force: Boolean) = Unit
+
+                override fun moveFocus(focusDirection: FocusDirection): Boolean = false
+            }
+        val state =
+            ChatState(
+                isSessionReady = true,
+                availableCommands = listOf(ChatCommand("review", inputHint = "base branch")),
+            )
+        val (_, sendCommand) =
+            rememberSendHandlers(
+                viewModel,
+                state,
+                mutations,
+                focusManager,
+                ChatScrollHandle(LazyListState()),
+            )
+
+        sendCommand("review")
+
+        assertEquals("/review Keep my draft", mutations.messageText.text.toString())
+        assertTrue(mutations.composerExpanded.value)
+        assertEquals(1, mutations.composerFocusTrigger.value)
+        assertNull(mutations.pendingSend.value)
+    }
+
     @Test
     fun guardedSend_keepsDraftUntilConfirmation() =
         runTest {
@@ -75,5 +119,6 @@ class GuardedSendTest : ChatViewModelTestBase() {
             composerExpanded = mutableStateOf(true),
             focusRequester = FocusRequester(),
             imageFocusTrigger = mutableStateOf(0),
+            composerFocusTrigger = mutableStateOf(0),
         )
 }

@@ -566,6 +566,7 @@ private fun CommandsSheet(
                             label = cmd.name,
                             value = cmd.name,
                             description = cmd.description,
+                            inputHint = cmd.inputHint,
                         )
                     }
                 }
@@ -580,6 +581,7 @@ private fun CommandsSheet(
                     label = cmd.name,
                     value = cmd.name,
                     description = cmd.description,
+                    inputHint = cmd.inputHint,
                 )
             },
         recentItems = recentItems,
