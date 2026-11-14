@@ -482,9 +482,6 @@ private fun AssistantMessageContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        // Blocks after a run that is still revealing wait for it, so a tool card never appears
-        // below prose that is still being written.
-        var gateOpen = true
         // One block per run, walked in segment order so a turn that interleaves reasoning, prose
         // and tool calls still reads the way the agent produced it. Grouping must not reorder:
         // collecting thoughts and prose in separate passes would hoist every reasoning bubble
@@ -498,6 +495,9 @@ private fun AssistantMessageContent(
         val turnPaths = remember(message.segments) { message.segments.fileReferences() }
         val fileChips = rememberFileChips(turnPaths, message.isStreaming)
         CompositionLocalProvider(localTurnPaths provides turnPaths) {
+            // Blocks after a revealing run wait for it. Reset inside this restart scope:
+            // retaining a closed gate across recompositions would remove every block.
+            var gateOpen = true
             blocks.forEach { block ->
                 if (!gateOpen) return@forEach
                 key(block.key) {
@@ -515,16 +515,16 @@ private fun AssistantMessageContent(
                     )?.let { gateOpen = it }
                 }
             }
-        }
 
-        TurnFooter(
-            message = message,
-            reveals = reveals,
-            showStreamingIndicator = showStreamingIndicator,
-            turnSegments = turnSegments,
-            settled = gateOpen,
-            onToolCallClick = onToolCallClick,
-        )
+            TurnFooter(
+                message = message,
+                reveals = reveals,
+                showStreamingIndicator = showStreamingIndicator,
+                turnSegments = turnSegments,
+                settled = gateOpen,
+                onToolCallClick = onToolCallClick,
+            )
+        }
     }
 }
 
