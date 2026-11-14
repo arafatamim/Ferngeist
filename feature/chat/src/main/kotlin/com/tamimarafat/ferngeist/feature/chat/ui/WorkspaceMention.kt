@@ -1,5 +1,14 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+internal fun slashCommandQuery(
+    text: String,
+    cursor: Int,
+): String? {
+    if (!text.startsWith('/') || cursor !in 1..text.length) return null
+    val query = text.substring(1, cursor)
+    return query.takeUnless { it.any(Char::isWhitespace) }
+}
+
 internal fun workspaceMentionQuery(
     text: String,
     cursor: Int,
@@ -11,21 +20,3 @@ internal fun workspaceMentionQuery(
     if (query.any(Char::isWhitespace)) return null
     return start to query
 }
-
-internal fun matchingWorkspaceFiles(
-    paths: List<String>,
-    query: String,
-): List<String> =
-    paths.filter { path ->
-        var index = 0
-        path.forEach { character ->
-            if (index < query.length && character.equals(query[index], ignoreCase = true)) index++
-        }
-        index == query.length
-    }
-
-internal fun moveMentionSelection(
-    selected: Int,
-    delta: Int,
-    count: Int,
-): Int = (selected + delta).coerceIn(0, (count - 1).coerceAtLeast(0))

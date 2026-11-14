@@ -102,6 +102,8 @@ import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AnimatedComposerAttachments
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionMenu
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ComposerSuggestionState
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
 import kotlin.math.roundToInt
@@ -153,7 +155,7 @@ internal fun ChatComposerBar(
     composerExpanded: Boolean,
     onComposerExpandedChange: (Boolean) -> Unit,
     messageText: TextFieldState,
-    mentionState: WorkspaceMentionState,
+    mentionState: ComposerSuggestionState,
     onMentionSelected: (String, Int?) -> Unit,
     inputAlpha: () -> Float,
     buttonsAlpha: () -> Float,
@@ -474,7 +476,7 @@ private fun ComposerContentRow(
 @Composable
 internal fun ExpandedComposerContent(
     messageText: TextFieldState,
-    mentionState: WorkspaceMentionState,
+    mentionState: ComposerSuggestionState,
     onMentionSelected: (String, Int?) -> Unit,
     commandInputHint: String?,
     inputAlpha: () -> Float,
@@ -564,7 +566,7 @@ internal fun ExpandedComposerContent(
 @Composable
 private fun ExpandedComposerTextField(
     messageText: TextFieldState,
-    mentionState: WorkspaceMentionState,
+    mentionState: ComposerSuggestionState,
     onMentionSelected: (String, Int?) -> Unit,
     commandInputHint: String?,
     focusRequester: FocusRequester,
@@ -630,7 +632,7 @@ private fun ExpandedComposerTextField(
                                     }
                                 },
                         ) {
-                            WorkspaceMentionMenu(mentionState, menuAnchor, onMentionSelected)
+                            ComposerSuggestionMenu(mentionState, menuAnchor, onMentionSelected)
                         }
                     }
                 }
