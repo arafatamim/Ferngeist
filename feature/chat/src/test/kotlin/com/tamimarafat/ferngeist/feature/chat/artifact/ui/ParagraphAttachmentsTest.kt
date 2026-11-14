@@ -20,10 +20,11 @@ import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import com.adamglin.compose.markdown.core.api.MarkdownEngine
 import com.adamglin.compose.markdown.core.dialect.MarkdownDialect
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
-import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactStat
+import com.tamimarafat.ferngeist.core.model.text
 import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.ui.MessageBubble
 import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
@@ -146,10 +147,11 @@ class ParagraphAttachmentsTest {
                 role = ChatMessage.Role.ASSISTANT,
                 segments =
                     persistentListOf(
-                        AssistantSegment(id = "prose", text = "See report.pdf"),
+                        AssistantSegment(id = "prose", contentBlock = ContentBlock.Text("See report.pdf")),
                         AssistantSegment(
                             kind = AssistantSegment.Kind.RESOURCE_LINK,
-                            resourceLink = ChatResourceLink("/home/u/app/a/report.pdf", "Linked report"),
+                            contentBlock =
+                                ContentBlock.ResourceLink("Linked report", "file:///home/u/app/a/report.pdf"),
                         ),
                     ),
             )
@@ -174,7 +176,10 @@ class ParagraphAttachmentsTest {
                         persistentListOf(
                             AssistantSegment(
                                 id = "prose",
-                                text = "First /tmp/report.pdf and /tmp/report.pdf.\n\nSecond /tmp/report.pdf.\n\nDone.",
+                                contentBlock =
+                                    ContentBlock.Text(
+                                        "First /tmp/report.pdf and /tmp/report.pdf.\n\nSecond /tmp/report.pdf.\n\nDone.",
+                                    ),
                             ),
                         ),
                 ),
@@ -189,7 +194,7 @@ class ParagraphAttachmentsTest {
                         message.value.segments.adding(
                             AssistantSegment(
                                 kind = AssistantSegment.Kind.RESOURCE_LINK,
-                                resourceLink = ChatResourceLink("/tmp/report.pdf", "Linked report"),
+                                contentBlock = ContentBlock.ResourceLink("Linked report", "file:///tmp/report.pdf"),
                             ),
                         ),
                 )

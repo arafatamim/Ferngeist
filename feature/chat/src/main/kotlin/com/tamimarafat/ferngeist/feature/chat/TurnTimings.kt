@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.feature.chat
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnKey
 import com.tamimarafat.ferngeist.core.model.TurnTiming
+import com.tamimarafat.ferngeist.core.model.content
 
 /** The reply that closes each turn, by id, to its turn: the last assistant message before the next prompt. */
 internal fun List<ChatMessage>.turnKeys(): Map<String, TurnKey> {

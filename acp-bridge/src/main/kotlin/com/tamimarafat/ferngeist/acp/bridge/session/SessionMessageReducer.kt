@@ -1,15 +1,16 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
-import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
-import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.content.chatResourceLink
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.toPersistentList
@@ -33,27 +34,23 @@ data class ToolCallLocation(
 /** One streamed piece of a given kind, appended as its own segment. */
 private data class TextChunk(
     val kind: AssistantSegment.Kind,
-    val text: String,
+    val block: ContentBlock,
     val messageId: String?,
-    val link: ChatResourceLink? = null,
-    val image: ChatImageData? = null,
 )
 
-private fun AppSessionEvent.UserMessage.content() = UserContent(text, images, files, clientId, messageId, links)
+private fun AppSessionEvent.UserMessage.content() = UserContent(contentBlocks, clientId, messageId)
 
-/** A reply chunk is its link or its image when it carries one, otherwise prose. */
+/** Block type selects presentation; the original block remains the only payload. */
 private fun AppSessionEvent.AgentMessage.chunk() =
     TextChunk(
         kind =
             when {
-                link != null -> AssistantSegment.Kind.RESOURCE_LINK
-                image != null -> AssistantSegment.Kind.IMAGE
-                else -> AssistantSegment.Kind.MESSAGE
+                contentBlock is ContentBlock.Text -> AssistantSegment.Kind.MESSAGE
+                contentBlock.chatResourceLink() != null -> AssistantSegment.Kind.RESOURCE_LINK
+                else -> AssistantSegment.Kind.CONTENT
             },
-        text = text,
+        block = contentBlock,
         messageId = messageId,
-        link = link,
-        image = image,
     )
 
 /**
@@ -103,7 +100,7 @@ object SessionMessageReducer {
                 appendText(
                     messages,
                     toolCallIndex,
-                    TextChunk(AssistantSegment.Kind.THOUGHT, event.text, messageId = null),
+                    TextChunk(AssistantSegment.Kind.THOUGHT, ContentBlock.Text(event.text), messageId = null),
                     event.timestampMs,
                     nowMs,
                 )
@@ -144,7 +141,6 @@ object SessionMessageReducer {
             ChatMessage(
                 id = UUID.randomUUID().toString(),
                 role = ChatMessage.Role.ASSISTANT,
-                content = "",
                 isStreaming = true,
             )
         return messages + streamingMessage
@@ -160,7 +156,7 @@ object SessionMessageReducer {
         steered: Boolean = false,
     ): List<ChatMessage> {
         // Optimistic insertion: the UI gets an immediate user bubble before the server round-trip
-        if (prompt.text.isBlank() && prompt.images.isEmpty() && prompt.files.isEmpty()) return messages
+        if (prompt.blocks.isEmpty()) return messages
         // A restored prompt is resent under its id; its saved bubble is already in the transcript.
         if (prompt.clientId != null && messages.any { it.clientId == prompt.clientId }) return messages
         val last = messages.lastOrNull()
@@ -173,9 +169,7 @@ object SessionMessageReducer {
         return closed +
             ChatMessage(
                 role = ChatMessage.Role.USER,
-                content = prompt.text,
-                images = prompt.images,
-                files = prompt.files,
+                contentBlocks = prompt.blocks,
                 createdAt = System.currentTimeMillis(),
                 clientId = prompt.clientId,
             )
@@ -188,10 +182,7 @@ object SessionMessageReducer {
         timestampMs: Long?,
         nowMs: Long?,
     ): ReducerResult {
-        if (chunk.text.isEmpty() &&
-            chunk.link == null &&
-            chunk.image == null
-        ) {
+        if (chunk.block is ContentBlock.Text && chunk.block.text.isEmpty()) {
             return ReducerResult(messages, toolCallIndex)
         }
         val mutableMessages = messages.mutableCopy()
@@ -213,9 +204,7 @@ object SessionMessageReducer {
                     AssistantSegment(
                         id = UUID.randomUUID().toString(),
                         kind = chunk.kind,
-                        text = chunk.text,
-                        resourceLink = chunk.link,
-                        image = chunk.image,
+                        contentBlock = chunk.block,
                         receivedAtMs = nowMs,
                     ),
                 )
@@ -224,7 +213,6 @@ object SessionMessageReducer {
         mutableMessages[targetIndex] =
             message.copy(
                 segments = newSegments,
-                content = "",
                 isStreaming = true,
                 messageId = message.messageId ?: chunk.messageId,
             )
@@ -298,7 +286,6 @@ object SessionMessageReducer {
                 if (existingPlanIndex != -1) {
                     segments[existingPlanIndex] =
                         segments[existingPlanIndex].copy(
-                            text = "",
                             planEntries = entries,
                         )
                 } else {
@@ -306,7 +293,6 @@ object SessionMessageReducer {
                         AssistantSegment(
                             id = UUID.randomUUID().toString(),
                             kind = AssistantSegment.Kind.PLAN,
-                            text = "",
                             planEntries = entries,
                             receivedAtMs = nowMs,
                         ),
@@ -314,12 +300,9 @@ object SessionMessageReducer {
                 }
             }
 
-        val updatedContent = derivedContent(newSegments)
-
         mutableMessages[targetIndex] =
             message.copy(
                 segments = newSegments,
-                content = updatedContent,
                 isStreaming = true,
             )
         return mutableMessages.build()

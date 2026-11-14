@@ -5,6 +5,8 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -365,7 +367,7 @@ class SessionRuntime(
             }
 
             debug { "onLocalPromptStarted textLen=${text.length}, images=${images.size}, files=${files.size}" }
-            val prompt = UserContent(text, images, files, clientId)
+            val prompt = UserContent(userContentBlocks(text, images, files), clientId)
             val withUser = SessionMessageReducer.appendLocalUserMessage(live.messages, prompt)
             val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
@@ -401,7 +403,7 @@ class SessionRuntime(
             val withUser =
                 SessionMessageReducer.appendLocalUserMessage(
                     live.messages,
-                    UserContent(text, images, files, clientId),
+                    UserContent(userContentBlocks(text, images, files), clientId),
                     steered = true,
                 )
             live =
@@ -536,10 +538,6 @@ class SessionRuntime(
                 legacyModes = live.legacyModes,
                 legacyModel = live.legacyModel,
             )
-        val last = live.messages.lastOrNull()
-        val lastRole = last?.role?.name ?: "none"
-        val lastLen = last?.content?.length ?: 0
-        val lastSegments = last?.segments?.size ?: 0
         _snapshot.value =
             SessionSnapshot(
                 sessionId = sessionId,
@@ -565,8 +563,11 @@ class SessionRuntime(
                 historyGap = historyGap,
             )
         debug {
+            // Computed only when logging: `content` joins every reply segment, once per streamed update otherwise.
+            val last = live.messages.lastOrNull()
             "publishLive state=$loadState messages=${live.messages.size} streaming=${live.isStreaming} " +
-                "lastRole=$lastRole lastLen=$lastLen lastSegments=$lastSegments " +
+                "lastRole=${last?.role?.name ?: "none"} lastLen=${last?.content?.length ?: 0} " +
+                "lastSegments=${last?.segments?.size ?: 0} " +
                 "commands=${live.availableCommands.size} configOptions=${effectiveConfigOptions.size}"
         }
     }

@@ -45,6 +45,8 @@ import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
 import com.tamimarafat.ferngeist.feature.chat.activity.ActiveElsewhereDialog
 import com.tamimarafat.ferngeist.feature.chat.selection.localQuoteSelection
 import com.tamimarafat.ferngeist.feature.chat.selection.quoteDraft
+import com.tamimarafat.ferngeist.feature.chat.ui.audio.localAudioPlaybackController
+import com.tamimarafat.ferngeist.feature.chat.ui.audio.rememberAudioPlaybackController
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentSupport
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.HeldAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.processPickedUris
@@ -157,7 +159,9 @@ fun ChatScreen(
         viewModel.dispatch(ChatIntent.RefreshGitStatus)
     }
 
+    val audioPlayback = rememberAudioPlaybackController(sessionId, viewModel.artifactIo)
     CompositionLocalProvider(
+        localAudioPlaybackController provides audioPlayback,
         localQuoteSelection provides { selected ->
             val draft = screenState.mutations.messageText
             draft.edit { replace(0, length, quoteDraft(toString(), selected)) }

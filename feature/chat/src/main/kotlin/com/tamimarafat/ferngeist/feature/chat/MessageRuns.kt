@@ -2,6 +2,8 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
+import com.tamimarafat.ferngeist.core.model.resourceLink
+import com.tamimarafat.ferngeist.core.model.text
 
 /*
  * Runs: adjacent same-kind segments, joined for display and for parsing.
@@ -108,7 +110,7 @@ private val activityKinds = setOf(AssistantSegment.Kind.THOUGHT, AssistantSegmen
 
 private fun List<AssistantSegment>.spanEnd(start: Int): Int {
     val kind = this[start].kind
-    if (kind == AssistantSegment.Kind.PLAN || kind == AssistantSegment.Kind.IMAGE) return start + 1
+    if (kind == AssistantSegment.Kind.PLAN || kind == AssistantSegment.Kind.CONTENT) return start + 1
     var end = start + 1
     while (end < size && continuesSpan(kind, this[end].kind)) {
         end++

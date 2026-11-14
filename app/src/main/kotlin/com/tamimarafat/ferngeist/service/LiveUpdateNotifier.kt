@@ -280,8 +280,12 @@ private fun buildLiveNotification(
         is LiveUpdateContent.Completed -> {
             val label =
                 listOfNotNull(
-                    content.done.takeIf { it > 0 }?.let { context.getString(R.string.live_update_done, it) },
-                    content.errors.takeIf { it > 0 }?.let { context.getString(R.string.live_update_errored, it) },
+                    content.done.takeIf { it > 0 }?.let {
+                        context.resources.getQuantityString(R.plurals.live_update_done, it, it)
+                    },
+                    content.errors.takeIf { it > 0 }?.let {
+                        context.resources.getQuantityString(R.plurals.live_update_errored, it, it)
+                    },
                 ).joinToString(LABEL_SEPARATOR)
             builder.setContentTitle(label).setShortCriticalText(label)
         }

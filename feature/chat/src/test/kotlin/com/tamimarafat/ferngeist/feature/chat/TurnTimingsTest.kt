@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnKey
 import com.tamimarafat.ferngeist.core.model.TurnTiming
@@ -35,7 +36,7 @@ class TurnTimingsTest {
     private fun prompt(
         id: String,
         text: String,
-    ) = ChatMessage(id = id, role = ChatMessage.Role.USER, content = text)
+    ) = ChatMessage(id = id, role = ChatMessage.Role.USER, contentBlocks = listOf(ContentBlock.Text(text)))
 
     private fun reply(
         id: String,

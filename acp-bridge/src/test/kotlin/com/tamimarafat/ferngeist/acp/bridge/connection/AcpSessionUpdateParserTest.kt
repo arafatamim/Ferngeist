@@ -8,7 +8,11 @@ import com.agentclientprotocol.model.MessageId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.ToolCallId
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
+import com.tamimarafat.ferngeist.acp.bridge.session.text
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
+import com.tamimarafat.ferngeist.core.model.content.chatFile
+import com.tamimarafat.ferngeist.core.model.content.chatImage
+import com.tamimarafat.ferngeist.core.model.content.chatResourceLink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -84,9 +88,9 @@ class AcpSessionUpdateParserTest {
             )
 
         val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
-        assertEquals(1, event.images.size)
-        assertEquals("QUJD", event.images[0].base64)
-        assertEquals("image/png", event.images[0].mimeType)
+        assertEquals(1, event.contentBlocks.mapNotNull { it.chatImage() }.size)
+        assertEquals("QUJD", event.contentBlocks.mapNotNull { it.chatImage() }[0].base64)
+        assertEquals("image/png", event.contentBlocks.mapNotNull { it.chatImage() }[0].mimeType)
     }
 
     @Test
@@ -102,9 +106,9 @@ class AcpSessionUpdateParserTest {
             )
 
         val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
-        assertEquals(1, event.images.size)
-        assertEquals("QUJD", event.images[0].base64)
-        assertEquals("image/png", event.images[0].mimeType)
+        assertEquals(1, event.contentBlocks.mapNotNull { it.chatImage() }.size)
+        assertEquals("QUJD", event.contentBlocks.mapNotNull { it.chatImage() }[0].base64)
+        assertEquals("image/png", event.contentBlocks.mapNotNull { it.chatImage() }[0].mimeType)
     }
 
     @Test
@@ -123,10 +127,10 @@ class AcpSessionUpdateParserTest {
             )
 
         val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
-        assertEquals(1, event.files.size)
-        assertEquals("report.pdf", event.files[0].name)
-        assertEquals("QUJD", event.files[0].base64)
-        assertEquals("application/pdf", event.files[0].mimeType)
+        assertEquals(1, event.contentBlocks.mapNotNull { it.chatFile() }.size)
+        assertEquals("report.pdf", event.contentBlocks.mapNotNull { it.chatFile() }[0].name)
+        assertEquals("QUJD", event.contentBlocks.mapNotNull { it.chatFile() }[0].base64)
+        assertEquals("application/pdf", event.contentBlocks.mapNotNull { it.chatFile() }[0].mimeType)
     }
 
     @Test
@@ -140,10 +144,24 @@ class AcpSessionUpdateParserTest {
         val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
 
         assertEquals("why does this crash?", event.text)
-        assertEquals(1, event.files.size)
-        assertEquals("splash.zip", event.files[0].name)
-        assertEquals("application/zip", event.files[0].mimeType)
-        assertEquals("UEsDBAoAAAAA", event.files[0].base64)
+        assertEquals(1, event.contentBlocks.mapNotNull { it.chatFile() }.size)
+        assertEquals("splash.zip", event.contentBlocks.mapNotNull { it.chatFile() }[0].name)
+        assertEquals("application/zip", event.contentBlocks.mapNotNull { it.chatFile() }[0].mimeType)
+        assertEquals("UEsDBAoAAAAA", event.contentBlocks.mapNotNull { it.chatFile() }[0].base64)
+    }
+
+    @Test
+    fun `an inlined context block with an empty body yields a zero-byte file`() {
+        val inlined =
+            "see this\n" +
+                "<context ref=\"file:///empty.txt\" mimeType=\"text/plain\" encoding=\"base64\"></context>"
+        val update = SessionUpdate.UserMessageChunk(content = ContentBlock.Text(inlined))
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+
+        val file = event.contentBlocks.mapNotNull { it.chatFile() }.single()
+        assertEquals("empty.txt", file.name)
+        assertEquals(0L, file.sizeBytes)
     }
 
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =
@@ -165,7 +183,10 @@ class AcpSessionUpdateParserTest {
             ) as AppSessionEvent.AgentMessage
 
         assertEquals("", event.text)
-        assertEquals(ChatResourceLink("/tmp/attach/Q3 review.txt", "Q3 review.txt", "text/plain", 58), event.link)
+        assertEquals(
+            ChatResourceLink("/tmp/attach/Q3 review.txt", "Q3 review.txt", "text/plain", 58),
+            event.contentBlock.chatResourceLink(),
+        )
     }
 
     @Test
@@ -177,14 +198,14 @@ class AcpSessionUpdateParserTest {
                         content = ContentBlock.ResourceLink(name = "", uri = "file:///tmp/Q3 review – ünï.txt"),
                     ),
                 ) as AppSessionEvent.AgentMessage
-            ).link
+            ).contentBlock.chatResourceLink()
 
         assertEquals("/tmp/Q3 review – ünï.txt", link?.path)
         assertEquals("Q3 review – ünï.txt", link?.name)
     }
 
     @Test
-    fun `a resource link to another scheme stays an ordinary markdown link`() {
+    fun `a resource link to another scheme stays an ordered content block`() {
         val event =
             invokeMapSessionUpdateToEvent(
                 SessionUpdate.AgentMessageChunk(
@@ -192,12 +213,15 @@ class AcpSessionUpdateParserTest {
                 ),
             ) as AppSessionEvent.AgentMessage
 
-        assertEquals(null, event.link)
-        assertEquals("\n\n[spec \\[v2\\]](<https://example.com/spec>)\n\n", event.text)
+        assertEquals(null, event.contentBlock.chatResourceLink())
+        assertEquals(
+            ContentBlock.ResourceLink(name = "spec [v2]", uri = "https://example.com/spec"),
+            event.contentBlock,
+        )
     }
 
     @Test
-    fun `an embedded text resource shows inline in a fence its content cannot close`() {
+    fun `an embedded text resource stays separate from reply prose`() {
         val event =
             invokeMapSessionUpdateToEvent(
                 SessionUpdate.AgentMessageChunk(
@@ -211,7 +235,14 @@ class AcpSessionUpdateParserTest {
                 ),
             ) as AppSessionEvent.AgentMessage
 
-        assertEquals("\n\n````md\nuse ```go\nfmt.Println()\n```\n````\n\n", event.text)
+        val resource = (event.contentBlock as ContentBlock.Resource).resource
+        assertEquals(
+            EmbeddedResourceResource.TextResourceContents(
+                text = "use ```go\nfmt.Println()\n```\n",
+                uri = "file:///tmp/notes.md",
+            ),
+            resource,
+        )
     }
 
     @Test
@@ -223,7 +254,7 @@ class AcpSessionUpdateParserTest {
                 ),
             ) as AppSessionEvent.AgentMessage
 
-        assertEquals("iVBORw0K", event.image?.base64)
+        assertEquals("iVBORw0K", event.contentBlock.chatImage()?.base64)
         assertEquals("", event.text)
     }
 
@@ -236,6 +267,9 @@ class AcpSessionUpdateParserTest {
                 ),
             ) as AppSessionEvent.UserMessage
 
-        assertEquals(listOf("/tmp/attach/notes.md"), event.links.map { it.path })
+        assertEquals(
+            listOf("/tmp/attach/notes.md"),
+            event.contentBlocks.mapNotNull { it.chatResourceLink() }.map { it.path },
+        )
     }
 }

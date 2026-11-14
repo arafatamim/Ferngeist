@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import kotlinx.collections.immutable.persistentListOf
@@ -53,5 +54,5 @@ class ThoughtRunTest {
     private fun thought(
         id: String,
         text: String,
-    ) = AssistantSegment(id = id, kind = AssistantSegment.Kind.THOUGHT, text = text)
+    ) = AssistantSegment(id = id, kind = AssistantSegment.Kind.THOUGHT, contentBlock = ContentBlock.Text(text))
 }

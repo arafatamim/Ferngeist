@@ -132,10 +132,10 @@
     <string name="chat_commands_search_hint">search commands</string>
 
     <!-- Tool call renderer -->
-    <string name="chat_tool_output_image">Tool output image (%1$s)</string>
-    <string name="chat_failed_decode_image">Failed to decode image (%1$s)</string>
     <string name="chat_audio_content">Audio content (%1$s)</string>
-    <string name="chat_binary_resource">Binary resource (%1$s)</string>
+    <string name="chat_audio_play_desc">Play audio</string>
+    <string name="chat_audio_pause_desc">Pause audio</string>
+    <string name="chat_audio_failed">Could not play audio (%1$s)</string>
     <string name="chat_terminal_output">Terminal output (%1$s)</string>
 
     <!-- Snackbar messages -->

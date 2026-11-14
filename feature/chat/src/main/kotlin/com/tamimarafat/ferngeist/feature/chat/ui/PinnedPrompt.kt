@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.feature.chat.ui.message.cappedForDisplay
 import kotlinx.coroutines.launch
 

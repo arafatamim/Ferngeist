@@ -82,10 +82,10 @@
     <string name="chat_commands_no_results">No hay comandos coincidentes.</string>
     <string name="chat_commands_search_hint">buscar comandos</string>
 
-    <string name="chat_tool_output_image">Imagen de salida de la herramienta (%1$s)</string>
-    <string name="chat_failed_decode_image">No se pudo decodificar la imagen (%1$s)</string>
     <string name="chat_audio_content">Contenido de audio (%1$s)</string>
-    <string name="chat_binary_resource">Recurso binario (%1$s)</string>
+    <string name="chat_audio_play_desc">Reproducir audio</string>
+    <string name="chat_audio_pause_desc">Pausar audio</string>
+    <string name="chat_audio_failed">No se pudo reproducir el audio (%1$s)</string>
     <string name="chat_terminal_output">Salida de terminal (%1$s)</string>
 
     <string name="chat_cancel_not_supported">Este servidor no admite la cancelación</string>

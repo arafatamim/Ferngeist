@@ -7,7 +7,6 @@ import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.common.Event
 import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.ContentBlock
-import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.SessionConfigId
@@ -44,6 +43,7 @@ import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -317,7 +317,7 @@ internal class SessionGateway(
 
         // User message already added optimistically by onLocalPromptStarted; omitted here to
         // avoid duplication.
-        val blocks = promptBlocks(content, images, files)
+        val blocks = userContentBlocks(content, images, files)
 
         // session.prompt returns a cold flow; .collect is terminal and suspends
         // until the entire prompt turn completes (all updates + final response).
@@ -348,7 +348,7 @@ internal class SessionGateway(
         val client = connection.sdkClient ?: return SteerOutcome.NOT_CONSUMED
         connection.diagnosticsStore.appendRpcEntry(RpcDirection.OUTBOUND_REQUEST, STEERING_METHOD)
         return try {
-            val params = steeringParams(sessionId, promptBlocks(content, images, files))
+            val params = steeringParams(sessionId, userContentBlocks(content, images, files))
             parseSteerOutcome(client.protocol.sendRequestRaw(MethodName(STEERING_METHOD), params))
         } catch (e: CancellationException) {
             throw e
@@ -899,28 +899,6 @@ internal class SessionGateway(
         )
     }
 }
-
-private fun promptBlocks(
-    content: String,
-    images: List<ChatImageData>,
-    files: List<ChatFileData>,
-): List<ContentBlock> =
-    buildList {
-        if (content.isNotEmpty()) add(ContentBlock.Text(content))
-        images.forEach { add(ContentBlock.Image(data = it.base64, mimeType = it.mimeType)) }
-        files.forEach { file ->
-            add(
-                ContentBlock.Resource(
-                    resource =
-                        EmbeddedResourceResource.BlobResourceContents(
-                            blob = file.base64,
-                            uri = "file:///${file.name}",
-                            mimeType = file.mimeType,
-                        ),
-                ),
-            )
-        }
-    }
 
 /** Converts a Ferngeist [SessionConfigValue] to the SDK's wire format. */
 @OptIn(UnstableApi::class)

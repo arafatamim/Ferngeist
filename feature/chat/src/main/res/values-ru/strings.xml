@@ -87,10 +87,10 @@
     <string name="chat_commands_no_results">Команды не найдены.</string>
     <string name="chat_commands_search_hint">поиск команд</string>
 
-    <string name="chat_tool_output_image">Изображение (%1$s)</string>
-    <string name="chat_failed_decode_image">Ошибка декодирования (%1$s)</string>
     <string name="chat_audio_content">Аудио (%1$s)</string>
-    <string name="chat_binary_resource">Бинарный ресурс (%1$s)</string>
+    <string name="chat_audio_play_desc">Воспроизвести аудио</string>
+    <string name="chat_audio_pause_desc">Приостановить аудио</string>
+    <string name="chat_audio_failed">Не удалось воспроизвести аудио (%1$s)</string>
     <string name="chat_terminal_output">Вывод терминала (%1$s)</string>
 
     <string name="chat_cancel_not_supported">Отмена не поддерживается сервером</string>

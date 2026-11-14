@@ -1,10 +1,15 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
+import com.tamimarafat.ferngeist.core.model.resourceLink
+import com.tamimarafat.ferngeist.core.model.text
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
@@ -44,8 +49,8 @@ class SessionMessageReducerTest {
 
     @Test
     fun finishStreaming_nonStreamingMessages_surviveUnchangedAndInOrder() {
-        val userSegment = AssistantSegment(id = "seg_u", text = "user segment")
-        val assistantSegment = AssistantSegment(id = "seg_a", text = "assistant segment")
+        val userSegment = AssistantSegment(id = "seg_u", contentBlock = ContentBlock.Text("user segment"))
+        val assistantSegment = AssistantSegment(id = "seg_a", contentBlock = ContentBlock.Text("answer"))
         val messages =
             listOf(
                 userMessage(id = "user", content = "question", segments = persistentListOf(userSegment)),
@@ -55,7 +60,11 @@ class SessionMessageReducerTest {
                     segments = persistentListOf(assistantSegment),
                     isStreaming = true,
                 ),
-                ChatMessage(id = "system", role = ChatMessage.Role.SYSTEM, content = "note"),
+                ChatMessage(
+                    id = "system",
+                    role = ChatMessage.Role.SYSTEM,
+                    contentBlocks = listOf(ContentBlock.Text("note")),
+                ),
             )
 
         val result = SessionMessageReducer.finishStreaming(messages)
@@ -164,21 +173,33 @@ class SessionMessageReducerTest {
                 .handleEvent(
                     messages,
                     emptyMap(),
-                    AppSessionEvent.UserMessage(text = "one", append = true, messageId = "user_1"),
+                    AppSessionEvent.UserMessage(
+                        contentBlocks = userContentBlocks("one", emptyList(), emptyList()),
+                        append = true,
+                        messageId = "user_1",
+                    ),
                 ).messages
         messages =
             SessionMessageReducer
                 .handleEvent(
                     messages,
                     emptyMap(),
-                    AppSessionEvent.UserMessage(text = " two", append = true, messageId = "user_1"),
+                    AppSessionEvent.UserMessage(
+                        contentBlocks = userContentBlocks(" two", emptyList(), emptyList()),
+                        append = true,
+                        messageId = "user_1",
+                    ),
                 ).messages
         messages =
             SessionMessageReducer
                 .handleEvent(
                     messages,
                     emptyMap(),
-                    AppSessionEvent.UserMessage(text = "three", append = true, messageId = "user_2"),
+                    AppSessionEvent.UserMessage(
+                        contentBlocks = userContentBlocks("three", emptyList(), emptyList()),
+                        append = true,
+                        messageId = "user_2",
+                    ),
                 ).messages
 
         assertEquals(listOf("one two", "three"), messages.map { it.content })
@@ -227,7 +248,11 @@ class SessionMessageReducerTest {
         var index: Map<String, ToolCallLocation> = emptyMap()
         listOf("let me ", "look").forEach { chunk ->
             val appended =
-                SessionMessageReducer.handleEvent(messages, index, AppSessionEvent.AgentMessage(chunk))
+                SessionMessageReducer.handleEvent(
+                    messages,
+                    index,
+                    AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text(chunk)),
+                )
             messages = appended.messages
             index = appended.toolCallIndex
         }
@@ -340,28 +365,37 @@ class SessionMessageReducerTest {
     }
 
     /**
-     * `content` is left empty while streaming, so the echo-dedup guard must keep depending on
-     * `segments.isEmpty()`: a bubble that already carries agent output is not a placeholder and
+     * An assistant's derived text is no longer empty while streaming, but the echo-dedup guard
+     * still depends on `segments.isEmpty()`: a bubble carrying agent output is not a placeholder and
      * must not swallow the echoed user chunk.
      */
     @Test
     fun placeholderWithAgentSegments_isNotTreatedAsAnEchoTarget() {
         val withUser =
             SessionMessageReducer
-                .handleEvent(emptyList(), emptyMap(), AppSessionEvent.UserMessage("hello"))
-                .messages
+                .handleEvent(
+                    emptyList(),
+                    emptyMap(),
+                    AppSessionEvent.UserMessage(contentBlocks = userContentBlocks("hello", emptyList(), emptyList())),
+                ).messages
         val withPlaceholder = SessionMessageReducer.startStreaming(withUser)
         val withChunk =
             SessionMessageReducer
-                .handleEvent(withPlaceholder, emptyMap(), AppSessionEvent.AgentMessage("real answer"))
-                .messages
+                .handleEvent(
+                    withPlaceholder,
+                    emptyMap(),
+                    AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("real answer")),
+                ).messages
 
         val echoed =
             SessionMessageReducer
                 .handleEvent(
                     withChunk,
                     emptyMap(),
-                    AppSessionEvent.UserMessage(text = "hello", append = true),
+                    AppSessionEvent.UserMessage(
+                        contentBlocks = userContentBlocks("hello", emptyList(), emptyList()),
+                        append = true,
+                    ),
                 ).messages
 
         assertEquals("the echoed user chunk must be appended, not deduped away", 3, echoed.size)
@@ -376,8 +410,11 @@ class SessionMessageReducerTest {
         messageId: String? = null,
     ): List<ChatMessage> =
         SessionMessageReducer
-            .handleEvent(messages, emptyMap(), AppSessionEvent.AgentMessage(text, messageId = messageId))
-            .messages
+            .handleEvent(
+                messages,
+                emptyMap(),
+                AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text(text), messageId = messageId),
+            ).messages
 
     /** Threads one agent thought through the real reducer rather than reimplementing it here. */
     private fun appendThoughtChunk(
@@ -395,7 +432,7 @@ class SessionMessageReducerTest {
     ) = ChatMessage(
         id = id,
         role = ChatMessage.Role.USER,
-        content = content,
+        contentBlocks = listOf(ContentBlock.Text(content)),
         segments = segments,
     )
 
@@ -407,8 +444,14 @@ class SessionMessageReducerTest {
     ) = ChatMessage(
         id = id,
         role = ChatMessage.Role.ASSISTANT,
-        content = content,
-        segments = segments,
+        segments =
+            if (segments.isNotEmpty() || content.isEmpty()) {
+                segments
+            } else {
+                persistentListOf(
+                    AssistantSegment(contentBlock = ContentBlock.Text(content)),
+                )
+            },
         isStreaming = isStreaming,
     )
 
@@ -417,9 +460,11 @@ class SessionMessageReducerTest {
         val link = ChatResourceLink("/tmp/gallery/LICENSE", "LICENSE")
         var messages: List<ChatMessage> = emptyList()
         listOf(
-            AppSessionEvent.AgentMessage("**Odd names**"),
-            AppSessionEvent.AgentMessage("", link = link),
-            AppSessionEvent.AgentMessage("That is everything."),
+            AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("**Odd names**")),
+            AppSessionEvent.AgentMessage(
+                contentBlock = ContentBlock.ResourceLink("LICENSE", "file:///tmp/gallery/LICENSE"),
+            ),
+            AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("That is everything.")),
             AppSessionEvent.TurnComplete(stopReason = "end_turn"),
         ).forEach { messages = SessionMessageReducer.handleEvent(messages, emptyMap(), it).messages }
 

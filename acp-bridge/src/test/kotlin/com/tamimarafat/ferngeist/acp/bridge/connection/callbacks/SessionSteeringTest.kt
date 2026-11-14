@@ -7,6 +7,8 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionMessageReducer
 import com.tamimarafat.ferngeist.acp.bridge.session.UserContent
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -57,12 +59,18 @@ class SessionSteeringTest {
 
     @Test
     fun steeredPrompt_closesTheReplySoFarAndLandsBelowIt() {
-        val streaming = ChatMessage(id = "a", role = ChatMessage.Role.ASSISTANT, content = "", isStreaming = true)
+        val streaming =
+            ChatMessage(
+                id = "a",
+                role = ChatMessage.Role.ASSISTANT,
+                contentBlocks = listOf(ContentBlock.Text("")),
+                isStreaming = true,
+            )
 
         val messages =
             SessionMessageReducer.appendLocalUserMessage(
                 listOf(streaming),
-                UserContent("nudge", emptyList(), emptyList()),
+                UserContent(blocks = userContentBlocks("nudge", emptyList(), emptyList())),
                 steered = true,
             )
 

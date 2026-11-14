@@ -49,9 +49,9 @@ import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.IncrementalMarkdown
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.AGENT_TEXT_MAX_LINES
-import com.tamimarafat.ferngeist.feature.chat.ui.ContentBlockRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
 import com.tamimarafat.ferngeist.feature.chat.ui.TerminalRenderer
+import com.tamimarafat.ferngeist.feature.chat.ui.content.ContentBlockRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.gitFallbackDiffs

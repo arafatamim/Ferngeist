@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session.persist
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
@@ -12,6 +13,8 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.text
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -54,7 +57,7 @@ class SessionRuntimeRestoreTest {
 
             listOf(
                 AppSessionEvent.ToolCallUpdated("c1", ToolCallStatus.COMPLETED, null, null),
-                AppSessionEvent.AgentMessage("done"),
+                AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("done")),
                 AppSessionEvent.TurnComplete("end_turn", durationMs = 5_000L),
             ).forEach { event ->
                 original.onEvent(event)
@@ -76,7 +79,11 @@ class SessionRuntimeRestoreTest {
         runTest {
             val original = SessionRuntime(sessionId = "ses_test")
             original.onLocalPromptStarted("go", emptyList(), emptyList())
-            listOf("a", "b", "c").forEach { original.onEvent(AppSessionEvent.AgentMessage(it)) }
+            listOf(
+                "a",
+                "b",
+                "c",
+            ).forEach { original.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text(it))) }
 
             val restored = SessionRuntime(sessionId = "ses_test")
             restored.restore(original.savedState())

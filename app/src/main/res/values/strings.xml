@@ -26,8 +26,14 @@
     <string name="live_update_channel_description">Shows running agent turns while Ferngeist is in the background</string>
     <string name="live_update_step_title">%1$s · Step %2$d of %3$d</string>
     <string name="live_update_open">Open</string>
-    <string name="live_update_done">%1$d done</string>
-    <string name="live_update_errored">%1$d errored</string>
+    <plurals name="live_update_done">
+        <item quantity="one">%1$d done</item>
+        <item quantity="other">%1$d done</item>
+    </plurals>
+    <plurals name="live_update_errored">
+        <item quantity="one">%1$d errored</item>
+        <item quantity="other">%1$d errored</item>
+    </plurals>
     <string name="live_update_step_chip">%1$d/%2$d</string>
     <string name="live_update_working">Working</string>
     <plurals name="live_update_busy_chip">

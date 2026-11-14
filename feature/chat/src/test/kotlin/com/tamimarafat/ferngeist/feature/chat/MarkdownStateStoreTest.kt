@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import com.adamglin.compose.markdown.core.model.BlockNode
 import com.adamglin.compose.markdown.core.model.InlineNode
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatLoadState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -32,7 +33,7 @@ class MarkdownStateStoreTest {
                             AssistantSegment(
                                 id = "segment_1",
                                 kind = AssistantSegment.Kind.MESSAGE,
-                                text = "**hello**",
+                                contentBlock = ContentBlock.Text("**hello**"),
                             ),
                         ),
                 )
@@ -86,7 +87,7 @@ class MarkdownStateStoreTest {
             store.onSnapshot(listOf(message), ChatLoadState.HYDRATING)
             val grown =
                 store.onSnapshot(
-                    listOf(message.copy(content = "Hello world, more")),
+                    listOf(assistantMessage(id = "message_1", text = "Hello world, more")),
                     ChatLoadState.READY,
                 )
 
@@ -131,7 +132,9 @@ class MarkdownStateStoreTest {
         ChatMessage(
             id = id,
             role = ChatMessage.Role.ASSISTANT,
-            content = text,
-            segments = segments,
+            segments =
+                segments.ifEmpty {
+                    persistentListOf(AssistantSegment(id = id, contentBlock = ContentBlock.Text(text)))
+                },
         )
 }

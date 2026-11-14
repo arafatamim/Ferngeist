@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.pending
 
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import org.junit.Assert.assertEquals
@@ -10,7 +11,7 @@ class PendingEchoesTest {
         ChatMessage(
             id = clientId,
             role = ChatMessage.Role.USER,
-            content = "continue",
+            contentBlocks = listOf(ContentBlock.Text("continue")),
             status = MessageDeliveryStatus.SENDING,
             clientId = clientId,
         )
@@ -19,7 +20,13 @@ class PendingEchoesTest {
     fun `an echo delivers only the identical prompt it names`() {
         val first = sending("c1")
         val second = sending("c2")
-        val echo = ChatMessage(id = "echo", role = ChatMessage.Role.USER, content = "continue", clientId = "c2")
+        val echo =
+            ChatMessage(
+                id = "echo",
+                role = ChatMessage.Role.USER,
+                contentBlocks = listOf(ContentBlock.Text("continue")),
+                clientId = "c2",
+            )
 
         val (stillPending, delivered) = reconcileEchoes(listOf(first, second), listOf(echo))
 

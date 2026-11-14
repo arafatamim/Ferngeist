@@ -1,9 +1,13 @@
 package com.tamimarafat.ferngeist.core.model
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.model.content.chatFile
+import com.tamimarafat.ferngeist.core.model.content.chatImage
+import com.tamimarafat.ferngeist.core.model.content.chatResourceLink
 import com.tamimarafat.ferngeist.core.model.serialization.PersistentListSerializer
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
@@ -15,15 +19,11 @@ import java.util.UUID
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: Role = Role.USER,
-    val content: String = "",
+    val contentBlocks: List<ContentBlock> = emptyList(),
     @Serializable(with = PersistentListSerializer::class)
     val segments: PersistentList<AssistantSegment> = persistentListOf(),
     val isStreaming: Boolean = false,
     val isError: Boolean = false,
-    val images: List<ChatImageData> = emptyList(),
-    val files: List<ChatFileData> = emptyList(),
-    /** Host files a user prompt linked rather than inlined (ACP `resource_link`). */
-    val links: List<ChatResourceLink> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val status: MessageDeliveryStatus = MessageDeliveryStatus.SENT,
     val clientId: String? = null,
@@ -32,6 +32,8 @@ data class ChatMessage(
      * A local copy carries [clientId] too, so the id alone proves nothing.
      */
     val deliveryConfirmed: Boolean = false,
+    /** Delivery can be acknowledged before its echo begins, so echo ownership is tracked separately. */
+    val echoStarted: Boolean = false,
     /** When the turn this reply answers was sent and finished; on a reply once it closes. */
     val turn: TurnTiming? = null,
     /** ACP message id that identifies which streamed message this bubble belongs to. */
@@ -65,13 +67,9 @@ data class TurnKey(
 data class AssistantSegment(
     val id: String = UUID.randomUUID().toString(),
     val kind: Kind = Kind.MESSAGE,
-    val text: String = "",
+    val contentBlock: ContentBlock? = null,
     val toolCall: ToolCallDisplay? = null,
     val planEntries: List<PlanEntry>? = null,
-    /** The host file a [Kind.RESOURCE_LINK] segment points at. */
-    val resourceLink: ChatResourceLink? = null,
-    /** The picture an [Kind.IMAGE] segment carries. */
-    val image: ChatImageData? = null,
     /** `elapsedRealtime` the segment arrived at; null for hydrated history. */
     val receivedAtMs: Long? = null,
 ) {
@@ -81,7 +79,9 @@ data class AssistantSegment(
         TOOL_CALL,
         PLAN,
         RESOURCE_LINK,
-        IMAGE,
+
+        /** Any other block (image, audio, embedded resource, web link); its type picks the renderer. */
+        CONTENT,
     }
 }
 
@@ -132,3 +132,27 @@ data class ChatFileData(
     val mimeType: String,
     val sizeBytes: Long,
 )
+
+/** Plain text for copying and prompt matching; attachment payloads never enter this view. */
+val ChatMessage.content: String
+    get() =
+        if (role == ChatMessage.Role.ASSISTANT) {
+            segments.filter { it.kind == AssistantSegment.Kind.MESSAGE }.joinToString("") { it.text }
+        } else {
+            contentBlocks.filterIsInstance<ContentBlock.Text>().joinToString("") { it.text }
+        }
+
+val ChatMessage.images: List<ChatImageData>
+    get() = contentBlocks.mapNotNull { it.chatImage() }
+
+val ChatMessage.files: List<ChatFileData>
+    get() = contentBlocks.mapNotNull { it.chatFile() }
+
+val ChatMessage.links: List<ChatResourceLink>
+    get() = contentBlocks.mapNotNull { it.chatResourceLink() }
+
+val AssistantSegment.text: String
+    get() = (contentBlock as? ContentBlock.Text)?.text.orEmpty()
+
+val AssistantSegment.resourceLink: ChatResourceLink?
+    get() = contentBlock?.chatResourceLink()
