@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.feature.chat.ui
 
 import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolCallLocation
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.git.files.entryFor
@@ -18,6 +19,9 @@ import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
+import com.tamimarafat.ferngeist.feature.chat.ui.files.displayLabel
+import com.tamimarafat.ferngeist.feature.chat.ui.files.fileLocation
+import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithoutFile
 import kotlinx.collections.immutable.toPersistentList
@@ -161,7 +165,7 @@ class FileChangesTest {
                     ToolCallDisplay(
                         kind = ToolKind.EDIT,
                         status = ToolCallStatus.COMPLETED,
-                        locations = listOf("/repo/src/New.kt"),
+                        locations = listOf(ToolCallLocation(path = "/repo/src/New.kt", line = 8u)),
                     ),
             )
 
@@ -242,7 +246,12 @@ class FileChangesTest {
 
     @Test
     fun aFileCallsTitleGainsItsFileNameOnlyWhenItLeavesItOut() {
-        val bare = ToolCallDisplay(title = "Read", kind = ToolKind.READ, locations = listOf("/repo/src/A.kt"))
+        val bare =
+            ToolCallDisplay(
+                title = "Read",
+                kind = ToolKind.READ,
+                locations = listOf(ToolCallLocation(path = "/repo/src/A.kt", line = 4u)),
+            )
         val command =
             ToolCallDisplay(title = "ls", kind = ToolKind.EXECUTE, rawInput = buildJsonObject { put("path", "/repo") })
 
@@ -253,7 +262,12 @@ class FileChangesTest {
 
     @Test
     fun aFileCallsTitleLosesItsFileForTheChipToShow() {
-        val call = ToolCallDisplay(title = "Read src/A.kt", kind = ToolKind.READ, locations = listOf("/repo/src/A.kt"))
+        val call =
+            ToolCallDisplay(
+                title = "Read src/A.kt",
+                kind = ToolKind.READ,
+                locations = listOf(ToolCallLocation(path = "/repo/src/A.kt", line = 4u)),
+            )
 
         assertEquals("Read", call.titleWithoutFile())
         assertEquals("Read", call.copy(title = "Read").titleWithoutFile())
@@ -303,7 +317,7 @@ class FileChangesTest {
         val opened = turn.toolCallForSelection(file.selectionId(), newestTree = emptyList())
 
         assertEquals(file.diffs, opened?.content)
-        assertEquals(listOf("a.kt"), opened?.locations)
+        assertEquals(listOf(ToolCallLocation(path = "a.kt")), opened?.locations)
     }
 
     @Test
@@ -349,6 +363,29 @@ class FileChangesTest {
         val earlier = turnSegmentsOf(newest).fileChanges().first()
         val tree = listOf(ChatChangedFile(path = "a.kt", status = "M", added = 1, removed = 1))
         assertEquals(emptyList<ToolCallContent>(), newest.toolCallForSelection(earlier.selectionId(), tree)?.content)
+    }
+
+    @Test
+    fun aLocationShowsItsLineOnlyWhenTheAgentGivesOne() {
+        assertEquals("src/A.kt:12", ToolCallLocation(path = "src/A.kt", line = 12u).displayLabel())
+        assertEquals("src/A.kt", ToolCallLocation(path = "src/A.kt").displayLabel())
+    }
+
+    @Test
+    fun aFilesLocationKeepsTheMatchingAcpLine() {
+        val call =
+            ToolCallDisplay(
+                kind = ToolKind.READ,
+                rawInput = buildJsonObject { put("path", "src/A.kt") },
+                locations =
+                    listOf(
+                        ToolCallLocation(path = "src/B.kt", line = 3u),
+                        ToolCallLocation(path = "src/A.kt", line = 42u),
+                    ),
+            )
+
+        assertEquals(ToolCallLocation(path = "src/A.kt", line = 42u), call.fileLocation())
+        assertEquals("src/A.kt", call.filePath())
     }
 
     private fun turnSegmentsOf(turn: List<ChatMessage>) = turn.turnSegmentsByCloser().values.single()

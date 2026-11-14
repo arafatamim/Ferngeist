@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolCallLocation
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.time.Elapsed
@@ -135,7 +136,7 @@ internal fun List<ChatMessage>.toolCallForSelection(
         kind = ToolKind.EDIT,
         status = call.status,
         content = if (tree.statsFor(path) != null) emptyList() else file.diffs,
-        locations = listOf(path),
+        locations = listOf(ToolCallLocation(path = path)),
     )
 }
 

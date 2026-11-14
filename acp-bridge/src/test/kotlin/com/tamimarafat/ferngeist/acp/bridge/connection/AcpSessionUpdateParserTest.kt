@@ -7,6 +7,8 @@ import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.MessageId
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.ToolCallId
+import com.agentclientprotocol.model.ToolCallLocation
+import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.text
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
@@ -162,6 +164,46 @@ class AcpSessionUpdateParserTest {
         val file = event.contentBlocks.mapNotNull { it.chatFile() }.single()
         assertEquals("empty.txt", file.name)
         assertEquals(0L, file.sizeBytes)
+    }
+
+    @Test
+    fun `tool call locations keep paths and lines`() {
+        val locations =
+            listOf(
+                ToolCallLocation(path = "/repo/src/A.kt", line = 7u),
+                ToolCallLocation(path = "/repo/src/B.kt"),
+            )
+        val update =
+            SessionUpdate.ToolCall(
+                toolCallId = ToolCallId("tool_123"),
+                title = "Read",
+                kind = ToolKind.READ,
+                status = com.agentclientprotocol.model.ToolCallStatus.IN_PROGRESS,
+                locations = locations,
+            )
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.ToolCallStarted
+
+        assertEquals(locations, event.locations)
+    }
+
+    @Test
+    fun `tool call update locations keep paths and lines`() {
+        val locations =
+            listOf(
+                ToolCallLocation(path = "/repo/src/A.kt", line = 11u),
+                ToolCallLocation(path = "/repo/src/B.kt"),
+            )
+        val update =
+            SessionUpdate.ToolCallUpdate(
+                toolCallId = ToolCallId("tool_123"),
+                status = com.agentclientprotocol.model.ToolCallStatus.COMPLETED,
+                locations = locations,
+            )
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.ToolCallUpdated
+
+        assertEquals(locations, event.locations)
     }
 
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =

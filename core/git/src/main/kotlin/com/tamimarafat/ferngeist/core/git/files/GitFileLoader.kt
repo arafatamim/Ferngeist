@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 /** The file sheet's file: [path] as the transcript named it. */
 data class FileView(
     val path: String,
+    /** The 1-based ACP location line to reveal once the text loads; null leaves the reader at the top. */
+    val line: Int? = null,
     val isLoading: Boolean = true,
     val text: String? = null,
     /** Lines (0-based) added or changed since `HEAD`. */
@@ -58,6 +60,7 @@ class GitFileLoader(
         commit: String? = null,
         compare: String? = null,
         oldPath: String? = null,
+        line: Int? = null,
     ) {
         job?.cancel()
         val relative = path.relativeTo(cwd)
@@ -65,7 +68,8 @@ class GitFileLoader(
             job = null
             update(
                 FileView(
-                    path,
+                    path = path,
+                    line = line,
                     isLoading = false,
                     commit = commit,
                     compare = compare,
@@ -74,7 +78,7 @@ class GitFileLoader(
             )
             return
         }
-        update(FileView(path, commit = commit, compare = compare))
+        update(FileView(path = path, line = line, commit = commit, compare = compare))
         job =
             scope.launch {
                 val result = runCatching { read(relative, commit, compare, oldPath) }
@@ -83,8 +87,9 @@ class GitFileLoader(
                 val file =
                     result.fold(
                         onSuccess = { view ->
-                            view?.copy(path = path) ?: FileView(
-                                path,
+                            view?.copy(path = path, line = line) ?: FileView(
+                                path = path,
+                                line = line,
                                 isLoading = false,
                                 commit = commit,
                                 compare = compare,
@@ -94,7 +99,14 @@ class GitFileLoader(
                         onFailure = { error ->
                             if (error is CancellationException) return@launch
                             val message = error.message?.takeIf { it.isNotBlank() } ?: "Failed to load $path"
-                            FileView(path, isLoading = false, commit = commit, compare = compare, error = message)
+                            FileView(
+                                path = path,
+                                line = line,
+                                isLoading = false,
+                                commit = commit,
+                                compare = compare,
+                                error = message,
+                            )
                         },
                     )
                 update(file)

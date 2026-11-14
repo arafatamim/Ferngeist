@@ -229,13 +229,13 @@ private fun rememberOpenFile(
     viewModel: ChatViewModel,
     hasWorkspace: Boolean,
     fileCandidates: MutableState<List<String>?>,
-): ((List<String>) -> Unit)? =
+): ((List<String>, Int?) -> Unit)? =
     remember(viewModel, hasWorkspace) {
         if (hasWorkspace) {
-            { candidates ->
+            { candidates, line ->
                 val only = candidates.singleOrNull()
                 if (only != null) {
-                    viewModel.dispatch(ChatIntent.OpenFile(only))
+                    viewModel.dispatch(ChatIntent.OpenFile(only, line = line))
                 } else {
                     fileCandidates.value = candidates
                 }
