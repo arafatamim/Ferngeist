@@ -5,11 +5,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +67,7 @@ internal fun ParagraphAttachments(
 
 /**
  * The host paths a message links explicitly have their own cards; paragraph mentions keep theirs.
+ * Without an artifact host the links still show as inert chips rather than disappearing.
  * [animate] fades each card in as it arrives.
  */
 @Composable
@@ -71,7 +75,20 @@ internal fun ResourceLinkCards(
     links: List<ChatResourceLink>,
     animate: Boolean,
 ) {
-    val host = localArtifactHost.current ?: return
+    val host = localArtifactHost.current
+    if (host == null) {
+        // No host to read the file from: the link still shows, as the single-link renderer does.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            links.forEach { link ->
+                AssistChip(
+                    enabled = false,
+                    onClick = {},
+                    label = { Text(link.name.ifBlank { link.path }) },
+                )
+            }
+        }
+        return
+    }
     val cards = remember(links) { links.map { CardSpec(it.path, it.name, it.size) } }
     CardRow(cards, host, animate)
 }

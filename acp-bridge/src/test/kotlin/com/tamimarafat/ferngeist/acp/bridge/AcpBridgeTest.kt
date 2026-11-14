@@ -3,6 +3,7 @@ package com.tamimarafat.ferngeist.acp.bridge
 import app.cash.turbine.test
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.AgentCapabilities
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.McpCapabilities
 import com.agentclientprotocol.model.PromptCapabilities
 import com.agentclientprotocol.model.SessionCapabilities
@@ -26,6 +27,7 @@ import com.tamimarafat.ferngeist.acp.bridge.facade.mapCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.facade.userFacingSendError
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
+import com.tamimarafat.ferngeist.acp.bridge.session.text
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -71,7 +73,7 @@ class SessionBridgeTest {
             val bridge = SessionBridge("test_session", null)
 
             bridge.modelSelectionEvents.test {
-                bridge.emitEvent(AppSessionEvent.AgentMessage("hello"))
+                bridge.emitEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("hello")))
                 bridge.emitEvent(AppSessionEvent.TurnComplete("end_turn"))
                 expectNoEvents()
                 cancelAndIgnoreRemainingEvents()
@@ -82,7 +84,13 @@ class SessionBridgeTest {
     fun `SessionBridge should not replay the whole session history to a late collector`() =
         runTest {
             val bridge = SessionBridge("test_session", null)
-            repeat(50) { index -> bridge.emitEvent(AppSessionEvent.AgentMessage("chunk $index")) }
+            repeat(
+                50,
+            ) { index ->
+                bridge.emitEvent(
+                    AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("chunk $index")),
+                )
+            }
 
             val replayed =
                 bridge.events.replayCache.map { (it as AppSessionEvent.AgentMessage).text }

@@ -21,10 +21,8 @@ internal object AcpSessionUpdateMapper {
             is SessionUpdate.UserMessageChunk -> mapUserMessageChunk(update)
             is SessionUpdate.AgentMessageChunk ->
                 AppSessionEvent.AgentMessage(
-                    text = extractReplyText(update.content),
+                    contentBlock = normalizeContent(update.content),
                     messageId = update.messageId?.value,
-                    link = extractLink(update.content),
-                    image = extractImage(update.content),
                 )
             is SessionUpdate.AgentThoughtChunk ->
                 AppSessionEvent.AgentThought(text = extractText(update.content))
@@ -61,18 +59,13 @@ internal object AcpSessionUpdateMapper {
         )
 
     @OptIn(UnstableApi::class)
-    private fun mapUserMessageChunk(update: SessionUpdate.UserMessageChunk): AppSessionEvent {
-        val inlined = splitEmbeddedContexts(extractText(update.content))
-        return AppSessionEvent.UserMessage(
-            text = inlined.text,
-            images = listOfNotNull(extractImage(update.content)),
-            files = listOfNotNull(extractFiles(update.content)) + inlined.files,
-            links = listOfNotNull(extractLink(update.content)),
+    private fun mapUserMessageChunk(update: SessionUpdate.UserMessageChunk): AppSessionEvent =
+        AppSessionEvent.UserMessage(
+            contentBlocks = userContent(update.content),
             append = true,
             messageId = update.messageId?.value,
             clientId = promptClientId(update),
         )
-    }
 
     @OptIn(UnstableApi::class)
     private fun mapToolCall(update: SessionUpdate.ToolCall): AppSessionEvent =

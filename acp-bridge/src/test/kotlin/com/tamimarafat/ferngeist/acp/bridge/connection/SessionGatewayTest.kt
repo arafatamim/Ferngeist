@@ -37,7 +37,9 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionConfigValue
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
+import com.tamimarafat.ferngeist.acp.bridge.session.text
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.content
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -383,7 +385,7 @@ class SessionGatewayTest {
             val gateway = newGateway()
             val bridge = installBridge(gateway, "s1")
             // Chunks of a turn sent before the reconnect: the reply that would end it went to the old socket.
-            bridge.emitEvent(AppSessionEvent.AgentMessage("still going"))
+            bridge.emitEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("still going")))
             assertTrue(bridge.snapshot.value.isStreaming)
 
             gateway.endRemoteTurn("s1", "end_turn", null)
@@ -410,8 +412,8 @@ class SessionGatewayTest {
             )
 
             // The buffered session/update frames arrive as ordinary events...
-            bridge.emitEvent(AppSessionEvent.AgentMessage("first"))
-            bridge.emitEvent(AppSessionEvent.AgentMessage("second"))
+            bridge.emitEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("first")))
+            bridge.emitEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("second")))
             // ...and the session/load response commits the replay: `completeHydration`
             // swaps the buffered state in, then `TurnEndUnheard` settles the reply
             // (folds the chunk segments and derives their flat content), exactly as

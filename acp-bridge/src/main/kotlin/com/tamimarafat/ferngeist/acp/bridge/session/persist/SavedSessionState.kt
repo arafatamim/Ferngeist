@@ -19,7 +19,7 @@ import kotlinx.serialization.json.Json
  * Bump when [SavedSessionState]'s shape or a field's meaning changes incompatibly: the version is
  * part of the state file's name, so an older file is never read and costs only a full load.
  */
-internal const val SAVED_STATE_FORMAT_VERSION = 3
+internal const val SAVED_STATE_FORMAT_VERSION = 4
 
 /**
  * The saved chat state's file format, so a chat draws at once after process death. Every

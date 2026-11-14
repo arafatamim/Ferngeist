@@ -76,7 +76,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
@@ -99,12 +98,10 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.localInlineChips
 import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
-import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachments
-import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachmentItem
-import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
+import com.tamimarafat.ferngeist.feature.chat.ui.content.ContentBlockRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
 import com.tamimarafat.ferngeist.feature.chat.ui.message.StreamingIndicator
-import com.tamimarafat.ferngeist.feature.chat.ui.message.cappedForDisplay
+import com.tamimarafat.ferngeist.feature.chat.ui.message.UserContentBlocks
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.coroutines.delay
 
@@ -346,29 +343,12 @@ private fun UserMessageContent(
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.Bottom) {
         Column(modifier = Modifier.weight(1f, fill = false)) {
-            if (message.content.isNotBlank()) {
-                QuoteSelectionContainer {
-                    Text(
-                        text = message.content.cappedForDisplay(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = textColor,
-                        maxLines = maxLines,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (message.images.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ImageAttachments(message.images, onImageClick = onImageClick)
-            }
-            if (message.files.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                FileAttachments(message.files)
-            }
-            if (message.links.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                ResourceLinkCards(message.links, animate = false)
-            }
+            UserContentBlocks(
+                blocks = message.contentBlocks,
+                textColor = textColor,
+                maxLines = maxLines,
+                onImageClick = onImageClick,
+            )
         }
         // Trailing status for non-SENT delivery states.
         AnimatedVisibility(
@@ -537,10 +517,6 @@ private fun AssistantMessageContent(
             }
         }
 
-        if (message.segments.isEmpty() && message.content.isNotBlank()) {
-            RenderedMarkdown(text = message.content, document = markdownDocuments[message.id])
-        }
-
         TurnFooter(
             message = message,
             reveals = reveals,
@@ -649,8 +625,8 @@ private fun assistantBlock(
         is SegmentBlock.Single -> {
             when (block.segment.kind) {
                 AssistantSegment.Kind.PLAN -> PlanBubble(block.segment.planEntries.orEmpty())
-                AssistantSegment.Kind.IMAGE ->
-                    block.segment.image?.let { ImageAttachmentItem(image = it, onClick = { onImageClick(it) }) }
+                AssistantSegment.Kind.CONTENT ->
+                    block.segment.contentBlock?.let { ContentBlockRenderer(it, onImageClick) }
                 else -> Unit
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -701,7 +677,7 @@ private fun ColumnScope.TurnFooter(
     onToolCallClick: (String) -> Unit,
 ) {
     if (showStreamingIndicator) {
-        val empty = message.segments.isEmpty() && message.content.isBlank()
+        val empty = message.segments.isEmpty()
         // Fade only: the live bubble's height spring already carries the size change.
         AnimatedVisibility(
             visible = empty || rememberTurnWaiting(message, reveals),

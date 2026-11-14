@@ -105,12 +105,7 @@ internal class MarkdownStateStore {
 
     /** The non-blank markdown runs of [this] message, keyed as [collectRequiredEntries] keys them. */
     private fun ChatMessage.parsedRuns(): List<Pair<String, String>> =
-        when {
-            segments.isNotEmpty() ->
-                segments.messageRuns().filter { it.text.isNotBlank() }.map { it.key to it.text }
-            content.isNotBlank() -> listOf(id to content)
-            else -> emptyList()
-        }
+        segments.messageRuns().filter { it.text.isNotBlank() }.map { it.key to it.text }
 }
 
 /** One markdown document's engine and the text it has already been fed: a run here, the reasoning sheet's thought. */

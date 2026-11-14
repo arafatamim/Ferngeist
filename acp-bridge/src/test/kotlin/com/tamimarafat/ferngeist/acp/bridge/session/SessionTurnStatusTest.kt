@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
@@ -122,7 +123,7 @@ class SessionTurnStatusTest {
         runTest {
             val runtime = runtime()
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-            runtime.onEvent(AppSessionEvent.AgentMessage("done"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("done")))
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
 
             assertEquals(TurnStatus.FINISHED, runtime.status())

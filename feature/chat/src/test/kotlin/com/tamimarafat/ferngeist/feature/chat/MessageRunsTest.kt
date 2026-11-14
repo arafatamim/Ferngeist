@@ -1,8 +1,10 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
+import com.tamimarafat.ferngeist.core.model.content.contentBlock
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -150,7 +152,25 @@ class MessageRunsTest {
         id: String,
         kind: AssistantSegment.Kind,
         text: String,
-    ) = AssistantSegment(id = id, kind = kind, text = text)
+    ) = AssistantSegment(id = id, kind = kind, contentBlock = ContentBlock.Text(text))
+
+    @Test
+    fun adjacentMediaStaysBetweenTheTextRunsItSeparates() {
+        val audio = ContentBlock.Audio(data = "YXVkaW8=", mimeType = "audio/wav")
+        val resource = ContentBlock.ResourceLink(name = "spec", uri = "https://example.com/spec")
+        val segments =
+            listOf(
+                segment("before", AssistantSegment.Kind.MESSAGE, "before"),
+                AssistantSegment(id = "audio", kind = AssistantSegment.Kind.CONTENT, contentBlock = audio),
+                AssistantSegment(id = "resource", kind = AssistantSegment.Kind.CONTENT, contentBlock = resource),
+                segment("after", AssistantSegment.Kind.MESSAGE, "after"),
+            )
+
+        val blocks = segments.displayBlocks()
+
+        assertEquals(listOf("before", "audio", "resource", "after"), blocks.map { it.key })
+        assertEquals(listOf("before", "after"), segments.messageRuns().map { it.text })
+    }
 
     @Test
     fun adjacentLinksFormOneRowAndImagesStandAlone() {
@@ -158,7 +178,7 @@ class MessageRunsTest {
             AssistantSegment(
                 id = id,
                 kind = AssistantSegment.Kind.RESOURCE_LINK,
-                resourceLink = ChatResourceLink("/$id", id),
+                contentBlock = ChatResourceLink("/$id", id).contentBlock(),
             )
         val image = ChatImageData(base64 = "AA==", mimeType = "image/png")
         val segments =
@@ -166,8 +186,16 @@ class MessageRunsTest {
                 segment("m0", AssistantSegment.Kind.MESSAGE, "**Documents**"),
                 link("a.pdf"),
                 link("b.csv"),
-                AssistantSegment(id = "i0", kind = AssistantSegment.Kind.IMAGE, image = image),
-                AssistantSegment(id = "i1", kind = AssistantSegment.Kind.IMAGE, image = image),
+                AssistantSegment(
+                    id = "i0",
+                    kind = AssistantSegment.Kind.CONTENT,
+                    contentBlock = ContentBlock.Image(data = image.base64, mimeType = image.mimeType),
+                ),
+                AssistantSegment(
+                    id = "i1",
+                    kind = AssistantSegment.Kind.CONTENT,
+                    contentBlock = ContentBlock.Image(data = image.base64, mimeType = image.mimeType),
+                ),
             )
 
         val blocks = segments.displayBlocks()

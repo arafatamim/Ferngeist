@@ -11,6 +11,7 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.content
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay

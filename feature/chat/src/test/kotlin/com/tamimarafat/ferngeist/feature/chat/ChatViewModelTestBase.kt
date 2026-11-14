@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.lifecycle.SavedStateHandle
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.acp.bridge.facade.HubChatPresence
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatRegistration
@@ -16,6 +17,7 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnKey
 import com.tamimarafat.ferngeist.core.model.TurnTiming
+import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.core.model.repository.ChatCatalog
 import com.tamimarafat.ferngeist.core.model.repository.ChatListings
 import com.tamimarafat.ferngeist.core.model.repository.LaunchableTargetRepository
@@ -235,7 +237,7 @@ internal fun echoMessage(
     ChatMessage(
         id = id,
         role = ChatMessage.Role.USER,
-        content = content,
+        contentBlocks = listOf(ContentBlock.Text(content)),
         status = MessageDeliveryStatus.SENT,
         clientId = clientId,
     )

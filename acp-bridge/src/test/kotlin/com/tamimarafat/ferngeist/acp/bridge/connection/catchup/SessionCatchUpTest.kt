@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection.catchup
 
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.acp.bridge.connection.FailingSendTransport
 import com.tamimarafat.ferngeist.acp.bridge.connection.ScriptedTransport
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
@@ -17,6 +18,8 @@ import com.tamimarafat.ferngeist.acp.bridge.session.persist.savedState
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.text
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -55,7 +58,7 @@ class SessionCatchUpTest {
         val runtime = SessionRuntime(sessionId = "s1")
         runtime.catchUpFrom("e1")
         runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-        runtime.onEvent(AppSessionEvent.AgentMessage("hel"), updateSeq = 4)
+        runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("hel")), updateSeq = 4)
         return SessionRuntime(sessionId = "s1").apply { restore(runtime.savedState()) }
     }
 

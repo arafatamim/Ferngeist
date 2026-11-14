@@ -8,6 +8,11 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnTiming
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
+import com.tamimarafat.ferngeist.core.model.files
+import com.tamimarafat.ferngeist.core.model.images
+import com.tamimarafat.ferngeist.core.model.text
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,14 +24,14 @@ class SessionRuntimeTest {
     fun a_skipped_update_number_confirms_the_prompt_the_gateway_numbered_there() =
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test")
-            runtime.onEvent(AppSessionEvent.AgentMessage("earlier"), updateSeq = 1)
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("earlier")), updateSeq = 1)
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"), updateSeq = 2)
             runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "p1")
 
-            runtime.onEvent(AppSessionEvent.AgentMessage("first"), updateSeq = 3)
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("first")), updateSeq = 3)
             assertFalse(runtime.prompt("p1").deliveryConfirmed)
             // The gateway numbered the echo 4 but sends it only in a catch-up.
-            runtime.onEvent(AppSessionEvent.AgentMessage("reply"), updateSeq = 5)
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("reply")), updateSeq = 5)
             assertTrue(runtime.prompt("p1").deliveryConfirmed)
         }
 
@@ -38,7 +43,12 @@ class SessionRuntimeTest {
             var now = 0L
             val runtime = SessionRuntime(sessionId = "ses_test", clock = { now }, wallClock = { 9_000L })
             runtime.beginHydration()
-            runtime.onEvent(AppSessionEvent.UserMessage("old", append = true))
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    contentBlocks = userContentBlocks("old", emptyList(), emptyList()),
+                    append = true,
+                ),
+            )
             runtime.onEvent(AppSessionEvent.AgentThought("replayed"))
             runtime.completeHydration()
 
@@ -66,9 +76,11 @@ class SessionRuntimeTest {
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test", wallClock = { 9_000L })
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-            runtime.onEvent(AppSessionEvent.AgentMessage("reading", messageId = "m1"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("reading"), messageId = "m1"))
             runtime.onEvent(AppSessionEvent.ToolCallStarted("c1", "ls", ToolKind.EXECUTE, ToolCallStatus.COMPLETED))
-            runtime.onEvent(AppSessionEvent.AgentMessage("found it", messageId = "m2"))
+            runtime.onEvent(
+                AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("found it"), messageId = "m2"),
+            )
 
             val (first, second) = runtime.replies()
             assertFalse("a message superseded by a new id must stop streaming", first.isStreaming)
@@ -90,7 +102,7 @@ class SessionRuntimeTest {
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test", wallClock = { Long.MAX_VALUE })
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-            runtime.onEvent(AppSessionEvent.AgentMessage("done"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("done")))
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn", durationMs = 120_000L))
 
             val messages = runtime.snapshot.value.messages
@@ -103,7 +115,7 @@ class SessionRuntimeTest {
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test", wallClock = { 9_000L })
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-            runtime.onEvent(AppSessionEvent.AgentMessage("partial"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("partial")))
             // session/resume replays nothing and closes the open reply on TurnEndUnheard.
             runtime.onEvent(AppSessionEvent.TurnEndUnheard)
 
@@ -121,11 +133,11 @@ class SessionRuntimeTest {
             runtime.beginHydration()
             runtime.completeHydration()
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
-            runtime.onEvent(AppSessionEvent.AgentMessage("stopped here."))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("stopped here.")))
             runtime.onLocalCancel()
 
-            runtime.onEvent(AppSessionEvent.AgentMessage("Late"))
-            runtime.onEvent(AppSessionEvent.AgentMessage(" tail"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("Late")))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text(" tail")))
 
             val replies =
                 runtime.snapshot.value.messages
@@ -147,8 +159,18 @@ class SessionRuntimeTest {
                     .isEmpty(),
             )
 
-            runtime.onEvent(AppSessionEvent.UserMessage(text = "he", append = true))
-            runtime.onEvent(AppSessionEvent.UserMessage(text = "y", append = true))
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    contentBlocks = userContentBlocks("he", emptyList(), emptyList()),
+                    append = true,
+                ),
+            )
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    contentBlocks = userContentBlocks("y", emptyList(), emptyList()),
+                    append = true,
+                ),
+            )
 
             // No partial transcript should leak before hydration completes.
             assertTrue(
@@ -176,7 +198,7 @@ class SessionRuntimeTest {
                     for (i in 0 until 1200) {
                         val chunk = "[$i]"
                         append(chunk)
-                        runtime.onEvent(AppSessionEvent.AgentMessage(chunk))
+                        runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text(chunk)))
                     }
                 }
 
@@ -200,7 +222,7 @@ class SessionRuntimeTest {
             val runtime = SessionRuntime(sessionId = "ses_test")
             runtime.beginHydration()
 
-            runtime.onEvent(AppSessionEvent.AgentMessage("hello"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("hello")))
             runtime.onEvent(
                 AppSessionEvent.ToolCallStarted(
                     toolCallId = "tool_1",
@@ -209,7 +231,7 @@ class SessionRuntimeTest {
                     status = ToolCallStatus.IN_PROGRESS,
                 ),
             )
-            runtime.onEvent(AppSessionEvent.AgentMessage(" world"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text(" world")))
             runtime.onEvent(
                 AppSessionEvent.ToolCallUpdated(
                     toolCallId = "tool_1",
@@ -250,10 +272,15 @@ class SessionRuntimeTest {
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test")
             runtime.beginHydration()
-            runtime.onEvent(AppSessionEvent.UserMessage(text = "hey", append = true))
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    contentBlocks = userContentBlocks("hey", emptyList(), emptyList()),
+                    append = true,
+                ),
+            )
             runtime.completeHydration()
 
-            runtime.onEvent(AppSessionEvent.AgentMessage("hello there"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("hello there")))
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
 
             val snapshot = runtime.snapshot.value
@@ -306,7 +333,12 @@ class SessionRuntimeTest {
             // Agents emit `usage_update` only at end of turn, so a reconnect/load replay
             // carries no usage: the last known reading must survive it.
             runtime.beginHydration()
-            runtime.onEvent(AppSessionEvent.UserMessage(text = "hey", append = true))
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    contentBlocks = userContentBlocks("hey", emptyList(), emptyList()),
+                    append = true,
+                ),
+            )
             runtime.completeHydration()
 
             val snapshot = runtime.snapshot.value
@@ -319,7 +351,7 @@ class SessionRuntimeTest {
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test")
             runtime.beginHydration()
-            runtime.onEvent(AppSessionEvent.AgentMessage("partial"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("partial")))
 
             runtime.failHydration("load failed")
 
@@ -500,14 +532,13 @@ class SessionRuntimeTest {
             // Simulate chunked restore: text chunk first, then image chunk
             runtime.onEvent(
                 AppSessionEvent.UserMessage(
-                    text = "Describe this image:",
+                    contentBlocks = userContentBlocks("Describe this image:", emptyList(), emptyList()),
                     append = true,
                 ),
             )
             runtime.onEvent(
                 AppSessionEvent.UserMessage(
-                    text = "",
-                    images = listOf(sampleImage),
+                    contentBlocks = userContentBlocks("", listOf(sampleImage), emptyList()),
                     append = true,
                 ),
             )
@@ -528,9 +559,17 @@ class SessionRuntimeTest {
 
     @Test
     fun resend_of_a_saved_prompt_keeps_its_single_bubble() {
-        val prompt = UserContent("once", emptyList(), emptyList(), clientId = "c-1")
+        val prompt = UserContent(blocks = userContentBlocks("once", emptyList(), emptyList()), clientId = "c-1")
         val saved = SessionMessageReducer.appendLocalUserMessage(emptyList(), prompt)
-        val reply = saved + ChatMessage(role = ChatMessage.Role.ASSISTANT, content = "done")
+        val reply =
+            saved +
+                ChatMessage(
+                    role = ChatMessage.Role.ASSISTANT,
+                    segments =
+                        kotlinx.collections.immutable.persistentListOf(
+                            AssistantSegment(contentBlock = ContentBlock.Text("done")),
+                        ),
+                )
 
         val resent = SessionMessageReducer.appendLocalUserMessage(reply, prompt)
 
@@ -551,7 +590,7 @@ class SessionRuntimeTest {
         var messages =
             SessionMessageReducer.appendLocalUserMessage(
                 emptyList(),
-                UserContent("hello", listOf(sampleImage), emptyList()),
+                UserContent(blocks = userContentBlocks("hello", listOf(sampleImage), emptyList())),
             )
         assertEquals(1, messages.size)
         assertEquals("hello", messages[0].content)
@@ -567,7 +606,10 @@ class SessionRuntimeTest {
             SessionMessageReducer.handleEvent(
                 messages,
                 emptyMap(),
-                AppSessionEvent.UserMessage(text = "hello", append = true),
+                AppSessionEvent.UserMessage(
+                    contentBlocks = userContentBlocks("hello", emptyList(), emptyList()),
+                    append = true,
+                ),
             )
         assertEquals(2, afterTextEcho.messages.size)
         assertTrue(afterTextEcho.messages[1].isStreaming)
@@ -579,8 +621,7 @@ class SessionRuntimeTest {
                 afterTextEcho.messages,
                 afterTextEcho.toolCallIndex,
                 AppSessionEvent.UserMessage(
-                    text = "",
-                    images = listOf(sampleImage),
+                    contentBlocks = userContentBlocks("", listOf(sampleImage), emptyList()),
                     append = true,
                 ),
             )
@@ -612,7 +653,7 @@ class SessionRuntimeTest {
         var messages =
             SessionMessageReducer.appendLocalUserMessage(
                 emptyList(),
-                UserContent("see attached", emptyList(), listOf(sampleFile)),
+                UserContent(blocks = userContentBlocks("see attached", emptyList(), listOf(sampleFile))),
             )
         assertEquals(1, messages.size)
         assertEquals(1, messages[0].files.size)
@@ -626,8 +667,7 @@ class SessionRuntimeTest {
                 messages,
                 emptyMap(),
                 AppSessionEvent.UserMessage(
-                    text = "",
-                    files = listOf(sampleFile),
+                    contentBlocks = userContentBlocks("", emptyList(), listOf(sampleFile)),
                     append = true,
                 ),
             )
@@ -650,8 +690,13 @@ class SessionRuntimeTest {
         runTest {
             val runtime = SessionRuntime(sessionId = "ses_test")
 
-            runtime.onEvent(AppSessionEvent.UserMessage(text = "hey", append = true))
-            runtime.onEvent(AppSessionEvent.AgentMessage("hello"))
+            runtime.onEvent(
+                AppSessionEvent.UserMessage(
+                    contentBlocks = userContentBlocks("hey", emptyList(), emptyList()),
+                    append = true,
+                ),
+            )
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("hello")))
 
             val midTurn = runtime.snapshot.value
             assertTrue(midTurn.isStreaming)
@@ -671,7 +716,7 @@ class SessionRuntimeTest {
             )
 
             // A second turn on the same runtime must settle exactly the same way.
-            runtime.onEvent(AppSessionEvent.AgentMessage(" again"))
+            runtime.onEvent(AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text(" again")))
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))
 
             val afterSecondTurn = runtime.snapshot.value

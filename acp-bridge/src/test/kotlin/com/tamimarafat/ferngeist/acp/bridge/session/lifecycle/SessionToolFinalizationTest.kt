@@ -4,6 +4,7 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -43,11 +44,21 @@ class SessionToolFinalizationTest {
             for ((running, expected) in cases) {
                 val runtime = SessionRuntime(sessionId = "ses_test")
                 runtime.beginHydration()
-                runtime.onEvent(AppSessionEvent.UserMessage("old", append = true))
+                runtime.onEvent(
+                    AppSessionEvent.UserMessage(
+                        contentBlocks = userContentBlocks("old", emptyList(), emptyList()),
+                        append = true,
+                    ),
+                )
                 runtime.onEvent(
                     AppSessionEvent.ToolCallStarted("c1", "read", ToolKind.READ, ToolCallStatus.IN_PROGRESS),
                 )
-                runtime.onEvent(AppSessionEvent.UserMessage("new", append = true))
+                runtime.onEvent(
+                    AppSessionEvent.UserMessage(
+                        contentBlocks = userContentBlocks("new", emptyList(), emptyList()),
+                        append = true,
+                    ),
+                )
                 runtime.onEvent(
                     AppSessionEvent.ToolCallStarted("c2", "read", ToolKind.READ, ToolCallStatus.IN_PROGRESS),
                 )

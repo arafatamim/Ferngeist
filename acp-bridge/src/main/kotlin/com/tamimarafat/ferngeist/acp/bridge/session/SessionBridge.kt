@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import android.os.SystemClock
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
@@ -8,7 +9,6 @@ import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -282,10 +282,7 @@ sealed interface AppSessionEvent {
     }
 
     data class UserMessage(
-        val text: String,
-        val images: List<ChatImageData> = emptyList(),
-        val files: List<ChatFileData> = emptyList(),
-        val links: List<ChatResourceLink> = emptyList(),
+        val contentBlocks: List<ContentBlock>,
         val append: Boolean = false,
         val timestampMs: Long? = null,
         val messageId: String? = null,
@@ -293,13 +290,11 @@ sealed interface AppSessionEvent {
         val clientId: String? = null,
     ) : AppSessionEvent
 
-    /** One reply chunk: its [text], or the host file it links or the picture it shows instead. */
+    /** One reply chunk, preserved without flattening attachments into prose. */
     data class AgentMessage(
-        val text: String,
+        val contentBlock: ContentBlock,
         val timestampMs: Long? = null,
         val messageId: String? = null,
-        val link: ChatResourceLink? = null,
-        val image: ChatImageData? = null,
     ) : AppSessionEvent
 
     data class AgentThought(
@@ -445,3 +440,9 @@ data class SessionPermissionOption(
     val label: String,
     val kind: String? = null,
 )
+
+internal val AppSessionEvent.UserMessage.text: String
+    get() = contentBlocks.filterIsInstance<ContentBlock.Text>().joinToString("") { it.text }
+
+internal val AppSessionEvent.AgentMessage.text: String
+    get() = (contentBlock as? ContentBlock.Text)?.text.orEmpty()

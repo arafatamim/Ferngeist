@@ -1,27 +1,27 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.text
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toPersistentList
 
 /**
- * True when turn close must rewrite [message]: it is still streaming, its flat `content` view
- * has not been derived yet, or its reply or reasoning chunks still stand as one segment each
- * and need folding into one segment per run (see [mergedTextRuns]).
+ * True when turn close must clear streaming state or fold adjacent reply/reasoning chunks into
+ * one segment per run (see [mergedTextRuns]).
  */
 internal fun ChatMessage.needsTurnCloseRewrite(): Boolean =
     isStreaming ||
         (
             role == ChatMessage.Role.ASSISTANT &&
-                (needsDerivedContent() || segments.hasAdjacentTextRuns())
+                segments.hasAdjacentTextRuns()
         )
 
 /**
  * Settles a bubble for rendering: clears the streaming flag, folds adjacent MESSAGE (and THOUGHT)
- * segments into one markdown document per run, and derives the flat `content` view when it is still
- * empty. The fold does not change that view - it is the join of every MESSAGE segment's text in
- * order - so an already-derived `content` is carried through untouched.
+ * segments into one markdown document per run. The derived plain-text view remains unchanged
+ * because the fold concatenates only adjacent blocks of the same text kind.
  */
 internal fun ChatMessage.closedByTurnClose(): ChatMessage {
     if (role != ChatMessage.Role.ASSISTANT) return copy(isStreaming = false)
@@ -29,7 +29,6 @@ internal fun ChatMessage.closedByTurnClose(): ChatMessage {
     return copy(
         isStreaming = false,
         segments = merged,
-        content = if (content.isEmpty()) derivedContent(merged) else content,
     )
 }
 
@@ -39,6 +38,7 @@ internal fun ChatMessage.closedByTurnClose(): ChatMessage {
  * stable - the absorbed trailing ids simply drop out. (The cached markdown entry is still re-parsed:
  * its text no longer matches the first chunk's.) A run never crosses another kind, so a THOUGHT
  * between two reply runs leaves those runs separate; tool calls and plans keep their place.
+ * Different block annotations or metadata are also boundaries, so folding cannot discard them.
  *
  * Linear in the run length: one StringBuilder per run, rather than one `text +` per segment
  * (which would be O(n^2) inside the run - the very cost the per-chunk shape avoids).
@@ -50,38 +50,33 @@ internal fun mergedTextRuns(segments: PersistentList<AssistantSegment>): Persist
     while (index < segments.size) {
         val segment = segments[index]
         index++
-        if (segment.kind !in textKinds) {
+        val block = segment.contentBlock
+        if (segment.kind !in textKinds || block !is ContentBlock.Text) {
             merged.add(segment)
             continue
         }
         val runText = StringBuilder(segment.text)
-        while (index < segments.size && segments[index].kind == segment.kind) {
+        while (index < segments.size && segment.canFoldWith(segments[index])) {
             runText.append(segments[index].text)
             index++
         }
-        merged.add(segment.copy(text = runText.toString()))
+        merged.add(segment.copy(contentBlock = block.copy(text = runText.toString())))
     }
     return merged.toPersistentList()
 }
 
 private val textKinds = setOf(AssistantSegment.Kind.MESSAGE, AssistantSegment.Kind.THOUGHT)
 
-/** True when two MESSAGE or two THOUGHT segments sit next to each other - the shape a chunked
- * stream leaves behind, and the only shape [mergedTextRuns] has to rewrite. */
+/** True when adjacent text segments share their kind and metadata, so folding preserves their meaning. */
 internal fun List<AssistantSegment>.hasAdjacentTextRuns(): Boolean =
-    (1 until size).any { index -> this[index].kind in textKinds && this[index].kind == this[index - 1].kind }
+    (1 until size).any { index -> this[index - 1].canFoldWith(this[index]) }
 
-/** Flat text view of the MESSAGE segments, in the order the agent emitted them. */
-internal fun derivedContent(segments: List<AssistantSegment>): String =
-    segments
-        .filter { it.kind == AssistantSegment.Kind.MESSAGE }
-        .joinToString("") { it.text }
-
-/** True when [this] is an assistant bubble whose flat `content` has not been derived yet.
- * Requires a MESSAGE segment specifically: a tool-call- or thought-only bubble derives
- * an empty string, so treating it as pending would make this never settle and re-derive
- * the whole list on every turn close. */
-internal fun ChatMessage.needsDerivedContent(): Boolean =
-    role == ChatMessage.Role.ASSISTANT &&
-        content.isEmpty() &&
-        segments.any { it.kind == AssistantSegment.Kind.MESSAGE }
+private fun AssistantSegment.canFoldWith(other: AssistantSegment): Boolean {
+    val block = contentBlock as? ContentBlock.Text
+    val next = other.contentBlock as? ContentBlock.Text
+    return kind in textKinds &&
+        kind == other.kind &&
+        block != null &&
+        next != null &&
+        block.copy(text = "") == next.copy(text = "")
+}

@@ -2,11 +2,14 @@ package com.tamimarafat.ferngeist.feature.chat
 
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import com.agentclientprotocol.model.ContentBlock
+import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
 import com.tamimarafat.ferngeist.core.model.SessionSummary
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -592,7 +595,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         ChatMessage(
             id = id,
             role = ChatMessage.Role.ASSISTANT,
-            content = "hello",
+            segments = persistentListOf(AssistantSegment(contentBlock = ContentBlock.Text("hello"))),
             isStreaming = isStreaming,
         )
 
@@ -600,7 +603,7 @@ class ChatViewModelTest : ChatViewModelTestBase() {
         ChatMessage(
             id = "user_1",
             role = ChatMessage.Role.USER,
-            content = content,
+            contentBlocks = listOf(ContentBlock.Text(content)),
         )
 
     // endregion

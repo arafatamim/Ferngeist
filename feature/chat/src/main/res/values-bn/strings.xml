@@ -82,10 +82,10 @@
     <string name="chat_commands_no_results">মিলছে এমন কোনো কমান্ড নেই।</string>
     <string name="chat_commands_search_hint">কমান্ড অনুসন্ধান করুন</string>
 
-    <string name="chat_tool_output_image">টুল আউটপুট ছবি (%1$s)</string>
-    <string name="chat_failed_decode_image">ছবি ডিকোড করা যায়নি (%1$s)</string>
     <string name="chat_audio_content">অডিও বিষয়বস্তু (%1$s)</string>
-    <string name="chat_binary_resource">বাইনারি রিসোর্স (%1$s)</string>
+    <string name="chat_audio_play_desc">অডিও চালান</string>
+    <string name="chat_audio_pause_desc">অডিও বিরতি দিন</string>
+    <string name="chat_audio_failed">অডিও চালানো যায়নি (%1$s)</string>
     <string name="chat_terminal_output">টার্মিনাল আউটপুট (%1$s)</string>
 
     <string name="chat_cancel_not_supported">এই সার্ভার বাতিল সমর্থন করে না</string>

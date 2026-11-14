@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.state
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.PlanEntry
 import com.agentclientprotocol.model.PlanEntryPriority
 import com.agentclientprotocol.model.PlanEntryStatus
@@ -11,6 +12,9 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionMessageReducer
 import com.tamimarafat.ferngeist.acp.bridge.session.ToolCallLocation
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.text
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -169,7 +173,7 @@ class SessionMessageReducerTest {
                 ChatMessage(
                     role = ChatMessage.Role.ASSISTANT,
                     isStreaming = true,
-                    content = "partial",
+                    segments = persistentListOf(AssistantSegment(contentBlock = ContentBlock.Text("partial"))),
                 ),
             )
 
@@ -177,7 +181,7 @@ class SessionMessageReducerTest {
             apply(
                 leaked,
                 emptyMap(),
-                AppSessionEvent.UserMessage("next prompt"),
+                AppSessionEvent.UserMessage(contentBlocks = listOf(ContentBlock.Text("next prompt"))),
             )
 
         assertFalse(updated.first().isStreaming)
@@ -191,7 +195,7 @@ class SessionMessageReducerTest {
             apply(
                 emptyList(),
                 emptyMap(),
-                AppSessionEvent.UserMessage("hello"),
+                AppSessionEvent.UserMessage(contentBlocks = listOf(ContentBlock.Text("hello"))),
             )
         val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
@@ -199,7 +203,7 @@ class SessionMessageReducerTest {
             apply(
                 withAssistantPlaceholder,
                 emptyMap(),
-                AppSessionEvent.UserMessage(text = "hello", append = true),
+                AppSessionEvent.UserMessage(contentBlocks = listOf(ContentBlock.Text("hello")), append = true),
             )
 
         val userMessageCount = updated.count { it.role == ChatMessage.Role.USER }
@@ -213,13 +217,13 @@ class SessionMessageReducerTest {
             apply(
                 emptyList(),
                 emptyMap(),
-                AppSessionEvent.AgentMessage("how"),
+                AppSessionEvent.AgentMessage(ContentBlock.Text("how")),
             )
         val (chunk2, _) =
             apply(
                 chunk1,
                 emptyMap(),
-                AppSessionEvent.AgentMessage(" are"),
+                AppSessionEvent.AgentMessage(ContentBlock.Text(" are")),
             )
         val (completed, _) =
             apply(
@@ -231,7 +235,7 @@ class SessionMessageReducerTest {
             apply(
                 completed,
                 emptyMap(),
-                AppSessionEvent.AgentMessage(" you?"),
+                AppSessionEvent.AgentMessage(ContentBlock.Text(" you?")),
             )
         // The flat `content` is derived when a turn closes, so close the turn before asserting it.
         val (finished, _) =
@@ -251,7 +255,7 @@ class SessionMessageReducerTest {
             apply(
                 emptyList(),
                 emptyMap(),
-                AppSessionEvent.AgentMessage("hello"),
+                AppSessionEvent.AgentMessage(ContentBlock.Text("hello")),
             )
         val (withTool, _) =
             apply(
@@ -268,7 +272,7 @@ class SessionMessageReducerTest {
             apply(
                 withTool,
                 emptyMap(),
-                AppSessionEvent.AgentMessage(" world"),
+                AppSessionEvent.AgentMessage(ContentBlock.Text(" world")),
             )
 
         val segments = second.last().segments
@@ -307,7 +311,7 @@ class SessionMessageReducerTest {
             apply(
                 emptyList(),
                 emptyMap(),
-                AppSessionEvent.UserMessage("hello"),
+                AppSessionEvent.UserMessage(contentBlocks = listOf(ContentBlock.Text("hello"))),
             )
         val withAssistantPlaceholder = SessionMessageReducer.startStreaming(withUser)
 
@@ -315,7 +319,7 @@ class SessionMessageReducerTest {
             apply(
                 withAssistantPlaceholder,
                 emptyMap(),
-                AppSessionEvent.UserMessage(text = "hello", append = false),
+                AppSessionEvent.UserMessage(contentBlocks = listOf(ContentBlock.Text("hello")), append = false),
             )
 
         val userMessageCount = updated.count { it.role == ChatMessage.Role.USER }
@@ -355,7 +359,7 @@ class SessionMessageReducerTest {
         val (firstTurn, idx) = apply(emptyList(), emptyMap(), started("t1", title = "Edit old.kt"))
         val messages =
             listOf(
-                AppSessionEvent.UserMessage("next prompt"),
+                AppSessionEvent.UserMessage(contentBlocks = listOf(ContentBlock.Text("next prompt"))),
                 started("t1", title = "Edit new.kt"),
                 AppSessionEvent.ToolCallUpdated("t1", ToolCallStatus.COMPLETED, title = null, kind = null),
             ).fold(SessionMessageReducer.finishStreaming(firstTurn) to idx) { (m, i), event -> apply(m, i, event) }

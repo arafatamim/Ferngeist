@@ -7,6 +7,10 @@ import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
 import com.tamimarafat.ferngeist.core.model.QueuedPromptRecord
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.content
+import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
+import com.tamimarafat.ferngeist.core.model.files
+import com.tamimarafat.ferngeist.core.model.images
 import com.tamimarafat.ferngeist.feature.chat.ChatSessionCoordinator
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
@@ -147,9 +151,7 @@ internal class ChatOfflineQueueController(
             ChatMessage(
                 id = clientId,
                 role = ChatMessage.Role.USER,
-                content = text,
-                images = images,
-                files = files,
+                contentBlocks = userContentBlocks(text, images, files),
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -198,9 +200,7 @@ internal class ChatOfflineQueueController(
             ChatMessage(
                 id = clientId,
                 role = ChatMessage.Role.USER,
-                content = text,
-                images = images,
-                files = files,
+                contentBlocks = userContentBlocks(text, images, files),
                 status = MessageDeliveryStatus.QUEUED,
                 clientId = clientId,
             )
@@ -417,7 +417,7 @@ private fun List<ChatMessage>.foldedInto(
 ): List<ChatMessage> =
     mapNotNull {
         when (it.clientId) {
-            merged.clientId -> it.copy(content = merged.text, images = merged.images, files = merged.files)
+            merged.clientId -> it.copy(contentBlocks = userContentBlocks(merged.text, merged.images, merged.files))
             in folded -> null
             else -> it
         }
@@ -435,9 +435,7 @@ private fun PendingPrompt.bubble(status: MessageDeliveryStatus) =
     ChatMessage(
         id = clientId,
         role = ChatMessage.Role.USER,
-        content = text,
-        images = images,
-        files = files,
+        contentBlocks = userContentBlocks(text, images, files),
         status = status,
         clientId = clientId,
     )

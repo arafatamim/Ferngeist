@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
@@ -14,6 +15,7 @@ import com.tamimarafat.ferngeist.core.model.ChatChangedFile
 import com.tamimarafat.ferngeist.core.model.ChatGitStatus
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
+import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
@@ -327,7 +329,8 @@ class FileChangesTest {
     @Test
     fun aTurnSplitAcrossMessagesShowsOneFooterWithEveryBubblesEdits() {
         val turn = listOf(reply(edit("c0", "a.kt")), reply(edit("c1", "b.kt")))
-        val messages = listOf(ChatMessage(role = ChatMessage.Role.USER, content = "go")) + turn
+        val messages =
+            listOf(ChatMessage(role = ChatMessage.Role.USER, contentBlocks = listOf(ContentBlock.Text("go")))) + turn
 
         val footers = messages.turnSegmentsByCloser()
 

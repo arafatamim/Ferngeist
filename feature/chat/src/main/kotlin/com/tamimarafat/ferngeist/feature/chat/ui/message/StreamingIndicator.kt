@@ -25,8 +25,6 @@ import com.tamimarafat.ferngeist.core.common.ui.motion.WorkingEllipsis
 import com.tamimarafat.ferngeist.core.common.ui.status.rememberSpinnerVerb
 import com.tamimarafat.ferngeist.feature.chat.ui.LOADING_POLYGON_COUNT
 import com.tamimarafat.ferngeist.feature.chat.ui.loadingShapes
-import com.tamimarafat.ferngeist.feature.chat.ui.message.FileAttachments
-import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
 import kotlin.random.Random
 

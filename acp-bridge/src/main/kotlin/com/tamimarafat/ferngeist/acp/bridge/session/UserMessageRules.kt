@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.content
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toPersistentList
 
@@ -11,13 +12,9 @@ internal fun appendUserText(
     timestampMs: Long?,
 ): List<ChatMessage> {
     if (content.text.isEmpty() && !content.hasAttachments) return received
-    // Only the gateway tags an echo with its prompt's id, and only once it delivered that prompt.
-    val messages = received.confirmingDelivery(content.clientId)
-    // A catch-up replays the prompts the gateway numbered, including ones this transcript already
-    // holds (sent, then saved before the gateway's number reached it). Only the echo still being
-    // assembled - the last message - takes more chunks.
-    val delivered = content.clientId?.let { id -> messages.indexOfLast { it.clientId == id } } ?: -1
-    if (delivered >= 0 && delivered != messages.lastIndex) return messages
+    // Numbered echoes identify their optimistic prompt even while a reply placeholder follows it.
+    applyPromptEcho(received, content)?.let { return it }
+    val messages = received
     val mutableMessages = messages.mutableCopy()
     val lastMessage = mutableMessages.lastOrNull()
 
@@ -46,17 +43,46 @@ internal fun appendUserText(
     mutableMessages.add(
         ChatMessage(
             role = ChatMessage.Role.USER,
-            content = content.text,
-            images = content.images,
-            files = content.files,
-            links = content.links,
+            contentBlocks = content.blocks,
             createdAt = timestampMs ?: System.currentTimeMillis(),
             messageId = content.messageId,
             clientId = content.clientId,
             deliveryConfirmed = content.clientId != null,
+            echoStarted = true,
         ),
     )
     return mutableMessages.build()
+}
+
+/** The first echo replaces optimistic content; later chunks append without value-based deduplication. */
+private fun applyPromptEcho(
+    received: List<ChatMessage>,
+    content: UserContent,
+): List<ChatMessage>? {
+    val clientId = content.clientId
+    val index = received.indexOfLast { clientId != null && it.clientId == clientId }
+    if (index < 0) return null
+    val last = received.last()
+    val followedByPlaceholder =
+        index == received.lastIndex - 1 &&
+            last.role == ChatMessage.Role.ASSISTANT &&
+            last.isStreaming &&
+            last.segments.isEmpty()
+    if (index != received.lastIndex && !followedByPlaceholder) return received.confirmingDelivery(clientId)
+    val prompt = received[index]
+    if (content.messageId != null && prompt.messageId != null && content.messageId != prompt.messageId) return null
+    val blocks = if (prompt.echoStarted) prompt.contentBlocks + content.blocks else content.blocks
+    return received
+        .mutableCopy()
+        .apply {
+            this[index] =
+                prompt.copy(
+                    contentBlocks = blocks,
+                    messageId = prompt.messageId ?: content.messageId,
+                    deliveryConfirmed = true,
+                    echoStarted = true,
+                )
+        }.build()
 }
 
 private fun List<ChatMessage>.startsNewMessage(messageId: String?): Boolean {
@@ -92,9 +118,8 @@ internal fun deduplicateOrMergeUserMessage(
     append: Boolean,
 ): List<ChatMessage>? {
     if (append && lastMessage?.role == ChatMessage.Role.USER && lastMessage.clientId == content.clientId) {
-        // Exact-match dedup when the last message is already a USER bubble.
-        // Image chunks arrive as separate UserMessageChunks with empty text — merge
-        // images even when the text is empty or unchanged. Another prompt's echo never merges.
+        // A continued user bubble owns all its streamed chunks, including repeated text.
+        // Another prompt's echo never merges; the first numbered local echo was handled above.
         return mergeIntoUserBubble(mutableMessages, lastMessage, content)
     }
     // append=false: local optimistic insertion (or redundant source) — dedup against the
@@ -108,22 +133,17 @@ internal fun deduplicateOrMergeUserMessage(
 
 /**
  * Returns the merged message list when [lastMessage] is a USER bubble, or null when the
- * chunk should be appended as a new message. Merges when content/images/files/links differ,
- * and returns the unchanged list on an exact duplicate.
+ * chunk should be appended as a new message. Every chunk contributes its ordered blocks;
+ * matching prompt text is not proof of a duplicate (repeated text is valid streamed content).
  */
 internal fun mergeIntoUserBubble(
     mutableMessages: MutableList<ChatMessage>,
     lastMessage: ChatMessage,
     content: UserContent,
 ): List<ChatMessage> {
-    val dedup = lastMessage.content == content.text && !content.hasAttachments
-    if (dedup) return mutableMessages
     mutableMessages[mutableMessages.lastIndex] =
         lastMessage.copy(
-            content = lastMessage.content + content.text,
-            images = lastMessage.images + content.images,
-            files = lastMessage.files + content.files,
-            links = lastMessage.links + content.links,
+            contentBlocks = lastMessage.contentBlocks + content.blocks,
         )
     return mutableMessages
 }
