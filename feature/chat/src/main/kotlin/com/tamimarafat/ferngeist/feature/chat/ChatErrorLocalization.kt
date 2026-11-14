@@ -46,6 +46,8 @@ private val chatErrorResources: Map<String, Int> =
             to R.string.chat_session_error_no_load,
         "This agent does not advertise image prompt support."
             to R.string.chat_session_error_no_image,
+        "This agent does not advertise audio prompt support."
+            to R.string.chat_session_error_no_audio,
         "This agent does not advertise file attachment support."
             to R.string.chat_session_error_no_file,
         "Session is not ready. Please retry in a moment."

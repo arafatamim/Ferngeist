@@ -20,4 +20,6 @@ data class QueuedPromptRecord(
     val images: List<ChatImageData> = emptyList(),
     val files: List<ChatFileData> = emptyList(),
     val dispatched: Boolean = false,
+    val audios: List<ChatAudioData> = emptyList(),
+    val resourceLinks: List<ChatPromptResourceLink> = emptyList(),
 )

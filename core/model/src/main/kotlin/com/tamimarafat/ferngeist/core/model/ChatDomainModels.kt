@@ -169,6 +169,8 @@ data class ChatAgentCapabilities(
     val supportsHistoryReplay: Boolean = true,
     /** True when a prompt can be steered into a running turn instead of waiting for it. */
     val supportsSteering: Boolean = false,
+    /** True when the agent accepts inline ACP audio content in prompts. */
+    val canSendAudio: Boolean = false,
 )
 
 /** What the agent did with a steered prompt. */
@@ -538,6 +540,20 @@ interface ChatSessionInteraction {
         clientId: String,
     ): Boolean
 
+    /**
+     * Sends a prompt carrying every ACP content attachment. Implementations that predate audio
+     * and resource links only need the four-argument overload.
+     */
+    @Suppress("LongParameterList")
+    suspend fun sendMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String,
+        audios: List<ChatAudioData>,
+        resourceLinks: List<ChatPromptResourceLink>,
+    ): Boolean = sendMessage(text, images, files, clientId)
+
     /** Requests a streaming cancel from the transport. */
     suspend fun cancelStreaming()
 
@@ -548,6 +564,17 @@ interface ChatSessionInteraction {
         files: List<ChatFileData>,
         clientId: String,
     ): SteerOutcome = SteerOutcome.NOT_CONSUMED
+
+    /** Steers [text] plus ordered audio and resource-link attachments when the transport supports it. */
+    @Suppress("LongParameterList")
+    suspend fun steerMessage(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String,
+        audios: List<ChatAudioData>,
+        resourceLinks: List<ChatPromptResourceLink>,
+    ): SteerOutcome = steerMessage(text, images, files, clientId)
 
     /** Updates a session configuration option (mode, model, native config, etc.). */
     suspend fun setConfigOption(

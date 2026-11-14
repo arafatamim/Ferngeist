@@ -21,7 +21,9 @@ internal fun rememberSendHandlers(
         val hasContent =
             mutations.messageText.text.isNotBlank() ||
                 mutations.selectedImages.value.isNotEmpty() ||
-                mutations.selectedFiles.value.isNotEmpty()
+                mutations.selectedFiles.value.isNotEmpty() ||
+                mutations.selectedAudios.value.isNotEmpty() ||
+                mutations.selectedResourceLinks.value.isNotEmpty()
         if (hasContent) {
             confirmOrSend(viewModel, mutations) {
                 viewModel.dispatch(
@@ -29,12 +31,16 @@ internal fun rememberSendHandlers(
                         text = mutations.messageText.text.toString(),
                         images = mutations.selectedImages.value,
                         files = mutations.selectedFiles.value,
+                        audios = mutations.selectedAudios.value,
+                        resourceLinks = mutations.selectedResourceLinks.value,
                     ),
                 )
                 scrollHandle.onSendMessage()
                 mutations.messageText.clearText()
                 mutations.selectedImages.value = emptyList()
                 mutations.selectedFiles.value = emptyList()
+                mutations.selectedAudios.value = emptyList()
+                mutations.selectedResourceLinks.value = emptyList()
                 mutations.composerExpanded.value = false
                 focusManager.clearFocus()
             }

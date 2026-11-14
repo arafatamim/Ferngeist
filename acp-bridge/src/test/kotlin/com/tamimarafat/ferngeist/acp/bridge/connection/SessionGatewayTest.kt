@@ -9,6 +9,7 @@ import com.agentclientprotocol.common.Event
 import com.agentclientprotocol.common.SessionCreationParameters
 import com.agentclientprotocol.model.CloseSessionResponse
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ModelId
 import com.agentclientprotocol.model.ModelInfo
 import com.agentclientprotocol.model.PermissionOption
@@ -38,7 +39,10 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionLoadState
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.acp.bridge.session.completeHydration
 import com.tamimarafat.ferngeist.acp.bridge.session.text
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
+import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.content
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -83,6 +87,9 @@ class SessionGatewayTest {
     ) : ClientSession {
         private var turnIndex = 0
 
+        /** Exact content blocks the gateway put on the wire for each prompt. */
+        val promptContents = mutableListOf<List<ContentBlock>>()
+
         /** Completed as soon as [cancel] is entered, so a test can order against the RPC. */
         val cancelStarted = CompletableDeferred<Unit>()
 
@@ -97,6 +104,7 @@ class SessionGatewayTest {
             content: List<ContentBlock>,
             _meta: JsonElement?,
         ): Flow<Event> {
+            promptContents += content
             val turn = turns[turnIndex.coerceAtMost(turns.lastIndex)]
             turnIndex++
             return turn
@@ -434,6 +442,60 @@ class SessionGatewayTest {
                 listOf("firstsecond"),
                 bridge.snapshot.value.messages
                     .map { it.content },
+            )
+        }
+
+    @Test
+    fun `a prompt puts audio embedded text and resource links on the wire`() =
+        runTest {
+            val gateway = newGateway()
+            val session = FakeClientSession(listOf(responseTurn()))
+            installSession(gateway, "s1", session)
+
+            gateway.sendSessionMessage(
+                sessionId = "s1",
+                content = "hello",
+                audios =
+                    listOf(
+                        ChatAudioData(base64 = "YXVkaW8=", mimeType = "audio/wav", name = "voice.wav", sizeBytes = 5),
+                    ),
+                files =
+                    listOf(
+                        ChatFileData(
+                            name = "notes.txt",
+                            base64 = "aGVsbG8=",
+                            mimeType = "text/plain",
+                            sizeBytes = 5,
+                        ),
+                    ),
+                resourceLinks =
+                    listOf(
+                        ChatPromptResourceLink(
+                            name = "main.kt",
+                            uri = "file:///workspace/main.kt",
+                            mimeType = "text/x-kotlin",
+                        ),
+                    ),
+            )
+
+            assertEquals(
+                listOf(
+                    ContentBlock.Text("hello"),
+                    ContentBlock.Audio(data = "YXVkaW8=", mimeType = "audio/wav"),
+                    ContentBlock.Resource(
+                        EmbeddedResourceResource.TextResourceContents(
+                            text = "hello",
+                            uri = "file:///notes.txt",
+                            mimeType = "text/plain",
+                        ),
+                    ),
+                    ContentBlock.ResourceLink(
+                        name = "main.kt",
+                        uri = "file:///workspace/main.kt",
+                        mimeType = "text/x-kotlin",
+                    ),
+                ),
+                session.promptContents.single(),
             )
         }
 

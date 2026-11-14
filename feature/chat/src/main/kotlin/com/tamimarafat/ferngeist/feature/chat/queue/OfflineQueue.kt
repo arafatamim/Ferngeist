@@ -1,7 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat.queue
 
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 
 /**
  * A pending prompt that has been enqueued for delivery.
@@ -18,6 +20,8 @@ data class PendingPrompt(
     val files: List<ChatFileData> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val dispatched: Boolean = false,
+    val audios: List<ChatAudioData> = emptyList(),
+    val resourceLinks: List<ChatPromptResourceLink> = emptyList(),
 )
 
 /**
@@ -69,6 +73,8 @@ class OfflineQueue {
                 text = batch.map { it.text }.filter { it.isNotBlank() }.joinToString("\n\n"),
                 images = batch.flatMap { it.images },
                 files = batch.flatMap { it.files },
+                audios = batch.flatMap { it.audios },
+                resourceLinks = batch.flatMap { it.resourceLinks },
             )
         prompts.add(start, folded)
         return folded to (batch.mapTo(HashSet()) { it.clientId } - clientId)

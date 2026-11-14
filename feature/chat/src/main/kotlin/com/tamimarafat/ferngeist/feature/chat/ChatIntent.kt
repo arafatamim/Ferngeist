@@ -1,10 +1,12 @@
 package com.tamimarafat.ferngeist.feature.chat
 
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatGitRef
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 
 /** User intents emitted from the chat UI. */
 sealed interface ChatIntent {
@@ -12,6 +14,8 @@ sealed interface ChatIntent {
         val text: String,
         val images: List<ChatImageData> = emptyList(),
         val files: List<ChatFileData> = emptyList(),
+        val audios: List<ChatAudioData> = emptyList(),
+        val resourceLinks: List<ChatPromptResourceLink> = emptyList(),
     ) : ChatIntent
 
     data object CancelStreaming : ChatIntent

@@ -6,8 +6,10 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallLocation
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
+import com.tamimarafat.ferngeist.core.model.content.chatAudio
 import com.tamimarafat.ferngeist.core.model.content.chatFile
 import com.tamimarafat.ferngeist.core.model.content.chatImage
+import com.tamimarafat.ferngeist.core.model.content.chatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.content.chatResourceLink
 import com.tamimarafat.ferngeist.core.model.serialization.PersistentListSerializer
 import kotlinx.collections.immutable.PersistentList
@@ -134,6 +136,28 @@ data class ChatFileData(
     val sizeBytes: Long,
 )
 
+/** One audio prompt attachment, carried inline as ACP audio content. */
+@Serializable
+data class ChatAudioData(
+    val base64: String,
+    val mimeType: String,
+    val name: String = "audio",
+    val sizeBytes: Long = 0L,
+)
+
+/**
+ * A host resource the user names in a prompt. Unlike an embedded file, the agent is only told
+ * where to find it; resource links need no prompt capability.
+ */
+@Serializable
+data class ChatPromptResourceLink(
+    val name: String,
+    val uri: String,
+    val mimeType: String? = null,
+    val description: String? = null,
+    val size: Long? = null,
+)
+
 /** Plain text for copying and prompt matching; attachment payloads never enter this view. */
 val ChatMessage.content: String
     get() =
@@ -149,8 +173,15 @@ val ChatMessage.images: List<ChatImageData>
 val ChatMessage.files: List<ChatFileData>
     get() = contentBlocks.mapNotNull { it.chatFile() }
 
+val ChatMessage.audios: List<ChatAudioData>
+    get() = contentBlocks.mapNotNull { it.chatAudio() }
+
 val ChatMessage.links: List<ChatResourceLink>
     get() = contentBlocks.mapNotNull { it.chatResourceLink() }
+
+/** Resource links this user prompt sent, as opposed to file links the agent mentioned. */
+val ChatMessage.promptResourceLinks: List<ChatPromptResourceLink>
+    get() = contentBlocks.mapNotNull { it.chatPromptResourceLink() }
 
 val AssistantSegment.text: String
     get() = (contentBlock as? ContentBlock.Text)?.text.orEmpty()

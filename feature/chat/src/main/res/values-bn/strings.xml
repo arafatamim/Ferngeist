@@ -103,6 +103,7 @@
     <string name="chat_session_error_load_timeout">সেশন লোডের সময়সীমা শেষ হয়েছে। সার্ভার সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_could_not_load">এই সেশন লোড করা যায়নি। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</string>
     <string name="chat_session_error_not_ready">সেশন প্রস্তুত নয়। কিছুক্ষণ পরে আবার চেষ্টা করুন।</string>
+    <string name="chat_session_error_no_audio">এই এজেন্ট অডিও প্রম্পট সমর্থন জানায় না।</string>
     <string name="chat_session_error_no_image">এই এজেন্ট ছবি (ইমেজ) প্রম্পট সমর্থন জানায় না।</string>
     <string name="chat_session_error_no_file">এই এজেন্ট ফাইল সংযুক্তি সমর্থন জানায় না।</string>
     <string name="chat_session_error_cancel_failed">বর্তমান টার্ন বাতিল করা যায়নি</string>
@@ -116,6 +117,7 @@
     <string name="chat_error_unknown">অজানা ত্রুটি</string>
     <string name="chat_error_send_failed">পাঠানো ব্যর্থ হয়েছে</string>
     <string name="chat_scroll_to_bottom">নীচে স্ক্রোল করুন</string>
+    <string name="chat_reference_workspace_file">ওয়ার্কস্পেস ফাইল রেফারেন্স করুন</string>
     <string name="chat_attach_desc">ফাইল সংযুক্ত করুন</string>
     <string name="chat_attach_nothing_found">সংযুক্ত করার জন্য কোনো ছবি বা ফাইল নেই</string>
     <string name="chat_remove_file_desc">ফাইল সরান</string>

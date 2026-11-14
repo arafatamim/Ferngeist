@@ -9,11 +9,15 @@ import com.agentclientprotocol.model.SessionUpdate
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpSessionUpdateMapper
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.restore
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.savedState
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
+import com.tamimarafat.ferngeist.core.model.audios
 import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
+import com.tamimarafat.ferngeist.core.model.promptResourceLinks
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -45,6 +49,65 @@ class UserContentReplayTest {
                 restored.snapshot.value.messages
                     .single()
                     .contentBlocks,
+            )
+        }
+
+    @Test
+    fun audio_text_resources_and_links_survive_the_optimistic_prompt_and_a_restore() =
+        runTest {
+            val runtime = SessionRuntime("ses_test")
+            val file =
+                ChatFileData(
+                    name = "notes.txt",
+                    base64 = "aGVsbG8=",
+                    mimeType = "text/plain",
+                    sizeBytes = 5,
+                )
+            val audio = ChatAudioData(base64 = "YXVkaW8=", mimeType = "audio/wav", name = "voice.wav", sizeBytes = 5)
+            val link = ChatPromptResourceLink("main.kt", "file:///workspace/main.kt")
+            runtime.onLocalPromptStarted(
+                "hello",
+                emptyList(),
+                listOf(file),
+                clientId = "local-1",
+                audios = listOf(audio),
+                resourceLinks = listOf(link),
+            )
+            val sent =
+                runtime.snapshot.value.messages
+                    .first { it.role == ChatMessage.Role.USER }
+                    .contentBlocks
+
+            val restored = SessionRuntime("restored")
+            restored.restore(runtime.savedState())
+
+            assertEquals(
+                sent,
+                restored.snapshot.value.messages
+                    .first { it.role == ChatMessage.Role.USER }
+                    .contentBlocks,
+            )
+            assertEquals(
+                "YXVkaW8=",
+                restored.snapshot.value.messages
+                    .first()
+                    .audios
+                    .single()
+                    .base64,
+            )
+            assertEquals(
+                "audio/wav",
+                restored.snapshot.value.messages
+                    .first()
+                    .audios
+                    .single()
+                    .mimeType,
+            )
+            assertEquals(
+                listOf(link),
+                restored.snapshot.value.messages
+                    .first()
+                    .promptResourceLinks,
             )
         }
 
