@@ -7,7 +7,6 @@ import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import com.tamimarafat.ferngeist.core.model.content
-import com.tamimarafat.ferngeist.core.model.content.contentBlock
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import com.tamimarafat.ferngeist.core.model.resourceLink
 import com.tamimarafat.ferngeist.core.model.text
@@ -462,7 +461,9 @@ class SessionMessageReducerTest {
         var messages: List<ChatMessage> = emptyList()
         listOf(
             AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("**Odd names**")),
-            AppSessionEvent.AgentMessage(contentBlock = link.contentBlock()),
+            AppSessionEvent.AgentMessage(
+                contentBlock = ContentBlock.ResourceLink("LICENSE", "file:///tmp/gallery/LICENSE"),
+            ),
             AppSessionEvent.AgentMessage(contentBlock = ContentBlock.Text("That is everything.")),
             AppSessionEvent.TurnComplete(stopReason = "end_turn"),
         ).forEach { messages = SessionMessageReducer.handleEvent(messages, emptyMap(), it).messages }

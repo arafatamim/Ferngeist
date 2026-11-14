@@ -55,10 +55,10 @@ private fun AudioPlaybackControl(
         return
     }
     val playing = controller?.isPlaying(audio) == true
-    val failed = controller?.hasFailed(audio) == true
     val icon = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow
     val description = if (playing) R.string.chat_audio_pause_desc else R.string.chat_audio_play_desc
-    IconButton(enabled = controller != null && !failed, onClick = { controller?.toggle(audio) }) {
+    // A failed clip stays tappable: a player error (e.g. the media server dying) can be transient.
+    IconButton(enabled = controller != null, onClick = { controller?.toggle(audio) }) {
         Icon(imageVector = icon, contentDescription = stringResource(description))
     }
 }

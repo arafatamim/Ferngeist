@@ -1,6 +1,9 @@
 package com.tamimarafat.ferngeist.feature.chat.ui.audio
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -17,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -102,6 +106,7 @@ internal class AudioPlaybackController(
         abandonFocus()
         current = audio
         preparing = audio
+        failures.remove(audio)
         prepareJob =
             scope.launch {
                 val bytes = decode(audio)
@@ -198,13 +203,28 @@ internal fun rememberAudioPlaybackController(
         remember(context, sessionId, decodeDispatcher) {
             AudioPlaybackController(context.applicationContext, decodeDispatcher)
         }
-    DisposableEffect(controller, lifecycle) {
+    DisposableEffect(controller, lifecycle, context) {
         val observer =
             LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_PAUSE) controller.pause()
             }
         lifecycle.addObserver(observer)
+        // Unplugged headphones would otherwise reroute the clip to the speaker.
+        val noisy =
+            object : BroadcastReceiver() {
+                override fun onReceive(
+                    context: Context,
+                    intent: Intent,
+                ) = controller.pause()
+            }
+        ContextCompat.registerReceiver(
+            context,
+            noisy,
+            IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         onDispose {
+            context.unregisterReceiver(noisy)
             lifecycle.removeObserver(observer)
             controller.release()
         }

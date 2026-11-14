@@ -150,6 +150,20 @@ class AcpSessionUpdateParserTest {
         assertEquals("UEsDBAoAAAAA", event.contentBlocks.mapNotNull { it.chatFile() }[0].base64)
     }
 
+    @Test
+    fun `an inlined context block with an empty body yields a zero-byte file`() {
+        val inlined =
+            "see this\n" +
+                "<context ref=\"file:///empty.txt\" mimeType=\"text/plain\" encoding=\"base64\"></context>"
+        val update = SessionUpdate.UserMessageChunk(content = ContentBlock.Text(inlined))
+
+        val event = invokeMapSessionUpdateToEvent(update) as AppSessionEvent.UserMessage
+
+        val file = event.contentBlocks.mapNotNull { it.chatFile() }.single()
+        assertEquals("empty.txt", file.name)
+        assertEquals(0L, file.sizeBytes)
+    }
+
     private fun invokeMapSessionUpdateToEvent(update: SessionUpdate): AppSessionEvent =
         requireNotNull(AcpSessionUpdateMapper.mapSessionUpdateToEvent(update))
 

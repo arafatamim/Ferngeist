@@ -3,8 +3,6 @@ package com.tamimarafat.ferngeist.feature.chat
 import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
-import com.tamimarafat.ferngeist.core.model.ChatResourceLink
-import com.tamimarafat.ferngeist.core.model.content.contentBlock
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -178,7 +176,7 @@ class MessageRunsTest {
             AssistantSegment(
                 id = id,
                 kind = AssistantSegment.Kind.RESOURCE_LINK,
-                contentBlock = ChatResourceLink("/$id", id).contentBlock(),
+                contentBlock = ContentBlock.ResourceLink(id, "file:///$id"),
             )
         val image = ChatImageData(base64 = "AA==", mimeType = "image/png")
         val segments =

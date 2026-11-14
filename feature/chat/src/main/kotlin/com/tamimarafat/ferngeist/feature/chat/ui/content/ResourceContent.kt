@@ -125,22 +125,26 @@ private fun EmbeddedTextReader(
  * [this] cut into ranges of at most [READER_CHUNK_CHARS], each ending after a line break when the
  * window holds one (so highlighting restarts on a line) and never inside a surrogate pair.
  */
-internal fun String.readerChunks(): List<IntRange> =
-    buildList {
+internal fun String.readerChunks(): List<IntRange> {
+    val text = this
+    return buildList {
         var start = 0
-        while (start < length) {
-            val limit = minOf(start + READER_CHUNK_CHARS, length)
-            val lineEnd = if (limit == length) -1 else lastIndexOf('\n', limit - 1)
+        while (start < text.length) {
+            val limit = minOf(start + READER_CHUNK_CHARS, text.length)
+            // Bounded to this window: lastIndexOf would rescan consumed text, quadratic on one long line.
+            val lineEnd = (limit - 1 downTo start).firstOrNull { text[it] == '\n' }
             val end =
                 when {
-                    lineEnd >= start -> lineEnd + 1
-                    limit < length && this@readerChunks[limit - 1].isHighSurrogate() -> limit - 1
+                    limit == text.length -> limit
+                    lineEnd != null -> lineEnd + 1
+                    text[limit - 1].isHighSurrogate() -> limit - 1
                     else -> limit
                 }
             add(start until end)
             start = end
         }
     }
+}
 
 /** Maps a resource MIME type to a SyntaxMP label when the URI has no usable extension. */
 private fun mimeLabel(mimeType: String?): String? = mimeLabels[mimeType?.substringBefore(';')?.trim()?.lowercase()]

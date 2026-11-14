@@ -12,7 +12,6 @@ fun userContentBlocks(
     text: String,
     images: List<ChatImageData>,
     files: List<ChatFileData>,
-    links: List<ChatResourceLink> = emptyList(),
 ): List<ContentBlock> =
     buildList {
         if (text.isNotEmpty()) add(ContentBlock.Text(text))
@@ -24,7 +23,6 @@ fun userContentBlocks(
                 ),
             )
         }
-        links.forEach { add(it.contentBlock()) }
     }
 
 fun ContentBlock.chatImage(): ChatImageData? =
@@ -54,14 +52,6 @@ fun ContentBlock.chatResourceLink(): ChatResourceLink? {
     if (!path.startsWith('/') && !windowsPath.containsMatchIn(path)) return null
     return ChatResourceLink(path, name.ifBlank { path.substringAfterLast('/') }, mimeType, size)
 }
-
-fun ChatResourceLink.contentBlock(): ContentBlock.ResourceLink =
-    ContentBlock.ResourceLink(
-        name = name,
-        uri = "file://" + if (windowsPath.containsMatchIn(path)) "/$path" else path,
-        mimeType = mimeType,
-        size = size,
-    )
 
 private val windowsDrive = Regex("^/[A-Za-z]:/")
 private val windowsPath = Regex("^[A-Za-z]:/")

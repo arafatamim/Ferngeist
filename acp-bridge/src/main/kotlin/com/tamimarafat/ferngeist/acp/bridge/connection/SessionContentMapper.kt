@@ -36,7 +36,7 @@ private fun restoreEmbeddedContexts(content: ContentBlock.Text): List<ContentBlo
             matches.forEach { match ->
                 val before = content.text.substring(position, match.range.first)
                 if (before.isNotEmpty()) add(content.copy(text = before))
-                match.contextResource(content)?.let(::add)
+                add(match.contextResource(content))
                 position = match.range.last + 1
             }
             val after = content.text.substring(position)
@@ -53,20 +53,18 @@ private fun restoreEmbeddedContexts(content: ContentBlock.Text): List<ContentBlo
     }
 }
 
-private fun MatchResult.contextResource(source: ContentBlock.Text): ContentBlock.Resource? {
+// An empty body is a zero-byte file, still an attachment.
+private fun MatchResult.contextResource(source: ContentBlock.Text): ContentBlock.Resource {
     val (ref, mimeType, body) = destructured
-    val blob = body.filterNot(Char::isWhitespace)
-    return blob.takeIf(String::isNotEmpty)?.let {
-        ContentBlock.Resource(
-            EmbeddedResourceResource.BlobResourceContents(
-                blob = it,
-                uri = ref,
-                mimeType = mimeType.ifBlank { "application/octet-stream" },
-            ),
-            annotations = source.annotations,
-            _meta = source._meta,
-        )
-    }
+    return ContentBlock.Resource(
+        EmbeddedResourceResource.BlobResourceContents(
+            blob = body.filterNot(Char::isWhitespace),
+            uri = ref,
+            mimeType = mimeType.ifBlank { "application/octet-stream" },
+        ),
+        annotations = source.annotations,
+        _meta = source._meta,
+    )
 }
 
 /** Extracts the base64 payload from a `data:<mime>;base64,<payload>` URI, else "". */

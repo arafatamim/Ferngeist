@@ -23,9 +23,7 @@ import com.adamglin.compose.markdown.core.dialect.MarkdownDialect
 import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatMessage
-import com.tamimarafat.ferngeist.core.model.ChatResourceLink
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactStat
-import com.tamimarafat.ferngeist.core.model.content.contentBlock
 import com.tamimarafat.ferngeist.core.model.text
 import com.tamimarafat.ferngeist.feature.chat.MarkdownRenderedDocument
 import com.tamimarafat.ferngeist.feature.chat.ui.MessageBubble
@@ -152,7 +150,8 @@ class ParagraphAttachmentsTest {
                         AssistantSegment(id = "prose", contentBlock = ContentBlock.Text("See report.pdf")),
                         AssistantSegment(
                             kind = AssistantSegment.Kind.RESOURCE_LINK,
-                            contentBlock = ChatResourceLink("/home/u/app/a/report.pdf", "Linked report").contentBlock(),
+                            contentBlock =
+                                ContentBlock.ResourceLink("Linked report", "file:///home/u/app/a/report.pdf"),
                         ),
                     ),
             )
@@ -195,7 +194,7 @@ class ParagraphAttachmentsTest {
                         message.value.segments.adding(
                             AssistantSegment(
                                 kind = AssistantSegment.Kind.RESOURCE_LINK,
-                                contentBlock = ChatResourceLink("/tmp/report.pdf", "Linked report").contentBlock(),
+                                contentBlock = ContentBlock.ResourceLink("Linked report", "file:///tmp/report.pdf"),
                             ),
                         ),
                 )
