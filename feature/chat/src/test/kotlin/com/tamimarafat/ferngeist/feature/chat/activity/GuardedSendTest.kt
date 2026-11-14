@@ -59,7 +59,7 @@ class GuardedSendTest : ChatViewModelTestBase() {
 
         sendCommand("review")
 
-        assertEquals("/review ", mutations.messageText.text.toString())
+        assertEquals("/review Keep my draft", mutations.messageText.text.toString())
         assertTrue(mutations.composerExpanded.value)
         assertEquals(1, mutations.composerFocusTrigger.value)
         assertNull(mutations.pendingSend.value)

@@ -58,7 +58,7 @@ internal fun rememberSendHandlers(
                 // A command that takes an argument is staged. The user can see what the
                 // argument should be and send it themselves once it is typed.
                 mutations.messageText.edit {
-                    replace(0, length, "$slashCommand ")
+                    replace(0, 0, "$slashCommand ")
                 }
                 mutations.composerExpanded.value = true
                 mutations.composerFocusTrigger.value++

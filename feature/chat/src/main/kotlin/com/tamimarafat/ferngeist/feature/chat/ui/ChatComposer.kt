@@ -602,6 +602,7 @@ private fun ExpandedComposerTextField(
                         }
                     if (caret != null) {
                         commandInputHint?.let { hint ->
+                            val hintAnchor = textLayout?.let { it.getCursorRect(it.layoutInput.text.length) } ?: caret
                             Text(
                                 text = hint,
                                 style = MaterialTheme.typography.bodyLarge,
@@ -611,8 +612,8 @@ private fun ExpandedComposerTextField(
                                 modifier =
                                     Modifier.offset {
                                         IntOffset(
-                                            caret.left.roundToInt(),
-                                            (caret.top - scrollState.value).roundToInt(),
+                                            hintAnchor.left.roundToInt(),
+                                            (hintAnchor.top - scrollState.value).roundToInt(),
                                         )
                                     },
                             )
