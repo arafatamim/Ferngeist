@@ -36,7 +36,7 @@ class SessionRuntimeRestoreTest {
                 AppSessionEvent.UsageUpdated(totalTokens = 42),
             ).forEach { original.onEvent(it) }
             original.onLocalPromptStarted("go", emptyList(), emptyList())
-            original.onEvent(AppSessionEvent.AgentThought("thinking"))
+            original.onEvent(AppSessionEvent.AgentThought(ContentBlock.Text("thinking")))
             original.onEvent(
                 AppSessionEvent.ToolCallStarted(
                     "c1",

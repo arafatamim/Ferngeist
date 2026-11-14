@@ -1,5 +1,7 @@
 package com.tamimarafat.ferngeist.feature.chat.ui.audio
 
+import android.text.format.DateUtils
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,6 +12,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,12 +40,34 @@ internal fun AudioContentBlock(audio: ContentBlock.Audio) {
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
             AudioPlaybackControl(audio, controller)
-            Text(
-                text = stringResource(status, audio.mimeType),
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(status, audio.mimeType),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                AudioProgress(audio, controller)
+            }
         }
     }
+}
+
+@Composable
+private fun AudioProgress(
+    audio: ContentBlock.Audio,
+    controller: AudioPlaybackController?,
+) {
+    val position = if (controller?.current == audio) controller.positionMs else 0
+    val duration = if (controller?.current == audio) controller.durationMs else 0
+    LinearProgressIndicator(
+        progress = { if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+        text =
+            "${DateUtils.formatElapsedTime(position / MILLIS_PER_SECOND)} / " +
+                DateUtils.formatElapsedTime(duration / MILLIS_PER_SECOND),
+        style = MaterialTheme.typography.labelSmall,
+    )
 }
 
 @Composable
@@ -62,3 +87,5 @@ private fun AudioPlaybackControl(
         Icon(imageVector = icon, contentDescription = stringResource(description))
     }
 }
+
+private const val MILLIS_PER_SECOND = 1000L

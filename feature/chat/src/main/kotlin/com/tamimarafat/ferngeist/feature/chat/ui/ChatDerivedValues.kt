@@ -12,6 +12,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.model.ChatConfigCategory
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatMessage
@@ -41,7 +42,7 @@ internal data class ChatDerivedValues(
     val gitAdditions: Int,
     val gitDeletions: Int,
     val renderedMessages: List<ChatMessage>,
-    val selectedThought: String?,
+    val selectedThought: List<ContentBlock>?,
     val selectedToolCall: ToolCallDisplay?,
     val activePermissionRequest: PendingPermissionRequest?,
     val renderedLastMessageId: String?,
@@ -114,7 +115,7 @@ private fun rememberChatScrollAndAnimation(
 
 private data class ChatMessagesState(
     val renderedMessages: List<ChatMessage>,
-    val selectedThought: String?,
+    val selectedThought: List<ContentBlock>?,
     val selectedToolCall: ToolCallDisplay?,
     val activePermissionRequest: PendingPermissionRequest?,
     val renderedLastMessageId: String?,

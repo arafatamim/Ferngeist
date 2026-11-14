@@ -4,12 +4,6 @@ import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 
-internal fun extractText(content: ContentBlock): String =
-    when (content) {
-        is ContentBlock.Text -> content.text
-        else -> ""
-    }
-
 internal fun extractImage(content: ContentBlock): ChatImageData? {
     if (content !is ContentBlock.Image) return null
     val base64 = content.data.ifBlank { dataUriBase64(content.uri) }

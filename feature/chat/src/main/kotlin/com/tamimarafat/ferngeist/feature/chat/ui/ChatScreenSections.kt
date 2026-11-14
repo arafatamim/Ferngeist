@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.agentclientprotocol.model.ContentBlock
 import com.tamimarafat.ferngeist.core.common.ui.ErrorStateCard
 import com.tamimarafat.ferngeist.core.common.ui.diagnostics.ConnectionDiagnosticsSheet
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
@@ -126,7 +127,7 @@ internal fun ChatScreenDialogs(
     selectedConfigPickerOption: ChatConfigOption.Select?,
     onConfigOptionSelected: (String, String) -> Unit,
     onDismissConfigPicker: () -> Unit,
-    selectedThought: String?,
+    selectedThought: List<ContentBlock>?,
     onDismissThought: () -> Unit,
     selectedToolCall: ToolCallDisplay?,
     onDismissToolCall: () -> Unit,
@@ -519,7 +520,7 @@ internal fun List<ChatMessage>.toolCallForSegment(segmentId: String?): ToolCallD
     }
 }
 
-internal fun List<ChatMessage>.thoughtForSegment(segmentId: String?): String? {
+internal fun List<ChatMessage>.thoughtForSegment(segmentId: String?): List<ContentBlock>? {
     val targetId = segmentId ?: return null
     return asReversed().firstNotNullOfOrNull { message ->
         // Resolved to the whole run, not the tapped chunk. A streamed thought arrives one segment
@@ -528,8 +529,8 @@ internal fun List<ChatMessage>.thoughtForSegment(segmentId: String?): String? {
         message.segments
             .thoughtRuns()
             .firstOrNull { run -> run.segments.any { it.id == targetId } }
-            ?.text
-            ?.takeIf { it.isNotBlank() }
+            ?.segments
+            ?.mapNotNull { it.contentBlock }
     }
 }
 

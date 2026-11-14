@@ -100,7 +100,7 @@ object SessionMessageReducer {
                 appendText(
                     messages,
                     toolCallIndex,
-                    TextChunk(AssistantSegment.Kind.THOUGHT, ContentBlock.Text(event.text), messageId = null),
+                    TextChunk(AssistantSegment.Kind.THOUGHT, event.contentBlock, messageId = null),
                     event.timestampMs,
                     nowMs,
                 )

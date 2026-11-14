@@ -65,7 +65,7 @@ internal fun summarizeEvent(event: AppSessionEvent): String =
     when (event) {
         is AppSessionEvent.UserMessage -> "userLen=${event.text.length} append=${event.append}"
         is AppSessionEvent.AgentMessage -> "agentLen=${event.text.length}"
-        is AppSessionEvent.AgentThought -> "thoughtLen=${event.text.length}"
+        is AppSessionEvent.AgentThought -> "thoughtType=${event.contentBlock::class.simpleName}"
         is AppSessionEvent.ToolCallStarted -> "toolCallId=${event.toolCallId} status=${event.status}"
         is AppSessionEvent.ToolCallUpdated -> "toolCallId=${event.toolCallId} status=${event.status}"
         is AppSessionEvent.ToolPermissionRequested -> "toolCallId=${event.toolCallId} options=${event.options.size}"

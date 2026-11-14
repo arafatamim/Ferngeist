@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -63,10 +64,16 @@ internal class AudioPlaybackController(
             .build()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var player: MediaPlayer? = null
-    private var current: ContentBlock.Audio? = null
+    var current by mutableStateOf<ContentBlock.Audio?>(null)
+        private set
     private var prepared = false
     private var prepareJob: Job? = null
     private var hasFocus = false
+    private var progressJob: Job? = null
+    var positionMs by mutableStateOf(0)
+        private set
+    var durationMs by mutableStateOf(0)
+        private set
 
     fun isPlaying(audio: ContentBlock.Audio): Boolean = playing == audio
 
@@ -83,6 +90,7 @@ internal class AudioPlaybackController(
     }
 
     fun pause() {
+        progressJob?.cancel()
         if (preparing != null) {
             prepareJob?.cancel()
             releasePlayer()
@@ -132,6 +140,7 @@ internal class AudioPlaybackController(
             mediaPlayer.setOnPreparedListener {
                 if (player === it) {
                     prepared = true
+                    durationMs = it.duration.coerceAtLeast(0)
                     preparing = null
                     start(audio)
                 }
@@ -153,6 +162,14 @@ internal class AudioPlaybackController(
         runCatching {
             mediaPlayer.start()
             playing = audio
+            progressJob?.cancel()
+            progressJob =
+                scope.launch {
+                    while (playing == audio) {
+                        positionMs = mediaPlayer.currentPosition.coerceAtLeast(0)
+                        delay(PROGRESS_INTERVAL_MS)
+                    }
+                }
         }.onFailure { fail(audio) }
     }
 
@@ -180,6 +197,9 @@ internal class AudioPlaybackController(
     }
 
     private fun releasePlayer() {
+        progressJob?.cancel()
+        positionMs = 0
+        durationMs = 0
         val old = player
         player = null
         prepared = false
@@ -251,3 +271,5 @@ private class ByteArrayMediaDataSource(
 
     override fun close() = Unit
 }
+
+private const val PROGRESS_INTERVAL_MS = 250L

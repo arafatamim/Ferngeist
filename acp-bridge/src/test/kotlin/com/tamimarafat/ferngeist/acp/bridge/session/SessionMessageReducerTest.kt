@@ -469,7 +469,7 @@ class SessionMessageReducerTest {
         text: String,
     ): List<ChatMessage> =
         SessionMessageReducer
-            .handleEvent(messages, emptyMap(), AppSessionEvent.AgentThought(text))
+            .handleEvent(messages, emptyMap(), AppSessionEvent.AgentThought(ContentBlock.Text(text)))
             .messages
 
     private fun userMessage(

@@ -51,7 +51,12 @@ internal fun ResourceLinkContentBlock(block: ContentBlock.ResourceLink) {
                     Toast.makeText(context, R.string.artifact_no_viewer, Toast.LENGTH_SHORT).show()
                 }
             },
-            label = { Text(block.name.ifBlank { block.uri }) },
+            label = {
+                Column {
+                    if (block.name.isNotBlank() && block.name != block.uri) Text(block.name)
+                    Text(block.uri)
+                }
+            },
         )
     }
 }

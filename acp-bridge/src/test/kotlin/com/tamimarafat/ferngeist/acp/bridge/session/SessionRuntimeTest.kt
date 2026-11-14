@@ -49,12 +49,12 @@ class SessionRuntimeTest {
                     append = true,
                 ),
             )
-            runtime.onEvent(AppSessionEvent.AgentThought("replayed"))
+            runtime.onEvent(AppSessionEvent.AgentThought(ContentBlock.Text("replayed")))
             runtime.completeHydration()
 
             runtime.onLocalPromptStarted("go", emptyList(), emptyList())
             now = 1_000L
-            runtime.onEvent(AppSessionEvent.AgentThought("live"))
+            runtime.onEvent(AppSessionEvent.AgentThought(ContentBlock.Text("live")))
             now = 2_000L
             runtime.onEvent(AppSessionEvent.ToolCallStarted("c1", "ls", ToolKind.EXECUTE, ToolCallStatus.COMPLETED))
             runtime.onEvent(AppSessionEvent.TurnComplete("end_turn"))

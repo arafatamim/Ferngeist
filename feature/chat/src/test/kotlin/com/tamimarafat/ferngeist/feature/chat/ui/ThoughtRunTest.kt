@@ -25,8 +25,14 @@ class ThoughtRunTest {
                     ),
             )
 
-        assertEquals("let me look closer", listOf(message).thoughtForSegment("t0"))
-        assertEquals("let me look closer", listOf(message).thoughtForSegment("t2"))
+        assertEquals(
+            listOf(ContentBlock.Text("let me "), ContentBlock.Text("look "), ContentBlock.Text("closer")),
+            listOf(message).thoughtForSegment("t0"),
+        )
+        assertEquals(
+            listOf(ContentBlock.Text("let me "), ContentBlock.Text("look "), ContentBlock.Text("closer")),
+            listOf(message).thoughtForSegment("t2"),
+        )
     }
 
     @Test
@@ -37,7 +43,27 @@ class ThoughtRunTest {
                 segments = persistentListOf(thought("t0", "one thought")),
             )
 
-        assertEquals("one thought", listOf(message).thoughtForSegment("t0"))
+        assertEquals(listOf(ContentBlock.Text("one thought")), listOf(message).thoughtForSegment("t0"))
+    }
+
+    @Test
+    fun mixedThoughtKeepsAttachmentsBetweenTextChunks() {
+        val image = ContentBlock.Image(data = "aW1n", mimeType = "image/png")
+        val message =
+            ChatMessage(
+                role = ChatMessage.Role.ASSISTANT,
+                segments =
+                    persistentListOf(
+                        thought("t0", "before"),
+                        AssistantSegment(id = "t1", kind = AssistantSegment.Kind.THOUGHT, contentBlock = image),
+                        thought("t2", "after"),
+                    ),
+            )
+
+        assertEquals(
+            listOf(ContentBlock.Text("before"), image, ContentBlock.Text("after")),
+            listOf(message).thoughtForSegment("t1"),
+        )
     }
 
     @Test

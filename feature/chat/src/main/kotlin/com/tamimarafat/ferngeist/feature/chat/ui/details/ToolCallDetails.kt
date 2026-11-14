@@ -46,10 +46,12 @@ import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.rememberEscapeFocusAnchor
 import com.tamimarafat.ferngeist.core.git.ui.DiffRenderer
 import com.tamimarafat.ferngeist.core.git.ui.git.GitTooltip
+import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.feature.chat.IncrementalMarkdown
 import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.ui.AGENT_TEXT_MAX_LINES
+import com.tamimarafat.ferngeist.feature.chat.ui.ImageFullscreenViewer
 import com.tamimarafat.ferngeist.feature.chat.ui.RenderedMarkdown
 import com.tamimarafat.ferngeist.feature.chat.ui.TerminalRenderer
 import com.tamimarafat.ferngeist.feature.chat.ui.content.ContentBlockRenderer
@@ -94,7 +96,7 @@ internal fun ToolCallDetailsSheet(
                     .padding(horizontal = 24.dp, vertical = 12.dp)
                     .verticalScroll(rememberScrollState())
                     // Key events reach the active focus target and its ancestors only, and this
-                    // sheet's content is text with nothing focusable in it.
+                    // sheet needs an escape target even when its content has no focusable item.
                     .focusRequester(escapeFocus)
                     .focusTarget()
                     .onEscapeKey { scope.dismissSheet(sheetState, onDismiss) },
@@ -230,23 +232,22 @@ internal fun ToolCallDetailsBody(toolCall: ToolCallDisplay) {
 
 @Composable
 internal fun ThoughtDetailsSheet(
-    thought: String,
+    thought: List<ContentBlock>,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val scope = rememberCoroutineScope()
     val escapeFocus = rememberEscapeFocusAnchor()
-    // Its own engine, fed only the tail a live thought grows by, as the transcript's runs are.
-    val markdown = remember { IncrementalMarkdown() }
-    val document = remember(thought) { markdown.update(thought).let { markdown.document } }
+    val contentSize = thought.sumOf { if (it is ContentBlock.Text) it.text.length else 1 }
+    var fullscreenImage by remember { mutableStateOf<ChatImageData?>(null) }
     val scroll = rememberScrollState()
     // Growing while open means the thought is live, so the sheet follows it down; settled
     // reasoning never grows and stays at the top. Scrolling up stops the follow, and scrolling
     // back to the end resumes it.
-    val openedLength = remember { thought.length }
+    val openedLength = remember { contentSize }
     var follow by remember { mutableStateOf(false) }
     var touched by remember { mutableStateOf(false) }
-    LaunchedEffect(thought.length) { if (thought.length > openedLength && !touched) follow = true }
+    LaunchedEffect(contentSize) { if (contentSize > openedLength && !touched) follow = true }
     LaunchedEffect(scroll) {
         snapshotFlow { scroll.isScrollInProgress }.drop(1).filter { !it }.collect {
             touched = true
@@ -256,6 +257,7 @@ internal fun ThoughtDetailsSheet(
     LaunchedEffect(scroll) {
         snapshotFlow { if (follow) scroll.maxValue else null }.filterNotNull().collect { scroll.scrollTo(it) }
     }
+    fullscreenImage?.let { image -> ImageFullscreenViewer(image = image, onDismiss = { fullscreenImage = null }) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -267,7 +269,7 @@ internal fun ThoughtDetailsSheet(
                     .padding(horizontal = 24.dp, vertical = 12.dp)
                     .verticalScroll(scroll)
                     // Key events reach the active focus target and its ancestors only, and this
-                    // sheet's content is text with nothing focusable in it.
+                    // sheet needs an escape target even when its content has no focusable item.
                     .focusRequester(escapeFocus)
                     .focusTarget()
                     .onEscapeKey { scope.dismissSheet(sheetState, onDismiss) },
@@ -280,7 +282,32 @@ internal fun ThoughtDetailsSheet(
                 )
             }
 
-            RenderedMarkdown(text = thought, document = document)
+            val blocks = remember(thought) { thought.foldThoughtText() }
+            blocks.forEachIndexed { index, block ->
+                if (block is ContentBlock.Text) {
+                    // Each contiguous text run has its own incremental markdown engine.
+                    val markdown = remember(index) { IncrementalMarkdown() }
+                    val document = remember(block.text) { markdown.update(block.text).let { markdown.document } }
+                    RenderedMarkdown(text = block.text, document = document)
+                } else {
+                    ContentBlockRenderer(block, onImageClick = { fullscreenImage = it })
+                }
+            }
         }
     }
 }
+
+private fun List<ContentBlock>.foldThoughtText(): List<ContentBlock> =
+    buildList {
+        val text = StringBuilder()
+        this@foldThoughtText.forEach { block ->
+            if (block is ContentBlock.Text) {
+                text.append(block.text)
+            } else {
+                if (text.isNotEmpty()) add(ContentBlock.Text(text.toString()))
+                text.clear()
+                add(block)
+            }
+        }
+        if (text.isNotEmpty()) add(ContentBlock.Text(text.toString()))
+    }

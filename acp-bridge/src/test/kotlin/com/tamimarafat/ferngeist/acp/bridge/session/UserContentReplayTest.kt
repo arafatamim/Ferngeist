@@ -194,6 +194,29 @@ class UserContentReplayTest {
         }
 
     @Test
+    fun mixed_thought_blocks_survive_streaming_and_restore_in_order() =
+        runTest {
+            val runtime = SessionRuntime("ses_test")
+            val blocks = representativeContent()
+            blocks.forEach { block ->
+                runtime.onEvent(
+                    requireNotNull(
+                        AcpSessionUpdateMapper.mapSessionUpdateToEvent(
+                            SessionUpdate.AgentThoughtChunk(content = block),
+                        ),
+                    ),
+                )
+            }
+            val restored = SessionRuntime("restored")
+            restored.restore(runtime.savedState())
+            val segments =
+                restored.snapshot.value.messages
+                    .single()
+                    .segments
+            assertEquals(blocks, segments.map { it.contentBlock })
+        }
+
+    @Test
     fun echo_claims_the_optimistic_prompt_independently_of_delivery_acknowledgement_and_optional_message_id() =
         runTest {
             val image = ChatImageData("aW1n", "image/png")

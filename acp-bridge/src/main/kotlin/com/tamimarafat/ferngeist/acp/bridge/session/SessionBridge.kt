@@ -322,7 +322,7 @@ sealed interface AppSessionEvent {
     ) : AppSessionEvent
 
     data class AgentThought(
-        val text: String,
+        val contentBlock: ContentBlock,
         val timestampMs: Long? = null,
     ) : AppSessionEvent
 
