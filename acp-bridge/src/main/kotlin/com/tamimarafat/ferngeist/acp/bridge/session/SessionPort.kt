@@ -1,8 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * Implemented by [SessionBridge].
  */
+@Suppress("ComplexInterface")
 interface SessionPort {
     val sessionId: String
     val snapshot: StateFlow<SessionSnapshot>
@@ -42,6 +45,17 @@ interface SessionPort {
         clientId: String? = null,
     )
 
+    /** Sends audio and resource links alongside the legacy prompt payload. */
+    @Suppress("LongParameterList")
+    suspend fun sendPrompt(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String?,
+        audios: List<ChatAudioData>,
+        resourceLinks: List<ChatPromptResourceLink>,
+    ) = sendPrompt(text, images, files, clientId)
+
     /** Cancels the current agent turn (streaming). */
     suspend fun cancel()
 
@@ -52,6 +66,17 @@ interface SessionPort {
         files: List<ChatFileData> = emptyList(),
         clientId: String? = null,
     ): SteerOutcome
+
+    /** Steers audio and resource links alongside the legacy prompt payload. */
+    @Suppress("LongParameterList")
+    suspend fun steer(
+        text: String,
+        images: List<ChatImageData>,
+        files: List<ChatFileData>,
+        clientId: String?,
+        audios: List<ChatAudioData>,
+        resourceLinks: List<ChatPromptResourceLink>,
+    ): SteerOutcome = steer(text, images, files, clientId)
 
     /** Updates a configuration option value on the session. */
     suspend fun setConfigOption(

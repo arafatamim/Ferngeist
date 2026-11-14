@@ -103,6 +103,7 @@
     <string name="chat_session_error_load_timeout">Se agotó el tiempo de carga de la sesión. Comprueba la conexión al servidor e inténtalo de nuevo.</string>
     <string name="chat_session_error_could_not_load">No se pudo cargar esta sesión. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="chat_session_error_not_ready">La sesión no está lista. Vuelve a intentarlo en unos momentos.</string>
+    <string name="chat_session_error_no_audio">Este agente no anuncia compatibilidad con solicitudes de audio.</string>
     <string name="chat_session_error_no_image">Este agente no anuncia compatibilidad con solicitudes de imagen.</string>
     <string name="chat_session_error_no_file">Este agente no anuncia compatibilidad con archivos adjuntos.</string>
     <string name="chat_session_error_cancel_failed">No se pudo cancelar el turno actual</string>
@@ -116,6 +117,7 @@
     <string name="chat_error_unknown">error desconocido</string>
     <string name="chat_error_send_failed">El envío falló</string>
     <string name="chat_scroll_to_bottom">Desplazarse al final</string>
+    <string name="chat_reference_workspace_file">Referenciar archivo del espacio de trabajo</string>
     <string name="chat_attach_desc">Adjuntar archivo</string>
     <string name="chat_attach_nothing_found">No hay ninguna imagen o archivo que adjuntar</string>
     <string name="chat_remove_file_desc">Quitar archivo</string>

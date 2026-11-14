@@ -138,10 +138,24 @@ internal class ChatSessionCoordinator(
 
     /** Sends a chat message via the facade. Returns true when dispatched; false when no bridge. */
     suspend fun sendMessage(prompt: PendingPrompt): Boolean =
-        facade.sendMessage(prompt.text, prompt.images, prompt.files, prompt.clientId)
+        facade.sendMessage(
+            prompt.text,
+            prompt.images,
+            prompt.files,
+            prompt.clientId,
+            prompt.audios,
+            prompt.resourceLinks,
+        )
 
     suspend fun steerMessage(prompt: PendingPrompt): SteerOutcome =
-        facade.steerMessage(prompt.text, prompt.images, prompt.files, prompt.clientId)
+        facade.steerMessage(
+            prompt.text,
+            prompt.images,
+            prompt.files,
+            prompt.clientId,
+            prompt.audios,
+            prompt.resourceLinks,
+        )
 
     /** Ensures the transport is (re)connecting so queued prompts can drain. */
     suspend fun reconnect() {

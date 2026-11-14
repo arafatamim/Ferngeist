@@ -23,12 +23,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
+import com.tamimarafat.ferngeist.core.model.hostPath
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
 import com.tamimarafat.ferngeist.feature.chat.OnSwitchSession
+import com.tamimarafat.ferngeist.feature.chat.R
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import com.tamimarafat.ferngeist.feature.chat.badgeStatus
 import kotlinx.coroutines.CoroutineScope
@@ -157,6 +161,16 @@ private fun ChatComposerRow(
     // Applied to the composer bar, not the row: it carries the switcher drag.
     modifier: Modifier = Modifier,
 ) {
+    var showResourceLinkPicker by remember { mutableStateOf(false) }
+    val workspaceFileCandidates =
+        remember(screenState.state.workspaceFiles) {
+            screenState.state.workspaceFiles
+                ?.values
+                ?.flatten()
+                ?.distinct()
+                ?.sorted()
+                .orEmpty()
+        }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement =
@@ -206,9 +220,49 @@ private fun ChatComposerRow(
             canSendFiles = screenState.state.supportsEmbeddedContext,
             selectedFiles = screenState.mutations.selectedFiles.value,
             onFilesChanged = { screenState.mutations.selectedFiles.value = it },
+            canSendAudio = screenState.state.canSendAudio,
+            selectedAudios = screenState.mutations.selectedAudios.value,
+            onAudiosChanged = { screenState.mutations.selectedAudios.value = it },
+            selectedResourceLinks = screenState.mutations.selectedResourceLinks.value,
+            onResourceLinksChanged = { screenState.mutations.selectedResourceLinks.value = it },
+            canReferenceWorkspaceFiles = workspaceFileCandidates.isNotEmpty(),
+            onReferenceWorkspaceFile = { showResourceLinkPicker = true },
             onAttach = { screenState.actions.attachmentPickerLauncher.launch(arrayOf("*/*")) },
             dropTargetActive = dropTargetActive,
         )
+        if (showResourceLinkPicker) {
+            val items =
+                workspaceFileCandidates.map { path ->
+                    PickerItem(
+                        id = path,
+                        label = path.substringAfterLast('/').ifBlank { path },
+                        value = path,
+                        description = path.substringBeforeLast('/', "").ifBlank { null },
+                    )
+                }
+            PickerSheet(
+                title = stringResource(R.string.chat_reference_workspace_file),
+                items = items,
+                onItemClick = { path ->
+                    val absolute = hostPath(viewModel.cwd, path)
+                    val uri = if (absolute.startsWith('/')) "file://$absolute" else "file:///$absolute"
+                    val link =
+                        ChatPromptResourceLink(
+                            name = path.substringAfterLast('/').ifBlank { path },
+                            uri = uri,
+                        )
+                    val existing = screenState.mutations.selectedResourceLinks.value
+                    if (existing.none { it.uri == uri }) {
+                        screenState.mutations.selectedResourceLinks.value = existing + link
+                    }
+                    showResourceLinkPicker = false
+                },
+                onDismiss = { showResourceLinkPicker = false },
+                emptyText = stringResource(R.string.chat_attach_nothing_found),
+                noResultsText = stringResource(R.string.chat_commands_no_results),
+                searchPlaceholder = stringResource(R.string.chat_search_placeholder, ""),
+            )
+        }
         if (!screenState.mutations.composerExpanded.value) {
             SessionSwitcherBubble(
                 count = switcherState.liveTotalCount,

@@ -25,9 +25,11 @@ internal fun acceptsAttachmentMimeType(
     mimeType: String?,
     canSendImages: Boolean,
     canSendFiles: Boolean,
+    canSendAudio: Boolean = false,
 ): Boolean {
     val isImage = mimeType?.startsWith("image/") == true
-    return (isImage && canSendImages) || canSendFiles
+    val isAudio = mimeType?.startsWith("audio/") == true
+    return (isImage && canSendImages) || (isAudio && canSendAudio) || canSendFiles
 }
 
 /**
@@ -48,6 +50,7 @@ internal fun acceptsAttachmentMimeType(
 internal fun Modifier.composerContentReceiver(
     canSendImages: Boolean,
     canSendFiles: Boolean,
+    canSendAudio: Boolean = false,
     onUris: (List<Uri>) -> Unit,
     onDragHoverChange: (Boolean) -> Unit,
     onNothingToAttach: () -> Unit,
@@ -66,7 +69,7 @@ internal fun Modifier.composerContentReceiver(
     val currentOnDragHoverChange by rememberUpdatedState(onDragHoverChange)
     val currentOnNothingToAttach by rememberUpdatedState(onNothingToAttach)
     val listener =
-        remember(contentResolver, canSendImages, canSendFiles) {
+        remember(contentResolver, canSendImages, canSendFiles, canSendAudio) {
             object : ReceiveContentListener {
                 override fun onDragEnter() {
                     hoverDepth.intValue++
@@ -92,6 +95,7 @@ internal fun Modifier.composerContentReceiver(
                                 mimeType = contentResolver.getType(uri),
                                 canSendImages = canSendImages,
                                 canSendFiles = canSendFiles,
+                                canSendAudio = canSendAudio,
                             )
                         }
                     if (accepted.isEmpty()) {

@@ -36,8 +36,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tamimarafat.ferngeist.core.common.ui.auth.AuthenticationDialog
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
@@ -207,6 +209,8 @@ internal data class ChatScreenMutations(
     val messageText: TextFieldState,
     val selectedImages: MutableState<List<ChatImageData>>,
     val selectedFiles: MutableState<List<ChatFileData>>,
+    val selectedAudios: MutableState<List<ChatAudioData>> = mutableStateOf(emptyList()),
+    val selectedResourceLinks: MutableState<List<ChatPromptResourceLink>> = mutableStateOf(emptyList()),
     val composerExpanded: MutableState<Boolean>,
     val focusRequester: FocusRequester,
     val imageFocusTrigger: MutableState<Int>,
@@ -228,6 +232,8 @@ private fun rememberChatScreenMutations(): ChatScreenMutations =
         messageText = rememberTextFieldState(),
         selectedImages = remember { mutableStateOf<List<ChatImageData>>(emptyList()) },
         selectedFiles = remember { mutableStateOf<List<ChatFileData>>(emptyList()) },
+        selectedAudios = remember { mutableStateOf<List<ChatAudioData>>(emptyList()) },
+        selectedResourceLinks = remember { mutableStateOf<List<ChatPromptResourceLink>>(emptyList()) },
         composerExpanded = remember { mutableStateOf(false) },
         focusRequester = remember { FocusRequester() },
         imageFocusTrigger = remember { mutableIntStateOf(0) },
@@ -284,16 +290,19 @@ private fun rememberChatScreenState(
                                 AttachmentSupport(
                                     canSendImages = state.canSendImages,
                                     supportsEmbeddedContext = state.supportsEmbeddedContext,
+                                    canSendAudio = state.canSendAudio,
                                 ),
                             held =
                                 HeldAttachments(
                                     images = mutations.selectedImages.value,
                                     files = mutations.selectedFiles.value,
+                                    audios = mutations.selectedAudios.value,
                                 ),
                             resources = resources,
                         )
                     mutations.selectedImages.value = picked.attachments.images
                     mutations.selectedFiles.value = picked.attachments.files
+                    mutations.selectedAudios.value = picked.attachments.audios
                     mutations.imageFocusTrigger.value++
                     picked.feedback?.let { mutations.snackbarHostState.showSnackbar(it) }
                 }

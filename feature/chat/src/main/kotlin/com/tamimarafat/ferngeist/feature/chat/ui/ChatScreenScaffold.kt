@@ -124,6 +124,7 @@ internal fun ChatScreenScaffold(
                 .composerContentReceiver(
                     canSendImages = screenState.state.canSendImages,
                     canSendFiles = screenState.state.supportsEmbeddedContext,
+                    canSendAudio = screenState.state.canSendAudio,
                     onUris = screenState.actions.attachUris,
                     onDragHoverChange = { dropTargetActive = it },
                     onNothingToAttach = {

@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
@@ -87,14 +88,18 @@ import androidx.compose.ui.unit.dp
 import com.tamimarafat.ferngeist.core.common.ui.handCursor
 import com.tamimarafat.ferngeist.core.common.ui.onEscapeKey
 import com.tamimarafat.ferngeist.core.common.ui.onSubmitShortcut
+import com.tamimarafat.ferngeist.core.model.ChatAudioData
 import com.tamimarafat.ferngeist.core.model.ChatConfigOption
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
+import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.AudioChipRow
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.FileChipRow
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ImageThumbnailRow
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.ResourceLinkChipRow
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
 
 private const val COLLAPSED_MAX_TOOLBAR_FRACTION = 0.92f
@@ -168,6 +173,13 @@ internal fun ChatComposerBar(
     canSendFiles: Boolean,
     selectedFiles: List<ChatFileData>,
     onFilesChanged: (List<ChatFileData>) -> Unit,
+    canSendAudio: Boolean,
+    selectedAudios: List<ChatAudioData>,
+    onAudiosChanged: (List<ChatAudioData>) -> Unit,
+    selectedResourceLinks: List<ChatPromptResourceLink>,
+    onResourceLinksChanged: (List<ChatPromptResourceLink>) -> Unit,
+    canReferenceWorkspaceFiles: Boolean,
+    onReferenceWorkspaceFile: () -> Unit,
     onAttach: () -> Unit,
     dropTargetActive: Boolean,
 ) {
@@ -187,32 +199,39 @@ internal fun ChatComposerBar(
     ) { collapsedMaxToolbarWidth ->
         if (composerExpanded) {
             ExpandedComposerContent(
-                messageText,
-                inputAlpha,
-                focusRequester,
-                primaryStop,
-                canCancelStreaming,
-                stopAside,
-                {
+                messageText = messageText,
+                inputAlpha = inputAlpha,
+                focusRequester = focusRequester,
+                showStopAction = primaryStop,
+                canCancelStreaming = canCancelStreaming,
+                queueing = stopAside,
+                onClose = {
                     onComposerExpandedChange(false)
                     onFocusCleared()
                 },
-                {
+                onPrimaryAction = {
                     if (primaryStop && canCancelStreaming) {
                         onCancelStreaming()
                     } else if (!primaryStop) {
                         onSend()
                     }
                 },
-                onSend,
-                canSendImages,
-                selectedImages,
-                onImagesChanged,
-                canSendFiles,
-                selectedFiles,
-                onFilesChanged,
-                onAttach,
-                dropTargetActive,
+                onSend = onSend,
+                canSendImages = canSendImages,
+                selectedImages = selectedImages,
+                onImagesChanged = onImagesChanged,
+                canSendFiles = canSendFiles,
+                selectedFiles = selectedFiles,
+                onFilesChanged = onFilesChanged,
+                canSendAudio = canSendAudio,
+                selectedAudios = selectedAudios,
+                onAudiosChanged = onAudiosChanged,
+                selectedResourceLinks = selectedResourceLinks,
+                onResourceLinksChanged = onResourceLinksChanged,
+                canReferenceWorkspaceFiles = canReferenceWorkspaceFiles,
+                onReferenceWorkspaceFile = onReferenceWorkspaceFile,
+                onAttach = onAttach,
+                dropTargetActive = dropTargetActive,
             )
         } else {
             CollapsedComposerActions(
@@ -463,9 +482,21 @@ internal fun ExpandedComposerContent(
     canSendFiles: Boolean,
     selectedFiles: List<ChatFileData>,
     onFilesChanged: (List<ChatFileData>) -> Unit,
+    canSendAudio: Boolean,
+    selectedAudios: List<ChatAudioData>,
+    onAudiosChanged: (List<ChatAudioData>) -> Unit,
+    selectedResourceLinks: List<ChatPromptResourceLink>,
+    onResourceLinksChanged: (List<ChatPromptResourceLink>) -> Unit,
+    canReferenceWorkspaceFiles: Boolean,
+    onReferenceWorkspaceFile: () -> Unit,
     onAttach: () -> Unit,
     dropTargetActive: Boolean,
 ) {
+    val hasAttachments =
+        selectedImages.isNotEmpty() ||
+            selectedFiles.isNotEmpty() ||
+            selectedAudios.isNotEmpty() ||
+            selectedResourceLinks.isNotEmpty()
     Column(
         modifier =
             Modifier
@@ -476,7 +507,7 @@ internal fun ExpandedComposerContent(
                 // Restates the send button's contract for the keyboard: the button is disabled
                 // while streaming and while the field is blank, so the shortcut is too.
                 .onSubmitShortcut(
-                    enabled = !showStopAction && messageText.text.isNotBlank(),
+                    enabled = !showStopAction && (messageText.text.isNotBlank() || hasAttachments),
                     onSubmit = onSend,
                 ),
     ) {
@@ -487,10 +518,24 @@ internal fun ExpandedComposerContent(
                 onRemove = { index -> onImagesChanged(selectedImages.toMutableList().also { it.removeAt(index) }) },
             )
         }
+        if (selectedAudios.isNotEmpty()) {
+            AudioChipRow(
+                audios = selectedAudios,
+                onRemove = { index -> onAudiosChanged(selectedAudios.toMutableList().also { it.removeAt(index) }) },
+            )
+        }
         if (selectedFiles.isNotEmpty()) {
             FileChipRow(
                 files = selectedFiles,
                 onRemove = { index -> onFilesChanged(selectedFiles.toMutableList().also { it.removeAt(index) }) },
+            )
+        }
+        if (selectedResourceLinks.isNotEmpty()) {
+            ResourceLinkChipRow(
+                links = selectedResourceLinks,
+                onRemove = { index ->
+                    onResourceLinksChanged(selectedResourceLinks.toMutableList().also { it.removeAt(index) })
+                },
             )
         }
         ExpandedComposerTextField(
@@ -502,11 +547,15 @@ internal fun ExpandedComposerContent(
             onClose = onClose,
             canSendImages = canSendImages,
             canSendFiles = canSendFiles,
+            canSendAudio = canSendAudio,
+            canReferenceWorkspaceFiles = canReferenceWorkspaceFiles,
+            onReferenceWorkspaceFile = onReferenceWorkspaceFile,
             onAttach = onAttach,
             showStopAction = showStopAction,
             canCancelStreaming = canCancelStreaming,
             queueing = queueing,
             messageText = messageText.text,
+            hasAttachments = hasAttachments,
             onPrimaryAction = onPrimaryAction,
             dropTargetActive = dropTargetActive,
         )
@@ -595,6 +644,29 @@ private fun AttachComposerButton(
     }
 }
 
+@Composable
+private fun ComposerAttachmentButtons(
+    canSendImages: Boolean,
+    canSendFiles: Boolean,
+    canSendAudio: Boolean,
+    canReferenceWorkspaceFiles: Boolean,
+    onReferenceWorkspaceFile: () -> Unit,
+    onAttach: () -> Unit,
+    dropTargetActive: Boolean,
+) {
+    if (canSendImages || canSendFiles || canSendAudio) {
+        AttachComposerButton(onAttach = onAttach, dropTargetActive = dropTargetActive)
+    }
+    if (canReferenceWorkspaceFiles) {
+        IconButton(onClick = onReferenceWorkspaceFile, modifier = Modifier.handCursor()) {
+            Icon(
+                imageVector = Icons.Default.Link,
+                contentDescription = stringResource(R.string.chat_reference_workspace_file),
+            )
+        }
+    }
+}
+
 /**
  * The bottom action row inside [ExpandedComposerContent], containing the
  * close button, attach-file affordance, and primary action button.
@@ -604,11 +676,15 @@ private fun ExpandedComposerBottomBar(
     onClose: () -> Unit,
     canSendImages: Boolean,
     canSendFiles: Boolean,
+    canSendAudio: Boolean,
+    canReferenceWorkspaceFiles: Boolean,
+    onReferenceWorkspaceFile: () -> Unit,
     onAttach: () -> Unit,
     showStopAction: Boolean,
     canCancelStreaming: Boolean,
     queueing: Boolean,
     messageText: CharSequence,
+    hasAttachments: Boolean,
     onPrimaryAction: () -> Unit,
     dropTargetActive: Boolean,
 ) {
@@ -630,15 +706,26 @@ private fun ExpandedComposerBottomBar(
         Row(
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (canSendImages || canSendFiles) {
-                AttachComposerButton(onAttach = onAttach, dropTargetActive = dropTargetActive)
-            }
+            ComposerAttachmentButtons(
+                canSendImages = canSendImages,
+                canSendFiles = canSendFiles,
+                canSendAudio = canSendAudio,
+                canReferenceWorkspaceFiles = canReferenceWorkspaceFiles,
+                onReferenceWorkspaceFile = onReferenceWorkspaceFile,
+                onAttach = onAttach,
+                dropTargetActive = dropTargetActive,
+            )
 
             PrimaryComposerActionButton(
                 showStopAction = showStopAction,
                 canCancelStreaming = canCancelStreaming,
-                // Only enable send if there's text, or if we are stopping a stream
-                enabled = if (showStopAction) canCancelStreaming else messageText.isNotBlank(),
+                // Attachments alone are a sendable prompt, just like text alone.
+                enabled =
+                    if (showStopAction) {
+                        canCancelStreaming
+                    } else {
+                        messageText.isNotBlank() || hasAttachments
+                    },
                 onClick = onPrimaryAction,
                 chatIcon = if (queueing) Icons.AutoMirrored.Filled.ScheduleSend else Icons.Default.ArrowUpward,
             )
