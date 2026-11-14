@@ -137,6 +137,9 @@ jobs:
           } > "$RUNNER_TEMP/task.md"
 
       - name: Run mini-SWE-agent
+        id: agent
+        # Shorter than the job timeout: a job timeout kills every later step, a step timeout does not.
+        timeout-minutes: 42
         env:
           OPENAI_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -154,7 +157,10 @@ jobs:
             -y --exit-immediately
 
       - name: Open a draft pull request
+        # Salvage partial work when the agent hit a limit or errored; only a manual cancel skips this.
+        if: ${{ !cancelled() }}
         env:
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
@@ -177,6 +183,10 @@ jobs:
             echo
             echo "Automated by mini-SWE-agent. Review before marking ready."
             echo
+            if [ "$AGENT_OUTCOME" != "success" ]; then
+              echo "**The agent did not finish (outcome: ${AGENT_OUTCOME}). This work is partial and unverified.**"
+              echo
+            fi
             if [ -s "$NOTES" ]; then
               cat "$NOTES"
             else
