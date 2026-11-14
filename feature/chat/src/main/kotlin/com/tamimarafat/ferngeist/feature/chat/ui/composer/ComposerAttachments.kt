@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.tamimarafat.ferngeist.feature.chat.ui.composer
 
 import android.graphics.BitmapFactory
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +64,7 @@ internal fun ImageThumbnailRow(
     onRemove: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val motion = MaterialTheme.motionScheme
     LazyRow(
         modifier =
             modifier
@@ -71,9 +75,20 @@ internal fun ImageThumbnailRow(
     ) {
         itemsIndexed(
             items = images,
-            key = { _, image -> image.base64 },
+            key = {
+                index,
+                image,
+                ->
+                "${image.hashCode()}:${images.take(index).count { it.hashCode() == image.hashCode() }}"
+            },
         ) { index, image ->
             ImageThumbnailItem(
+                modifier =
+                    Modifier.animateItem(
+                        fadeInSpec = motion.fastEffectsSpec(),
+                        placementSpec = motion.fastSpatialSpec(),
+                        fadeOutSpec = motion.fastEffectsSpec(),
+                    ),
                 image = image,
                 onRemove = { onRemove(index) },
             )
@@ -90,6 +105,7 @@ internal fun FileChipRow(
     onRemove: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val motion = MaterialTheme.motionScheme
     LazyRow(
         modifier =
             modifier
@@ -100,9 +116,23 @@ internal fun FileChipRow(
     ) {
         itemsIndexed(
             items = files,
-            key = { index, file -> "${file.name}:$index" },
+            key = {
+                index,
+                file,
+                ->
+                "${file.hashCode()}:${files.take(index).count { it.hashCode() == file.hashCode() }}"
+            },
         ) { index, file ->
-            FileChipItem(file = file, onRemove = { onRemove(index) })
+            FileChipItem(
+                file = file,
+                onRemove = { onRemove(index) },
+                modifier =
+                    Modifier.animateItem(
+                        fadeInSpec = motion.fastEffectsSpec(),
+                        placementSpec = motion.fastSpatialSpec(),
+                        fadeOutSpec = motion.fastEffectsSpec(),
+                    ),
+            )
         }
     }
 }
@@ -257,6 +287,7 @@ internal fun AudioChipRow(
     onRemove: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val motion = MaterialTheme.motionScheme
     LazyRow(
         modifier =
             modifier
@@ -267,9 +298,23 @@ internal fun AudioChipRow(
     ) {
         itemsIndexed(
             items = audios,
-            key = { index, audio -> "${audio.name}:$index" },
+            key = {
+                index,
+                audio,
+                ->
+                "${audio.hashCode()}:${audios.take(index).count { it.hashCode() == audio.hashCode() }}"
+            },
         ) { index, audio ->
-            AudioChipItem(audio = audio, onRemove = { onRemove(index) })
+            AudioChipItem(
+                audio = audio,
+                onRemove = { onRemove(index) },
+                modifier =
+                    Modifier.animateItem(
+                        fadeInSpec = motion.fastEffectsSpec(),
+                        placementSpec = motion.fastSpatialSpec(),
+                        fadeOutSpec = motion.fastEffectsSpec(),
+                    ),
+            )
         }
     }
 }
@@ -296,6 +341,7 @@ internal fun ResourceLinkChipRow(
     onRemove: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val motion = MaterialTheme.motionScheme
     LazyRow(
         modifier =
             modifier
@@ -306,9 +352,18 @@ internal fun ResourceLinkChipRow(
     ) {
         itemsIndexed(
             items = links,
-            key = { index, link -> "${link.uri}:$index" },
+            key = { _, link -> link.uri },
         ) { index, link ->
-            ResourceLinkChipItem(link = link, onRemove = { onRemove(index) })
+            ResourceLinkChipItem(
+                link = link,
+                onRemove = { onRemove(index) },
+                modifier =
+                    Modifier.animateItem(
+                        fadeInSpec = motion.fastEffectsSpec(),
+                        placementSpec = motion.fastSpatialSpec(),
+                        fadeOutSpec = motion.fastEffectsSpec(),
+                    ),
+            )
         }
     }
 }

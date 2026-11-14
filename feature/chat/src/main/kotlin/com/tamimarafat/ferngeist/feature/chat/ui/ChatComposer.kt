@@ -100,11 +100,8 @@ import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatPromptResourceLink
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.AudioChipRow
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.FileChipRow
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.ImageThumbnailRow
+import com.tamimarafat.ferngeist.feature.chat.ui.composer.AnimatedComposerAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ModeMenuButton
-import com.tamimarafat.ferngeist.feature.chat.ui.composer.ResourceLinkChipRow
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.ToolbarOptionsButton
 import kotlin.math.roundToInt
 
@@ -517,33 +514,16 @@ internal fun ExpandedComposerContent(
                     onSubmit = onSend,
                 ),
     ) {
-        // -- Selected image thumbnails --
-        if (selectedImages.isNotEmpty()) {
-            ImageThumbnailRow(
-                images = selectedImages,
-                onRemove = { index -> onImagesChanged(selectedImages.toMutableList().also { it.removeAt(index) }) },
-            )
-        }
-        if (selectedAudios.isNotEmpty()) {
-            AudioChipRow(
-                audios = selectedAudios,
-                onRemove = { index -> onAudiosChanged(selectedAudios.toMutableList().also { it.removeAt(index) }) },
-            )
-        }
-        if (selectedFiles.isNotEmpty()) {
-            FileChipRow(
-                files = selectedFiles,
-                onRemove = { index -> onFilesChanged(selectedFiles.toMutableList().also { it.removeAt(index) }) },
-            )
-        }
-        if (selectedResourceLinks.isNotEmpty()) {
-            ResourceLinkChipRow(
-                links = selectedResourceLinks,
-                onRemove = { index ->
-                    onResourceLinksChanged(selectedResourceLinks.toMutableList().also { it.removeAt(index) })
-                },
-            )
-        }
+        AnimatedComposerAttachments(
+            images = selectedImages,
+            audios = selectedAudios,
+            files = selectedFiles,
+            links = selectedResourceLinks,
+            onImagesChanged = onImagesChanged,
+            onAudiosChanged = onAudiosChanged,
+            onFilesChanged = onFilesChanged,
+            onLinksChanged = onResourceLinksChanged,
+        )
         ExpandedComposerTextField(
             messageText = messageText,
             mentionState = mentionState,
