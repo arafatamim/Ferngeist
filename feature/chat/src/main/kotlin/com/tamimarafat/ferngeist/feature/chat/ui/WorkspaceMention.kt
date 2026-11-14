@@ -5,6 +5,7 @@ internal fun slashCommandQuery(
     cursor: Int,
 ): String? {
     if (!text.startsWith('/') || cursor !in 1..text.length) return null
+    if (cursor < text.length && !text[cursor].isWhitespace()) return null
     val query = text.substring(1, cursor)
     return query.takeUnless { it.any(Char::isWhitespace) }
 }

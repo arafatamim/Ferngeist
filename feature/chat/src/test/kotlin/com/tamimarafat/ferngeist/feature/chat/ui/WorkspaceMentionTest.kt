@@ -33,5 +33,6 @@ class WorkspaceMentionTest {
         assertEquals("", slashCommandQuery("/", 1))
         assertEquals(null, slashCommandQuery("open /src", 9))
         assertEquals(null, slashCommandQuery("/review main", 12))
+        assertEquals(null, slashCommandQuery("/review main", 3))
     }
 }

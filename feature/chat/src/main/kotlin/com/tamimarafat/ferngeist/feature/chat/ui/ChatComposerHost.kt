@@ -304,7 +304,9 @@ private fun selectComposerSuggestion(
 ) {
     if (start == null) return
     if (screenState.mutations.messageText.text[start] == '/') {
-        screenState.mutations.messageText.edit { replace(start, selection.end, "/$path ") }
+        val text = screenState.mutations.messageText
+        val separator = if (text.selection.end < text.text.length) "" else " "
+        text.edit { replace(start, selection.end, "/$path$separator") }
         return
     }
     val absolute = hostPath(viewModel.cwd, path)
