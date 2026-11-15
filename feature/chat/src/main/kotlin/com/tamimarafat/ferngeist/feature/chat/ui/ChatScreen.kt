@@ -52,6 +52,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.audio.rememberAudioPlaybackCont
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.AttachmentSupport
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.HeldAttachments
 import com.tamimarafat.ferngeist.feature.chat.ui.composer.processPickedUris
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

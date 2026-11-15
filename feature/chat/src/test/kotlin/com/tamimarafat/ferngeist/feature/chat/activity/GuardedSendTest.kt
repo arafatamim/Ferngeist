@@ -12,8 +12,8 @@ import com.tamimarafat.ferngeist.core.model.ChatCommand
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModelTestBase
 import com.tamimarafat.ferngeist.feature.chat.ui.ChatScreenMutations
-import com.tamimarafat.ferngeist.feature.chat.ui.ChatScrollHandle
 import com.tamimarafat.ferngeist.feature.chat.ui.rememberSendHandlers
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

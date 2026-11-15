@@ -1,6 +1,5 @@
-package com.tamimarafat.ferngeist.feature.chat.ui
+package com.tamimarafat.ferngeist.feature.chat.ui.transcript
 
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -10,13 +9,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.feature.chat.ChatState
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 
 private const val INITIAL_WINDOW = 50
 private const val WINDOW_STEP = 50
 
 internal class MessageWindow(
     val messages: List<ChatMessage>,
-    val hasOlder: Boolean,
+    val rows: TranscriptRows,
     val loadOlder: () -> Unit,
 )
 
@@ -32,38 +32,44 @@ internal class MessageWindow(
 internal fun rememberMessageWindow(
     state: ChatState,
     allMessages: List<ChatMessage>,
-    listState: LazyListState,
-    itemKey: (ChatMessage) -> String,
+    scroll: ChatScrollHandle,
 ): MessageWindow {
     var oldestShownId by rememberSaveable(state.serverId) { mutableStateOf<String?>(null) }
+    val restoreId = state.restoredScrollSnapshot?.anchorMessageId.takeUnless { scroll.restoreConsumed }
     val start =
-        remember(allMessages, oldestShownId) {
-            allMessages.indexOfFirst { it.id == oldestShownId }.takeIf { it >= 0 }
-                ?: (allMessages.size - INITIAL_WINDOW).coerceAtLeast(0)
+        remember(allMessages, oldestShownId, restoreId) {
+            val fallback = (allMessages.size - INITIAL_WINDOW).coerceAtLeast(0)
+            val anchor = allMessages.indexOfFirst { it.id == restoreId }.takeIf { it >= 0 } ?: fallback
+            val index =
+                allMessages.indexOfFirst { it.id == oldestShownId }.takeIf { it >= 0 } ?: minOf(anchor, fallback)
+            if (allMessages.isEmpty()) 0 else allMessages.turnStart(index)
         }
     val windowed = remember(allMessages, start) { allMessages.drop(start) }
     if (!state.isLoading && windowed.isNotEmpty()) {
         val oldest = windowed.first().id
         SideEffect { oldestShownId = oldest }
     }
-    var olderAnchor by remember { mutableStateOf<Pair<Any, Int>?>(null) }
-    olderAnchor?.let { (key, offset) ->
-        val leadingItems = (if (state.resumedSession) 1 else 0) + (if (start > 0) 1 else 0)
-        val index = windowed.indexOfFirst { itemKey(it) == key }
+    val rows =
+        remember(windowed, start, state.resumedSession) {
+            TranscriptRows(resumedSession = state.resumedSession, hasOlder = start > 0, turns = windowed.toTurns())
+        }
+    // The turn the reader is on, by its first message id, and its offset in the viewport.
+    var olderAnchor by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    olderAnchor?.let { (messageId, offset) ->
         SideEffect {
-            if (index >= 0) listState.requestScrollToItem(leadingItems + index, -offset)
+            scroll.holdWindowAnchor(rows, messageId, offset)
             olderAnchor = null
         }
     }
     return MessageWindow(
         messages = windowed,
-        hasOlder = start > 0,
+        rows = rows,
         loadOlder = {
             olderAnchor =
-                listState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { (it.key as? String)?.startsWith("__") == false }
-                    ?.let { it.key to it.offset }
-            oldestShownId = allMessages[(start - WINDOW_STEP).coerceAtLeast(0)].id
+                scroll.listState.layoutInfo.visibleItemsInfo.firstNotNullOfOrNull { item ->
+                    rows.turnAt(item.index)?.let { it.first.id to item.offset }
+                }
+            oldestShownId = allMessages[allMessages.turnStart((start - WINDOW_STEP).coerceAtLeast(0))].id
         },
     )
 }

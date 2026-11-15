@@ -7,6 +7,7 @@ import com.tamimarafat.ferngeist.core.model.ChatConfigValue
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 

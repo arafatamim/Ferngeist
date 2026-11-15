@@ -11,6 +11,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import com.tamimarafat.ferngeist.feature.chat.ChatIntent
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.EASE_MIN_MS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 

@@ -24,6 +24,7 @@ import com.tamimarafat.ferngeist.feature.chat.ui.files.fileLocation
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithFile
 import com.tamimarafat.ferngeist.feature.chat.ui.files.titleWithoutFile
+import com.tamimarafat.ferngeist.feature.chat.ui.transcript.toTurns
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -341,15 +342,20 @@ class FileChangesTest {
     }
 
     @Test
-    fun aTurnSplitAcrossMessagesShowsOneFooterWithEveryBubblesEdits() {
+    fun aTurnSplitAcrossMessagesCollectsEveryBubblesEdits() {
         val turn = listOf(reply(edit("c0", "a.kt")), reply(edit("c1", "b.kt")))
         val messages =
             listOf(ChatMessage(role = ChatMessage.Role.USER, contentBlocks = listOf(ContentBlock.Text("go")))) + turn
 
-        val footers = messages.turnSegmentsByCloser()
-
-        assertEquals(setOf(turn[1].id), footers.keys)
-        assertEquals(listOf("a.kt", "b.kt"), footers.getValue(turn[1].id).fileChanges().map { it.path })
+        assertEquals(
+            listOf("a.kt", "b.kt"),
+            messages
+                .toTurns()
+                .single()
+                .segments
+                .fileChanges()
+                .map { it.path },
+        )
     }
 
     @Test
@@ -388,7 +394,7 @@ class FileChangesTest {
         assertEquals("src/A.kt", call.filePath())
     }
 
-    private fun turnSegmentsOf(turn: List<ChatMessage>) = turn.turnSegmentsByCloser().values.single()
+    private fun turnSegmentsOf(turn: List<ChatMessage>) = turn.toTurns().single().segments
 
     private fun reply(vararg segments: AssistantSegment) =
         ChatMessage(role = ChatMessage.Role.ASSISTANT, segments = segments.toList().toPersistentList())

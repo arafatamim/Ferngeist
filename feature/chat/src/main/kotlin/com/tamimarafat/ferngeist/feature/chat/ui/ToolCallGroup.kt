@@ -76,6 +76,7 @@ import com.tamimarafat.ferngeist.feature.chat.SegmentBlock
 import com.tamimarafat.ferngeist.feature.chat.ui.files.diffs
 import com.tamimarafat.ferngeist.feature.chat.ui.files.filePath
 import com.tamimarafat.ferngeist.feature.chat.ui.files.landed
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.RailRowFrame
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ThoughtRowContent
 import com.tamimarafat.ferngeist.feature.chat.ui.toolgroup.ToolRowContent

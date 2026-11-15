@@ -22,6 +22,8 @@ import com.tamimarafat.ferngeist.core.model.displayValueLabel
 import com.tamimarafat.ferngeist.feature.chat.ChatScrollSnapshot
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.R
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.ChatScrollHandle
+import com.tamimarafat.ferngeist.feature.chat.ui.scroll.rememberChatScrollState
 
 @OptIn(
     ExperimentalMaterial3Api::class,
