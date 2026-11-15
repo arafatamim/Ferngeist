@@ -13,6 +13,7 @@ import com.tamimarafat.ferngeist.core.model.GatewaySource
 import com.tamimarafat.ferngeist.core.model.GatewayWorkspaceConnection
 import com.tamimarafat.ferngeist.core.model.LaunchableTarget
 import com.tamimarafat.ferngeist.core.model.NEW_SESSION_ARG
+import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.artifact.ChatArtifactMetadata
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitTarget
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -36,9 +37,12 @@ import com.tamimarafat.ferngeist.gateway.GatewayStatus
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayDiffQuery
 import com.tamimarafat.ferngeist.gateway.workspace.GatewayLogQuery
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -389,6 +393,33 @@ class AcpChatSessionFacadeTest {
             opening = ChatOpening(serverId = "srv", sessionId = "__new__", cwd = "/work"),
             hub = surface,
         )
+
+    @Test
+    fun `invalid prompt response surfaces the agent message with a useful classification`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val manager = newManager(backgroundScope)
+            val transport = ChatAuthTransport().apply { promptFailure = "Unsupported model" }
+            transport.install(manager, backgroundScope)
+            val facade = newFacade(RecordingSurface(), backgroundScope, manager)
+            facade.loadSession()
+            var authenticated = false
+            backgroundScope.launch {
+                facade.authenticate("login")
+                authenticated = true
+            }
+            awaitRealWork { authenticated && facade.sessionSnapshot.value != null }
+            assertTrue(authenticated)
+            assertNull(facade.authentication.value)
+            assertNotNull(facade.sessionSnapshot.value)
+            val error = async(start = CoroutineStart.UNDISPATCHED) { facade.operationError.first() }
+
+            val sent = facade.sendMessage("hello", emptyList(), emptyList(), "client-1", PromptExtras())
+            assertFalse(sent)
+            assertNull(facade.authentication.value)
+            assertEquals(1, transport.prompts)
+            val actual = error.await()
+            assertEquals("Send failed: invalid parameters. Unsupported model", actual.message)
+        }
 
     @Test
     fun `create auth challenge stays recoverable without a load failure`() =

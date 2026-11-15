@@ -327,7 +327,7 @@ class AcpSendErrorClassificationTest {
                 data = JsonNull,
             )
 
-        assertEquals("Send failed due to an invalid request format.", userFacingSendError(error))
+        assertEquals("Send failed: invalid parameters. Something else entirely", userFacingSendError(error))
     }
 
     @Test

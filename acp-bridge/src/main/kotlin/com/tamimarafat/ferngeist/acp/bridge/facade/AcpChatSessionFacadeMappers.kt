@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.facade
 
 import com.agentclientprotocol.model.AgentCapabilities
+import com.agentclientprotocol.protocol.AcpExpectedError
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnectionState
@@ -183,16 +184,17 @@ internal fun toAcpConfigValue(chat: ChatConfigValue): SessionConfigValue =
 /**
  * Maps a send error to a concise, bounded user-facing message.
  *
- * Classification reads the JSON-RPC code, never the wording. "Invalid params" is the
- * protocol's generic label and the agent's own detail rides in `message`/`data`
- * ("cwd does not exist"), so matching the text also replaced that detail with a locally
- * authored sentence that told the user nothing.
+ * Classify using the SDK exception or JSON-RPC code, never the peer's wording, and retain
+ * the agent's detail. The SDK discards data when it converts invalid-params responses.
  */
 internal fun userFacingSendError(error: Throwable): String {
     val message =
         when {
             error.isRequestTimeout() -> "Request timed out. Please try again."
-            error.isInvalidParams() -> "Send failed due to an invalid request format."
+            error.isInvalidParams() -> {
+                val detail = formatAcpErrorMessage(error, "")
+                "Send failed: invalid parameters." + if (detail.isBlank()) "" else " $detail"
+            }
             else -> formatAcpErrorMessage(error, "Send failed due to an unknown error.")
         }
     return if (message.length > MAX_SEND_ERROR_CHARS) {
@@ -215,9 +217,9 @@ private fun Throwable.isRequestTimeout(): Boolean =
             cause.message.orEmpty().startsWith("Request timeout", ignoreCase = true)
     }
 
-/** True when the agent rejected the request's parameters, per the JSON-RPC code. */
+/** The SDK converts wire invalid-params errors to AcpExpectedError. */
 private fun Throwable.isInvalidParams(): Boolean =
-    (this as? JsonRpcException)?.code == JsonRpcErrorCode.INVALID_PARAMS.code
+    this is AcpExpectedError || (this as? JsonRpcException)?.code == JsonRpcErrorCode.INVALID_PARAMS.code
 
 /**
  * Returns true when the server does not implement `session/cancel`.

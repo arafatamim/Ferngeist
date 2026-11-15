@@ -5,6 +5,8 @@ import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.protocol.JsonRpcException
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
+import com.agentclientprotocol.rpc.JsonRpcError
+import com.agentclientprotocol.rpc.JsonRpcErrorResponse
 import com.agentclientprotocol.rpc.JsonRpcRequest
 import com.agentclientprotocol.rpc.JsonRpcSuccessResponse
 import com.agentclientprotocol.rpc.TransportFrame
@@ -29,6 +31,8 @@ internal class ChatAuthTransport : Transport {
     private var handler: ((TransportFrame) -> Unit)? = null
     private var authenticated = false
     var authFailure: String? = null
+    var promptFailure: String? = null
+    var prompts = 0
     val authenticatedMethods = mutableListOf<String>()
     var creations = 0
         private set
@@ -59,6 +63,12 @@ internal class ChatAuthTransport : Transport {
 
     override fun send(frame: TransportFrame) {
         val request = (frame as? TransportFrame.Single)?.message as? JsonRpcRequest ?: return
+        if (request.method.name == "session/prompt") {
+            prompts++
+            val error = JsonRpcError(-32602, requireNotNull(promptFailure))
+            handler?.invoke(TransportFrame.Single(JsonRpcErrorResponse(request.id, error)))
+            return
+        }
         val result =
             when (request.method.name) {
                 "initialize" -> Json.parseToJsonElement(INITIALIZE_RESPONSE)
