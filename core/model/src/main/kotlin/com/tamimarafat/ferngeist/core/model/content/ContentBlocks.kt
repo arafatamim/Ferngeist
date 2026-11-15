@@ -145,7 +145,7 @@ fun isTextMimeType(mimeType: String?): Boolean {
 /** Common text/source extensions used when a provider labels a text file `application/octet-stream`. */
 fun isTextFileName(name: String): Boolean {
     val extension = name.substringAfterLast('.', "").lowercase()
-    return extension in TEXT_FILE_EXTENSIONS
+    return extension in textFileExtensions
 }
 
 private fun ChatFileData.textContent(): String? =
@@ -179,7 +179,7 @@ private fun decodedSize(base64: String): Long =
 private val windowsDrive = Regex("^/[A-Za-z]:/")
 private val windowsPath = Regex("^[A-Za-z]:/")
 
-private val TEXT_FILE_EXTENSIONS =
+private val textFileExtensions =
     setOf(
         "txt",
         "md",

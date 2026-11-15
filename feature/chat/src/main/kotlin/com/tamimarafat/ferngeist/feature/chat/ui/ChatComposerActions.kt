@@ -50,7 +50,17 @@ internal fun rememberSendHandlers(
     }
 
     // --- Slash-command send (commands sheet) ---
-    val sendCommand: (String) -> Unit = { command ->
+    val sendCommand = sendCommandHandler(viewModel, state, mutations, scrollHandle)
+    return sendMessage to sendCommand
+}
+
+private fun sendCommandHandler(
+    viewModel: ChatViewModel,
+    state: ChatState,
+    mutations: ChatScreenMutations,
+    scrollHandle: ChatScrollHandle,
+): (String) -> Unit =
+    { command ->
         if (state.isSessionReady) {
             val normalized = command.trim()
             val slashCommand = if (normalized.startsWith("/")) normalized else "/$normalized"
@@ -71,8 +81,6 @@ internal fun rememberSendHandlers(
             }
         }
     }
-    return sendMessage to sendCommand
-}
 
 private fun List<ChatCommand>.findCommand(slashCommand: String): ChatCommand? {
     val name = slashCommand.removePrefix("/")

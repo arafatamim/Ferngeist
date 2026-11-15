@@ -80,26 +80,35 @@ internal suspend fun processPickedUris(
     val tooLargeCount =
         fileResults.count { it is FileAttachmentHelper.Result.TooLarge } +
             audioResults.count { it is FileAttachmentHelper.Result.TooLarge }
+    return combinePickedAttachments(
+        held,
+        HeldAttachments(newImages, newFiles, newAudios),
+        resources,
+        PickTally(unsupported = unsupportedCount, tooLarge = tooLargeCount, imagesDropped = imagesDropped),
+    )
+}
 
-    val combinedImages = (held.images + newImages).take(ImageAttachmentHelper.MAX_IMAGES)
-    val imagesCapped = (held.images.size + newImages.size) - combinedImages.size
-    val combinedFiles = (held.files + newFiles).take(FileAttachmentHelper.MAX_FILES)
-    val combinedAudios = (held.audios + newAudios).take(FileAttachmentHelper.MAX_FILES)
+private fun combinePickedAttachments(
+    held: HeldAttachments,
+    picked: HeldAttachments,
+    resources: Resources,
+    tally: PickTally,
+): PickResult {
+    val combinedImages = (held.images + picked.images).take(ImageAttachmentHelper.MAX_IMAGES)
+    val imagesCapped = (held.images.size + picked.images.size) - combinedImages.size
+    val combinedFiles = (held.files + picked.files).take(FileAttachmentHelper.MAX_FILES)
+    val combinedAudios = (held.audios + picked.audios).take(FileAttachmentHelper.MAX_FILES)
     val filesCapped =
-        (held.files.size + newFiles.size) - combinedFiles.size +
-            (held.audios.size + newAudios.size) - combinedAudios.size
+        (held.files.size + picked.files.size) - combinedFiles.size +
+            (held.audios.size + picked.audios.size) - combinedAudios.size
 
-    val tally =
-        PickTally(
-            unsupported = unsupportedCount,
-            tooLarge = tooLargeCount,
-            imagesDropped = imagesDropped,
-            imagesCapped = imagesCapped,
-            filesCapped = filesCapped,
-        )
     return PickResult(
         attachments = HeldAttachments(combinedImages, combinedFiles, combinedAudios),
-        feedback = buildPickFeedbackMessage(resources, tally),
+        feedback =
+            buildPickFeedbackMessage(
+                resources,
+                tally.copy(imagesCapped = imagesCapped, filesCapped = filesCapped),
+            ),
     )
 }
 
