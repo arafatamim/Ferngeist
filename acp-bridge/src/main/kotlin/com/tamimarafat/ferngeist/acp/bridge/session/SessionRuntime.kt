@@ -1,13 +1,17 @@
 package com.tamimarafat.ferngeist.acp.bridge.session
 
+import com.tamimarafat.ferngeist.acp.bridge.session.blob.cacheReplyBlob
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.TurnStatus
+import com.tamimarafat.ferngeist.core.model.blob.EmbeddedBlobStore
 import com.tamimarafat.ferngeist.core.model.content
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -111,6 +115,8 @@ class SessionRuntime(
     private val clock: () -> Long? = { null },
     /** Wall clock for when a turn finished, shown to the reader as a time of day. */
     private val wallClock: () -> Long = System::currentTimeMillis,
+    private val blobCache: EmbeddedBlobStore? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     private val mutex = Mutex()
 
@@ -302,14 +308,15 @@ class SessionRuntime(
 
     /** Applies [event]; [updateSeq] is the gateway's number for the update it came from, if any. */
     suspend fun onEvent(
-        event: AppSessionEvent,
+        incoming: AppSessionEvent,
         updateSeq: Long? = null,
-    ) {
+    ): AppSessionEvent =
         mutex.withLock {
+            val event = incoming.cacheReplyBlob(blobCache, ioDispatcher)
             if (attaching && event is AppSessionEvent.TurnComplete) {
                 debug { "onEvent: holding ${event.stopReason} until the attach settles" }
                 heldTurnEnd = event
-                return@withLock
+                return@withLock event
             }
             val seq = ++eventSeq
             val loadState = _snapshot.value.loadState
@@ -333,11 +340,11 @@ class SessionRuntime(
                     "event#$seq bufferedApplied messages=${buffered.messages.size} " +
                         "streaming=${buffered.isStreaming}"
                 }
-                return@withLock
+                return@withLock event
             }
             if (live.outOfCatchUpOrder(updateSeq, catchingUp)) {
                 debug { "onEvent: dropping update $updateSeq out of catch-up order after ${live.lastSeq}" }
-                return@withLock
+                return@withLock event
             }
             live = reduce(live, event, clock(), eventSeq).after(updateSeq)
             // A reply closed by a reattach ended while this client was away; stamping it now would
@@ -352,8 +359,8 @@ class SessionRuntime(
             }
             debug { "event#$seq liveApplied messages=${live.messages.size} streaming=${live.isStreaming}" }
             publishLive(loadState = SessionLoadState.READY, error = null)
+            event
         }
-    }
 
     suspend fun onLocalPromptStarted(
         text: String,

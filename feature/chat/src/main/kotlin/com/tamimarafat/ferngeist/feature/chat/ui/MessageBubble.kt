@@ -98,7 +98,7 @@ import com.tamimarafat.ferngeist.feature.chat.markdown.localInlineChips
 import com.tamimarafat.ferngeist.feature.chat.markdown.rememberReducedMotion
 import com.tamimarafat.ferngeist.feature.chat.markdown.revealLength
 import com.tamimarafat.ferngeist.feature.chat.selection.QuoteSelectionContainer
-import com.tamimarafat.ferngeist.feature.chat.ui.content.ContentBlockRenderer
+import com.tamimarafat.ferngeist.feature.chat.ui.content.AssistantContent
 import com.tamimarafat.ferngeist.feature.chat.ui.message.PlanBubble
 import com.tamimarafat.ferngeist.feature.chat.ui.message.StreamingIndicator
 import com.tamimarafat.ferngeist.feature.chat.ui.message.UserContentBlocks
@@ -625,8 +625,7 @@ private fun assistantBlock(
         is SegmentBlock.Single -> {
             when (block.segment.kind) {
                 AssistantSegment.Kind.PLAN -> PlanBubble(block.segment.planEntries.orEmpty())
-                AssistantSegment.Kind.CONTENT ->
-                    block.segment.contentBlock?.let { ContentBlockRenderer(it, onImageClick) }
+                AssistantSegment.Kind.CONTENT -> AssistantContent(block.segment, onImageClick)
                 else -> Unit
             }
             Spacer(modifier = Modifier.height(8.dp))

@@ -333,6 +333,8 @@
     <string name="quote_selection">Quote</string>
     <string name="artifact_download">Download</string>
     <string name="artifact_unavailable_retry">Unavailable. Tap to retry.</string>
+    <string name="embedded_blob_unavailable">Attachment unavailable.</string>
+    <string name="embedded_blob_too_large">Attachment exceeds the 100 MB cache limit.</string>
     <string name="artifact_no_viewer">No app can open this file</string>
     <string name="artifact_saved">Saved %1$s</string>
     <string name="artifact_save_failed">Couldn\'t save %1$s</string>

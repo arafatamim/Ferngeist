@@ -76,10 +76,11 @@ internal fun AttachmentCard(
     onOpen: () -> Unit,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier,
+    failureMessage: String? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val download = stringResource(R.string.artifact_download)
-    val unavailable = stringResource(R.string.artifact_unavailable_retry)
+    val unavailable = failureMessage ?: stringResource(R.string.artifact_unavailable_retry)
     val colors = MaterialTheme.colorScheme
     val container by animateColorAsState(
         if (failed) colors.errorContainer else colors.surfaceContainerHigh,

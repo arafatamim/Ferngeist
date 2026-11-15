@@ -1,6 +1,7 @@
 package com.tamimarafat.ferngeist.acp.bridge.session.persist
 
 import com.agentclientprotocol.model.ContentBlock
+import com.agentclientprotocol.model.EmbeddedResourceResource
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
@@ -11,6 +12,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.SessionMode
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionPermissionOption
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
+import com.tamimarafat.ferngeist.core.common.blob.BlobCache
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.TurnStatus
 import com.tamimarafat.ferngeist.core.model.content
@@ -19,10 +21,46 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 /** A runtime's state saved by one process and restored in the next. */
 class SessionRuntimeRestoreTest {
+    @get:Rule val temporary = TemporaryFolder()
+
+    @Test
+    fun embedded_reply_blob_survives_restore_without_bytes_in_saved_state() =
+        runTest {
+            val cache = BlobCache(temporary.root)
+            val original = SessionRuntime(sessionId = "ses_test", blobCache = cache)
+            val encoded = "c2VjcmV0LWZpbGUtY29udGVudA=="
+            original.onEvent(
+                AppSessionEvent.AgentMessage(
+                    ContentBlock.Resource(
+                        EmbeddedResourceResource.BlobResourceContents(
+                            blob = encoded,
+                            uri = "file:///report.bin",
+                            mimeType = "application/octet-stream",
+                        ),
+                    ),
+                ),
+            )
+            val saved = original.savedState()
+            assertTrue(!saved.contains(encoded))
+            val reopenedCache = BlobCache(temporary.root)
+            val restored = SessionRuntime(sessionId = "ses_test", blobCache = reopenedCache)
+            restored.restore(saved)
+            val blob =
+                restored.snapshot.value.messages
+                    .last()
+                    .segments
+                    .last()
+                    .cachedBlob!!
+            assertEquals("secret-file-content", reopenedCache.use(blob.key!!) { it.readText() })
+            assertEquals("report.bin", blob.name)
+        }
+
     @Test
     fun a_restored_mid_turn_state_continues_exactly_like_the_saved_runtime() =
         runTest {

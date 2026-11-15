@@ -7,6 +7,7 @@ import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.core.model.AcpPermissionOption
 import com.tamimarafat.ferngeist.core.model.AssistantSegment
+import com.tamimarafat.ferngeist.core.model.CachedBlob
 import com.tamimarafat.ferngeist.core.model.ChatMessage
 import com.tamimarafat.ferngeist.core.model.ToolCallDisplay
 import com.tamimarafat.ferngeist.core.model.content
@@ -36,6 +37,7 @@ private data class TextChunk(
     val kind: AssistantSegment.Kind,
     val block: ContentBlock,
     val messageId: String?,
+    val cachedBlob: CachedBlob? = null,
 )
 
 private fun AppSessionEvent.UserMessage.content() = UserContent(contentBlocks, clientId, messageId)
@@ -51,6 +53,7 @@ private fun AppSessionEvent.AgentMessage.chunk() =
             },
         block = contentBlock,
         messageId = messageId,
+        cachedBlob = cachedBlob,
     )
 
 /**
@@ -205,6 +208,7 @@ object SessionMessageReducer {
                         id = UUID.randomUUID().toString(),
                         kind = chunk.kind,
                         contentBlock = chunk.block,
+                        cachedBlob = chunk.cachedBlob,
                         receivedAtMs = nowMs,
                     ),
                 )

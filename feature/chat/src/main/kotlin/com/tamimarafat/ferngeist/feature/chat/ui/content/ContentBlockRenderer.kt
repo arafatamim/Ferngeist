@@ -13,12 +13,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentclientprotocol.model.ContentBlock
+import com.tamimarafat.ferngeist.core.model.AssistantSegment
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.content.chatImage
+import com.tamimarafat.ferngeist.feature.chat.artifact.ui.EmbeddedBlobCard
 import com.tamimarafat.ferngeist.feature.chat.ui.audio.AudioContentBlock
 import com.tamimarafat.ferngeist.feature.chat.ui.message.ImageAttachmentItem
 
 private const val MAX_TEXT_CHARS = 5000
+
+@Composable
+internal fun AssistantContent(
+    segment: AssistantSegment,
+    onImageClick: ((ChatImageData) -> Unit)?,
+) {
+    val blob = segment.cachedBlob
+    if (blob != null) {
+        EmbeddedBlobCard(blob)
+    } else {
+        segment.contentBlock?.let { ContentBlockRenderer(it, onImageClick) }
+    }
+}
 
 /** One content block rendered the same way in a prompt, a reply, or a tool's output. */
 @Composable

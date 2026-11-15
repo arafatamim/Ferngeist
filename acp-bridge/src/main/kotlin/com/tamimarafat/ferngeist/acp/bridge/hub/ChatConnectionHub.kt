@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.acp.bridge.hub
 
+import android.util.Log
 import com.agentclientprotocol.annotations.UnstableApi
 import com.agentclientprotocol.model.PlanEntry
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Gateway endpoint triple needed for session-scoped REST calls (close, capacity). */
@@ -141,7 +143,10 @@ class ChatConnectionHub(
 
     private val entries = LinkedHashMap<String, Entry>()
     private val runtimes =
-        ChatRuntimes(persistence?.chatStates, limits.maxRetainedChats, ioDispatcher) { it in entries }
+        ChatRuntimes(persistence?.chatStates, limits.maxRetainedChats, ioDispatcher, persistence?.blobCache) {
+            it in
+                entries
+        }
     private val pendingManagers = CopyOnWriteArrayList<AcpConnection>()
     private val browserManagers = CopyOnWriteArrayList<AcpConnection>()
     private val revision = MutableStateFlow(0L)
@@ -224,6 +229,15 @@ class ChatConnectionHub(
             }
         }
         persistence?.let { scope.launch { it.restoreOpenChats(::restoreEntries) } }
+        persistence?.blobCache?.let { cache ->
+            scope.launch(ioDispatcher) {
+                try {
+                    cache.clean()
+                } catch (error: IOException) {
+                    Log.w("ChatConnectionHub", "Could not clean the reply attachment cache", error)
+                }
+            }
+        }
     }
 
     /**

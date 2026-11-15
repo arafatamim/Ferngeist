@@ -5,6 +5,7 @@ import com.tamimarafat.ferngeist.acp.bridge.session.deviceRuntime
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.restore
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.savedState
+import com.tamimarafat.ferngeist.core.model.blob.EmbeddedBlobStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,6 +22,7 @@ internal class ChatRuntimes(
     private val store: SessionStateStore?,
     private val maxChats: Int,
     private val ioDispatcher: CoroutineDispatcher,
+    private val blobCache: EmbeddedBlobStore? = null,
     private val inUse: (chatId: String) -> Boolean,
 ) {
     private val mutex = Mutex()
@@ -32,7 +34,8 @@ internal class ChatRuntimes(
         sessionId: String,
     ): SessionRuntime =
         mutex.withLock {
-            runtimes[chatId] ?: (restored(chatId, sessionId) ?: deviceRuntime(sessionId)).also { keep(chatId, it) }
+            runtimes[chatId]
+                ?: (restored(chatId, sessionId) ?: deviceRuntime(sessionId, blobCache)).also { keep(chatId, it) }
         }
 
     /** [chatId]'s runtime when it holds anything to draw, without making an empty one. */
@@ -58,7 +61,7 @@ internal class ChatRuntimes(
         sessionId: String,
     ): SessionRuntime? {
         val saved = store?.read(chatId) ?: return null
-        val runtime = deviceRuntime(sessionId)
+        val runtime = deviceRuntime(sessionId, blobCache)
         return try {
             withContext(ioDispatcher) { runtime.restore(saved) }
             runtime

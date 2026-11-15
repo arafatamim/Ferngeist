@@ -14,11 +14,12 @@ private val viewerRetentionMs = TimeUnit.DAYS.toMillis(1)
 internal fun shareArtifact(
     artifact: CachedArtifact,
     root: File,
+    name: String = artifact.file.name,
 ): File {
     if (!root.isDirectory && !root.mkdirs()) throw IOException("Could not create the attachment sharing directory")
     val cutoff = System.currentTimeMillis() - viewerRetentionMs
     root.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.delete() }
-    val shared = File.createTempFile("view-", ".${artifact.file.extension}", root)
+    val shared = File.createTempFile("view-", ".${File(name).extension}", root)
     var complete = false
     try {
         exportArtifact(artifact) { shared.outputStream().buffered() }

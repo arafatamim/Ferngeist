@@ -154,7 +154,7 @@ private suspend fun Context.save(
 }
 
 /** Opens [artifact] in another app under a temporary read grant; false when no app can show it. */
-private fun Context.view(artifact: CachedArtifact): Boolean {
+internal fun Context.view(artifact: CachedArtifact): Boolean {
     val uri = FileProvider.getUriForFile(this, "$packageName.artifacts", artifact.file)
     val view =
         Intent(Intent.ACTION_VIEW)

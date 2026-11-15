@@ -71,6 +71,7 @@ data class AssistantSegment(
     val id: String = UUID.randomUUID().toString(),
     val kind: Kind = Kind.MESSAGE,
     val contentBlock: ContentBlock? = null,
+    val cachedBlob: CachedBlob? = null,
     val toolCall: ToolCallDisplay? = null,
     val planEntries: List<PlanEntry>? = null,
     /** `elapsedRealtime` the segment arrived at; null for hydrated history. */
@@ -87,6 +88,14 @@ data class AssistantSegment(
         CONTENT,
     }
 }
+
+@Serializable
+data class CachedBlob(
+    val key: String?,
+    val name: String,
+    val mimeType: String,
+    val sizeBytes: Long?,
+)
 
 /**
  * A host file an ACP `resource_link` names, at its absolute [path], with what the agent said of it.

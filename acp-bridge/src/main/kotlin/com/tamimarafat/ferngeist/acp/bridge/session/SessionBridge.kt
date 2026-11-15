@@ -7,10 +7,12 @@ import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.agentclientprotocol.model.ToolKind
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpConnection
+import com.tamimarafat.ferngeist.core.model.CachedBlob
 import com.tamimarafat.ferngeist.core.model.ChatFileData
 import com.tamimarafat.ferngeist.core.model.ChatImageData
 import com.tamimarafat.ferngeist.core.model.PromptExtras
 import com.tamimarafat.ferngeist.core.model.SteerOutcome
+import com.tamimarafat.ferngeist.core.model.blob.EmbeddedBlobStore
 import com.tamimarafat.ferngeist.core.model.content.userContentBlocks
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -30,22 +32,29 @@ import kotlinx.serialization.json.JsonElement
 import com.agentclientprotocol.model.ToolCallLocation as AcpToolCallLocation
 
 /**
- * How many raw events [SessionBridge.events] replays to a collector that attaches late.
+ * How many events [SessionBridge.events] replays to a collector that attaches late.
  * The stream has no app-level consumer, so the tail only needs to cover the turn(s) in
  * flight — a few update events and their terminal event — not a whole session history.
  */
 private const val EVENT_REPLAY_TAIL = 8
 
 /** A runtime timed on this device's monotonic clock, as every live chat's is. */
-internal fun deviceRuntime(sessionId: String): SessionRuntime =
-    SessionRuntime(sessionId = sessionId, clock = { runCatching { SystemClock.elapsedRealtime() }.getOrNull() })
+internal fun deviceRuntime(
+    sessionId: String,
+    blobCache: EmbeddedBlobStore? = null,
+): SessionRuntime =
+    SessionRuntime(
+        sessionId = sessionId,
+        clock = { runCatching { SystemClock.elapsedRealtime() }.getOrNull() },
+        blobCache = blobCache,
+    )
 
 /**
  * SessionBridge is the UI-facing handle to a single ACP session, implementing [SessionPort].
  *
  * It owns a [SessionRuntime] (the runtime) and forwards user actions to the
  * [AcpConnection]. Events from the SDK are fed into the runtime via [emitEvent],
- * which also forwards them to the raw [events] stream and to the narrow
+ * which also forwards them to the [events] stream and to the narrow
  * [modelSelectionEvents] flow.
  *
  * ## Interface contract
@@ -69,7 +78,8 @@ class SessionBridge(
 ) : SessionPort {
     override val snapshot: StateFlow<SessionSnapshot> = runtime.snapshot
 
-    // Raw event stream, for an observer that needs the events as they are emitted. No app
+    // Event stream for an observer that needs updates as they are emitted. Reply blobs have
+    // already been moved to the cache so this replay cannot retain their base64. No app
     // code collects it — the chat UI renders from [snapshot] — so the replay tail is kept
     // short instead of the 5000 entries it used to retain: a live session held every
     // assistant message, tool-call payload and plan it had ever seen alive for readers that
@@ -111,10 +121,10 @@ class SessionBridge(
         updateSeq: Long? = null,
     ) {
         debug { "emitEvent type=${event::class.simpleName}" }
-        runtime.onEvent(event, updateSeq)
-        _events.emit(event)
-        if (event is AppSessionEvent.ModelSelectionConfirmed) {
-            _modelSelectionEvents.emit(event)
+        val processed = runtime.onEvent(event, updateSeq)
+        _events.emit(processed)
+        if (processed is AppSessionEvent.ModelSelectionConfirmed) {
+            _modelSelectionEvents.emit(processed)
         }
     }
 
@@ -319,6 +329,7 @@ sealed interface AppSessionEvent {
         val contentBlock: ContentBlock,
         val timestampMs: Long? = null,
         val messageId: String? = null,
+        val cachedBlob: CachedBlob? = null,
     ) : AppSessionEvent
 
     data class AgentThought(

@@ -11,6 +11,8 @@ import com.tamimarafat.ferngeist.acp.bridge.facade.GatewayProjectGitReaderFactor
 import com.tamimarafat.ferngeist.acp.bridge.hub.ChatConnectionHub
 import com.tamimarafat.ferngeist.acp.bridge.hub.HubPersistence
 import com.tamimarafat.ferngeist.core.common.IoDispatcher
+import com.tamimarafat.ferngeist.core.common.blob.BLOB_CACHE_DIRECTORY
+import com.tamimarafat.ferngeist.core.common.blob.BlobCache
 import com.tamimarafat.ferngeist.core.model.ChatSessionFacadeFactory
 import com.tamimarafat.ferngeist.core.model.git.ProjectGitReaderFactory
 import com.tamimarafat.ferngeist.core.model.repository.GatewaySourceRepository
@@ -121,7 +123,12 @@ object AppModule {
             gatewayRepository = gatewayRepository,
             scope = applicationScope,
             connectivityObserver = connectivityObserver,
-            persistence = HubPersistence(File(context.filesDir, "chat-state"), appForegroundState.isForeground),
+            persistence =
+                HubPersistence(
+                    File(context.filesDir, "chat-state"),
+                    appForegroundState.isForeground,
+                    blobCache = BlobCache(File(context.cacheDir, BLOB_CACHE_DIRECTORY)),
+                ),
         )
 
     /** Supplies the chat-session facade factory backed by ACP. */

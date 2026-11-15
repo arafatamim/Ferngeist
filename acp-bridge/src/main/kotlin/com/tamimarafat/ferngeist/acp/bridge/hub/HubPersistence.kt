@@ -2,6 +2,7 @@ package com.tamimarafat.ferngeist.acp.bridge.hub
 
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionSnapshot
 import com.tamimarafat.ferngeist.acp.bridge.session.persist.SessionStateStore
+import com.tamimarafat.ferngeist.core.model.blob.EmbeddedBlobStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,7 @@ class HubPersistence(
     dir: File,
     private val appInForeground: StateFlow<Boolean>,
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    internal val blobCache: EmbeddedBlobStore? = null,
 ) {
     internal val chatStates = SessionStateStore(dir, ioDispatcher = ioDispatcher)
     private val openChatsStore = OpenChatsStore(dir, ioDispatcher)
