@@ -30,10 +30,12 @@ internal val bareArtifactExtensions =
     htmlExtensions + imageExtensions + videoExtensions + audioExtensions +
         setOf("pdf", "txt", "log", "zip", "gz", "tgz", "tar", "7z", "docx", "xlsx", "pptx", "epub", "ipynb", "apk")
 
+// A dotfile's leading dot starts its name, not an extension: `.gitignore` has none.
 internal fun extensionOf(path: String): String =
     path
         .substringAfterLast('/')
         .substringAfterLast('\\')
+        .drop(1)
         .substringAfterLast('.', "")
         .lowercase()
 

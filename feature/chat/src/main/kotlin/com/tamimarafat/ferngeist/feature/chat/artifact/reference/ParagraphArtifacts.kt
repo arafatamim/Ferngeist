@@ -11,28 +11,28 @@ import java.nio.file.Paths
 internal enum class ReferenceSource { LINK, IMAGE, PLAIN }
 
 /**
- * One file a paragraph references, [mention] as written. [candidates] are host paths, relative to
- * the chat's cwd when [inWorkspace], else absolute; several when a bare name is ambiguous.
+ * One file a paragraph references, [mention] as written. [path] is a host path, relative to the
+ * chat's cwd when [inWorkspace], else absolute.
  * Membership is lexical: a workspace symlink pointing elsewhere still counts as inside.
  */
 internal data class ParagraphArtifact(
     val mention: String,
-    val candidates: List<String>,
+    val path: String,
     val inWorkspace: Boolean,
     val source: ReferenceSource,
 )
 
-internal val ParagraphArtifact.label: String get() = candidates.first().substringAfterLast('/').substringAfterLast('\\')
+internal val ParagraphArtifact.label: String get() = path.substringAfterLast('/').substringAfterLast('\\')
 
-internal val ParagraphArtifact.kind: ArtifactKind get() = artifactKind(candidates.first())
+internal val ParagraphArtifact.kind: ArtifactKind get() = artifactKind(path)
 
 internal val ParagraphArtifact.presentation: ArtifactPresentation get() = presentationOf(kind, inWorkspace)
 
 /**
  * The files [inlines] reference, once each in first-reference order: Markdown link and image
  * destinations, and plain paths in text and code spans. Bare names resolve through the
- * [workspaceFiles] listing and the turn's [turnPaths] before falling back to [cwd]; without a
- * [cwd] only absolute paths resolve.
+ * [workspaceFiles] listing and the turn's [turnPaths] before falling back to [cwd]; a name several
+ * listed files share stays text. Without a [cwd] only absolute paths resolve.
  */
 internal fun paragraphArtifacts(
     inlines: List<InlineNode>,
@@ -41,7 +41,7 @@ internal fun paragraphArtifacts(
     workspaceFiles: Map<String, List<String>>?,
 ): List<ParagraphArtifact> {
     val resolver = MentionResolver(cwd, turnPaths, workspaceFiles)
-    return inlines.mentions().mapNotNull(resolver::resolve).distinctBy { it.candidates }
+    return inlines.mentions().mapNotNull(resolver::resolve).distinctBy { it.path }
 }
 
 private data class Mention(
@@ -135,9 +135,9 @@ private class MentionResolver(
                 else -> listOfNotNull(destinationPath(mention.text))
             }
         // A relative path, or one escaping the cwd, has nowhere to resolve without the cwd.
-        val located = paths.mapNotNull(::locate)
-        if (located.isEmpty()) return null
-        return ParagraphArtifact(mention.text, located, !isAbsoluteHostPath(located.first()), mention.source)
+        // A name several files share would guess which one the agent meant.
+        val located = paths.mapNotNull(::locate).singleOrNull() ?: return null
+        return ParagraphArtifact(mention.text, located, !isAbsoluteHostPath(located), mention.source)
     }
 
     private fun locate(path: String): String? {

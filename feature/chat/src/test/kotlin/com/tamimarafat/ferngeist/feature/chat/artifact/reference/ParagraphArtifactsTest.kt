@@ -18,7 +18,7 @@ class ParagraphArtifactsTest {
     fun `the reported outside-workspace video link is one card`() {
         val found = artifacts("[Recorded test]($probe)")
 
-        assertEquals(listOf(ParagraphArtifact(probe, listOf(probe), false, ReferenceSource.LINK)), found)
+        assertEquals(listOf(ParagraphArtifact(probe, probe, false, ReferenceSource.LINK)), found)
         assertEquals(CARD, found.single().presentation)
         assertEquals(ArtifactKind.VIDEO, found.single().kind)
     }
@@ -66,10 +66,17 @@ class ParagraphArtifactsTest {
     }
 
     @Test
+    fun `a dotfile's name is not its extension`() {
+        assertEquals("", extensionOf(".beads/.gitignore"))
+        assertEquals("json", extensionOf(".eslintrc.json"))
+        assertEquals("bat", extensionOf("gradlew.bat"))
+    }
+
+    @Test
     fun `a file linked and then written is one reference in first order`() {
         val found = artifacts("See /tmp/b.pdf, then [a](/tmp/a.pdf) and /tmp/a.pdf again and [b](/tmp/b.pdf)")
 
-        assertEquals(listOf(listOf("/tmp/b.pdf"), listOf("/tmp/a.pdf")), found.map { it.candidates })
+        assertEquals(listOf("/tmp/b.pdf", "/tmp/a.pdf"), found.map { it.path })
     }
 
     @Test
@@ -84,9 +91,9 @@ class ParagraphArtifactsTest {
     fun `encoded, quoted and backticked paths keep their spaces`() {
         val spaced = "/tmp/my video.mp4"
 
-        assertEquals(listOf(spaced), artifacts("[v](/tmp/my%20video.mp4)").single().candidates)
-        assertEquals(listOf(spaced), artifacts("Saved \"$spaced\" here").single().candidates)
-        assertEquals(listOf(spaced), artifacts("Saved `$spaced` here").single().candidates)
+        assertEquals(spaced, artifacts("[v](/tmp/my%20video.mp4)").single().path)
+        assertEquals(spaced, artifacts("Saved \"$spaced\" here").single().path)
+        assertEquals(spaced, artifacts("Saved `$spaced` here").single().path)
     }
 
     @Test
@@ -100,17 +107,17 @@ class ParagraphArtifactsTest {
     }
 
     @Test
-    fun `an ambiguous bare name keeps every candidate`() {
-        val listed = mapOf("a.png" to listOf("x/a.png", "y/a.png"))
+    fun `a bare name several workspace files share stays text`() {
+        val listed = mapOf(".gitignore" to listOf(".gitignore", "app/.gitignore"), "a.png" to listOf("x/a.png"))
 
-        assertEquals(listOf("x/a.png", "y/a.png"), artifacts("Look at a.png", workspace = listed).single().candidates)
+        assertEquals(listOf("x/a.png" to INLINE_MEDIA), summary("See .gitignore and a.png", workspace = listed))
     }
 
     @Test
     fun `the same name in two folders is two references`() {
         assertEquals(
-            listOf(listOf("/tmp/a/x.pdf"), listOf("/tmp/b/x.pdf")),
-            artifacts("/tmp/a/x.pdf vs /tmp/b/x.pdf").map { it.candidates },
+            listOf("/tmp/a/x.pdf", "/tmp/b/x.pdf"),
+            artifacts("/tmp/a/x.pdf vs /tmp/b/x.pdf").map { it.path },
         )
     }
 
@@ -127,7 +134,7 @@ class ParagraphArtifactsTest {
     fun `without a cwd only absolute paths resolve, as outside host files`() {
         val found = artifacts("[a](out/a.mp4) and $probe", cwd = "")
 
-        assertEquals(listOf(probe to CARD), found.map { it.candidates.single() to it.presentation })
+        assertEquals(listOf(probe to CARD), found.map { it.path to it.presentation })
     }
 
     @Test
@@ -148,7 +155,7 @@ class ParagraphArtifactsTest {
         turn: Set<String> = emptySet(),
         workspace: Map<String, List<String>>? = null,
     ): List<Pair<String, ArtifactPresentation>> =
-        artifacts(markdown, cwd, turn, workspace).map { it.candidates.single() to it.presentation }
+        artifacts(markdown, cwd, turn, workspace).map { it.path to it.presentation }
 
     private fun artifacts(
         markdown: String,

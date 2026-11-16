@@ -94,9 +94,8 @@ internal fun ResourceLinkCards(
 }
 
 /**
- * The CARD files [inlines] reference, one card per candidate: an ambiguous name shows each, labelled
- * with its path, rather than picking one host file. References are owned by their paragraph.
- * Workspace candidates stay relative to the cwd; explicit resource links name absolute host paths.
+ * The CARD files [inlines] reference. References are owned by their paragraph.
+ * Workspace paths stay relative to the cwd; explicit resource links name absolute host paths.
  */
 @Composable
 private fun rememberParagraphCards(inlines: List<InlineNode>): List<CardSpec> {
@@ -106,10 +105,7 @@ private fun rememberParagraphCards(inlines: List<InlineNode>): List<CardSpec> {
     return remember(inlines, cwd, workspace, turn) {
         paragraphArtifacts(inlines, cwd, turn, workspace)
             .filter { it.presentation == ArtifactPresentation.CARD }
-            .flatMap { artifact ->
-                val ambiguous = artifact.candidates.size > 1
-                artifact.candidates.map { CardSpec(it, if (ambiguous) it else artifact.label) }
-            }
+            .map { CardSpec(it.path, it.label) }
     }
 }
 

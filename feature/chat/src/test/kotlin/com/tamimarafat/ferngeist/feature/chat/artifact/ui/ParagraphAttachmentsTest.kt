@@ -141,31 +141,6 @@ class ParagraphAttachmentsTest {
     private fun card(name: String) = compose.onNodeWithContentDescription(name).getUnclippedBoundsInRoot()
 
     @Test
-    fun `a resource link to one ambiguous candidate leaves the other file actionable`() {
-        val message =
-            ChatMessage(
-                role = ChatMessage.Role.ASSISTANT,
-                segments =
-                    persistentListOf(
-                        AssistantSegment(id = "prose", contentBlock = ContentBlock.Text("See report.pdf")),
-                        AssistantSegment(
-                            kind = AssistantSegment.Kind.RESOURCE_LINK,
-                            contentBlock =
-                                ContentBlock.ResourceLink("Linked report", "file:///home/u/app/a/report.pdf"),
-                        ),
-                    ),
-            )
-        showAssistant(workspace = mapOf("report.pdf" to listOf("a/report.pdf", "b/report.pdf"))) { message }
-
-        compose.onNodeWithContentDescription("b/report.pdf").performClick()
-        compose.waitForIdle()
-
-        assertEquals(listOf("b/report.pdf"), opened)
-        compose.onNodeWithContentDescription("a/report.pdf").assertExists()
-        compose.onNodeWithContentDescription("Linked report").assertExists()
-    }
-
-    @Test
     fun `a later resource link keeps each earlier paragraph card without duplicating mentions`() {
         val message =
             mutableStateOf(
