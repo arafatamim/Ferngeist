@@ -18,7 +18,7 @@ class TurnTimingRepositoryImpl(
         // Pruned on read: every chat open is a chance, so no scheduled job is needed.
         dao.deleteFinishedBefore(now() - retentionMs)
         return dao.getForSession(serverId, sessionId).associate {
-            TurnKey(it.turnIndex, it.promptHash) to TurnTiming(it.startedAt, it.finishedAt)
+            TurnKey(it.turnIndex, it.promptHash) to TurnTiming(it.startedAt, it.finishedAt, it.cancelled)
         }
     }
 
@@ -29,7 +29,15 @@ class TurnTimingRepositoryImpl(
         timing: TurnTiming,
     ) {
         dao.upsert(
-            TurnTimingEntity(serverId, sessionId, key.index, key.promptHash, timing.startedAt, timing.finishedAt),
+            TurnTimingEntity(
+                serverId,
+                sessionId,
+                key.index,
+                key.promptHash,
+                timing.startedAt,
+                timing.finishedAt,
+                timing.cancelled,
+            ),
         )
     }
 

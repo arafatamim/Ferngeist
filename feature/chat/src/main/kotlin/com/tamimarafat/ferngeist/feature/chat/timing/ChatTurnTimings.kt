@@ -9,6 +9,7 @@ import com.tamimarafat.ferngeist.feature.chat.unstoredTurns
 import com.tamimarafat.ferngeist.feature.chat.withStoredTurns
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -24,6 +25,7 @@ internal class ChatTurnTimings(
 ) {
     /** Times for the session the last reply needed them for, so later replies skip the store. */
     private var loaded: LoadedTimings? = null
+    private var pendingWrite: Job? = null
 
     private class LoadedTimings(
         val sessionId: String,
@@ -43,9 +45,12 @@ internal class ChatTurnTimings(
         val stored = known + fresh
         loaded = LoadedTimings(sessionId, stored)
         if (fresh.isNotEmpty()) {
-            scope.launch(ioDispatcher) {
-                fresh.forEach { (key, timing) -> repository.record(serverId, sessionId, key, timing) }
-            }
+            val previous = pendingWrite
+            pendingWrite =
+                scope.launch(ioDispatcher) {
+                    previous?.join()
+                    fresh.forEach { (key, timing) -> repository.record(serverId, sessionId, key, timing) }
+                }
         }
         return messages.withStoredTurns(keys, stored)
     }

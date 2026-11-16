@@ -39,6 +39,7 @@ data class ChatMessage(
     val echoStarted: Boolean = false,
     /** When the turn this reply answers was sent and finished; on a reply once it closes. */
     val turn: TurnTiming? = null,
+    val cancelled: Boolean = false,
     /** ACP message id that identifies which streamed message this bubble belongs to. */
     val messageId: String? = null,
 ) {
@@ -54,6 +55,7 @@ data class ChatMessage(
 data class TurnTiming(
     val startedAt: Long,
     val finishedAt: Long,
+    val cancelled: Boolean = false,
 )
 
 /**

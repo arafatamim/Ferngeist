@@ -164,6 +164,21 @@ class FerngeistMigrationTest {
         }
     }
 
+    @Test
+    fun migrate18To19_preservesTimingsWithAnUnknownCancellation() {
+        helper.createDatabase(TEST_DB, 18).use { db ->
+            db.execSQL("INSERT INTO turn_timings VALUES ('agent', 'session', 0, 42, 100, 200)")
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 19, true, migration18To19).use { db ->
+            db.query("SELECT startedAt, finishedAt, cancelled FROM turn_timings").use {
+                assertTrue(it.moveToFirst())
+                assertEquals(100L, it.getLong(0))
+                assertEquals(200L, it.getLong(1))
+                assertEquals(0, it.getInt(2))
+            }
+        }
+    }
+
     private companion object {
         /**
          * Absolute path on purpose: Room 2.8 resolves the database file through

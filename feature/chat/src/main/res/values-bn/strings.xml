@@ -220,6 +220,7 @@
     <!-- Present-continuous variants, shown while the group still has a running call -->
     <string name="chat_tool_summary_separator">", "</string>
     <string name="chat_turn_took">%2$s ধরে %1$s</string>
+    <string name="chat_turn_interrupted">%2$s পর %1$s-এ বাধাপ্রাপ্ত</string>
     <string name="chat_turn_done">শেষ %1$s</string>
     <string-array name="chat_turn_verbs">
         <item>কাজ করেছে</item>

@@ -211,6 +211,7 @@
     <!-- Present-continuous variants, shown while the group still has a running call -->
     <string name="chat_tool_summary_separator">"，"</string>
     <string name="chat_turn_took">%1$s %2$s</string>
+    <string name="chat_turn_interrupted">于 %1$s 中断，历时 %2$s</string>
     <string name="chat_turn_done">完成于 %1$s</string>
     <string-array name="chat_turn_verbs">
         <item>用时</item>

@@ -181,7 +181,10 @@ internal fun TurnChanges(
     val timing = turn?.let { turnSummary(it) }
     val separator = stringResource(R.string.chat_turn_separator)
     if (files.isEmpty()) {
-        timing?.let {
+        if (turn?.cancelled == true && timing != null) {
+            InterruptedTurnText(timing, modifier)
+        }
+        timing?.takeUnless { turn.cancelled }?.let {
             PhrasesText(
                 text = it,
                 separator = separator,
@@ -205,12 +208,15 @@ internal fun TurnChanges(
     val rowStats = counted.size > 1
     var open by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxWidth()) {
+        if (turn?.cancelled == true && timing != null) {
+            InterruptedTurnText(timing)
+        }
         ToolGroupHeader(
             // "3 files changed", not "Edited 3 files": an outcome, so it doesn't read as one more call.
             summary =
                 joinPhrases(
                     listOfNotNull(
-                        timing,
+                        timing.takeUnless { turn?.cancelled == true },
                         pluralStringResource(GitR.plurals.chat_git_files_changed, files.size, files.size),
                     ),
                     separator,
@@ -261,22 +267,42 @@ internal fun TurnChanges(
     }
 }
 
+@Composable
+private fun InterruptedTurnText(
+    timing: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = timing,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = modifier.padding(vertical = 4.dp),
+    )
+}
+
 /** "Brewed for 1m 20s · done 2:24 AM": the verb is seeded by the turn, so it stays put across reloads. */
 @Composable
 private fun turnSummary(turn: TurnTiming): String {
     val context = LocalContext.current
     val resources = LocalResources.current
-    val verb =
-        remember(turn.startedAt, resources) {
-            val verbs = resources.getStringArray(R.array.chat_turn_verbs)
-            verbs[Random(turn.startedAt).nextInt(verbs.size)]
-        }
     val elapsed = elapsedOf((turn.finishedAt - turn.startedAt).coerceAtLeast(MS_PER_SECOND)) ?: Elapsed(0, 0, 1)
     // Today reads as a time of day; anything older needs its date too.
     val flags =
         DateUtils.FORMAT_SHOW_TIME or
             if (DateUtils.isToday(turn.finishedAt)) 0 else DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH
     val done = remember(turn.finishedAt, flags) { DateUtils.formatDateTime(context, turn.finishedAt, flags) }
+    if (turn.cancelled) {
+        return stringResource(
+            R.string.chat_turn_interrupted,
+            done,
+            formatElapsed(elapsed, MeasureFormat.FormatWidth.NARROW),
+        )
+    }
+    val verb =
+        remember(turn.startedAt, resources) {
+            val verbs = resources.getStringArray(R.array.chat_turn_verbs)
+            verbs[Random(turn.startedAt).nextInt(verbs.size)]
+        }
     return joinPhrases(
         listOf(
             stringResource(R.string.chat_turn_took, verb, formatElapsed(elapsed, MeasureFormat.FormatWidth.NARROW)),

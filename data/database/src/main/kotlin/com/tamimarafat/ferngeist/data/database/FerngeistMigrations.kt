@@ -70,3 +70,11 @@ val migration17To18: Migration =
             db.execSQL("UPDATE gateway_agent_bindings SET createdAt = rowid")
         }
     }
+
+/** Preserves whether the agent cancelled a timed turn when its transcript is replayed. */
+val migration18To19: Migration =
+    object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE turn_timings ADD COLUMN cancelled INTEGER NOT NULL DEFAULT 0")
+        }
+    }

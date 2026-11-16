@@ -23,6 +23,7 @@ import com.tamimarafat.ferngeist.data.database.migration14To15
 import com.tamimarafat.ferngeist.data.database.migration15To16
 import com.tamimarafat.ferngeist.data.database.migration16To17
 import com.tamimarafat.ferngeist.data.database.migration17To18
+import com.tamimarafat.ferngeist.data.database.migration18To19
 import com.tamimarafat.ferngeist.gateway.GatewayRepository
 import com.tamimarafat.ferngeist.push.AndroidUnifiedPushClient
 import com.tamimarafat.ferngeist.push.AppForegroundState
@@ -87,6 +88,7 @@ object AppModule {
                 migration15To16,
                 migration16To17,
                 migration17To18,
+                migration18To19,
             ).fallbackToDestructiveMigration(false)
             .build()
 

@@ -21,7 +21,7 @@ import com.tamimarafat.ferngeist.data.database.entity.TurnTimingEntity
         LaunchableTargetSessionSettingsEntity::class,
         TurnTimingEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = true,
 )
 abstract class FerngeistDatabase : RoomDatabase() {

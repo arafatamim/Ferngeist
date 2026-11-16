@@ -1,5 +1,6 @@
 package com.tamimarafat.ferngeist.data.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 
@@ -15,4 +16,5 @@ data class TurnTimingEntity(
     val promptHash: Int,
     val startedAt: Long,
     val finishedAt: Long,
+    @ColumnInfo(defaultValue = "0") val cancelled: Boolean = false,
 )

@@ -89,12 +89,36 @@ private fun reduceTranscript(
             is AppSessionEvent.TurnEndUnheard -> null
             else -> SessionMessageReducer.handleEvent(opened, current.toolCallIndex, event, nowMs)
         }
-    val reduced = fromReducer ?: ReducerResult(opened, current.toolCallIndex)
+    val reducedEvent = fromReducer ?: ReducerResult(opened, current.toolCallIndex)
+    val reduced =
+        if (event is AppSessionEvent.TurnComplete && event.stopReason == "cancelled") {
+            markCancelled(reducedEvent)
+        } else {
+            reducedEvent
+        }
     if (fromReducer == null || current.stoppedAt != null) {
         // ponytail: re-folds the trailing reply per late event; fine for a stop's short tail.
         return reduced.copy(messages = SessionMessageReducer.finishStreaming(reduced.messages))
     }
     return reduced
+}
+
+private fun markCancelled(result: ReducerResult): ReducerResult {
+    val index = result.messages.indexOfLast { it.role == ChatMessage.Role.ASSISTANT }
+    val promptIndex = result.messages.indexOfLast { it.role == ChatMessage.Role.USER }
+    if (index <= promptIndex) return result
+    return result.copy(
+        messages =
+            result.messages.toMutableList().apply {
+                val reply = this[index]
+                val timedIndex = (index downTo promptIndex + 1).firstOrNull { this[it].turn != null }
+                val timing = timedIndex?.let { this[it].turn }
+                if (timedIndex != null && timedIndex != index) {
+                    this[timedIndex] = this[timedIndex].copy(turn = null)
+                }
+                this[index] = reply.copy(cancelled = true, turn = timing?.copy(cancelled = true))
+            },
+    )
 }
 
 /**
@@ -170,7 +194,7 @@ internal fun stampClosedReply(
             data.copy(
                 messages =
                     messages.toMutableList().apply {
-                        this[index] = reply.copy(turn = TurnTiming(prompt.createdAt, finishedAt))
+                        this[index] = reply.copy(turn = TurnTiming(prompt.createdAt, finishedAt, reply.cancelled))
                     },
             )
         } else {
