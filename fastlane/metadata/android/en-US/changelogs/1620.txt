@@ -1,0 +1,5 @@
+• Requires the latest Ferngeist gateway; update it before upgrading
+• Open and save files your agent shares, right from the chat
+• Send audio, links and embedded text in your prompts
+• Live progress in the status bar while agents work
+• Smoother turn-by-turn scrolling, slash-command hints, git status in session lists, scrollable wide tables, in-app links, and one less storage permission
