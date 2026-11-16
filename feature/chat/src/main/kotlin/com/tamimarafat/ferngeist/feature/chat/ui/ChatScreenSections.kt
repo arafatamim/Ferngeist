@@ -103,6 +103,7 @@ internal fun ChatScreenDialogs(
     activePermissionRequest: PendingPermissionRequest?,
     onPermissionGrant: (String, String) -> Unit,
     onPermissionDeny: (String) -> Unit,
+    onStopTurn: () -> Unit,
     activeElicitationRequest: ChatElicitationRequest?,
     onElicitationSubmit: (String, Map<String, ChatElicitationValue>) -> Unit,
     onElicitationDecline: (String) -> Unit,
@@ -152,6 +153,7 @@ internal fun ChatScreenDialogs(
             request = request,
             onGrantPermission = onPermissionGrant,
             onDenyPermission = onPermissionDeny,
+            onStopTurn = onStopTurn,
         )
     }
 

@@ -3,7 +3,6 @@
 package com.tamimarafat.ferngeist.feature.chat.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -83,6 +82,7 @@ internal fun PermissionRequestSheet(
     request: PendingPermissionRequest,
     onGrantPermission: (String, String) -> Unit,
     onDenyPermission: (String) -> Unit,
+    onStopTurn: () -> Unit,
 ) {
     // Agents that use permission elicitation for open questions put a paragraph of text in each
     // option label. Stacking those as buttons makes each one multi-line and the sheet unusable,
@@ -132,6 +132,7 @@ internal fun PermissionRequestSheet(
                 selectedOptionId = selectedOptionId,
                 onSubmit = { optionId -> onGrantPermission(request.toolCallId, optionId) },
                 onCancel = { onDenyPermission(request.toolCallId) },
+                onStopTurn = onStopTurn,
             )
         }
     }
@@ -251,16 +252,13 @@ private fun PermissionRequestActions(
     selectedOptionId: String?,
     onSubmit: (String) -> Unit,
     onCancel: () -> Unit,
+    onStopTurn: () -> Unit,
 ) {
     if (choiceLayout) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onCancel, modifier = Modifier.handCursor()) {
-                Text(stringResource(R.string.chat_cancel))
-            }
             Button(
                 onClick = { selectedOptionId?.let(onSubmit) },
                 enabled = selectedOptionId != null,
@@ -269,14 +267,17 @@ private fun PermissionRequestActions(
                 Text(stringResource(R.string.chat_submit))
             }
         }
-    } else {
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.CenterEnd,
-        ) {
-            TextButton(onClick = onCancel, modifier = Modifier.handCursor()) {
-                Text(stringResource(R.string.chat_deny))
-            }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onStopTurn, modifier = Modifier.handCursor()) {
+            Text(stringResource(R.string.chat_stop))
+        }
+        TextButton(onClick = onCancel, modifier = Modifier.handCursor()) {
+            Text(stringResource(if (choiceLayout) R.string.chat_cancel_request else R.string.chat_deny))
         }
     }
 }

@@ -62,6 +62,7 @@
     <string name="chat_permission_body">Агент ожидает вашего разрешения перед продолжением.</string>
     <string name="chat_deny">Отклонить</string>
     <string name="chat_cancel">Отмена</string>
+    <string name="chat_cancel_request">Отменить запрос</string>
     <string name="chat_submit">Отправить</string>
     <string name="chat_elicitation_title">Запрошен ввод</string>
     <string name="chat_elicitation_decline">Отклонить</string>

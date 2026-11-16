@@ -64,6 +64,7 @@
     <string name="chat_permission_body">代理正在等待您的批准以继续操作。</string>
     <string name="chat_deny">拒绝</string>
     <string name="chat_cancel">取消</string>
+    <string name="chat_cancel_request">取消请求</string>
     <string name="chat_submit">提交</string>
     <string name="chat_elicitation_title">需要输入</string>
     <string name="chat_elicitation_decline">拒绝</string>

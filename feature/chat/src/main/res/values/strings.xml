@@ -93,6 +93,7 @@
     <string name="chat_permission_body">The agent is waiting for your approval before it can continue.</string>
     <string name="chat_deny">Deny</string>
     <string name="chat_cancel">Cancel</string>
+    <string name="chat_cancel_request">Cancel request</string>
     <string name="chat_submit">Submit</string>
     <string name="chat_elicitation_title">Input requested</string>
     <string name="chat_elicitation_decline">Decline</string>

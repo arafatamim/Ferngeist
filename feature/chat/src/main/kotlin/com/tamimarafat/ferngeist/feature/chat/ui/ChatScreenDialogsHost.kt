@@ -44,6 +44,7 @@ internal fun ChatScreenDialogsHost(
         onPermissionDeny = { toolCallId ->
             viewModel.dispatch(ChatIntent.DenyPermission(toolCallId))
         },
+        onStopTurn = { viewModel.dispatch(ChatIntent.CancelStreaming) },
         activeElicitationRequest = screenState.state.pendingElicitations.firstOrNull(),
         onElicitationSubmit = { key, values ->
             viewModel.dispatch(ChatIntent.SubmitElicitation(key, values))
