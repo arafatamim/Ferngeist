@@ -741,7 +741,6 @@ internal class SessionGateway(
                 sessionId = id,
                 permissionFlow = permissionFlow,
                 elicitationFlow = elicitationFlow,
-                diagnosticsStore = connection.diagnosticsStore,
                 attachTiming = { attachTimings[id] },
                 emit = { event, updateSeq -> emitToBridge(id, event, updateSeq) },
             )

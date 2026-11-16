@@ -20,17 +20,18 @@ import java.util.UUID
 /**
  * Maps ACP `elicitation/create` requests to chat-domain models and user answers back.
  *
- * Returns null for requests this client cannot render: request-scoped elicitations
- * (outside any session) have no session UI to attach to. Callers answer those
- * with [cancelResponse] directly.
+ * Every request reaching here belongs to [sessionId]: the SDK hands a session only
+ * session-scoped requests and request-scoped ones whose `requestId` names that
+ * session's in-flight request, such as `session/prompt`. Elicitations outside any
+ * session go to the SDK's global handler and never arrive.
  */
 internal object ElicitationMappers {
     fun toDomain(
         sessionId: String,
         request: CreateElicitationRequest,
-    ): ChatElicitationRequest? {
-        val scope = request.scope as? ElicitationScope.Session ?: return null
-        val toolCallId = scope.toolCallId?.value
+    ): ChatElicitationRequest {
+        // Only a session-scoped request can name a tool call.
+        val toolCallId = (request.scope as? ElicitationScope.Session)?.toolCallId?.value
         val key = UUID.randomUUID().toString()
         return when (val mode = request.mode) {
             is ElicitationMode.Form -> {

@@ -1,8 +1,10 @@
 package com.tamimarafat.ferngeist.acp.bridge.connection.wire
 
+import com.agentclientprotocol.model.ContentBlock
 import com.agentclientprotocol.rpc.ACPJson
 import com.agentclientprotocol.rpc.JsonRpcMessage
 import com.agentclientprotocol.rpc.JsonRpcNotification
+import com.agentclientprotocol.rpc.JsonRpcRequest
 import com.agentclientprotocol.rpc.JsonRpcSuccessResponse
 import com.tamimarafat.ferngeist.acp.bridge.connection.ScriptedTransport
 import com.tamimarafat.ferngeist.acp.bridge.connection.SessionAttachRpc
@@ -13,7 +15,9 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.newGateway
 import com.tamimarafat.ferngeist.acp.bridge.session.SessionBridge
 import com.tamimarafat.ferngeist.core.model.ChatElicitationRequest
 import com.tamimarafat.ferngeist.core.model.ChatElicitationValue
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.encodeToJsonElement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -118,6 +122,30 @@ class WireElicitationTest {
             assertEquals("""{"action":"cancel"}""", answer)
             assertTrue(bridge.pending().isEmpty())
         }
+
+    @Test
+    fun `an elicitation tied to the running prompt is shown and answered on its own id`() =
+        runTest {
+            val (gateway, bridge) = attached()
+            // No script for session/prompt: the turn stays in flight until the agent answers it.
+            backgroundScope.launch { gateway.sendSessionMessage("s1", listOf(ContentBlock.Text("go"))) }
+            yield()
+            awaitReal { promptRequest() != null }
+            val promptId = ACPJson.encodeToJsonElement(promptRequest()!!.id)
+
+            transport.receive(
+                """{"jsonrpc":"2.0","id":70,"method":"elicitation/create","params":{"requestId":$promptId,""" +
+                    """"mode":"form","message":"Name?","requestedSchema":{"type":"object","properties":""" +
+                    """{"name":{"type":"string","title":"Name"}},"required":["name"]}}}""",
+            )
+            val form = bridge.awaitPending(1).single() as ChatElicitationRequest.Form
+            gateway.submitElicitation("s1", form.key, mapOf("name" to ChatElicitationValue.TextValue("Ada")))
+
+            assertEquals("""{"action":"accept","content":{"name":"Ada"}}""", replyTo(70))
+        }
+
+    private fun promptRequest(): JsonRpcRequest? =
+        transport.sentMessages.filterIsInstance<JsonRpcRequest>().singleOrNull { it.method.name == "session/prompt" }
 
     @Test
     fun `a dropped connection clears a pending sheet without answering on the dead wire`() =

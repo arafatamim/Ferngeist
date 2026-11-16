@@ -3,8 +3,8 @@ package com.tamimarafat.ferngeist.core.model
 /**
  * Structured input request from an agent (ACP `elicitation/create`, form or URL mode).
  *
- * Session-scoped only: request-scoped elicitations (outside any session, e.g. auth phase)
- * are declined at the bridge and never reach the UI.
+ * Always tied to a session. Elicitations outside any session (e.g. the auth phase) never
+ * reach the UI.
  */
 sealed interface ChatElicitationRequest {
     val key: String

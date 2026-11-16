@@ -9,7 +9,6 @@ import com.agentclientprotocol.model.PermissionOption
 import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
-import com.tamimarafat.ferngeist.acp.bridge.connection.AcpDiagnosticsStore
 import com.tamimarafat.ferngeist.acp.bridge.connection.AcpSessionUpdateMapper
 import com.tamimarafat.ferngeist.acp.bridge.connection.AttachTiming
 import com.tamimarafat.ferngeist.acp.bridge.connection.catchup.updateSeq
@@ -28,8 +27,6 @@ import kotlinx.serialization.json.JsonElement
  * - [createElicitation]: maps the SDK elicitation to a [ChatElicitationRequest],
  *   emits an [ElicitationRequested] event, and suspends until the user
  *   responds via [submitElicitation], [declineElicitation] or [cancelElicitation].
- *   Request-scoped elicitations answer `cancel` at once — they have no
- *   session UI to attach to.
  * - [notify]: maps each [SessionUpdate] to an [AppSessionEvent] and
  *   forwards it to the bridge with the gateway's number for it.
  */
@@ -37,7 +34,6 @@ internal class BridgeSessionOperations(
     private val sessionId: String,
     private val permissionFlow: PermissionFlow,
     private val elicitationFlow: ElicitationFlow,
-    private val diagnosticsStore: AcpDiagnosticsStore,
     private val attachTiming: () -> AttachTiming?,
     private val emit: suspend (event: AppSessionEvent, updateSeq: Long?) -> Unit,
 ) : ClientSessionOperations {
@@ -84,20 +80,12 @@ internal class BridgeSessionOperations(
     override suspend fun createElicitation(request: CreateElicitationRequest) = runElicitation(request)
 
     /**
-     * Runs one `elicitation/create` round-trip: unsupported scopes answer `cancel`
-     * at once, renderable ones suspend on a deferred the UI resolves. Split from
-     * the override so its signature fits the line budget.
+     * Runs one `elicitation/create` round-trip, suspending on a deferred the UI
+     * resolves. Split from the override so its signature fits the line budget.
      */
     @OptIn(UnstableApi::class)
     private suspend fun runElicitation(request: CreateElicitationRequest): CreateElicitationResponse {
         val domain = ElicitationMappers.toDomain(sessionId, request)
-        if (domain == null) {
-            diagnosticsStore.appendError(
-                "elicitation/create",
-                "Unsupported elicitation (request-scoped); answered cancel.",
-            )
-            return ElicitationMappers.cancelResponse()
-        }
         val deferred = CompletableDeferred<CreateElicitationResponse>()
         elicitationFlow.addPending(key = domain.key, sessionId = sessionId, deferred = deferred)
         emit(AppSessionEvent.ElicitationRequested(domain), null)
