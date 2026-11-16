@@ -119,6 +119,24 @@ class WireElicitationTest {
             assertTrue(bridge.pending().isEmpty())
         }
 
+    @Test
+    fun `a dropped connection clears a pending sheet without answering on the dead wire`() =
+        runTest {
+            val (gateway, bridge) = attached()
+            transport.receive(formRequest(7))
+            val key = bridge.awaitPending(1).single().key
+            val sentBefore = transport.sentMessages.size
+
+            transport.drop()
+            // What the connection does on a transport reset: detach, keeping the bridge.
+            gateway.detachAllSessions()
+            // A sheet submitted after the drop must not reach a later connection.
+            gateway.submitElicitation("s1", key, mapOf("name" to ChatElicitationValue.TextValue("Ada")))
+
+            assertTrue("the sheet is dismissed", bridge.awaitPending(0).isEmpty())
+            assertEquals("nothing is sent after the drop", sentBefore, transport.sentMessages.size)
+        }
+
     private fun describe(message: JsonRpcMessage): String =
         when (message) {
             is JsonRpcNotification -> "notification ${message.method.name}"

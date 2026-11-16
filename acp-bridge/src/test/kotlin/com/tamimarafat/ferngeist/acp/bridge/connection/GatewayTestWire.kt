@@ -149,6 +149,7 @@ internal class ScriptedTransport(
      */
     val sentMessages: MutableList<JsonRpcMessage> = CopyOnWriteArrayList()
     private var onFrame: (TransportFrame) -> Unit = {}
+    private var closeHandler: () -> Unit = {}
 
     override val state: StateFlow<Transport.State> = MutableStateFlow(Transport.State.STARTED)
 
@@ -156,6 +157,9 @@ internal class ScriptedTransport(
 
     /** Delivers [json] from the agent outside any script, as an unprompted request or notification. */
     fun receive(json: String) = onFrame(parseTransportFrame(json))
+
+    /** Closes the connection from the agent's side, as a dropped socket does. */
+    fun drop() = closeHandler()
 
     override fun send(frame: TransportFrame) {
         (frame as? TransportFrame.Single)?.message?.let(sentMessages::add)
@@ -172,7 +176,9 @@ internal class ScriptedTransport(
 
     override fun onError(handler: (Throwable) -> Unit) = Unit
 
-    override fun onClose(handler: () -> Unit) = Unit
+    override fun onClose(handler: () -> Unit) {
+        closeHandler = handler
+    }
 
     override fun close() = Unit
 }
