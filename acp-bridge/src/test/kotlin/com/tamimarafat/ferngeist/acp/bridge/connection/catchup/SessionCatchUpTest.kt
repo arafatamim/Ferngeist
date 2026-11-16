@@ -371,6 +371,35 @@ class SessionCatchUpTest {
         }
 
     @Test
+    fun `unrelated metadata beside the gateway's keys leaves numbering, echo and catch-up intact`() =
+        runTest {
+            val runtime = SessionRuntime(sessionId = "s1").apply { catchUpFrom("e1") }
+            runtime.onLocalPromptStarted("go", emptyList(), emptyList(), clientId = "c1")
+            val vendor = """"vendor/trace":{"id":"t"}"""
+            val echo =
+                """{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","_meta":{$vendor},""" +
+                    """"update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"go",""" +
+                    """"_meta":{$vendor}},"_meta":{$vendor,"ferngeist/seq":1,"ferngeist/clientId":"c1"}}}}"""
+            val reply =
+                """{"jsonrpc":"2.0","id":${'$'}ID,"result":{"_meta":{$vendor,"ferngeist/catchUp":""" +
+                    """{"epoch":"e1","headSeq":2,"turnActive":true,"gap":false,$vendor}}}}"""
+            val transport = ScriptedTransport(mapOf("session/resume" to listOf(echo, chunk("hel", 2), reply)))
+            val gateway = attachOver(transport, runtime)
+
+            val bridge =
+                gateway.attachSession(SessionAttachRpc.LOAD, "s1", "/w", epoch = "e1") as SessionBridge
+
+            val users =
+                bridge.snapshot.value.messages
+                    .filter { it.role == ChatMessage.Role.USER }
+            assertEquals(listOf("go"), users.map { it.content })
+            assertTrue(users.single().deliveryConfirmed)
+            assertEquals("hel", bridge.replyText())
+            assertTrue(bridge.snapshot.value.isStreaming)
+            assertEquals(CatchUpCursor("e1", 2), bridge.runtime.catchUpFrom(null))
+        }
+
+    @Test
     fun `a prompt names itself on the wire and a resend the gateway already delivered counts as delivered`() =
         runTest {
             val delivered =

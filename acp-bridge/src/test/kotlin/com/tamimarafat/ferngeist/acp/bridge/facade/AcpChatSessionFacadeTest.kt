@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -394,23 +395,29 @@ class AcpChatSessionFacadeTest {
             hub = surface,
         )
 
+    /** A facade whose session is created and authenticated over [transport]'s SDK wire. */
+    private suspend fun TestScope.readyFacade(transport: ChatAuthTransport): AcpChatSessionFacade {
+        val manager = newManager(backgroundScope)
+        transport.install(manager, backgroundScope)
+        val facade = newFacade(RecordingSurface(), backgroundScope, manager)
+        facade.loadSession()
+        var authenticated = false
+        backgroundScope.launch {
+            facade.authenticate("login")
+            authenticated = true
+        }
+        awaitRealWork { authenticated && facade.sessionSnapshot.value != null }
+        assertTrue(authenticated)
+        assertNull(facade.authentication.value)
+        assertNotNull(facade.sessionSnapshot.value)
+        return facade
+    }
+
     @Test
     fun `invalid prompt response surfaces the agent message with a useful classification`() =
         runTest(UnconfinedTestDispatcher()) {
-            val manager = newManager(backgroundScope)
             val transport = ChatAuthTransport().apply { promptFailure = "Unsupported model" }
-            transport.install(manager, backgroundScope)
-            val facade = newFacade(RecordingSurface(), backgroundScope, manager)
-            facade.loadSession()
-            var authenticated = false
-            backgroundScope.launch {
-                facade.authenticate("login")
-                authenticated = true
-            }
-            awaitRealWork { authenticated && facade.sessionSnapshot.value != null }
-            assertTrue(authenticated)
-            assertNull(facade.authentication.value)
-            assertNotNull(facade.sessionSnapshot.value)
+            val facade = readyFacade(transport)
             val error = async(start = CoroutineStart.UNDISPATCHED) { facade.operationError.first() }
 
             val sent = facade.sendMessage("hello", emptyList(), emptyList(), "client-1", PromptExtras())
@@ -419,6 +426,21 @@ class AcpChatSessionFacadeTest {
             assertEquals(1, transport.prompts)
             val actual = error.await()
             assertEquals("Send failed: invalid parameters. Unsupported model", actual.message)
+        }
+
+    @Test
+    fun `connection lost mid-prompt ends the turn and reports the disconnect`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val transport = ChatAuthTransport().apply { dropOnPrompt = true }
+            val facade = readyFacade(transport)
+            val error = async(start = CoroutineStart.UNDISPATCHED) { facade.operationError.first() }
+
+            val sent = facade.sendMessage("hello", emptyList(), emptyList(), "client-1", PromptExtras())
+
+            assertFalse(sent)
+            assertEquals(1, transport.prompts)
+            assertEquals("Not connected to the ACP server", error.await().message)
+            assertFalse("the turn must not stay streaming", facade.sessionSnapshot.value!!.isStreaming)
         }
 
     @Test

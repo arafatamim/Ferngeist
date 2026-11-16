@@ -364,14 +364,16 @@ internal class SessionGateway(
     /**
      * Joins [turn]. A cancelled caller rethrows as-is. A live caller whose turn was
      * cancelled under it (the transport dropped) gets a failure instead: a bare
-     * CancellationException would silently end the caller's own coroutine.
+     * CancellationException would silently end the caller's own coroutine. The
+     * cancellation is not chained as the cause: error formatting reads a cancelled cause
+     * as a user cancel and would hide the disconnect behind a generic message.
      */
     private suspend fun awaitTurn(turn: Deferred<Unit>) {
         try {
             turn.await()
-        } catch (error: CancellationException) {
+        } catch (_: CancellationException) {
             currentCoroutineContext().ensureActive()
-            throw AcpDisconnectedException().apply { initCause(error) }
+            throw AcpDisconnectedException()
         }
     }
 

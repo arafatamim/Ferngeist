@@ -32,6 +32,8 @@ internal class ChatAuthTransport : Transport {
     private var authenticated = false
     var authFailure: String? = null
     var promptFailure: String? = null
+    var dropOnPrompt = false
+    private var closeHandler: () -> Unit = {}
     var prompts = 0
     val authenticatedMethods = mutableListOf<String>()
     var creations = 0
@@ -65,6 +67,7 @@ internal class ChatAuthTransport : Transport {
         val request = (frame as? TransportFrame.Single)?.message as? JsonRpcRequest ?: return
         if (request.method.name == "session/prompt") {
             prompts++
+            if (dropOnPrompt) return closeHandler()
             val error = JsonRpcError(-32602, requireNotNull(promptFailure))
             handler?.invoke(TransportFrame.Single(JsonRpcErrorResponse(request.id, error)))
             return
@@ -103,7 +106,9 @@ internal class ChatAuthTransport : Transport {
 
     override fun onError(handler: (Throwable) -> Unit) = Unit
 
-    override fun onClose(handler: () -> Unit) = Unit
+    override fun onClose(handler: () -> Unit) {
+        closeHandler = handler
+    }
 
     override fun close() = Unit
 }

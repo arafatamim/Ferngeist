@@ -5,6 +5,7 @@ import com.agentclientprotocol.client.Client
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.protocol.ProtocolOptions
 import com.agentclientprotocol.rpc.ACPJson
+import com.agentclientprotocol.rpc.JsonRpcMessage
 import com.agentclientprotocol.rpc.JsonRpcRequest
 import com.agentclientprotocol.rpc.TransportFrame
 import com.agentclientprotocol.rpc.parseTransportFrame
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import java.util.concurrent.CopyOnWriteArrayList
 
 private class ConnectivityStub : ConnectivityObserver {
     private val _isConnected = MutableStateFlow(true)
@@ -140,13 +142,23 @@ internal class ScriptedTransport(
 
     /** The params of each request sent, in order. */
     val sentParams = mutableListOf<JsonElement?>()
+
+    /**
+     * Every message sent, in order: requests, notifications and replies to the agent's requests.
+     * Thread-safe: the SDK answers the agent's requests from its own handler thread.
+     */
+    val sentMessages: MutableList<JsonRpcMessage> = CopyOnWriteArrayList()
     private var onFrame: (TransportFrame) -> Unit = {}
 
     override val state: StateFlow<Transport.State> = MutableStateFlow(Transport.State.STARTED)
 
     override fun start() = Unit
 
+    /** Delivers [json] from the agent outside any script, as an unprompted request or notification. */
+    fun receive(json: String) = onFrame(parseTransportFrame(json))
+
     override fun send(frame: TransportFrame) {
+        (frame as? TransportFrame.Single)?.message?.let(sentMessages::add)
         val request = (frame as? TransportFrame.Single)?.message as? JsonRpcRequest ?: return
         sentMethods += request.method.name
         sentParams += request.params
