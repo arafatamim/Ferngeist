@@ -62,7 +62,31 @@ class ParagraphArtifactsTest {
     fun `an extensionless file counts only when linked`() {
         assertEquals(listOf("/opt/tool/run" to CARD), summary("[the tool](/opt/tool/run)"))
         assertEquals(emptyList<Pair<String, ArtifactPresentation>>(), summary("Run /opt/tool/run now"))
-        assertEquals(listOf("data/blob.qqq" to CARD), summary("[blob](data/blob.qqq)"))
+        assertEquals(listOf("data/blob.qqq" to SOURCE_CHIP), summary("[blob](data/blob.qqq)"))
+    }
+
+    @Test
+    fun `workspace text without a highlighter is a chip and a binary is a card`() {
+        val listed =
+            mapOf(
+                ".editorconfig" to listOf(".editorconfig"),
+                "gradlew.bat" to listOf("gradlew.bat"),
+                "gradle-safe" to listOf("scripts/gradle-safe"),
+                "OFL.txt" to listOf("licenses/OFL.txt"),
+                "dist.zip" to listOf("out/dist.zip"),
+            )
+        val prose = "`.editorconfig`, gradlew.bat, scripts/gradle-safe, licenses/OFL.txt, dist.zip"
+
+        assertEquals(
+            listOf(
+                ".editorconfig" to SOURCE_CHIP,
+                "gradlew.bat" to SOURCE_CHIP,
+                "scripts/gradle-safe" to SOURCE_CHIP,
+                "licenses/OFL.txt" to SOURCE_CHIP,
+                "out/dist.zip" to CARD,
+            ),
+            summary(prose, workspace = listed),
+        )
     }
 
     @Test

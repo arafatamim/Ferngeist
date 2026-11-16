@@ -92,7 +92,7 @@ private val chipChromeHeight = 4.dp
 private val chipIcon = 14.dp
 
 /**
- * Source file mentions in a turn's prose as inline [FileChip]s that open the whole file
+ * Text file mentions in a turn's prose as inline [FileChip]s that open the whole file
  * ([localFileOpener]), [paths] being the turn's files; none without an opener. None while the
  * turn streams: a file edited late would chip prose already on screen. Other files are
  * attachment cards only; HTML is both.
@@ -147,11 +147,11 @@ internal fun rememberFileChips(
 }
 
 /**
- * A chip id's file opens as source: source text, and HTML, whose card previews the page while the
+ * A chip id's file opens in the sheet: text, and HTML, whose card previews the page while the
  * chip shows its markup. Its candidates share a name, so the first stands for all.
  */
 private fun isSource(id: String): Boolean =
-    artifactKind(chipCandidates(id).first()).let { it == ArtifactKind.SOURCE || it == ArtifactKind.HTML }
+    artifactKind(chipCandidates(id).first()).let { it == ArtifactKind.TEXT || it == ArtifactKind.HTML }
 
 private fun chipContent(
     path: String,
