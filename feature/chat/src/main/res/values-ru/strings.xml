@@ -4,7 +4,6 @@
     <string name="chat_composer_hint">Введите сообщение…</string>
     <string name="chat_composer_close_desc">Закрыть</string>
     <string name="chat_stop">Стоп</string>
-    <string name="chat_cancel_unavailable">Отмена недоступна</string>
     <string name="chat_chat">Чат</string>
     <string name="chat_mode">Режим</string>
     <string name="chat_no_modes_available">Режимы недоступны</string>

@@ -220,15 +220,3 @@ private fun Throwable.isRequestTimeout(): Boolean =
 /** The SDK converts wire invalid-params errors to AcpExpectedError. */
 private fun Throwable.isInvalidParams(): Boolean =
     this is AcpExpectedError || (this as? JsonRpcException)?.code == JsonRpcErrorCode.INVALID_PARAMS.code
-
-/**
- * Returns true when the server does not implement `session/cancel`.
- *
- * Only the code is read. The method identity is not in dispute — the call site that
- * produced this error is the one cancelling — so requiring "Method not found" *and*
- * "session/cancel" in the message added no evidence and one false negative: an agent
- * answering a bare `-32601 Method not found`, which is legal JSON-RPC, left the flag
- * unset and the user with a Cancel button that could never work.
- */
-internal fun isSessionCancelUnsupported(error: Throwable): Boolean =
-    (error as? JsonRpcException)?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code

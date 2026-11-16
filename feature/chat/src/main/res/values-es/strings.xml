@@ -3,7 +3,6 @@
     <string name="chat_composer_hint">Escribe un mensaje…</string>
     <string name="chat_composer_close_desc">Cerrar el compositor</string>
     <string name="chat_stop">Detener</string>
-    <string name="chat_cancel_unavailable">Cancelar no disponible</string>
     <string name="chat_chat">Chat</string>
     <string name="chat_mode">Modo</string>
     <string name="chat_no_modes_available">No hay modos disponibles</string>

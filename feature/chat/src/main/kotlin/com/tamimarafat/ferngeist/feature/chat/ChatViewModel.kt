@@ -165,7 +165,6 @@ class ChatViewModel
                                     isLoading = true,
                                     isStreaming = false,
                                     isSessionReady = false,
-                                    canCancelStreaming = true,
                                     error = null,
                                 )
                             }
@@ -180,7 +179,6 @@ class ChatViewModel
                                 copy(
                                     isLoading = false,
                                     isSessionReady = true,
-                                    canCancelStreaming = true,
                                     error = null,
                                 )
                             }
@@ -217,11 +215,6 @@ class ChatViewModel
 
                         override suspend fun onStreamingCancelled() {
                             updateState { copy(isStreaming = false) }
-                        }
-
-                        override suspend fun onCancelUnsupported() {
-                            updateState { copy(canCancelStreaming = false) }
-                            emitEffect(ChatEffect.ShowMessage("Cancel is not supported by this server"))
                         }
 
                         override suspend fun onModelUpdated() {

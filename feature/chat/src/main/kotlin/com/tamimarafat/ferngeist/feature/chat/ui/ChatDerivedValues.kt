@@ -35,7 +35,6 @@ internal data class ChatDerivedValues(
     val modeOption: ChatConfigOption.Select?,
     val toolbarConfigOptions: List<ChatConfigOption>,
     val selectedConfigPickerOption: ChatConfigOption.Select?,
-    val canCancelStreaming: Boolean,
     val hasStreamingBubble: Boolean,
     val activelyStreaming: Boolean,
     val showStopAction: Boolean,
@@ -160,7 +159,6 @@ private data class ChatConfigDerived(
     val modeOption: ChatConfigOption.Select?,
     val toolbarConfigOptions: List<ChatConfigOption>,
     val selectedConfigPickerOption: ChatConfigOption.Select?,
-    val canCancelStreaming: Boolean,
     val hasStreamingBubble: Boolean,
     val activelyStreaming: Boolean,
     val showStopAction: Boolean,
@@ -199,7 +197,6 @@ private fun rememberChatConfigDerived(
         }
 
     // --- Streaming / stop flags ---
-    val canCancelStreaming = state.canCancelStreaming
     val hasStreamingBubble = state.messages.lastOrNull()?.isStreaming == true
     val activelyStreaming = state.isStreaming || hasStreamingBubble
     val showStopAction = state.isStreaming && hasStreamingBubble
@@ -217,7 +214,6 @@ private fun rememberChatConfigDerived(
         modeOption = modeOption,
         toolbarConfigOptions = toolbarConfigOptions,
         selectedConfigPickerOption = selectedConfigPickerOption,
-        canCancelStreaming = canCancelStreaming,
         hasStreamingBubble = hasStreamingBubble,
         activelyStreaming = activelyStreaming,
         showStopAction = showStopAction,
@@ -272,7 +268,6 @@ private fun buildChatDerivedValues(
         modeOption = configDerived.modeOption,
         toolbarConfigOptions = configDerived.toolbarConfigOptions,
         selectedConfigPickerOption = configDerived.selectedConfigPickerOption,
-        canCancelStreaming = configDerived.canCancelStreaming,
         hasStreamingBubble = configDerived.hasStreamingBubble,
         activelyStreaming = configDerived.activelyStreaming,
         showStopAction = configDerived.showStopAction,

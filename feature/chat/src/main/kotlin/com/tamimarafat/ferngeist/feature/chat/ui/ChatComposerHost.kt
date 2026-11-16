@@ -201,7 +201,6 @@ private fun ChatComposerRow(
             modeOption = screenState.derived.modeOption,
             currentModeLabel = screenState.derived.currentModeLabel,
             showStopAction = screenState.derived.showStopAction,
-            canCancelStreaming = screenState.derived.canCancelStreaming,
             focusRequester = screenState.mutations.focusRequester,
             onFocusCleared = { focusManager.clearFocus() },
             onHeightChanged = onBarHeightChanged,

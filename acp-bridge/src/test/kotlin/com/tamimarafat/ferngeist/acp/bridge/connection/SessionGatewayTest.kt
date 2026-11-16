@@ -603,12 +603,7 @@ class SessionGatewayTest {
     fun `a failing cancel propagates to the caller`() =
         runTest {
             val gateway = newGateway()
-            val failure =
-                JsonRpcException(
-                    code = JsonRpcErrorCode.METHOD_NOT_FOUND.code,
-                    message = "Method not found",
-                    data = JsonNull,
-                )
+            val failure = IllegalStateException("transport closed")
             installSession(
                 gateway,
                 "s1",

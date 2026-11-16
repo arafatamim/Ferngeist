@@ -151,9 +151,6 @@ class AcpChatSessionFacade(
     private val _streamingCancelled = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val streamingCancelled: SharedFlow<Unit> = _streamingCancelled
 
-    private val _cancelUnsupported = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    override val cancelUnsupported: SharedFlow<Unit> = _cancelUnsupported
-
     private val _sessionReady = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val sessionReady: SharedFlow<Unit> = _sessionReady
 
@@ -421,11 +418,7 @@ class AcpChatSessionFacade(
         extras: PromptExtras,
     ): SteerOutcome = sessionBridge?.steer(text, images, files, clientId, extras) ?: SteerOutcome.NOT_CONSUMED
 
-    /**
-     * Cancels the current streaming turn.
-     *
-     * Emits [cancelUnsupported] if the server lacks the `session/cancel` RPC method.
-     */
+    /** Cancels the current streaming turn. */
     override suspend fun cancelStreaming() {
         val bridge = sessionBridge
         if (bridge == null) {
@@ -434,13 +427,7 @@ class AcpChatSessionFacade(
             )
             return
         }
-        val result = runCatching { bridge.cancel() }
-        val error = result.exceptionOrNull()
-        if (error != null) {
-            if (isSessionCancelUnsupported(error)) {
-                _cancelUnsupported.emit(Unit)
-                return
-            }
+        if (runCatching { bridge.cancel() }.isFailure) {
             _operationError.emit(ChatOperationError("Failed to cancel the current turn", false))
             return
         }

@@ -47,9 +47,6 @@ internal class ChatSessionCoordinator(
         /** Emitted when a streaming cancel completes. */
         suspend fun onStreamingCancelled()
 
-        /** Emitted when the server does not support cancellation. */
-        suspend fun onCancelUnsupported()
-
         /** Emitted when a model change is confirmed by the server. */
         suspend fun onModelUpdated()
 
@@ -80,7 +77,6 @@ internal class ChatSessionCoordinator(
         scope.launch { facade.loadFailed.collect { callbacks.onLoadFailed(it) } }
         scope.launch { facade.operationError.collect { callbacks.onOperationError(it.message, it.stopStreaming) } }
         scope.launch { facade.streamingCancelled.collect { callbacks.onStreamingCancelled() } }
-        scope.launch { facade.cancelUnsupported.collect { callbacks.onCancelUnsupported() } }
         scope.launch { facade.modelUpdated.collect { callbacks.onModelUpdated() } }
     }
 

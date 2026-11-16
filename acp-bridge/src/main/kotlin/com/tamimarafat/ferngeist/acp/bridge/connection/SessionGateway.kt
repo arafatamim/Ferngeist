@@ -14,8 +14,6 @@ import com.agentclientprotocol.model.SessionConfigOptionValue
 import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.SessionModeId
 import com.agentclientprotocol.model.SessionUpdate
-import com.agentclientprotocol.protocol.JsonRpcException
-import com.agentclientprotocol.rpc.JsonRpcErrorCode
 import com.agentclientprotocol.rpc.MethodName
 import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.BridgeSessionOperations
 import com.tamimarafat.ferngeist.acp.bridge.connection.callbacks.ElicitationFlow
@@ -468,14 +466,12 @@ internal class SessionGateway(
     /**
      * Cancels the current streaming turn via `session/cancel` RPC.
      *
-     * On success the diagnostics flag is set to indicate the server supports
-     * cancellation, the session is marked as having a cancel in flight (so a prompt
+     * On success the session is marked as having a cancel in flight (so a prompt
      * stream that dies without a terminal event reports `"cancelled"`), and any
      * pending permission requests are completed as [RequestPermissionOutcome.Cancelled]:
      * [BridgeSessionOperations.requestPermissions] suspends on its deferred, so leaving
-     * one pending would block the agent's tool call forever. On failure
-     * [handleSessionCancelFailure] records the error and, for a `-32601`, marks cancel
-     * unsupported — then the failure **propagates**. Swallowing it here left the UI
+     * one pending would block the agent's tool call forever. A failure is recorded
+     * and **propagates**. Swallowing it here left the UI
      * reporting a cancelled turn the agent never received, and made both of
      * [AcpChatSessionFacade.cancelStreaming]'s failure branches unreachable.
      */
@@ -491,13 +487,12 @@ internal class SessionGateway(
                 session.cancel()
             }
         outcome.onFailure { error ->
-            handleSessionCancelFailure(error)
+            connection.diagnosticsStore.appendError("session/cancel", formatAcpErrorMessage(error, "Cancel failed"))
             // Unmark before rethrowing: no cancel reached the agent, so a prompt stream
             // that ends now must not report itself as cancelled.
             cancelsRequested -= sessionId
         }
         outcome.getOrThrow()
-        connection.diagnosticsStore.setSessionCancelSupport(isSupported = true)
 
         permissionFlow.cancelPendingForSession(sessionId).forEach { toolCallId ->
             emitToBridge(sessionId, AppSessionEvent.ToolPermissionResolved(toolCallId))
@@ -881,27 +876,6 @@ internal class SessionGateway(
     private fun getLoadedSession(sessionId: String): SessionPort? {
         if (!sessionRegistry.hasSdkSession(sessionId)) return null
         return sessionRegistry.getPort(sessionId)
-    }
-
-    /**
-     * Inspects a session/cancel failure to determine whether the server
-     * genuinely doesn't support the method (as opposed to a network error),
-     * and updates the diagnostics flag accordingly.
-     */
-    private fun handleSessionCancelFailure(error: Throwable) {
-        val rpcError = error as? JsonRpcException
-        // Only the code is evidence. The method identity is not in dispute: this is the
-        // session/cancel call site. Requiring "session/cancel" to appear in the message
-        // added nothing but a false negative — a legal bare `-32601 Method not found`
-        // left the flag unset and the user with a Cancel button that cannot work.
-        val unsupported = rpcError?.code == JsonRpcErrorCode.METHOD_NOT_FOUND.code
-        if (unsupported) {
-            connection.diagnosticsStore.setSessionCancelSupport(isSupported = false)
-        }
-        connection.diagnosticsStore.appendError(
-            "session/cancel",
-            formatAcpErrorMessage(error, "Cancel failed"),
-        )
     }
 }
 

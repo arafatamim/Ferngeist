@@ -4,7 +4,6 @@ data class ConnectionDiagnostics(
     val websocketState: WebSocketState = WebSocketState.CLOSED,
     val serverUrl: String? = null,
     val agentInfo: AgentInfo? = null,
-    val supportsSessionCancel: Boolean? = null,
     val pendingRequestCount: Int = 0,
     val reconnectAttempts: Int = 0,
     val recentRpc: List<RpcDiagnosticEntry> = emptyList(),

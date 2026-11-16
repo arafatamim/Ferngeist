@@ -12,20 +12,15 @@ internal class AcpDiagnosticsStore {
     var agentInfo: AgentInfo? = null
         private set
 
-    var supportsSessionCancel: Boolean? = null
-        private set
-
     private val maxDiagnosticRpcEntries = 40
     private val maxDiagnosticErrorEntries = 20
 
     fun startConnect(serverUrl: String) {
         agentInfo = null
-        supportsSessionCancel = null
         update { current ->
             current.copy(
                 serverUrl = serverUrl,
                 agentInfo = null,
-                supportsSessionCancel = null,
                 reconnectAttempts = 0,
             )
         }
@@ -33,17 +28,11 @@ internal class AcpDiagnosticsStore {
 
     fun recordInitialization(info: AgentInfo) {
         agentInfo = info
-        update { current ->
-            current.copy(
-                agentInfo = info,
-                supportsSessionCancel = supportsSessionCancel,
-            )
-        }
+        update { current -> current.copy(agentInfo = info) }
     }
 
     fun clearRuntimeState() {
         agentInfo = null
-        supportsSessionCancel = null
     }
 
     fun markDisconnected() {
@@ -52,7 +41,6 @@ internal class AcpDiagnosticsStore {
             current.copy(
                 websocketState = WebSocketState.CLOSED,
                 agentInfo = null,
-                supportsSessionCancel = null,
                 reconnectAttempts = 0,
             )
         }
@@ -72,11 +60,6 @@ internal class AcpDiagnosticsStore {
 
     fun setWebSocketState(state: WebSocketState) {
         update { current -> current.copy(websocketState = state) }
-    }
-
-    fun setSessionCancelSupport(isSupported: Boolean) {
-        supportsSessionCancel = isSupported
-        update { current -> current.copy(supportsSessionCancel = isSupported) }
     }
 
     fun appendRpcEntry(

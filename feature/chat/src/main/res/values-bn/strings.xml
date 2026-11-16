@@ -3,7 +3,6 @@
     <string name="chat_composer_hint">একটি বার্তা লিখুন…</string>
     <string name="chat_composer_close_desc">কম্পোজার বন্ধ করুন</string>
     <string name="chat_stop">থামান</string>
-    <string name="chat_cancel_unavailable">বাতিল করা যাচ্ছে না</string>
     <string name="chat_chat">চ্যাট</string>
     <string name="chat_mode">মোড</string>
     <string name="chat_no_modes_available">কোনো মোড নেই</string>

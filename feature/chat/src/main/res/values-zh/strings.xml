@@ -4,7 +4,6 @@
     <string name="chat_composer_hint">输入消息…</string>
     <string name="chat_composer_close_desc">关闭编辑器</string>
     <string name="chat_stop">停止</string>
-    <string name="chat_cancel_unavailable">无法取消</string>
     <string name="chat_chat">对话</string>
     <string name="chat_mode">模式</string>
     <string name="chat_no_modes_available">无可用模式</string>

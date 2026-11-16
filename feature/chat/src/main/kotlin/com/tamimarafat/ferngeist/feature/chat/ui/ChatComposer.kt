@@ -134,7 +134,6 @@ private val expandedComposerMinHeight = 142.dp
  * @param modeOption The specific select option for modes.
  * @param currentModeLabel The human-readable label for the current mode.
  * @param showStopAction Whether to show the "Stop" button instead of send/expand.
- * @param canCancelStreaming Whether the current stream can actually be canceled.
  * @param focusRequester To request focus when expanding.
  * @param onFocusCleared Callback when focus is cleared (e.g., closing the composer).
  * @param onHeightChanged Callback to report the current height of the composer to the parent.
@@ -163,7 +162,6 @@ internal fun ChatComposerBar(
     modeOption: ChatConfigOption.Select?,
     currentModeLabel: String,
     showStopAction: Boolean,
-    canCancelStreaming: Boolean,
     focusRequester: FocusRequester,
     onFocusCleared: () -> Unit,
     onHeightChanged: (Int) -> Unit,
@@ -213,19 +211,12 @@ internal fun ChatComposerBar(
                 inputAlpha = inputAlpha,
                 focusRequester = focusRequester,
                 showStopAction = primaryStop,
-                canCancelStreaming = canCancelStreaming,
                 queueing = stopAside,
                 onClose = {
                     onComposerExpandedChange(false)
                     onFocusCleared()
                 },
-                onPrimaryAction = {
-                    if (primaryStop && canCancelStreaming) {
-                        onCancelStreaming()
-                    } else if (!primaryStop) {
-                        onSend()
-                    }
-                },
+                onPrimaryAction = { if (primaryStop) onCancelStreaming() else onSend() },
                 onSend = onSend,
                 canSendImages = canSendImages,
                 selectedImages = selectedImages,
@@ -250,7 +241,6 @@ internal fun ChatComposerBar(
                 modeOption,
                 currentModeLabel,
                 primaryStop,
-                canCancelStreaming,
                 stopAside,
                 collapsedMaxToolbarWidth,
                 showModeMenu,
@@ -482,7 +472,6 @@ internal fun ExpandedComposerContent(
     inputAlpha: () -> Float,
     focusRequester: FocusRequester,
     showStopAction: Boolean,
-    canCancelStreaming: Boolean,
     queueing: Boolean,
     onClose: () -> Unit,
     onPrimaryAction: () -> Unit,
@@ -545,7 +534,6 @@ internal fun ExpandedComposerContent(
             canSendAudio = canSendAudio,
             onAttach = onAttach,
             showStopAction = showStopAction,
-            canCancelStreaming = canCancelStreaming,
             queueing = queueing,
             messageText = messageText.text,
             hasAttachments = hasAttachments,
@@ -707,7 +695,6 @@ private fun ExpandedComposerBottomBar(
     canSendAudio: Boolean,
     onAttach: () -> Unit,
     showStopAction: Boolean,
-    canCancelStreaming: Boolean,
     queueing: Boolean,
     messageText: CharSequence,
     hasAttachments: Boolean,
@@ -742,14 +729,8 @@ private fun ExpandedComposerBottomBar(
 
             PrimaryComposerActionButton(
                 showStopAction = showStopAction,
-                canCancelStreaming = canCancelStreaming,
                 // Attachments alone are a sendable prompt, just like text alone.
-                enabled =
-                    if (showStopAction) {
-                        canCancelStreaming
-                    } else {
-                        messageText.isNotBlank() || hasAttachments
-                    },
+                enabled = showStopAction || messageText.isNotBlank() || hasAttachments,
                 onClick = onPrimaryAction,
                 chatIcon = if (queueing) Icons.AutoMirrored.Filled.ScheduleSend else Icons.Default.ArrowUpward,
             )
@@ -770,7 +751,6 @@ internal fun CollapsedComposerActions(
     modeOption: ChatConfigOption.Select?,
     currentModeLabel: String,
     showStopAction: Boolean,
-    canCancelStreaming: Boolean,
     stopAside: Boolean,
     collapsedMaxToolbarWidth: Dp,
     showModeMenu: Boolean,
@@ -805,7 +785,6 @@ internal fun CollapsedComposerActions(
 
     CollapsedPrimaryButton(
         showStopAction = showStopAction,
-        canCancelStreaming = canCancelStreaming,
         buttonsAlpha = buttonsAlpha,
         onCancelStreaming = onCancelStreaming,
         onExpandComposer = onExpandComposer,
@@ -815,7 +794,7 @@ internal fun CollapsedComposerActions(
     AnimatedVisibility(visible = stopAside, enter = toolbarActionEnter, exit = toolbarActionExit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(modifier = Modifier.width(6.dp))
-            AsideStopButton(canCancelStreaming = canCancelStreaming, onCancelStreaming = onCancelStreaming)
+            AsideStopButton(onCancelStreaming = onCancelStreaming)
         }
     }
 
@@ -842,13 +821,12 @@ internal fun CollapsedComposerActions(
 
 /**
  * The primary action button in the collapsed composer, wrapped in a [TooltipBox]
- * that shows the current mode label ("Stop", "Cancel unavailable", or "Chat").
+ * that shows the current mode label ("Stop" or "Chat").
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CollapsedPrimaryButton(
     showStopAction: Boolean,
-    canCancelStreaming: Boolean,
     buttonsAlpha: () -> Float,
     onCancelStreaming: () -> Unit,
     onExpandComposer: () -> Unit,
@@ -858,21 +836,13 @@ private fun CollapsedPrimaryButton(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
             PlainTooltip {
-                Text(
-                    when {
-                        showStopAction && canCancelStreaming -> stringResource(R.string.chat_stop)
-                        showStopAction && !canCancelStreaming -> stringResource(R.string.chat_cancel_unavailable)
-                        else -> stringResource(R.string.chat_chat)
-                    },
-                )
+                Text(stringResource(if (showStopAction) R.string.chat_stop else R.string.chat_chat))
             }
         },
         state = rememberTooltipState(),
     ) {
         PrimaryComposerActionButton(
             showStopAction = showStopAction,
-            canCancelStreaming = canCancelStreaming,
-            enabled = !showStopAction || canCancelStreaming,
             modifier =
                 Modifier
                     .graphicsLayer { alpha = buttonsAlpha() }
@@ -881,13 +851,7 @@ private fun CollapsedPrimaryButton(
                             IconButtonDefaults.IconButtonWidthOption.Wide,
                         ),
                     ),
-            onClick = {
-                if (showStopAction && canCancelStreaming) {
-                    onCancelStreaming()
-                } else if (!showStopAction) {
-                    onExpandComposer()
-                }
-            },
+            onClick = { if (showStopAction) onCancelStreaming() else onExpandComposer() },
             chatIcon = if (dropTargetActive) Icons.Default.MoveToInbox else Icons.Default.Edit,
         )
     }
@@ -906,26 +870,17 @@ private val toolbarActionExit =
 /** Stop as a plain toolbar action, for agents whose primary action stays on writing mid-turn. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AsideStopButton(
-    canCancelStreaming: Boolean,
-    onCancelStreaming: () -> Unit,
-) {
+private fun AsideStopButton(onCancelStreaming: () -> Unit) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = {
             PlainTooltip {
-                Text(
-                    stringResource(if (canCancelStreaming) R.string.chat_stop else R.string.chat_cancel_unavailable),
-                )
+                Text(stringResource(R.string.chat_stop))
             }
         },
         state = rememberTooltipState(),
     ) {
-        IconButton(
-            onClick = onCancelStreaming,
-            enabled = canCancelStreaming,
-            modifier = Modifier.handCursor(enabled = canCancelStreaming),
-        ) {
+        IconButton(onClick = onCancelStreaming, modifier = Modifier.handCursor()) {
             Icon(imageVector = Icons.Default.Stop, contentDescription = stringResource(R.string.chat_stop_desc))
         }
     }
@@ -962,8 +917,7 @@ private fun JumpToBottomButton(onJumpToBottom: () -> Unit) {
 @Composable
 internal fun PrimaryComposerActionButton(
     showStopAction: Boolean,
-    canCancelStreaming: Boolean,
-    enabled: Boolean,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     chatIcon: ImageVector = Icons.Default.ArrowUpward,
@@ -979,12 +933,11 @@ internal fun PrimaryComposerActionButton(
         shapes = IconButtonDefaults.shapes(),
         modifier = modifier.handCursor(enabled = enabled),
     ) {
-        val stopping = showStopAction && canCancelStreaming
-        Crossfade(targetState = if (stopping) Icons.Default.Stop else chatIcon, label = "PrimaryComposerIcon") {
+        Crossfade(targetState = if (showStopAction) Icons.Default.Stop else chatIcon, label = "PrimaryComposerIcon") {
             Icon(
                 imageVector = it,
                 contentDescription =
-                    stringResource(if (stopping) R.string.chat_stop_desc else R.string.chat_send_desc),
+                    stringResource(if (showStopAction) R.string.chat_stop_desc else R.string.chat_send_desc),
             )
         }
     }

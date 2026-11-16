@@ -22,7 +22,6 @@ import com.tamimarafat.ferngeist.acp.bridge.connection.displayLabels
 import com.tamimarafat.ferngeist.acp.bridge.connection.formatAcpErrorMessage
 import com.tamimarafat.ferngeist.acp.bridge.connection.isCancellationLikeError
 import com.tamimarafat.ferngeist.acp.bridge.connection.sessionAttachRpc
-import com.tamimarafat.ferngeist.acp.bridge.facade.isSessionCancelUnsupported
 import com.tamimarafat.ferngeist.acp.bridge.facade.mapCapabilities
 import com.tamimarafat.ferngeist.acp.bridge.facade.userFacingSendError
 import com.tamimarafat.ferngeist.acp.bridge.session.AppSessionEvent
@@ -150,22 +149,6 @@ class AcpConnectionTest {
                 assertEquals(AcpManagerEvent.Disconnected, awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
-        }
-
-    @Test
-    fun `diagnostics starts with supportsSessionCancel null and records both setter values`() =
-        runTest {
-            val connectivityObserver = ConnectivityObserverStub(initialState = true)
-            val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
-            val manager = AcpConnection(connectivityObserver, noGatewayResume, scope)
-
-            assertNull(manager.diagnostics.value.supportsSessionCancel)
-
-            manager.diagnosticsStore.setSessionCancelSupport(false)
-            assertFalse(manager.diagnostics.value.supportsSessionCancel!!)
-
-            manager.diagnosticsStore.setSessionCancelSupport(true)
-            assertTrue(manager.diagnostics.value.supportsSessionCancel!!)
         }
 
     /**
@@ -328,32 +311,6 @@ class AcpSendErrorClassificationTest {
             )
 
         assertEquals("Send failed: invalid parameters. Something else entirely", userFacingSendError(error))
-    }
-
-    @Test
-    fun `the code alone says the agent cannot cancel`() {
-        // A legal bare -32601 carries no method name. Requiring one left the flag unset and
-        // the user with a Cancel button that could never work.
-        val error =
-            JsonRpcException(
-                code = JsonRpcErrorCode.METHOD_NOT_FOUND.code,
-                message = "Method not found",
-                data = JsonNull,
-            )
-
-        assertTrue(isSessionCancelUnsupported(error))
-    }
-
-    @Test
-    fun `wording alone does not say the agent cannot cancel`() {
-        val error =
-            JsonRpcException(
-                code = JsonRpcErrorCode.INTERNAL_ERROR.code,
-                message = "Method not found: session/cancel",
-                data = JsonNull,
-            )
-
-        assertFalse(isSessionCancelUnsupported(error))
     }
 }
 

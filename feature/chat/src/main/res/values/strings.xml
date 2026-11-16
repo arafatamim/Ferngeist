@@ -4,7 +4,6 @@
     <string name="chat_composer_hint">Type a message…</string>
     <string name="chat_composer_close_desc">Close composer</string>
     <string name="chat_stop">Stop</string>
-    <string name="chat_cancel_unavailable">Cancel unavailable</string>
     <string name="chat_chat">Chat</string>
     <string name="chat_mode">Mode</string>
     <string name="chat_no_modes_available">No modes available</string>

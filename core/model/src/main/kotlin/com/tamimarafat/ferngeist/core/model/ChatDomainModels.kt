@@ -462,7 +462,6 @@ interface ChatSessionEvents {
     val loadFailed: SharedFlow<String>
     val operationError: SharedFlow<ChatOperationError>
     val streamingCancelled: SharedFlow<Unit>
-    val cancelUnsupported: SharedFlow<Unit>
     val sessionReady: SharedFlow<Unit>
     val modelUpdated: SharedFlow<Unit>
 }

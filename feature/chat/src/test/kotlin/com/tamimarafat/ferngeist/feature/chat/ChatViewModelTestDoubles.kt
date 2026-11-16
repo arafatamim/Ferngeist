@@ -129,7 +129,6 @@ open class FakeChatSessionFacade(
     protected val loadFailedFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
     protected val operationErrorFlow = MutableSharedFlow<ChatOperationError>(extraBufferCapacity = 1)
     protected val streamingCancelledFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    protected val cancelUnsupportedFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     protected val sessionReadyFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     protected val modelUpdatedFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -151,7 +150,6 @@ open class FakeChatSessionFacade(
     override val loadFailed: SharedFlow<String> = loadFailedFlow
     override val operationError: SharedFlow<ChatOperationError> = operationErrorFlow
     override val streamingCancelled: SharedFlow<Unit> = streamingCancelledFlow
-    override val cancelUnsupported: SharedFlow<Unit> = cancelUnsupportedFlow
     override val sessionReady: SharedFlow<Unit> = sessionReadyFlow
     override val modelUpdated: SharedFlow<Unit> = modelUpdatedFlow
 
