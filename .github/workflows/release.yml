@@ -23,13 +23,13 @@ jobs:
         run: |
           TAG="${{ github.event.release.tag_name }}"
           TAG="${TAG#v}"
-          NAME=$(grep -oP 'val appVersionName = "\K[^"]+' app/build.gradle.kts)
-          CODE=$(grep -oP 'val appVersionCode = \K\d+' app/build.gradle.kts)
+          NAME=$(grep -oP '^\s*versionName = "\K[^"]+' app/build.gradle.kts)
+          CODE=$(grep -oP '^\s*versionCode = \K\d+' app/build.gradle.kts)
           if [ "$TAG" != "$NAME" ]; then
-            echo "::error::Release tag v$TAG does not match appVersionName $NAME in app/build.gradle.kts. Bump the literals before releasing."
+            echo "::error::Release tag v$TAG does not match versionName $NAME in app/build.gradle.kts. Bump the literals before releasing."
             exit 1
           fi
-          test -n "$CODE" || { echo "::error::appVersionCode literal missing in app/build.gradle.kts."; exit 1; }
+          test -n "$CODE" || { echo "::error::versionCode literal missing in app/build.gradle.kts."; exit 1; }
           echo "version $NAME ($CODE) confirmed for tag v$TAG"
 
       - name: Set up Java 17
@@ -111,7 +111,7 @@ jobs:
 
       - name: Verify the release notes for this version exist
         run: |
-          CODE=$(grep -oP 'val appVersionCode = \K\d+' app/build.gradle.kts)
+          CODE=$(grep -oP '^\s*versionCode = \K\d+' app/build.gradle.kts)
           test -f "fastlane/metadata/android/en-US/changelogs/${CODE}.txt" || {
             echo "::error::fastlane/metadata/android/en-US/changelogs/${CODE}.txt is missing; Play would show no release notes."
             exit 1

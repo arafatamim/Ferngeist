@@ -8,14 +8,6 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// Release version. Bump versionName and versionCode together when cutting a
-// release, and tag the release commit as "v$versionName" — the tag, these
-// literals, and the GitHub release asset names ("Ferngeist-$versionName.apk")
-// must all agree. F-Droid's checkupdates parses these literal values, so
-// they MUST NOT be computed (e.g. via git describe).
-val appVersionName = "1.7.0"
-val appVersionCode = 1620
-
 val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.trim()?.replaceFirst(Regex("[\\\\/]+$"), "")
 val releaseKeystorePassword: String? = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias: String? = System.getenv("ANDROID_KEY_ALIAS")
@@ -51,8 +43,13 @@ android {
         applicationId = "com.tamimarafat.ferngeist"
         minSdk = 30
         targetSdk = 37
-        versionCode = 1619
-        versionName = "1.6.1"
+        // Release version. Bump versionName and versionCode together when cutting a
+        // release, and tag the release commit as "v$versionName" — the tag, these
+        // literals, and the GitHub release asset names ("Ferngeist-$versionName.apk")
+        // must all agree. F-Droid's checkupdates and release.yml parse these literal
+        // values, so they MUST NOT be computed (e.g. via git describe).
+        versionCode = 1620
+        versionName = "1.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
