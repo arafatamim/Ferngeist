@@ -51,6 +51,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
@@ -403,6 +405,7 @@ internal class SessionGateway(
         try {
             session
                 .prompt(blocks, clientId?.let(::clientIdMeta))
+                .answerProvesDelivery(bridge, clientId)
                 .deliveredOnce(bridge, clientId)
                 .collect { event -> forwardPromptEvent(bridge, event, clientId) }
         } catch (error: CancellationException) {
@@ -926,3 +929,34 @@ internal class AttachTiming(
         const val NANOS_PER_MS = 1_000_000L
     }
 }
+
+/** The agent answering proves it holds [clientId]'s prompt, even if the stream dies before its reply. */
+private fun Flow<Event>.answerProvesDelivery(
+    bridge: SessionBridge,
+    clientId: String?,
+): Flow<Event> =
+    if (clientId == null) {
+        this
+    } else {
+        flow {
+            var answered = false
+            collect { event ->
+                if (!answered && event.isAgentAnswer()) {
+                    answered = true
+                    bridge.emitEvent(AppSessionEvent.PromptDelivered(clientId))
+                }
+                emit(event)
+            }
+        }
+    }
+
+/** Only the agent working the turn sends these; commands, usage or mode updates can arrive unprompted. */
+private fun Event.isAgentAnswer(): Boolean =
+    when ((this as? Event.SessionUpdateEvent)?.update) {
+        is SessionUpdate.AgentMessageChunk,
+        is SessionUpdate.AgentThoughtChunk,
+        is SessionUpdate.ToolCall,
+        is SessionUpdate.ToolCallUpdate,
+        -> true
+        else -> false
+    }

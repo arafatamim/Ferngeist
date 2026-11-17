@@ -326,6 +326,57 @@ class ChatViewModelOfflineQueueTest : ChatViewModelTestBase() {
         }
 
     @Test
+    fun `a send whose connection drops after the agent took the prompt leaves no failed twin`() =
+        runTest {
+            val facadeFactory =
+                TestFacadeFactory {
+                    object : TestFacade(sendResult = false) {
+                        override suspend fun sendMessage(
+                            text: String,
+                            images: List<ChatImageData>,
+                            files: List<ChatFileData>,
+                            clientId: String,
+                            extras: PromptExtras,
+                        ): Boolean {
+                            val delivered = echoMessage(content = text, clientId = clientId)
+                            emitSnapshot(snapshotWithEcho(delivered.copy(deliveryConfirmed = true)))
+                            return false
+                        }
+                    }
+                }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+
+            viewModel.dispatch(ChatIntent.SendMessage("anything else?"))
+            facadeFactory.lastFacade.value?.emitSessionReady()
+            advanceUntilIdle()
+
+            assertEquals(emptyList<ChatMessage>(), viewModel.state.value.pendingMessages)
+        }
+
+    @Test
+    fun `a failed bubble clears once a reattach proves its prompt was delivered`() =
+        runTest {
+            val facadeFactory = TestFacadeFactory { TestFacade(sendResult = false) }
+            val viewModel = createViewModel(facadeFactory = facadeFactory)
+            advanceUntilIdle()
+            viewModel.dispatch(ChatIntent.SendMessage("anything else?"))
+            val facade = facadeFactory.lastFacade.value!!
+            facade.emitSessionReady()
+            advanceUntilIdle()
+            val failed =
+                viewModel.state.value.pendingMessages
+                    .single()
+            assertEquals(MessageDeliveryStatus.FAILED, failed.status)
+
+            val replayed = echoMessage(content = failed.content, clientId = failed.clientId)
+            facade.emitSnapshot(snapshotWithEcho(replayed.copy(deliveryConfirmed = true)))
+            advanceUntilIdle()
+
+            assertEquals(emptyList<ChatMessage>(), viewModel.state.value.pendingMessages)
+        }
+
+    @Test
     fun `SENDING bubble stays visible and is not removed by unrelated echo`() =
         runTest {
             val facadeFactory = TestFacadeFactory { TestFacade(sendResult = true) }

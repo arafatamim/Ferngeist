@@ -8,19 +8,26 @@ import com.tamimarafat.ferngeist.core.model.MessageDeliveryStatus
  * still pending and the echo id to client id map of the bubbles that were delivered.
  * A SENDING bubble is removed when a USER message carrying its client id appears in the snapshot,
  * because the echoed message in [messages] is the canonical delivery. Matching by id, not
- * content, keeps two identical prompts apart.
+ * content, keeps two identical prompts apart. A FAILED bubble whose prompt [messages] prove
+ * delivered goes too: its send lost only the reply (a dropped connection), so a retry would repeat it.
  */
 internal fun reconcileEchoes(
     pending: List<ChatMessage>,
     messages: List<ChatMessage>,
 ): Pair<List<ChatMessage>, Map<String, String>> {
-    val pendingSending = pending.filter { it.status == MessageDeliveryStatus.SENDING }
-    if (pendingSending.isEmpty()) return pending to emptyMap()
+    val live =
+        pending.filterNot { it.status == MessageDeliveryStatus.FAILED && messages.proveDelivered(it.clientId ?: it.id) }
+    val pendingSending = live.filter { it.status == MessageDeliveryStatus.SENDING }
+    if (pendingSending.isEmpty()) return live to emptyMap()
     val echoes = findEchoes(pendingSending, messages)
-    if (echoes.isEmpty()) return pending to emptyMap()
+    if (echoes.isEmpty()) return live to emptyMap()
     val echoedClientIds = echoes.values.toSet()
-    return pending.filterNot { (it.clientId ?: it.id) in echoedClientIds } to echoes
+    return live.filterNot { (it.clientId ?: it.id) in echoedClientIds } to echoes
 }
+
+/** True when the transcript holds [clientId]'s prompt as having reached the agent. */
+internal fun List<ChatMessage>.proveDelivered(clientId: String): Boolean =
+    any { it.role == ChatMessage.Role.USER && it.clientId == clientId && it.deliveryConfirmed }
 
 /** Echo message id to the client id of the pending bubble it delivers. */
 private fun findEchoes(

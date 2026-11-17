@@ -388,6 +388,30 @@ class SessionGatewayTest {
         }
 
     @Test
+    fun `a prompt the agent answered survives its stream dropping`() =
+        runTest {
+            val connection = newConnection()
+            val answer = SessionUpdate.AgentMessageChunk(content = ContentBlock.Text("on it"))
+            val dropped =
+                flow<Event> {
+                    emit(Event.SessionUpdateEvent(answer))
+                    throw java.io.IOException("connection reset")
+                }
+            val bridge = SessionBridge("s1", connection)
+            val registry = gatewayField(connection.sessions, "sessionRegistry") as AcpSessionRegistry
+            registry.storeBridge("s1", bridge)
+            registry.storeSdkSession("s1", FakeClientSession(listOf(dropped)))
+
+            val sent = runCatching { bridge.sendPrompt("go", clientId = "c1") }
+
+            assertTrue("the drop still fails the send", sent.isFailure)
+            val prompt =
+                bridge.snapshot.value.messages
+                    .single { it.role == ChatMessage.Role.USER }
+            assertTrue("the agent's answer proved delivery, so the rollback keeps it", prompt.deliveryConfirmed)
+        }
+
+    @Test
     fun `a turn the gateway reports ended on an earlier connection stops streaming`() =
         runTest {
             val gateway = newGateway()

@@ -435,7 +435,9 @@ class SessionRuntime(
     suspend fun onPromptSendFailed(clientId: String?) {
         mutex.withLock {
             debug { "onPromptSendFailed: finishing local streaming placeholder" }
-            val unsent = live.messages.filterNot { clientId != null && it.clientId == clientId }
+            // A delivered prompt stays: the stream died after the agent took it, so only its reply was lost.
+            val unsent =
+                live.messages.filterNot { clientId != null && it.clientId == clientId && !it.deliveryConfirmed }
             live =
                 live.copy(
                     messages = failUnfinishedToolCalls(SessionMessageReducer.finishStreaming(unsent)),

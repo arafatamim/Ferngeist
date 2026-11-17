@@ -18,6 +18,7 @@ import com.tamimarafat.ferngeist.core.model.promptResourceLinks
 import com.tamimarafat.ferngeist.feature.chat.ChatSessionCoordinator
 import com.tamimarafat.ferngeist.feature.chat.ChatState
 import com.tamimarafat.ferngeist.feature.chat.ChatViewModel
+import com.tamimarafat.ferngeist.feature.chat.pending.proveDelivered
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
@@ -278,7 +279,7 @@ internal class ChatOfflineQueueController(
      */
     private suspend fun settleDispatched(prompt: PendingPrompt) {
         val settled = state.first { !it.isStreaming && it.dropsRepeatPrompts != null }
-        val delivered = settled.messages.any { it.clientId == prompt.clientId && it.deliveryConfirmed }
+        val delivered = settled.messages.proveDelivered(prompt.clientId)
         offlineQueue.removeByClientId(prompt.clientId)
         when {
             delivered -> update { copy(pendingMessages = pendingMessages.filterNot { it.clientId == prompt.clientId }) }
@@ -307,7 +308,8 @@ internal class ChatOfflineQueueController(
         // A steering agent's next prompt may have dispatched meanwhile: its state is not ours to clear.
         if (inFlightClientId == prompt.clientId) inFlightClientId = null
         if (dispatchedPrompt?.clientId == prompt.clientId) dispatchedPrompt = null
-        if (!dispatched) {
+        // A send that failed after the agent took the prompt (a dropped connection) lost only its reply.
+        if (!dispatched && !state.value.messages.proveDelivered(prompt.clientId)) {
             // No bridge / not ready / unsupported -> mark FAILED immediately. The facade
             // has already reported the cause; a second generic error would replace it.
             // The runtime's local copy may already have reconciled the bubble away; the
