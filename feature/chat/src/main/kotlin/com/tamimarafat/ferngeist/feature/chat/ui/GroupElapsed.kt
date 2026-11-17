@@ -34,15 +34,15 @@ internal const val MS_PER_SECOND = 1000L
  */
 @Composable
 private fun rememberElapsedMs(startMs: Long?): Long? {
-    if (startMs == null) return null
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(startMs) {
+        val start = startMs ?: return@LaunchedEffect
         while (true) {
             now = SystemClock.elapsedRealtime()
-            delay(MS_PER_SECOND - (now - startMs).mod(MS_PER_SECOND))
+            delay(MS_PER_SECOND - (now - start).mod(MS_PER_SECOND))
         }
     }
-    return now - startMs
+    return startMs?.let { now - it }
 }
 
 /** The header's "1m 20s", and the spoken form TalkBack reads instead. */
@@ -56,8 +56,9 @@ internal fun rememberElapsedLabel(
     startedAtMs: Long?,
     live: Boolean,
 ): ElapsedLabel? {
-    if (!live) return null
-    val elapsed = rememberElapsedMs(startedAtMs)?.let(::elapsedOf) ?: return null
+    val elapsedMs = rememberElapsedMs(startedAtMs.takeIf { live })
+    if (!live || elapsedMs == null) return null
+    val elapsed = elapsedOf(elapsedMs) ?: return null
     return ElapsedLabel(
         text = formatElapsed(elapsed, MeasureFormat.FormatWidth.NARROW),
         description = formatElapsed(elapsed, MeasureFormat.FormatWidth.WIDE),
