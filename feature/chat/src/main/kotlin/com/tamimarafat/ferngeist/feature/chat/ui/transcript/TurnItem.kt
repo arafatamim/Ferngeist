@@ -73,23 +73,52 @@ internal fun LazyItemScope.TurnItem(
                     )
                 }
             }
-            val segments = remember(turn) { turn.segments }
-            turn.replies.forEachIndexed { index, reply ->
-                key(reply.id) {
-                    val closes = index == turn.replies.lastIndex
-                    CompositionLocalProvider(
-                        localWorkingTreeChanges provides if (closes) workingTree else emptyList(),
-                    ) {
-                        TurnBubble(
-                            reply,
-                            markdownDocuments,
-                            isLast && closes && reply.isStreaming,
-                            segments.takeIf { closes },
-                            onThoughtClick,
-                            onToolCallClick,
-                            onRetryMessage,
-                        )
-                    }
+            if (turn.replies.isNotEmpty()) {
+                TurnReplies(
+                    turn,
+                    isLast,
+                    markdownDocuments,
+                    workingTree,
+                    onThoughtClick,
+                    onToolCallClick,
+                    onRetryMessage,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Unspaced: each reply already ends on its last block's gap, so replies of one turn read as one
+ * transcript, not as bubbles with a wider seam after every split.
+ */
+@Composable
+private fun TurnReplies(
+    turn: Turn,
+    isLast: Boolean,
+    markdownDocuments: Map<String, MarkdownRenderedDocument>,
+    workingTree: List<ChatChangedFile>,
+    onThoughtClick: (String) -> Unit,
+    onToolCallClick: (String) -> Unit,
+    onRetryMessage: ((String) -> Unit)?,
+) {
+    val segments = remember(turn) { turn.segments }
+    Column {
+        turn.replies.forEachIndexed { index, reply ->
+            key(reply.id) {
+                val closes = index == turn.replies.lastIndex
+                CompositionLocalProvider(
+                    localWorkingTreeChanges provides if (closes) workingTree else emptyList(),
+                ) {
+                    TurnBubble(
+                        reply,
+                        markdownDocuments,
+                        isLast && closes && reply.isStreaming,
+                        segments.takeIf { closes },
+                        onThoughtClick,
+                        onToolCallClick,
+                        onRetryMessage,
+                    )
                 }
             }
         }
