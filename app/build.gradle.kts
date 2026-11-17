@@ -48,8 +48,8 @@ android {
         // literals, and the GitHub release asset names ("Ferngeist-$versionName.apk")
         // must all agree. F-Droid's checkupdates and release.yml parse these literal
         // values, so they MUST NOT be computed (e.g. via git describe).
-        versionCode = 1620
-        versionName = "1.7.0"
+        versionCode = 1621
+        versionName = "1.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
