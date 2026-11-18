@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tamimarafat.ferngeist.core.model.ChatMessage
+import com.tamimarafat.ferngeist.core.model.TurnKey
+import com.tamimarafat.ferngeist.feature.chat.promptKeys
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
@@ -23,7 +25,8 @@ private data class PhoneTurn(
     val serverId: String,
     val sessionId: String,
     val updatedAt: Long,
-    val promptIds: List<String>,
+    // Turn keys, not message ids: a reattached session replays the same prompts under new ids.
+    val prompts: List<TurnKey> = emptyList(),
 )
 
 /**
@@ -53,9 +56,9 @@ class PhoneTurnClock(
         serverId: String,
         sessionId: String,
         updatedAt: Long,
-        promptIds: Set<String>,
+        prompts: Set<TurnKey>,
     ) {
-        merge(PhoneTurn(serverId, sessionId, updatedAt, promptIds.toList()))
+        merge(PhoneTurn(serverId, sessionId, updatedAt, prompts.toList()))
         persist(now = updatedAt)
     }
 
@@ -68,7 +71,7 @@ class PhoneTurnClock(
         val before = turns[serverId to sessionId] ?: return
         val updatedAt = latestOwnTurnEnd(before, messages)
         if (updatedAt == before.updatedAt) return
-        merge(before.copy(updatedAt = updatedAt, promptIds = emptyList()))
+        merge(before.copy(updatedAt = updatedAt, prompts = emptyList()))
         persist(now)
     }
 
@@ -80,8 +83,8 @@ class PhoneTurnClock(
     private fun merge(turn: PhoneTurn) {
         turns.merge(turn.serverId to turn.sessionId, turn) { old, new ->
             // Only the newest prompts can still finish after the latest record; older turns ended before them.
-            val promptIds = (old.promptIds + new.promptIds).distinct().takeLast(PROMPT_IDS_KEPT)
-            old.copy(updatedAt = maxOf(old.updatedAt, new.updatedAt), promptIds = promptIds)
+            val prompts = (old.prompts + new.prompts).distinct().takeLast(PROMPTS_KEPT)
+            old.copy(updatedAt = maxOf(old.updatedAt, new.updatedAt), prompts = prompts)
         }
     }
 
@@ -107,7 +110,7 @@ class PhoneTurnClock(
 
     private companion object {
         val keyTurns = stringPreferencesKey("turns")
-        const val PROMPT_IDS_KEPT = 8
+        const val PROMPTS_KEPT = 8
     }
 }
 
@@ -115,10 +118,11 @@ private fun latestOwnTurnEnd(
     turn: PhoneTurn,
     messages: List<ChatMessage>,
 ): Long {
+    val keys = messages.promptKeys()
     var ownPrompt = false
     var updatedAt = turn.updatedAt
     for (message in messages) {
-        if (message.role == ChatMessage.Role.USER) ownPrompt = message.id in turn.promptIds
+        if (message.role == ChatMessage.Role.USER) ownPrompt = keys[message.id] in turn.prompts
         if (ownPrompt && message.role == ChatMessage.Role.ASSISTANT) {
             message.turn?.let { updatedAt = maxOf(updatedAt, it.finishedAt) }
         }

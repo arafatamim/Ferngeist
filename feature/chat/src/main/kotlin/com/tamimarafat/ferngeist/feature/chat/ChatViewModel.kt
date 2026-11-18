@@ -539,7 +539,8 @@ class ChatViewModel
             // Only a phone-origin echo advances this clock; completion can arrive after the screen closes.
             if (echoKeys.isNotEmpty()) {
                 durableSessionId?.let {
-                    stores.phoneTurns.record(serverId, it, System.currentTimeMillis(), echoKeys.keys)
+                    val prompts = snapshot.messages.promptKeys().filterKeys(echoKeys::containsKey)
+                    stores.phoneTurns.record(serverId, it, System.currentTimeMillis(), prompts.values.toSet())
                 }
             }
             durableSessionId?.let {

@@ -20,6 +20,12 @@ internal fun List<ChatMessage>.turnKeys(): Map<String, TurnKey> {
     return replies.entries.associate { (key, id) -> id to key }
 }
 
+/** Each prompt, by id, to its turn: the key a replay gives the same prompt under a new id. */
+internal fun List<ChatMessage>.promptKeys(): Map<String, TurnKey> =
+    filter { it.role == ChatMessage.Role.USER }
+        .withIndex()
+        .associate { (index, prompt) -> prompt.id to TurnKey(index, prompt.content.trim().hashCode()) }
+
 /** Puts [stored] times back on replies a replay brought back without them. */
 internal fun List<ChatMessage>.withStoredTurns(
     keys: Map<String, TurnKey>,

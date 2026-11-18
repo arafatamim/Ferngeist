@@ -63,6 +63,7 @@ data class TurnTiming(
  * history carries new message ids, so a turn is found again by position, and the hash keeps a
  * replay that numbers its prompts differently from claiming another turn's time.
  */
+@Serializable
 data class TurnKey(
     val index: Int,
     val promptHash: Int,
