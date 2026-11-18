@@ -142,5 +142,6 @@ sealed interface ChatIntent {
     data class CloseSession(
         val serverId: String,
         val sessionId: String,
+        val onFailure: () -> Unit,
     ) : ChatIntent
 }

@@ -111,7 +111,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             advanceUntilIdle()
             assertEquals(2, viewModel.switcherUiState.first { it.liveTotalCount == 2 }.liveTotalCount)
 
-            viewModel.dispatch(ChatIntent.CloseSession(serverId = "srvA", sessionId = "other"))
+            viewModel.dispatch(ChatIntent.CloseSession(serverId = "srvA", sessionId = "other") {})
             advanceUntilIdle()
 
             // The gateway DELETE carries the closed session's own runtime id and the
@@ -149,7 +149,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             val effects = mutableListOf<ChatEffect>()
             val collector = launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.effects.toList(effects) }
             viewModel.switcherUiState.first { it.liveTotalCount == 3 }
-            viewModel.dispatch(ChatIntent.CloseSession("srvA", "mine"))
+            viewModel.dispatch(ChatIntent.CloseSession("srvA", "mine") {})
             advanceUntilIdle()
             assertEquals(
                 "newer",
@@ -192,7 +192,8 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
             val effects = mutableListOf<ChatEffect>()
             val collector =
                 launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.effects.toList(effects) }
-            viewModel.dispatch(ChatIntent.CloseSession(serverId = "srvA", sessionId = "busy"))
+            var closeFailed = false
+            viewModel.dispatch(ChatIntent.CloseSession(serverId = "srvA", sessionId = "busy") { closeFailed = true })
             advanceUntilIdle()
             collector.cancel()
 
@@ -202,6 +203,7 @@ class ChatViewModelSwitcherTest : ChatViewModelTestBase() {
                     .map { it.message }
                     .firstOrNull { it.startsWith("This session is still responding") }
             assertNotNull(refusal)
+            assertTrue(closeFailed)
             assertTrue(gateway.closedSessions.isEmpty())
             assertEquals(2, viewModel.switcherUiState.first { it.liveTotalCount == 2 }.liveTotalCount)
             viewModel.clearForTest()

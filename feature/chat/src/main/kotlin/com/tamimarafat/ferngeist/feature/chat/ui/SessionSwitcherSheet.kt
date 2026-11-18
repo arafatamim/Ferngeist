@@ -61,6 +61,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -112,6 +113,7 @@ import com.tamimarafat.ferngeist.feature.chat.SwitcherGroup
 import com.tamimarafat.ferngeist.feature.chat.SwitcherSession
 import com.tamimarafat.ferngeist.feature.chat.SwitcherUiState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
@@ -120,9 +122,6 @@ import kotlin.math.abs
  * slightly under the pill height (centered by the host row).
  */
 private val switcherBubbleOpticalInset = 2.dp
-
-/** How long a dismissed row waits for the model to drop it before springing back. */
-private const val DISMISS_REMOVE_GRACE_MS = 600L
 
 /** Spring the switcher rows and containers share when a row leaves the list. */
 private fun <T> switcherShiftSpring() =
@@ -498,7 +497,7 @@ private fun SwitcherHintBubble(modifier: Modifier = Modifier) {
 internal fun SessionSwitcherSheet(
     uiState: SwitcherUiState,
     onSwitch: (SwitcherSession) -> Unit,
-    onClose: (SwitcherSession) -> Unit,
+    onClose: (SwitcherSession, () -> Unit) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -562,7 +561,7 @@ private fun SwitcherProjectGroup(
     group: SwitcherGroup,
     lookaheadScope: LookaheadScope,
     onSwitch: (SwitcherSession) -> Unit,
-    onClose: (SwitcherSession) -> Unit,
+    onClose: (SwitcherSession, () -> Unit) -> Unit,
     onCurrentClick: () -> Unit,
 ) {
     Column(
@@ -587,7 +586,7 @@ private fun SwitcherProjectGroup(
                     session = session,
                     lookaheadScope = lookaheadScope,
                     onSwitch = { onSwitch(session) },
-                    onClose = { onClose(session) },
+                    onClose = { onFailure -> onClose(session, onFailure) },
                     onCurrentClick = onCurrentClick,
                 )
             }
@@ -600,27 +599,23 @@ private fun SwitcherRow(
     session: SwitcherSession,
     lookaheadScope: LookaheadScope,
     onSwitch: () -> Unit,
-    onClose: () -> Unit,
+    onClose: (() -> Unit) -> Unit,
     onCurrentClick: () -> Unit,
 ) {
     val rowPadding = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
     // Swipe either way to release the session. Material3 leaves a dismissed row
-    // off-screen (and gesture-disabled) until it is reset, so put it back here: the
-    // list is driven by live hub state, and the row must disappear through the model
-    // — which also means a refused close springs back into place instead of leaving
+    // off-screen (and gesture-disabled) until it is reset. The list is driven by live
+    // hub state, so only a refused close springs back into place instead of leaving
     // a blank slot. No background: the gesture is the affordance, and a label there
     // would be noise.
     val dismissState = rememberSwipeToDismissBoxState()
-    LaunchedEffect(dismissState.settledValue, onClose) {
+    val scope = rememberCoroutineScope()
+    val currentOnClose by rememberUpdatedState(onClose)
+    LaunchedEffect(dismissState.settledValue) {
         if (dismissState.settledValue != SwipeToDismissBoxValue.Settled) {
-            onClose()
-            // Give the model a beat to drop the row: a successful close removes it
-            // from the list, which disposes this effect before the reset — the card
-            // pops out while still off-screen, no bounce. Still here after the grace
-            // (refused or slow close) means spring it back instead of leaving a blank
-            // slot. Resetting immediately bounces the card home before the removal.
-            delay(DISMISS_REMOVE_GRACE_MS)
-            dismissState.reset()
+            // A successful close can take arbitrarily long to reach the list; reset
+            // only when the model reports a refusal or failure.
+            currentOnClose { scope.launch { dismissState.reset() } }
         }
     }
     // animateBounds FLIPs this row into the slot its predecessor vacates. The padding

@@ -731,6 +731,7 @@ class ChatViewModel
             val next = rows.filterNot { it.isCurrent }.maxByOrNull { it.updatedAt ?: Long.MIN_VALUE }
             val message = switcherController.close(intent.serverId, intent.sessionId)
             if (message != null) {
+                intent.onFailure()
                 emitEffect(ChatEffect.ShowError(message))
             } else if (closingCurrent) {
                 emitEffect(next?.let { ChatEffect.SwitchSession(it) } ?: ChatEffect.NavigateBack)
