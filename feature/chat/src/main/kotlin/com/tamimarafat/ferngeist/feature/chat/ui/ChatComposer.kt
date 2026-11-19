@@ -439,6 +439,10 @@ private fun ComposerContentRow(
                             // it already is. Left bounded, the two lock at whichever
                             // width the first frame happened to measure.
                             .wrapContentWidth(unbounded = true)
+                            // Capped at the panel's maximum instead, so a bar with more
+                            // actions than room shrinks its mode label rather than
+                            // overflowing the pill on both sides.
+                            .widthIn(max = expandedWidth)
                     },
                 )
                 // Placed before the padding so it reports the padded width, which
@@ -743,7 +747,7 @@ private fun ExpandedComposerBottomBar(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun CollapsedComposerActions(
+internal fun RowScope.CollapsedComposerActions(
     state: ChatState,
     toolbarConfigOptions: List<ChatConfigOption>,
     buttonsAlpha: () -> Float,
@@ -771,7 +775,9 @@ internal fun CollapsedComposerActions(
 ) {
     if (showModeButton && modeOption != null) {
         ModeMenuButton(
-            modifier = Modifier.graphicsLayer { alpha = buttonsAlpha() },
+            // Weighted so the fixed-size actions are measured first and the label takes
+            // what is left, ellipsizing on a narrow bar.
+            modifier = Modifier.weight(1f, fill = false).graphicsLayer { alpha = buttonsAlpha() },
             currentModeLabel = currentModeLabel,
             modeOption = modeOption,
             maxWidth = collapsedMaxToolbarWidth * 0.45f,
